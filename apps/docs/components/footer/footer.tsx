@@ -8,7 +8,7 @@ import { SIM_SITE_URL } from '@/lib/urls'
  * footer (`apps/sim/app/(landing)/components/footer`), ported here so both
  * apps share one consistent footer. Links that live on sim.ai are absolute
  * (docs.sim.ai is a different origin); links that live on docs.sim.ai itself
- * (Academy, API Reference, blocks, integrations guides, …) stay relative.
+ * (API Reference, blocks, integrations guides, …) stay relative.
  */
 
 const LINK_CLASS =
@@ -28,14 +28,13 @@ const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Tables', href: '/tables' },
   { label: 'MCP', href: '/agents/mcp' },
   { label: 'API', href: '/api-reference/getting-started' },
-  { label: 'Self Hosting', href: '/platform/self-hosting' },
+  { label: 'Self-hosting', href: '/platform/self-hosting' },
   { label: 'Status', href: 'https://status.sim.ai', external: true },
 ]
 
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: `${SIM_SITE_URL}/blog`, external: true },
-  { label: 'Academy', href: '/academy' },
-  { label: 'Compare', href: `${SIM_SITE_URL}/comparison`, external: true },
+  { label: 'Compare', href: `${SIM_SITE_URL}/comparisons`, external: true },
   { label: 'Careers', href: `${SIM_SITE_URL}/careers`, external: true },
   { label: 'Changelog', href: `${SIM_SITE_URL}/changelog`, external: true },
   { label: 'Contact', href: `${SIM_SITE_URL}/contact`, external: true },
@@ -43,7 +42,7 @@ const RESOURCES_LINKS: FooterItem[] = [
 
 /** Top model providers — mirrors the landing footer's top 7 catalog providers. */
 const MODEL_LINKS: FooterItem[] = [
-  { label: 'All Models', href: `${SIM_SITE_URL}/models`, external: true },
+  { label: 'All models', href: `${SIM_SITE_URL}/models`, external: true },
   { label: 'OpenAI', href: `${SIM_SITE_URL}/models/openai`, external: true },
   { label: 'Anthropic', href: `${SIM_SITE_URL}/models/anthropic`, external: true },
   { label: 'Google', href: `${SIM_SITE_URL}/models/google`, external: true },
@@ -58,7 +57,7 @@ const BLOCK_LINKS: FooterItem[] = [
   { label: 'Router', href: '/workflows/blocks/router' },
   { label: 'Function', href: '/workflows/blocks/function' },
   { label: 'Condition', href: '/workflows/blocks/condition' },
-  { label: 'API Block', href: '/workflows/blocks/api' },
+  { label: 'API', href: '/workflows/blocks/api' },
   { label: 'Workflow', href: '/workflows/blocks/workflow' },
   { label: 'Parallel', href: '/workflows/blocks/parallel' },
   { label: 'Guardrails', href: '/workflows/blocks/guardrails' },
@@ -67,7 +66,7 @@ const BLOCK_LINKS: FooterItem[] = [
 ]
 
 const INTEGRATION_LINKS: FooterItem[] = [
-  { label: 'All Integrations', href: `${SIM_SITE_URL}/integrations`, external: true },
+  { label: 'All integrations', href: `${SIM_SITE_URL}/integrations`, external: true },
   { label: 'Slack', href: '/integrations/slack' },
   { label: 'GitHub', href: '/integrations/github' },
   { label: 'Gmail', href: '/integrations/gmail' },
@@ -99,8 +98,8 @@ const SOCIAL_LINKS: FooterItem[] = [
 ]
 
 const LEGAL_LINKS: FooterItem[] = [
-  { label: 'Terms of Service', href: `${SIM_SITE_URL}/terms`, external: true },
-  { label: 'Privacy Policy', href: `${SIM_SITE_URL}/privacy`, external: true },
+  { label: 'Terms of service', href: `${SIM_SITE_URL}/terms`, external: true },
+  { label: 'Privacy policy', href: `${SIM_SITE_URL}/privacy`, external: true },
 ]
 
 function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) {

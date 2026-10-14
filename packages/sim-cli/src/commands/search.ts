@@ -127,7 +127,7 @@ export function searchCommands(program: Command, query: string, exclude: Command
 
 export function searchCommand(): Command {
   return new Command('search')
-    .description('Find the command for a task, described in plain words')
+    .description('Find commands for a task')
     .argument('<query...>', 'What you want to do, e.g. "cancel a workflow run"')
     .addHelpText(
       'after',

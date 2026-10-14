@@ -17,10 +17,6 @@ export { cn } from '@sim/emcn'
  * - Otherwise falls back to local static assets served from root path
  */
 export function getAssetUrl(filename: string) {
-  // Absolute URLs (e.g. blob-hosted academy videos) are already complete.
-  if (/^https?:\/\//.test(filename)) {
-    return filename
-  }
   const cdnBaseUrl = process.env.NEXT_PUBLIC_BLOB_BASE_URL
   if (cdnBaseUrl) {
     return `${cdnBaseUrl}/${filename}`

@@ -1,5 +1,6 @@
-import { dbChainMockFns } from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { billingStorageMock } from '@sim/testing/mocks/billing-storage.mock'
+import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
 import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
@@ -9,16 +10,7 @@ import {
 } from '@sim/testing/mocks/workspace-file-folders.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => {
-  const values = vi.fn()
-  const insert = vi.fn(() => ({
-    values: (metadata: Record<string, unknown>) => {
-      values(metadata)
-      return { onConflictDoNothing: () => ({ returning: async () => [metadata] }) }
-    },
-  }))
-  return { values, insert }
-})
+vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 vi.mock('@/lib/billing/storage', () => billingStorageMock)
 vi.mock('@/lib/folders/locks', () => ({ acquireFolderMutationLock: vi.fn() }))
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
@@ -41,11 +33,12 @@ workspaceFileFoldersMockFns.mockNormalizeWorkspaceFileItemName.mockImplementatio
 const mockUpload = storageServiceMockFns.mockUploadFile
 
 beforeEach(() => {
-  dbChainMockFns.transaction.mockImplementation(
-    async (run: (tx: { insert: typeof mocks.insert }) => Promise<unknown>) =>
-      run({ insert: mocks.insert })
-  )
-  mockUpload.mockImplementation(async ({ fileName }: { fileName: string }) => ({ key: fileName }))
+  resetDbChainMock()
+  dbChainMockFns.returning.mockImplementation(async () => {
+    const metadata = dbChainMockFns.values.mock.calls.at(-1)?.[0]
+    return metadata ? [metadata] : []
+  })
+  mockUpload.mockImplementation(async ({ customKey }) => ({ key: customKey }))
 })
 
 it('registers agent-authored Page source as a native Page and preserves editable source', async () => {
@@ -68,7 +61,7 @@ it('registers agent-authored Page source as a native Page and preserves editable
     type: SIM_PAGE_CONTENT_TYPE,
     size: bytes.length,
   })
-  expect(mocks.values).toHaveBeenCalledWith(
+  expect(dbChainMockFns.values).toHaveBeenCalledWith(
     expect.objectContaining({ originalName: 'Team handbook', contentType: SIM_PAGE_CONTENT_TYPE })
   )
   expect(mockUpload).toHaveBeenCalledWith(
@@ -83,7 +76,7 @@ it('keeps a complete HTML document as HTML rather than mislabeling it a native P
     exactName: true,
   })
   expect(file).toMatchObject({ name: 'report.html', type: 'text/html' })
-  expect(mocks.values).toHaveBeenCalledWith(
+  expect(dbChainMockFns.values).toHaveBeenCalledWith(
     expect.objectContaining({ originalName: 'report.html', contentType: 'text/html' })
   )
 })

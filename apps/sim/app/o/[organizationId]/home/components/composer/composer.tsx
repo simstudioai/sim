@@ -366,6 +366,7 @@ export function Composer({
         <InputToolbar
           /** Search answers from indexed sources, so no model, speed or effort applies to it. */
           showModelSelector={!imagesOnly}
+          plan={requestMode === 'plan'}
           leadingControls={leadingControls}
           voiceControl={voiceControl}
           submitControl={submitControl}

@@ -11,6 +11,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   adoptOrganizationSlackMemberApp,
   loadOrganizationSlackMemberApps,
+  lockOrganizationSlackApp,
 } from '@/lib/credential-groups/organization-slack-app'
 import { configureSharedSlackMemberApp } from '@/lib/credential-groups/shared-slack-app'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -31,7 +32,10 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
-import { slackBotCredentialVersion } from '@/lib/slack-search/app-configuration'
+import {
+  ensureSharedSlackAppRow,
+  slackBotCredentialVersion,
+} from '@/lib/slack-search/app-configuration'
 import { SLACK_SEARCH_SCOPES, SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 import { createSlackSearchManifest, SLACK_SEARCH_CALLBACK_PATH } from '@/lib/slack-search/manifest'
 import {
@@ -294,6 +298,7 @@ async function saveInstallation(
     })
   )
   await db.transaction(async (tx) => {
+    await lockOrganizationSlackApp(tx, attempt.organizationId)
     /** Serialize app/workspace installs before checking ownership or inserting missing rows. */
     await acquireAdvisoryXactLock(tx, 'slack_search', `slack-search:${identity.teamId}`)
     await acquireAdvisoryXactLock(tx, 'slack_app', `slack-app:${identity.appId}`)
@@ -418,16 +423,7 @@ async function saveInstallation(
     }
     const appRevision = attempt.sharedApp?.revision ?? generateId()
     if (attempt.sharedApp) {
-      /** The row supplies foreign-key identity only; shared secrets remain in the environment. */
-      await tx
-        .insert(slackApp)
-        .values({
-          id: identity.appId,
-          kind: 'shared',
-          organizationId: null,
-          revision: appRevision,
-        })
-        .onConflictDoNothing()
+      await ensureSharedSlackAppRow(tx, { id: identity.appId, revision: appRevision })
     } else {
       const appValues = {
         id: identity.appId,

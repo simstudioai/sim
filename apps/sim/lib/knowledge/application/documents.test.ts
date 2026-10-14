@@ -68,6 +68,27 @@ vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+/** Chat's verdicts come from a stand-in gate (refusing `withheld-*` ids); other callers run the real helper. */
+vi.mock('@/lib/knowledge/application/admit-knowledge-content', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/knowledge/application/admit-knowledge-content')>()
+  const delivery =
+    await vi.importActual<typeof import('@/lib/core/application')>('@/lib/core/application')
+  return {
+    ...original,
+    admitKnowledgeDocuments: async (
+      principal: Parameters<typeof original.admitKnowledgeDocuments>[0],
+      documents: Parameters<typeof original.admitKnowledgeDocuments>[1]
+    ) => {
+      if (!delivery.isCopilotPrincipal(principal)) {
+        return original.admitKnowledgeDocuments(principal, documents)
+      }
+      await delivery.admitContent(principal, [])
+      return new Set(documents.map((doc) => doc.id).filter((id) => !id.startsWith('withheld-')))
+    },
+  }
+})
+
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {

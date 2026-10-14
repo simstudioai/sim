@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
 import {
   type ActiveWorkspaceFileContext,
   loadActiveWorkspaceFileContext,
@@ -44,14 +45,15 @@ function isOwnedFilePrincipal(principal: Principal): boolean {
  */
 export async function assertOwnedFileAccess(
   principal: Principal,
-  context: ActiveWorkspaceFileContext
+  context: ActiveWorkspaceFileContext,
+  executor?: DbOrTx
 ): Promise<void> {
   const kind = ownedFileKind(context.fileContext)
   if (!kind) return
   if (!isOwnedFilePrincipal(principal)) {
     throw new OrchestrationError('not_found', 'File not found')
   }
-  await kind.assertOwnerAccess(context.fileId, context.workspaceOrganizationId)
+  await kind.assertOwnerAccess(context.fileId, context.workspaceOrganizationId, executor)
 }
 
 export async function resolveActiveWorkspaceFileContext(

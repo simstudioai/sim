@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { ORGANIZATION_SETTINGS_GROUPS } from '@/components/settings/navigation'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { useSession } from '@/lib/auth/auth-client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import {
   hasPaidSubscriptionStatus,
@@ -17,6 +18,7 @@ import {
   resolveOrganizationSurfaceSection,
 } from '@/app/o/[organizationId]/settings/navigation'
 import { warmOrganizationSettingsSectionQuery } from '@/app/o/[organizationId]/settings/settings-query-warmers'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 
 interface OrganizationSettingsSidebarProps {
@@ -27,7 +29,9 @@ interface OrganizationSettingsSidebarProps {
 export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarProps) {
   const { organization, viewer, connectedAccountsAvailable, searchAccess, settingsFeatures } =
     useOrganizationContext()
+  const knowledgeGraphs = useFeatureFlag('mothership-memory-spaces')
   const pathname = usePathname()
+  const { data: session } = useSession()
   const queryClient = useQueryClient()
   const refreshPlan = viewer.isAdmin && settingsFeatures.hosted && settingsFeatures.billingEnabled
   const { data: summary, error } = useOrganizationBillingSummary(organization.id, {
@@ -65,10 +69,16 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
       plane='organization'
       activeSection={resolveOrganizationSurfaceSection(pathname ?? '')?.section ?? 'general'}
       groups={ORGANIZATION_SETTINGS_GROUPS}
-      items={organizationSurfaceSettingsNavigation(isAdmin, features, {
-        connectedAccounts: connectedAccountsAvailable,
-        search: searchAccess.memberScoped,
-      })}
+      items={organizationSurfaceSettingsNavigation(
+        isAdmin,
+        features,
+        {
+          connectedAccounts: connectedAccountsAvailable,
+          search: searchAccess.memberScoped,
+          knowledgeGraphs,
+        },
+        session?.user?.role === 'admin'
+      )}
       hrefForSection={(section) => routes.settingsSection(section)}
       onSectionIntent={(section) =>
         warmOrganizationSettingsSectionQuery(

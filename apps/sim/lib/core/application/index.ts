@@ -61,3 +61,26 @@ export {
   type WorkspaceOperation,
 } from '@/lib/core/application/workspace-operation'
 export { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+export {
+  admitContent,
+  admitEach,
+  admitWrittenContent,
+  type ContentDeliveryDeclaration,
+  type ContentDeliveryGate,
+  ContentDeliveryUnobservedError,
+  ContentGateFailure,
+  type ContentProvenance,
+  ContentRefusedError,
+  type ContentSource,
+  type ContentSourceKind,
+  type ContentView,
+  isCopilotPrincipal,
+  mustClassifyContent,
+  noteContentDeliveryOperation,
+  observeContentDelivery,
+  observeContentOutsideModel,
+  redactBeforeCutting,
+  requireAdmittedContent,
+  runDeclaredContentOperation,
+  trackContentDelivery,
+} from './content-delivery'

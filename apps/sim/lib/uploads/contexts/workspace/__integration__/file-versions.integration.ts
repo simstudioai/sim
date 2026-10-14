@@ -3,12 +3,14 @@ import { mkdtempSync } from 'node:fs'
 import { access, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { inspect } from 'node:util'
 import { db, dbFor } from '@sim/db'
 import {
   organization,
   outboxEvent,
   permissions,
   user,
+  workflowTest,
   workspace,
   workspaceFileSecretProvenance,
   workspaceFiles,
@@ -17,6 +19,7 @@ import {
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -28,16 +31,20 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
+import * as storageBilling from '@/lib/billing/storage'
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
+  createOwnedWorkspaceFile,
   deleteWorkspaceFileVersion,
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
@@ -50,6 +57,7 @@ import {
   replaceWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
@@ -57,13 +65,8 @@ import {
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
-import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
-import {
-  downloadWorkspaceFileVersion,
-  readWorkspaceFileVersionText,
-  revertWorkspaceFileVersion,
-} from '@/lib/workspace-files/application/file-versions'
+import * as storageService from '@/lib/uploads/core/storage-service'
+import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
@@ -163,11 +166,294 @@ describe('workspace file version history in PostgreSQL', () => {
     } finally {
       release.resolve()
       await blocker
-      expect(
-        (await Promise.all(pending)).flat().filter((result) => result.status === 'rejected')
-      ).toEqual([])
+      const rejected = (await Promise.all(pending))
+        .flat()
+        .filter((result) => result.status === 'rejected')
+      expect(rejected, inspect(rejected, { depth: 8 })).toEqual([])
     }
   }
+
+  it.each([
+    { phase: 'upload', deleteUnavailable: false },
+    { phase: 'content', deleteUnavailable: false },
+    { phase: 'storage', deleteUnavailable: false },
+    { phase: 'content', deleteUnavailable: true },
+  ] as const)(
+    'preserves the original $phase failure and cleans uncommitted bytes when possible (delete unavailable=$deleteUnavailable)',
+    async ({ phase, deleteUnavailable }) => {
+      const fixture = await seedFile('original')
+      const operationError = new OrchestrationError('conflict', 'Staged operation failed')
+      const deleteFailure = deleteUnavailable
+        ? vi
+            .spyOn(storageService, 'deleteFile')
+            .mockRejectedValueOnce(new Error('Storage unavailable'))
+        : null
+      const enqueue = storageCleanup.enqueueWorkspaceFileStorageCleanups
+      const enqueueFailure = vi
+        .spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups')
+        .mockImplementation((executor, ...args) =>
+          executor === db
+            ? Promise.reject(new Error('Cleanup database unavailable'))
+            : enqueue(executor, ...args)
+        )
+      const upload = storageService.uploadFile
+      let stagedKey = ''
+      const uploadFailure = vi
+        .spyOn(storageService, 'uploadFile')
+        .mockImplementation(async (args) => {
+          const result = await upload(args)
+          stagedKey = result.key
+          if (phase === 'storage') throw operationError
+          return result
+        })
+      const accountingFailure =
+        phase === 'storage'
+          ? null
+          : vi
+              .spyOn(storageBilling, 'prepareFileAccountingInTx')
+              .mockRejectedValueOnce(operationError)
+      try {
+        const operation =
+          phase === 'content'
+            ? updateWorkspaceFileContent(
+                fixture.workspaceId,
+                fixture.fileId,
+                fixture.aliceId,
+                Buffer.from('replacement with more bytes'),
+                undefined,
+                { version: { source: 'api', authorUserId: fixture.aliceId } }
+              )
+            : uploadWorkspaceFile(
+                fixture.workspaceId,
+                fixture.aliceId,
+                Buffer.from('new upload'),
+                'failed.txt',
+                'text/plain',
+                { notifyWorkspaceChange: false }
+              )
+        await expect(operation).rejects.toBe(operationError)
+      } finally {
+        deleteFailure?.mockRestore()
+        accountingFailure?.mockRestore()
+        uploadFailure.mockRestore()
+        enqueueFailure.mockRestore()
+      }
+      expect(stagedKey).not.toBe('')
+      expect(await objectExists(stagedKey)).toBe(deleteUnavailable)
+      const retained = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+      if (!retained) throw new Error('file missing')
+      expect((await fetchWorkspaceFileBuffer(retained, { maxBytes: 1024 })).toString()).toBe(
+        'original'
+      )
+      expect(
+        await db
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.key, stagedKey))
+      ).toEqual([])
+    }
+  )
+
+  it.each(['upload', 'content'] as const)(
+    'cleans staged %s bytes when PostgreSQL rejects COMMIT after the callback completes',
+    async (operation) => {
+      const fixture = await seedFile('original')
+      const [before] = await db
+        .select()
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      const triggerName = sql.identifier(`reject_commit_${generateId().replaceAll('-', '')}`)
+      await db.execute(sql`CREATE FUNCTION ${triggerName}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.workspace_id = TG_ARGV[0] THEN
+            RAISE EXCEPTION 'Deferred file constraint rejected COMMIT' USING ERRCODE = '23514';
+          END IF;
+          RETURN NEW;
+        END;
+      $$`)
+      await db.execute(sql`CREATE CONSTRAINT TRIGGER ${triggerName}
+        AFTER INSERT OR UPDATE ON ${workspaceFiles} DEFERRABLE INITIALLY DEFERRED
+        FOR EACH ROW EXECUTE FUNCTION ${triggerName}(${sql.raw(`'${fixture.workspaceId}'`)})`)
+      const transaction = db.transaction.bind(db)
+      let callbackCompleted = false
+      const observeCallback = vi
+        .spyOn(db, 'transaction')
+        .mockImplementationOnce((callback, config) =>
+          transaction(async (tx) => {
+            const result = await callback(tx)
+            callbackCompleted = true
+            return result
+          }, config)
+        )
+      const upload = storageService.uploadFile
+      let stagedKey = ''
+      const capture = vi.spyOn(storageService, 'uploadFile').mockImplementation(async (args) => {
+        const result = await upload(args)
+        stagedKey = result.key
+        return result
+      })
+      try {
+        const result =
+          operation === 'content'
+            ? updateWorkspaceFileContent(
+                fixture.workspaceId,
+                fixture.fileId,
+                fixture.aliceId,
+                Buffer.from('rejected replacement content'),
+                undefined,
+                { version: { source: 'api', authorUserId: fixture.aliceId } }
+              )
+            : uploadWorkspaceFile(
+                fixture.workspaceId,
+                fixture.aliceId,
+                Buffer.from('rejected upload'),
+                'rejected.txt',
+                'text/plain',
+                { notifyWorkspaceChange: false }
+              )
+        const rejection = await result.catch((error: unknown) => error)
+        expect(getPostgresErrorCode(rejection)).toBe('23514')
+        expect(callbackCompleted).toBe(true)
+      } finally {
+        capture.mockRestore()
+        observeCallback.mockRestore()
+        await db.execute(sql`DROP TRIGGER ${triggerName} ON ${workspaceFiles}`)
+        await db.execute(sql`DROP FUNCTION ${triggerName}()`)
+      }
+      expect(stagedKey).not.toBe('')
+      expect(
+        await db
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.key, stagedKey))
+      ).toEqual([])
+      const [after] = await db.select().from(workspace).where(eq(workspace.id, fixture.workspaceId))
+      expect(after.storageUsedBytes).toBe(before.storageUsedBytes)
+      expect(await versionRows(fixture.fileId)).toEqual([])
+      const retained = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+      if (!retained) throw new Error('original file missing')
+      expect((await fetchWorkspaceFileBuffer(retained, { maxBytes: 1024 })).toString()).toBe(
+        'original'
+      )
+      expect(await objectExists(stagedKey)).toBe(false)
+      expect(
+        await db
+          .select({ id: outboxEvent.id })
+          .from(outboxEvent)
+          .where(
+            and(
+              eq(outboxEvent.eventType, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT),
+              sql`${outboxEvent.payload}->>'key' = ${stagedKey}`
+            )
+          )
+      ).toHaveLength(1)
+    }
+  )
+
+  it.each([
+    { operation: 'owned', enqueueAvailable: true, code: 'CONNECTION_CLOSED' },
+    { operation: 'upload', enqueueAvailable: true, code: undefined },
+    { operation: 'content', enqueueAvailable: true, code: undefined },
+    { operation: 'upload', enqueueAvailable: false, code: undefined },
+    { operation: 'content', enqueueAvailable: false, code: undefined },
+    { operation: 'content', enqueueAvailable: true, code: '40003' },
+    { operation: 'upload', enqueueAvailable: false, code: 'CONNECTION_CLOSED' },
+  ] as const)(
+    'retains committed $operation bytes after acknowledgement loss (cleanup database available=$enqueueAvailable, code=$code)',
+    async ({ operation, enqueueAvailable, code }) => {
+      const fixture = await seedFile('original')
+      const transaction = db.transaction.bind(db)
+      const lostAcknowledgement = vi
+        .spyOn(db, 'transaction')
+        .mockImplementationOnce(async (callback, config) => {
+          await transaction(callback, config)
+          throw Object.assign(new Error('Commit acknowledgement lost'), { code })
+        })
+      const enqueue = storageCleanup.enqueueWorkspaceFileStorageCleanups
+      const enqueueFailure = vi
+        .spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups')
+        .mockImplementation((executor, ...args) =>
+          !enqueueAvailable && executor === db
+            ? Promise.reject(new Error('Cleanup database unavailable'))
+            : enqueue(executor, ...args)
+        )
+      const upload = storageService.uploadFile
+      let stagedKey = ''
+      const capture = vi.spyOn(storageService, 'uploadFile').mockImplementation(async (args) => {
+        const result = await upload(args)
+        stagedKey = result.key
+        return result
+      })
+      try {
+        const result =
+          operation === 'owned'
+            ? createOwnedWorkspaceFile({
+                context: 'test',
+                workspaceId: fixture.workspaceId,
+                userId: fixture.aliceId,
+                content: 'committed content',
+                contentType: 'text/plain',
+                fileName: (id) => `${id}.txt`,
+                insertOwner: async (tx, bodyFileId) =>
+                  tx.insert(workflowTest).values({
+                    id: generateId(),
+                    workspaceId: fixture.workspaceId,
+                    name: generateId(),
+                    title: 'Commit outcome',
+                    bodyFileId,
+                    sourceHash: 'fixture',
+                  }),
+              })
+            : operation === 'content'
+              ? updateWorkspaceFileContent(
+                  fixture.workspaceId,
+                  fixture.fileId,
+                  fixture.aliceId,
+                  Buffer.from('committed content'),
+                  undefined,
+                  { version: { source: 'api', authorUserId: fixture.aliceId } }
+                )
+              : uploadWorkspaceFile(
+                  fixture.workspaceId,
+                  fixture.aliceId,
+                  Buffer.from('committed content'),
+                  'committed.txt',
+                  'text/plain',
+                  { notifyWorkspaceChange: false }
+                )
+        await expect(result).rejects.toThrow('Commit acknowledgement lost')
+      } finally {
+        capture.mockRestore()
+        enqueueFailure.mockRestore()
+        lostAcknowledgement.mockRestore()
+      }
+      const [committed] = await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.key, stagedKey))
+      expect(committed?.id).toEqual(expect.any(String))
+      expect(
+        (
+          await storageService.downloadFile({
+            key: stagedKey,
+            context: 'workspace',
+            maxBytes: 1024,
+          })
+        ).toString()
+      ).toBe('committed content')
+      expect(
+        await db
+          .select({ id: outboxEvent.id })
+          .from(outboxEvent)
+          .where(
+            and(
+              eq(outboxEvent.eventType, WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT),
+              sql`${outboxEvent.payload}->>'key' = ${stagedKey}`
+            )
+          )
+      ).toEqual([])
+    }
+  )
 
   it('lists a never-rewritten file as an implicit version 1 attributed to its uploader', async () => {
     const fixture = await seedFile('original')
@@ -527,6 +813,75 @@ describe('workspace file version history in PostgreSQL', () => {
     }
   )
 
+  it.each(['handoff', 'restore'] as const)(
+    'serializes member revocation with a size-changing restore (%s first)',
+    async (first) => {
+      const fixture = await seedFile('original')
+      await db
+        .update(workspaceFiles)
+        .set({ userId: fixture.bobId })
+        .where(eq(workspaceFiles.id, fixture.fileId))
+      await updateWorkspaceFileContent(
+        fixture.workspaceId,
+        fixture.fileId,
+        fixture.bobId,
+        Buffer.from('longer intermediate'),
+        undefined,
+        { version: { source: 'api', authorUserId: fixture.bobId } }
+      )
+      const [before] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      const operations = {
+        handoff: () =>
+          db.transaction(async (tx) => {
+            expect(
+              (
+                await revokeWorkspaceAccessTx(tx, {
+                  workspaceId: fixture.workspaceId,
+                  userId: fixture.bobId,
+                })
+              ).revoked
+            ).toBe(true)
+          }),
+        restore: () =>
+          revertWorkspaceFileVersion.execute({
+            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
+            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 1 },
+          }),
+      }
+      await runContendedFileOperations(fixture.fileId, [
+        operations[first],
+        operations[first === 'handoff' ? 'restore' : 'handoff'],
+      ])
+      const current = await getWorkspaceFile(fixture.workspaceId, fixture.fileId)
+      if (!current) throw new Error('file missing')
+      expect((await fetchWorkspaceFileBuffer(current, { maxBytes: 1024 })).toString()).toBe(
+        'original'
+      )
+      expect(current.uploadedBy).toBe(fixture.aliceId)
+      expect(
+        (await versionRows(fixture.fileId)).map((row) => [
+          row.version,
+          row.source,
+          row.authorUserIds,
+        ])
+      ).toEqual([
+        [1, 'upload', [fixture.bobId]],
+        [2, 'api', [fixture.bobId]],
+        [3, 'revert', [fixture.aliceId]],
+      ])
+      const [after] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, fixture.workspaceId))
+      expect(after.bytes).toBe(
+        before.bytes + Buffer.byteLength('original') - Buffer.byteLength('longer intermediate')
+      )
+    }
+  )
+
   it.each(['handoff', 'purge'] as const)(
     'serializes member revocation with archive rollback (%s first)',
     async (first) => {
@@ -635,9 +990,8 @@ describe('workspace file version history in PostgreSQL', () => {
     }
   )
 
+  /** Version downloads are direct-only, so Chat reaches history as text. */
   it.each([
-    ['named', 'download'],
-    ['anonymous', 'download'],
     ['named', 'read'],
     ['anonymous', 'read'],
     ['empty', 'read'],
@@ -685,52 +1039,30 @@ describe('workspace file version history in PostgreSQL', () => {
         userId: fixture.aliceId,
         workspaceId: fixture.workspaceId,
       })
-      const delivered: Array<{
-        stream: ReadableStream<Uint8Array>
-        provenance: WorkspaceFileSecretProvenance | undefined
-      }> = []
-      const transport = createFileReadTransport({
+      const transport = createAgentCliTransport({
         endpoint: 'https://version-fixture.test',
-        userId: fixture.aliceId,
         registry,
         invocation: {
           userId: fixture.aliceId,
           workspaceId: fixture.workspaceId,
           chatId: 'version-fixture',
         },
-        trackDownload: (stream, provenance) => {
-          delivered.push({ stream, provenance })
-        },
-        transport: async () => {
-          if (command === 'read') {
-            const result = await readWorkspaceFileVersionText.execute({
-              principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-              input: {
-                fileId: fixture.fileId,
-                assertedWorkspaceId: fixture.workspaceId,
-                version: 2,
-              },
-            })
-            return Response.json({
-              data: { ...presentWorkspaceFileText(result).data, version: result.version.version },
-            })
-          }
-          const result = await downloadWorkspaceFileVersion.execute({
-            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 2 },
-          })
-          return new Response(result.stream, { headers: { 'content-type': result.contentType } })
-        },
+        resources: [],
+        observeReads: true,
       })
-      const result = await runCli(
-        ['files', 'versions', command, fixture.fileId, '2'],
-        {
-          endpoint: 'https://version-fixture.test',
-          apiKey: 'fixture',
-          workspaceId: fixture.workspaceId,
-          transport,
-        },
-        null
+      const result = await withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        () =>
+          runCli(
+            ['files', 'versions', command, fixture.fileId, '2'],
+            {
+              endpoint: 'https://version-fixture.test',
+              apiKey: 'fixture',
+              workspaceId: fixture.workspaceId,
+              transport,
+            },
+            null
+          )
       )
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain(historicalContent)
@@ -740,7 +1072,6 @@ describe('workspace file version history in PostgreSQL', () => {
       if (hasSecret) expect(projected.value).not.toContain(secret)
       else expect(projected.value).toBe(result.stdout)
       if (kind === 'named') expect(projected.value).toContain('{{FILE_TOKEN}}')
-      expect(delivered.map((delivery) => delivery.provenance)).toEqual([provenance])
     }
   )
 
@@ -781,32 +1112,30 @@ describe('workspace file version history in PostgreSQL', () => {
         userId: fixture.aliceId,
         workspaceId: fixture.workspaceId,
       })
-      const transport = createFileReadTransport({
+      const transport = createAgentCliTransport({
         endpoint: 'https://version-fixture.test',
-        userId: fixture.aliceId,
         registry,
         invocation: {
           userId: fixture.aliceId,
           workspaceId: fixture.workspaceId,
           chatId: 'version-fixture',
         },
-        transport: async () => {
-          const result = await downloadWorkspaceFileVersion.execute({
-            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 1 },
-          })
-          return new Response(result.stream, { headers: { 'content-type': result.contentType } })
-        },
+        resources: [],
+        observeReads: true,
       })
-      const result = await runCli(
-        ['files', 'versions', 'download', fixture.fileId, '1'],
-        {
-          endpoint: 'https://version-fixture.test',
-          apiKey: 'fixture',
-          workspaceId: fixture.workspaceId,
-          transport,
-        },
-        null
+      const result = await withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        () =>
+          runCli(
+            ['files', 'versions', 'read', fixture.fileId, '1'],
+            {
+              endpoint: 'https://version-fixture.test',
+              apiKey: 'fixture',
+              workspaceId: fixture.workspaceId,
+              transport,
+            },
+            null
+          )
       )
       if (kind === 'legacy') {
         expect(result.exitCode).toBe(0)
@@ -820,7 +1149,7 @@ describe('workspace file version history in PostgreSQL', () => {
   )
 
   it.each(['current', 'historical'] as const)(
-    'redacts %s file contents when the real parser includes them in a CLI error',
+    'keeps %s file contents out of a real parser error',
     async (revision) => {
       const fixture = await seedFile('{}', 'json')
       const secret = 'ZZTOKEN99'
@@ -866,54 +1195,37 @@ describe('workspace file version history in PostgreSQL', () => {
         userId: fixture.aliceId,
         workspaceId: fixture.workspaceId,
       })
-      const transport = createFileReadTransport({
+      const transport = createAgentCliTransport({
         endpoint: 'https://version-fixture.test',
-        userId: fixture.aliceId,
         registry,
         invocation: {
           userId: fixture.aliceId,
           workspaceId: fixture.workspaceId,
           chatId: 'version-fixture',
         },
-        transport: async () => {
-          try {
-            const result = await readWorkspaceFileVersionText.execute({
-              principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-              input: {
-                fileId: fixture.fileId,
-                assertedWorkspaceId: fixture.workspaceId,
-                version: 2,
-              },
-            })
-            return Response.json({
-              data: { ...presentWorkspaceFileText(result).data, version: result.version.version },
-            })
-          } catch (error) {
-            const response = v2FileErrorPolicies.concealResourceAuthorization.render(error)
-            if (!response) throw error
-            return response
-          }
-        },
+        resources: [],
+        observeReads: true,
       })
-      const result = await runCli(
-        revision === 'current'
-          ? ['files', 'read', fixture.fileId]
-          : ['files', 'versions', 'read', fixture.fileId, '2'],
-        {
-          endpoint: 'https://version-fixture.test',
-          apiKey: 'fixture',
-          workspaceId: fixture.workspaceId,
-          transport,
-        },
-        null
+      const result = await withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        () =>
+          runCli(
+            revision === 'current'
+              ? ['files', 'read', fixture.fileId]
+              : ['files', 'versions', 'read', fixture.fileId, '2'],
+            {
+              endpoint: 'https://version-fixture.test',
+              apiKey: 'fixture',
+              workspaceId: fixture.workspaceId,
+              transport,
+            },
+            null
+          )
       )
       expect(result.exitCode).not.toBe(0)
-      expect(result.stderr).toContain(secret)
-      const projected = projectResolvedSecretModelContent(result.stderr, registry)
-      expect(projected.safe).toBe(true)
-      if (!projected.safe) throw new Error('File parser error was withheld')
-      expect(projected.value).not.toContain(secret)
-      expect(projected.value).toContain('{{FILE_TOKEN}}')
+      /** The parser names the failure without quoting the input, so no fragment can survive. */
+      expect(result.stderr).toContain('Invalid JSON')
+      expect(result.stderr).not.toContain(secret)
     }
   )
 

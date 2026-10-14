@@ -54,14 +54,16 @@ export const GET = defineV2BinaryRoute({
     folderPaths: query.folderPaths,
   }),
   useCase: downloadWorkspaceFileItems,
-  present: ({ filesToZip, folderPaths, renderedDocuments }) => {
-    const entryPaths = buildZipEntryPaths(
-      filesToZip.map((file) => ({
+  present: ({ filesToZip, folderPaths, renderedDocuments, excludedFileIds }) => {
+    const report = excludedFileIds.length > 0 ? { partial: true, excludedFileIds } : undefined
+    const entryPaths = buildZipEntryPaths([
+      ...filesToZip.map((file) => ({
         name: file.name,
         folderPath: file.folderId ? folderPaths.get(file.folderId) : null,
         contentType: file.type,
-      }))
-    )
+      })),
+      ...(report ? [{ name: 'sim-download-report.json', contentType: 'application/json' }] : []),
+    ])
     const archive = new ZipArchive({ store: true })
     archive.on('warning', (error: Error) => {
       logger.warn('Archive warning while streaming workspace files', { error })
@@ -71,6 +73,9 @@ export const GET = defineV2BinaryRoute({
         name: entryPaths[index],
       })
     })
+    if (report) {
+      archive.append(JSON.stringify(report, null, 2), { name: entryPaths[filesToZip.length] })
+    }
     archive.finalize().catch((error) => {
       logger.error('Failed to finalize workspace file archive', { error })
     })

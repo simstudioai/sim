@@ -65,6 +65,10 @@ import {
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
 import { reassignOrganizationProjects } from '@/lib/projects/membership'
+import {
+  handoffProjectsForOrganizationDepartureTx,
+  lockProjectsForResourceDepartureTx,
+} from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
@@ -568,6 +572,8 @@ async function reassignOwnedOrganizationResourcesTx({
   organizationId: string
   workspaceIds: string[]
 }) {
+  /** Project gates precede the workspace owner rewrite, the order file writers lock in. */
+  if (workspaceIds.length > 0) await lockProjectsForResourceDepartureTx(tx, workspaceIds)
   const ownerId = await reassignOrganizationSharedResourcesTx(tx, organizationId, userId)
   if (!ownerId) return 0
 
@@ -577,6 +583,7 @@ async function reassignOwnedOrganizationResourcesTx({
     toUserId: ownerId,
     workspaceIds,
   })
+  await handoffProjectsForOrganizationDepartureTx(tx, organizationId, userId)
 
   if (workspaceIds.length === 0) return 0
 

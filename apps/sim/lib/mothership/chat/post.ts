@@ -325,6 +325,7 @@ const ChatMessageSchema = z
         executor: z.number().int().min(1).max(1000).optional(),
         browser: z.boolean().optional(),
         terminal: z.boolean().optional(),
+        computerUse: z.boolean().optional(),
         terminals: z
           .array(
             z.object({
@@ -393,7 +394,11 @@ type UnifiedChatRequest = z.infer<typeof ChatMessageSchema>
 function backgroundExecutorDeviceId(body: UnifiedChatRequest): string | undefined {
   const desktop = body.desktopCapabilities
   if (body.mode === 'assistant' || !desktop?.deviceId || !desktop.executor) return undefined
-  return desktop.browser || desktop.terminal || desktop.localFiles || desktop.localFilesystem
+  return desktop.browser ||
+    desktop.terminal ||
+    desktop.localFiles ||
+    desktop.localFilesystem ||
+    desktop.computerUse
     ? desktop.deviceId
     : undefined
 }
@@ -444,6 +449,7 @@ type UnifiedChatBranch =
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
+        computerUse?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -485,6 +491,7 @@ type UnifiedChatBranch =
         desktopLocalFilesystem?: boolean
         browser?: boolean
         terminalCapable?: boolean
+        computerUse?: boolean
         terminals?: Terminals
         browserSessions?: BrowserSessions
       }) => Promise<ChatRequest>
@@ -857,6 +864,7 @@ async function resolveBranch(params: {
           desktopLocalFiles: payloadParams.desktopLocalFiles,
           browser: payloadParams.browser,
           terminalCapable: payloadParams.terminalCapable,
+          computerUse: payloadParams.computerUse,
           terminals: payloadParams.terminals,
           browserSessions: payloadParams.browserSessions,
         }),
@@ -920,6 +928,7 @@ async function resolveBranch(params: {
         desktopLocalFiles: payloadParams.desktopLocalFiles,
         browser: payloadParams.browser,
         terminalCapable: payloadParams.terminalCapable,
+        computerUse: payloadParams.computerUse,
         terminals: payloadParams.terminals,
         browserSessions: payloadParams.browserSessions,
       }),
@@ -1014,7 +1023,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (body.mode !== 'assistant') {
       const [selectorEnabled, planEnabled] = await Promise.all([
         isMothershipModelSelectorEnabled(),
-        body.mode === 'plan' ? isPlanModeEnabled() : false,
+        body.mode === 'plan' ? isPlanModeEnabled(authenticatedUserId) : false,
       ])
       modelSelectorEnabled = selectorEnabled
       if (body.mode === 'plan' && !planEnabled)
@@ -1214,7 +1223,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               effort: effortChoice ?? currentChat?.effort ?? undefined,
               modelSelection: body.modelSelection,
             },
-            modelSelectorEnabled
+            modelSelectorEnabled,
+            body.mode === 'plan'
           )
         )
 
@@ -1420,6 +1430,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFiles: body.desktopCapabilities?.localFiles === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
+                computerUse: body.desktopCapabilities?.computerUse === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })
@@ -1447,6 +1458,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 desktopLocalFiles: body.desktopCapabilities?.localFiles === true,
                 browser: body.desktopCapabilities?.browser === true,
                 terminalCapable: body.desktopCapabilities?.terminal === true,
+                computerUse: body.desktopCapabilities?.computerUse === true,
                 terminals: body.desktopCapabilities?.terminals,
                 browserSessions: body.desktopCapabilities?.browserSessions,
               })

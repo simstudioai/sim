@@ -149,6 +149,9 @@ export const env = createEnv({
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
     COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
+    /** Enables the organization benchmark UI and its authenticated endpoints. */
+    MOTHERSHIP_BENCHMARK_ENABLED:          z.boolean().optional(),
+    MOTHERSHIP_BENCHMARK_URL:              z.string().url().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     MSHIP_SYSPROMPT_OVERRIDE:              z.string().min(1).optional(),           // Enterprise-only highest-priority Mothership system prompt override forwarded by Sim
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
@@ -296,7 +299,7 @@ export const env = createEnv({
     KB_OPENAI_MODEL_NAME:                  z.string().optional(),                  // Azure deployment name serving the configured KB embedding model (used only when AZURE_OPENAI_* credentials are set).
     KB_EMBEDDING_MODEL:                    z.string().optional(),                  // Embedding model used for all new knowledge bases. Must be one of the supported model ids, or `ollama/<model>` for a model on OLLAMA_URL; defaults to text-embedding-3-small.
     KB_IMAGE_EXTRACTION_MODEL:             z.string().optional(),                  // Vision model that extracts text from knowledge-base images on sources using semantic image extraction (Confluence). Must be a Gemini 3 model in the catalog; anything else falls back to gemini-3.8-flash.
-    KB_IMAGE_EXTRACTIONS_PER_SYNC:         z.number().optional(),                  // New or changed images a connector sync may send for vision extraction; the rest wait for the next sync. Defaults to 500.
+    KB_IMAGE_EXTRACTIONS_PER_SYNC:         z.number().optional(),                  // New or changed images one connector sync run may send for vision extraction (each member-accounts continuation run can read up to this many); the rest wait for the next sync. Defaults to 500.
     EMBEDDING_OUTPUT_DIMS:                 z.coerce.number().int().positive().optional(), // Vector width new knowledge bases are stored at. One of 384, 768, 1024, 1536, 3072, and the configured KB_EMBEDDING_MODEL must emit it; anything else falls back to 1536.
     WAND_OPENAI_MODEL_NAME:                z.string().optional(),                  // Wand generation OpenAI model name (works with both regular OpenAI and Azure OpenAI)
     OCR_AZURE_ENDPOINT:                    z.string().url().optional(),            // Azure Mistral OCR service endpoint
@@ -333,6 +336,7 @@ export const env = createEnv({
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
+    NEXT_BUILD_SKIP_TYPE_CHECK:            z.boolean().optional(),                 // Skips `next build`'s TypeScript pass where another CI job type-checks
 
     // Background Jobs & Scheduling
     TRIGGER_PROJECT_ID:                    z.string().optional(),                  // Trigger.dev project ID
@@ -589,10 +593,10 @@ export const env = createEnv({
     // AgentMail - Mothership Email Inbox
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
-    MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
     ORG_PROJECT_VIEW: z.boolean().optional(),
-    PROJECT_API_ENABLED:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    PROJECTS:                              z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    MSHIP_COMPUTER_USE: z.boolean().optional(),
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),

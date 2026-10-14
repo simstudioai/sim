@@ -81,8 +81,8 @@ matching spot in the freshly generated structure.
 
 Section labels link to their `index.mdx` overview; the adjacent arrow expands their
 children. Keep `index` out of a non-root folder's `meta.json` pages array so Fumadocs
-uses it as the folder link instead of a duplicate child. Root tabs such as CLI and
-Academy still list `index` because their root label is not a sidebar row.
+uses it as the folder link instead of a duplicate child. Root tabs such as CLI still
+list `index` because their root label is not a sidebar row.
 
 Register hand-written integration guides under `guides` in
 `apps/docs/content/integration-navigation.json`. The key is the existing MDX filename

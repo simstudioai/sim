@@ -79,6 +79,7 @@ import type { VisionExtractionUsage } from '@/lib/knowledge/documents/vision-che
 import {
   assertKnowledgeOpaqueModelInputSafe,
   getKnowledgeOpaqueModelInputRegistry,
+  projectKnowledgeModelInput,
 } from '@/lib/knowledge/model-input-provenance'
 import { getFileExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
@@ -236,6 +237,8 @@ export type SourceFileAccess = Pick<
   processingDeadlineAt?: number
   /** The document's source policy for images; absent keeps the OCR path. */
   imageExtraction?: ImageExtractionPolicy
+  /** Receives what the vision model billed, even when processing then fails. */
+  onVisionUsage?: (usage: VisionExtractionUsage) => void
 }
 
 type ProcessingMethod = 'file-parser' | 'mistral-ocr' | 'vision-extract'
@@ -262,7 +265,6 @@ export async function processDocument(
     characterCount: number
     processingMethod: ProcessingMethod
     cloudUrl?: string
-    visionUsage?: VisionExtractionUsage
   }
 }> {
   logger.info('Processing document', { mimeType })
@@ -277,6 +279,7 @@ export async function processDocument(
           checkpoint: access.ocrCheckpoint,
           deadlineAt: access.processingDeadlineAt,
           signal: access.signal,
+          onUsage: access.onVisionUsage,
         })
       : undefined
     if (image?.decorative) {
@@ -291,7 +294,6 @@ export async function processDocument(
           tokenCount: 0,
           characterCount: 0,
           processingMethod: 'vision-extract',
-          visionUsage: image.usage,
         },
       }
     }
@@ -304,7 +306,7 @@ export async function processDocument(
       ? { content: image.renderedText, processingMethod: 'vision-extract' }
       : await parseDocument(fileUrl, filename, mimeType, access, workspaceId)
     access.signal?.throwIfAborted()
-    const { content, processingMethod, cloudUrl } = parseResult
+    const { content: parsedContent, processingMethod, cloudUrl } = parseResult
     if (parseResult.metadata?.detectedType || parseResult.metadata?.warning) {
       logger.info('Parser reported a warning for the document', {
         filename,
@@ -319,13 +321,15 @@ export async function processDocument(
      * document that reports success while holding nothing. Failing here keeps it
      * visible with a reason instead.
      */
-    if (parseResult.metadata?.degraded || !content.trim()) {
+    if (parseResult.metadata?.degraded || !parsedContent.trim()) {
       throw new PermanentDocumentProcessingError(
         'no_extractable_text',
         unreadableDocumentMessage(filename)
       )
     }
 
+    // Chunkers transform text; source and parser budgets already bound this materialized input.
+    const content = projectKnowledgeModelInput(parsedContent, Number.POSITIVE_INFINITY)
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
@@ -397,7 +401,7 @@ export async function processDocument(
     }
 
     access.signal?.throwIfAborted()
-    const characterCount = content.length
+    const characterCount = parsedContent.length
     const tokenCount = chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
 
     logger.info(`Document processed: ${chunks.length} chunks, ${tokenCount} tokens`)
@@ -413,7 +417,6 @@ export async function processDocument(
         characterCount,
         processingMethod,
         cloudUrl,
-        visionUsage: image?.usage,
       },
     }
   } catch (error) {

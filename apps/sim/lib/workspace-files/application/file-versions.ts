@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
+import { mustClassifyContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
@@ -29,16 +30,15 @@ import {
 import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import {
+  requireAdmittedWorkspaceFile,
+  workspaceFileProvenanceIdentity,
+} from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import {
   type DownloadWorkspaceFileStreamResult,
   streamWorkspaceFileRecord,
 } from '@/lib/workspace-files/application/download-workspace-file'
-import {
-  hasWorkspaceFileDeliveryObserver,
-  reportWorkspaceFileDelivery,
-  requireCopilotWorkspaceFileDeliveryObserver,
-} from '@/lib/workspace-files/application/file-delivery-observer'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -125,17 +125,16 @@ async function loadVersion(
 }
 
 async function readVersionSecretProvenance(
+  principal: Principal,
   file: WorkspaceFileRecord,
   version: WorkspaceFileVersionRecord
 ): Promise<WorkspaceFileSecretProvenance | undefined> {
-  if (!hasWorkspaceFileDeliveryObserver()) return undefined
+  if (!mustClassifyContent(principal)) return undefined
   if (version.isCurrent) {
-    return getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
-      fileId: file.id,
-      key: file.key,
-      context: file.storageContext ?? 'workspace',
-      contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-    })
+    return getBoundWorkspaceFileSecretProvenance(
+      file.workspaceId,
+      workspaceFileProvenanceIdentity(file)
+    )
   }
   const snapshot = await getWorkspaceFileVersionProvenance(file.id, version.version, version.key)
   return snapshot ? workspaceFileSecretProvenanceFromSnapshot(snapshot) : { status: 'unknown' }
@@ -220,11 +219,10 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
     principal,
     request,
   }): Promise<ReadWorkspaceFileVersionTextResult> {
-    requireCopilotWorkspaceFileDeliveryObserver(principal)
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
     const fileAtVersion = recordAtVersion(file, version)
-    const secretProvenance = await readVersionSecretProvenance(file, version)
+    const secretProvenance = await readVersionSecretProvenance(principal, file, version)
     const result = await readVersionObject(version.version, () =>
       extractWorkspaceFileRecordText(
         fileAtVersion,
@@ -245,7 +243,13 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
   async execute({ input, context, principal }): Promise<DownloadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
-    await reportWorkspaceFileDelivery(await readVersionSecretProvenance(file, version), file.id)
+    await requireAdmittedWorkspaceFile(
+      principal,
+      file.workspaceId,
+      file,
+      'complete',
+      await readVersionSecretProvenance(principal, file, version)
+    )
     const result = await readVersionObject(version.version, () =>
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )

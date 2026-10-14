@@ -1,31 +1,48 @@
 ---
 title: Table
-description: The Table trigger runs a workflow when a row is inserted or updated in a Sim table.
+description: Start a workflow when a row is inserted, updated, or deleted in a Sim table.
 ---
 
 import { BlockPreview } from '@/components/workflow-preview'
 
-The **Table trigger** runs a workflow when a row is inserted or updated in a [Sim table](/tables). Use it to react to data changes — enrich a row when it's added, or send a follow-up when a status column flips.
+The **Table trigger** reacts to committed row inserts, updates, or deletes in a [Sim table](/tables). For example, start enrichment when a row is added or send a notification when a watched status changes.
 
 <BlockPreview type="table_v2" />
 
 ## Configuration
 
-- **Table** — the table to watch.
-- **Event type** — what to fire on: a row insert, a row update, or either.
-- **Watch columns** — fire only when these columns change. Leave empty to fire on any update.
-- **Include headers** — return each row as a key-value object keyed by column name.
+1. Select **Table**, or enter **Table ID** in advanced mode. Choose a table in the workflow's workspace.
+2. Choose **Event**: **Row Inserted**, **Row Updated**, or **Row Deleted**. The default is Row Inserted.
+3. For updates, optionally select **Watch Columns**. Leave it empty to react to any update.
+4. Choose **Map Row Values to Headers**, on by default, then connect the downstream blocks.
+5. Deploy the workflow and make the corresponding row change. Verify the run in [Logs](/logs-debugging).
+
+One trigger watches one event type. Use separate trigger blocks to handle several event types.
 
 ## Outputs
 
-| Output | What it is |
+These examples use a trigger named Table:
+
+| Reference | Value |
 | --- | --- |
-| `<table.row>` | The row mapped to column names (when Include headers is on) |
-| `<table.rawRow>` | The raw row object |
-| `<table.previousRow>` | The row before the update (`null` for inserts) |
-| `<table.changedColumns>` | The columns that changed (empty for inserts) |
-| `<table.rowId>` | The row's unique id |
-| `<table.headers>` | The table's column names |
-| `<table.tableId>` | The table id |
-| `<table.tableName>` | The table name |
-| `<table.timestamp>` | The event time, in ISO format |
+| `<table.row>` | Name-keyed row with missing schema columns filled, when header mapping is on; otherwise `null` |
+| `<table.rawRow>` | Row values projected to column names, including select option names |
+| `<table.previousRow>` | Previous row for an update, deleted row data for a delete, or `null` for an insert |
+| `<table.changedColumns>` | Changed column names for an update; empty for inserts and deletes |
+| `<table.rowId>` | Row ID |
+| `<table.headers>` | Table column names |
+| `<table.tableId>` | Table ID |
+| `<table.tableName>` | Table name |
+| `<table.timestamp>` | Event time in ISO format |
+
+Watch Columns applies only to updates. If none of the watched columns changed, that update does not start a run.
+
+## Delivery behavior
+
+Table events fire directly after the row mutation rather than waiting for a poll. Workflow dispatch is fire-and-forget: a workflow failure does not undo the committed table change. Runs use the deployed trigger configuration, so deploy an update after changing its event or watched columns.
+
+## Related docs
+
+- [Tables](/tables)
+- [Deployment](/workflows/deployment)
+- [Connection syntax](/workflows/connections)

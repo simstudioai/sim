@@ -75,7 +75,10 @@ import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/fi
 import { TableBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/table-menu'
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
-import { firstHeadingTitle } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/title-heading'
+import {
+  firstHeadingTitle,
+  isSelectionInLeadingHeading,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/title-heading'
 import { TextEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor'
 import { useEditableFileContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content'
 import { useSelectionCopyBridge } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge'
@@ -99,9 +102,6 @@ const EXTENSIONS = createMarkdownEditorExtensions({
 /** Throttle the per-frame full re-parse above this body size so a large streaming file can't saturate the main thread. */
 const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
 const STREAM_REPARSE_THROTTLE_MS = 120
-
-/** Debounce before naming a still-untitled file after its leading heading, so it fires once typing settles. */
-const DERIVE_TITLE_DEBOUNCE_MS = 600
 
 function warnRichMarkdownPasteLimit(reason?: 'paste' | 'formatting') {
   if (reason === 'formatting') {
@@ -245,11 +245,12 @@ interface RichMarkdownEditorProps {
    */
   collaborative?: boolean
   /**
-   * Called (debounced) with the document's leading-heading text while the file is still untitled, so the
-   * caller can name the file after it. Omitted on read-only/non-editable surfaces. See
-   * {@link isUntitledName}.
+   * Called at most once per mount with the file id and the document's leading-heading text, when the
+   * local user finishes that heading (the cursor leaves it, the editor blurs, or it unmounts) while the
+   * file is still untitled, so the caller can name the file after it. Omitted on read-only/non-editable
+   * surfaces. See {@link isUntitledName}.
    */
-  onDeriveTitleFromHeading?: (headingText: string) => void
+  onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   /**
    * Claim Cmd/Ctrl+F for find-in-document. Off by default, because this editor also renders as a
    * preview pane beside something that owns the shortcut itself. Every find surface binds its own
@@ -424,7 +425,7 @@ interface LoadedRichMarkdownEditorProps {
   /** Reports client autosave eligibility; collaborative documents are persisted by the relay. */
   onClientAutosaveChange: (canAutosave: boolean) => void
   /** See {@link RichMarkdownEditorProps.onDeriveTitleFromHeading}. */
-  onDeriveTitleFromHeading?: (headingText: string) => void
+  onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   /** See {@link RichMarkdownEditorProps.enableFind}. */
   enableFind: boolean
   onEditSource?: () => void
@@ -586,13 +587,25 @@ export function LoadedRichMarkdownEditor({
   const saveFrontmatterResolverRef = useRef(resolveSaveFrontmatter)
 
   /**
-   * While the file is still unnamed, name it after its leading heading: `onDeriveTitleFromHeading` is
-   * called (debounced) so the caller can rename the file, and `fileNameRef` lets the onUpdate handler
-   * read the current name without re-subscribing. See {@link isUntitledName}.
+   * While the file is still unnamed, name it after its leading heading once the local user finishes
+   * typing it — never on an idle pause, which would name the file after half a heading. A local edit
+   * marks the title pending; leaving the heading, blurring, or unmounting commits it, at most once per
+   * mount. `fileNameRef` lets the editor callbacks read the current name without re-subscribing. See
+   * {@link isUntitledName}.
    */
   const onDeriveTitleFromHeadingRef = useRef(onDeriveTitleFromHeading)
   const fileNameRef = useRef(file.name)
-  const deriveTitleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const headingTitlePendingRef = useRef(false)
+  const headingTitleCommittedRef = useRef(false)
+  const commitHeadingTitle = (editor: Editor) => {
+    if (!headingTitlePendingRef.current || headingTitleCommittedRef.current) return
+    headingTitlePendingRef.current = false
+    if (!editor.isEditable || !isUntitledName(fileNameRef.current)) return
+    const title = firstHeadingTitle(editor.state.doc)
+    if (!title) return
+    headingTitleCommittedRef.current = true
+    onDeriveTitleFromHeadingRef.current?.(file.id, title)
+  }
   /**
    * Read in the RAF tick so an already-scheduled tick still sees the latest edit kind (it can change
    * between sessions within one turn, e.g. an append followed by a rewrite).
@@ -809,36 +822,28 @@ export function LoadedRichMarkdownEditor({
         lastSyncedFrontmatterRef.current = saveFrontmatterResolverRef.current()
         onChangeRef.current(applyFrontmatter(lastSyncedFrontmatterRef.current, md))
       }
-      // While the file is still untitled, name it after its leading heading once typing settles — but
-      // only for the LOCAL user's own edits. `isChangeOrigin` is true for a remote Yjs change (a peer
-      // typing); bail BEFORE touching the timer so a remote edit never cancels or reschedules the local
-      // user's pending rename (and every client doesn't schedule the same rename from a peer's
-      // not-yet-synced heading). It is false for local edits and non-collaborative surfaces.
-      if (isChangeOrigin(transaction)) return
-      // Local edit: restart the debounce. Clearing first cancels a stale rename if the heading was
-      // removed/changed before it fired; the timer re-derives the title from the live doc rather than a
-      // value captured now, so it can never name the file after a heading the user has since changed.
+      // Only the LOCAL user's edits mark the heading title pending: `isChangeOrigin` is true for a
+      // remote Yjs change, so every peer doesn't rename from someone else's half-synced heading.
       // `editor.isEditable` is the autosave gate (canEdit + settled + collab-ready), so a view-only
-      // viewer or the not-yet-editable mount seed never schedules a rename.
-      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
-      if (
-        !editor.isEditable ||
-        !isUntitledName(fileNameRef.current) ||
-        firstHeadingTitle(editor.state.doc) === null
-      )
-        return
-      deriveTitleTimerRef.current = setTimeout(() => {
-        const liveEditor = editorInstanceRef.current
-        if (!liveEditor || !liveEditor.isEditable || !isUntitledName(fileNameRef.current)) return
-        const title = firstHeadingTitle(liveEditor.state.doc)
-        if (title) onDeriveTitleFromHeadingRef.current?.(title)
-      }, DERIVE_TITLE_DEBOUNCE_MS)
+      // viewer or the not-yet-editable mount seed never marks it, and `docChanged` skips the empty
+      // update `setEditable` emits on open. The commit re-checks the name and heading.
+      if (isChangeOrigin(transaction)) return
+      if (editor.isEditable && transaction.docChanged) headingTitlePendingRef.current = true
+      if (!isSelectionInLeadingHeading(editor.state)) commitHeadingTitle(editor)
+    },
+    onSelectionUpdate: ({ editor }) => {
+      if (!isSelectionInLeadingHeading(editor.state)) commitHeadingTitle(editor)
+    },
+    onBlur: ({ editor }) => {
+      // Switching windows blurs the editor mid-heading; only a blur within the page finishes it.
+      if (document.hasFocus()) commitHeadingTitle(editor)
     },
   })
 
   useEffect(
     () => () => {
-      if (deriveTitleTimerRef.current) clearTimeout(deriveTitleTimerRef.current)
+      const liveEditor = editorInstanceRef.current
+      if (liveEditor && !liveEditor.isDestroyed) commitHeadingTitle(liveEditor)
     },
     []
   )

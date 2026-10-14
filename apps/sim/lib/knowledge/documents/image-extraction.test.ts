@@ -4,16 +4,23 @@
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequest, mockResolveKey, mockAdmission, mockCooldown, mockLoad, mockSave } = vi.hoisted(
-  () => ({
-    mockRequest: vi.fn(),
-    mockResolveKey: vi.fn(),
-    mockAdmission: vi.fn(),
-    mockCooldown: vi.fn(),
-    mockLoad: vi.fn(),
-    mockSave: vi.fn(),
-  })
-)
+const {
+  mockRequest,
+  mockResolveKey,
+  mockAdmission,
+  mockCooldown,
+  mockLoad,
+  mockSave,
+  mockOnUsage,
+} = vi.hoisted(() => ({
+  mockRequest: vi.fn(),
+  mockResolveKey: vi.fn(),
+  mockAdmission: vi.fn(),
+  mockCooldown: vi.fn(),
+  mockLoad: vi.fn(),
+  mockSave: vi.fn(),
+  mockOnUsage: vi.fn(),
+}))
 
 vi.mock('@/lib/knowledge/documents/image-extraction-gemini', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/knowledge/documents/image-extraction-gemini')>()),
@@ -81,8 +88,14 @@ async function extract(width = 400, height = 300, extra: Record<string, unknown>
   return extractImageText({
     source: await png(width, height),
     filename: 'Launch calendar',
+    onUsage: mockOnUsage,
     ...extra,
   })
+}
+
+function reportedUsage() {
+  expect(mockOnUsage).toHaveBeenCalledTimes(1)
+  return mockOnUsage.mock.calls[0][0]
 }
 
 describe('extractImageText', () => {
@@ -98,19 +111,23 @@ describe('extractImageText', () => {
   it('keeps only the searchable text, with its cost, and checkpoints the result', async () => {
     const result = await extract(400, 300, { workspaceId: 'ws-1', checkpoint: CHECKPOINT })
 
-    expect(result).toMatchObject({
-      decorative: false,
-      renderedText: 'Region: EMEA. Quarter: Q1.',
-      usage: { model: DEFAULT_IMAGE_EXTRACTION_MODEL, inputTokens: 1200, outputTokens: 300 },
+    const usage = reportedUsage()
+    expect(result).toMatchObject({ decorative: false, renderedText: 'Region: EMEA. Quarter: Q1.' })
+    expect(usage).toMatchObject({
+      model: DEFAULT_IMAGE_EXTRACTION_MODEL,
+      inputTokens: 1200,
+      outputTokens: 300,
     })
-    expect(result.usage?.cost).toBeGreaterThan(0)
+    expect(usage.cost).toBeGreaterThan(0)
     expect(mockRequest).toHaveBeenCalledTimes(1)
-    expect(mockSave).toHaveBeenCalledWith(result, undefined)
+    // The checkpoint carries the same charge, so a resumed pass records it under the same key.
+    expect(mockSave).toHaveBeenCalledWith({ ...result, usage }, undefined)
   })
 
   it('charges nothing when the workspace supplied its own Gemini key', async () => {
     mockResolveKey.mockResolvedValue({ apiKey: 'workspace-key', isBYOK: true })
-    expect((await extract()).usage?.cost).toBe(0)
+    await extract()
+    expect(reportedUsage().cost).toBe(0)
   })
 
   it('downscales an image wider than the model edge before sending it', async () => {
@@ -123,14 +140,14 @@ describe('extractImageText', () => {
 
   it('returns a decorative image with no text but keeps its cost', async () => {
     respond(extraction({ kind: 'decorative', rendered_text: 'Acme logo' }))
-    const result = await extract(300, 120)
-    expect(result).toMatchObject({ decorative: true, renderedText: '' })
-    expect(result.usage?.cost).toBeGreaterThan(0)
+    expect(await extract(300, 120)).toMatchObject({ decorative: true, renderedText: '' })
+    expect(reportedUsage().cost).toBeGreaterThan(0)
   })
 
   it('treats an image under the pixel floor as decorative without calling the model', async () => {
     expect(await extract(48, 400)).toEqual({ decorative: true, renderedText: '' })
     expect(mockRequest).not.toHaveBeenCalled()
+    expect(mockOnUsage).not.toHaveBeenCalled()
   })
 
   it('resumes from a checkpoint without a second paid call', async () => {
@@ -138,6 +155,7 @@ describe('extractImageText', () => {
       decorative: false,
       renderedText: 'cached text',
       usage: {
+        chargeId: 'charge-1',
         model: DEFAULT_IMAGE_EXTRACTION_MODEL,
         cost: 0.004,
         inputTokens: 1,
@@ -145,8 +163,12 @@ describe('extractImageText', () => {
       },
     }
     mockLoad.mockResolvedValue(cached)
-    expect(await extract(400, 300, { checkpoint: CHECKPOINT })).toEqual(cached)
+    expect(await extract(400, 300, { checkpoint: CHECKPOINT })).toMatchObject({
+      decorative: false,
+      renderedText: 'cached text',
+    })
     expect(mockRequest).not.toHaveBeenCalled()
+    expect(reportedUsage()).toEqual(cached.usage)
   })
 
   it('refuses bytes that are not a supported raster image', async () => {
@@ -172,10 +194,8 @@ describe('extractImageText', () => {
       await vi.waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(1))
       await vi.advanceTimersByTimeAsync(10_000)
       /** Both replies were billed by Gemini, so the usage covers both. */
-      await expect(pending).resolves.toMatchObject({
-        decorative: false,
-        usage: { inputTokens: 2400, outputTokens: 600 },
-      })
+      await expect(pending).resolves.toMatchObject({ decorative: false })
+      expect(reportedUsage()).toMatchObject({ inputTokens: 2400, outputTokens: 600 })
       expect(mockRequest).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
@@ -191,6 +211,9 @@ describe('extractImageText', () => {
       for (let attempt = 0; attempt < 3; attempt++) await vi.advanceTimersByTimeAsync(10_000)
       expect(await pending).toMatchObject({ code: 'image_extraction_invalid' })
       expect(mockRequest).toHaveBeenCalledTimes(4)
+      const usage = reportedUsage()
+      expect(usage).toMatchObject({ inputTokens: 4800, outputTokens: 1200 })
+      expect(usage.cost).toBeGreaterThan(0)
     } finally {
       vi.useRealTimers()
     }
@@ -242,6 +265,7 @@ describe('extractImageText', () => {
     await expect(extract()).rejects.toBe(unexpected)
     /** One call per failure above: none of them is retried within the extraction. */
     expect(mockRequest).toHaveBeenCalledTimes(6)
+    expect(mockOnUsage).not.toHaveBeenCalled()
   })
 
   it('retries a transient Gemini server error within the same extraction', async () => {

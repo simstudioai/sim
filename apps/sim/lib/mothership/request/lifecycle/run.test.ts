@@ -72,6 +72,7 @@ const {
     INTERNAL_API_SECRET: 'transport-test-secret-000000000000000000',
     COPILOT_API_KEY: undefined as string | undefined,
     MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
+    MOTHERSHIP_BENCHMARK_URL: 'https://benchmark.test',
   },
 }))
 
@@ -280,6 +281,7 @@ describe('runCopilotLifecycle', () => {
     setEnvFlags({
       isHosted: false,
       isCopilotToolPermissionsEnabled: false,
+      isMothershipBenchmarkEnabled: false,
     })
     mockGetAutoAllowedTools.mockResolvedValue(new Set<string>())
     mockGetUserPermissionConfig.mockResolvedValue(null)
@@ -913,24 +915,30 @@ describe('runCopilotLifecycle', () => {
     })
   })
 
-  it('stamps server-owned transport over caller claims without exposing the instance secret', async () => {
-    let captured = ''
-    mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
-      captured = String(request.body)
-    })
-    await runCopilotLifecycle(
-      { message: 'hello', simConnection: { mode: 'direct' } },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-      }
-    )
-    expect(JSON.parse(captured).simConnection).toEqual({
-      mode: 'checkpoint',
-      channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
-    })
-    expect(captured).not.toContain(mockEnv.INTERNAL_API_SECRET)
-  })
+  it.each(['/api/mothership', '/api/copilot', '/api/mothership/execute'])(
+    'forces benchmark checkpoint transport over caller claims on %s',
+    async (goRoute) => {
+      setEnvFlags({ isMothershipBenchmarkEnabled: true })
+      let captured = ''
+      mockRunStreamLoop.mockImplementationOnce(async (_url: string, request: RequestInit) => {
+        captured = String(request.body)
+      })
+      await runCopilotLifecycle(
+        { message: 'hello', simConnection: { mode: 'direct' } },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          benchmark: 'distill',
+          goRoute,
+        }
+      )
+      expect(JSON.parse(captured).simConnection).toEqual({
+        mode: 'checkpoint',
+        channelId: expect.stringMatching(/^[a-f0-9]{64}$/),
+      })
+      expect(captured).not.toContain(mockEnv.INTERNAL_API_SECRET)
+    }
+  )
 
   it.each([false, true])(
     'attaches BYOK without letting a hidden hosted default override it (advanced=%s)',

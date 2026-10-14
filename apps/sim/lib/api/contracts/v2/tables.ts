@@ -902,7 +902,7 @@ export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
       .optional()
       .default(false)
       .describe(
-        `Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its \`blockErrors\` are unbounded, so a full page carries it only when asked. Caps \`limit\` at ${V2_MAX_RUN_STATE_ROW_LIMIT}.`
+        `Include per-workflow-group run outcomes on every row. Off by default. Caps \`limit\` at ${V2_MAX_RUN_STATE_ROW_LIMIT}. Run state above 2 MiB returns \`413\`; request fewer rows or omit run state.`
       ),
   })
   .strict()
@@ -964,7 +964,9 @@ export const v2QueryRowsBodySchema = z
         `Limit cannot exceed ${V2_MAX_ROW_LIMIT}; use limit=0 for a full result or create an export resource for large datasets`
       )
       .optional()
-      .describe('Maximum rows to return; zero requests an unbounded result.'),
+      .describe(
+        'Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.'
+      ),
     cursor: z
       .string()
       .min(1, 'cursor must be a non-empty token')
@@ -975,7 +977,7 @@ export const v2QueryRowsBodySchema = z
       .optional()
       .default(false)
       .describe(
-        `Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its \`blockErrors\` are unbounded, so a full page carries it only when asked. Incompatible with \`limit: 0\`, and caps \`limit\` at ${V2_MAX_RUN_STATE_ROW_LIMIT}.`
+        `Include per-workflow-group run outcomes on every row. Off by default. Incompatible with \`limit: 0\`; caps \`limit\` at ${V2_MAX_RUN_STATE_ROW_LIMIT}. Run state above 2 MiB returns \`413\`; request fewer rows or omit run state.`
       ),
   })
   .strict()
@@ -1244,7 +1246,9 @@ export const v2GetTableRowQuerySchema = v2TableWorkspaceQuerySchema
     includeRunState: booleanQueryFlagSchema
       .optional()
       .default(false)
-      .describe('Include per-workflow-group run state on the returned row. Off by default.'),
+      .describe(
+        'Include per-workflow-group run outcomes on the row. Off by default. Run state above 2 MiB returns `413`; omit this option to read the row without run state.'
+      ),
   })
   .strict()
 export type V2GetTableRowQuery = z.output<typeof v2GetTableRowQuerySchema>

@@ -17,6 +17,7 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
+import { admitContent } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -391,6 +392,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.search,
   resolveContext: ({ input }: { input: LiveSearchInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }): Promise<WorkspaceKnowledgeSearchData> {
+    /** Live provider results carry no stored provenance; they are projected through `safeContent`. */
+    await admitContent(principal, [])
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
@@ -851,6 +854,8 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.readDocument,
   resolveContext: ({ input }: { input: LiveReadInput }) => resolveKnowledgeOwnerContext(input),
   async execute({ principal, input }) {
+    /** Live provider documents carry no stored provenance; they are projected through `safeContent`. */
+    await admitContent(principal, [])
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)

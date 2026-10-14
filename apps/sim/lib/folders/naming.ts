@@ -1,6 +1,6 @@
 import type { db } from '@sim/db'
 import { folder as folderTable } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, type SQL } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
 
 type DbOrTx = Pick<typeof db, 'select'>
@@ -26,13 +26,28 @@ export async function deduplicateFolderName(
   requestedName: string,
   resourceType: FolderResourceType
 ): Promise<string> {
+  return deduplicateFolderNameInScope(
+    tx,
+    and(eq(folderTable.workspaceId, workspaceId), eq(folderTable.resourceType, resourceType)),
+    parentId,
+    requestedName
+  )
+}
+
+/** Resolves a sibling name within a canonical owner/resource predicate supplied by its manager. */
+export async function deduplicateFolderNameInScope(
+  tx: DbOrTx,
+  scope: SQL | undefined,
+  parentId: string | null,
+  requestedName: string
+): Promise<string> {
+  if (!scope) throw new Error('Folder naming requires an owner scope')
   const siblingRows = await tx
     .select({ name: folderTable.name })
     .from(folderTable)
     .where(
       and(
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, resourceType),
+        scope,
         parentId ? eq(folderTable.parentId, parentId) : isNull(folderTable.parentId),
         isNull(folderTable.deletedAt)
       )

@@ -8,9 +8,14 @@ import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
-import { authorizeWorkspaceOperation } from '@/lib/core/application'
+import {
+  admitContent,
+  authorizeWorkspaceOperation,
+  ContentRefusedError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -257,6 +262,25 @@ export interface UpsertKnowledgeDocumentInput extends UploadKnowledgeDocumentAdm
  * so a presenter can key each document's tag values by display name — the same
  * projection knowledge search performs — without reading protected data itself.
  */
+/**
+ * One document a result returns. A read is refused on its own when its gate refuses its metadata;
+ * a committed write completes and then answers with the refusal (see `admitWrittenContent`).
+ */
+async function requireAdmittedDocument(
+  principal: Principal,
+  document: { id: string },
+  options: { written?: boolean } = {}
+): Promise<void> {
+  const admitted = await admitKnowledgeDocuments(
+    principal,
+    [{ id: document.id, value: document }],
+    options
+  )
+  if (!options.written && !admitted.has(document.id)) {
+    throw new ContentRefusedError('knowledge-document')
+  }
+}
+
 export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listDocuments,
   resolveContext: ({
@@ -266,7 +290,7 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ListKnowledgeDocumentsInput
   }) => resolveActiveKnowledgeResourceContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     const limit = input.limit ?? 50
     const offset = input.offset ?? 0
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
@@ -298,8 +322,14 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       generateRequestId(),
       context.access
     )
+    const admitted = await admitKnowledgeDocuments(
+      principal,
+      result.documents.map((doc) => ({ id: doc.id, value: doc }))
+    )
+    const documents = result.documents.filter((doc) => admitted.has(doc.id))
     return {
       ...result,
+      documents,
       tagDefinitions:
         resolvedNameFilters?.definitionsByKnowledgeBase.get(context.knowledgeBaseId) ??
         (await getDocumentTagDefinitions(context.knowledgeBaseId)),
@@ -317,10 +347,11 @@ export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     principal: Principal
     input: ReadKnowledgeDocumentInput
   }) => resolveActiveKnowledgeDocumentContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     if (input.requireEnabledDocument && !context.document.enabled) {
       throw new OrchestrationError('not_found', 'Document not found')
     }
+    await requireAdmittedDocument(principal, context.document)
     return {
       document: context.document,
       tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
@@ -828,6 +859,7 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         }
         throw new OrchestrationError(outcome.errorCode, outcome.error)
       }
+      await admitContent(principal, [])
       return {
         kind: 'processing' as const,
         documentId: context.documentId,
@@ -853,9 +885,11 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     if (updatedFields.length === 0) {
       throw new OrchestrationError('validation', 'No updates specified')
     }
+    const document = await updateDocument(context.documentId, updates, generateRequestId())
+    await requireAdmittedDocument(principal, document, { written: true })
     return {
       kind: 'updated' as const,
-      document: await updateDocument(context.documentId, updates, generateRequestId()),
+      document,
       tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId),
       updatedFields,
     }

@@ -1,4 +1,5 @@
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { withholdUnadmittedInlineFiles } from '@/lib/workflows/application/admit-run-files'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowRunApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -22,7 +23,7 @@ export const resumeWorkflowRun = defineAuthorizedWorkflowUseCase({
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    return executeResumeWorkflow({
+    const result = await executeResumeWorkflow({
       workflowId: context.workflowId,
       executionId: context.runId,
       contextId: input.contextId,
@@ -33,5 +34,7 @@ export const resumeWorkflowRun = defineAuthorizedWorkflowUseCase({
       pollingSurface: 'v2',
       allowStreaming: false,
     })
+    /** A resumed run inlines its output files, which are admitted per file like a fresh run's. */
+    return withholdUnadmittedInlineFiles(principal, context.workspaceId, result)
   },
 })

@@ -50,6 +50,7 @@ const folder = {
   name: 'Reports',
   userId: 'owner-1',
   workspaceId: 'ws-1',
+  projectId: null,
   parentId: null,
   sortOrder: 0,
   locked: false,

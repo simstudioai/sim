@@ -1,5 +1,5 @@
 /** Exercises chat cleanup's storage-key collection against real PostgreSQL message rows. */
-import { db } from '@sim/db'
+import { db, dbFor } from '@sim/db'
 import { copilotChats, copilotMessages, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
@@ -30,7 +30,7 @@ describe('chat cleanup file collection in PostgreSQL', () => {
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.userId, userId))
     await db.delete(user).where(eq(user.id, userId))
-    await db.$client.end()
+    await Promise.all([db.$client.end(), dbFor('cleanup').$client.end()])
   })
 
   async function seedChat(contents: unknown[], deletedSeqs: number[] = []): Promise<string> {

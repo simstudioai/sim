@@ -1,5 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { OperationUseCase, WorkspaceOperation } from '@/lib/core/application'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,
@@ -98,7 +99,9 @@ function defineWorkspaceFileReferenceUseCase<const O extends WorkspaceOperation>
       principal: Principal
       input: WorkspaceFileReferenceInput
     }) => resolveReferencedWorkspaceFileContext(principal, input, options),
-    async execute({ context }): Promise<WorkspaceFileReferenceResult> {
+    async execute({ context, principal }): Promise<WorkspaceFileReferenceResult> {
+      /** Resolution authorizes under the content operation but returns only the file's record. */
+      await admitContent(principal, [])
       return { file: context.file }
     },
   })

@@ -13,7 +13,7 @@ import {
   cn,
 } from '@sim/emcn'
 import dynamic from 'next/dynamic'
-import { useParams } from 'next/navigation'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {
   useGenerateVersionDescription,
   useUpdateDeploymentVersion,
@@ -50,8 +50,7 @@ export function VersionDescriptionModal({
   versionName,
   currentDescription,
 }: VersionDescriptionModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const initialDescriptionRef = useRef(currentDescription || '')
   const [description, setDescription] = useState(initialDescriptionRef.current)

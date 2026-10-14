@@ -1,267 +1,259 @@
 ---
 title: API deployment
+description: Call a workflow through the v2 API with synchronous, streaming, or asynchronous execution.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
-import { FAQ } from '@/components/ui/faq'
+import { Tab, Tabs } from '@/components/ui/tabs'
 
-Deploy your workflow as a REST API endpoint that any application can call directly. Supports synchronous, streaming, and asynchronous execution modes.
+Call a deployed workflow at `POST /api/v2/workflows/{workflow-id}/execute`. Choose a complete JSON result, an SSE stream, or an async run receipt.
 
-## Deploying a Workflow
+## Deploy the workflow [#deploying-a-workflow]
 
-Open your workflow and click **Deploy**. The **General** tab opens first and shows you the current deployment state:
+You need workspace **Admin** access and the applicable deployment permission. Test with **Run**, then open **Deploy → General** and click **Deploy** or **Update**. [Deployment](/workflows/deployment) covers versions, comparison, rollback, and undeploying.
 
-<Image src="/static/api-deployment/api-versions.png" alt="General tab of the Workflow Deployment modal showing a live workflow preview, a Versions table with v2 (live) and v1, and Undeploy / Update buttons" width={800} height={597} className="mx-auto h-auto w-full max-w-xl" />
-
-The **General** tab contains:
-
-- **Live Workflow** — a read-only minimap of the workflow snapshot that is currently deployed
-- **Versions** — a table of every deployment you've published, showing version number, who deployed it, and when
-- **Deploy / Update / Undeploy** — action buttons at the bottom right
-
-Click **Deploy** to publish your workflow for the first time, or **Update** to push a new snapshot after making changes. The green dot next to a version indicates it is the currently live version.
-
-Once deployed, your workflow is available at:
-
-```
-POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute
-```
-
-<Callout type="info">
-  API executions always run against the active deployment snapshot. After changing your workflow on the canvas, click **Update** to publish a new version.
-</Callout>
-
-### Keeping Track of Changes
-
-When you modify the workflow canvas after deploying, an **Update deployment** badge appears at the bottom of the screen as a reminder that your live version is out of date:
-
-<Image src="/static/api-deployment/api-update-button.png" alt="Canvas toolbar showing the Update and Run buttons with an Update deployment tooltip" width={400} height={186} className="mx-auto h-auto w-full max-w-[240px]" />
-
-You can click the **Update** button directly from the canvas toolbar — you don't need to open the Deploy modal every time.
-
-## Version Control
-
-Every time you deploy or update, a new version is recorded in the Versions table. You can manage past versions using the context menu (⋮) next to any row:
-
-<Image src="/static/api-deployment/api-versions-menu.png" alt="Versions table showing v2 (live) and v1 with a context menu open offering Rename, Add description, Promote to live, and Load deployment options" width={800} height={346} className="mx-auto h-auto w-full max-w-xl" />
-
-| Action | Description |
-|--------|-------------|
-| **Rename** | Give the version a human-readable name (e.g., "Added memory") |
-| **Add description** | Attach a note describing what changed in this version |
-| **Promote to live** | Make this older version the active one without re-deploying |
-| **Load deployment** | Load the workflow snapshot from this version back onto your canvas |
-
-**Promote to live** is useful for rolling back — if a new deployment has an issue, promote the previous version to restore the last known-good state instantly.
-
-## Managing Deployments via the API
-
-Everything above can also be done programmatically. The v1 API exposes deploy, undeploy, and rollback endpoints — useful for CI/CD pipelines that ship a workflow after tests pass, or for reverting to the last known-good version from an incident script. All three require an API key with admin permission on the workflow's workspace.
-
-```bash
-# Deploy the current draft as a new version (body is optional)
-curl -X POST https://www.sim.ai/api/v1/workflows/{workflow-id}/deploy \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SIM_API_KEY" \
-  -d '{ "name": "Release 4", "description": "Fixes the agent prompt" }'
-
-# Undeploy — take the workflow offline
-curl -X DELETE https://www.sim.ai/api/v1/workflows/{workflow-id}/deploy \
-  -H "x-api-key: $SIM_API_KEY"
-
-# Roll back to the previous version (or pass { "version": N } for a specific one)
-curl -X POST https://www.sim.ai/api/v1/workflows/{workflow-id}/rollback \
-  -H "x-api-key: $SIM_API_KEY"
-```
-
-Rollback re-activates an existing deployment version — the same operation as **Promote to live** — and leaves your canvas draft untouched. See the API reference for full request and response details: [Deploy Workflow](/api-reference/workflows/deployWorkflow), [Undeploy Workflow](/api-reference/workflows/undeployWorkflow), and [Rollback Workflow](/api-reference/workflows/rollbackWorkflow).
-
-## Making API Calls
-
-Switch to the **API** tab in the Deploy modal to see ready-to-use code for all three execution modes:
-
-<Image src="/static/api-deployment/api-tab.png" alt="API tab showing cURL, Python, JavaScript, and TypeScript language options, with Run workflow, Run workflow (stream response), and Run workflow (async) code sections" width={800} height={653} className="mx-auto h-auto w-full max-w-xl" />
-
-The language selector at the top lets you switch between **cURL**, **Python**, **JavaScript**, and **TypeScript**. Each mode — synchronous, streaming, and async — has its own code block that you can copy directly. The code is pre-filled with your workflow ID and a masked version of your API key.
-
-At the bottom of the tab, two buttons give you quick access to key settings:
-
-- **Edit API Info** — set a description and choose between API key auth or public access
-- **Generate API Key** — create a new API key scoped to your workspace
+Ordinary API calls use the active snapshot. Editing the draft does not change that version. Deploy an update before expecting a normal API call to use your changes.
 
 ## Authentication
 
-By default, API endpoints require an API key passed in the `x-api-key` header. Generate keys in **Settings → Sim Keys** or via the **Generate API Key** button in the API tab.
+Send a valid Sim API key in `X-API-Key`, or use a supported OAuth access token. Deployed workflow execution requires access to the workflow's workspace; OAuth callers also need the operation's `api:write` scope. See [API authentication](/api-reference/authentication).
 
-```bash
-curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SIM_API_KEY" \
-  -d '{ "input": { "message": "Hello" } }'
-```
+Generate keys in **Settings → Sim API keys** or **Deploy → API → Generate API Key**. Keep the key available to your application as `SIM_API_KEY`.
 
-### API Info and Public Access
+### API info and public access
 
-Click **Edit API Info** to add a description and change the access mode:
-
-<Image src="/static/api-deployment/api-info.png" alt="Edit API Info modal with a Description textarea and an Access section toggling between API Key and Public modes" width={800} height={439} className="mx-auto h-auto w-full max-w-md" />
-
-| Access Mode | Description |
-|-------------|-------------|
-| **API Key** (default) | Requires a valid API key in the `x-api-key` header |
-| **Public** | No authentication required — anyone with the URL can call the endpoint |
-
-The **Description** field documents what the workflow API does. This is useful for teams, or when exposing the workflow to tools and services that surface API metadata.
+Open **Deploy → API → Edit API Info** to set a description and choose **API Key** or **Public** access. API-key access is the default.
 
 <Callout type="warn">
-  Public endpoints can be called by anyone with the URL. Only use this for workflows that don't expose sensitive data or perform sensitive actions.
+A public endpoint lets an anonymous caller run the deployed workflow. Restrict what input can do and what output reveals before enabling it. Public access is subject to deployment and organization policy; anonymous callers cannot start async or manual draft runs.
 </Callout>
 
-## Execution Modes
+## Make a call [#making-api-calls]
+
+Put named [Start inputs](/workflows/triggers/start) inside the request's `input` value. For a field named `message`:
+
+```bash
+curl -X POST 'https://www.sim.ai/api/v2/workflows/{workflow-id}/execute' \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"input":{"message":"Summarize this article"}}'
+```
+
+The **API** tab offers cURL, Python, JavaScript, and TypeScript examples. Replace example identifiers and supply your own key before calling them.
+
+## Execution modes
 
 ### Synchronous
 
-The default mode. Send a request and wait for the complete response:
+The default mode waits for the run to settle:
 
 <Tabs items={['cURL', 'Python', 'TypeScript']}>
   <Tab value="cURL">
-```bash
-curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SIM_API_KEY" \
-  -d '{ "input": { "message": "Summarize this article" } }'
-```
+    ```bash
+    curl -X POST 'https://www.sim.ai/api/v2/workflows/{workflow-id}/execute' \
+      -H "X-API-Key: $SIM_API_KEY" \
+      -H 'Content-Type: application/json' \
+      -d '{"input":{"message":"Summarize this article"}}'
+    ```
   </Tab>
   <Tab value="Python">
-```python
-import requests, os
+    ```python
+    import os
+    import requests
 
-response = requests.post(
-    "https://www.sim.ai/api/v2/workflows/{workflow-id}/execute",
-    headers={
-        "Content-Type": "application/json",
-        "x-api-key": os.environ["SIM_API_KEY"]
-    },
-    json={"input": {"message": "Summarize this article"}}
-)
-print(response.json())
-```
+    response = requests.post(
+        "https://www.sim.ai/api/v2/workflows/{workflow-id}/execute",
+        headers={"X-API-Key": os.environ["SIM_API_KEY"]},
+        json={"input": {"message": "Summarize this article"}},
+    )
+    response.raise_for_status()
+    print(response.json())
+    ```
   </Tab>
   <Tab value="TypeScript">
-```typescript
-const response = await fetch('https://www.sim.ai/api/v2/workflows/{workflow-id}/execute', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': process.env.SIM_API_KEY!
-  },
-  body: JSON.stringify({ input: { message: 'Summarize this article' } })
-});
-console.log(await response.json());
-```
+    ```typescript
+    const apiKey = process.env.SIM_API_KEY
+    if (!apiKey) throw new Error('Set SIM_API_KEY')
+
+    const response = await fetch('https://www.sim.ai/api/v2/workflows/{workflow-id}/execute', {
+      method: 'POST',
+      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: { message: 'Summarize this article' } })
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const result = await response.json()
+    process.stdout.write(JSON.stringify(result))
+    ```
   </Tab>
 </Tabs>
+
+V2 returns a run resource in `data`, including `runId`, `workflowId`, `status`, `output`, `blockOutputs`, `error`, and timing fields. Check `data.status`: a workflow that ran and failed can return HTTP `200` with `status: "failed"`. An HTTP error instead describes a rejected request or a service failure.
+
+A [Response block](/workflows/blocks/response) selects the workflow result, which remains inside `data.output`. It cannot override the v2 endpoint's HTTP status, headers, or envelope.
+
+A synchronous caller can request `Accept: application/x-ndjson` to receive heartbeat frames while waiting, followed by a `type: "final"` frame containing the same run resource. This is distinct from Agent token streaming with `stream: true`.
 
 ### Streaming
 
-Stream the response token-by-token as it is generated. Add `"stream": true` to your request body and specify which block output fields to stream using `selectedOutputs`.
+Set `stream: true` and use `selectedOutputs` to select fields. **Select outputs** in the API tab groups fields by block; `content` from an Agent is a common choice.
 
-Use the **Select outputs** dropdown in the API tab to choose which fields to stream:
+Selectors use a stable block ID or normalized block name followed by a field path, such as `agent.content` for a block named Agent. Nested paths and reachable child-workflow selectors are also supported; see [Execute workflow](/api-reference/workflows/executeWorkflowV2).
 
-<Image src="/static/api-deployment/api-select-outputs.png" alt="Select outputs dropdown open showing Agent 1 block with selectable output fields: content, model, tokens, toolCalls, providerTiming, cost" width={800} height={677} className="mx-auto h-auto w-full max-w-xl" />
-
-The dropdown groups available outputs by block. The most common choice is `content` from an Agent block, which streams the generated text. You can select fields from multiple blocks simultaneously.
-
-The `selectedOutputs` values in the request body follow the format `blockName.field` (e.g., `agent_1.content`).
+For live answer tokens, send `X-Sim-Stream-Protocol: agent-events-v1` and handle `chunk_reset`. Without that header, answer text arrives after a final model turn settles. The header alone does not expose thinking or tool events.
 
 <Tabs items={['cURL', 'Python', 'TypeScript']}>
   <Tab value="cURL">
-```bash
-curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SIM_API_KEY" \
-  -d '{
-    "input": { "prompt": "Write a long essay" },
-    "stream": true,
-    "selectedOutputs": ["agent_1.content"]
-  }'
-```
+    ```bash
+    curl -N -X POST 'https://www.sim.ai/api/v2/workflows/{workflow-id}/execute' \
+      -H "X-API-Key: $SIM_API_KEY" \
+      -H 'Content-Type: application/json' \
+      -H 'X-Sim-Stream-Protocol: agent-events-v1' \
+      -d '{"input":{"message":"Write a long essay"},"stream":true,"selectedOutputs":["agent.content"]}'
+    ```
   </Tab>
   <Tab value="Python">
-```python
-import requests, os
+    ```python
+    import os
+    import requests
 
-response = requests.post(
-    "https://www.sim.ai/api/v2/workflows/{workflow-id}/execute",
-    headers={
-        "Content-Type": "application/json",
-        "x-api-key": os.environ["SIM_API_KEY"]
-    },
-    json={
-        "input": {"prompt": "Write a long essay"},
-        "stream": True,
-        "selectedOutputs": ["agent_1.content"]
-    },
-    stream=True
-)
-for line in response.iter_lines():
-    if line:
-        print(line.decode())
-```
+    with requests.post(
+        "https://www.sim.ai/api/v2/workflows/{workflow-id}/execute",
+        headers={
+            "X-API-Key": os.environ["SIM_API_KEY"],
+            "X-Sim-Stream-Protocol": "agent-events-v1",
+        },
+        json={
+            "input": {"message": "Write a long essay"},
+            "stream": True,
+            "selectedOutputs": ["agent.content"],
+        },
+        stream=True,
+    ) as response:
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if line:
+                print(line.decode())
+    ```
   </Tab>
   <Tab value="TypeScript">
-```typescript
-const response = await fetch('https://www.sim.ai/api/v2/workflows/{workflow-id}/execute', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': process.env.SIM_API_KEY!
-  },
-  body: JSON.stringify({
-    input: { prompt: 'Write a long essay' },
-    stream: true,
-    selectedOutputs: ['agent_1.content']
-  })
-});
+    ```typescript
+    const apiKey = process.env.SIM_API_KEY
+    if (!apiKey) throw new Error('Set SIM_API_KEY')
 
-const reader = response.body!.getReader();
-const decoder = new TextDecoder();
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  console.log(decoder.decode(value));
-}
-```
+    const response = await fetch('https://www.sim.ai/api/v2/workflows/{workflow-id}/execute', {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+        'X-Sim-Stream-Protocol': 'agent-events-v1'
+      },
+      body: JSON.stringify({
+        input: { message: 'Write a long essay' },
+        stream: true,
+        selectedOutputs: ['agent.content']
+      })
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    if (!response.body) throw new Error('Response body is missing')
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        process.stdout.write(decoder.decode(value, { stream: true }))
+      }
+    } finally {
+      reader.releaseLock()
+    }
+    ```
   </Tab>
 </Tabs>
 
+These examples print raw SSE for inspection. For an application, parse frames, accumulate answers per `blockId`, and honor resets and terminal errors using the [stream reference client](/workflows/deployment/agent-events#reference-client).
+
 #### Streaming agent thinking and tool calls
 
-By default a streaming run carries answer text only. To also receive the Agent block's reasoning and its tool-call lifecycle, set `includeThinking` / `includeToolCalls`:
+Add independent `includeThinking` and `includeToolCalls` flags:
 
 ```bash
-curl -N -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SIM_API_KEY" \
-  -H "X-Sim-Stream-Protocol: agent-events-v1" \
-  -d '{
-    "input": { "prompt": "Research this topic" },
-    "stream": true,
-    "selectedOutputs": ["agent_1.content"],
-    "includeThinking": true,
-    "includeToolCalls": true
-  }'
+curl -N -X POST 'https://www.sim.ai/api/v2/workflows/{workflow-id}/execute' \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -H 'X-Sim-Stream-Protocol: agent-events-v1' \
+  -d '{"input":{"message":"Research this topic"},"stream":true,"selectedOutputs":["agent.content"],"includeThinking":true,"includeToolCalls":true}'
 ```
 
-The `X-Sim-Stream-Protocol` header is **required** whenever either flag is set — it declares that your client understands agent-event framing. Setting a flag without it returns `400` rather than silently ignoring the flag. The header also switches answer text to live token-by-token delivery that `chunk_reset` can retract.
+Both flags default false. Enabling either without `stream: true` and the protocol header returns `400`. Tool lifecycle frames contain names and status; full tool arguments/results can appear in the authenticated API's terminal envelope. Thinking support varies by model. See [Agent stream events](/workflows/deployment/agent-events) for the contract.
 
-Both flags default to `false` and the header is optional on its own, so existing integrations keep the exact frames they receive today. Tool frames carry the tool name and status only; arguments and results arrive in the terminal `final` envelope. Not every model exposes thinking. See [Agent stream events](/workflows/deployment/agent-events) for the frame shapes, a reference client, and per-provider support.
+### Asynchronous
 
-#### Oversized outputs
+Set `async: true` to receive HTTP `202` with a run ID and status URL instead of holding the connection open:
 
-Workflow execution responses are capped by platform request and response limits. When an internal output, log field, streamed field, or async status payload contains a value that is too large to inline, Sim may replace that nested value with a versioned reference:
+```bash
+curl -X POST 'https://www.sim.ai/api/v2/workflows/{workflow-id}/execute' \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"input":{"message":"Process this dataset"},"async":true,"executionTimeoutSeconds":3600}'
+```
+
+```json
+{
+  "data": {
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "statusUrl": "https://www.sim.ai/api/v2/workflows/{workflow-id}/runs/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
+  }
+}
+```
+
+Async execution requires an API key or OAuth token and uses the deployed version. It cannot be combined with `stream`, manual draft execution, partial-run options, or streaming/output-shaping options such as `selectedOutputs` and `includeThinking`.
+
+`executionTimeoutSeconds` accepts an integer from `1` to `604800` and is supported only with `async: true`. The effective limit is the smaller of that value and the account policy; it cannot extend the policy. Your HTTP client's timeout is separate.
+
+Poll the returned run URL, requesting output when needed:
+
+```bash
+curl 'https://www.sim.ai/api/v2/workflows/{workflow-id}/runs/{runId}?includeOutput=true' \
+  -H "X-API-Key: $SIM_API_KEY"
+```
+
+A completed response includes the result when requested:
+
+```json
+{
+  "data": {
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "workflowId": "{workflow-id}",
+    "status": "completed",
+    "startedAt": "2026-10-13T12:00:01.000Z",
+    "endedAt": "2026-10-13T12:00:05.000Z",
+    "durationMs": 4000,
+    "output": { "result": "..." }
+  }
+}
+```
+
+#### Execution status values
+
+| Status | Meaning |
+| --- | --- |
+| `queued` | Waiting to be picked up |
+| `pending` | Durable record exists; execution has not started |
+| `running` | Executing |
+| `paused` | Waiting for a resume condition or submitted input |
+| `redacting` | Finished execution; output is still being scrubbed |
+| `completed` | Finished successfully |
+| `failed` | Failed; inspect `error` |
+| `cancelled` | Cancelled |
+
+Stop polling on `completed`, `failed`, or `cancelled`. A paused Human run requires submitted input; a time pause can resume automatically. See [Human](/workflows/blocks/human-in-the-loop) and [Wait](/workflows/blocks/wait). Resuming an originally streaming run through the v2 resume endpoint returns an async receipt, not an SSE continuation.
+
+## Select outputs and handle large values [#oversized-outputs]
+
+`selectedOutputs` can project smaller fields. For a synchronous v2 call, selected values appear in `data.blockOutputs`, separately from `data.output`.
+
+Oversized nested values in outputs, logs, streamed fields, or async status payloads may be replaced with a versioned reference:
 
 ```json
 {
@@ -276,132 +268,52 @@ Workflow execution responses are capped by platform request and response limits.
 }
 ```
 
-The `version` field is part of the external API contract. Treat the reference as an opaque placeholder for a value that could not be safely embedded in the response. `id`, `key`, and `executionId` are not fetch URLs; `key` points to execution-scoped server storage. Use `selectedOutputs` to request a smaller nested field, reduce the data passed between blocks, or return the data from a Response block when your workflow intentionally owns the HTTP response body. File outputs are metadata-first; request `.base64` only when you need inline file content. JavaScript Function blocks can explicitly read large files, value refs, and manifest-backed arrays with the `sim.files` and `sim.values` helpers under memory caps.
+Treat this as an opaque placeholder. `version` is part of the contract; `id`, `key`, and `executionId` are not fetch URLs. Reduce the payload or select a smaller field. A Response block remains subject to the v2 response contract and size limits.
 
-### Asynchronous
+File outputs contain metadata by default; request inline base64 only when needed. JavaScript Function code can read large files, value references, and manifest-backed arrays with `sim.files` and `sim.values` under memory caps. See [Function](/workflows/blocks/function).
 
-For long-running workflows, async mode returns a run ID immediately so you don't need to hold the connection open. Set `"async": true` in the v2 request body. The API returns HTTP 202 with a run ID and v2 status URL. Poll that run resource until it completes.
+## Manual draft execution
 
-To stop an individual async request sooner than the workspace policy, set `executionTimeoutSeconds`
-to an integer from `1` to `604800` (seven days) in the v2 request body. The effective limit is the
-smaller of this request value and the account's configured workflow execution timeout. This field
-is rejected unless `async` is `true`; your HTTP client's timeout remains separate.
+V2 supports explicit `run.source: "manual"` for a personal API-key or OAuth caller with Write access. Workspace keys and anonymous callers cannot use it. Choose `run.entry.blockId` when several triggers are runnable; mock payloads and explicit input cannot be combined.
 
-<Tabs items={['Start Execution', 'Check Status']}>
-  <Tab value="Start Execution">
-```bash
-curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $SIM_API_KEY" \
-  -d '{ "input": { "task": "Process this large dataset" }, "async": true, "executionTimeoutSeconds": 3600 }'
-```
+Manual mode uses the saved draft and supports sync or streaming, not async. Run-from-block and stop-after options have additional validation. See [Execute workflow](/api-reference/workflows/executeWorkflowV2) for the full request.
 
-**Response** (HTTP 202):
+## Limits and recovery
+
+### Execution time limits
+
+See [run duration](/workflows/how-it-runs#how-long-a-run-can-take) for current billing-enabled defaults and self-hosted configuration. Async callers can shorten, but never extend, the account policy.
+
+### Execution retention
+
+Completed and failed runs are read from execution logs and follow the effective [data retention policy](/platform/enterprise/data-retention).
+
+### Capacity limits
+
+A request rejected for rate or capacity limits can return `429` or `503`. V2 uses a structured error envelope, for example:
+
 ```json
 {
-  "data": {
-    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-    "statusUrl": "https://www.sim.ai/api/v2/workflows/{workflow-id}/runs/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
-  }
-}
-```
-  </Tab>
-  <Tab value="Check Status">
-```bash
-curl "https://www.sim.ai/api/v2/workflows/{workflow-id}/runs/{runId}?includeOutput=true" \
-  -H "x-api-key: $SIM_API_KEY"
-```
-
-**While processing:**
-```json
-{
-  "data": {
-    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-    "workflowId": "{workflow-id}",
-    "status": "running",
-    "startedAt": "2025-09-10T12:00:01.000Z",
-    "endedAt": null,
-    "durationMs": null,
-    "output": null
+  "error": {
+    "code": "RATE_LIMITED",
+    "message": "Server is at capacity. Please retry shortly."
   }
 }
 ```
 
-**When completed:**
-```json
-{
-  "data": {
-    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-    "workflowId": "{workflow-id}",
-    "status": "completed",
-    "startedAt": "2025-09-10T12:00:01.000Z",
-    "endedAt": "2025-09-10T12:00:05.000Z",
-    "durationMs": 4000,
-    "output": { "result": "..." }
-  }
-}
-```
-  </Tab>
-</Tabs>
+Use the HTTP status and `Retry-After` header for retry timing. If an async enqueue outcome is uncertain and the error includes a run ID, reconcile that run before repeating a request. `X-Run-Id` claims are one-shot identifiers, not cached-response replay keys; a conflict or missing run does not prove the first call had no effects.
 
-#### Execution Status Values
+### Rate limits
 
-| Status | Description |
-|--------|-------------|
-| `queued` | Execution is waiting to be picked up |
-| `pending` | The durable execution record exists but has not started |
-| `running` | Workflow is actively executing |
-| `paused` | Workflow is waiting for a resume condition or input |
-| `completed` | Finished successfully — `output` is populated when requested |
-| `failed` | Execution failed — `error` field contains the message |
-| `cancelled` | Execution was cancelled |
+Plan and deployment policy govern rate and concurrent execution limits. `X-RateLimit-*` headers describe the applicable request limit. Async mode remains subject to admission and execution limits; it does not bypass them.
 
-Poll the `statusUrl` from the initial response until the status is `completed`, `failed`, or `cancelled`. A `paused` run is waiting to be resumed.
+### API key management
 
-#### Execution Time Limits
+Revoke a compromised key in **Settings → Sim API keys**, create a replacement, and update callers. Use separate keys for applications or environments and the appropriate personal/workspace scope. See [authentication](/api-reference/authentication) for key lifecycle and access.
 
-| Plan | Sync Limit | Async Limit |
-|------|-----------|-------------|
-| **Community** | 5 minutes | 90 minutes |
-| **Pro / Max / Team** | 50 minutes | 90 minutes |
-| **Enterprise** | 50 minutes | 90 minutes by default; configurable up to 7 days |
+## Related docs
 
-If an execution exceeds its time limit it is automatically marked as `failed`. An async API request may use `executionTimeoutSeconds` to shorten its account policy, but never to extend it.
-
-#### Execution Retention
-
-Completed and failed runs are read from execution logs and follow the workspace's execution-log retention policy.
-
-#### Capacity Limits
-
-If the execution queue is full, the API returns `503`:
-
-```json
-{
-  "error": "Service temporarily at capacity",
-  "retryAfterSeconds": 10
-}
-```
-
-<Callout type="info">
-  Async mode always runs against the deployed version. It does not support draft state, block overrides, or partial execution options like `runFromBlock` or `stopAfterBlockId`.
-</Callout>
-
-## API Key Management
-
-Generate and manage API keys in **Settings → Sim Keys**:
-
-- **Create** new keys for different applications or environments
-- **Revoke** keys that are no longer needed
-- Keys are scoped to your workspace
-
-## Rate Limits
-
-API calls are subject to rate limits based on your plan. Rate limit details are returned in response headers (`X-RateLimit-*`) and in the response body. Use async mode for high-volume or long-running workloads.
-
-For detailed rate limit information and the logs/webhooks API, see [External API](/api-reference/getting-started).
-
-<FAQ items={[
-  { question: "Can I deploy the same workflow as both an API and a chat?", answer: "Yes. A workflow can be simultaneously deployed as an API, chat, MCP tool, and more. Each deployment type runs against the same active snapshot." },
-  { question: "What happens if my API key is compromised?", answer: "Revoke the key immediately in Settings → Sim Keys and generate a new one. Revoked keys stop working instantly." },
-]} />
+- [Deployment versions](/workflows/deployment) for tracking changes, promotion, and API deployment management
+- [Agent stream events](/workflows/deployment/agent-events)
+- [Execute workflow](/api-reference/workflows/executeWorkflowV2)
+- [API getting started](/api-reference/getting-started)

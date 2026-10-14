@@ -1,13 +1,10 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingPayerTransferMock } from '@sim/testing/mocks/billing-payer-transfer.mock'
 import { billingSubscriptionSyncMock } from '@sim/testing/mocks/billing-subscription-sync.mock'
 import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/storage/payer-transfer', () => ({
-  changeOrganizationWorkspaceBilledAccountsInTx: vi.fn(),
-  changeWorkspaceStoragePayerInTx: vi.fn(),
-  changeWorkspaceStoragePayersInTx: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 vi.mock('@/lib/billing/webhooks/subscription-sync', () => billingSubscriptionSyncMock)
 

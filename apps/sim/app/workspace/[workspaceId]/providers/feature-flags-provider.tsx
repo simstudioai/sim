@@ -10,6 +10,8 @@ export interface WorkspaceFeatureFlags {
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
   'org-project-view': boolean
+  'mothership-computer-use'?: boolean
+  'mothership-memory-spaces'?: boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)
@@ -28,5 +30,5 @@ export function FeatureFlagsProvider({ children, flags }: FeatureFlagsProviderPr
 export function useFeatureFlag(name: keyof WorkspaceFeatureFlags): boolean {
   const flags = useContext(FeatureFlagsContext)
   if (!flags) throw new Error('useFeatureFlag must be used within FeatureFlagsProvider')
-  return flags[name]
+  return flags[name] ?? false
 }

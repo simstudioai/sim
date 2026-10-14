@@ -72,12 +72,16 @@ export const v2ChatDeploymentCustomizationsSchema = z
       .string()
       .max(2000, 'customizations.welcomeMessage must be at most 2000 characters')
       .optional()
-      .describe('First message shown to a visitor.'),
+      .describe(
+        'First message shown to a visitor. On replace, omission uses the platform default; an empty string keeps the existing message.'
+      ),
     imageUrl: z
       .string()
       .max(2048, 'customizations.imageUrl must be at most 2048 characters')
       .optional()
-      .describe('Avatar image shown beside assistant messages.'),
+      .describe(
+        'Avatar image shown beside assistant messages. On replace, omission or an empty string keeps the existing avatar.'
+      ),
   })
   .strict()
   .meta({
@@ -333,7 +337,9 @@ export const v2ReplaceChatDeploymentBodySchema = z
       .describe('Description shown to visitors. Omitted clears it.'),
     customizations: v2ChatDeploymentCustomizationsSchema
       .optional()
-      .describe('Presentation overrides. Omitted fields take platform defaults.'),
+      .describe(
+        'Presentation overrides. Omitted `primaryColor` and `welcomeMessage` use platform defaults; an omitted or empty `imageUrl` keeps the existing avatar. An empty `welcomeMessage` keeps the existing message.'
+      ),
     authType: chatAuthTypeSchema
       .optional()
       .describe('How visitors are gated. `public` leaves the chat open to anyone holding the URL.')

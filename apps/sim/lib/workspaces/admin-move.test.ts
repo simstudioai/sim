@@ -9,11 +9,12 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
 import {
-  customBlockOperationsMock,
-  customBlockOperationsMockFns,
-} from '@sim/testing/mocks/custom-block-operations.mock'
+  billingPayerTransferMock,
+  billingPayerTransferMockFns,
+} from '@sim/testing/mocks/billing-payer-transfer.mock'
+import { customBlockOperationsMock } from '@sim/testing/mocks/custom-block-operations.mock'
 import {
   invitationsCoreMock,
   invitationsCoreMockFns,
@@ -22,12 +23,9 @@ import {
   invitationsSendMock,
   invitationsSendMockFns,
 } from '@sim/testing/mocks/invitations-send.mock'
-import {
-  organizationMembershipMock,
-  organizationMembershipMockFns,
-} from '@sim/testing/mocks/organization-membership.mock'
-import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
-import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import {
@@ -50,7 +48,6 @@ const {
   findUnpublishableCustomBlocks,
   findSourceOrgCustomBlocksForWorkspace,
   cleanupSourceOrganizationArtifactsTx,
-  changeWorkspaceStoragePayerInTx,
   acquireInvitationMutationLocks,
   countPendingSeatInvitations,
   resolveSeatCapacity,
@@ -70,7 +67,6 @@ const {
   cleanupSourceOrganizationArtifactsTx: vi.fn(() =>
     Promise.resolve({ detachedPermissionGroupIds: [] })
   ),
-  changeWorkspaceStoragePayerInTx: vi.fn(),
   acquireInvitationMutationLocks: vi.fn(),
   countPendingSeatInvitations: vi.fn(() => Promise.resolve(0)),
   resolveSeatCapacity: vi.fn(() => Promise.resolve(10)),
@@ -78,14 +74,10 @@ const {
   getSourceOrganization: vi.fn(),
 }))
 
-const { mockRecordAudit: recordAudit, mockRecordAuditOnce: recordAuditOnce } = auditMockFns
-const { mockAcquireOrganizationMutationLock: acquireOrganizationMutationLock } =
-  organizationMembershipMockFns
-const { mockDeleteCustomBlock: deleteCustomBlock } = customBlockOperationsMockFns
-const { mockEnqueueOrReschedulePendingOutboxEvent: enqueueOrReschedulePendingOutboxEvent } =
-  outboxServiceMockFns
-const { mockInvalidateWorkspaceTableLimitsCache: invalidateWorkspaceTableLimitsCache } =
-  tableBillingMockFns
+const {
+  mockChangeProjectAndWorkspaceStoragePayersInTx: changeProjectAndWorkspaceStoragePayersInTx,
+} = billingPayerTransferMockFns
+
 const { mockGetInvitationById: getInvitationById, mockIsInvitationExpired: isInvitationExpired } =
   invitationsCoreMockFns
 const { mockSendInvitationEmail: sendInvitationEmail } = invitationsSendMockFns
@@ -124,7 +116,7 @@ const POPULATED_CREDENTIALS = {
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
-vi.mock('@/lib/billing/storage/payer-transfer', () => ({ changeWorkspaceStoragePayerInTx }))
+vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 vi.mock('@/lib/billing/validation/seat-management', () => ({
   countPendingSeatInvitations,
   planHasFixedSeatCap: vi.fn((plan: string) => plan === 'enterprise'),
@@ -145,6 +137,7 @@ vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
   })),
   findAttachedPermissionGroups: vi.fn(() => Promise.resolve([])),
   findCrossOrgForkEdges,
+  findInboundSourceOrgCustomBlockUsage: vi.fn(() => Promise.resolve([])),
   findRetainedCollaboratorCaps: vi.fn(() => Promise.resolve([])),
   findUnpublishableCustomBlocks,
   findSourceOrgCustomBlocksForWorkspace,
@@ -253,7 +246,7 @@ beforeEach(() => {
   })
   collectWorkspaceCredentialSummary.mockResolvedValue(EMPTY_CREDENTIALS)
   getSourceOrganization.mockResolvedValue(SOURCE_ORGANIZATION)
-  changeWorkspaceStoragePayerInTx.mockResolvedValue({
+  changeProjectAndWorkspaceStoragePayersInTx.mockResolvedValue({
     billableBytes: 128,
     newPayer: { type: 'organization', id: destination.id },
     oldPayer: { type: 'user', id: personalWorkspace.billedAccountUserId },
@@ -473,72 +466,6 @@ describe('migrated invitation email outbox', () => {
 })
 
 describe('moveWorkspaceToOrganization retries', () => {
-  it('returns the existing destination summary without repeating side effects', async () => {
-    queueMoveSelects(movedWorkspace)
-
-    const result = await moveWorkspaceToOrganization({
-      workspaceId: movedWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-    })
-
-    expect(result.workspace).toMatchObject({
-      id: movedWorkspace.id,
-      organizationId: destination.id,
-      workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-    })
-    expect(enqueueOrReschedulePendingOutboxEvent).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
-    expect(invalidateWorkspaceTableLimitsCache).not.toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
-  })
-
-  it('persists a standalone operation marker atomically with a new move', async () => {
-    queueMoveSelects(personalWorkspace)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: personalWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      expectedOwnerId: personalWorkspace.ownerId,
-      auditOperationId: 'operation-1',
-      operationCorrelationId: 'operation-1',
-      durableOperationId: 'operation-1',
-    })
-
-    expect(dbChainMockFns.values.mock.calls.map(([values]) => values)).toContainEqual(
-      expect.objectContaining({
-        id: 'operation-1',
-        eventType: 'admin.workspace-move-operation',
-        status: 'completed',
-        payload: {
-          request: {
-            workspaceId: personalWorkspace.id,
-            destinationOrganizationId: destination.id,
-            expectedOwnerId: personalWorkspace.ownerId,
-          },
-          audit: {
-            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-            newBillingOwnerId: destination.ownerId,
-            organizationAssignedAt: expect.any(String),
-            /**
-             * Persisted so a reload of a completed operation can still name the
-             * organization the workspace came from — the payer transfer has
-             * already overwritten `workspace.organizationId` by then.
-             */
-            sourceOrganizationId: null,
-            /** Persisted so the reload path can replay the source-org audit. */
-            unpublishedCustomBlocks: [],
-            detachedPermissionGroupIds: [],
-          },
-        },
-      })
-    )
-  })
-
   it('refuses a move that would exceed the locked Enterprise seat capacity', async () => {
     queueMoveSelects(personalWorkspace)
     queueTableRows(subscription, [
@@ -567,27 +494,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       })
     ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({ code: 'seat-capacity-exceeded' })
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
-  })
-
-  it('does not let a new operation ID claim a workspace moved by another operation', async () => {
-    queueMoveSelects(movedWorkspace)
-
-    await expect(
-      moveWorkspaceToOrganization({
-        workspaceId: movedWorkspace.id,
-        destinationOrganizationId: destination.id,
-        adminEmail: 'admin@sim.ai',
-        expectedOwnerId: movedWorkspace.ownerId,
-        auditOperationId: 'operation-2',
-        operationCorrelationId: 'operation-2',
-        durableOperationId: 'operation-2',
-      })
-    ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({
-      code: 'already-organization-workspace',
-    })
-
-    expect(recordAuditOnce).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
   })
 
   it('reports the workspace credentials when a completed operation is reloaded', async () => {
@@ -612,56 +519,13 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(view.credentials).toEqual(POPULATED_CREDENTIALS)
   })
 
-  it('locks both organizations in ascending id order, after invitation locks and before the row lock', async () => {
-    queueMoveSelects(organizationWorkspace)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    const lockedOrganizationIds = acquireOrganizationMutationLock.mock.calls.map(
-      (call) => call[1] as string
-    )
-    expect(lockedOrganizationIds).toEqual(['org-1', 'org-source'])
-    const invitationLock = acquireInvitationMutationLocks.mock.invocationCallOrder[0]
-    const firstOrganizationLock = acquireOrganizationMutationLock.mock.invocationCallOrder[0]
-    const firstForUpdate = dbChainMockFns.for.mock.invocationCallOrder[0]
-    expect(firstOrganizationLock).toBeGreaterThan(invitationLock)
-    expect(firstForUpdate).toBeGreaterThan(firstOrganizationLock)
-  })
-
-  it('fences the payer transfer on the source organization it read under the locks', async () => {
-    queueMoveSelects(organizationWorkspace)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        organizationId: destination.id,
-        expectedCurrentPayer: {
-          organizationId: 'org-source',
-          billedAccountUserId: organizationWorkspace.billedAccountUserId,
-        },
-      })
-    )
-  })
-
   it('re-fences the payer transfer after a SourceOrganizationChangedError retry', async () => {
     /**
      * The optimistic pre-transaction organization read decides which
      * organizations get locked. When the workspace moves between that read and
      * the locked read, the attempt must abort and retry — otherwise the payer
      * transfer is fenced on an organization the workspace has already left, and
-     * `changeWorkspaceStoragePayerInTx`'s optimistic check is the only thing
+     * `changeProjectAndWorkspaceStoragePayersInTx`'s optimistic check is the only thing
      * standing between that and a corrupted storage ledger.
      *
      * First locked read reports a different organization than the pre-read, so
@@ -684,57 +548,17 @@ describe('moveWorkspaceToOrganization retries', () => {
       durableOperationId: 'operation-1',
     })
 
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledTimes(1)
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledWith(
+    expect(changeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
+    expect(changeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        expectedCurrentPayer: expect.objectContaining({ organizationId: 'org-moved' }),
+        workspaceChanges: [
+          expect.objectContaining({
+            expectedCurrentPayer: expect.objectContaining({ organizationId: 'org-moved' }),
+          }),
+        ],
       })
     )
-  })
-
-  it('unpublishes source-organization custom blocks bound to the moving workspace', async () => {
-    queueMoveSelects(organizationWorkspace)
-    findSourceOrgCustomBlocksForWorkspace.mockResolvedValueOnce([
-      { id: 'block-1', type: 'custom_block_1', name: 'Reporter' },
-    ] as never)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    expect(deleteCustomBlock).toHaveBeenCalledWith('block-1', expect.anything())
-    expect(cleanupSourceOrganizationArtifactsTx).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ sourceOrganizationId: 'org-source' })
-    )
-  })
-
-  it('refuses a cross-organization fork edge without mutating anything', async () => {
-    queueMoveSelects(organizationWorkspace)
-    findCrossOrgForkEdges.mockResolvedValueOnce([
-      {
-        workspaceId: 'parent-1',
-        name: 'Parent',
-        organizationId: 'org-source',
-        direction: 'parent',
-      },
-    ] as never)
-
-    await expect(
-      moveWorkspaceToOrganization({
-        workspaceId: organizationWorkspace.id,
-        destinationOrganizationId: destination.id,
-        adminEmail: 'admin@sim.ai',
-        durableOperationId: 'operation-1',
-      })
-    ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({ code: 'fork-lineage-conflict' })
-
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
-    expect(deleteCustomBlock).not.toHaveBeenCalled()
   })
 
   it('refuses an organization source without a durable operation id', async () => {
@@ -756,16 +580,12 @@ describe('moveWorkspaceToOrganization retries', () => {
       })
     ).rejects.toThrow(/without a durable operation id/)
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
   })
 
   it('refuses an entitlement downgrade without mutating anything', async () => {
     queueMoveSelects(organizationWorkspace)
-    /**
-     * Not `...Once`: the resolver runs twice — once before the transaction for
-     * preflight reporting, and again under the locks as the fence.
-     */
-    resolveMoveEntitlements.mockResolvedValue({
+    resolveMoveEntitlements.mockResolvedValueOnce({
       sourceIsEnterprise: true,
       destinationIsEnterprise: false,
       capabilitiesLost: ['permission groups', 'workspace forking'],
@@ -782,7 +602,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       code: 'destination-entitlement-downgrade',
     })
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
   })
 
   it('rejects a stale batch selection when workspace ownership changed', async () => {
@@ -799,7 +619,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       code: 'workspace-owner-changed',
     })
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

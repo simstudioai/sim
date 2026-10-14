@@ -4,7 +4,7 @@ import type { DbTransaction } from '@/lib/db/types'
 import { snapshotWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   isVersionHeadCurrent,
-  loadWorkspaceFileVersionHead,
+  loadWorkspaceFileVersionHeads,
   materializeWorkspaceFileVersionInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 
@@ -21,23 +21,26 @@ export async function handoffFileCreatorsInTx(
     .where(condition)
     .orderBy(asc(workspaceFiles.id))
     .for('update')
-  for (const file of files) {
-    if (file.context !== 'workspace' || !file.workspaceId) continue
-    const head = await loadWorkspaceFileVersionHead(file.id, tx)
+  const versioned = files.filter(
+    (file) => file.context === 'workspace' || file.context === 'project'
+  )
+  const heads = await loadWorkspaceFileVersionHeads(
+    versioned.map((file) => file.id),
+    tx
+  )
+  for (const file of versioned) {
+    const head = heads.get(file.id)
     if (isVersionHeadCurrent(head, file)) continue
-    const provenance = await snapshotWorkspaceFileSecretProvenanceInTx(
-      tx,
-      file.id,
-      file.contentUpdatedAt,
-      file.secretProvenanceVersion
-    )
-    await materializeWorkspaceFileVersionInTx(
-      tx,
-      { ...file, workspaceId: file.workspaceId },
-      head,
-      provenance,
-      new Date()
-    )
+    const provenance =
+      file.projectId && file.secretProvenanceVersion === null
+        ? { status: 'unknown' as const, entries: [] }
+        : await snapshotWorkspaceFileSecretProvenanceInTx(
+            tx,
+            file.id,
+            file.contentUpdatedAt,
+            file.secretProvenanceVersion
+          )
+    await materializeWorkspaceFileVersionInTx(tx, file, head, provenance, new Date())
   }
   if (!files.length) return
   await tx

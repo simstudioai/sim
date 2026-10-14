@@ -29,6 +29,7 @@ export const ROOM_TYPES = {
    * workspace-scoped {@link ROOM_TYPES.WORKSPACE_FILES} browser room.
    */
   WORKSPACE_FILE_DOC: 'workspace-file-doc',
+  PROJECT_FILE_DOC: 'project-file-doc',
   /**
    * A single table's grid (one room per table). Carries live cell-selection
    * presence — which cells each viewer has selected — so its id space is the
@@ -134,4 +135,20 @@ export function parseRoomName(name: string): RoomRef | null {
  */
 export function presenceEventName(type: RoomType): string {
   return type === ROOM_TYPES.WORKFLOW ? 'presence-update' : `${type}:presence-update`
+}
+
+/** Owner-qualified identity for shared Project document rooms. */
+export function projectFileDocRoom(projectId: string, fileId: string): RoomRef {
+  if (![projectId, fileId].every((id) => id.length > 0 && !/[/:]/.test(id))) {
+    throw new Error('Invalid Project document identity')
+  }
+  return { type: ROOM_TYPES.PROJECT_FILE_DOC, id: `${projectId}/${fileId}` }
+}
+
+/** Resolve the exact owner and file encoded in a Project room address. */
+export function projectFileDocTarget(room: RoomRef): { projectId: string; fileId: string } | null {
+  if (room.type !== ROOM_TYPES.PROJECT_FILE_DOC) return null
+  const parts = room.id.split('/')
+  if (parts.length !== 2 || parts.some((id) => !id || id.includes(':'))) return null
+  return { projectId: parts[0], fileId: parts[1] }
 }

@@ -1,6 +1,5 @@
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
-import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,8 +17,6 @@ vi.mock('@sim/emcn', () => ({
 }))
 
 vi.mock('@sim/emcn/icons', () => emcnIconsMock)
-
-vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
@@ -75,18 +72,19 @@ vi.mock(
   () => ({ useAccessibleReferencePrefixes: () => undefined })
 )
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { Table } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table'
-
-nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 function render(password: boolean) {
   return renderToStaticMarkup(
-    <Table
-      blockId='block-1'
-      subBlockId='variables'
-      columns={['Key', 'Value']}
-      password={password}
-    />
+    <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+      <Table
+        blockId='block-1'
+        subBlockId='variables'
+        columns={['Key', 'Value']}
+        password={password}
+      />
+    </WorkflowScopeProvider>
   )
 }
 

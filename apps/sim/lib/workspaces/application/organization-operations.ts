@@ -3,6 +3,7 @@ import { defineOrganizationOperation } from '@/lib/core/application/organization
 export const organizationWorkspaceOperations = {
   list: defineOrganizationOperation({
     id: 'organization.workspaces.list',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session', 'organization_delegated'],
@@ -11,6 +12,7 @@ export const organizationWorkspaceOperations = {
   }),
   create: defineOrganizationOperation({
     id: 'organization.workspaces.create',
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'workspace.create',
     principalKinds: ['organization_delegated'],

@@ -13,13 +13,13 @@ import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveServableDocBytes } from '@/lib/mothership/tools/server/files/doc-compile'
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { resolveServableDocBytes } from '@/lib/uploads/documents/compile'
+import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -189,6 +189,7 @@ async function resolveTransformedBytes(params: {
   const doc = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
+    sourceMime: fileType,
     workspaceId,
     filePrincipal,
     ownerKey,

@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useParams, useRouter } from 'next/navigation'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflowOperations } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -100,9 +101,11 @@ export function FirstWorkflowRedirect() {
             <ApplicationLoading brand={brand} fullScreen={false} />
           )}
         </div>
-        <ReactFlowProvider>
-          <Panel />
-        </ReactFlowProvider>
+        <WorkflowScopeProvider workspaceId={workspaceId} workflowId={null}>
+          <ReactFlowProvider>
+            <Panel />
+          </ReactFlowProvider>
+        </WorkflowScopeProvider>
       </div>
       <Terminal />
     </div>

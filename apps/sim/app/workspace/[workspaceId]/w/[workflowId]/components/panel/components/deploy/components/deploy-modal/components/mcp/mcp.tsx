@@ -13,7 +13,6 @@ import {
   Textarea,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import {
   extractDescriptionOverrides,
@@ -23,6 +22,7 @@ import {
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
 import type { InputFormatField } from '@/lib/workflows/types'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal'
 import {
   useAddWorkflowMcpTool,
@@ -132,8 +132,7 @@ export function McpDeploy({
   onSaveDisabledReasonChange,
   onActiveServerChange,
 }: McpDeployProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)

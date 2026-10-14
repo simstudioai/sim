@@ -134,22 +134,33 @@ interface FakeSocket {
  * Recording the emits without routing them would hide the very thing these tests are about.
  */
 function createIo(sockets: FakeSocket[]) {
-  const emitTo = (target: string, except: string | null, event: string, payload: unknown) => {
+  const emitTo = (target: string, except: string[], event: string, payload: unknown) => {
     for (const socket of sockets) {
-      if (socket.id === except || !socket.rooms.has(target)) continue
+      if (
+        except.some((room) => room === socket.id || socket.rooms.has(room)) ||
+        !socket.rooms.has(target)
+      )
+        continue
       socket.emit(event, payload)
     }
   }
-  const to = vi.fn((target: string) => ({
-    except: (exclude: string) => ({
-      emit: (event: string, payload: unknown) => emitTo(target, exclude, event, payload),
-    }),
-    emit: (event: string, payload: unknown) => emitTo(target, null, event, payload),
-  }))
+  const channel = (target: string, excluded: string[] = []) => ({
+    except: (exclude: string) => channel(target, [...excluded, exclude]),
+    emit: (event: string, payload: unknown) => emitTo(target, excluded, event, payload),
+    fetchSockets: async () =>
+      sockets.filter(
+        (socket) =>
+          socket.rooms.has(target) &&
+          !excluded.some((room) => room === socket.id || socket.rooms.has(room))
+      ),
+  })
+  const to = vi.fn((target: string) => channel(target))
   return {
     to,
     in: vi.fn(() => ({ socketsLeave: () => {} })),
     local: { to },
+    sockets: { sockets: { get: (id: string) => sockets.find((socket) => socket.id === id) } },
+    serverSideEmit: vi.fn(),
   } as unknown as IRoomManager['io']
 }
 
@@ -158,6 +169,7 @@ function setup(id: string, sockets: FakeSocket[]) {
   const rooms = new Set<string>()
   const socket = {
     id,
+    data: {},
     userId: 'user-1',
     userName: 'Test User',
     userImage: 'avatar.png',

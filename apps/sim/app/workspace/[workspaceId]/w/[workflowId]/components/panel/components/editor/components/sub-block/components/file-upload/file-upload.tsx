@@ -8,7 +8,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { Progress } from '@/components/ui/progress'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -20,6 +19,7 @@ import { containsReference } from '@/lib/workflows/sanitization/references'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { isFileInFolderScope } from '@/lib/workspace-files/folder-path-selection'
 import { findSelectedWorkspaceFile } from '@/lib/workspace-files/selection'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
@@ -272,8 +272,7 @@ export function FileUpload({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const {
     data: workspaceFiles = [],

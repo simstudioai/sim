@@ -9,6 +9,12 @@ import {
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 
+const KnowledgeGraphs = dynamic(() =>
+  import('@/app/o/[organizationId]/settings/components/knowledge-graphs').then(
+    (m) => m.KnowledgeGraphs
+  )
+)
+
 const OrganizationRecentlyDeleted = dynamic(() =>
   import('@/app/o/[organizationId]/settings/components/organization-recently-deleted').then(
     (m) => m.OrganizationRecentlyDeleted
@@ -90,6 +96,7 @@ export function OrganizationSettings({ section }: OrganizationSettingsProps) {
       {section === 'recently-deleted' && (
         <OrganizationRecentlyDeleted key={organizationId} organizationId={organizationId} />
       )}
+      {section === 'knowledge-graphs' && <KnowledgeGraphs organizationId={organizationId} />}
       {section === 'integrations' && <OrganizationIntegrationsSettings />}
       {section === 'connected-accounts' && (
         <OrganizationConnectedAccounts organizationId={organizationId} />

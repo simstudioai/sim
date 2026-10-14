@@ -2,7 +2,7 @@
 
 import { Search } from '@sim/emcn/icons'
 import { useQuery } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   breadcrumbFolderChain,
   folderBreadcrumbItems,
@@ -13,14 +13,18 @@ import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/
 import { useFolderMap } from '@/hooks/queries/folders'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 
-/** Keeps the open workflow identifiable when Build uses section-level navigation. */
-export function WorkflowLocationBar() {
-  const enabled = useFeatureFlag('org-project-view')
-  return enabled ? <WorkflowLocationBarContent /> : null
+interface WorkflowLocationBarProps {
+  workspaceId: string
+  workflowId: string
 }
 
-function WorkflowLocationBarContent() {
-  const { workspaceId, workflowId } = useParams<{ workspaceId: string; workflowId: string }>()
+/** Keeps the open workflow identifiable when Build uses section-level navigation. */
+export function WorkflowLocationBar(props: WorkflowLocationBarProps) {
+  const enabled = useFeatureFlag('org-project-view')
+  return enabled ? <WorkflowLocationBarContent {...props} /> : null
+}
+
+function WorkflowLocationBarContent({ workspaceId, workflowId }: WorkflowLocationBarProps) {
   const router = useRouter()
   /** The list's query options, not the workflows hooks: that module carries the trigger registry. */
   const { data: workflow } = useQuery({

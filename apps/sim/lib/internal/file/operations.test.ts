@@ -407,23 +407,34 @@ describe('file manage folder wiring', () => {
       { ...FOLDER_ROW, id: 'user-b', parentId: 'memory', name: 'user-b', path: 'memory/user-b' },
     ]
 
+    const MEMORY_FILES = [
+      { ...workspaceFile('a-self'), name: 'self.md', folderId: 'user-a' },
+      { ...workspaceFile('a-people-self'), name: 'self.md', folderId: 'user-a-people' },
+      { ...workspaceFile('b-self'), name: 'self.md', folderId: 'user-b' },
+    ]
+
     beforeEach(() => {
       mockListWorkspaceFileFolders.mockResolvedValue({ folders: MEMORY_FOLDERS })
-      mockListWorkspaceFilesInFolderScope.mockImplementation(
-        async ({ input }: { input: { includeSubfolders?: boolean } }) => ({
-          files: [
-            { ...workspaceFile('a-self'), name: 'self.md', folderId: 'user-a' },
-            ...(input.includeSubfolders === false
-              ? []
-              : [
-                  {
-                    ...workspaceFile('a-people-self'),
-                    name: 'self.md',
-                    folderId: 'user-a-people',
-                  },
-                ]),
-          ],
-          truncated: false,
+      mockQueryWorkspaceFilePage.mockImplementation(
+        async ({
+          input,
+        }: {
+          input: {
+            folderScope?: { folderIds: Set<string>; includeRootItems: boolean }
+            fileId?: string
+            name?: string
+          }
+        }) => ({
+          files: MEMORY_FILES.filter(
+            (file) =>
+              (!input.folderScope ||
+                (file.folderId
+                  ? input.folderScope.folderIds.has(file.folderId)
+                  : input.folderScope.includeRootItems)) &&
+              (input.fileId === undefined || file.id === input.fileId) &&
+              (input.name === undefined || file.name === input.name)
+          ),
+          nextKeys: null,
         })
       )
     })
@@ -559,11 +570,11 @@ describe('file manage folder wiring', () => {
    * the only thing telling them apart.
    */
   it('appends to the file in the chosen folder, not a same-named file elsewhere', async () => {
-    mockListWorkspaceFilesInFolderScope.mockResolvedValue({
+    mockQueryWorkspaceFilePage.mockResolvedValue({
       files: [
         { ...workspaceFile('notes-in-reports'), name: 'notes.md', folderId: 'folder-reports' },
       ],
-      truncated: false,
+      nextKeys: null,
     })
     await POST(
       createMockRequest('POST', {
@@ -575,6 +586,33 @@ describe('file manage folder wiring', () => {
       })
     )
 
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
+      'workspace-1',
+      'notes-in-reports',
+      { includeOwnedFiles: true }
+    )
+  })
+
+  it('resolves a named file in a folder too large to list in one selection', async () => {
+    mockListWorkspaceFilesInFolderScope.mockResolvedValue({ files: [], truncated: true })
+    mockQueryWorkspaceFilePage.mockResolvedValue({
+      files: [
+        { ...workspaceFile('notes-in-reports'), name: 'notes.md', folderId: 'folder-reports' },
+      ],
+      nextKeys: null,
+    })
+
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'append',
+        workspaceId: 'workspace-1',
+        fileName: 'notes.md',
+        folderPath: '/Reports',
+        content: 'more',
+      })
+    )
+
+    expect(response.status).not.toBe(413)
     expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       'workspace-1',
       'notes-in-reports',

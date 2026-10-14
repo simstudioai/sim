@@ -1,8 +1,12 @@
+import {
+  INTEGRATION_ACTION_COUNT_LABEL,
+  INTEGRATION_COUNT_LABEL,
+  INTEGRATION_TRIGGER_COUNT_LABEL,
+} from '@sim/deployment-config/integration-claims'
 import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
 import { toSiteUrl } from '@/lib/core/utils/urls'
 import { getAllCustomerStoryMeta } from '@/lib/customers/registry'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
 import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
@@ -76,7 +80,7 @@ export async function GET() {
         linkLine(
           'Integrations',
           '/integrations',
-          `${INTEGRATION_COUNT_LABEL} integrations, triggers, and tools agents can use`
+          `${INTEGRATION_COUNT_LABEL} integrations with ${INTEGRATION_ACTION_COUNT_LABEL} actions and ${INTEGRATION_TRIGGER_COUNT_LABEL} triggers agents can use`
         ),
         linkLine(
           'Models',

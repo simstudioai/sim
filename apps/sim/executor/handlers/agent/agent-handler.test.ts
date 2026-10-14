@@ -18,6 +18,7 @@ import {
   workspaceFileSecretProvenanceMock,
   workspaceFileSecretProvenanceMockFns,
 } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { toArray, toRecord } from '@sim/utils/object'
 import {
   afterAll,
   afterEach,
@@ -365,14 +366,17 @@ describe('AgentBlockHandler', () => {
       }
     )
 
-    it('refuses an evaluation model as a conversational fallback before executing the primary', async () => {
+    it('refuses an evaluation model as a conversational fallback, without retry, before executing the primary', async () => {
       await expect(
         handler.execute(mockContext, mockBlock, {
           model: 'gpt-4o',
           messages: [{ role: 'user', content: 'Hello' }],
           fallbackModels: [{ model: 'jev-latest' }],
         })
-      ).rejects.toThrow('Evaluation models cannot serve as chat fallbacks')
+      ).rejects.toMatchObject({
+        message: 'Evaluation models cannot serve as chat fallbacks',
+        retryable: false,
+      })
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
   })
@@ -604,7 +608,7 @@ describe('AgentBlockHandler', () => {
         const original = structuredClone(inputs)
         await handler.execute({ ...mockContext, executionId: 'exec-1' }, mockBlock, inputs)
         const stored = dbChainMockFns.values.mock.calls
-          .map(([row]) => row)
+          .map(([row]) => toRecord(row))
           .find((row) => Array.isArray(row.data) && row.data[0]?.role === 'user')?.data as Message[]
         expect(stored).toBeDefined()
         expect(stored[0].files).toEqual([
@@ -672,9 +676,11 @@ describe('AgentBlockHandler', () => {
         files: [file],
       })
       expect(mockExecuteProviderRequest.mock.calls[0][1].messages[0].files).toHaveLength(1)
-      expect(dbChainMockFns.values.mock.calls.some(([row]) => row.data?.[0]?.role === 'user')).toBe(
-        false
-      )
+      expect(
+        dbChainMockFns.values.mock.calls.some(
+          ([row]) => toRecord(toArray(toRecord(row).data)[0]).role === 'user'
+        )
+      ).toBe(false)
     })
   })
 
@@ -689,6 +695,7 @@ describe('AgentBlockHandler', () => {
     const providerFor = (model: string) => {
       if (model.startsWith('gpt')) return 'openai'
       if (model.startsWith('claude')) return 'anthropic'
+      if (model.startsWith('vertex/')) return 'vertex'
       if (model === 'blacklisted-model') throw new Error('provider blacklisted')
       return 'openai'
     }
@@ -842,7 +849,7 @@ describe('AgentBlockHandler', () => {
         }
 
         const memoryWrites = dbChainMockFns.values.mock.calls
-          .map(([row]) => row)
+          .map(([row]) => toRecord(row))
           .filter((row) => Array.isArray(row.data))
         expect(memoryWrites.map((row) => row.data)).toEqual([
           [currentUserMessage],
@@ -1073,6 +1080,26 @@ describe('AgentBlockHandler', () => {
       expect(mockAgentLogger.warn).toHaveBeenCalledWith(
         'Fallback model unusable; skipping',
         expect.objectContaining({ model: 'blacklisted-model' })
+      )
+    })
+
+    it('skips a fallback on another provider that needs its own family credentials', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('down'))
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'vertex/gemini-3.1-pro' }, { model: 'gpt-4o-mini' }],
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls.map(([, request]) => request.model)).toEqual([
+        'gpt-4o',
+        'gpt-4o-mini',
+      ])
+      expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+        'Fallback model unusable; skipping',
+        expect.objectContaining({ model: 'vertex/gemini-3.1-pro' })
       )
     })
 

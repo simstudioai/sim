@@ -24,6 +24,7 @@ export const workspacePermissionOperations = {
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
     capability: 'none',
+    contentDelivery: 'none',
   }),
   /** permission-group-exempt: workspace administrators manage existing collaborator roles. */
   update: defineWorkspaceOperation({
@@ -33,6 +34,7 @@ export const workspacePermissionOperations = {
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
     capability: 'none',
+    contentDelivery: 'none',
   }),
 } as const
 

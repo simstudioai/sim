@@ -367,6 +367,7 @@ describe('knowledge document indexing usage', () => {
 
 describe('knowledge image extraction usage', () => {
   const VISION_USAGE = {
+    chargeId: 'charge-1',
     model: 'gemini-3.8-flash',
     cost: 0.004,
     inputTokens: 1200,
@@ -411,12 +412,26 @@ describe('knowledge image extraction usage', () => {
     )
   }
 
+  /** Processing that reports a vision charge the way the extractor does, then settles. */
+  function extractThen(
+    usage: typeof VISION_USAGE,
+    settle: () => Promise<{ chunks: unknown[]; metadata: Record<string, number> }>
+  ) {
+    mockProcessDocument.mockImplementation(async (...args: unknown[]) => {
+      const access = args[6] as { onVisionUsage: (reported: typeof VISION_USAGE) => void }
+      access.onVisionUsage(usage)
+      return settle()
+    })
+  }
+
+  const NOTHING_INDEXED = {
+    chunks: [],
+    metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0 },
+  }
+
   it('bills a decorative image that indexed nothing', async () => {
     armImageReads('confluence')
-    mockProcessDocument.mockResolvedValue({
-      chunks: [],
-      metadata: { chunkCount: 0, tokenCount: 0, characterCount: 0, visionUsage: VISION_USAGE },
-    })
+    extractThen(VISION_USAGE, async () => NOTHING_INDEXED)
     await process()
 
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
@@ -427,7 +442,7 @@ describe('knowledge image extraction usage', () => {
         source: 'knowledge-base',
         description: 'gemini-3.8-flash',
         cost: 0.004,
-        sourceReference: `knowledge-document-vision:${DOCUMENT_ID}:pass-1`,
+        sourceReference: `knowledge-document-vision:${DOCUMENT_ID}:charge-1`,
         metadata: { inputTokens: 1200, outputTokens: 300 },
       }),
     ])
@@ -435,28 +450,35 @@ describe('knowledge image extraction usage', () => {
 
   it('bills the vision call beside the embedding charge without changing it', async () => {
     armImageReads('confluence')
-    mockProcessDocument.mockResolvedValue({
+    extractThen(VISION_USAGE, async () => ({
       chunks: [{ text: 'Region: EMEA', metadata: { startIndex: 0, endIndex: 12 } }],
-      metadata: { chunkCount: 1, tokenCount: 4, characterCount: 12, visionUsage: VISION_USAGE },
-    })
+      metadata: { chunkCount: 1, tokenCount: 4, characterCount: 12 },
+    }))
     await process()
 
     expect(mockRecordUsage).toHaveBeenCalledTimes(2)
-    expect(recordedSourceReference(0)).toBe(`knowledge-document:${DOCUMENT_ID}:pass-1`)
-    expect(recordedSourceReference(1)).toBe(`knowledge-document-vision:${DOCUMENT_ID}:pass-1`)
+    expect([recordedSourceReference(0), recordedSourceReference(1)].sort()).toEqual([
+      `knowledge-document-vision:${DOCUMENT_ID}:charge-1`,
+      `knowledge-document:${DOCUMENT_ID}:pass-1`,
+    ])
+  })
+
+  it('bills the vision call when a later stage fails the pass', async () => {
+    armImageReads('confluence')
+    extractThen(VISION_USAGE, async () => ({
+      chunks: [{ text: 'Region: EMEA', metadata: { startIndex: 0, endIndex: 12 } }],
+      metadata: { chunkCount: 1, tokenCount: 4, characterCount: 12 },
+    }))
+    mockGenerateEmbeddings.mockRejectedValue(new Error('embedding provider down'))
+    await expect(process()).rejects.toThrow()
+
+    expect(mockRecordUsage).toHaveBeenCalledTimes(1)
+    expect(recordedSourceReference(0)).toBe(`knowledge-document-vision:${DOCUMENT_ID}:charge-1`)
   })
 
   it('records no vision charge when the call cost nothing, as with a workspace key', async () => {
     armImageReads('confluence')
-    mockProcessDocument.mockResolvedValue({
-      chunks: [],
-      metadata: {
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        visionUsage: { ...VISION_USAGE, cost: 0 },
-      },
-    })
+    extractThen({ ...VISION_USAGE, cost: 0 }, async () => NOTHING_INDEXED)
     await process()
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })

@@ -1,117 +1,134 @@
 ---
-title: Verify Your Install
-description: Smoke-test the app, authentication, workflows, storage, and scheduled jobs
+title: Verify your install
+description: Check authentication, collaboration, execution, storage, and scheduled jobs
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Run this after a first install, an upgrade, or a restore. These checks cover the core deployment; also verify any optional features you enabled, such as SSO, SCIM, data drains, and remote sandboxes.
+Run these checks after installation, an upgrade, or a restore. Use a test workspace and the providers you configured. Also test optional features you enabled, such as SSO, SCIM, data drains, and remote sandboxes.
 
-## `sim-setup doctor`
+## Run doctor [#sim-setup-doctor]
 
-Run this first. It is the fastest signal you have, and it catches most bad installs before you open a browser.
+For Compose or a source checkout, run from the directory holding your env files:
 
 ```bash
-npx sim-setup doctor
+bunx sim-setup doctor
 ```
 
-Run it from the directory holding your `.env` and Compose file, or from a source checkout. It reports five groups:
+Doctor reports these groups:
 
-| Group | What it checks |
-|---|---|
-| **Env files** | Every `.env` the layout requires exists. `--fix` seeds a missing one from the example plus the values already in `apps/sim/.env` |
-| **Schema** | **Required** keys are present, are not still the example placeholder, are valid URLs where they should be, and have a usable shape — `ENCRYPTION_KEY` is checked as exactly 64 hex characters, the rest as a minimum length. Optional secrets are not shape-checked, so a malformed `API_ENCRYPTION_KEY` passes here and fails later at encrypt time. `--fix` generates missing or placeholder secrets |
-| **Consistency** | The same key agrees across files — `BETTER_AUTH_SECRET` between the app and realtime, and `DATABASE_URL` between the app and `packages/db` (a mismatch there means migrations ran against a different database). `--fix` mirrors the `apps/sim/.env` value |
-| **Coherence** | Configuration that is individually valid but jointly wrong: a feature flag whose dependency is unset, a storage provider that is half-configured, and a server flag whose `NEXT_PUBLIC_` twin disagrees with it |
-| **Live** | Postgres is reachable, pgvector is available, migrations are applied — on a standalone `npx sim-setup` install the published package carries no migration journal, so it can confirm what has been applied but not that it is current — Redis answers, and the running services respond on their ports. Doctor reads env files, so on the production Compose layout — where those values live inside the containers rather than in `.env` — the Postgres, migration, and Redis probes are skipped and only the HTTP health checks run |
+| Group | Checks and limits |
+| --- | --- |
+| Env files | Required env files exist. `--fix` seeds missing files from examples and values already in `apps/sim/.env`. |
+| Schema | Required keys are present, no longer placeholders, and have usable formats. `ENCRYPTION_KEY` is checked as 64 hex characters; other required secrets have minimum lengths. Optional secrets are not shape-checked, so an invalid `API_ENCRYPTION_KEY` can pass this group. |
+| Consistency | Shared secrets agree between app and realtime; the app and migrator point to the same database. `--fix` mirrors the app's value across split files. |
+| Coherence | Feature flags agree with dependencies, storage configuration is complete, and server flags agree with their UI counterparts. |
+| Live | Checks database reachability, pgvector, applied migrations, Redis, and HTTP health when their configuration is available. |
 
-<Callout type="warn">
-  The check worth knowing about before you hit it: if `NEXT_PUBLIC_APP_URL` points at `sim.ai` or any subdomain of it, Sim treats the deployment as Sim's own hosted platform (`isHosted=true`) and disables self-host overrides. Doctor flags this. Use your own domain.
-</Callout>
+Doctor reads env files, not live container configuration. Production Compose derives `DATABASE_URL` and Redis settings in the service definition, so those probes can be skipped when the keys are absent from `.env`. A standalone published package has no migration journal: it can report applied migrations, but cannot establish that they match a current checkout. Read the skipped findings and continue with the checks below.
 
-Two flags matter:
-
-- `--fix` applies the safe repairs above and re-runs the checks. It never touches anything it cannot repair deterministically.
-- `--json` prints the findings as structured JSON instead of the report, so CI can gate on it. The command exits `1` when anything failed.
-
-The full command list is in the [Docker guide](/platform/self-hosting/docker#the-sim-setup-cli). Doctor reads env files, so it covers Compose installs and source checkouts — it is not a Kubernetes tool. On Helm, use the infrastructure checks below.
-
-## Checklist
-
-| # | Do this | Proves | If it fails |
-|---|---|---|---|
-| 1 | Open your Sim URL and create an account | App, database, TLS, migrations | `kubectl logs deploy/sim-app` — and check the `migrations` init container |
-| 2 | Sign out and sign back in | Session handling, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | URLs must match your real origin exactly |
-| 3 | Open a workflow and drag two blocks into the editor | Realtime websocket connection | Browser console for socket errors; see [Networking](/platform/self-hosting/networking) |
-| 4 | Open the same workflow in a second browser window and edit | Cross-replica collaboration | With >1 replica this needs [Redis](/platform/self-hosting/redis) |
-| 5 | Paste a model API key in settings and run a two-block workflow | Execution engine, credential encryption, outbound network | App logs; check `ENCRYPTION_KEY` is set and outbound egress is allowed |
-| 6 | Upload a small file in Files | File storage end to end | With object storage configured: presigned URL + bucket CORS. On local disk: the upload proxies through the app |
-| 7 | Upload a file larger than 50 MB | Multipart upload path (object storage only) | Check app logs for provider part-listing or completion errors |
-| 8 | Create a knowledge base and upload a PDF | Document parsing, embeddings, pgvector | Needs an embedding provider — see below |
-| 9 | Invite a teammate from workspace settings | Email delivery | App logs for the mailer; see [Email](/platform/self-hosting/email) |
-| 10 | Connect an integration account | OAuth configuration | Redirect URI mismatch → see [Integrations & OAuth](/platform/self-hosting/integrations-oauth) |
-| 11 | Create a workflow with a Schedule trigger set to every minute, deploy it, wait 2 minutes | **Background jobs** | Check the scheduler's logs — see [Background Jobs](/platform/self-hosting/background-jobs) |
-| 12 | Trigger a workflow via the API with an API key | Public API and API-key auth | Check the key was created successfully in settings |
+`--json` prints structured findings; the command exits `1` when a check fails. `--fix` writes env-file repairs and reruns the checks. Review those changes and recreate the affected services to apply them; retain existing encryption secrets on upgrades and restores.
 
 <Callout type="warn">
-  Step 11 is the one most people skip and most often discover broken weeks later. Scheduled workflows and every polling trigger depend on the scheduler, and a wrong or missing `CRON_SECRET` makes it fail silently from the app's side.
+  Use your own domain. A `NEXT_PUBLIC_APP_URL` on `sim.ai` or a subdomain identifies the instance as Sim Cloud and disables self-hosted overrides. Doctor flags this configuration.
 </Callout>
+
+Doctor is not a Helm runtime diagnostic. For Kubernetes, use the infrastructure commands below. See [Setup commands](/platform/self-hosting/docker#the-sim-setup-cli) for the supported layouts and commands.
+
+## Core checks [#checklist]
+
+| # | Action | Expected result | If it fails |
+| --- | --- | --- | --- |
+| 1 | Open the public URL and create an account. If registration is disabled, use a provisioned account. | App, database, TLS, and migrations work. | Read app and migrations logs. |
+| 2 | Sign out and sign back in. | Session handling works at the configured origin. | Compare `NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, and the browser origin. |
+| 3 | Open a workflow, add blocks, and confirm the browser establishes its socket connection. | Realtime is reachable. | Check browser socket errors and proxy routing. |
+| 4 | Open that workflow in a second browser window and edit it. | Edits propagate between clients. | Check realtime and Redis configuration. |
+| 5 | Save a model API key in settings and run a two-block workflow. | Credential encryption, execution, and provider egress work. | Check app logs, `ENCRYPTION_KEY`, and outbound connectivity. |
+| 6 | Upload and download a small file in Files. | Storage works end to end. | Check signed-URL/CORS settings for cloud storage, or app/proxy logs for local storage. |
+| 7 | Upload a file larger than 50 MiB and confirm completion. | Multipart upload works on cloud or local storage. | Read part-upload and completion errors in app logs. |
+
+Two windows verify collaboration between clients. To establish cross-replica operation, also confirm their socket connections reach different realtime pods. A load balancer can send both windows to one process. Multi-replica operation requires `REDIS_URL` on the app and realtime services.
+
+Cloud uploads use multipart above 50 MiB; local uploads use it above 8 MiB. Local parts pass through Sim, while cloud parts use signed provider URLs. See [Object storage](/platform/self-hosting/object-storage).
+
+## Feature checks
+
+Run the checks for each feature you intend to use:
+
+| # | Action | Expected result | Prerequisite or diagnosis |
+| --- | --- | --- | --- |
+| 8 | Create a knowledge base and upload a PDF. | Parsing, embeddings, and vector storage complete. | Configure an embedding provider and enable pgvector. |
+| 9 | Invite a teammate from workspace settings. | The invitation arrives and can be accepted. | Configure and verify email delivery. |
+| 10 | Connect an OAuth integration account. | The provider returns to Sim and the account is listed. | Match registered callbacks to the public origin. |
+| 11 | Deploy a workflow with a Schedule trigger set to every minute, then wait two minutes. | The workflow runs on schedule. | Confirm the scheduler is running and its `CRON_SECRET` matches the app. |
+| 12 | Use a Sim API key to trigger a workflow through the public API. | API-key authentication and execution work. | Enable the public API and use the intended key scope. |
+
+<Callout type="warn">
+  A healthy app does not prove scheduled work is running. Scheduled workflows and polling triggers depend on the scheduler; verify an actual run and inspect scheduler responses.
+</Callout>
+
+Knowledge bases can use OpenAI, Azure OpenAI, OpenRouter, or Gemini embeddings, or an Ollama model selected by `KB_EMBEDDING_MODEL=ollama/<model>` with `OLLAMA_URL`. See [Environment variables](/platform/self-hosting/environment-variables#knowledge-bases).
 
 ## Infrastructure checks
 
-After the checklist, confirm the deployment itself is healthy.
+For the Helm example release `sim` in namespace `simstudio`:
 
 ```bash
-# Everything running?
 kubectl get pods -n simstudio
-
-# Migrations completed
 kubectl logs -n simstudio deploy/sim-app -c migrations --tail=50
-
-# Health endpoints
 curl -fsS https://sim.yourdomain.com/api/health
-
-# Background jobs scheduled
 kubectl get cronjobs -n simstudio
-
-# Redis configured (multi-replica deployments) — confirms the variable is set,
-# not that Redis answers. Checklist steps 3 and 4 above are the real reachability test.
-kubectl exec -n simstudio deploy/sim-app -- printenv REDIS_URL
 ```
 
+The migrations init container must complete before the app starts. Inspect failed CronJob pods and their logs; the presence of a schedule alone does not prove the endpoint call succeeded.
+
+To check whether Redis is configured without printing the connection string:
+
 ```bash
-# Docker Compose
-docker compose -f docker-compose.prod.yml ps
+kubectl exec -n simstudio deploy/sim-app -- sh -c 'test -n "$REDIS_URL"'
+```
+
+A zero exit status only confirms a non-empty variable. It does not prove Redis answers or that cross-pod events propagate; use the collaboration check above.
+
+For Compose:
+
+```bash
+docker compose -f docker-compose.prod.yml ps -a
 docker compose -f docker-compose.prod.yml logs migrations
+docker compose -f docker-compose.prod.yml logs cron
 curl -fsS http://localhost:3000/api/health
 ```
 
-All six should be present on Compose: `simstudio`, `realtime`, `db`, `redis`, `cron`, and a completed `migrations`.
+Expect `simstudio`, `realtime`, `db`, `redis`, and `cron` to be running, with `migrations` completed successfully. Without `CRON_SECRET`, the cron service exits instead of running schedules.
 
-## Reading the failures
+## Read failures [#reading-the-failures]
 
-**Step 1 fails — app will not load.** Almost always migrations or database connectivity. Check the migrations init container first; a failed migration deliberately blocks the rollout.
+| Failure | Check |
+| --- | --- |
+| App does not load | Database connectivity and migration logs. On Helm, failed migrations block the app init sequence. On Compose, the app waits for successful migrations. |
+| Sign-in loops or is rejected | Public app/auth origins, scheme, and trusted origins. Confirm the app and realtime use the same `BETTER_AUTH_SECRET`. |
+| Socket is unavailable | WebSocket upgrades and `/socket.io` routing. For a separate realtime host, set `NEXT_PUBLIC_SOCKET_URL` and include the app origin in realtime's `ALLOWED_ORIGINS`. |
+| Edits do not propagate | Realtime connectivity and Redis on every replica; verify which pods hold the connections. |
+| Workflow execution fails | Provider egress, saved credentials, and app logs. A decryption error can mean the current `ENCRYPTION_KEY` differs from the key that encrypted the credential. |
+| Cloud upload fails | Bucket CORS for the Sim origin and signed headers; server permissions to complete multipart uploads. S3 completion needs `s3:ListMultipartUploadParts`. |
+| Local upload fails | App logs, writable persistent upload storage, and proxy/body limits. Bucket CORS does not apply. |
+| Knowledge upload fails | Embedding credentials/model/width, parsing errors, and `vector` availability. |
+| Email never arrives | Provider configuration and delivery dashboard. Without a provider, Sim reports success without delivery; it logs only recipient, subject, and sender at INFO. |
+| OAuth connection fails | Exact callback URI, client credentials, requested scopes, and provider approval. |
+| Schedule does not run | Cron service or CronJob pod logs. `401` means scheduler authentication failed; compare `CRON_SECRET`. |
 
-**Step 2 fails — login loops or rejects.** `NEXT_PUBLIC_APP_URL` or `BETTER_AUTH_URL` does not match the origin you are browsing. Both must be the exact public URL, with scheme and no trailing slash.
-
-**Step 3 fails — no live updates.** The reverse proxy is not passing websocket upgrades, or `/socket.io` is not routed to the realtime service. If realtime is on a separate hostname, `NEXT_PUBLIC_SOCKET_URL` must point at it and realtime's `ALLOWED_ORIGINS` must include the app origin.
-
-**Step 4 fails — edits do not sync between windows.** With more than one replica, this is Redis. Confirm `REDIS_URL` is present on both pods.
-
-**Step 5 fails — execution errors.** Check outbound connectivity to the model provider, then the app logs. If the error is about decrypting a credential, `ENCRYPTION_KEY` differs from the one that encrypted it.
-
-**Step 6 or 7 fails.** With object storage configured, a CORS error in the browser console means the bucket policy does not allow your Sim origin or the signed upload headers. If step 7 fails only during completion, check the app logs and verify the server identity can list multipart parts (for S3, `s3:ListMultipartUploadParts`). On local-disk storage there is no CORS involved — uploads proxy through the app, so look at the app logs and the proxy body-size limit instead.
-
-**Step 8 fails — knowledge base upload errors.** Knowledge bases need an embedding provider: OpenAI, Azure OpenAI, or Gemini with an API key, or a model on your own Ollama via `KB_EMBEDDING_MODEL=ollama/<model>` and `OLLAMA_URL`. If one is configured, check pgvector is installed on the database.
-
-**Step 9 fails — no email arrives.** With no provider configured the mailer no-ops: it records the recipient, subject, and sender at `info` and reports success, never the message body. Raise `LOG_LEVEL` to `INFO` to see that line — the variable is uppercase-only, and at the production default of `ERROR` nothing is logged at all.
-
-**Step 11 fails — schedule never fires.** Read the scheduler's logs (`docker compose -f docker-compose.prod.yml logs cron`, or `kubectl get cronjobs -n simstudio`). A `401` there means the app and the scheduler disagree on `CRON_SECRET`.
+Set `LOG_LEVEL=INFO` and restart/recreate the app to see email no-op logs. Log-level values are uppercase; the production default is `ERROR`, which hides those INFO messages. Message bodies are not logged and cannot be recovered from that no-op entry.
 
 ## After an upgrade
 
-Re-run steps 1, 3, 5, 6, and 11 at minimum. Those cover the app, realtime, execution, storage, and background jobs — the five things a bad upgrade breaks.
+Repeat app sign-in, realtime collaboration, workflow execution, file upload/download, and scheduled-run checks at minimum. Also test each optional feature affected by the release.
 
 ## After a restore
 
-Run the whole list, and pay special attention to **step 5 with an OAuth-backed integration**. That is what proves `ENCRYPTION_KEY` matches the backup. An app that loads and logs in but cannot decrypt credentials looks healthy right up until someone runs a real workflow.
+Run all applicable checks. Run a workflow using a previously saved provider key and an OAuth-backed integration to confirm the restored database and `ENCRYPTION_KEY` still match. An app can load and sign in while stored credentials remain unreadable.
+
+## Related docs
+
+- [Background jobs](/platform/self-hosting/background-jobs)
+- [Networking](/platform/self-hosting/networking)
+- [Troubleshooting](/platform/self-hosting/troubleshooting)

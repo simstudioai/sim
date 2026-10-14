@@ -48,6 +48,7 @@ vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/organization-slack-app', () => ({
   loadOrganizationSlackMemberApps: hoisted.memberApps,
   adoptOrganizationSlackMemberApp: hoisted.adoptMemberApp,
+  lockOrganizationSlackApp: vi.fn(),
 }))
 vi.mock('@/lib/internal/slack/search-client', () => ({
   verifySlackSearchBot: hoisted.verify,

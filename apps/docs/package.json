@@ -7,7 +7,7 @@
     "dev": "bun run dev:cache:cap && bun run llms-full:generate && bunx concurrently --kill-others --names Next,LLMs \"next dev --port 3001\" \"bun scripts/watch-llms-full.ts\"",
     "dev:cache:cap": "bun run ../../scripts/prune-turbopack-cache.ts",
     "dev:clean": "rm -rf .next/dev/cache",
-    "build": "bun run llms-full:generate && NODE_OPTIONS='--max-old-space-size=8192' next build",
+    "build": "bun scripts/fetch-git-history.ts && bun run llms-full:generate && NODE_OPTIONS='--max-old-space-size=8192' next build",
     "start": "next start",
     "postinstall": "fumadocs-mdx",
     "test": "vitest run",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@sim/db": "workspace:*",
+    "@sim/deployment-config": "workspace:*",
     "@sim/emcn": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",

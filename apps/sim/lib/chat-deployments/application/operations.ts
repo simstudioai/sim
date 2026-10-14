@@ -54,6 +54,7 @@ export const chatDeploymentOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'deploy.chat',
+    contentDelivery: 'none',
     ...CHAT_DEPLOYMENT_LIST_POLICY,
   }),
   replace: defineWorkspaceOperation({
@@ -62,6 +63,7 @@ export const chatDeploymentOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
+    contentDelivery: 'none',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
   read: defineWorkspaceOperation({
@@ -70,6 +72,7 @@ export const chatDeploymentOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
+    contentDelivery: 'none',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
   update: defineWorkspaceOperation({
@@ -78,6 +81,7 @@ export const chatDeploymentOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
+    contentDelivery: 'none',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
   delete: defineWorkspaceOperation({
@@ -86,6 +90,7 @@ export const chatDeploymentOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'deploy.chat',
+    contentDelivery: 'none',
     ...CHAT_DEPLOYMENT_ADMIN_POLICY,
   }),
 } as const

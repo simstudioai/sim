@@ -101,6 +101,7 @@ const workflowSummarySchema = z
     workspaceId: z.string().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
+    archivedAt: z.string().nullable(),
   })
   .partial()
 

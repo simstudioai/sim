@@ -3,8 +3,7 @@ import type {
   MicrosoftAdListServicePrincipalAppRoleAssignmentsParams,
 } from '@/tools/microsoft_ad/types'
 import { APP_ROLE_ASSIGNMENT_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import { assertGraphNextPageUrlForCollection } from '@/tools/microsoft_ad/utils'
-import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listServicePrincipalAppRoleAssignmentsTool: ToolConfig<

@@ -1,22 +1,37 @@
 ---
 title: HubSpot
-description: Search contacts, companies, deals, and tickets with your HubSpot permissions
+description: Find CRM records with your current HubSpot permissions
 ---
 
-HubSpot live Search uses **Member accounts** through HubSpot's official MCP service. An administrator enables HubSpot under **Settings → Sources**, then each person selects **Connect** under **Integrations** and signs in to HubSpot. Allow read access to contacts, companies, deals, and tickets. Write access is not needed.
+HubSpot Search finds contacts, companies, deals, and tickets through the official MCP service. It uses **Member accounts** and your current HubSpot permissions.
 
-## What you can search
+## Connect
 
-Search names, domains, email addresses, deal names, and ticket subjects using concise keywords. Select a CRM kind to focus on contacts, companies, deals, or tickets; an unrestricted search checks all four. HubSpot searches each object's default searchable properties. It is lexical search, so a long natural-language question may need shorter keywords.
+An admin adds **HubSpot** in **Settings → Sources**. Each person then selects **Integrations → HubSpot → Connect** and signs in. Grant read access to contacts, companies, deals, and tickets; write access is not needed. Search a known name, email, or domain, then read the record.
 
-Read a result to see its returned CRM properties, including available custom properties. Links open the verified record in HubSpot. Reads do not include activity histories, notes, or associated records.
+## Search and read records
 
-Dates and date sorting use the record's last modification time. To list records without keywords, select newest/oldest sorting or a date range. Continue an individual CRM kind with the returned cursor and the same query and filters. Searches are bounded and do not establish aggregate totals or revenue. Ownership, pipeline, lifecycle-stage filters, and custom object types are not supported; “my deals” is not treated as “all visible deals.”
+Use concise keywords such as names, domains, email addresses, deal names, or ticket subjects. Native kinds are `contacts`, `companies`, `deals`, and `tickets`; a query without a kind searches all four. The provider searches default searchable properties lexically, so shorten long natural-language questions.
 
-## Access and setup
+Reads return available CRM properties, including custom properties, with a verified HubSpot record link. They do not include activity histories, notes, or associated records.
 
-Every request uses the connected person's current HubSpot permissions. Search uses a fixed read-only tool allowlist and cannot create or change CRM records. Account permissions, subscription restrictions, and HubSpot request limits still apply.
+Dates and sorting use last modification time. For a queryless listing, use newest/oldest sorting or a date range. Continue one CRM kind with its cursor and the same query and filters. Bounded results cannot establish aggregate totals or revenue.
 
-The deployment configures one HubSpot MCP OAuth app; teammates only sign in. This is separate from the ordinary HubSpot OAuth app used by workflow integrations. For a self-hosted deployment, register an MCP app in HubSpot, set `HUBSPOT_MCP_CLIENT_ID` and `HUBSPOT_MCP_CLIENT_SECRET`, and register the exact callback `<your Sim app URL>/api/mcp/oauth/callback`. Sim uses `https://mcp.hubspot.com` and handles HubSpot's regional redirect. Replacing the shared registration requires people to reconnect.
+Ownership, pipeline, lifecycle-stage filters, and custom object types are unsupported. “My deals” is not interpreted as all visible deals. Subscription restrictions, user permissions, and request limits still apply. Search only uses read tools and cannot create or change records.
 
-If HubSpot is unavailable in the source picker, ask the deployment administrator to configure the MCP app. If read access is missing, reconnect with the needed read permissions. See [HubSpot's remote MCP server documentation](https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-the-remote-hubspot-mcp-server).
+## Self-hosted setup and recovery
+
+Configure a dedicated HubSpot MCP OAuth app, separate from the ordinary workflow OAuth app. Register an MCP app in HubSpot, set `HUBSPOT_MCP_CLIENT_ID` and `HUBSPOT_MCP_CLIENT_SECRET`, and register the exact callback:
+
+```text
+https://<your-sim-domain>/api/mcp/oauth/callback
+```
+
+Sim uses `https://mcp.hubspot.com` and handles its regional redirect. Replacing the shared registration requires members to reconnect.
+
+If HubSpot is unavailable in the source picker, ask the deployment admin to configure the MCP app. If read permissions are missing, reconnect with the required grants.
+
+## Related docs
+
+- [HubSpot remote MCP setup](https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-the-remote-hubspot-mcp-server)
+- [Connect your account](/search/connect-your-account)

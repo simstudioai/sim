@@ -868,20 +868,19 @@ describe('table row writes against real PostgreSQL', () => {
         SELECT ${table.id}::text || '-' || i, ${table.id}, ${workspaceId},
           jsonb_build_object('email', 'stored-' || i || '@example.test'), i, 'a' || i
         FROM generate_series(0, 39999) AS i`
-      // A bulk insert leaves its entries in the GIN pending list, which a manual ANALYZE does not
-      // merge and which the planner charges to every probe, so flush it for a deterministic plan.
-      await control`SELECT gin_clean_pending_list('user_table_rows_tenant_data_gin_idx'::regclass)`
-      await control`ANALYZE user_table_rows`
-      const rows: RowData[] = Array.from({ length: 260 }, (_, i) => ({
-        email: i % 10 === 0 ? `stored-${i * 100}@example.test` : `new-${i}@example.test`,
-      }))
+      try {
+        await control`ANALYZE user_table_rows`
+        const rows: RowData[] = Array.from({ length: 260 }, (_, i) => ({
+          email: i % 10 === 0 ? `stored-${i * 100}@example.test` : `new-${i}@example.test`,
+        }))
 
-      const { result, scans } = await checkWithScans(table, rows)
+        const { result, scans } = await checkWithScans(table, rows)
 
-      await control`DELETE FROM user_table_rows WHERE table_id = ${table.id}`
-
-      expect(result.errors).toHaveLength(26)
-      expect(scans).toEqual({ user_table_rows_tenant_data_gin_idx: 260 })
+        expect(result.errors).toHaveLength(26)
+        expect(scans).toEqual({ user_table_rows_tenant_data_gin_idx: 260 })
+      } finally {
+        await control`DELETE FROM user_table_rows WHERE table_id = ${table.id}`
+      }
     }, 60_000)
   })
 

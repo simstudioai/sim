@@ -35,7 +35,11 @@ interface OwnedFileKind {
   /** The file's name in its namespace; null when its owner is gone. */
   fileName(fileId: string): Promise<string | null>
   /** Throws unless the file's owner is live and its feature is enabled. */
-  assertOwnerAccess(fileId: string, workspaceOrganizationId: string | null): Promise<void>
+  assertOwnerAccess(
+    fileId: string,
+    workspaceOrganizationId: string | null,
+    executor?: DbOrTx
+  ): Promise<void>
   /** Checks new content before it is stored; the returned step runs in the write transaction. */
   prepareWrite(write: OwnedFileWrite): Promise<((tx: DbOrTx) => Promise<void>) | undefined>
   /** Why the generic file tool cannot create a file at this path, and what to use instead. */
@@ -56,8 +60,8 @@ const OWNED_FILE_KINDS = {
       const owner = await getLiveWorkflowTestByBodyFileId(fileId)
       return owner ? `${owner.name}${TEST_FILE_SUFFIX}` : null
     },
-    async assertOwnerAccess(fileId, workspaceOrganizationId) {
-      if (!(await getLiveWorkflowTestByBodyFileId(fileId))) throw fileNotFound()
+    async assertOwnerAccess(fileId, workspaceOrganizationId, executor) {
+      if (!(await getLiveWorkflowTestByBodyFileId(fileId, executor))) throw fileNotFound()
       await requireWorkflowTestsEnabled(workspaceOrganizationId)
     },
     async prepareWrite(write) {
@@ -77,8 +81,8 @@ const OWNED_FILE_KINDS = {
       const release = await getReleaseByBodyFileId(fileId)
       return release ? `${release.id}${CHANGELOG_FILE_SUFFIX}` : null
     },
-    async assertOwnerAccess(fileId, workspaceOrganizationId) {
-      if (!(await getReleaseByBodyFileId(fileId))) throw fileNotFound()
+    async assertOwnerAccess(fileId, workspaceOrganizationId, executor) {
+      if (!(await getReleaseByBodyFileId(fileId, executor))) throw fileNotFound()
       await requireChangelogEnabled(workspaceOrganizationId)
     },
     async prepareWrite(write) {

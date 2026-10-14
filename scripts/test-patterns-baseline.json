@@ -178,7 +178,6 @@
   "real-wait\tapps/sim/lib/mothership/agent-cli/engines/universal-grep.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/mothership/agent-cli/engines/universal-grep.test.ts\tsleep() #2",
   "real-wait\tapps/sim/lib/mothership/agent-cli/engines/universal-grep.test.ts\tsleep() #3",
-  "real-wait\tapps/sim/lib/mothership/request/handlers/handlers.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/mothership/tools/client/browser-tool-execution.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/mothership/tools/client/local-filesystem.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/mothership/tools/client/local-filesystem.test.ts\tsleep() #2",

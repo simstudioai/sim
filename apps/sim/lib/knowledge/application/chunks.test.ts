@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   knowledgeContextsMock,
@@ -8,6 +9,7 @@ import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/wo
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  admitKnowledgeChunks: vi.fn(),
   queryChunks: vi.fn(),
   batchChunkOperation: vi.fn(),
   createChunk: vi.fn(),
@@ -36,10 +38,19 @@ vi.mock('@/lib/knowledge/model-input-provenance', () => ({
 
 vi.mock('@/providers/utils', () => providersUtilsMock)
 
+vi.mock('@/lib/knowledge/application/admit-knowledge-content', () => ({
+  admitKnowledgeChunks: mocks.admitKnowledgeChunks,
+}))
+
+import { admitContent } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
-import { bulkUpdateKnowledgeChunks, listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
+import {
+  bulkUpdateKnowledgeChunks,
+  createKnowledgeChunk,
+  listKnowledgeChunks,
+} from '@/lib/knowledge/application/chunks'
 
 describe('knowledge chunk application use cases', () => {
   beforeEach(() => {
@@ -55,6 +66,45 @@ describe('knowledge chunk application use cases', () => {
       documentId: 'document-1',
       document: { id: 'document-1', processingStatus: 'processing' },
     })
+  })
+
+  /** Stands in for the gate's verdicts; accounting is the real primitive's, as the helper's is. */
+  function admitOnly(ids: string[]) {
+    mocks.admitKnowledgeChunks.mockImplementation(async (principal: Principal) => {
+      await admitContent(principal, [])
+      return new Set(ids)
+    })
+  }
+
+  it('admits a created chunk with the document name its response shows', async () => {
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+      access: { get: async () => WORKSPACE_ACCESS_SCOPE },
+      knowledgeBaseId: 'knowledge-1',
+      knowledgeBase: { id: 'knowledge-1', embeddingModel: 'text-embedding-3-small' },
+      documentId: 'document-1',
+      document: { id: 'document-1', processingStatus: 'completed', filename: 'named.txt' },
+    })
+    mocks.createChunk.mockResolvedValue({ id: 'chunk-new', content: 'body', tokenCount: 1 })
+    admitOnly(['chunk-new'])
+
+    const result = await createKnowledgeChunk.execute({
+      principal: createSessionPrincipal(),
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        documentId: 'document-1',
+        content: 'body',
+        resolveContentProvenance: () => undefined,
+      },
+    })
+
+    expect(result.chunk.documentName).toBe('named.txt')
+    const [, [item]] = mocks.admitKnowledgeChunks.mock.calls[0]
+    expect(item.value).toMatchObject({ documentId: 'document-1', documentName: 'named.txt' })
   })
 
   it('returns a typed transient failure before querying chunks for a processing document', async () => {

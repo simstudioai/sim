@@ -122,7 +122,7 @@ async function startRequest(
       const result = owner.organizationId
         ? await requestJson(startOrganizationSlackConfigurationContract, {
             params: { id: owner.organizationId, groupId: credentialGroupId },
-            body: { appId: body.appId!, teamId: body.teamId!, requiredScopes: body.requiredScopes },
+            body: { appId: body.appId, teamId: body.teamId, requiredScopes: body.requiredScopes },
           })
         : await requestJson(startSlackCredentialGroupConfigurationContract, {
             params: { id: owner.workspaceId!, groupId: credentialGroupId },

@@ -67,9 +67,8 @@ interface DocumentReadAccess {
   /** The candidate predicate every leg ranks under. */
   rankCondition: SQL
   /**
-   * A signed-in reader: their tag and keyword legs run under the search deadline, and their tag leg
-   * ranks in one statement. A caller with no person behind it runs those legs unbudgeted, as it
-   * always has.
+   * A signed-in reader: their tag and keyword legs run under the search deadline and rank in one
+   * statement. A caller with no person behind it runs those legs unbudgeted, as it always has.
    */
   signedIn: boolean
   /** Present only when a searched base holds a source whose reader must be proven live. */
@@ -386,10 +385,11 @@ export async function handleVectorSearch(
  * query makes Postgres detoast the chunk's vector and compute a distance for *every* full-text
  * match before the `LIMIT` applies — work that scales with how common the query term is rather
  * than with `topK`. Ranking therefore touches no vectors, and only the rows that survive the limit
- * are hydrated. Every caller ranks every base in one statement (see
- * {@link rankKeywordCandidates}): a signed-in reader under the search deadline, a caller with no
- * person behind it unbudgeted. A search holding a source whose reader must be proven live pages
- * its ranking instead, so the proof is asked for only when one of its candidates is read.
+ * are hydrated. A signed-in reader ranks in one statement under the search deadline (see
+ * {@link rankSignedInKeywordCandidates}); a caller with no person behind it ranks unbudgeted, many
+ * bases in parallel, each up to the leg's whole `topK` so the merged ranking is the global one. A
+ * search holding a source whose reader must be proven live pages its ranking instead, so the
+ * proof is asked for only when one of its candidates is read.
  */
 async function executeKeywordSearch(
   params: KeywordSearchParams,
@@ -418,7 +418,7 @@ async function executeKeywordSearch(
       'keyword',
       budget
     )
-  const ranking = {
+  const signedInRanking = {
     knowledgeBaseIds,
     tsQuery,
     tagFilterConditions,
@@ -439,8 +439,8 @@ async function executeKeywordSearch(
       budget,
       topK,
       selectPage: async (limit, offset, excludedSources) => {
-        const candidates = await rankKeywordCandidates({
-          ...ranking,
+        const candidates = await rankSignedInKeywordCandidates({
+          ...signedInRanking,
           exclusion: excludeSearchSources(excludedSources),
           limit,
           offset,
@@ -451,8 +451,43 @@ async function executeKeywordSearch(
     })
   }
 
+  const rankExpr = sql<number>`ts_rank_cd(${embedding.contentTsv}, ${tsQuery})`
+  const visibility = getVisibilityConditions(params.filters, read.rankCondition)
+  /** Ranking pass: ids and relevance only, so no vector is read. */
+  const rankRows = (kbScope: SQL) =>
+    db
+      .select({ id: embedding.id, keywordRank: rankExpr.as('keyword_rank') })
+      .from(embedding)
+      .innerJoin(document, eq(embedding.documentId, document.id))
+      .where(
+        and(
+          kbScope,
+          ...visibility,
+          sql`${embedding.contentTsv} @@ ${tsQuery}`,
+          ...tagFilterConditions
+        )
+      )
+      .orderBy(sql`${rankExpr} DESC`)
+      .limit(topK)
+
   return shortOnDeadline(budget, async () => {
-    const topIds = (await rankKeywordCandidates({ ...ranking, limit: topK })).map((row) => row.id)
+    let topIds: string[]
+    if (read.signedIn) {
+      const ranked = await rankSignedInKeywordCandidates({ ...signedInRanking, limit: topK })
+      topIds = ranked.map((row) => row.id)
+    } else if (getQueryStrategy(knowledgeBaseIds.length, topK).useParallel) {
+      const perBase = await Promise.all(
+        knowledgeBaseIds.map((kbId) => rankRows(eq(embedding.knowledgeBaseId, kbId)))
+      )
+      topIds = perBase
+        .flat()
+        .sort((a, b) => b.keywordRank - a.keywordRank)
+        .slice(0, topK)
+        .map((row) => row.id)
+    } else {
+      const ranked = await rankRows(inArray(embedding.knowledgeBaseId, knowledgeBaseIds))
+      topIds = ranked.map((row) => row.id)
+    }
     if (topIds.length === 0) {
       return []
     }
@@ -463,8 +498,8 @@ async function executeKeywordSearch(
   })
 }
 
-/** A keyword ranking over the source chunks, in one statement; see {@link keywordCandidateRankingQuery}. */
-function rankKeywordCandidates(input: {
+/** A signed-in reader's keyword ranking over the source chunks, in one statement; see {@link keywordCandidateRankingQuery}. */
+function rankSignedInKeywordCandidates(input: {
   knowledgeBaseIds: string[]
   tsQuery: SQL
   tagFilterConditions: SQL[]

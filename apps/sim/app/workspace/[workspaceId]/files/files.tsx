@@ -555,12 +555,14 @@ function FilesContent() {
 
   /**
    * While a file is still untitled, name it after the leading heading the user types in its editor. The
-   * editor reports the heading text (debounced); here we re-check the file is still untitled, derive a
-   * unique `.md` name among its folder siblings, and rename. A no-op once the file has a real name.
+   * editor reports the heading once the user finishes it — possibly on unmount, after the route has
+   * already moved to another file, so the file is looked up by the id it reports rather than read from
+   * the current selection. Re-checks the file is still untitled, derives a unique `.md` name among its
+   * folder siblings, and renames. A no-op once the file has a real name.
    */
   const handleDeriveTitleFromHeading = useCallback(
-    (headingText: string) => {
-      const currentFile = selectedFileRef.current
+    (fileId: string, headingText: string) => {
+      const currentFile = filesRef.current.find((f) => f.id === fileId)
       if (!currentFile || !isUntitledName(currentFile.name)) return
       const derived = deriveMarkdownFileName(headingText)
       if (!derived) return

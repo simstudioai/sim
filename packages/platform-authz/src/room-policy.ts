@@ -24,6 +24,7 @@ export const ROOM_MEMBERSHIP_ACTIONS = {
   [ROOM_TYPES.WORKSPACE_TABLES]: 'read',
   [ROOM_TYPES.WORKSPACE_WORKFLOWS]: 'read',
   [ROOM_TYPES.WORKSPACE_FILE_DOC]: 'write',
+  [ROOM_TYPES.PROJECT_FILE_DOC]: 'read',
   [ROOM_TYPES.TABLE]: 'read',
 } as const satisfies Record<RoomType, PermissionType>
 

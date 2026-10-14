@@ -4,6 +4,7 @@ import {
   uploadsConfigMock,
   uploadsConfigMockFns,
 } from '@sim/testing/mocks/uploads-config.mock'
+import { toRecord } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUploadToS3, mockGetPresignedUrlWithConfig, mockDeleteFromS3 } = vi.hoisted(() => ({
@@ -72,7 +73,7 @@ describe('uploadExecutionFile key allocation', () => {
     const scope = { ...context, workspaceId: '11111111-1111-4111-8111-111111111111' }
     let persisted: Record<string, unknown> | undefined
     dbChainMockFns.returning.mockImplementation(async () => {
-      persisted = dbChainMockFns.values.mock.calls.at(-1)?.[0]
+      persisted = toRecord(dbChainMockFns.values.mock.calls.at(-1)?.[0])
       return [{ ...persisted }]
     })
     const uploaded = await uploadExecutionFile(
@@ -100,7 +101,7 @@ describe('uploadExecutionFile key allocation', () => {
   it('commits tracked provenance with the canonical file before returning its URL', async () => {
     const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
     dbChainMockFns.returning.mockImplementation(async () => {
-      const values = dbChainMockFns.values.mock.calls.at(-1)?.[0]
+      const values = toRecord(dbChainMockFns.values.mock.calls.at(-1)?.[0])
       return [{ ...values, id: values?.id ?? values?.fileId, contentUpdatedAt }]
     })
     const file = await uploadExecutionFile(
@@ -178,7 +179,7 @@ describe('uploadExecutionFile key allocation', () => {
   it('cleans both committed metadata and bytes when its download URL cannot be issued', async () => {
     const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
     dbChainMockFns.returning.mockImplementation(async () => {
-      const values = dbChainMockFns.values.mock.calls.at(-1)?.[0]
+      const values = toRecord(dbChainMockFns.values.mock.calls.at(-1)?.[0])
       return [{ ...values, id: values?.id ?? values?.fileId, contentUpdatedAt }]
     })
     mockGetPresignedUrlWithConfig.mockRejectedValueOnce(new Error('Signing failed'))

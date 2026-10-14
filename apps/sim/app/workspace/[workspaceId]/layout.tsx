@@ -7,6 +7,7 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
+import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import {
   hasDesktopBackgroundExecutor,
@@ -132,6 +133,7 @@ async function WorkspaceContent({
     changelogEnabled,
     desktopExecutorRegistered,
     orgProjectViewEnabled,
+    computerUseEnabled,
   ] = await Promise.all([
     cookies(),
     orgSettings,
@@ -143,13 +145,14 @@ async function WorkspaceContent({
       activeOrganizationId
     ),
     isMothershipModelSelectorEnabled(),
-    isPlanModeEnabled(),
+    isPlanModeEnabled(session.user.id).catch(() => false),
     resolveOrganizationEntryPath(session),
     isDashboardsEnabled(hostContext.hostOrganizationId),
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
     isOrgProjectViewEnabled(hostContext.hostOrganizationId),
+    isComputerUseAvailable(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -163,6 +166,7 @@ async function WorkspaceContent({
           'workflow-tests': workflowTestsEnabled,
           changelog: changelogEnabled,
           'mothership-model-selector': modelSelectorEnabled,
+          'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
           'org-project-view': orgProjectViewEnabled,
         }}

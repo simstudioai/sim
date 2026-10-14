@@ -30,6 +30,7 @@ import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
+import { executableToolPermission } from '@/lib/mothership/async-runs/executable-tool-permission'
 import {
   INTERRUPTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_LEASE_SECONDS,
@@ -836,15 +837,7 @@ export async function claimDesktopToolCall(
                     isNull(copilotAsyncToolCalls.pickupDeadlineAt),
                     sql`${copilotAsyncToolCalls.pickupDeadlineAt} > clock_timestamp()`
                   ),
-              or(
-                and(
-                  isNull(copilotAsyncToolCalls.permissionRequestedAt),
-                  isNull(copilotAsyncToolCalls.permissionDecision)
-                ),
-                inArray(copilotAsyncToolCalls.permissionDecision, [
-                  ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
-                ])
-              )
+              executableToolPermission()
             )
           )
           .returning({ id: copilotAsyncToolCalls.id })
@@ -1720,6 +1713,7 @@ export async function replaceTerminalAsyncToolCallResult(input: {
   status: AsyncTerminalStatus
   result: AsyncCompletionData | null
   error: string | null
+  expectedResult?: AsyncCompletionData
 }) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
@@ -1742,7 +1736,10 @@ export async function replaceTerminalAsyncToolCallResult(input: {
         .where(
           and(
             eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
-            eq(copilotAsyncToolCalls.status, input.status)
+            eq(copilotAsyncToolCalls.status, input.status),
+            input.expectedResult !== undefined
+              ? sql`${copilotAsyncToolCalls.result} = ${JSON.stringify(sanitizeValueForJsonb(input.expectedResult))}::jsonb`
+              : undefined
           )
         )
         .returning()

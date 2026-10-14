@@ -1,76 +1,67 @@
 ---
 title: API
-description: The API block makes an HTTP request to an external service and returns the response.
+description: Send an HTTP request and use its response in later steps.
 ---
 
+import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview, WorkflowPreview, API_FETCH_WORKFLOW } from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
 
-The **API block** makes an HTTP request to a URL and returns the response. Use it to call any REST API: fetch data, create a record, or trigger an external endpoint.
+The **API block** calls an HTTP endpoint. Use it to fetch data, create a record, or invoke an external service.
 
 <BlockPreview type="api" />
 
-## Configuration
-
-### URL
-
-The endpoint to call. Type a static URL, or insert a [connection tag](/workflows/connections) to build it from an earlier output, like `https://api.example.com/users/<start.userId>`.
-
-### Method
-
-The HTTP method: **GET**, **POST**, **PUT**, **DELETE**, or **PATCH**. Defaults to GET.
-
-### Query Params
-
-Key-value pairs appended to the URL as a query string. `apiKey` and `limit` become `?apiKey=…&limit=10`.
-
-### Headers
-
-Key-value request headers, such as `Content-Type: application/json` or `Authorization: Bearer <secret>`. Standard headers like `User-Agent` and `Accept` are added automatically, and your values override them.
-
-### Body
-
-The request payload for POST, PUT, and PATCH, sent as JSON. Type it directly, or pull it from an earlier output with a connection tag.
-
-### Advanced
-
-- **Timeout (ms).** How long to wait before giving up. Defaults to 300000 (5 minutes), up to 600000 (10 minutes).
-- **Retries.** Number of retry attempts on timeouts, `429` responses, and `5xx` errors. Defaults to 0.
-- **Retry delay / Max retry delay (ms).** The exponential-backoff bounds used between retries.
-- **Retry non-idempotent methods.** Off by default, so POST and PATCH are not retried, which avoids duplicate writes. Turn it on only when a repeated request is safe.
-- **Proxy URL.** Optional `http://` proxy the request egresses through, such as a residential proxy for targets that block datacenter IPs. The proxy host must be publicly reachable, and only the `http://` scheme is supported (an `https://` target still tunnels through it securely). Keep proxy credentials in an environment variable and reference it as `{{PROXY_URL}}` rather than typing them into the field.
-
-## Outputs
-
-After the request completes, later blocks read its result by name:
-
-| Output | What it is |
-| --- | --- |
-| `<api.data>` | The response body, parsed as an object for JSON or returned as text otherwise |
-| `<api.status>` | The HTTP status code, like `200` or `404` |
-| `<api.headers>` | The response headers, as an object |
-
-Branch on the result by reading `<api.status>` in a [Condition](/workflows/blocks/condition) block.
-
-## Example
-
-A workflow that calls an HTTP endpoint and summarizes the response:
+## Fetch and summarize data
 
 <WorkflowPreview workflow={API_FETCH_WORKFLOW} />
 
-The API block builds its URL from the Start input, fetches the data, and the Agent reads the response as `<api.data>`.
+Set **URL** to `https://api.example.com/users/<start.input>` and **Method** to **GET**. The next Agent reads `<api.data>`. Replace the example endpoint and supply its required authentication.
 
-## Best Practices
+## Configuration
 
-{/* Keep the error-path guidance below prominent: fewer than 1% of deployed workflows connect an error port (platform data, 2026-06) — under-adopted, not under-needed. */}
+| Field | Behavior |
+| --- | --- |
+| **URL** | Static URL or a URL containing [references](/workflows/connections), such as `https://api.example.com/users/<start.userId>`. |
+| **Method** | **GET** (default), **POST**, **PUT**, **DELETE**, or **PATCH**. |
+| **Query Params** | Key-value pairs appended as URL query parameters. |
+| **Headers** | Request headers, such as `Authorization: Bearer {{API_KEY}}`. Your values override automatic User-Agent, Accept, Cache-Control, and other defaults. |
+| **Body** | Request payload. JSON is the default for POST, PUT, and PATCH; other supported Content-Type values can change body encoding. |
 
-- **Keep secrets in environment variables.** Reference them with `{{VAR}}` in the URL or headers; never hardcode keys.
-- **Handle failures.** Read `<api.status>` and branch on it with a [Condition](/workflows/blocks/condition), or connect the error path for network failures and timeouts.
-- **Set retries for flaky endpoints.** Use the Advanced retry settings for idempotent calls. Leave POST and PATCH off unless a repeated request is safe.
-- **Reference only the field you need.** Pull `<api.data.id>` rather than the whole `<api.data>` when the response is large.
+Keep keys and proxy credentials in [secrets](/platform/credentials), referenced with `{{NAME}}`.
 
-<FAQ items={[
-  { question: "Which HTTP errors trigger automatic retries?", answer: "Retries are attempted for network and connection failures, timeouts, rate-limit responses (HTTP 429), and server errors (5xx). Client errors like 400 or 404 are not retried." },
-  { question: "How does retry backoff work?", answer: "Retries use exponential backoff starting from the configured retry delay (default 500ms). Each subsequent retry doubles the delay, up to the maximum retry delay (default 30,000ms)." },
-  { question: "What headers are included automatically?", answer: "Standard headers such as User-Agent, Accept, and Cache-Control are added automatically. Any custom headers you configure are merged with these defaults, and your values override automatic headers with the same name." },
-]} />
+### Advanced settings
+
+| Field | Default and limit |
+| --- | --- |
+| **Timeout (ms)** | 300,000 ms (5 minutes); maximum 600,000 ms (10 minutes). |
+| **Retries** | `0`. When enabled, retry network failures, timeouts, `429`, and `5xx` responses; not ordinary `400` or `404` errors. |
+| **Retry delay (ms)** | `500`; exponential backoff starts here. |
+| **Max retry delay (ms)** | `30,000`; caps the backoff delay. |
+| **Retry non-idempotent methods** | Off. Enable POST/PATCH retries only when repeated requests are safe. |
+| **Send credentials on cross-origin redirects** | On by default for compatibility. Disable it when a redirect to a different scheme, host, or port should not receive the same credential-bearing headers. |
+| **Proxy URL** | Optional publicly reachable `http://` proxy, such as `{{PROXY_URL}}`. An HTTPS target still uses a secure tunnel through the HTTP proxy. |
+
+<Callout type="warn">
+Retries can repeat an external write. Use idempotency support from the destination API before enabling retries for POST or PATCH.
+</Callout>
+
+## Outputs
+
+| Reference | Value |
+| --- | --- |
+| `<api.data>` | Response body: parsed JSON, or text for other content types |
+| `<api.status>` | HTTP status code on a successful response |
+| `<api.headers>` | Response headers |
+
+Use narrow references such as `<api.data.id>` when a later step needs only one field. The HTTP response itself is limited to 10 MiB; selecting a narrow field does not bypass that fetch-time limit.
+
+## Handle failures
+
+Non-2xx responses, network failures, and timeouts fail the API block. Connect its error port to handle them. Without an error path, an unhandled failure stops the run.
+
+A normal downstream Condition on `<api.status>` can distinguish successful responses, such as `200` and `201`; it does not receive a failed `404` response on the normal path.
+
+## Related docs
+
+- [Connections and error paths](/workflows/connections)
+- [Webhook](/workflows/blocks/webhook)
+- [Condition](/workflows/blocks/condition)

@@ -37,7 +37,7 @@ const LOG_LIST_EXAMPLE = {
       startedAt: '2026-01-15T10:30:00.000Z',
       endedAt: '2026-01-15T10:30:01.250Z',
       totalDurationMs: 1250,
-      cost: { total: 0.0032 },
+      cost: { total: 0.0072 },
       hasHandledErrors: false,
       files: [
         {
@@ -64,7 +64,7 @@ const LOG_DETAIL_EXAMPLE = {
     startedAt: '2026-01-15T10:30:00.000Z',
     endedAt: '2026-01-15T10:30:01.250Z',
     totalDurationMs: 1250,
-    files: null,
+    files: LOG_LIST_EXAMPLE.data[0].files,
     /**
      * Deliberately a different address from `workflow.ownerEmail` below. This is
      * an `api` run, so it executed as the workspace billing account while the
@@ -87,9 +87,9 @@ const LOG_DETAIL_EXAMPLE = {
     traceSpans: [],
     finalOutput: { result: 'Hello, world!' },
     cost: {
-      total: 0.0032,
+      total: 0.0072,
       items: [
-        { category: 'fixed', description: 'Base execution charge', cost: 0.001 },
+        { category: 'fixed', description: 'Base execution charge', cost: 0.005 },
         {
           category: 'model',
           description: 'gpt-5',
@@ -165,7 +165,7 @@ const declaredRoutes = [
     logsOperation({
       applicationOperation: logOperations.list,
       operationId: 'listLogs',
-      summary: 'List Logs',
+      summary: 'List logs',
       description: `List logs with filters, selectable detail, sorting, and cursor pagination. \`includeJobRuns=true\` includes chat and Sim-agent jobs only with \`sortBy=startedAt\`, because other orderings are unsupported. \`files\` contains only run-produced files; use the files API for input attachments. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of execution logs matching the filters.' },
@@ -191,7 +191,7 @@ const declaredRoutes = [
     logsOperation({
       applicationOperation: logOperations.readDetail,
       operationId: 'getLog',
-      summary: 'Get Log',
+      summary: 'Get log',
       description: `Get a run's workflow graph, trace spans, final output, and cost. Trace spans expire separately, so an empty \`traceSpans\` array does not prove none were recorded. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested diagnostic log representation.' },
@@ -218,7 +218,7 @@ const declaredRoutes = [
     logsOperation({
       applicationOperation: logOperations.readStats,
       operationId: 'getLogStats',
-      summary: 'Get Log Statistics',
+      summary: 'Get log statistics',
       description: `Get bucketed run counts, success rate, errors, and mean latency for the workspace and individual workflows. Query fields describe window selection and bucketing. Folder filters cover subtrees. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Bucketed execution statistics for the workspace.' },

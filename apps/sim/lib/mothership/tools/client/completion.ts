@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import type {
@@ -21,12 +21,16 @@ export class CompletionReportError extends Error {
 }
 
 async function fetchCompletion(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  init.signal?.throwIfAborted()
   const controller = new AbortController()
   const timeout = setTimeout(() => {
     controller.abort(new DOMException('Completion report timed out', 'TimeoutError'))
   }, COMPLETION_REPORT_ATTEMPT_TIMEOUT_MS)
   try {
-    return await fetch(input, { ...init, signal: controller.signal })
+    return await fetch(input, {
+      ...init,
+      signal: init.signal ? AbortSignal.any([controller.signal, init.signal]) : controller.signal,
+    })
   } finally {
     clearTimeout(timeout)
   }
@@ -54,7 +58,8 @@ export async function reportClientToolCompletion(
   status: AsyncConfirmationStatus,
   message?: string,
   data?: AsyncCompletionData,
-  executionId?: string
+  executionId?: string,
+  signal?: AbortSignal
 ): Promise<void> {
   const basePayload = {
     toolCallId,
@@ -68,6 +73,7 @@ export async function reportClientToolCompletion(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
       body,
+      signal,
     })
 
   const body = JSON.stringify(basePayload)
@@ -82,6 +88,7 @@ export async function reportClientToolCompletion(
   // from retries are discarded server-side.
   const maxAttempts = 5
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    signal?.throwIfAborted()
     try {
       const response = await send(body)
       if (isSettledDelivery(response, toolCallId)) return
@@ -108,11 +115,12 @@ export async function reportClientToolCompletion(
         lastError = new Error(`Completion failed with status ${response.status}`)
       }
     } catch (error) {
+      if (signal?.aborted) throw error
       lastError = toError(error)
     }
 
     if (attempt < maxAttempts) {
-      await sleep(backoffWithJitter(attempt, null))
+      await interruptibleSleep(backoffWithJitter(attempt, null), signal)
     }
   }
 
@@ -131,7 +139,8 @@ export async function reportClientToolCompletionOnPageExit(
   toolCallId: string,
   status: AsyncConfirmationStatus,
   message: string,
-  data?: AsyncCompletionData
+  data?: AsyncCompletionData,
+  signal?: AbortSignal
 ): Promise<void> {
   // boundary-raw-fetch: keepalive is required so a terminal desktop result survives page unload
   const response = await fetchCompletion(COPILOT_CONFIRM_API_PATH, {
@@ -144,6 +153,7 @@ export async function reportClientToolCompletionOnPageExit(
       ...(data !== undefined ? { data } : {}),
     }),
     keepalive: true,
+    signal,
   })
   if (!isSettledDelivery(response, toolCallId)) {
     throw new CompletionReportError(`Page-exit completion failed with status ${response.status}`)
