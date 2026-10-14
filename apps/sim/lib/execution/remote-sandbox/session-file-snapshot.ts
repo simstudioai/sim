@@ -28,7 +28,8 @@ def fail(reason, detail=''):
     print('${FAILURE_MARKER} ' + reason + (' ' + detail if detail else ''))
     sys.exit(3)
 SOURCE_REASONS = {errno.ENOENT: 'not_found', errno.ENOTDIR: 'not_found',
-                  errno.EISDIR: 'not_regular', errno.EACCES: 'permission', errno.EPERM: 'permission'}
+                  errno.EISDIR: 'not_regular', errno.ENXIO: 'not_regular',
+                  errno.EACCES: 'permission', errno.EPERM: 'permission'}
 STAGING_REASONS = {errno.ENOSPC: 'no_space', errno.EDQUOT: 'no_space'}
 reasons = SOURCE_REASONS
 try:

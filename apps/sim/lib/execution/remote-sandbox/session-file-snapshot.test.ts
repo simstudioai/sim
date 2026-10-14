@@ -10,6 +10,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -157,6 +158,17 @@ describe('copy failures reach the model as their actionable cause', () => {
     const path = join(directory, 'folder')
     await mkdir(path)
     expect(await read(path)).toContain(`${path} is not a regular file`)
+  })
+  /** Linux, the workbench OS, refuses to open a socket with ENXIO before any stat. */
+  it.skipIf(process.platform !== 'linux')('names a socket as not a regular file', async () => {
+    const path = join(directory, 'agent.sock')
+    const server = createServer()
+    await new Promise<void>((resolve) => server.listen(path, resolve))
+    try {
+      expect(await read(path)).toContain(`${path} is not a regular file`)
+    } finally {
+      await new Promise((resolve) => server.close(resolve))
+    }
   })
   it.skipIf(process.getuid?.() === 0)('names a permission failure', async () => {
     const path = join(directory, 'locked.txt')
