@@ -26,3 +26,27 @@ describe('helper-source exemptions', () => {
     expect(descriptions('apps/sim/lib/example.ts', INLINE_ERROR_MESSAGE)).toHaveLength(1)
   })
 })
+
+describe('record coercion', () => {
+  it('rejects the inline forms of toRecord and toRecordOrNull, including wrapped ones', () => {
+    const source = [
+      'const a = isRecordLike(value) ? value : {}',
+      'const b = isRecordLike(input.payload)',
+      '  ? input.payload',
+      '  : null',
+    ].join('\n')
+    expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([
+      'isRecordLike(v) ? v : {}',
+      'isRecordLike(v) ? v : null',
+    ])
+  })
+
+  it('leaves a ternary that falls back to something else, or returns another value', () => {
+    const source = [
+      'const a = isRecordLike(value) ? value : undefined',
+      'const b = isRecordLike(value) ? other : {}',
+      'const c = isRecordLike(value) ? { ...value } : {}',
+    ].join('\n')
+    expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([])
+  })
+})

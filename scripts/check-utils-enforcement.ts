@@ -122,6 +122,20 @@ const BANNED_PATTERNS: Array<{
     replacesHelper: true,
   },
   {
+    pattern: /\bisRecordLike\(\s*([\w.]+)\s*\)\s*\?\s*\1\s*:\s*\{\s*\}/g,
+    description: 'isRecordLike(v) ? v : {}',
+    suggestion: 'toRecord(v) from @sim/utils/object',
+    prefilter: /isRecordLike\(/,
+    replacesHelper: true,
+  },
+  {
+    pattern: /\bisRecordLike\(\s*([\w.]+)\s*\)\s*\?\s*\1\s*:\s*null\b/g,
+    description: 'isRecordLike(v) ? v : null',
+    suggestion: 'toRecordOrNull(v) from @sim/utils/object',
+    prefilter: /isRecordLike\(/,
+    replacesHelper: true,
+  },
+  {
     pattern:
       /Object\.fromEntries\(\s*Object\.entries\([^()]*\)\s*\.filter\(\s*\(\[\s*\w*\s*,\s*(\w+)\s*\]\)\s*=>\s*\1\s*!==\s*undefined\s*\)\s*,?\s*\)/g,
     description: 'Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))',
