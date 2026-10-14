@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { observeContentOutsideModel } from '@/lib/core/application/content-delivery'
+import { observeContentOutsideModel } from '@/lib/core/application'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'

@@ -1,4 +1,4 @@
-import type { ContentSource, ContentSourceKind } from '@/lib/core/application/content-delivery'
+import type { ContentSource, ContentSourceKind } from '@/lib/core/application'
 import {
   type DurableSecretProvenanceRefusalCause,
   type DurableSecretProvenanceSurface,

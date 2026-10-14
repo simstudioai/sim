@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
+import { requireAdmittedContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'

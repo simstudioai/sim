@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { admitEach, type ContentSourceKind } from '@/lib/core/application/content-delivery'
+import { admitEach, type ContentSourceKind } from '@/lib/core/application'
 import {
   classifyKnowledgeChunks,
   classifyKnowledgeDocumentMetadata,

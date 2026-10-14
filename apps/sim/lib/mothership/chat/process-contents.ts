@@ -8,7 +8,7 @@ import {
 import { escapeRegExp } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'

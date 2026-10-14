@@ -65,7 +65,7 @@ vi.mock('@/lib/embeddings', async () => ({
 
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import { fileManageDecompressBodySchema } from '@/lib/api/contracts/tools/file'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { isUserFile } from '@/lib/core/utils/user-file'

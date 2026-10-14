@@ -10,7 +10,7 @@ import {
   type ContentSource,
   noteContentDeliveryOperation,
   runDeclaredContentOperation,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import {
   deliveredFileProvenance,

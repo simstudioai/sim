@@ -10,10 +10,7 @@ import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import {
-  observeContentDelivery,
-  observeContentOutsideModel,
-} from '@/lib/core/application/content-delivery'
+import { observeContentDelivery, observeContentOutsideModel } from '@/lib/core/application'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,

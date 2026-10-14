@@ -72,9 +72,8 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/knowledge/application/admit-knowledge-content', async (importOriginal) => {
   const original =
     await importOriginal<typeof import('@/lib/knowledge/application/admit-knowledge-content')>()
-  const delivery = await vi.importActual<typeof import('@/lib/core/application/content-delivery')>(
-    '@/lib/core/application/content-delivery'
-  )
+  const delivery =
+    await vi.importActual<typeof import('@/lib/core/application')>('@/lib/core/application')
   return {
     ...original,
     admitKnowledgeDocuments: async (

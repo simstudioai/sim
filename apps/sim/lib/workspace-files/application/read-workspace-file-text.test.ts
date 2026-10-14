@@ -25,7 +25,7 @@ import {
   ContentRefusedError,
   type ContentSource,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { FileParserError } from '@/lib/file-parsers/errors'
 
 const hoisted = vi.hoisted(() => ({

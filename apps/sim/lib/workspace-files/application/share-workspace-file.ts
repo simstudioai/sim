@@ -6,11 +6,7 @@ import {
   type ShareRecord,
   sharePasswordSchema,
 } from '@/lib/api/contracts/public-shares'
-import {
-  admitContent,
-  ContentRefusedError,
-  isCopilotPrincipal,
-} from '@/lib/core/application/content-delivery'
+import { admitContent, ContentRefusedError, isCopilotPrincipal } from '@/lib/core/application'
 import { resolveCopilotSecretReference } from '@/lib/core/application/environment-reference'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { parseExactEnvironmentReference } from '@/lib/environment/reference'

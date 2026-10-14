@@ -20,7 +20,7 @@ import {
   ContentRefusedError,
   type ContentSource,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 class FakeDocNotReadyError extends Error {}

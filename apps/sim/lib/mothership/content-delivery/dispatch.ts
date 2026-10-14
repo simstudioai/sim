@@ -4,7 +4,7 @@ import {
   type ContentProvenance,
   observeContentDelivery,
   trackContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,

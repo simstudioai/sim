@@ -1,5 +1,5 @@
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
-import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
+import { isCopilotPrincipal } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
@@ -26,6 +26,8 @@ export interface ReadWorkspaceFileContentInput {
   assertedWorkspaceId?: string
   /** Optional post-authorization storage ceiling for bounded binary reads. */
   maxBytes?: number
+  /** Opaque model inputs bypass text projection and must be admitted before loading bytes. */
+  contentView?: 'complete' | 'opaque'
   includeDeleted?: boolean
   /** Loads the exact provenance bound to the authorized file version when requested. */
   includeSecretProvenance?: boolean
@@ -64,7 +66,7 @@ async function executeReadWorkspaceFileContent({
     principal,
     context.workspaceId,
     file,
-    'complete',
+    input.contentView ?? 'complete',
     secretProvenance
   )
   let content: Buffer

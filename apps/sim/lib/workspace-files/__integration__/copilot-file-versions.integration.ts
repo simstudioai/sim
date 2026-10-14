@@ -30,7 +30,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { ContentDeliveryUnobservedError } from '@/lib/core/application/content-delivery'
+import { ContentDeliveryUnobservedError } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {

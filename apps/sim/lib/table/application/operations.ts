@@ -1,4 +1,4 @@
-import type { ContentDeliveryDeclaration } from '@/lib/core/application/content-delivery'
+import type { ContentDeliveryDeclaration } from '@/lib/core/application'
 import type { OperationDeclarableCapability } from '@/lib/core/application/operation'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 

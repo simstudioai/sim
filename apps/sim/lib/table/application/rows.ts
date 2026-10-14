@@ -5,14 +5,14 @@ import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, toRecord } from '@sim/utils/object'
-import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import {
   admitContent,
   admitWrittenContent,
   ContentRefusedError,
+  capabilityGovernedPrincipalUserId,
   isCopilotPrincipal,
   mustClassifyContent,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {

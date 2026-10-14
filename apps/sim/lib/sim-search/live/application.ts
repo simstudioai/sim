@@ -17,7 +17,7 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { isRetryableNetworkError } from '@/lib/core/errors/retryable-infrastructure'
 import { OrchestrationError } from '@/lib/core/orchestration/types'

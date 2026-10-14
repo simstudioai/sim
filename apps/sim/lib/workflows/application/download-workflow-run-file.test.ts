@@ -40,7 +40,7 @@ import {
   ContentRefusedError,
   isCopilotPrincipal,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { downloadWorkflowRunFileStream } from '@/lib/workflows/application/download-workflow-run-file'
 
 /** Chat's gate with no registry: it admits only a file with no recorded secret. */

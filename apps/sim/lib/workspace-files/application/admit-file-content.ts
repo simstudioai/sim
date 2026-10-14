@@ -6,7 +6,7 @@ import {
   type ContentView,
   mustClassifyContent,
   requireAdmittedContent,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import {
   getBoundWorkspaceFileSecretProvenance,
   getBoundWorkspaceFileSecretProvenanceByIdentity,

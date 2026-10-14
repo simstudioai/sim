@@ -12,7 +12,7 @@ const telemetry = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => telemetry)
 
-import type { ContentProvenance, ContentSource } from '@/lib/core/application/content-delivery'
+import type { ContentProvenance, ContentSource } from '@/lib/core/application'
 import {
   createSessionContentGate,
   WorkbenchProvenanceUnavailableError,

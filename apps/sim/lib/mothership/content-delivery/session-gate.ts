@@ -1,4 +1,4 @@
-import type { ContentDeliveryGate } from '@/lib/core/application/content-delivery'
+import type { ContentDeliveryGate } from '@/lib/core/application'
 import {
   createDurableSecretProvenanceRegistry,
   type DurableSecretProvenance,

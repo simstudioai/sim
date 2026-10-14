@@ -42,7 +42,7 @@ vi.mock('@/lib/knowledge/application/admit-knowledge-content', () => ({
   admitKnowledgeChunks: mocks.admitKnowledgeChunks,
 }))
 
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'

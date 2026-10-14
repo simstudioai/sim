@@ -25,7 +25,7 @@ import {
   type ContentDeliveryGate,
   ContentRefusedError,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'

@@ -5,9 +5,9 @@ import {
   type PrincipalForOperation,
   recordProjectedUseCaseAuditEntries,
   requireAllowedWorkspacePrincipal,
+  runDeclaredContentOperation,
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application'
-import { runDeclaredContentOperation } from '@/lib/core/application/content-delivery'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {

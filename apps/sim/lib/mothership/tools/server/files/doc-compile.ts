@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { ContentRefusedError, mustClassifyContent } from '@/lib/core/application/content-delivery'
+import { ContentRefusedError, mustClassifyContent } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {

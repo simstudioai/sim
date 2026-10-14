@@ -18,7 +18,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { PostgresJsPreparedQuery } from 'drizzle-orm/postgres-js/session'
 import JSZip from 'jszip'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {

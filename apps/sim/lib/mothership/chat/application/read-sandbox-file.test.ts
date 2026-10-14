@@ -6,10 +6,7 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  ContentRefusedError,
-  observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+import { ContentRefusedError, observeContentDelivery } from '@/lib/core/application'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 

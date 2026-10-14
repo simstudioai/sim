@@ -1,4 +1,4 @@
-import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
+import { requireAdmittedContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { EXACT_EMPTY_DURABLE_SECRET_PROVENANCE } from '@/lib/execution/durable-secret-provenance'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'

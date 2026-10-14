@@ -83,7 +83,7 @@ import {
   v2ExecuteWorkflowDataSchema,
   v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'

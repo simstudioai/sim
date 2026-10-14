@@ -1,7 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
-import { redactBeforeCutting } from '@/lib/core/application/content-delivery'
+import { redactBeforeCutting } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType } from '@/lib/file-parsers'

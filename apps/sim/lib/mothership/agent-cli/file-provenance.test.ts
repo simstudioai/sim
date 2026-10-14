@@ -48,7 +48,7 @@ import {
   type ContentSource,
   noteContentDeliveryOperation,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 

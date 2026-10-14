@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
   type AuthorizedWorkspaceUseCaseContext,
+  ContentRefusedError,
   capabilityGovernedPrincipalUserId,
 } from '@/lib/core/application'
-import { ContentRefusedError } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { parseFolderPath } from '@/lib/folders/paths'

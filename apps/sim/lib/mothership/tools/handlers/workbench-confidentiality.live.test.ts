@@ -68,7 +68,7 @@ import {
   admitWrittenContent,
   type ContentProvenance,
   runDeclaredContentOperation,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'

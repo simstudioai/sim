@@ -4,7 +4,7 @@ import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contra
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import {
   type CopilotChatDelegationContext,
   createCopilotChatPrincipal,

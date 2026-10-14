@@ -1,5 +1,5 @@
 import { isValidUuid } from '@sim/utils/id'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,

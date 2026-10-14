@@ -8,7 +8,7 @@ import {
 import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeFromOwner, resourceScopeKey } from '@/lib/core/resource-scope'
 import { PlatformEvents } from '@/lib/core/telemetry'

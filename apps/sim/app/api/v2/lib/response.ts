@@ -10,11 +10,11 @@ import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import {
+  ContentDeliveryUnobservedError,
   forbiddenErrorDetails,
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
 } from '@/lib/core/application'
-import { ContentDeliveryUnobservedError } from '@/lib/core/application/content-delivery'
 import {
   asOrchestrationError,
   OrchestrationError,

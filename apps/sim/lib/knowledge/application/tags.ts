@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'

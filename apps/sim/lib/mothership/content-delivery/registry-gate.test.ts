@@ -16,7 +16,7 @@ import {
   type ContentSource,
   observeContentDelivery,
   redactBeforeCutting,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'

@@ -52,7 +52,7 @@ import {
   type ContentDeliveryGate,
   ContentRefusedError,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 
 const mockProvenance =
   workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByIdentity

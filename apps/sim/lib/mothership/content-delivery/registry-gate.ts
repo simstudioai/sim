@@ -1,4 +1,4 @@
-import type { ContentDeliveryGate, ContentSource } from '@/lib/core/application/content-delivery'
+import type { ContentDeliveryGate, ContentSource } from '@/lib/core/application'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
   type DurableSecretProvenanceUnrecordedReport,

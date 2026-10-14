@@ -37,10 +37,7 @@ vi.mock('@/lib/workspace-files/compiled-document-store', async (importOriginal) 
   storeCompiledDoc: storeCompiledDocMock,
 }))
 
-import {
-  type ContentDeliveryGate,
-  observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+import { type ContentDeliveryGate, observeContentDelivery } from '@/lib/core/application'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { collectReferencedFileIds, compileDoc } from './doc-compile'
 

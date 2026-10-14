@@ -18,10 +18,7 @@ vi.mock(
   () => workspaceFileSecretProvenanceMock
 )
 
-import {
-  type ContentDeliveryGate,
-  observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+import { type ContentDeliveryGate, observeContentDelivery } from '@/lib/core/application'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import {
   downloadWorkspaceFileRecord,

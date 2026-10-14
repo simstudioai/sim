@@ -79,7 +79,7 @@ import {
   ContentRefusedError,
   type ContentSource,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { TABLE_LIMITS } from '@/lib/table'
 import {
   batchUpdateTableRows,

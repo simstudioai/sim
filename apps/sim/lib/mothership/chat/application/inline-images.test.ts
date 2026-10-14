@@ -40,11 +40,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => 
 }))
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
-import {
-  admitContent,
-  ContentRefusedError,
-  requireAdmittedContent,
-} from '@/lib/core/application/content-delivery'
+import { admitContent, ContentRefusedError, requireAdmittedContent } from '@/lib/core/application'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import {
   materializeInlineChatImage,

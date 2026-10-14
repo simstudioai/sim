@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { ContentRefusedError } from '@/lib/core/application/content-delivery'
+import { ContentRefusedError } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'

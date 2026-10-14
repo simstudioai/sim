@@ -1,6 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { defineWorkspaceOperation } from '@/lib/core/application'
-import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
+import { defineWorkspaceOperation, requireAdmittedContent } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { EXACT_EMPTY_DURABLE_SECRET_PROVENANCE } from '@/lib/execution/durable-secret-provenance'

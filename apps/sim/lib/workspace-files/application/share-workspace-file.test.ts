@@ -35,7 +35,7 @@ import {
   type ContentDeliveryGate,
   ContentRefusedError,
   observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'

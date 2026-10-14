@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { observeContentOutsideModel } from '@/lib/core/application/content-delivery'
+import { observeContentOutsideModel } from '@/lib/core/application'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'

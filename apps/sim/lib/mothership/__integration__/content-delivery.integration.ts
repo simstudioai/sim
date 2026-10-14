@@ -70,6 +70,32 @@ vi.mock('@/lib/internal/tool-operations/registry.server', async (importOriginal)
   }
 })
 
+/** Only the external media providers are replaced; file admission and stored revisions are real. */
+const mediaProvider = vi.hoisted(() => ({ calls: [] as unknown[] }))
+vi.mock('@google/genai', () => ({
+  GoogleGenAI: class {
+    models = {
+      async generateContent(input: unknown) {
+        mediaProvider.calls.push(input)
+        throw new Error('fixture media provider reached')
+      },
+    }
+  },
+}))
+vi.mock('@/lib/core/config/api-keys', () => ({ getRotatingApiKey: () => 'fixture-api-key' }))
+vi.mock('@/lib/media/falai-audio', () => ({
+  async generateFalAudio(input: unknown) {
+    mediaProvider.calls.push(input)
+    throw new Error('fixture media provider reached')
+  },
+}))
+vi.mock('@/lib/media/falai-video', () => ({
+  async generateFalVideo(input: unknown) {
+    mediaProvider.calls.push(input)
+    throw new Error('fixture media provider reached')
+  },
+}))
+
 import { db } from '@sim/db'
 import {
   changelogRelease,
@@ -82,7 +108,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { eq, sql } from 'drizzle-orm'
 import contentRoutes from '@/lib/api/server/routes/copilot-content-routes.json'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
@@ -110,6 +136,9 @@ import { createRegistryContentGate } from '@/lib/mothership/content-delivery/reg
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { resolveServableDoc } from '@/lib/mothership/tools/server/files/doc-compile'
+import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
+import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
+import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
 import { getShareForResource } from '@/lib/public-shares/share-manager'
 import {
   createOwnedWorkspaceFile,
@@ -1003,6 +1032,105 @@ describe('content reaching Chat is admitted per item', () => {
       featureFlagsMockFns.mockIsFeatureEnabled.mockReset()
     }
   )
+
+  describe.each([
+    ['image', generateImageServerTool],
+    ['audio', generateAudioServerTool],
+    ['video', generateVideoServerTool],
+  ] as const)('%s reference delivery', (_kind, tool) => {
+    it.each(['clean', 'unrecorded', 'entries', 'unknown', 'changed'] as const)(
+      'classifies the bytes actually read for a %s reference before provider delivery',
+      async (classification) => {
+        mediaProvider.calls.length = 0
+        const exact: WorkspaceFileSecretProvenance = {
+          status: 'exact',
+          entries: [
+            {
+              encryptedValue: (await encryptSecret(CANARY.secret)).encrypted,
+              sourceUserId: fixture.ids.aliceId,
+              sourceWorkspaceId: ws(),
+              name: 'MEDIA_REFERENCE_TOKEN',
+            },
+          ],
+        }
+        const provenance: WorkspaceFileSecretProvenance =
+          classification === 'entries'
+            ? exact
+            : classification === 'unknown'
+              ? { status: 'unknown' }
+              : classification === 'unrecorded'
+                ? { status: 'unrecorded' }
+                : { status: 'exact', entries: [] }
+        const bytes = Buffer.from(
+          classification === 'entries' ? CANARY.secret : 'ordinary reference bytes'
+        )
+        const file = await uploadWorkspaceFile(
+          ws(),
+          fixture.ids.aliceId,
+          bytes,
+          `media-reference-${generateId()}.png`,
+          'image/png',
+          { secretProvenance: provenance, notifyWorkspaceChange: false }
+        )
+        const originalRead = readWorkspaceFileContent.execute.bind(readWorkspaceFileContent)
+        const interleave =
+          classification === 'changed'
+            ? vi.spyOn(readWorkspaceFileContent, 'execute').mockImplementationOnce(async (args) => {
+                await replaceFixtureFileContent(
+                  ws(),
+                  file.id,
+                  fixture.ids.aliceId,
+                  Buffer.from(CANARY.secret),
+                  undefined,
+                  {
+                    version: { source: 'api', authorUserId: fixture.ids.aliceId },
+                    secretProvenancePolicy: { mode: 'replace', provenance: exact },
+                  }
+                )
+                return originalRead(args)
+              })
+            : undefined
+        const registry = new ResolvedSecretTraceRegistry([], {
+          userId: fixture.ids.aliceId,
+          workspaceId: ws(),
+        })
+        try {
+          const result = await observeContentDelivery(
+            createRegistryContentGate({
+              registry,
+              actorUserId: fixture.ids.aliceId,
+              workspaceId: ws(),
+            }),
+            () =>
+              tool.execute(
+                {
+                  prompt: 'ordinary request',
+                  inputs: { files: [{ path: `files/${file.name}` }] },
+                },
+                {
+                  userId: fixture.ids.aliceId,
+                  workspaceId: ws(),
+                  toolCallId: generateId(),
+                  copilotToolExecution: true,
+                  resolvedSecretTraceRegistry: registry,
+                }
+              )
+          )
+          const allowed = classification === 'clean' || classification === 'unrecorded'
+          expect(result.success).toBe(false)
+          expect(result.message).toContain(
+            allowed ? 'fixture media provider reached' : 'cannot be sent'
+          )
+          expect(mediaProvider.calls).toHaveLength(allowed ? 1 : 0)
+          if (allowed)
+            expect(JSON.stringify(mediaProvider.calls)).toContain(bytes.toString('base64'))
+          expect(registry.isPermanentlyIncomplete()).toBe(false)
+        } finally {
+          interleave?.mockRestore()
+        }
+      }
+    )
+  })
 
   describe.each(['cli', 'sandbox'] as const)('%s text excerpts', (surface) => {
     const read = (route: string) => (surface === 'cli' ? cli('GET', route) : sandbox('GET', route))

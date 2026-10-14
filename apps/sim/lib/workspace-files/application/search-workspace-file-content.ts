@@ -1,4 +1,4 @@
-import { isCopilotPrincipal } from '@/lib/core/application/content-delivery'
+import { isCopilotPrincipal } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { admitWorkspaceFileIdentities } from '@/lib/workspace-files/application/admit-file-content'

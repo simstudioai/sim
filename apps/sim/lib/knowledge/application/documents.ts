@@ -8,8 +8,11 @@ import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
-import { authorizeWorkspaceOperation } from '@/lib/core/application'
-import { admitContent, ContentRefusedError } from '@/lib/core/application/content-delivery'
+import {
+  admitContent,
+  authorizeWorkspaceOperation,
+  ContentRefusedError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'

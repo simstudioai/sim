@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { OperationUseCase, WorkspaceOperation } from '@/lib/core/application'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceFileContext,

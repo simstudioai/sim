@@ -27,10 +27,7 @@ vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
   resolveWorkspaceFolderScope: hoisted.folders,
 }))
 
-import {
-  type ContentDeliveryGate,
-  observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+import { type ContentDeliveryGate, observeContentDelivery } from '@/lib/core/application'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'

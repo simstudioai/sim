@@ -37,8 +37,7 @@ import {
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent, DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,

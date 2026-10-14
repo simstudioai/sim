@@ -13,8 +13,11 @@ import {
   resolveVisibleToolId,
   resolveVisibleToolOwners,
 } from '@/lib/catalog/application/tool-scope'
-import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
-import { admitWrittenContent, mustClassifyContent } from '@/lib/core/application/content-delivery'
+import {
+  admitWrittenContent,
+  defineAuthorizedWorkspaceUseCase,
+  mustClassifyContent,
+} from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'

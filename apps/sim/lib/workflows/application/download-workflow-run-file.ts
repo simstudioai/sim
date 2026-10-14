@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
-import { ContentRefusedError } from '@/lib/core/application/content-delivery'
+import { ContentRefusedError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'

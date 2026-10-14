@@ -2,10 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { omit, toRecord } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
-import {
-  ContentRefusedError,
-  observeContentDelivery,
-} from '@/lib/core/application/content-delivery'
+import { ContentRefusedError, observeContentDelivery } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   durableSecretProvenanceFromEnvelope,

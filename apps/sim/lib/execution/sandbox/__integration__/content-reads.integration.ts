@@ -19,7 +19,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 }))
 vi.mock('@/tools', () => toolsMock)
 
-import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { observeContentDelivery } from '@/lib/core/application'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,

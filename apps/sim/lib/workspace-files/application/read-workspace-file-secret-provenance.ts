@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {

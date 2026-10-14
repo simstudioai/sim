@@ -7,7 +7,7 @@ import {
   ContentRefusedError,
   mustClassifyContent,
   requireAdmittedContent,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveActiveKnowledgeBaseContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'

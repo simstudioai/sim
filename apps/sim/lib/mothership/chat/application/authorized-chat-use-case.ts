@@ -4,11 +4,11 @@ import {
   defineAuthorizedWorkspaceUseCase,
   type PrincipalForOperation,
   requireAllowedWorkspacePrincipal,
+  runDeclaredContentOperation,
   type WorkspaceAuthorizationContext,
   type WorkspaceAuthorizationOptions,
   type WorkspaceOperation,
 } from '@/lib/core/application'
-import { runDeclaredContentOperation } from '@/lib/core/application/content-delivery'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import type { OrganizationOperation } from '@/lib/core/application/organization-operation'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'

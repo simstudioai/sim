@@ -10,7 +10,7 @@ import {
   type ContentSource,
   noteContentDeliveryOperation,
   requireAdmittedContent,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'

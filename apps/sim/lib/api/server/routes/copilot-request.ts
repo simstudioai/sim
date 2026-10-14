@@ -1,5 +1,5 @@
 import type { DelegatedPrincipal } from '@sim/auth/principal'
-import { noteContentDeliveryOperation } from '@/lib/core/application/content-delivery'
+import { noteContentDeliveryOperation } from '@/lib/core/application'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {

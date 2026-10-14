@@ -1,7 +1,6 @@
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
-import { defineWorkspaceOperation } from '@/lib/core/application'
-import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
+import { defineWorkspaceOperation, requireAdmittedContent } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'

@@ -5,7 +5,7 @@ import {
   ContentRefusedError,
   type ContentView,
   isCopilotPrincipal,
-} from '@/lib/core/application/content-delivery'
+} from '@/lib/core/application'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { UserFile } from '@/executor/types'

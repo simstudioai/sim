@@ -26,7 +26,7 @@ vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 const admission = vi.hoisted(() => ({ admitKnowledgeDocuments: vi.fn() }))
 vi.mock('@/lib/knowledge/application/admit-knowledge-content', () => admission)
 
-import { admitContent } from '@/lib/core/application/content-delivery'
+import { admitContent } from '@/lib/core/application'
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   createKnowledgeTag,
