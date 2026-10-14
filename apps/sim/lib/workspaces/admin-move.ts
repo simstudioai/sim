@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
 import {
+  copilotChats,
   foldedEmail,
   invitation,
   invitationWorkspaceGrant,
@@ -1375,6 +1376,17 @@ export async function moveWorkspaceToOrganization(params: {
             },
           ]
         )
+
+        // Private graph contents stay with their original organization when a workspace moves.
+        await tx
+          .update(copilotChats)
+          .set({ memorySpaceId: null })
+          .where(
+            and(
+              eq(copilotChats.workspaceId, params.workspaceId),
+              isNotNull(copilotChats.memorySpaceId)
+            )
+          )
 
         await tx
           .update(workspace)

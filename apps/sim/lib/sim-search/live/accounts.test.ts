@@ -130,6 +130,25 @@ describe('live account discovery boundaries', () => {
     })
     expect(mocks.resolve).not.toHaveBeenCalled()
   })
+  it('searches an organization only through its integrations page enrollments', async () => {
+    mockListOrganizationSearchApprovals.mockResolvedValue(new Map([['jira', true]]))
+    mocks.managed.mockResolvedValue([
+      { id: 'enrolled', providerId: 'jira', displayName: 'Enrolled Jira' },
+    ])
+    const legacy = { id: 'legacy', providerId: 'jira', displayName: 'Legacy Jira' }
+    const metadata = ['enrolled', 'legacy'].map((id) => ({
+      id,
+      scope: 'read:jira-work',
+      grantedScopes: null,
+      revokedAt: null,
+    }))
+    queueTableRows(schemaMock.credential, [legacy])
+    queueTableRows(schemaMock.credential, metadata)
+    queueTableRows(schemaMock.credential, metadata)
+    expect(
+      (await listLiveAccounts({ organizationId: 'org' }, 'reader')).map((row) => row.id)
+    ).toEqual(['enrolled'])
+  })
   it('does not resolve another account even when the caller knows its ID', async () => {
     metadata()
     await expect(resolveLiveAccount(owner, 'reader', 'someone-else')).rejects.toMatchObject({

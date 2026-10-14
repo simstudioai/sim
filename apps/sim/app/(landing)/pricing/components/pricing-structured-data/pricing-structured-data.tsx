@@ -1,6 +1,6 @@
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { COMPARISON_SECTIONS } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-09",
+  "updatedAt": "2026-10-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -9059,6 +9059,243 @@
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["meeting", "note-taking"]
+    },
+    {
+      "type": "fivetran",
+      "slug": "fivetran",
+      "name": "Fivetran",
+      "description": "Manage Fivetran connections, syncs, and transformations",
+      "longDescription": "Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.",
+      "bgColor": "#FFFFFF",
+      "iconName": "FivetranIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/fivetran",
+      "operations": [
+        {
+          "name": "List Connections",
+          "description": "List Fivetran connections with their sync state, schedule, and last success or failure, optionally filtered by group or schema name."
+        },
+        {
+          "name": "Get Connection",
+          "description": "Get a Fivetran connection, including its setup, sync, and update state, open tasks and warnings, and schedule."
+        },
+        {
+          "name": "Create Connection",
+          "description": "Create a Fivetran connection in a group. The config object holds the connector-specific settings and the destination naming: schema for most connectors, schema_prefix for databases, or schema and table for file connectors."
+        },
+        {
+          "name": "Update Connection",
+          "description": "Update a Fivetran connection: pause or resume it, change its sync frequency or schedule, or update its configuration."
+        },
+        {
+          "name": "Pause Connection",
+          "description": ""
+        },
+        {
+          "name": "Resume Connection",
+          "description": ""
+        },
+        {
+          "name": "Delete Connection",
+          "description": "Delete a Fivetran connection. This cannot be undone."
+        },
+        {
+          "name": "Sync Connection",
+          "description": "Start an incremental sync of a Fivetran connection now, without changing its schedule."
+        },
+        {
+          "name": "Re-sync Connection",
+          "description": "Run a full historical re-sync of a Fivetran connection, or only of the tables listed in scope. Fivetran returns 409 if a running sync cannot finish first."
+        },
+        {
+          "name": "Re-sync Tables",
+          "description": "Run a historical re-sync of specific tables in a Fivetran connection without changing its schedule."
+        },
+        {
+          "name": "Run Connection Setup Tests",
+          "description": "Run the setup tests of a Fivetran connection without changing its configuration, and return each test result."
+        },
+        {
+          "name": "Get Sync History",
+          "description": "List the recent syncs of a Fivetran connection with their outcome, failure reason, and data volume per stage. The time window is at most 7 days and defaults to the last hour."
+        },
+        {
+          "name": "Get Connection Warnings",
+          "description": "List the active warnings on a Fivetran connection, grouped by destination table."
+        },
+        {
+          "name": "Get Schema Config",
+          "description": "Get the schemas, tables, and columns a Fivetran connection syncs, and whether each is enabled."
+        },
+        {
+          "name": "Reload Schema",
+          "description": "Reload the schema config of a Fivetran connection from its source to pick up new schemas, tables, and columns. Large sources can take a long time."
+        },
+        {
+          "name": "Update Table Sync",
+          "description": "Enable or disable syncing of one table in a Fivetran connection, and optionally change its sync mode."
+        },
+        {
+          "name": "Update Schema Sync",
+          "description": "Enable or disable syncing of one schema in a Fivetran connection, optionally changing several of its tables at once."
+        },
+        {
+          "name": "Update Schema Config",
+          "description": "Update how a Fivetran connection handles new schemas, tables, and columns, and enable or disable schemas and tables in one call."
+        },
+        {
+          "name": "Create Connect Card",
+          "description": "Generate a Connect Card link that lets someone authorize and finish setting up a Fivetran connection in a Fivetran-hosted form."
+        },
+        {
+          "name": "List Groups",
+          "description": "List the groups in the Fivetran account. Each group pairs with one destination, so the group ID is also the destination ID."
+        },
+        {
+          "name": "Get Group",
+          "description": "Get a Fivetran group by ID."
+        },
+        {
+          "name": "Create Group",
+          "description": "Create a Fivetran group. Each group holds one destination, so create the group first, then its destination."
+        },
+        {
+          "name": "List Destinations",
+          "description": "List the destinations in the Fivetran account, such as Databricks or Snowflake, with their region and setup status."
+        },
+        {
+          "name": "Get Destination",
+          "description": "Get a Fivetran destination with its region, time zone, and setup status."
+        },
+        {
+          "name": "Create Destination",
+          "description": "Create the destination for a Fivetran group, such as a Databricks workspace. The config object holds the destination-specific connection settings."
+        },
+        {
+          "name": "Run Destination Setup Tests",
+          "description": "Run the setup tests of a Fivetran destination, such as a Databricks workspace, and return each test result."
+        },
+        {
+          "name": "List Transformations",
+          "description": "List Fivetran transformations (dbt Core and Quickstart) with their status, schedule, and last run times."
+        },
+        {
+          "name": "Get Transformation",
+          "description": "Get a Fivetran transformation with its status, schedule, and output models."
+        },
+        {
+          "name": "Run Transformation",
+          "description": "Start a run of a Fivetran transformation now."
+        },
+        {
+          "name": "Cancel Transformation",
+          "description": "Cancel a running Fivetran transformation."
+        },
+        {
+          "name": "Get Account Info",
+          "description": "Get the Fivetran account and the user or system key that the API key belongs to."
+        },
+        {
+          "name": "List Users",
+          "description": "List the users and service accounts in the Fivetran account with their role, status, and last login, for access reviews."
+        },
+        {
+          "name": "List Connector Types",
+          "description": "List the source connector types available in Fivetran, with the service ID to use when creating a connection."
+        },
+        {
+          "name": "Get Connector Type",
+          "description": "Get the configuration and authorization fields a Fivetran connector type takes, to build the config for Create Connection."
+        }
+      ],
+      "operationCount": 34,
+      "triggers": [
+        {
+          "id": "fivetran_sync_end",
+          "name": "Fivetran Sync Ended",
+          "description": "Trigger workflow when a connection sync finishes, succeeds, fails, or is rescheduled"
+        },
+        {
+          "id": "fivetran_sync_start",
+          "name": "Fivetran Sync Started",
+          "description": "Trigger workflow when a connection starts syncing"
+        },
+        {
+          "id": "fivetran_connection_failure",
+          "name": "Fivetran Connection Failed",
+          "description": "Trigger workflow when Fivetran fails to connect to a source"
+        },
+        {
+          "id": "fivetran_connection_successful",
+          "name": "Fivetran Connection Succeeded",
+          "description": "Trigger workflow when Fivetran connects to a source successfully"
+        },
+        {
+          "id": "fivetran_create_connector",
+          "name": "Fivetran Connection Created",
+          "description": "Trigger workflow when a connection is created"
+        },
+        {
+          "id": "fivetran_edit_connector",
+          "name": "Fivetran Connection Edited",
+          "description": "Trigger workflow when connection credentials, sync frequency, or other settings change"
+        },
+        {
+          "id": "fivetran_pause_connector",
+          "name": "Fivetran Connection Paused",
+          "description": "Trigger workflow when a connection is paused, by a user or automatically"
+        },
+        {
+          "id": "fivetran_resume_connector",
+          "name": "Fivetran Connection Resumed",
+          "description": "Trigger workflow when a connection is resumed"
+        },
+        {
+          "id": "fivetran_delete_connector",
+          "name": "Fivetran Connection Deleted",
+          "description": "Trigger workflow when a connection is deleted"
+        },
+        {
+          "id": "fivetran_force_update_connector",
+          "name": "Fivetran Manual Sync Triggered",
+          "description": "Trigger workflow when someone triggers a manual sync of a connection"
+        },
+        {
+          "id": "fivetran_resync_connector",
+          "name": "Fivetran Connection Re-sync Triggered",
+          "description": "Trigger workflow when a historical re-sync of a connection is triggered"
+        },
+        {
+          "id": "fivetran_resync_table",
+          "name": "Fivetran Table Re-sync Triggered",
+          "description": "Trigger workflow when a historical re-sync of a table is triggered"
+        },
+        {
+          "id": "fivetran_transformation_start",
+          "name": "Fivetran Transformation Started",
+          "description": "Trigger workflow when a transformation run starts"
+        },
+        {
+          "id": "fivetran_transformation_succeeded",
+          "name": "Fivetran Transformation Succeeded",
+          "description": "Trigger workflow when a transformation run succeeds"
+        },
+        {
+          "id": "fivetran_transformation_failed",
+          "name": "Fivetran Transformation Failed",
+          "description": "Trigger workflow when a transformation run fails"
+        },
+        {
+          "id": "fivetran_webhook",
+          "name": "Fivetran All Events",
+          "description": "Trigger workflow on any Fivetran sync, connection, or transformation event"
+        }
+      ],
+      "triggerCount": 16,
+      "authType": "oauth",
+      "oauthServiceId": "fivetran",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-warehouse", "data-analytics", "webhooks", "automation"]
     },
     {
       "type": "flint",

@@ -697,6 +697,17 @@ describe('authorized live retrieval', () => {
     })
   })
 
+  it('gives provider searches the account session cancellation signal', async () => {
+    const signals: (AbortSignal | undefined)[] = []
+    mocks.search.mockImplementation(async (_provider, _client, search) => {
+      signals.push(search.signal)
+      return { documents: [document] }
+    })
+    await searchLiveKnowledge.execute({ principal, input: { ...input, query: 'launch checklist' } })
+    expect(signals.length).toBeGreaterThan(0)
+    for (const signal of signals) expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('retries an underfilled search with any term for providers that require every term', async () => {
     mocks.requiresEveryTerm.mockReturnValue(true)
     const loose = { ...document, id: 'loose', url: 'https://docs.google.com/document/d/loose/edit' }

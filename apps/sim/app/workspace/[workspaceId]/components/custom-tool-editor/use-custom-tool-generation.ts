@@ -121,6 +121,7 @@ try {
 }
 
 interface UseSchemaGenerationParams {
+  workspaceId: string
   jsonSchema: string
   setJsonSchema: (updater: (prev: string) => string) => void
   replaceJsonSchema: (value: string) => void
@@ -128,11 +129,13 @@ interface UseSchemaGenerationParams {
 
 /** Wand-driven generation for a custom tool's JSON schema. */
 export function useSchemaGeneration({
+  workspaceId,
   jsonSchema,
   setJsonSchema,
   replaceJsonSchema,
 }: UseSchemaGenerationParams) {
   return useWand({
+    workspaceId,
     wandConfig: {
       enabled: true,
       maintainHistory: true,
@@ -148,6 +151,7 @@ export function useSchemaGeneration({
 }
 
 interface UseCodeGenerationParams {
+  workspaceId: string
   functionCode: string
   schemaParameters: SchemaParameter[]
   setFunctionCode: (updater: (prev: string) => string) => void
@@ -156,6 +160,7 @@ interface UseCodeGenerationParams {
 
 /** Wand-driven generation for a custom tool's function body, aware of the schema's parameters. */
 export function useCodeGeneration({
+  workspaceId,
   functionCode,
   schemaParameters,
   setFunctionCode,
@@ -178,6 +183,7 @@ export function useCodeGeneration({
   }, [schemaParameters])
 
   return useWand({
+    workspaceId,
     wandConfig: {
       enabled: true,
       maintainHistory: true,

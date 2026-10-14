@@ -256,6 +256,16 @@ export function compactToolCallParams(message: PersistedMessage): PersistedMessa
   return changed ? { ...message, contentBlocks } : message
 }
 
+/**
+ * What `copilot_messages.display_content` holds for a stored message: the chat UI's
+ * projection of its content, or null when that equals the content and the column stays empty.
+ * `content` is the stored form, already passed through {@link stripToolResultOutput}.
+ */
+export function displayContentOf(content: PersistedMessage): PersistedMessage | null {
+  const display = compactToolCallParams(content)
+  return display === content ? null : display
+}
+
 // Write: OrchestratorResult → PersistedMessage
 
 function resolveToolState(block: ContentBlock): PersistedToolState {

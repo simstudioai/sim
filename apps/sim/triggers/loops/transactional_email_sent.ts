@@ -1,11 +1,11 @@
 import { LoopsIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildLoopsExtraFields,
   buildLoopsSentOutputs,
   loopsSetupInstructions,
   loopsTriggerOptions,
 } from '@/triggers/loops/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

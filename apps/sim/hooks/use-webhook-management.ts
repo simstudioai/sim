@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { getBlock } from '@/blocks'
 import { useWebhookQuery } from '@/hooks/queries/webhooks'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
@@ -94,8 +94,7 @@ export function useWebhookManagement({
   useWebhookUrl = false,
   providerWebhookUrl,
 }: UseWebhookManagementProps): WebhookManagementState {
-  const params = useParams()
-  const workflowId = params.workflowId as string
+  const { workflowId } = useWorkflowScope()
   const syncedRef = useRef(false)
 
   const webhookId = useSubBlockStore(
@@ -160,7 +159,7 @@ export function useWebhookManagement({
   }
 
   const { data: webhook, isLoading: queryLoading } = useWebhookQuery(
-    workflowId,
+    workflowId ?? '',
     blockId,
     queryEnabled
   )

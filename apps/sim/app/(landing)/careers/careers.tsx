@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import type { SearchParams } from 'nuqs/server'
 import { getAshbyJobs } from '@/lib/ashby/jobs'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import {
   filterPostings,
   groupByDepartment,

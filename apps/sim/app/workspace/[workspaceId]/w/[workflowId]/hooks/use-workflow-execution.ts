@@ -6,7 +6,6 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
   type AgentStreamToolCall,
@@ -400,7 +399,6 @@ function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamC
 }
 
 export function useWorkflowExecution() {
-  const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>()
   const hydrationWorkspaceId = useWorkflowRegistry((s) => s.hydration.workspaceId)
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
@@ -729,7 +727,7 @@ export function useWorkflowExecution() {
     async (workflowInput?: unknown, enableDebug = false) => {
       if (!activeWorkflowId) return
 
-      const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
+      const scopedWorkspaceId = hydrationWorkspaceId ?? undefined
       const cachedWorkflows = scopedWorkspaceId ? getWorkflows(scopedWorkspaceId) : []
       const activeWorkflow = cachedWorkflows.find((w) => w.id === activeWorkflowId)
 

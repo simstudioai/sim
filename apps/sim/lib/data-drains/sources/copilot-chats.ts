@@ -22,7 +22,7 @@ import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/typ
  */
 type CopilotChatRow = Omit<
   typeof copilotChats.$inferSelect,
-  'messages' | 'externalConversationKey' | 'externalConversationMetadata'
+  'memorySpaceId' | 'messages' | 'externalConversationKey' | 'externalConversationMetadata'
 > & {
   messages: unknown[]
 }
@@ -98,9 +98,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
         const transcriptSizes = await tx
           .select({
             chatId: copilotMessages.chatId,
-            bytes: sql<number>`sum(octet_length(row_to_json(${copilotMessages})::text))`.mapWith(
-              Number
-            ),
+            bytes: sql<number>`sum(octet_length(${copilotMessages.content}::text))`.mapWith(Number),
           })
           .from(copilotMessages)
           .where(messageCondition)

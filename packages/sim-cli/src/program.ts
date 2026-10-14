@@ -148,7 +148,13 @@ function addVersionOption(program: Command): void {
  * release.
  */
 export function buildProgram(
-  options: { version?: boolean; helpText?: string; program?: Command; env?: NodeJS.ProcessEnv } = {}
+  options: {
+    version?: boolean
+    helpText?: string
+    program?: Command
+    env?: NodeJS.ProcessEnv
+    hostCommands?: boolean
+  } = {}
 ): Command {
   const env = options.env ?? process.env
   const program = options.program ?? new Command()
@@ -164,17 +170,23 @@ export function buildProgram(
     .addOption(
       new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
     )
-  for (const command of [
-    loginCommand,
-    logoutCommand,
-    whoamiCommand,
-    profilesCommand,
-    configureCommand,
-  ])
-    program.addCommand(command())
-  const update = updateCommand()
-  program.addCommand(update)
-  program.addCommand(telemetryCommand())
+  if (options.hostCommands !== false) {
+    for (const command of [
+      loginCommand,
+      logoutCommand,
+      whoamiCommand,
+      profilesCommand,
+      configureCommand,
+    ])
+      program.addCommand(command())
+    const update = updateCommand()
+    program.addCommand(update)
+    program.addCommand(telemetryCommand())
+    program.hook('preAction', async (_program, command) => {
+      if (command === update) return
+      await announceUpdateIfAvailable()
+    })
+  }
   program.addCommand(cliCommand())
 
   for (const command of buildGeneratedCommands()) {
@@ -189,11 +201,6 @@ export function buildProgram(
   program.addHelpText('beforeAll', ({ command }) =>
     detectCodingAgent(env) !== undefined && command.commands.length > 0 ? AGENT_DISCOVERY_NOTE : ''
   )
-
-  program.hook('preAction', async (_program, command) => {
-    if (command === update) return
-    await announceUpdateIfAvailable()
-  })
 
   refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)

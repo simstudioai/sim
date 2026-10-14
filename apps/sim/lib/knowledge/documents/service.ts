@@ -11,6 +11,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import {
@@ -380,6 +381,21 @@ const LARGE_DOC_CONFIG = {
 }
 
 const HARD_DELETE_DOCUMENT_BATCH_SIZE = 250
+
+/** How long a timed-out or cancelled pass waits for its aborted work to report billed spend. */
+const ABORTED_PROCESSING_DRAIN_MS = 5_000
+
+/** Waits for `work` to settle, but no longer than `ms`; never rejects. */
+async function settledWithin(work: Promise<unknown>, ms: number): Promise<void> {
+  const settled = new AbortController()
+  await Promise.race([
+    work.then(
+      () => settled.abort(),
+      () => settled.abort()
+    ),
+    interruptibleSleep(ms, settled.signal),
+  ])
+}
 
 async function withTimeout<T>(
   run: (signal: AbortSignal) => Promise<T>,
@@ -1869,7 +1885,7 @@ export async function processDocumentAsync(
         )
       }
       let billableEmbeddingTokens = 0
-      let visionUsage: VisionExtractionUsage | undefined
+      const visionCharges: Promise<void>[] = []
       let embeddingModelName = kbEmbeddingModel
       let embeddingPricingId = kbEmbeddingModel
 
@@ -1886,14 +1902,61 @@ export async function processDocumentAsync(
         currentSourceFileProvenance
       )
 
+      /** One indexing charge on the document's billing context; callers decide when to charge. */
+      const recordIndexingUsage = async (entry: {
+        description: string
+        cost: number
+        sourceReference: string
+        inputTokens: number
+        outputTokens: number
+      }) => {
+        await recordUsage({
+          userId: documentActorUserId,
+          workspaceId: ctx.workspaceId ?? undefined,
+          ...toBillingContext(billingAttribution),
+          entries: [
+            {
+              category: 'model',
+              source: 'knowledge-base',
+              description: entry.description,
+              cost: entry.cost,
+              sourceReference: entry.sourceReference,
+              metadata: { inputTokens: entry.inputTokens, outputTokens: entry.outputTokens },
+            },
+          ],
+        })
+        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+      }
+
+      /** Recorded as soon as reported, since Gemini bills replies that then fail the pass. */
+      const recordVisionUsage = async (visionUsage: VisionExtractionUsage) => {
+        if (visionUsage.cost <= 0) return
+        try {
+          await recordIndexingUsage({
+            description: visionUsage.model,
+            cost: visionUsage.cost,
+            sourceReference: ['knowledge-document-vision', documentId, visionUsage.chargeId].join(
+              ':'
+            ),
+            inputTokens: visionUsage.inputTokens,
+            outputTokens: visionUsage.outputTokens,
+          })
+        } catch (billingError) {
+          logger.error(`[${documentId}] Failed to record image extraction usage`, {
+            error: billingError,
+          })
+        }
+      }
+
       let processingCommitted = false
       const processingDeadlineAt = Math.min(
         startTime + TIMEOUTS.OVERALL_PROCESSING - 15_000,
         (attemptContext?.deadlineAt ?? Number.POSITIVE_INFINITY) - 15_000
       )
+      let processing: Promise<unknown> = Promise.resolve()
       await withTimeout(
         (signal) =>
-          runWithKnowledgeModelInputProvenance(
+          (processing = runWithKnowledgeModelInputProvenance(
             documentSecretContext.registry,
             async () => {
               await assertKnowledgeEmbeddingCapacity({
@@ -1913,6 +1976,9 @@ export async function processDocumentAsync(
                   signal,
                   processingDeadlineAt,
                   imageExtraction: imageExtractionPolicyFor(ctx.connectorType),
+                  onVisionUsage: (usage) => {
+                    visionCharges.push(recordVisionUsage(usage))
+                  },
                   ...(indexingPassId
                     ? { ocrCheckpoint: { knowledgeBaseId, documentId, indexingPassId } }
                     : {}),
@@ -1924,7 +1990,6 @@ export async function processDocumentAsync(
 
               signal.throwIfAborted()
               assertDocumentChunkCountWithinLimit(processed.chunks.length)
-              visionUsage = processed.metadata.visionUsage
 
               const now = new Date()
 
@@ -2205,11 +2270,14 @@ export async function processDocumentAsync(
                 documentSecretContext.provenance.status === 'exact' &&
                 documentSecretContext.provenance.entries.length === 0,
             }
-          ),
+          )),
         Math.max(1, processingDeadlineAt - Date.now()),
         'Document processing',
         attemptContext?.signal
-      )
+      ).finally(async () => {
+        await settledWithin(processing, ABORTED_PROCESSING_DRAIN_MS)
+        await Promise.all(visionCharges)
+      })
 
       if (!processingCommitted) {
         logger.info(`[${documentId}] Discarded output from an obsolete processing attempt`)
@@ -2218,32 +2286,6 @@ export async function processDocumentAsync(
 
       const processingTime = Date.now() - startTime
       logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
-
-      /** One indexing charge on the document's billing context; callers decide when to charge. */
-      const recordIndexingUsage = async (entry: {
-        description: string
-        cost: number
-        sourceReference: string
-        inputTokens: number
-        outputTokens: number
-      }) => {
-        await recordUsage({
-          userId: documentActorUserId,
-          workspaceId: ctx.workspaceId ?? undefined,
-          ...toBillingContext(billingAttribution),
-          entries: [
-            {
-              category: 'model',
-              source: 'knowledge-base',
-              description: entry.description,
-              cost: entry.cost,
-              sourceReference: entry.sourceReference,
-              metadata: { inputTokens: entry.inputTokens, outputTokens: entry.outputTokens },
-            },
-          ],
-        })
-        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
-      }
 
       if (billableEmbeddingTokens > 0) {
         try {
@@ -2302,30 +2344,6 @@ export async function processDocumentAsync(
         }
       }
 
-      if (visionUsage && visionUsage.cost > 0) {
-        try {
-          /**
-           * The vision call is billed whether or not the image produced chunks, so it
-           * sits outside the embedding gate. Its own source reference keeps the
-           * embedding charge's event key unchanged and collapses retries of one pass.
-           */
-          await recordIndexingUsage({
-            description: visionUsage.model,
-            cost: visionUsage.cost,
-            sourceReference: [
-              'knowledge-document-vision',
-              documentId,
-              indexingPassId ?? `model:${visionUsage.model}`,
-            ].join(':'),
-            inputTokens: visionUsage.inputTokens,
-            outputTokens: visionUsage.outputTokens,
-          })
-        } catch (billingError) {
-          logger.error(`[${documentId}] Failed to record image extraction usage`, {
-            error: billingError,
-          })
-        }
-      }
       return { outcome: 'indexed' }
     })
   } catch (error) {

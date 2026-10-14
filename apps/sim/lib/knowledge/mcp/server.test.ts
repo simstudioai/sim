@@ -208,6 +208,24 @@ describe('batched document reads', () => {
     expect(mocks.liveRead).toHaveBeenCalledTimes(2)
   })
 
+  it('reads at most five documents from providers at once, in request order', async () => {
+    create()
+    let inFlight = 0
+    let peak = 0
+    mocks.liveRead.mockImplementation(async ({ input }: { input: { documentId: string } }) => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      const laterFinishesFirst = 10 - Number(input.documentId.slice('doc-'.length))
+      for (let tick = 0; tick < laterFinishesFirst; tick++) await Promise.resolve()
+      inFlight--
+      return readResult(input.documentId)
+    })
+    const ids = Array.from({ length: 10 }, (_, index) => `doc-${index}`)
+    const result = await call('read_document', { documentIds: ids })
+    expect(peak).toBe(5)
+    expect(parsedBody(result).documents.map((document) => document.documentId)).toEqual(ids)
+  })
+
   it('reads nothing when the batch exceeds the remaining rate limit', async () => {
     create()
     mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))

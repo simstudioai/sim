@@ -94,6 +94,7 @@ describe('Slack managed-user authorization', () => {
   it('stores exact organization ownership in the encrypted setup attempt and rejects ambiguous ownership', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           app: {
@@ -148,6 +149,7 @@ describe('Slack managed-user authorization', () => {
       shared.flag.mockImplementation(async (_flag, context) => context?.orgId === 'org-1')
       dbChainMockFns.limit
         .mockResolvedValueOnce([{ id: 'group-1', updatedAt: new Date(1), options: [] }])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
           {
             app: {
@@ -272,6 +274,7 @@ describe('Slack managed-user authorization', () => {
       }
       dbChainMockFns.limit
         .mockResolvedValueOnce([group])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ app, teamId: 'T123' }])
 
       const created = await createSlackManagedUsersAttempt({

@@ -16,6 +16,7 @@ import { credentialGroupProviderHandler } from '@/lib/webhooks/providers/credent
 import { emailBisonHandler } from '@/lib/webhooks/providers/emailbison'
 import { fathomHandler } from '@/lib/webhooks/providers/fathom'
 import { firefliesHandler } from '@/lib/webhooks/providers/fireflies'
+import { fivetranHandler } from '@/lib/webhooks/providers/fivetran'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
 import { githubHandler } from '@/lib/webhooks/providers/github'
 import { gitlabHandler } from '@/lib/webhooks/providers/gitlab'
@@ -87,6 +88,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   'credential-group': credentialGroupProviderHandler,
   emailbison: emailBisonHandler,
   fireflies: firefliesHandler,
+  fivetran: fivetranHandler,
   generic: genericHandler,
   gmail: gmailHandler,
   github: githubHandler,

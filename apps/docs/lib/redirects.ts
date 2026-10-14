@@ -20,6 +20,7 @@ type DocsRedirect = Awaited<ReturnType<NonNullable<NextConfig['redirects']>>>[nu
  * modules would make match order an emergent property of two files.
  */
 const PATH_REDIRECTS: DocsRedirect[] = [
+  { source: '/academy/:path*', destination: '/introduction', permanent: true },
   ...Object.entries(integrationNavigation.redirects).map(([from, to]) => ({
     source: `/integrations/${from}`,
     destination: `/integrations/${to}`,
@@ -137,6 +138,8 @@ const PATH_REDIRECTS: DocsRedirect[] = [
     destination: '/workflows/triggers/:slug',
     permanent: true,
   },
+  // the API trigger merged into the Start block; calling a workflow is documented under API deployment
+  { source: '/triggers/api', destination: '/workflows/deployment/api', permanent: true },
   { source: '/deployment', destination: '/workflows/deployment', permanent: true },
   {
     source: '/deployment/:path*',

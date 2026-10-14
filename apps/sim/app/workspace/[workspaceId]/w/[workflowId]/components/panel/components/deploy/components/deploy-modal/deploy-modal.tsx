@@ -18,10 +18,10 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import type { DeploymentOperationSummary } from '@/lib/api/contracts/deployments'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
 import {
@@ -104,8 +104,7 @@ export function DeployModal({
   /* A snapshot that is expected but absent reads as loading everywhere. */
   const isLoadingDeployedState = isAwaitingSnapshot
   const queryClient = useQueryClient()
-  const params = useParams()
-  const workspaceId = params?.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
   const { navigateToSettings } = useSettingsNavigation()
   const isDeployed = isDeployedProp
   const { data: workflowMap = {} } = useWorkflowMap(workspaceId)

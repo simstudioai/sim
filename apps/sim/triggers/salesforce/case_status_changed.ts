@@ -1,11 +1,11 @@
 import { SalesforceIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildSalesforceAuthOnlyFields,
   buildSalesforceCaseStatusOutputs,
   salesforceSetupInstructions,
   salesforceTriggerOptions,
 } from '@/triggers/salesforce/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 /**

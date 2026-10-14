@@ -10,6 +10,10 @@
       "types": "./src/env-capabilities.ts",
       "default": "./src/env-capabilities.ts"
     },
+    "./integration-claims": {
+      "types": "./src/integration-claims.ts",
+      "default": "./src/integration-claims.ts"
+    },
     "./integration-availability": {
       "types": "./src/integration-availability.ts",
       "default": "./src/integration-availability.ts"
@@ -17,6 +21,10 @@
     "./integration-metadata": {
       "types": "./src/integration-metadata.ts",
       "default": "./src/integration-metadata.ts"
+    },
+    "./integration-totals": {
+      "types": "./src/integration-totals.ts",
+      "default": "./src/integration-totals.ts"
     },
     "./integrations.json": "./src/integrations.json",
     "./service-account-metadata": {

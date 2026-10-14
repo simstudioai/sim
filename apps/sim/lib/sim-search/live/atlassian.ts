@@ -9,7 +9,11 @@ import {
 } from '@/lib/sim-search/live/http'
 import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { providerText } from '@/lib/sim-search/live/text'
-import { confluenceTextClause, jiraTextClause } from '@/lib/sim-search/live/text-match'
+import {
+  confluenceTextClause,
+  holdsHalfTheTerms,
+  jiraTextClause,
+} from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
   NativeDocument,
@@ -112,6 +116,17 @@ async function sites(client: NativeClient) {
   return array(await client.json('/oauth/token/accessible-resources', { memo: true }))
 }
 
+/**
+ * One Atlassian site's page; `ranking` marks a page whose order or completeness differs from the
+ * all-terms search.
+ */
+interface SitePage {
+  documents: NativeDocument[]
+  excluded: boolean
+  next?: string
+  ranking?: 'relevance' | 'unavailable'
+}
+
 export async function searchAtlassian(
   client: NativeClient,
   provider: 'jira' | 'confluence',
@@ -152,8 +167,11 @@ export async function searchAtlassian(
   const direction = dateSortDirection(input.filters)
   const order = direction ? `${field} ${direction.toUpperCase()}` : undefined
   const text = nativeText(input)
+  // Jira's any-term JQL matches issues sharing two common words; like minimum-should-match,
+  // keep only issues holding at least half the terms.
+  const relevant = input.textMatch === 'any' && text ? holdsHalfTheTerms(text) : undefined
   const pages = await Promise.all(
-    selected.map(async (site) => {
+    selected.map(async (site): Promise<SitePage> => {
       const cloudId = string(site.id)
       const origin = string(site.url).replace(/\/$/, '')
       if (provider === 'jira') {
@@ -169,40 +187,65 @@ export async function searchAtlassian(
               fields: ['summary', 'description', 'updated', 'creator', 'status'],
               ...(input.native?.cursor && single ? { nextPageToken: input.native.cursor } : {}),
             },
+            signal: input.signal,
           })
         )
         return {
-          documents: array(data.issues).map((row) => issue(row, cloudId, origin)),
+          documents: array(data.issues)
+            .filter((row) => {
+              const fields = object(row.fields)
+              return (
+                !relevant ||
+                relevant(`${string(fields.summary)}\n${textContent(fields.description)}`)
+              )
+            })
+            .map((row) => issue(row, cloudId, origin)),
           excluded: false,
           next: string(data.nextPageToken) || undefined,
         }
       }
-      const data = object(
-        await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/search`, {
-          query: {
-            cql: scopeAtlassianQuery(
-              input.native?.query ||
-                `type IN (page, blogpost)${text ? ` AND ${confluenceTextClause(text, input.textMatch)}` : ''}`,
-              scope,
-              order
-            ),
-            limit: String(input.limit),
-            expand: 'content.version,content.space',
-            ...(input.native?.cursor && single ? { cursor: input.native.cursor } : {}),
-          },
-        })
+      const searchPages = async (clause: string, cursor?: string) => {
+        const data = object(
+          await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/search`, {
+            query: {
+              cql: scopeAtlassianQuery(
+                input.native?.query || `type IN (page, blogpost)${clause ? ` AND ${clause}` : ''}`,
+                scope,
+                order
+              ),
+              limit: String(input.limit),
+              expand: 'content.version,content.space',
+              ...(cursor ? { cursor } : {}),
+            },
+            signal: input.signal,
+          })
+        )
+        const next = string(object(data._links).next)
+        const rows = array(data.results)
+        const documents = rows
+          .map((row) => page(row, cloudId, origin))
+          .filter((document) => document !== undefined)
+        return {
+          documents,
+          excluded: documents.length < rows.length,
+          next: next
+            ? (new URL(next, 'https://api.atlassian.com').searchParams.get('cursor') ?? undefined)
+            : undefined,
+        }
+      }
+      const exact = await searchPages(
+        text ? confluenceTextClause(text, input.textMatch) : '',
+        input.native?.cursor && single ? input.native.cursor : undefined
       )
-      const next = string(object(data._links).next)
-      const rows = array(data.results)
-      const documents = rows
-        .map((row) => page(row, cloudId, origin))
-        .filter((document) => document !== undefined)
-      return {
-        documents,
-        excluded: documents.length < rows.length,
-        next: next
-          ? (new URL(next, 'https://api.atlassian.com').searchParams.get('cursor') ?? undefined)
-          : undefined,
+      // An all-terms match larger than a page comes back by raw term matches; rank it by relevance.
+      if (!text || input.native || order || input.textMatch === 'any' || !exact.next) return exact
+      try {
+        const ranked = await searchPages(confluenceTextClause(text, 'any'))
+        return { ...ranked, next: undefined, ranking: 'relevance' }
+      } catch {
+        // A cancelled search stops here; any other failure keeps the all-terms page.
+        input.signal?.throwIfAborted()
+        return { ...exact, ranking: 'unavailable' }
       }
     })
   )
@@ -210,13 +253,22 @@ export async function searchAtlassian(
   const excluded = pages.some((result) => result.excluded)
   return {
     documents,
-    partial: excluded || (!input.native?.project && allSites.length > selected.length),
-    hasMore: pages.some((result) => Boolean(result.next)),
+    partial:
+      excluded ||
+      pages.some((result) => result.ranking) ||
+      (!input.native?.project && allSites.length > selected.length),
+    hasMore: pages.some((result) => Boolean(result.next) || result.ranking === 'relevance'),
     nextCursor: single ? pages[0]?.next : undefined,
     message:
       'Searches up to four accessible Atlassian sites. For a specific site and pagination, set project to its cloud ID.' +
       (excluded
         ? ' Matches other than pages, blog posts, and spaces (attachments, comments, whiteboards, folders, databases) were excluded because they cannot be read.'
+        : '') +
+      (pages.some((result) => result.ranking === 'relevance')
+        ? ' More pages contained every word than fit on one page, so this page is ordered by Confluence relevance search; refine the query, or page with a native CQL query.'
+        : '') +
+      (pages.some((result) => result.ranking === 'unavailable')
+        ? ' Relevance ranking was unavailable, so this page keeps the order of the all-terms search.'
         : ''),
   }
 }

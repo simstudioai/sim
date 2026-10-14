@@ -1,4 +1,6 @@
+import { user } from '@sim/db/schema'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,8 +23,9 @@ import OrganizationSettingsSectionPage from '@/app/o/[organizationId]/settings/[
 
 const mockGetSession = authMockFns.mockGetSession
 
-describe('organization request settings routing', () => {
+describe('organization settings access', () => {
   beforeEach(() => {
+    resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer' } })
     mocks.authorize.mockResolvedValue(true)
   })
@@ -36,4 +39,18 @@ describe('organization request settings routing', () => {
       })
     ).rejects.toThrow('NEXT_NOT_FOUND')
   })
+
+  it.each(['admin', 'mothership'])(
+    'conceals %s from organization admins without platform authority',
+    async (section) => {
+      const props = {
+        params: Promise.resolve({ organizationId: 'organization', section }),
+      }
+      queueTableRows(user, [{ role: 'admin' }])
+      await OrganizationSettingsSectionPage(props)
+
+      queueTableRows(user, [{ role: 'user' }])
+      await expect(OrganizationSettingsSectionPage(props)).rejects.toThrow('NEXT_NOT_FOUND')
+    }
+  )
 })

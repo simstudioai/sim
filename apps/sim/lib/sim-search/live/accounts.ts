@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { account, credential, user } from '@sim/db/schema'
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import {
   type ResourceOwner,
@@ -28,34 +28,17 @@ import {
 } from '@/lib/sim-search/live/provider-catalog'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
 
+/**
+ * A workspace searches the person's workspace credentials; an organization searches only the
+ * accounts its members connect on the integrations page (credential-group enrollments).
+ */
 async function listOAuthRows(scope: ResourceScope, userId: string) {
   if (scope.kind === 'workspace') return getPersonalOAuthCredentials(scope.workspaceId, userId)
-  const [managed, personal] = await Promise.all([
-    getOwnOrganizationManagedOAuthCredentials({ organizationId: scope.organizationId, userId }),
-    db
-      .select({
-        id: credential.id,
-        providerId: credential.providerId,
-        displayName: credential.displayName,
-      })
-      .from(credential)
-      .innerJoin(account, eq(account.id, credential.accountId))
-      .where(
-        and(
-          resourceScopeCondition(credential, scope),
-          eq(credential.type, 'oauth'),
-          eq(account.userId, userId),
-          eq(account.providerId, credential.providerId),
-          ne(credential.providerId, 'slack')
-        )
-      ),
-  ])
-  return [
-    ...managed.map((row) => ({ ...row, type: 'managed_oauth' as const })),
-    ...personal.flatMap((row) =>
-      row.providerId ? [{ ...row, providerId: row.providerId, type: 'oauth' as const }] : []
-    ),
-  ]
+  const managed = await getOwnOrganizationManagedOAuthCredentials({
+    organizationId: scope.organizationId,
+    userId,
+  })
+  return managed.map((row) => ({ ...row, type: 'managed_oauth' as const }))
 }
 
 async function listCodaTokenRows(scope: ResourceScope, userId: string) {

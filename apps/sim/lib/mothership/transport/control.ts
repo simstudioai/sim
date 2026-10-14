@@ -13,6 +13,10 @@ import {
   readIntegrationCatalog,
 } from '@/lib/mothership/integrations/application/catalog'
 import {
+  MEMORY_SCOPE_AUDIENCE,
+  readMemoryScope,
+} from '@/lib/mothership/memory/application/read-scope'
+import {
   RUN_CONTROL_AUDIENCE,
   readRunControl,
 } from '@/lib/mothership/request/application/read-control'
@@ -41,13 +45,15 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         },
         {
           audience:
-            operation.kind === 'integration_catalog'
-              ? INTEGRATION_CATALOG_AUDIENCE
-              : operation.kind === 'workspace_context'
-                ? WORKSPACE_TARGET_AUDIENCE
-                : operation.kind === 'run_control'
-                  ? RUN_CONTROL_AUDIENCE
-                  : TASK_DELEGATION_AUDIENCE,
+            operation.kind === 'memory_scope'
+              ? MEMORY_SCOPE_AUDIENCE
+              : operation.kind === 'integration_catalog'
+                ? INTEGRATION_CATALOG_AUDIENCE
+                : operation.kind === 'workspace_context'
+                  ? WORKSPACE_TARGET_AUDIENCE
+                  : operation.kind === 'run_control'
+                    ? RUN_CONTROL_AUDIENCE
+                    : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
@@ -55,18 +61,27 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
         {
           audience:
-            operation.kind === 'integration_catalog'
-              ? INTEGRATION_CATALOG_AUDIENCE
-              : operation.kind === 'workspace_context'
-                ? WORKSPACE_TARGET_AUDIENCE
-                : operation.kind === 'run_control'
-                  ? RUN_CONTROL_AUDIENCE
-                  : TASK_DELEGATION_AUDIENCE,
+            operation.kind === 'memory_scope'
+              ? MEMORY_SCOPE_AUDIENCE
+              : operation.kind === 'integration_catalog'
+                ? INTEGRATION_CATALOG_AUDIENCE
+                : operation.kind === 'workspace_context'
+                  ? WORKSPACE_TARGET_AUDIENCE
+                  : operation.kind === 'run_control'
+                    ? RUN_CONTROL_AUDIENCE
+                    : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
   try {
     switch (operation.kind) {
+      case 'memory_scope':
+        return {
+          status: 200,
+          body: JSON.stringify(
+            await readMemoryScope.execute({ principal, input: operation.input })
+          ),
+        }
       case 'integration_catalog':
         return {
           status: 200,

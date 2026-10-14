@@ -17,10 +17,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 const databaseUrl = readTestDatabaseUrl()
 const migrations = [
   '0358_workspace_file_content_version_precision.sql',
-  '0414_file_entity_ownership.sql',
-  '0415_file_folder_version_ownership.sql',
-  '0416_file_creator_lifetime.sql',
-  '0418_public_share_entity_ownership.sql',
+  '0422_file_entity_ownership.sql',
+  '0423_file_folder_version_ownership.sql',
+  '0424_file_creator_lifetime.sql',
+  '0426_public_share_entity_ownership.sql',
 ].map((name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8'))
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []

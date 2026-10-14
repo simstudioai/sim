@@ -4,11 +4,13 @@ import { toError } from '@sim/utils/errors'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
-import { ASSISTANT_TOOLS } from '@/lib/mothership/assistant/tool-policy'
+import { ASSISTANT_TOOLS, isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
+import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
+import { getToolMetadata } from '@/tools/metadata'
 import { getToolEntry, isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from './types'
 
@@ -39,6 +41,23 @@ export async function executeTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
+  if (
+    context.benchmark &&
+    !(context.benchmark === 'distill'
+      ? toolId === 'sim_cli' &&
+        context.workspaceId &&
+        !context.organizationId &&
+        !context.targetWorkspaceId &&
+        !context.workflowId
+      : (context.benchmark === 'plan' || context.benchmark === 'resolve') &&
+        ['search_workspace', 'read_document'].includes(toolId) &&
+        context.organizationId &&
+        !context.workspaceId &&
+        !context.workflowId &&
+        !context.targetWorkspaceId)
+  ) {
+    return { success: false, error: 'This tool is unavailable in this benchmark stage.' }
+  }
   if (context.organizationId) {
     if (
       context.workspaceId ||
@@ -56,7 +75,10 @@ export async function executeTool(
             'search_sources',
             ...(params.scope !== 'workspace' ? ['settings'] : []),
           ]
-    if (organizationTools.includes(toolId)) {
+    if (
+      organizationTools.includes(toolId) ||
+      (context.requestMode === 'assistant' && isAssistantIntegrationTool(getToolMetadata(toolId)))
+    ) {
       if (context.targetWorkspaceId)
         return {
           success: false,
@@ -67,7 +89,7 @@ export async function executeTool(
     if (context.requestMode === 'assistant') {
       return {
         success: false,
-        error: 'Search Assistant uses scoped search and document reads for connected sources.',
+        error: 'This operation is not available in Search Assistant.',
       }
     }
     if (toolId === 'sim_cli') return executeBoundTool(toolId, params, context)
@@ -129,10 +151,15 @@ async function executeBoundTool(
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  if (context.requestMode === 'assistant' && !ASSISTANT_TOOLS.has(toolId)) {
+  if (
+    context.requestMode === 'assistant' &&
+    !ASSISTANT_TOOLS.has(toolId) &&
+    (!isAssistantIntegrationTool(getToolMetadata(toolId)) ||
+      !(await isSearchIntegrationToolsEnabled()))
+  ) {
     return {
       success: false,
-      error: 'Search Assistant uses scoped search and document reads for connected sources.',
+      error: 'This operation is not available in Search Assistant.',
     }
   }
   // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never

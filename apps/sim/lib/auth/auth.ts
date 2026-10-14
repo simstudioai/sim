@@ -74,7 +74,6 @@ import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
-import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
   authorizeSubscriptionReference,
@@ -86,8 +85,10 @@ import {
   releaseCheckoutAdmission,
   resolveCheckoutReferenceId,
 } from '@/lib/billing/checkout-admission'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
 import {
   getOrganizationIdForSubscriptionReference,
+  sendPlanWelcomeEmail,
   syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
@@ -440,6 +441,16 @@ export const auth = betterAuth({
           if (user.banned) {
             await disableUserResources(user.id)
           }
+        },
+      },
+      /**
+       * The admin plugin's `/admin/remove-user` deletes the user row through Better Auth, so its
+       * usage rows cascade away without `deleteUserAccount`. Better Auth runs this once the delete
+       * commits, which is when the stored reporting prefixes that counted them must be discarded.
+       */
+      delete: {
+        after: async () => {
+          await invalidateReportingUsagePrefixes()
         },
       },
     },

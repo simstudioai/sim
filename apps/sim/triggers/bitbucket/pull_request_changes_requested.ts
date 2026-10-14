@@ -1,5 +1,4 @@
 import { BitbucketIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   BITBUCKET_TRIGGER_EVENT_MAP,
   bitbucketSetupInstructions,
@@ -7,6 +6,7 @@ import {
   buildBitbucketExtraFields,
   buildBitbucketOutputs,
 } from '@/triggers/bitbucket/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const bitbucketPullRequestChangesRequestedTrigger: TriggerConfig = {

@@ -42,7 +42,7 @@ macOS 12+, Apple Silicon and Intel. See the [desktop docs](https://docs.sim.ai/d
 
 ## Capabilities
 
-- Connect 1,000+ integrations and every major LLM
+- Connect 270+ integrations (5,400+ actions, 520+ triggers) and every major LLM
 - Add Slack, Notion, HubSpot, Salesforce, databases, and more
 - Build agents visually, conversationally, or with code
 - Ingest files, knowledge bases, and structured table data

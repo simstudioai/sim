@@ -149,6 +149,9 @@ export const env = createEnv({
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication
     /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
     COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
+    /** Enables the organization benchmark UI and its authenticated endpoints. */
+    MOTHERSHIP_BENCHMARK_ENABLED:          z.boolean().optional(),
+    MOTHERSHIP_BENCHMARK_URL:              z.string().url().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
     MSHIP_SYSPROMPT_OVERRIDE:              z.string().min(1).optional(),           // Enterprise-only highest-priority Mothership system prompt override forwarded by Sim
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
@@ -333,6 +336,7 @@ export const env = createEnv({
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment
+    NEXT_BUILD_SKIP_TYPE_CHECK:            z.boolean().optional(),                 // Skips `next build`'s TypeScript pass where another CI job type-checks
 
     // Background Jobs & Scheduling
     TRIGGER_PROJECT_ID:                    z.string().optional(),                  // Trigger.dev project ID
@@ -589,9 +593,9 @@ export const env = createEnv({
     // AgentMail - Mothership Email Inbox
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
-    MSHIP_PLAN_MODE: z.boolean().optional(),
     DASHBOARDS: z.boolean().optional(),
     PROJECTS:                   z.boolean().optional(),                 // Fallback for the `projects` feature flag off AppConfig
+    MSHIP_COMPUTER_USE: z.boolean().optional(),
     WORKFLOW_TESTS:                        z.boolean().optional(),                 // Fallback for the `workflow-tests` feature flag off AppConfig
     CHANGELOG:                             z.boolean().optional(),                 // Fallback for the `changelog` feature flag off AppConfig
     MSHIP_MODEL_SELECTOR: z.boolean().optional(),

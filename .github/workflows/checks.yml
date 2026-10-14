@@ -338,12 +338,22 @@ jobs:
 
   # Desktop tools in the real Electron app against a local app, on its own runner: the
   # Electron app, the dev app and its realtime server together outgrow the e2e runner.
+  # Two runners: the lease-lapse test sleeps through a long import and then a lease (~3 min), as
+  # long as the rest of the spec together, so on one runner it set the time for every run.
   desktop-live:
-    name: desktop-live
+    name: desktop-live (${{ matrix.tests }})
     needs: changes
     if: needs.changes.outputs.desktop_live == 'true'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tests: lease-lapse
+            filter: --grep @lease-lapse
+          - tests: rest
+            filter: --grep-invert @lease-lapse
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -509,13 +519,13 @@ jobs:
           SIM_DESKTOP_E2E_REDIS_URL="$REDIS_URL" \
           SIM_DESKTOP_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
             xvfb-run -a -s '-screen 0 1920x1200x24' bunx playwright test e2e/desktop-tools-live-sim.spec.ts \
-            --output "$report_dir/desktop-tools-results" --retries=0
+            ${{ matrix.filter }} --output "$report_dir/desktop-tools-results" --retries=0
 
       - name: Upload Electron E2E results and server logs
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: desktop-live-e2e-results
+          name: desktop-live-e2e-results-${{ matrix.tests }}
           path: ${{ runner.temp }}/e2e/
           if-no-files-found: ignore
           retention-days: 7
@@ -886,14 +896,19 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
+          # This build is on the e2e-mobile critical path; its ~30 s TypeScript pass repeats what
+          # lint's type-check and the `build` job's own `next build` (generated route types too)
+          # already enforce.
+          NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
         run: bunx turbo run build --filter=@sim/app
 
       # Everything `next start` reads; node_modules and the source tree come from e2e-mobile's own
-      # checkout and setup, at the same workspace path and lockfile.
+      # checkout and setup, at the same workspace path and lockfile. Source maps are over half the
+      # build and only serve stack traces and devtools, which the suite never reads.
       - name: Package the build for e2e-mobile
         run: >-
           tar -I 'zstd -T0' -cf "$RUNNER_TEMP/next-build.tar.zst" -C apps/sim
-          --exclude .next/cache --exclude .next/trace .next
+          --exclude .next/cache --exclude .next/trace --exclude '*.map' .next
 
       # Already zstd-compressed, so stored without zip compression. `overwrite` lets a re-run of
       # this job replace the earlier attempt's build; three days covers re-running a failed shard
