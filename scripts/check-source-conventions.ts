@@ -412,8 +412,12 @@ function classifyHandler(
           ? 'wrapped'
           : 'opaque'
     }
-    case 'MemberExpression':
-      return classifyHandler(node.object as Node, bindings, seen)
+    case 'MemberExpression': {
+      const member = objectLiteralMember(node, bindings)
+      if (member === undefined) return classifyHandler(node.object as Node, bindings, seen)
+      if (member.type === 'ObjectMethod') return 'bare'
+      return classifyHandler(member.value as Node, bindings, seen)
+    }
     case 'Identifier': {
       const name = node.name as string
       const binding = bindings.get(name)
@@ -425,6 +429,26 @@ function classifyHandler(
     default:
       return 'bare'
   }
+}
+
+/**
+ * The property `handlers.GET` selects when `handlers` is a local object literal, so the selected
+ * value is classified rather than the object. Undefined when the object is anything else.
+ */
+function objectLiteralMember(member: Node, bindings: Map<string, Node>): Node | undefined {
+  const object = unwrap(member.object as Node)
+  const property = member.property as Node
+  if (object?.type !== 'Identifier' || member.computed || property.type !== 'Identifier') {
+    return undefined
+  }
+  const binding = bindings.get(object.name as string)
+  const literal = binding?.type === 'VariableDeclarator' ? unwrap(binding.init as Node) : undefined
+  if (literal?.type !== 'ObjectExpression') return undefined
+  return (literal.properties as Node[]).find(
+    (entry) =>
+      (entry.type === 'ObjectProperty' || entry.type === 'ObjectMethod') &&
+      propertyKeyName(entry) === property.name
+  )
 }
 
 /** Whether an arrow's expression body calls through a local binding that is a wrapped handler. */

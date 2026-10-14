@@ -250,11 +250,20 @@ describe('bare-route-handler', () => {
       'const loop = () => other()',
       'const other = () => loop()',
       'const wrapped = withRouteHandler(handler)',
+      'const routes = { PATCH: async () => new Response(), HEAD() { return new Response() } }',
       'export const GET = alias',
       'export const PUT = loop',
+      'export const PATCH = routes.PATCH',
+      'export const HEAD = routes.HEAD',
       'export { handler as POST, wrapped as DELETE }',
     ].join('\n')
-    expect(hits(ROUTE, source, 'bare-route-handler')).toEqual(['GET', 'PUT', 'POST'])
+    expect(hits(ROUTE, source, 'bare-route-handler')).toEqual([
+      'GET',
+      'PUT',
+      'PATCH',
+      'HEAD',
+      'POST',
+    ])
   })
 
   it('allows wrapped results, their aliases and members, imports, and delegates to them', () => {
@@ -271,7 +280,14 @@ describe('bare-route-handler', () => {
       'export const OPTIONS = flag ? handler : handlers.OPTIONS',
       'export const dynamic = "force-dynamic"',
     ].join('\n')
+    const objectMembers = [
+      'const handler = defineInternalJsonRoute({ useCase })',
+      'const routes = { GET: withRouteHandler(async () => new Response()), PUT: handler }',
+      'export const GET = routes.GET',
+      'export const PUT = routes.PUT',
+    ].join('\n')
     expect(hits(ROUTE, source, 'bare-route-handler')).toEqual([])
+    expect(hits(ROUTE, objectMembers, 'bare-route-handler')).toEqual([])
   })
 
   it('only checks route files', () => {
