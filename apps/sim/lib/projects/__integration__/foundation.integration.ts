@@ -439,7 +439,7 @@ describe('Project foundation at the database and application boundary', () => {
         () => archiveProject.execute({ principal: f.owner, input, request }),
         () => getProjectIssueAccess.execute({ principal: f.owner, input, request }),
       ]
-      for (const call of calls) await expect(call()).rejects.toMatchObject({ statusCode: 503 })
+      for (const call of calls) await expect(call()).rejects.toMatchObject({ code: 'forbidden' })
       expect(
         await db.select().from(workspace).where(eq(workspace.ownerId, f.ownerId))
       ).toHaveLength(1)
