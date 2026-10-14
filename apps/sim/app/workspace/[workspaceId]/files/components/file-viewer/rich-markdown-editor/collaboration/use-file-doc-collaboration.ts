@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/file-doc'
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryFilters, useQueryClient } from '@tanstack/react-query'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { getUserColor } from '@/lib/workspaces/colors'
@@ -113,7 +113,7 @@ export function useFileDocCollaboration({
     })
     setCanWrite(fileProvider.canWrite)
     const reloadAfterWriteLoss = async () => {
-      const filters = [
+      const filters: QueryFilters[] = [
         { queryKey: workspaceFilesKeys.contentFile(workspaceId, fileId) },
         { queryKey: workspaceFilesKeys.record(workspaceId, fileId) },
         { queryKey: workspaceFilesKeys.workspaceLists(workspaceId) },

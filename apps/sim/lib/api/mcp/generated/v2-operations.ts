@@ -2148,7 +2148,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ListProjectFileFoldersContract,
     summary: 'List Project File Folders',
     description:
-      'List the Project folder tree with stable identifiers. Use scope=archived to find folders eligible for restore. Returns the complete set in one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+      'List the Project folder tree with stable identifiers. Use scope=archived to find folders eligible for restore. Returns one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/projects/[projectId]/files/folders/route').then((route) => route.GET),
