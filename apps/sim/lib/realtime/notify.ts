@@ -223,7 +223,7 @@ export async function applyEditToLiveFileDoc(
       fileId: target.fileId,
       markdown,
       version: order.version,
-      ...fileDocOwnerWireFields(target.owner),
+      ...(target.owner.entityType === 'project' ? fileDocOwnerWireFields(target.owner) : {}),
     }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
@@ -261,7 +261,11 @@ export async function invalidateLiveFileDoc(
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/invalidate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify({ ...target, version, ...fileDocOwnerWireFields(target.owner) }),
+    body: JSON.stringify({
+      fileId: target.fileId,
+      version,
+      ...(target.owner.entityType === 'project' ? fileDocOwnerWireFields(target.owner) : {}),
+    }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   await response.body?.cancel().catch(() => {})
@@ -280,7 +284,12 @@ export async function retireLiveFileDoc(
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/retire`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify({ ...target, ...fileDocOwnerWireFields(target.owner) }),
+    body: JSON.stringify({
+      fileId: target.fileId,
+      retiredDocId: target.retiredDocId,
+      replacementDocId: target.replacementDocId,
+      ...(target.owner.entityType === 'project' ? fileDocOwnerWireFields(target.owner) : {}),
+    }),
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   })
   await response.body?.cancel().catch(() => {})

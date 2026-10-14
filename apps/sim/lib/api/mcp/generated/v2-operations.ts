@@ -405,7 +405,7 @@ export const V2_MCP_OPERATIONS = {
   },
   abortProjectFileUpload: {
     contract: v2AbortProjectFileUploadContract,
-    summary: 'Abort Project File Upload',
+    summary: 'Abort Project file upload',
     description:
       'Abort a pending Project upload and schedule its unregistered bytes for cleanup. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
@@ -664,7 +664,7 @@ export const V2_MCP_OPERATIONS = {
   },
   completeProjectFileUpload: {
     contract: v2CompleteProjectFileUploadContract,
-    summary: 'Complete Project File Upload',
+    summary: 'Complete Project file upload',
     description:
       'Finalize verified bytes and atomically register one Project file. Retrying completion returns the same file without billing twice. Current edit access is checked again. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
@@ -840,7 +840,7 @@ export const V2_MCP_OPERATIONS = {
   },
   createProjectFileFolder: {
     contract: v2CreateProjectFileFolderContract,
-    summary: 'Create Project File Folder',
+    summary: 'Create Project file folder',
     description:
       'Create a folder under an existing parent, or at the Project root when parentId is omitted. Sibling names must be unique. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
@@ -849,7 +849,7 @@ export const V2_MCP_OPERATIONS = {
   },
   createProjectFileUpload: {
     contract: v2CreateProjectFileUploadContract,
-    summary: 'Create Project File Upload',
+    summary: 'Create Project file upload',
     description:
       'Create a resumable Project file upload. The file is registered only after the signed transfer and completion succeed. The original API credential and upload-token are required on every control request. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
@@ -1556,9 +1556,9 @@ export const V2_MCP_OPERATIONS = {
   },
   getProjectFileUpload: {
     contract: v2GetProjectFileUploadContract,
-    summary: 'Get Project File Upload',
+    summary: 'Get Project file upload',
     description:
-      'Read the current state of a Project upload, including its file after completion. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Read the current state of a Project upload, including its file after completion. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/projects/[projectId]/files/uploads/[uploadId]/route').then(
@@ -1567,7 +1567,7 @@ export const V2_MCP_OPERATIONS = {
   },
   getProjectFileUploadPartUrls: {
     contract: v2GetProjectFileUploadPartUrlsContract,
-    summary: 'Get Project File Upload Part URLs',
+    summary: 'Get Project file upload part URLs',
     description:
       'Request signed multipart transfer URLs for an active Project upload. Send exactly the returned transfer headers when uploading each part. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
@@ -2146,7 +2146,7 @@ export const V2_MCP_OPERATIONS = {
   },
   listProjectFileFolders: {
     contract: v2ListProjectFileFoldersContract,
-    summary: 'List Project File Folders',
+    summary: 'List Project file folders',
     description:
       'List the Project folder tree with stable identifiers. Use scope=archived to find folders eligible for restore. Returns one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
     workspaceKeyUnsupported: true,
@@ -2660,7 +2660,7 @@ export const V2_MCP_OPERATIONS = {
   },
   restoreProjectFileFolder: {
     contract: v2RestoreProjectFileFolderContract,
-    summary: 'Restore Project File Folder',
+    summary: 'Restore Project file folder',
     description:
       'Restore an archived folder and the files and subfolders archived with it. Find identifiers with List Project File Folders using scope=archived. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
@@ -3045,7 +3045,7 @@ export const V2_MCP_OPERATIONS = {
   },
   updateProjectFileFolder: {
     contract: v2UpdateProjectFileFolderContract,
-    summary: 'Update Project File Folder',
+    summary: 'Update Project file folder',
     description:
       'Rename, move, or reorder a folder while retaining its identity and descendants. Omitted fields stay unchanged; parentId=null moves the folder to the root. Cross-owner parents and cycles are rejected. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,

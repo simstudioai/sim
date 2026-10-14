@@ -184,9 +184,9 @@ export const projectFileOperations = {
     ...POLICY,
     id: 'project_file_uploads.read',
     capability: 'files.use',
-    access: 'write',
+    access: 'read',
     target: 'project',
-    oauthScope: 'api:write',
+    oauthScope: 'api:read',
   }),
   uploadParts: defineProjectFileOperation({
     ...POLICY,

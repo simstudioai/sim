@@ -542,6 +542,73 @@ describe('Project file authority at the database boundary', () => {
       (await listProjectFiles.execute({ principal: f.reader, input: { ...base, limit: 1000 } }))
         .files
     ).toHaveLength(4)
+
+    const archivedAt = new Date()
+    await db.update(folder).set({ deletedAt: archivedAt }).where(eq(folder.id, nestedId))
+    await db
+      .update(workspaceFiles)
+      .set({ deletedAt: archivedAt })
+      .where(inArray(workspaceFiles.id, [fileIds[1], fileIds[2]]))
+    const archivedDocsId = generateId()
+    const replacementNestedId = generateId()
+    await db.insert(folder).values([
+      {
+        id: archivedDocsId,
+        projectId: f.projectId,
+        resourceType: 'file',
+        name: 'Docs',
+        userId: f.ownerId,
+        deletedAt: archivedAt,
+      },
+      {
+        id: replacementNestedId,
+        projectId: f.projectId,
+        resourceType: 'file',
+        name: 'Q3/Q4',
+        parentId: docsId,
+        userId: f.ownerId,
+      },
+    ])
+    const archivedIds = [generateId(), generateId()]
+    await db.insert(workspaceFiles).values(
+      archivedIds.map((id, index) => ({
+        id,
+        userId: f.ownerId,
+        projectId: f.projectId,
+        context: 'project',
+        folderId: [archivedDocsId, replacementNestedId][index],
+        key: `project/${f.projectId}/${id}`,
+        originalName: `${index + 4}.md`,
+        contentType: 'text/markdown',
+        sizeBytes: 0,
+        deletedAt: archivedAt,
+      }))
+    )
+    const archivedPage = (folderPath: string, recursive = false) =>
+      listProjectFiles.execute({
+        principal: f.reader,
+        input: { ...base, scope: 'archived', folderPath, recursive },
+      })
+    expect((await archivedPage('/Docs')).files.map((file) => file.id)).toEqual([
+      fileIds[1],
+      archivedIds[0],
+    ])
+    expect((await archivedPage('/Docs/Q3%2FQ4')).files.map((file) => file.id)).toEqual([
+      fileIds[2],
+      archivedIds[1],
+    ])
+    expect((await archivedPage('/Docs', true)).files.map((file) => file.id)).toEqual([
+      fileIds[1],
+      fileIds[2],
+      ...archivedIds,
+    ])
+    expect((await archivedPage('/Missing', true)).files).toEqual([])
+    expect((await archivedPage('/')).files).toEqual([])
+    expect((await archivedPage('/', true)).files.map((file) => file.id)).toEqual([
+      fileIds[1],
+      fileIds[2],
+      ...archivedIds,
+    ])
   })
 
   check(

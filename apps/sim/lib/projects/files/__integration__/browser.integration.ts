@@ -229,6 +229,12 @@ describe('Project browser real mixed collection', () => {
       (await f.list({ types: ['video'], sizes: ['large'] })).items.map((item) => item.id)
     ).toEqual([large])
     expect((await f.list({ types: ['audio'] })).items).toEqual([])
+    const audio = await f.addFile('voice.bin', 10, { type: 'Audio/WebM; codecs=opus' })
+    const video = await f.addFile('movie.bin', 10, { type: 'video/mp4; codecs=avc1' })
+    const image = await f.addFile('picture.bin', 10, { type: 'IMAGE/PNG' })
+    expect((await f.list({ types: ['audio'] })).files.map((file) => file.id)).toEqual([audio])
+    expect((await f.list({ types: ['video'] })).files.map((file) => file.id)).toContain(video)
+    expect((await f.list({ types: ['image'] })).files.map((file) => file.id)).toEqual([image])
   })
   check(
     'mixed size pages keep ascending name ties in both directions and include descendant rollup',

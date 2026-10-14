@@ -1,7 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { PreparedCollabDocState } from '@/lib/collab-doc/collab-state'
+import { isCopilotPrincipal, requireAdmittedContent } from '@/lib/core/application/content-delivery'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import type { DbTransaction } from '@/lib/db/types'
 import type {
   ProjectFileAuthorizationContext,
@@ -28,7 +31,7 @@ import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
@@ -265,10 +268,17 @@ interface PreparedFileRead {
 export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readContent,
   async prepare({
+    principal,
     input,
-    context,
   }: Omit<ContentUseCaseArgs<ReadProjectFileContentInput>, 'tx'>): Promise<PreparedFileRead> {
-    const file = requireFile(context)
+    const snapshot = await captureContentDownload.execute({ principal, input })
+    const file = snapshot.file
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: file.id,
+      provenance: snapshot.secretProvenance,
+      view: 'complete',
+    })
     const content = await downloadFile({
       key: file.key,
       context: 'project',
@@ -277,6 +287,7 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
     return { key: file.key, revision: file.contentUpdatedAt, content }
   },
   async execute({
+    principal,
     input,
     context,
     tx,
@@ -290,7 +301,9 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
     )
       throw new OrchestrationError('conflict', 'File changed while its content was being read')
     const provenance =
-      input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
+      input.includeSecretProvenance ||
+      hasWorkspaceFileDeliveryObserver() ||
+      isCopilotPrincipal(principal)
         ? ((await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])).get(file.id) ?? {
             status: 'unknown' as const,
           })
@@ -301,6 +314,68 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
       ...(provenance ? { secretProvenance: provenance } : {}),
     }
   },
-  afterSuccess: ({ result }) =>
-    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
+  afterSuccess: async ({ principal, result }) => {
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.file.id,
+      provenance: result.secretProvenance ?? { status: 'unknown' },
+      view: 'complete',
+    })
+    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+  },
 })
+
+const captureContentDownload = defineAuthorizedProjectFileUseCase({
+  operation: projectFileOperations.readContent,
+  async execute({ context, tx }: ContentUseCaseArgs<ProjectFileTarget & { fileId: string }>) {
+    const file = requireFile(context)
+    const provenance = (await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])).get(
+      file.id
+    ) ?? { status: 'unknown' as const }
+    return {
+      ...(await mapProjectFileResult(tx, context, file)),
+      organizationId: context.organizationId,
+      secretProvenance: provenance,
+    }
+  },
+})
+
+/** Streams source bytes after rechecking the canonical file and access following storage open. */
+export const downloadProjectFileContent = {
+  operation: captureContentDownload.operation,
+  delegationAudience: captureContentDownload.delegationAudience,
+  authorize: captureContentDownload.authorize,
+  async execute(args: Parameters<typeof captureContentDownload.execute>[0]) {
+    const snapshot = await captureContentDownload.execute(args)
+    await requireAdmittedContent(args.principal, {
+      kind: 'workspace-file',
+      id: snapshot.file.id,
+      provenance: snapshot.secretProvenance,
+      view: 'complete',
+    })
+    const stream = nodeReadableToWebStream(
+      await runWithOutboundOrganization(snapshot.organizationId, () =>
+        downloadFileStream({ key: snapshot.file.key, context: 'project' })
+      )
+    )
+    try {
+      const current = await captureContentDownload.execute(args)
+      if (
+        current.file.key !== snapshot.file.key ||
+        current.file.contentUpdatedAt.getTime() !== snapshot.file.contentUpdatedAt.getTime()
+      )
+        throw new OrchestrationError('conflict', 'File changed while its content was being read')
+      await requireAdmittedContent(args.principal, {
+        kind: 'workspace-file',
+        id: current.file.id,
+        provenance: current.secretProvenance,
+        view: 'complete',
+      })
+      await reportWorkspaceFileDelivery(current.secretProvenance, current.file.id)
+      return { file: current.file, stream, contentLength: current.file.size }
+    } catch (error) {
+      await stream.cancel(error).catch(() => undefined)
+      throw error
+    }
+  },
+}

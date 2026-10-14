@@ -3,7 +3,7 @@
 import { act, Suspense, startTransition } from 'react'
 import { toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
-import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { type Editor, Extension } from '@tiptap/core'
@@ -15,20 +15,25 @@ import * as Y from 'yjs'
 import { exportWorkspaceFileSnapshotBodySchema } from '@/lib/api/contracts/workspace-files'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useFileDocCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/use-file-doc-collaboration'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
 import {
   createRichMarkdownPasteAdmission,
   type RichMarkdownPasteAdmissionOptions,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
-import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor'
+import {
+  LoadedRichMarkdownEditor,
+  RichMarkdownEditor,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/files')
 
-const { collaborationRef, realCollaboration, uploadFile } = vi.hoisted(() => ({
+const { collaborationRef, realCollaboration, uploadFile, editableFileContent } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
   realCollaboration: { enabled: false },
   uploadFile: vi.fn(),
+  editableFileContent: vi.fn(),
 }))
 
 vi.mock(
@@ -46,7 +51,7 @@ vi.mock('@/hooks/use-file-content-source', () => ({
 vi.mock('@/app/workspace/[workspaceId]/components', () => ({ FindBar: () => null }))
 vi.mock(
   '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content',
-  () => ({ useEditableFileContent: vi.fn() })
+  () => ({ useEditableFileContent: editableFileContent })
 )
 vi.mock('@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor', () => ({
   TextEditor: () => null,
@@ -162,6 +167,7 @@ interface RenderOptions {
   file?: WorkspaceFileRecord
   onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   collaborative?: boolean
+  recoveringCollaboration?: boolean
   downloadSourceRef?: { current: FileDownloadSource | null }
   isStreaming?: boolean
   streamIsIncremental?: boolean
@@ -191,6 +197,7 @@ async function render(
             userId='user-1'
             userName='User'
             collaborative={options.collaborative}
+            recoveringCollaboration={options.recoveringCollaboration}
             enableFind={false}
             onChange={options.onChange ?? onChange}
             onEditSource={onEditSource}
@@ -340,6 +347,150 @@ describe('loaded rich editor lifecycle', () => {
       expect(downloadSourceRef.current?.getContent()).toBe(replacement)
     }
   )
+
+  it.each(['file', 'preview context'] as const)(
+    'does not recover another %s after a write-loss remount',
+    async (changedScope) => {
+      authClientMockFns.mockUseSession.mockReturnValue({
+        data: { user: { id: 'user-1', name: 'User' } },
+        isPending: false,
+      })
+      editableFileContent.mockReturnValue({
+        content: 'Original',
+        acceptedBaselineContent: 'Original',
+        isStreamInteractionLocked: false,
+        isContentLoading: false,
+        hasContentError: false,
+        setDraftContent: onChange,
+        saveImmediately: onSaveShortcut,
+      })
+      const draw = async (file = FILE, previewContextKey = 'first') => {
+        await act(async () =>
+          root.render(
+            <RichMarkdownEditor
+              file={file}
+              workspaceId={FILE.workspaceId}
+              canEdit
+              collaborative
+              previewContextKey={previewContextKey}
+            />
+          )
+        )
+      }
+      await draw()
+      const firstBinding = vi.mocked(useFileDocCollaboration).mock.calls.at(-1)![0]
+      expect(firstBinding.enabled).toBe(true)
+      await act(async () => firstBinding.onWriteAccessLost?.())
+      editableFileContent.mockReturnValue({
+        content: 'Streaming',
+        acceptedBaselineContent: 'Original',
+        isStreamInteractionLocked: true,
+        isContentLoading: false,
+        hasContentError: false,
+        setDraftContent: onChange,
+        saveImmediately: onSaveShortcut,
+      })
+      await draw(
+        changedScope === 'file' ? { ...FILE, id: 'file-2' } : FILE,
+        changedScope === 'preview context' ? 'second' : 'first'
+      )
+      expect(useFileDocCollaboration).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: false })
+      )
+    }
+  )
+
+  it('retains collaboration while recovering during an active stream', async () => {
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    const awareness = new Awareness(doc)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    collaborationRef.current = {
+      canWrite: false,
+      doc,
+      awareness,
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    try {
+      await render('Uncommitted stream', 'Original', true, {
+        collaborative: true,
+        recoveringCollaboration: true,
+        isStreaming: true,
+      })
+      expect(useFileDocCollaboration).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: true })
+      )
+      await act(async () => provider.setSynced(true))
+      expect(getEditor().isEditable).toBe(false)
+      expect(onClientAutosaveChange).toHaveBeenCalledWith(false)
+      expect(onClientAutosaveChange).not.toHaveBeenCalledWith(true)
+    } finally {
+      await act(async () => root.render(null))
+      awareness.destroy()
+      doc.destroy()
+    }
+  })
+
+  it('cancels image uploads and picker anchors on write loss without resuming after regrant', async () => {
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    const awareness = new Awareness(doc)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    const collaboration = {
+      canWrite: true,
+      doc,
+      awareness,
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    collaborationRef.current = collaboration
+    let completeUpload!: (value: { file: { url: string } }) => void
+    uploadFile.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          completeUpload = resolve
+        })
+    )
+    try {
+      await render('Original', 'Original', true, { collaborative: true })
+      await act(async () => provider.setSynced(true))
+      const editor = getEditor()
+      await act(async () => editor.commands.setContent('<p>Original</p>'))
+      const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+      await act(async () => editor.storage.slashCommand.insertImage(1))
+      Object.defineProperty(input, 'files', {
+        configurable: true,
+        value: [
+          new File(['a'], 'first.png', { type: 'image/png' }),
+          new File(['b'], 'second.png', { type: 'image/png' }),
+        ],
+      })
+      await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
+      expect(uploadFile).toHaveBeenCalledTimes(1)
+      const signal = uploadFile.mock.calls[0][0].signal as AbortSignal
+      expect(signal.aborted).toBe(false)
+      expect(container.querySelectorAll('[role="status"]')).toHaveLength(2)
+      await act(async () => editor.storage.slashCommand.insertImage(1))
+      collaborationRef.current = { ...collaboration, canWrite: false }
+      await render('Original', 'Original', true, { collaborative: true })
+      expect(signal.aborted).toBe(true)
+      expect(container.querySelectorAll('[role="status"]')).toHaveLength(0)
+      collaborationRef.current = collaboration
+      await render('Original', 'Original', true, { collaborative: true })
+      await act(async () => {
+        completeUpload({ file: { url: '/late.png' } })
+      })
+      await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
+      expect(uploadFile).toHaveBeenCalledTimes(1)
+      expect(editor.view.dom.querySelector('img')).toBeNull()
+      expect(editor.getText().trim()).toBe('Original')
+    } finally {
+      await act(async () => root.render(null))
+      awareness.destroy()
+      doc.destroy()
+    }
+  })
 
   it('stops queued and subsequent agent stream writes after losing write permission', async () => {
     realCollaboration.enabled = true

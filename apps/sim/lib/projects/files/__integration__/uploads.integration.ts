@@ -367,7 +367,6 @@ describe('Project upload sessions with real leases, storage, and accounting', ()
         .set({ permissionType: 'read' })
         .where(and(eq(permissions.userId, f.editorId), eq(permissions.entityId, f.workspaceId)))
       for (const operation of [
-        application.getProjectFileUploadSession,
         application.getProjectFileUploadPartUrls,
         application.completeProjectFileUploadSession,
         application.abortProjectFileUploadSession,
@@ -649,3 +648,27 @@ afterAll(async () => {
   await writeFile(report, `${JSON.stringify({ checks }, null, 2)}\n`)
   await db.$client.end()
 })
+
+check(
+  'the bound upload credential can poll after a read downgrade but cannot complete',
+  async () => {
+    const f = await fixture()
+    const session = await application.createProjectFileUploadSession.execute({
+      principal: f.principal,
+      input: input(f.projectId),
+    })
+    await put(session, Buffer.from([0, 255, 17, 1]))
+    await db
+      .update(permissions)
+      .set({ permissionType: 'read' })
+      .where(eq(permissions.userId, f.editorId))
+    const args = { principal: f.principal, input: control(f.projectId, session) }
+    const polled = await application.getProjectFileUploadSession.execute(args)
+    expect(polled.session.id).toBe(session.id)
+    expect(polled.file).toBeNull()
+    await expect(application.completeProjectFileUploadSession.execute(args)).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    expect(await usage(f.organizationId)).toBe(0)
+  }
+)

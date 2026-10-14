@@ -11,7 +11,10 @@ import {
 } from '@/lib/api/server/routes'
 import { presentProjectFileContent } from '@/lib/projects/files/api'
 import { toV2ProjectFile } from '@/lib/projects/files/api/presenters'
-import { readProjectFileContent, updateProjectFileContent } from '@/lib/projects/files/application'
+import {
+  downloadProjectFileContent,
+  updateProjectFileContent,
+} from '@/lib/projects/files/application'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 
@@ -22,7 +25,7 @@ export const GET = defineV2BinaryRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ projectId: params.projectId, fileId: params.fileId }),
-  useCase: readProjectFileContent,
+  useCase: downloadProjectFileContent,
   present: presentProjectFileContent,
   headSafe: false,
 })
@@ -34,6 +37,18 @@ export const PUT = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
+  beforeParse: async ({ principal, params }) => {
+    if (typeof params.projectId === 'string' && typeof params.fileId === 'string')
+      await updateProjectFileContent.authorize({
+        principal,
+        input: {
+          projectId: params.projectId,
+          fileId: params.fileId,
+          content: '',
+          encoding: 'utf-8',
+        },
+      })
+  },
   mapInput: ({ params, body }) => ({
     projectId: params.projectId,
     fileId: params.fileId,

@@ -122,6 +122,76 @@ function syncStep1Frame(doc: Y.Doc): Uint8Array {
 }
 
 describe('FileDocProvider', () => {
+  it('never replays rejected document state after write regrant', async () => {
+    vi.useFakeTimers()
+    const old = createProvider()
+    const server = new Y.Doc()
+    server.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    server.getText('body').insert(0, 'accepted')
+    Y.applyUpdate(old.doc, Y.encodeStateAsUpdate(server), old.provider)
+    const reset = vi.fn()
+    old.provider.on('write-access-lost', reset)
+    try {
+      acceptJoin(old.fire, old.doc.clientID, 'doc-1')
+      await vi.advanceTimersByTimeAsync(0)
+      old.doc.getText('body').insert(8, '-rejected')
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      old.fire(FILE_DOC_EVENTS.PERMISSION, { fileId: 'file-1', canWrite: false })
+      old.fire(FILE_DOC_EVENTS.PERMISSION, { fileId: 'file-1', canWrite: true })
+      expect(old.provider.canWrite).toBe(false)
+      old.emit.mockClear()
+      old.fire(FILE_DOC_EVENTS.MESSAGE, syncStep1Frame(server))
+      old.doc.getText('body').insert(0, 'also-rejected-')
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      expect(reset).toHaveBeenCalledTimes(1)
+      expect(emittedMessages(old.emit)).toHaveLength(0)
+      expect(
+        old.emit.mock.calls.filter(([event]) => event === FILE_DOC_EVENTS.UPDATE)
+      ).toHaveLength(0)
+      old.provider.destroy()
+      const journal = new PendingFileDocUpdateJournal({ ...workspaceScope, fileId: 'file-1' })
+      expect(await journal.load('doc-1')).toBeNull()
+      expect(server.getText('body').toString()).toBe('accepted')
+      const fresh = createProvider()
+      try {
+        fresh.fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+          schemaVersion: FILE_DOC_SCHEMA_VERSION,
+          fileId: 'file-1',
+          clientId: fresh.doc.clientID,
+          docId: 'doc-1',
+          acknowledgedUpdates: true,
+          canWrite: false,
+        })
+        await vi.advanceTimersByTimeAsync(0)
+        const frame = encoding.createEncoder()
+        encoding.writeVarUint(frame, FILE_DOC_MESSAGE_TYPE.SYNC)
+        syncProtocol.writeSyncStep2(frame, server)
+        fresh.fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(frame))
+        expect(fresh.doc.getText('body').toString()).toBe('accepted')
+        expect(fresh.provider.canWrite).toBe(false)
+        server.getText('body').insert(8, '-peer')
+        const update = encoding.createEncoder()
+        encoding.writeVarUint(update, FILE_DOC_MESSAGE_TYPE.SYNC)
+        syncProtocol.writeUpdate(update, Y.encodeStateAsUpdate(server))
+        fresh.fire(FILE_DOC_EVENTS.MESSAGE, encoding.toUint8Array(update))
+        expect(fresh.doc.getText('body').toString()).toBe('accepted-peer')
+        fresh.fire(FILE_DOC_EVENTS.PERMISSION, { fileId: 'file-1', canWrite: true })
+        expect(fresh.provider.canWrite).toBe(true)
+        expect(fresh.doc.getText('body').toString()).not.toContain('rejected')
+      } finally {
+        fresh.provider.destroy()
+        fresh.awareness.destroy()
+        fresh.doc.destroy()
+      }
+    } finally {
+      old.provider.destroy()
+      old.awareness.destroy()
+      old.doc.destroy()
+      server.destroy()
+      vi.useRealTimers()
+    }
+  })
+
   it('sends the workspace owner while accepting deployed ownerless join replies', async () => {
     vi.useFakeTimers()
     const { socket, emit, fire } = createSocket(true)

@@ -3,7 +3,10 @@ import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/princip
 import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import type { DbTransaction } from '@/lib/db/types'
 import type {
   ProjectFileAuthorizationContext,
@@ -45,7 +48,7 @@ import {
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
@@ -75,6 +78,7 @@ interface VersionArgs<I, P = undefined> {
   prepared?: P
 }
 interface VersionSnapshot {
+  organizationId: string | null
   file: WorkspaceFileRow
   current: WorkspaceFileVersionRecord
   version: WorkspaceFileVersionRecord
@@ -162,6 +166,7 @@ async function captureVersion(
     : await getWorkspaceFileVersionProvenance(file.id, version.version, version.key, tx)
   if (!provenance) throw new OrchestrationError('not_found', `Version ${version.version} not found`)
   return {
+    organizationId: context.organizationId,
     file,
     current,
     version,
@@ -253,6 +258,12 @@ const readVersionContent = defineAuthorizedProjectFileUseCase({
     input,
   }: Omit<VersionArgs<VersionTarget & { maxBytes?: number }>, 'tx'>): Promise<PreparedVersionRead> {
     const snapshot = await snapshotRead.execute({ principal, input })
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: snapshot.file.id,
+      provenance: workspaceFileSecretProvenanceFromSnapshot(snapshot.provenance),
+      view: 'complete',
+    })
     return { snapshot, content: await readVersionBytes(snapshot.version, input.maxBytes) }
   },
   async execute({
@@ -271,8 +282,15 @@ const readVersionContent = defineAuthorizedProjectFileUseCase({
       secretProvenance: workspaceFileSecretProvenanceFromSnapshot(current.provenance),
     }
   },
-  afterSuccess: ({ result }) =>
-    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
+  afterSuccess: async ({ principal, result }) => {
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.file.id,
+      provenance: result.secretProvenance,
+      view: 'complete',
+    })
+    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+  },
 })
 
 /** HEAD validates retention and the selected version under the same operation without storage I/O. */
@@ -280,6 +298,56 @@ export const readProjectFileVersionContent = {
   ...readVersionContent,
   async authorize(args: Parameters<typeof readVersionContent.authorize>[0]) {
     await snapshotRead.execute(args)
+  },
+}
+
+/** Streams retained source bytes while preserving version retention and delivery authorization. */
+export const downloadProjectFileVersionContent = {
+  operation: snapshotRead.operation,
+  delegationAudience: snapshotRead.delegationAudience,
+  authorize: readProjectFileVersionContent.authorize,
+  async execute(args: Parameters<typeof readProjectFileVersionContent.execute>[0]) {
+    const snapshot = await snapshotRead.execute(args)
+    await requireAdmittedContent(args.principal, {
+      kind: 'workspace-file',
+      id: snapshot.file.id,
+      provenance: workspaceFileSecretProvenanceFromSnapshot(snapshot.provenance),
+      view: 'complete',
+    })
+    const stream = nodeReadableToWebStream(
+      await runWithOutboundOrganization(snapshot.organizationId, () =>
+        readFileVersionObject(snapshot.version.version, () =>
+          downloadFileStream({ key: snapshot.version.key, context: 'project' })
+        )
+      )
+    )
+    try {
+      const current = await snapshotRead.execute(args)
+      requireVersionMatch(current, snapshot, false)
+      await requireAdmittedContent(args.principal, {
+        kind: 'workspace-file',
+        id: current.file.id,
+        provenance: workspaceFileSecretProvenanceFromSnapshot(current.provenance),
+        view: 'complete',
+      })
+      await reportWorkspaceFileDelivery(
+        workspaceFileSecretProvenanceFromSnapshot(current.provenance),
+        current.file.id
+      )
+      return {
+        file: mapFileRecord(
+          current.file,
+          { entityType: 'project', entityId: args.input.projectId },
+          new Map()
+        ),
+        version: current.version,
+        stream,
+        contentLength: current.version.size,
+      }
+    } catch (error) {
+      await stream.cancel(error).catch(() => undefined)
+      throw error
+    }
   },
 }
 

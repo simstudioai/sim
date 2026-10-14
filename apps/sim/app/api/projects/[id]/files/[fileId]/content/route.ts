@@ -10,20 +10,23 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { presentProjectFileContent } from '@/lib/projects/files/api'
-import { readProjectFileContent, updateProjectFileContent } from '@/lib/projects/files/application'
+import {
+  downloadProjectFileContent,
+  updateProjectFileContent,
+} from '@/lib/projects/files/application'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 
 export const GET = defineInternalBinaryRoute({
   contract: readProjectFileContentContract,
   auth: internalSessionAuth,
   headSafe: false,
-  operation: readProjectFileContent.operation,
+  operation: downloadProjectFileContent.operation,
   rateLimit: internalRateLimits.none({
     reason: 'Authenticated internal file byte delivery follows the workspace download policy',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ projectId: params.id, fileId: params.fileId }),
-  useCase: readProjectFileContent,
+  useCase: downloadProjectFileContent,
   present: presentProjectFileContent,
 })
 

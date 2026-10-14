@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -53,6 +54,45 @@ async function request(
   })
   return { status: response.status, headers: response.headers, text: await response.text() }
 }
+async function verifyStreamedDownload(
+  path: string,
+  auth: 'personal' | 'session',
+  expectedBytes: number,
+  expectedHash: string
+) {
+  const headers = new Headers({ Origin: base.origin })
+  if (auth === 'session') headers.set('Cookie', cookie)
+  else headers.set('X-API-Key', required(keys.personal))
+  // boundary-raw-fetch: this proof verifies incremental delivery of large files over actual HTTP.
+  const response = await fetch(new URL(path, base), {
+    headers,
+    signal: AbortSignal.timeout(90_000),
+  })
+  assert.equal(response.status, 200)
+  assert.equal(Number(response.headers.get('content-length')), expectedBytes)
+  assert.ok(response.body)
+  const reader = response.body.getReader()
+  const hash = createHash('sha256')
+  let received = 0
+  let chunks = 0
+  try {
+    for (;;) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      assert.ok(chunk.value.length < expectedBytes)
+      received += chunk.value.length
+      chunks += 1
+      hash.update(chunk.value)
+    }
+  } finally {
+    await reader.cancel()
+    reader.releaseLock()
+  }
+  assert.ok(chunks > 1)
+  assert.equal(received, expectedBytes)
+  assert.equal(hash.digest('hex'), expectedHash)
+}
+
 function json(response: Awaited<ReturnType<typeof request>>, status = 200) {
   assert.equal(response.status, status)
   return toRecord(JSON.parse(response.text))
@@ -344,9 +384,10 @@ try {
     )
   })
   await check(
-    'oversized historical bytes return 413 without changing the current head',
+    'large current and historical downloads stream while oversized reverts leave the head unchanged',
     async () => {
-      const bytes = Buffer.alloc(100 * 1024 * 1024 + 1)
+      const bytes = Buffer.alloc(100 * 1024 * 1024 + 1, 37)
+      const expectedHash = createHash('sha256').update(bytes).digest('hex')
       const upload = json(
         await request(
           'POST',
@@ -411,6 +452,13 @@ try {
       ids.push(fileId)
       const largeDetail = `${prefix}/${fileId}`
       const largeInternal = `${internalPrefix}/${fileId}`
+      for (const [path, auth] of [
+        [largeDetail, 'personal'],
+        [largeInternal, 'session'],
+      ] as const) {
+        await verifyStreamedDownload(`${path}/content`, auth, bytes.length, expectedHash)
+        assert.equal((await request('HEAD', `${path}/content`, undefined, auth)).status, 200)
+      }
       const initial = toRecord(json(await request('GET', `${largeDetail}/metadata`)).data)
       const small = toRecord(
         json(
@@ -426,7 +474,11 @@ try {
         [largeDetail, 'personal'],
         [largeInternal, 'session'],
       ] as const) {
-        statuses.push((await request('GET', `${path}/versions/1/content`, undefined, auth)).status)
+        await verifyStreamedDownload(`${path}/versions/1/content`, auth, bytes.length, expectedHash)
+        assert.equal(
+          (await request('HEAD', `${path}/versions/1/content`, undefined, auth)).status,
+          200
+        )
         statuses.push(
           (
             await request(
@@ -438,7 +490,7 @@ try {
           ).status
         )
       }
-      assert.deepEqual(statuses, [413, 413, 413, 413])
+      assert.deepEqual(statuses, [413, 413])
       assert.equal(
         toRecord(json(await request('GET', `${largeDetail}/metadata`)).data).revision,
         small.revision

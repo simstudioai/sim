@@ -45,6 +45,7 @@ interface UseFileDocCollaborationParams {
    * returns `null` and the editor stays fully local.
    */
   enabled: boolean
+  onWriteAccessLost?: () => void
 }
 
 /**
@@ -60,9 +61,12 @@ export function useFileDocCollaboration({
   userId,
   userName,
   enabled,
+  onWriteAccessLost,
 }: UseFileDocCollaborationParams): FileDocCollaboration | null {
   const { socket } = useSocket()
   const queryClient = useQueryClient()
+  const onWriteAccessLostRef = useRef(onWriteAccessLost)
+  onWriteAccessLostRef.current = onWriteAccessLost
 
   // The Y.Doc + Awareness are the editor's authoritative binding — created once
   // and stable for the hook's life (see sim-react-performance: lazy-init ref).
@@ -113,6 +117,7 @@ export function useFileDocCollaboration({
     })
     setCanWrite(fileProvider.canWrite)
     const reloadAfterWriteLoss = async () => {
+      onWriteAccessLostRef.current?.()
       const filters: QueryFilters[] = [
         { queryKey: workspaceFilesKeys.contentFile(workspaceId, fileId) },
         { queryKey: workspaceFilesKeys.record(workspaceId, fileId) },

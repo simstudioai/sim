@@ -137,8 +137,8 @@ export async function queryFileBrowserItems(
       join owned_files files on files.parent_id = tree.id group by tree.root_id
     ),
     effective_files as (
-      select *, case when btrim(content_type) not in ('', 'application/octet-stream', 'binary/octet-stream')
-        then btrim(content_type) else coalesce(${JSON.stringify(EFFECTIVE_EXTENSION_MIMES)}::jsonb ->> extension, 'application/octet-stream') end as mime
+      select *, case when lower(btrim(split_part(content_type, ';', 1))) not in ('', 'application/octet-stream', 'binary/octet-stream')
+        then lower(btrim(split_part(content_type, ';', 1))) else coalesce(${JSON.stringify(EFFECTIVE_EXTENSION_MIMES)}::jsonb ->> extension, 'application/octet-stream') end as mime
       from owned_files
     ),
     items as (

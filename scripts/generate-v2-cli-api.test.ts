@@ -106,13 +106,33 @@ describe('operations that refuse a workspace API key', () => {
    * confined to one contract family silently unmark every other one while the
    * pinned pair stayed green.
    */
-  it('emits the marker for every operation the specs say refuses one', () => {
-    const marked = [...loadSummaries(workspaceKeyDenialMarkers()).values()].filter(
+  it('emits the marker for every operation the specs say refuses one', async () => {
+    const marked = [...(await loadSummaries(workspaceKeyDenialMarkers())).values()].filter(
       (doc) => doc.workspaceKeyUnsupported
     )
     expect(marked.length).toBeGreaterThan(0)
     expect(generatedSource().match(/workspaceKeyUnsupported: true/g)?.length ?? 0).toBe(
       marked.length
+    )
+  })
+})
+
+describe('unpublished Project documentation', () => {
+  it('retains runtime help and key restrictions without publishing Project paths', async () => {
+    const docs = await loadSummaries(workspaceKeyDenialMarkers())
+    const projectList = docs.get('GET /api/v2/projects/{projectId}/files')
+    expect(projectList?.summary).toBeTruthy()
+    expect(projectList?.description).toContain('OAuth scope:')
+    expect(projectList?.workspaceKeyUnsupported).toBe(true)
+    const publicSpec = JSON.parse(
+      readFileSync(path.join(ROOT, 'apps/docs/openapi-v2-files-audit.json'), 'utf8')
+    )
+    expect(publicSpec.info.description).not.toContain('Project')
+    expect(
+      publicSpec.tags.some((tag: { description: string }) => tag.description.includes('Project'))
+    ).toBe(false)
+    expect(Object.keys(publicSpec.paths).some((key) => key.startsWith('/api/v2/projects/'))).toBe(
+      false
     )
   })
 })

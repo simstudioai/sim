@@ -224,7 +224,7 @@ function makeClient(): TestRedisClient {
         if (members.includes(member)) return 0
         const id = nextId()
         const arr = b().streams.get(key) ?? []
-        arr.push({ id, message: { [field]: value } })
+        arr.push({ id, message: { [field]: value, eu: opts.arguments[6], ec: opts.arguments[7] } })
         b().streams.set(key, arr)
         members.push(member)
         const capacity = Number(capacityText)
@@ -263,6 +263,9 @@ function makeClient(): TestRedisClient {
             [marker]: '1',
             [generationField]: expectedGeneration,
             ...(compactionField ? { [compactionField]: '1' } : {}),
+            eu: opts.arguments[7],
+            ec: opts.arguments[8],
+            ei: opts.arguments[9],
           },
         })
         b().streams.set(key, arr)
@@ -393,6 +396,57 @@ async function newStore(): Promise<FileDocStore> {
 }
 
 describe('FileDocStore', () => {
+  it('retains only an accepted editor across durable merges, compaction, and generation replacement', async () => {
+    const store = await newStore()
+    const source = docWithText('base')
+    source.getMap('config').set('docId', 'generation-1')
+    source.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    const replica = new Y.Doc()
+    try {
+      await store.seedIfEmpty(NAME, Y.encodeStateAsUpdate(source), 10)
+      let vector = Y.encodeStateVector(source)
+      source.getText('body').insert(4, '-durable')
+      await store.publishAndWait(NAME, Y.encodeStateAsUpdate(source, vector), 'generation-1')
+      expect((await store.getStreamSnapshot(NAME, 'generation-1'))?.editor).toBeNull()
+      vector = Y.encodeStateVector(source)
+      source.getText('body').insert(source.getText('body').length, '-writer')
+      const actor = { userId: 'actual-editor', connectionId: 'authenticated-socket' }
+      await store.publishClientUpdateAndWait(
+        NAME,
+        'edit-1',
+        Y.encodeStateAsUpdate(source, vector),
+        'generation-1',
+        actor
+      )
+      vector = Y.encodeStateVector(source)
+      source.getText('body').insert(source.getText('body').length, '-external')
+      await store.publishAndWait(NAME, Y.encodeStateAsUpdate(source, vector), 'generation-1')
+      const snapshot = await store.getStreamSnapshot(NAME, 'generation-1')
+      expect(snapshot?.editor).toEqual(actor)
+      Y.applyUpdate(replica, snapshot!.docState)
+      expect(replica.getText('body').toString()).toBe('base-durable-writer-external')
+      await store.attachRoom(NAME, replica)
+      storeInternals(store).rooms.get(NAME)!.uncompactedDeltaBytes = 12 * 1024 * 1024
+      await storeInternals(store).maybeCompact(NAME)
+      expect((await store.getStreamSnapshot(NAME, 'generation-1'))?.editor).toEqual(actor)
+      store.detachRoom(NAME)
+      await store.invalidateDocument(NAME, 20)
+      const replacement = docWithText('replacement')
+      replacement.getMap('config').set('docId', 'generation-2')
+      replacement.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+      try {
+        await store.seedIfEmpty(NAME, Y.encodeStateAsUpdate(replacement), 20)
+        expect((await store.getStreamSnapshot(NAME, 'generation-2'))?.editor).toBeNull()
+      } finally {
+        replacement.destroy()
+      }
+    } finally {
+      store.detachRoom(NAME)
+      source.destroy()
+      replica.destroy()
+    }
+  })
+
   beforeEach(() => {
     state.backing = {
       streams: new Map(),

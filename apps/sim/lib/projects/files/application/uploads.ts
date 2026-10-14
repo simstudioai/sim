@@ -356,7 +356,7 @@ const registerProjectUpload = defineAuthorizedProjectFileUseCase({
 
 export const completeProjectFileUploadSession = controlUseCase(
   projectFileOperations.uploadComplete,
-  async ({ principal, input, loaded }) => {
+  async ({ principal, input, loaded, request }) => {
     if (loaded.session.status === 'completed' && !loaded.session.completedFileId)
       throw new OrchestrationError('conflict', 'Completed upload has no registered file')
     try {
@@ -372,6 +372,7 @@ export const completeProjectFileUploadSession = controlUseCase(
           const value = await registerProjectUpload.execute({
             principal,
             input: { projectId: loaded.context.projectId, session },
+            request,
           })
           return { value, completedFileId: value.file.id }
         },

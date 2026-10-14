@@ -6,7 +6,7 @@ import {
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { presentProjectFileVersionContent } from '@/lib/projects/files/api'
-import { readProjectFileVersionContent } from '@/lib/projects/files/application'
+import { downloadProjectFileVersionContent } from '@/lib/projects/files/application'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 export const GET = defineV2BinaryRoute({
   contract: v2ReadProjectFileVersionContentContract,
@@ -20,6 +20,6 @@ export const GET = defineV2BinaryRoute({
     fileId: params.fileId,
     version: params.version,
   }),
-  useCase: readProjectFileVersionContent,
+  useCase: downloadProjectFileVersionContent,
   present: presentProjectFileVersionContent,
 })

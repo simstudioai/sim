@@ -202,7 +202,7 @@ describe('Project document editor attribution over real Redis', () => {
   )
 
   check(
-    'a late prefix snapshot cannot replace a newer editor and unknown newer edits erase attribution',
+    'a late prefix snapshot and durable merge preserve the accepted editor without carrying it into a new generation',
     async () => {
       const f = await fixture()
       await store.publishClientUpdateAndWait(
@@ -226,10 +226,35 @@ describe('Project document editor attribution over real Redis', () => {
         ei: entry.id,
       })
       expect((await store.getStreamSnapshot(f.name, f.generation))?.editor).toEqual(bob)
-      await redis.xAdd(`filedoc:stream:${f.name}`, '*', {
-        u: Buffer.from(update(f.doc, '?')).toString('base64'),
-      })
-      expect((await store.getStreamSnapshot(f.name, f.generation))?.editor).toBeNull()
+      await store.publishAndWait(f.name, update(f.doc, '-durable'), f.generation)
+      const merged = await store.getStreamSnapshot(f.name, f.generation)
+      expect(merged?.editor).toEqual(bob)
+      const restored = new Y.Doc()
+      const replacement = new Y.Doc()
+      try {
+        if (!merged) throw new Error('Missing merged snapshot')
+        Y.applyUpdate(restored, merged.docState)
+        expect(restored.getText('body').toString()).toBe('AB-durable')
+        await store.invalidateDocument(f.name, 2)
+        const replacementId = generateId()
+        replacement.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+        replacement.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, replacementId)
+        await store.seedIfEmpty(f.name, Y.encodeStateAsUpdate(replacement), 2)
+        await store.publishAndWait(f.name, update(replacement, 'only-durable'), replacementId)
+        const next = await store.getStreamSnapshot(f.name, replacementId)
+        expect(next?.editor).toBeNull()
+        const nextDoc = new Y.Doc()
+        try {
+          if (!next) throw new Error('Missing replacement snapshot')
+          Y.applyUpdate(nextDoc, next.docState)
+          expect(nextDoc.getText('body').toString()).toBe('only-durable')
+        } finally {
+          nextDoc.destroy()
+        }
+      } finally {
+        restored.destroy()
+        replacement.destroy()
+      }
     }
   )
 })

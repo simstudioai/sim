@@ -5,17 +5,19 @@ import { FILE_CACHE_CONTROL, presentFileDelivery } from '@/lib/uploads/server/de
 export function presentProjectFileVersionContent({
   file,
   version,
-  content,
+  stream,
+  contentLength,
 }: {
   file: OwnedFileRecord
   version: WorkspaceFileVersionRecord
-  content: Buffer
+  stream: ReadableStream<Uint8Array>
+  contentLength: number
 }) {
   return presentFileDelivery({
-    body: content,
+    body: stream,
     filename: file.name,
     contentType: version.contentType,
-    contentLength: content.length,
+    contentLength,
     attachment: true,
     cacheControl: FILE_CACHE_CONTROL.noStore,
   })

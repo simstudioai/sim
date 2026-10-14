@@ -575,6 +575,7 @@ export function useUploadWorkspaceFile() {
       }
     },
     onError: (error, variables) => {
+      if (variables.signal?.aborted) return
       logger.error('Failed to upload file:', error)
       if (!variables.skipToast) {
         toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {

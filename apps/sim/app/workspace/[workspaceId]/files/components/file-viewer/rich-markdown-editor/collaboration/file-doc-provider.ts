@@ -140,6 +140,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   synced = false
   canWrite = false
   private permissionKnown = false
+  private requiresReinitialization = false
   private readonly owner: FileDocOwner
   private readonly membershipKey: string
   /**
@@ -455,6 +456,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     if (
       this.disposed ||
       this.fatal ||
+      this.requiresReinitialization ||
       !this.socket.connected ||
       generation !== this.connectionGeneration ||
       !this.joinHydrating
@@ -695,7 +697,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
         // `this` is the transaction origin, so our own `doc.on('update')` skips
         // re-sending updates we just applied from the server.
         const syncType = syncProtocol.readSyncMessage(decoder, encoder, this.doc, this)
-        if (encoding.length(encoder) > 1) {
+        if (encoding.length(encoder) > 1 && !this.requiresReinitialization && this.canWrite) {
           const response = encoding.toUint8Array(encoder)
           if (this.updateMode === 'acknowledged' && syncType === syncProtocol.messageYjsSyncStep1) {
             const responseDecoder = decoding.createDecoder(response)
@@ -728,6 +730,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     /** A terminal document cannot publish; inbound and recovery updates must not echo. */
     if (
       this.fatal ||
+      this.requiresReinitialization ||
       (this.permissionKnown && !this.canWrite) ||
       origin === this ||
       origin === RECOVERY_ORIGIN
@@ -764,6 +767,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private queuePendingUpdate(update: Uint8Array): void {
+    if (this.requiresReinitialization) return
     this.pendingUpdateBatch.push(update)
     this.updateBeforeUnloadProtection()
   }
@@ -779,6 +783,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private async flushPendingUpdates(): Promise<void> {
     if (
+      this.requiresReinitialization ||
       this.updateMode === 'negotiating' ||
       this.pendingUpdateBatch.length === 0 ||
       this.disposed ||
@@ -832,6 +837,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     const pending = this.inFlightUpdate
     const docId = this.docId()
     if (
+      this.requiresReinitialization ||
       !pending ||
       !docId ||
       this.updateMode !== 'acknowledged' ||
@@ -924,6 +930,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private persistPendingSnapshot(): Promise<void> | undefined {
+    if (this.requiresReinitialization) return
     const update = this.pendingJournalUpdate()
     const docId = this.docId()
     if (!update || !docId || !this.journal) return
@@ -1096,11 +1103,13 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private setCanWrite(canWrite: boolean) {
+    if (this.requiresReinitialization) return
     this.permissionKnown = true
     if (this.canWrite === canWrite) return
     this.canWrite = canWrite
-    if (!canWrite) this.clearUpdateTimers()
     if (!canWrite) {
+      this.requiresReinitialization = true
+      this.clearUpdateTimers()
       this.pendingUpdatesDrained = true
       this.pendingUpdateBatch = []
       this.inFlightUpdate = null

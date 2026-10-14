@@ -16,6 +16,7 @@ import {
   resolveFileReference,
   workspaceFileVfsPath,
 } from '@/lib/uploads/contexts/workspace'
+import { resolveArchivedFileFolderScope } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { type FileBrowserQuery, queryFileBrowserItems } from '@/lib/workspace-files/browser-query'
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 
@@ -51,7 +52,15 @@ export const listProjectFiles = defineAuthorizedProjectFileUseCase<
       throw new OrchestrationError('validation', 'Specify either folderPath or folderId, not both')
     }
     let folderId: string | null | string[] | undefined = input.folderId
-    if (input.folderPath !== undefined) {
+    if (input.folderPath !== undefined && input.scope === 'archived') {
+      folderId = await resolveArchivedFileFolderScope(
+        context.owner,
+        input.folderPath,
+        input.recursive,
+        MAX_FOLDERS_PER_WORKSPACE,
+        tx
+      )
+    } else if (input.folderPath !== undefined) {
       const index = await loadActiveFileFolderPathIndex(context.owner, tx, {
         maxRows: MAX_FOLDERS_PER_WORKSPACE,
       })

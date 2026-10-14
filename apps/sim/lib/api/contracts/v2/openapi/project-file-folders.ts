@@ -21,7 +21,7 @@ export const projectFileFolderOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.listFolders,
       operationId: 'listProjectFileFolders',
-      summary: 'List Project File Folders',
+      summary: 'List Project file folders',
       description: `List the Project folder tree with stable identifiers. Use scope=archived to find folders eligible for restore. ${FULL_SET_LIST} ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: RESOURCE_ERRORS,
@@ -56,7 +56,7 @@ export const projectFileFolderOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.createFolder,
       operationId: 'createProjectFileFolder',
-      summary: 'Create Project File Folder',
+      summary: 'Create Project file folder',
       description: `Create a folder under an existing parent, or at the Project root when parentId is omitted. Sibling names must be unique. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -92,7 +92,7 @@ export const projectFileFolderOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.updateFolder,
       operationId: 'updateProjectFileFolder',
-      summary: 'Update Project File Folder',
+      summary: 'Update Project file folder',
       description: `Rename, move, or reorder a folder while retaining its identity and descendants. Omitted fields stay unchanged; parentId=null moves the folder to the root. Cross-owner parents and cycles are rejected. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: RESOURCE_CONFLICT_ERRORS,
@@ -125,7 +125,7 @@ export const projectFileFolderOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.restoreFolder,
       operationId: 'restoreProjectFileFolder',
-      summary: 'Restore Project File Folder',
+      summary: 'Restore Project file folder',
       description: `Restore an archived folder and the files and subfolders archived with it. Find identifiers with List Project File Folders using scope=archived. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: RESOURCE_CONFLICT_ERRORS,

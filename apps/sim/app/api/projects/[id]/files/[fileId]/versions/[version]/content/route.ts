@@ -6,12 +6,12 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { presentProjectFileVersionContent } from '@/lib/projects/files/api'
-import { readProjectFileVersionContent } from '@/lib/projects/files/application'
+import { downloadProjectFileVersionContent } from '@/lib/projects/files/application'
 export const GET = defineInternalBinaryRoute({
   contract: readProjectFileVersionContentContract,
   auth: internalSessionAuth,
   headSafe: false,
-  operation: readProjectFileVersionContent.operation,
+  operation: downloadProjectFileVersionContent.operation,
   rateLimit: internalRateLimits.none({
     reason: 'Authenticated historical byte delivery follows the workspace download policy',
   }),
@@ -21,6 +21,6 @@ export const GET = defineInternalBinaryRoute({
     fileId: params.fileId,
     version: params.version,
   }),
-  useCase: readProjectFileVersionContent,
+  useCase: downloadProjectFileVersionContent,
   present: presentProjectFileVersionContent,
 })

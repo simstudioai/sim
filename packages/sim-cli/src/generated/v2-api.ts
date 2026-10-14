@@ -15539,7 +15539,7 @@ export const V2_OPERATIONS = {
       uploadId: 'Upload session identifier within the Project.',
     },
     responseMode: 'json',
-    summary: 'Abort Project File Upload',
+    summary: 'Abort Project file upload',
     workspaceKeyUnsupported: true,
     headers: {
       'upload-token': {
@@ -16116,7 +16116,7 @@ export const V2_OPERATIONS = {
       uploadId: 'Upload session identifier within the Project.',
     },
     responseMode: 'json',
-    summary: 'Complete Project File Upload',
+    summary: 'Complete Project file upload',
     workspaceKeyUnsupported: true,
     headers: {
       'upload-token': {
@@ -16690,7 +16690,7 @@ export const V2_OPERATIONS = {
     pathParams: ['projectId'] as const,
     pathParamDocs: { projectId: 'Project identifier.' },
     responseMode: 'json',
-    summary: 'Create Project File Folder',
+    summary: 'Create Project file folder',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', required: true, describe: 'Name for the new folder.' },
@@ -16706,7 +16706,7 @@ export const V2_OPERATIONS = {
     pathParams: ['projectId'] as const,
     pathParamDocs: { projectId: 'Project identifier.' },
     responseMode: 'json',
-    summary: 'Create Project File Upload',
+    summary: 'Create Project file upload',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', required: true, describe: 'File name, including its extension.' },
@@ -18509,7 +18509,7 @@ export const V2_OPERATIONS = {
       uploadId: 'Upload session identifier within the Project.',
     },
     responseMode: 'json',
-    summary: 'Get Project File Upload',
+    summary: 'Get Project file upload',
     workspaceKeyUnsupported: true,
     headers: {
       'upload-token': {
@@ -18528,7 +18528,7 @@ export const V2_OPERATIONS = {
       uploadId: 'Upload session identifier within the Project.',
     },
     responseMode: 'json',
-    summary: 'Get Project File Upload Part URLs',
+    summary: 'Get Project file upload part URLs',
     workspaceKeyUnsupported: true,
     body: {
       partNumbers: {
@@ -20705,7 +20705,7 @@ export const V2_OPERATIONS = {
     pathParams: ['projectId'] as const,
     pathParamDocs: { projectId: 'Project identifier.' },
     responseMode: 'json',
-    summary: 'List Project File Folders',
+    summary: 'List Project file folders',
     workspaceKeyUnsupported: true,
     query: {
       scope: {
@@ -22605,7 +22605,7 @@ export const V2_OPERATIONS = {
       folderId: 'Folder identifier within the Project.',
     },
     responseMode: 'json',
-    summary: 'Restore Project File Folder',
+    summary: 'Restore Project file folder',
     workspaceKeyUnsupported: true,
     body: {},
   },
@@ -23826,7 +23826,7 @@ export const V2_OPERATIONS = {
       folderId: 'Folder identifier within the Project.',
     },
     responseMode: 'json',
-    summary: 'Update Project File Folder',
+    summary: 'Update Project file folder',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'New folder name; omit to leave unchanged.' },

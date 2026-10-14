@@ -272,7 +272,10 @@ export const downloadWorkspaceFileVersion = {
   ...downloadVersion,
   async authorize(args: Parameters<typeof downloadVersion.authorize>[0]) {
     await downloadVersion.authorize(args)
-    const context = await resolveActiveWorkspaceFileContext(args.input)
+    const context = await resolveActiveWorkspaceFileContext({
+      ...args.input,
+      ownedFilePrincipal: args.principal,
+    })
     await loadVersion(await loadActiveFile(context), args.input.version)
   },
 }

@@ -1,5 +1,10 @@
 export { getProjectFileListAccess } from './collection-access'
-export { createProjectFile, readProjectFileContent, updateProjectFileContent } from './content'
+export {
+  createProjectFile,
+  downloadProjectFileContent,
+  readProjectFileContent,
+  updateProjectFileContent,
+} from './content'
 export { createProjectFileFolder, listProjectFileFolders, updateProjectFileFolder } from './folders'
 export {
   archiveProjectFileItems,
@@ -24,6 +29,7 @@ export {
 } from './uploads'
 export {
   deleteProjectFileVersion,
+  downloadProjectFileVersionContent,
   listProjectFileVersions,
   readProjectFileVersion,
   readProjectFileVersionContent,

@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   folder,
@@ -34,14 +35,25 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 import * as tracking from '@/lib/billing/storage/tracking'
+import {
+  ContentDeliveryUnobservedError,
+  ContentRefusedError,
+  observeContentDelivery,
+} from '@/lib/core/application/content-delivery'
+import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import {
   createProjectFile,
+  downloadProjectFileContent,
   readProjectFileContent,
   updateProjectFileContent,
 } from '@/lib/projects/files/application/content'
 import { createProjectFileFolder } from '@/lib/projects/files/application/folders'
+import {
+  downloadProjectFileVersionContent,
+  readProjectFileVersionContent,
+} from '@/lib/projects/files/application/versions'
 import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
@@ -1454,6 +1466,7 @@ describe('Project outer transaction cleanup', () => {
 })
 
 afterAll(async () => {
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
   for (const f of fixtures) {
     await db.delete(idempotencyKey).where(sql`${idempotencyKey.key} LIKE ${`%${f.projectId}%`}`)
@@ -1475,4 +1488,147 @@ afterAll(async () => {
   await mkdir(dirname(report), { recursive: true })
   await writeFile(report, JSON.stringify({ checks }, null, 2))
   await db.$client.end()
+})
+
+describe('Project streaming source delivery', () => {
+  for (const historical of [false, true]) {
+    for (const change of ['access', 'identity', 'cancel'] as const) {
+      check(
+        `${historical ? 'historical' : 'current'} download releases storage after ${change}`,
+        async () => {
+          const f = await fixture()
+          const { file } = await createProjectFile.execute({
+            principal: f.principal,
+            input: createInput(f.projectId, 'x'.repeat(1024 * 1024)),
+          })
+          if (historical)
+            await updateProjectFileContent.execute({
+              principal: f.principal,
+              input: {
+                projectId: f.projectId,
+                fileId: file.id,
+                content: 'new head',
+                encoding: 'utf-8',
+              },
+            })
+          const open = storage.downloadFileStream
+          let source: Awaited<ReturnType<typeof open>> | undefined
+          vi.spyOn(storage, 'downloadFileStream').mockImplementationOnce(async (options) => {
+            source = await open(options)
+            if (change === 'access') {
+              await db
+                .delete(permissions)
+                .where(
+                  and(eq(permissions.userId, f.editorId), eq(permissions.entityId, f.workspaceId))
+                )
+            } else if (change === 'identity') {
+              if (historical)
+                await db
+                  .delete(workspaceFileVersion)
+                  .where(
+                    and(
+                      eq(workspaceFileVersion.fileId, file.id),
+                      eq(workspaceFileVersion.version, 1)
+                    )
+                  )
+              else
+                await db
+                  .update(workspaceFiles)
+                  .set({ contentUpdatedAt: new Date(file.contentUpdatedAt.getTime() + 1000) })
+                  .where(eq(workspaceFiles.id, file.id))
+            }
+            return source
+          })
+          const args = {
+            principal: f.principal,
+            input: { projectId: f.projectId, fileId: file.id, version: 1 },
+          }
+          const pending = historical
+            ? downloadProjectFileVersionContent.execute(args)
+            : downloadProjectFileContent.execute(args)
+          if (change === 'cancel') {
+            const result = await pending
+            expect(result.contentLength).toBe(1024 * 1024)
+            const reader = result.stream.getReader()
+            const chunk = await reader.read()
+            expect(chunk.done).toBe(false)
+            expect(chunk.value?.length).toBeLessThan(result.contentLength)
+            await reader.cancel()
+          } else {
+            await expect(pending).rejects.toMatchObject({
+              code: change === 'identity' && !historical ? 'conflict' : 'not_found',
+            })
+          }
+          expect(source?.destroyed).toBe(true)
+        }
+      )
+    }
+  }
+})
+
+describe('Project Copilot content admission', () => {
+  for (const gate of ['missing', 'deny'] as const) {
+    check(
+      `${gate} gate blocks current reads and unsupported Copilot history reads fail authorization`,
+      async () => {
+        const f = await fixture()
+        const { file } = await createProjectFile.execute({
+          principal: f.principal,
+          input: createInput(f.projectId, 'retained source'),
+        })
+        await updateProjectFileContent.execute({
+          principal: f.principal,
+          input: {
+            projectId: f.projectId,
+            fileId: file.id,
+            content: 'current source',
+            encoding: 'utf-8',
+          },
+        })
+        const principal: Principal = {
+          kind: 'resource_delegated',
+          serviceId: 'copilot',
+          subjectUserId: f.editorId,
+          audience: 'sim:project-files',
+          delegationId: generateId(),
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 30_000),
+          scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
+          invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+        }
+        const buffered = vi.spyOn(storage, 'downloadFile')
+        const streamed = vi.spyOn(storage, 'downloadFileStream')
+        for (const operation of [readProjectFileContent, downloadProjectFileContent]) {
+          const execute = () =>
+            operation.execute({
+              principal,
+              input: { projectId: f.projectId, fileId: file.id, version: 1 },
+            })
+          await expect(
+            gate === 'missing'
+              ? execute()
+              : observeContentDelivery(
+                  { admit: async (sources) => sources.map(() => false) },
+                  execute
+                )
+          ).rejects.toBeInstanceOf(
+            gate === 'missing' ? ContentDeliveryUnobservedError : ContentRefusedError
+          )
+        }
+        for (const operation of [
+          readProjectFileVersionContent,
+          downloadProjectFileVersionContent,
+        ]) {
+          await expect(
+            operation.execute({
+              principal,
+              input: { projectId: f.projectId, fileId: file.id, version: 1 },
+            })
+          ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)
+        }
+        expect(buffered).not.toHaveBeenCalled()
+        expect(streamed).not.toHaveBeenCalled()
+      }
+    )
+  }
 })

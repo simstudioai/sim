@@ -20,7 +20,7 @@ export const projectFileUploadOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.uploadCreate,
       operationId: 'createProjectFileUpload',
-      summary: 'Create Project File Upload',
+      summary: 'Create Project file upload',
       description: `Create a resumable Project file upload. The file is registered only after the signed transfer and completion succeed. The original API credential and upload-token are required on every control request. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
@@ -53,7 +53,7 @@ export const projectFileUploadOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.uploadRead,
       operationId: 'getProjectFileUpload',
-      summary: 'Get Project File Upload',
+      summary: 'Get Project file upload',
       description: `Read the current state of a Project upload, including its file after completion. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
@@ -86,7 +86,7 @@ export const projectFileUploadOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.uploadCancel,
       operationId: 'abortProjectFileUpload',
-      summary: 'Abort Project File Upload',
+      summary: 'Abort Project file upload',
       description: `Abort a pending Project upload and schedule its unregistered bytes for cleanup. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
@@ -119,7 +119,7 @@ export const projectFileUploadOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.uploadComplete,
       operationId: 'completeProjectFileUpload',
-      summary: 'Complete Project File Upload',
+      summary: 'Complete Project file upload',
       description: `Finalize verified bytes and atomically register one Project file. Retrying completion returns the same file without billing twice. Current edit access is checked again. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
@@ -152,7 +152,7 @@ export const projectFileUploadOpenApiRoutes = [
     {
       applicationOperation: projectFileOperations.uploadParts,
       operationId: 'getProjectFileUploadPartUrls',
-      summary: 'Get Project File Upload Part URLs',
+      summary: 'Get Project file upload part URLs',
       description: `Request signed multipart transfer URLs for an active Project upload. Send exactly the returned transfer headers when uploading each part. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],

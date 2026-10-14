@@ -4,16 +4,18 @@ import { FILE_CACHE_CONTROL, presentFileDelivery } from '@/lib/uploads/server/de
 /** Presents authorized bytes without caching the mutable file URL. */
 export function presentProjectFileContent({
   file,
-  content,
+  stream,
+  contentLength,
 }: {
   file: OwnedFileRecord
-  content: Buffer
+  stream: ReadableStream<Uint8Array>
+  contentLength: number
 }) {
   return presentFileDelivery({
-    body: content,
+    body: stream,
     filename: file.name,
     contentType: file.type,
-    contentLength: content.length,
+    contentLength,
     cacheControl: FILE_CACHE_CONTROL.noStore,
   })
 }

@@ -1396,7 +1396,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Files & Audit Logs',
     description:
-      'Version 2 of the Sim REST API for workspace and Project files, resumable uploads, public shares, and organization audit logs.',
+      'Version 2 of the Sim REST API for workspace files, resumable uploads, public shares, and organization audit logs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -1413,7 +1413,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Files',
       description:
-        'Create, upload, download, organize, share, version, and delete workspace and Project files.',
+        'Create, upload, download, organize, share, version, and delete workspace files.',
     },
     {
       name: 'Audit Logs',
