@@ -21,6 +21,8 @@ Sim can also download a file from an accessible URL: "Download the JSON at [URL]
 
 A successful upload does not mean every format's contents have been parsed. For a file without a supported reader, Sim may need to process the original bytes with code. ZIP archives must be extracted before their contents can be read.
 
+Direct uploads are deliberate input and are not automatically scanned for secrets. For stored files, Chat can mask tracked secret values or withhold content it cannot safely check. Your viewer can still open a file that Chat cannot read or receive as a rendered preview. Creating or returning a sharing link through Chat can also be refused.
+
 ## Create a text file [#creating-documents]
 
 Sim can write Markdown, plain text, code, CSV, and JSON files. Ask for the content and its destination:
@@ -87,6 +89,8 @@ Sim can run code for calculations and one-off transformations:
 - "Deduplicate this email list without case sensitivity."
 
 Results can be returned in the chat. Ask Sim to save a file when you need to reuse them. The Chat workbench holds temporary computation files while its session exists; those files become workspace files only when explicitly saved or exported. Code outputs written to the per-call `SIM_OUTPUT_DIR` are exported to workspace **Files**.
+
+If a requested stored file, folder input, or table snapshot is withheld, the code does not run. Check the excluded-input report before trying again. Later calls without that input remain available.
 
 ## View and reuse files [#file-viewer-modes]
 

@@ -246,7 +246,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
             </div>
             <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
           </PageHeader>
-          <DocsBody>
+          <DocsBody className='[overflow-wrap:anywhere]'>
             <APIPage {...apiProps} />
           </DocsBody>
         </DocsPage>
@@ -292,7 +292,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           </div>
           <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
         </PageHeader>
-        <DocsBody>
+        <DocsBody className='[overflow-wrap:anywhere]'>
           {integrationLandingPage && (
             <p>
               {INTEGRATION_LANDING_LABEL}{' '}

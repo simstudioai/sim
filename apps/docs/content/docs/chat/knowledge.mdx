@@ -41,6 +41,8 @@ Specify the knowledge base and question:
 
 Sim retrieves matching content to answer the question. Check that the returned evidence comes from the intended documents; a partial search or no matches does not establish that the base contains no relevant information.
 
+Chat can mask tracked secret values or omit documents, passages, and tag values it cannot safely check, even when indexing and access checks pass. Document-list counts can still describe the underlying collection. Check the knowledge base directly when expected content is unavailable to Chat.
+
 ## Keep sources updated [#connectors]
 
 Connectors sync documents from external services on a configured schedule. Ask Sim to create or update the connection, or run a sync, using an available credential and the source you want:

@@ -64,6 +64,8 @@ When native Mac app control is available in Sim Desktop, Chat also shows the act
 
 Reading a resource does not grant permission to edit or execute it. Workspace writes and runs require the relevant access, and organization policies can restrict individual capabilities.
 
+Chat can mask tracked secret values or withhold stored files, table rows, and knowledge content it cannot safely check before it reaches the model. This check is separate from workspace access and tool approval. A resource can remain available in your workspace even when its content is unavailable to Chat.
+
 When tool permissions require a decision, review the action and choose **Allow** or **Skip**. **Don't ask again** offers **For this chat** and **For every chat**, subject to policy. Approval does not expand your underlying resource access.
 
 Chat runs are subject to the deployment's configured runtime and usage limits. Split long work into steps; use a deployed workflow for recurring execution. Check the result and any remaining setup or failed actions before treating the task as complete.

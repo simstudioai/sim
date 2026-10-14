@@ -132,7 +132,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               }}
               containerProps={{
                 className:
-                  '!pt-0 [--text-muted:var(--text-secondary)] [--color-fd-muted-foreground:var(--text-secondary)]',
+                  '!pt-0 max-lg:mt-0! max-lg:[--fd-header-height:56px]! max-lg:[&>#nd-subnav]:flex! max-xl:has-[>[data-toc-popover]]:[--fd-toc-popover-height:40px]! max-xl:[&>[data-toc-popover]]:block! [--text-muted:var(--text-secondary)] [--color-fd-muted-foreground:var(--text-secondary)]',
               }}
             >
               {children}

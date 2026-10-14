@@ -57,7 +57,7 @@ Create key-value pairs under **Settings → Secrets**, then type `{{` in a suppo
 {{API_KEY}}
 ```
 
-Names must start with a letter or underscore and contain only letters, numbers, and underscores.
+Names can contain only letters, numbers, and underscores.
 
 Most fields resolve secrets before their block runs. Function and Custom Tool code bind secret values separately at execution, preserving their exact string contents without inserting them into saved source code. Inside that code, `{{KEY}}` evaluates to a **string**: use `Number()`, compare with `'true'`, or use `JSON.parse()` when another type is needed. See [secret placeholders in code](/workflows/blocks/function#placeholders-are-always-strings).
 

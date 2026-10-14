@@ -32,6 +32,8 @@ Name the table, fields, filters, and time range:
 
 Sim can query the matching rows and compute summaries. It can also read multiple tables and combine their results: describe the relationship, such as matching `company_id` between contacts and companies. This does not create a persistent join between the tables.
 
+Chat can mask tracked secret values or omit rows and selected cells it cannot safely check. Matching-row totals and pagination cursors still describe the database query; a shorter response does not prove that every match was shown. Summaries based on returned rows can be incomplete.
+
 Large reads may need pagination or an export. Name the subset you need instead of requesting every row when a filter can answer the question.
 
 ## Add or update rows [#adding-and-updating-rows]
@@ -45,6 +47,8 @@ Provide values by column name. For bulk changes, state the condition:
 `createdAt` is the built-in creation timestamp. Use the actual custom column name when you mean a separate date field.
 
 Review the affected records and ask Sim to verify the updated values. Table writes can also trigger configured workflow automation.
+
+A write can be saved even when its returned row is withheld from Chat. Inspect the table before repeating a change whose result could not be shown.
 
 ### Delete rows
 
@@ -62,7 +66,7 @@ Export the whole table or a filtered subset as CSV:
 - "Export the leads table as leads.csv in workspace Files."
 - "Export pipeline rows where status is 'closed' and save them as closed-deals.csv."
 
-Wait for the export to complete, then inspect and download the file. A saved workspace CSV can be referenced by other workflows.
+Wait for the export to complete, then inspect its row count and download the file. A CSV created from rows returned to Chat can omit rows unavailable to Chat. Use the table's own export control when you need an authorized export of the stored data. A saved workspace CSV can be referenced by other workflows.
 
 ## Use a table in a workflow [#using-tables-in-workflows]
 
