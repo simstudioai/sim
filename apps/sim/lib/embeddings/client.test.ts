@@ -400,6 +400,7 @@ describe('embed', () => {
       model: 'text-embedding-3-small',
       apiKey: 'sk-hosted-pool',
       usesHostedKey: true,
+      projectInputs: null,
     })
 
     expect(result.isBYOK).toBe(false)

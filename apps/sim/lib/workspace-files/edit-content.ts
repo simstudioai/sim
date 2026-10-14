@@ -276,9 +276,14 @@ export function applyWorkspaceFileContentEdit(
     const anchorIndex = anchorLineIndex(lines, edit.anchor, occurrence)
     const inserted = contentLines(edit.content)
     const separator = separators[anchorIndex] ?? detectLineEnding(text)
-    lines.splice(anchorIndex + 1, 0, ...inserted)
-    separators.splice(anchorIndex, 0, ...inserted.map(() => separator))
-    return joinSeparatedLines({ lines, separators })
+    return joinSeparatedLines({
+      lines: [...lines.slice(0, anchorIndex + 1), ...inserted, ...lines.slice(anchorIndex + 1)],
+      separators: [
+        ...separators.slice(0, anchorIndex),
+        ...inserted.map(() => separator),
+        ...separators.slice(anchorIndex),
+      ],
+    })
   }
 
   const startAnchor = edit.mode === 'replace_between' ? edit.beforeAnchor : edit.startAnchor
@@ -289,14 +294,26 @@ export function applyWorkspaceFileContentEdit(
   if (edit.mode === 'replace_between') {
     const inserted = contentLines(edit.content)
     const separator = separators[startIndex]
-    lines.splice(startIndex + 1, endIndex - startIndex - 1, ...inserted)
-    separators.splice(startIndex, endIndex - startIndex - 1, ...inserted.map(() => separator))
-    return joinSeparatedLines({ lines, separators })
+    // The last inserted line keeps the ending of the last replaced line; with nothing inserted,
+    // the start anchor keeps its own.
+    const keptSeparators =
+      inserted.length === 0
+        ? [...separators.slice(0, startIndex + 1), ...separators.slice(endIndex)]
+        : [
+            ...separators.slice(0, startIndex),
+            ...inserted.map(() => separator),
+            ...separators.slice(endIndex - 1),
+          ]
+    return joinSeparatedLines({
+      lines: [...lines.slice(0, startIndex + 1), ...inserted, ...lines.slice(endIndex)],
+      separators: keptSeparators,
+    })
   }
 
-  lines.splice(startIndex, endIndex - startIndex)
-  separators.splice(startIndex, endIndex - startIndex)
-  return joinSeparatedLines({ lines, separators })
+  return joinSeparatedLines({
+    lines: [...lines.slice(0, startIndex), ...lines.slice(endIndex)],
+    separators: [...separators.slice(0, startIndex), ...separators.slice(endIndex)],
+  })
 }
 
 /**

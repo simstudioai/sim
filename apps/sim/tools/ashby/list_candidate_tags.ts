@@ -1,4 +1,4 @@
-import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
+import { ASHBY_NEXT_SYNC_CURSOR_OUTPUT } from '@/tools/ashby/types'
 import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -126,10 +126,6 @@ export const listCandidateTagsTool: ToolConfig<
       description: 'Opaque cursor for fetching the next page',
       optional: true,
     },
-    nextSyncCursor: {
-      type: 'string',
-      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
-      optional: true,
-    },
+    nextSyncCursor: ASHBY_NEXT_SYNC_CURSOR_OUTPUT,
   },
 }

@@ -30,6 +30,7 @@ export interface SailPointFetchResult {
 }
 
 const MAX_FETCH_RETRIES = 4
+const MAX_TOKEN_EXCHANGES = 100
 const MAX_TOKEN_RESPONSE_BYTES = 1024 * 1024
 const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
 const TOKEN_EXPIRY_BUFFER_MS = 60_000
@@ -39,21 +40,32 @@ const TOKEN_EXPIRY_BUFFER_MS = 60_000
  * coalesces concurrent exchanges per key and sets each entry's TTL from the
  * provider's `expires_in`. The exchange owns its timeout and ignores
  * cache-driven aborts, so an eviction never fails callers already waiting on
- * it; a caller's own signal only detaches that caller. TTLs run on the wall clock at
- * exact resolution, the same clock as the provider's `expires_in`.
+ * it; a caller's own signal only detaches that caller. Because an evicted exchange keeps
+ * running, `max` does not bound in-flight exchanges, so `activeTokenExchanges` caps them
+ * separately. TTLs run on the wall clock at exact resolution, the same clock as the
+ * provider's `expires_in`.
  */
+let activeTokenExchanges = 0
 const tokenCache = new LRUCache<string, string, SailPointCredentials>({
   max: 100,
   ttlResolution: 0,
   ignoreFetchAbort: true,
   perf: { now: () => Date.now() },
   fetchMethod: async (_key, _stale, { context, options }) => {
-    const { token, ttlMs } = await exchangeAccessToken(
-      context,
-      AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
-    )
-    options.ttl = ttlMs
-    return token
+    if (activeTokenExchanges >= MAX_TOKEN_EXCHANGES) {
+      throw new Error('Too many concurrent SailPoint token exchanges')
+    }
+    activeTokenExchanges += 1
+    try {
+      const { token, ttlMs } = await exchangeAccessToken(
+        context,
+        AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
+      )
+      options.ttl = ttlMs
+      return token
+    } finally {
+      activeTokenExchanges -= 1
+    }
   },
 })
 

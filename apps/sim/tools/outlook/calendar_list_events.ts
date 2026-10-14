@@ -86,9 +86,9 @@ export const outlookCalendarListEventsTool: ToolConfig<
   request: {
     url: (params) => {
       // A nextLink is a fully-formed Graph URL that receives the Outlook bearer, so it
-      // must be a Graph origin and continue an event collection, not any Graph endpoint.
+      // must be a Graph origin and continue a calendarView, not any Graph endpoint.
       if (params.pageToken) {
-        return assertGraphNextPageUrlForCollection(params.pageToken, ['calendarView', 'events'])
+        return assertGraphNextPageUrlForCollection(params.pageToken, ['calendarView'])
       }
 
       if (!params.startDateTime?.trim() || !params.endDateTime?.trim()) {

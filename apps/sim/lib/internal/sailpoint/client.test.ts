@@ -83,6 +83,31 @@ describe('SailPoint client', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('caps in-flight exchanges across distinct credentials and frees slots as they settle', async () => {
+    const releases: Array<(response: Response) => void> = []
+    mockFetch.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          releases.push(resolve)
+        })
+    )
+    const pending = Array.from({ length: 100 }, (_, index) =>
+      getSailPointAccessToken(credentialsFor(`in-flight-${index}`))
+    )
+
+    await expect(getSailPointAccessToken(credentialsFor('in-flight-overflow'))).rejects.toThrow(
+      'Too many concurrent SailPoint token exchanges'
+    )
+    expect(mockFetch).toHaveBeenCalledTimes(100)
+
+    for (const release of releases) release(tokenResponse('token'))
+    await Promise.all(pending)
+    mockFetch.mockResolvedValueOnce(tokenResponse('after-drain'))
+    expect(await getSailPointAccessToken(credentialsFor('in-flight-after-drain'))).toBe(
+      'after-drain'
+    )
+  })
+
   it('does not cache a failed exchange', async () => {
     mockFetch
       .mockResolvedValueOnce(Response.json({ error: 'invalid_client' }, { status: 401 }))

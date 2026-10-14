@@ -91,7 +91,7 @@ async function createWorkflow(workspaceId: string, userId: string, isDeployed = 
     id,
     userId,
     workspaceId,
-    name: 'Move fixture workflow',
+    name: `Move fixture workflow ${id}`,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,

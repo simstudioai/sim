@@ -1,5 +1,5 @@
 import type { AshbyOffer } from '@/tools/ashby/types'
-import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
+import { ASHBY_NEXT_SYNC_CURSOR_OUTPUT } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
@@ -154,10 +154,6 @@ export const listOffersTool: ToolConfig<AshbyListOffersParams, AshbyListOffersRe
       description: 'Opaque cursor for fetching the next page',
       optional: true,
     },
-    nextSyncCursor: {
-      type: 'string',
-      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
-      optional: true,
-    },
+    nextSyncCursor: ASHBY_NEXT_SYNC_CURSOR_OUTPUT,
   },
 }

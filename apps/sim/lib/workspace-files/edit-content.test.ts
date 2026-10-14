@@ -236,6 +236,35 @@ describe('applyWorkspaceFileContentEdit', () => {
         content: 'a\nb',
       })
     ).toBe('start\r\na\r\nb\nend\nlf\n')
+
+    expect(
+      applyWorkspaceFileContentEdit('before\r\nold\nend', {
+        mode: 'replace_between',
+        beforeAnchor: 'before',
+        afterAnchor: 'end',
+        content: '',
+      })
+    ).toBe('before\r\nend')
+  })
+
+  it('inserts more lines than a single call can take as arguments', () => {
+    const content = Array.from({ length: 1_000_000 }, () => 'x').join('\n')
+    const expected = `start\n${content}\nend`
+    expect(
+      applyWorkspaceFileContentEdit('start\nend', {
+        mode: 'insert_after',
+        anchor: 'start',
+        content,
+      })
+    ).toBe(expected)
+    expect(
+      applyWorkspaceFileContentEdit('start\nold\nend', {
+        mode: 'replace_between',
+        beforeAnchor: 'start',
+        afterAnchor: 'end',
+        content,
+      })
+    ).toBe(expected)
   })
 })
 
