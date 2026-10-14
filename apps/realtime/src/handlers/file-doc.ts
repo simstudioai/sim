@@ -1848,6 +1848,7 @@ export function setupWorkspaceFileDocHandlers(
               | undefined
             if (previousSocket) previousSocket.data.fileDocPresence = undefined
             io.in(otherSid).socketsLeave(name)
+            broadcastFileDocPresence(io, name, entry)
           }
         }
 
