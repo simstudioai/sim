@@ -786,7 +786,7 @@ function select(label: string, optionText: string) {
   const trigger = container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
   if (!trigger) throw new Error(`Missing select ${label}`)
   act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
-  const option = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+  const option = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find(
     (node) => node.textContent?.trim() === optionText
   )
   if (!option) throw new Error(`Missing option ${optionText}`)

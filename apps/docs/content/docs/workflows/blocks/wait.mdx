@@ -1,52 +1,47 @@
 ---
 title: Wait
-description: The Wait block pauses a workflow for a set time before continuing.
+description: Pause a run for a duration, or suspend it until a scheduled resume time.
 ---
 
 import { BlockPreview, WorkflowPreview, WAIT_RATELIMIT_WORKFLOW, WAIT_FOLLOWUP_WORKFLOW } from '@/components/workflow-preview'
 
-The **Wait block** pauses a workflow for a set time, then continues. Use it to space out actions, respect API rate limits, or give an external system time to finish. A short wait runs in line; a long one suspends the run and resumes later.
+The **Wait block** delays the next step. Choose an inline wait for seconds or a few minutes, or enable **Async** to suspend the run and resume later.
 
 <BlockPreview type="wait" />
 
-## Configuration
-
-### Wait Amount
-
-The duration to pause, as a positive number.
-
-### Unit
-
-The time unit. For a short, in-line wait, choose **Seconds** or **Minutes**. With **Async** on, choose **Minutes**, **Hours**, or **Days**.
-
-### Async
-
-Off, the run sleeps in line for the duration (up to 5 minutes). On, the run **suspends** and resumes after the delay, which is what lets a wait run for hours or days without holding the execution open. A suspended wait records when it will resume in `<wait.resumeAt>`.
-
-## Outputs
-
-| Output | What it is |
-| --- | --- |
-| `<wait.status>` | `waiting`, `completed`, or `cancelled` |
-| `<wait.waitDuration>` | The wait duration, in milliseconds |
-| `<wait.resumeAt>` | ISO timestamp a suspended (async) wait resumes at |
-
-## Examples
-
-### Space out API calls
+## Space out requests
 
 <WorkflowPreview workflow={WAIT_RATELIMIT_WORKFLOW} />
 
-A short wait between two calls keeps the workflow under an API's rate limit. The same shape works for polling: wait, then re-check an external job.
+A two-second wait spaces the two API requests apart. It can also sit between polling attempts. Account for other branches and workflow runs when calculating an API's rate limit.
 
-### Send a delayed follow-up
+## Configuration
+
+| Field | Behavior |
+| --- | --- |
+| **Wait Amount** | Positive duration. Defaults to `10`. |
+| **Unit** | **Seconds** or **Minutes** with Async off; **Minutes**, **Hours**, or **Days** with Async on. |
+| **Async** | Off: wait in the running execution, up to 5 minutes. On: suspend and schedule resumption, up to 30 days. |
+
+Async always suspends the run, even for a short duration. The resume poller picks it up after the scheduled time, so `resumeAt` is not an exact execution-time guarantee. Self-hosted deployments need their [resume scheduler](/platform/self-hosting/background-jobs) configured for automatic resumption.
+
+## Outputs
+
+| Reference | Value |
+| --- | --- |
+| `<wait.status>` | `waiting` for a suspended wait, `completed` for a finished inline wait, or `cancelled` when an inline wait is interrupted |
+| `<wait.waitDuration>` | Requested duration in milliseconds |
+| `<wait.resumeAt>` | Scheduled ISO resume timestamp for an async wait |
+
+Stopping a run cancels an active wait. A delay extends the workflow's wall-clock completion time; log duration and resumed execution records describe execution separately.
+
+## Send a delayed follow-up
 
 <WorkflowPreview workflow={WAIT_FOLLOWUP_WORKFLOW} />
 
-With Async on, the run suspends for two days and resumes to send the follow-up, without holding the execution open in between.
+Enable Async and select two days to suspend the run before the follow-up step. Configure that step's messaging tool to send the notification.
 
-## Best Practices
+## Related docs
 
-- **Use a short in-line wait for seconds to a few minutes.** Turn on Async for hours or days so the run doesn't stay open the whole time.
-- **Remember waits extend the run.** The wait counts toward total duration, which shows in the logs.
-- **A wait is cancellable.** Stopping the run cancels an active wait, and `status` reports `cancelled`.
+- [API](/workflows/blocks/api)
+- [Human in the loop](/workflows/blocks/human-in-the-loop)

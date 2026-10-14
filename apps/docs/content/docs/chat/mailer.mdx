@@ -1,71 +1,96 @@
 ---
 title: Sim Mailer
-description: Send emails to your workspace and let Sim handle them as tasks.
+description: Submit tasks by email to an enabled workspace inbox and follow the results in Chat.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
-Sim Mailer gives your workspace a dedicated email address. Forward or send emails to it and Sim will process them as tasks — reading the subject, body, and any attachments, then replying to the thread with the result.
+Sim Mailer gives an enabled workspace an email address. Send or forward a message to submit a task; its subject, body, and successfully prepared attachments become the prompt. Sim normally replies in the email thread with the result and a link to the conversation.
 
-## Getting Started
+## Requirements
 
-1. Navigate to **Settings** → **Inbox**
-2. Toggle the inbox on
-3. Optionally choose a custom address prefix (e.g., `acme` → `acme@mothership.sim.ai`)
-4. Copy your inbox address and start sending emails
+A workspace **Admin** configures the inbox. On Sim Cloud, availability follows the workspace's Max or Enterprise plan and active billing, rather than the sender's individual plan.
 
-If you skip the custom prefix, one is generated automatically.
+On self-hosted deployments, availability depends on configured Chat and email services. `INBOX_ENABLED` or billing-disabled configuration can allow access, but the required Chat service key must still be configured. See [self-hosted environment variables](/platform/self-hosting/environment-variables).
+
+Members keep their own workspace permissions when submitting email tasks. An allowed external email sender can submit read-only tasks; allowlisting does not grant workspace membership, workflow execution, mutation access, or raw-secret access.
+
+## Enable the inbox [#getting-started]
+
+1. Open **Settings** → **Inbox**.
+2. Switch the inbox to **On** and choose **Enable**. You can supply an **Email prefix** or leave it blank to generate one.
+3. Copy the address shown under **Sim's email**.
+4. Configure allowed senders and secret access before submitting tasks that need workspace context.
+5. Send a test message, then inspect its status and conversation in **Inbox**.
+
+The prefix is customizable. The domain comes from the deployment's email configuration and is not selected in this control; use the address shown in **Inbox**.
 
 <Callout type="info">
-  Changing your address creates a new inbox. The old address stops working immediately.
+  Changing the address creates a new inbox. The old address stops accepting tasks immediately. Update any forwarding rules or saved contacts that use it.
 </Callout>
 
-## What You Can Send
+Use **Off** to disable the inbox. Existing conversations and task history are preserved.
 
-Write your email like you would to a colleague. The subject and body become the task prompt.
+## Configure allowed senders [#allowed-senders]
 
-**Attachments are fully supported.** Images, PDFs, and documents (up to 10 MB each) are read by Sim and displayed inline in the conversation; images show as previews.
+Manage **Allowed senders** in **Settings** → **Inbox**:
 
-| Good email | Why it works |
-|------------|-------------|
-| "Summarize the attached PDF and list action items" | Clear task with an attachment |
-| "What's in this image?" with a photo attached | Sim reads and describes the image |
-| "Draft a reply to this forwarded thread" | Uses the email body as context |
+- Workspace members are allowed by default.
+- An Admin can add an external email address with an optional label, or remove it from the allowlist.
 
-## Allowed Senders
+An external email sender is different from an external workspace member. The latter has access to Sim according to their workspace role without joining the organization; an email-only sender has no such membership.
 
-Only authorized senders can create tasks. Emails from anyone else are automatically rejected.
+Emails from unauthorized senders are rejected. Automated senders, rate limits, or loss of plan entitlement can also prevent a task from being accepted.
 
-- **Workspace members** are allowed by default — no setup needed
-- **External senders** can be added manually with an optional label for easy identification
+## Select secret access
 
-External senders are email addresses that can create inbox tasks. They are not the same as external workspace members, who have workspace access in Sim without joining your organization.
+Under **Secrets**, **Secret access** defaults to **All secrets**. Choose **Selected secrets** to restrict raw-secret mounts. With **Selected secrets**, choose the permitted names in the **Secrets** selector. Selecting none allows no raw-secret mounts.
 
-Manage your allowed senders list in **Settings** → **Inbox** → **Allowed Senders**.
+This setting narrows which secrets member tasks may mount; it does not grant access to secrets the sender cannot otherwise use. External email-only senders have no raw-secret access. Configure workflow credentials separately according to their access rules.
 
-## Tracking Tasks
+Mailer runs without an interactive approval card. Restrict allowed senders and secret access according to the actions members should be able to request; their underlying permissions and organization policies still apply.
 
-Every email becomes a task you can track in **Settings** → **Inbox**:
+## Send a task [#what-you-can-send]
 
-- **Search** by subject, sender, or body content
-- **Filter** by status to find what you need
-- **Click** any completed or failed task to jump to the full conversation
+Write the subject and body as a specific request:
 
-### Task Statuses
+| Email | Context |
+| --- | --- |
+| "Summarize the attached PDF and list action items." | An attached source document |
+| "What is shown in this image?" | An attached image |
+| "Draft a reply to this forwarded thread." | The forwarded email body |
+
+The per-attachment hard limit is **10 MiB**. Supported images, PDFs, and documents are attached to the Chat conversation; images can display as previews. If an attachment cannot be prepared, the conversation identifies it as unavailable and keeps any successfully prepared attachments.
+
+Attachments stay with the conversation. Ask Sim to save a copy to workspace **Files** when you need a reusable workspace file, using a member account with the required write access.
+
+## Track tasks [#tracking-tasks]
+
+Open **Settings** → **Inbox** to inspect received messages:
+
+1. Use **Search tasks...** to match a subject, sender, or body preview in the displayed tasks.
+2. Choose a status from **All statuses** to filter the list.
+3. Select a completed or failed task with a linked chat to open its full conversation.
+
+### Task statuses
 
 | Status | Meaning |
-|--------|---------|
-| **Received** | Email accepted, queued for processing |
-| **Processing** | Sim is actively working on it |
-| **Completed** | Done — the result was sent as an email reply |
-| **Failed** | Something went wrong during execution |
-| **Rejected** | Email blocked (sender not allowed, automated sender, or rate limit exceeded) |
+| --- | --- |
+| **Received** | Accepted and queued for processing |
+| **Processing** | Sim is working on the task |
+| **Completed** | Sim finished the task successfully; the list badge reads **Complete** |
+| **Failed** | The task encountered an execution error |
+| **Rejected** | The message was blocked; inspect its rejection reason |
 
-## Conversations
+A completed task does not prove an email reply was delivered. If a reply is missing, inspect the linked conversation and task result. Failed tasks can also have an email response describing the error.
 
-Each email task creates a conversation in your workspace. You can continue the conversation in Chat, and any follow-up emails in the same thread are linked to the same conversation.
+## Continue the conversation [#conversations]
 
-<FAQ items={[
-  { question: "Can I use my own email domain?", answer: "Not currently. All inbox addresses use the @mothership.sim.ai domain. You can customize the prefix (e.g., acme@mothership.sim.ai) but not the domain itself." },
-]} />
+A new email task creates a workspace conversation. You can continue it in Chat. Replies linked to an earlier email task continue its conversation when that chat is still available in the same workspace; otherwise, processing starts a new conversation.
+
+## Related docs
+
+- [Files and documents in Chat](/chat/files)
+- [Permissions](/platform/permissions)
+- [Credentials](/platform/credentials)
+- [Costs](/platform/costs)

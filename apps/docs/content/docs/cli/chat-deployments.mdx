@@ -1,11 +1,13 @@
 ---
-title: Chat Deployments
-description: Manage chat deployments — every subcommand, argument, and flag
+title: Chat deployments
+description: List workflow chat deployments in the workspace.
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+List workflow chat deployments in the workspace.
+
+These commands accept the [global options](/cli/commands#global-options).
 
 ## List chat deployments
 
@@ -22,8 +24,14 @@ sim chat-deployments list [options]
 | `--workflow-id <value>` | No | Restrict to deployments of one workflow. |
 | `--is-active` | No | Restrict to active or inactive deployments. |
 | `--no-is-active` | No | Send --is-active as false. |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `identifier`, `createdAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "createdAt". Accepted values: `identifier`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
+
+API request and response schemas: [listChatDeployments](/api-reference/workflows/listChatDeployments).
+
+## Related docs
+
+- [Deploy or update a workflow chat](/cli/workflows#chat-deployments)

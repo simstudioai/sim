@@ -1,111 +1,22 @@
 ---
 title: Projects
-description: Manage projects — every subcommand, argument, and flag
+description: Manage projects
 ---
 
 import { CommandTable } from '@/components/ui/command-table'
 
-Every command below also accepts the [global options](/cli/commands#global-options).
+Manage projects
 
-## Archive project file items
-
-```bash
-sim projects files archive <projectId> [options]
-```
-
-Archive Project File Items (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--file-ids <value...>` | No | Identifiers of the files to archive. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--folder-ids <value...>` | No | Identifiers of folders to archive recursively, including their files and descendants. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Create project file
-
-```bash
-sim projects files create <projectId> [options]
-```
-
-Create Project File (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
-| `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
-| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. |
-| `--encoding <value>` | No | Encoding of the content field. Accepted values: `utf-8`, `base64`. |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
-
-</CommandTable>
-
-## Create project file folder
-
-```bash
-sim projects files folders create <projectId> [options]
-```
-
-Create Project File Folder (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | Yes | Name for the new folder. |
-| `--parent-id <value>` | No | Parent folder identifier; omit or use null for the root. (--parent-id null sends the word, not JSON null). |
-
-</CommandTable>
+These commands accept the [global options](/cli/commands#global-options).
 
 ## List project file folders
+
+OAuth login or personal API key required.
 
 ```bash
 sim projects files folders list <projectId> [options]
 ```
 
-List Project File Folders (OAuth login or personal API key required)
-
 **Arguments**
 
 <CommandTable>
@@ -122,230 +33,19 @@ List Project File Folders (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--scope <value>` | No | Folder lifecycle scope. Accepted values: `active`, `archived`, `all`. |
+| `--scope <value>` | No | Folder lifecycle scope. Defaults to "active". Accepted values: `active`, `archived`, `all`. |
 
 </CommandTable>
 
-## Restore project file folder
-
-```bash
-sim projects files folders restore <projectId> <folderId>
-```
-
-Restore Project File Folder (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-| `folderId` | Yes | Folder identifier within the Project. |
-
-</CommandTable>
-
-## Update project file folder
-
-```bash
-sim projects files folders update <projectId> <folderId> [options]
-```
-
-Update Project File Folder (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-| `folderId` | Yes | Folder identifier within the Project. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | No | New folder name; omit to leave unchanged. |
-| `--parent-id <value>` | No | New parent folder identifier; null moves to the root, omission leaves the parent unchanged. (--parent-id null sends the word, not JSON null). |
-| `--sort-order <value>` | No | New manual position; omit to leave unchanged. |
-
-</CommandTable>
-
-## Permanently delete a previous version of a shared project file
-
-```bash
-sim projects files versions delete <projectId> <fileId> <version> [options]
-```
-
-Permanently delete a previous version of a shared Project file (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-| `fileId` | Yes | File identifier within the Project. |
-| `version` | Yes | Version number. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-y, --yes` | Yes | Confirm this operation. |
-
-</CommandTable>
-
-## Show the metadata of one version of a shared project file
-
-```bash
-sim projects files versions describe <projectId> <fileId> <version>
-```
-
-Show the metadata of one version of a shared Project file (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-| `fileId` | Yes | File identifier within the Project. |
-| `version` | Yes | Version number. |
-
-</CommandTable>
-
-## List the recorded versions of a shared project file
-
-```bash
-sim projects files versions list <projectId> <fileId> [options]
-```
-
-List the recorded versions of a shared Project file (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-| `fileId` | Yes | File identifier within the Project. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `version`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-## Make a previous version of a shared project file current again
-
-```bash
-sim projects files versions revert <projectId> <fileId> <version> [options]
-```
-
-Make a previous version of a shared Project file current again (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-| `fileId` | Yes | File identifier within the Project. |
-| `version` | Yes | Version number. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
-| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
-
-</CommandTable>
-
-## Download a project file version’s stored source to stdout or a local file
-
-```bash
-sim projects files versions source <projectId> <fileId> <version> [options]
-```
-
-Download a Project file version’s stored source to stdout or a local file (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project that owns the file |
-| `fileId` | Yes | File identifier. |
-| `version` | Yes | Version number. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
-| `--force` | No | Overwrite --output-file if it already exists. |
-
-</CommandTable>
-
-## Show project file metadata and ownership
-
-```bash
-sim projects files describe <projectId> <fileId>
-```
-
-Show Project file metadata and ownership (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-| `fileId` | Yes | File identifier within the Project. |
-
-</CommandTable>
+API request and response schemas: [listProjectFileFolders](/api-reference/files/listProjectFileFolders).
 
 ## List project files
+
+OAuth login or personal API key required.
 
 ```bash
 sim projects files list <projectId> [options]
 ```
-
-List Project Files (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -368,50 +68,22 @@ List Project Files (OAuth login or personal API key required)
 | `--no-recursive` | No | Send --recursive as false. |
 | `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
-| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Defaults to "uploadedAt". Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
-## Move project file items
+API request and response schemas: [listProjectFiles](/api-reference/files/listProjectFiles).
+
+## List the recorded versions of a shared project file
+
+OAuth login or personal API key required.
 
 ```bash
-sim projects files move <projectId> [options]
+sim projects files versions list <projectId> <fileId> [options]
 ```
-
-Move Project File Items (OAuth login or personal API key required)
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `projectId` | Yes | Project identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--file-ids <value...>` | No | Identifiers of the files to move. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--folder-ids <value...>` | No | Identifiers of folders to move with their contents. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--to <value>` | No | Destination folder path; omit for root. |
-
-</CommandTable>
-
-## Rename project file
-
-```bash
-sim projects files rename <projectId> <fileId> [options]
-```
-
-Rename Project File (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -430,17 +102,22 @@ Rename Project File (OAuth login or personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--name <value>` | Yes | New file name, including its extension. |
+| `--sort-by <value>` | No | Field used to sort the result. Defaults to "version". Accepted values: `version`. |
+| `--sort-order <value>` | No | Sort direction. Defaults to "desc". Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
-## Restore project file
+API request and response schemas: [listProjectFileVersions](/api-reference/files/listProjectFileVersions).
+
+## Show project file metadata and ownership
+
+OAuth login or personal API key required.
 
 ```bash
-sim projects files restore <projectId> <fileId>
+sim projects files describe <projectId> <fileId>
 ```
-
-Restore Project File (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -453,13 +130,15 @@ Restore Project File (OAuth login or personal API key required)
 
 </CommandTable>
 
-## Replace a shared project file’s contents
+API request and response schemas: [getProjectFileMetadata](/api-reference/files/getProjectFileMetadata).
+
+## Show the metadata of one version of a shared project file
+
+OAuth login or personal API key required.
 
 ```bash
-sim projects files set-content <projectId> <fileId> [options]
+sim projects files versions describe <projectId> <fileId> <version>
 ```
-
-Replace a shared Project file’s contents (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -469,6 +148,27 @@ Replace a shared Project file’s contents (OAuth login or personal API key requ
 | --- | --- | --- |
 | `projectId` | Yes | Project identifier. |
 | `fileId` | Yes | File identifier within the Project. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+API request and response schemas: [getProjectFileVersion](/api-reference/files/getProjectFileVersion).
+
+## Create project file
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files create <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
 
 </CommandTable>
 
@@ -478,11 +178,46 @@ Replace a shared Project file’s contents (OAuth login or personal API key requ
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
-| `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
-| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
+| `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
+| `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
+| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. Defaults to "". |
+| `--encoding <value>` | No | Encoding of the content field. Defaults to "utf-8". Accepted values: `utf-8`, `base64`. |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
 </CommandTable>
+
+API request and response schemas: [createProjectFile](/api-reference/files/createProjectFile).
+
+## Create project file folder
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files folders create <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | Name for the new folder. |
+| `--parent-id <value>` | No | Parent folder identifier; omit or use null for the root. (--parent-id null sends the word, not JSON null). |
+
+</CommandTable>
+
+API request and response schemas: [createProjectFileFolder](/api-reference/files/createProjectFileFolder).
 
 ## Upload a shared project file
 
@@ -512,13 +247,287 @@ sim projects files upload <projectId> <path> [options]
 
 </CommandTable>
 
+API request and response schemas: [createProjectFileUpload](/api-reference/files/createProjectFileUpload), [getProjectFileUploadPartUrls](/api-reference/files/getProjectFileUploadPartUrls), [completeProjectFileUpload](/api-reference/files/completeProjectFileUpload), [abortProjectFileUpload](/api-reference/files/abortProjectFileUpload).
+
+## Update project file folder
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files folders update <projectId> <folderId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `folderId` | Yes | Folder identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New folder name; omit to leave unchanged. |
+| `--parent-id <value>` | No | New parent folder identifier; null moves to the root, omission leaves the parent unchanged. (--parent-id null sends the word, not JSON null). |
+| `--sort-order <value>` | No | New manual position; omit to leave unchanged. |
+
+</CommandTable>
+
+API request and response schemas: [updateProjectFileFolder](/api-reference/files/updateProjectFileFolder).
+
+## Make a previous version of a shared project file current again
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files versions revert <projectId> <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
+
+</CommandTable>
+
+API request and response schemas: [revertProjectFileVersion](/api-reference/files/revertProjectFileVersion).
+
+## Permanently delete a previous version of a shared project file
+
+OAuth login or personal API key required.
+
+This permanently deletes the version and its stored content.
+
+```bash
+sim projects files versions delete <projectId> <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [deleteProjectFileVersion](/api-reference/files/deleteProjectFileVersion).
+
+## Restore project file folder
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files folders restore <projectId> <folderId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `folderId` | Yes | Folder identifier within the Project. |
+
+</CommandTable>
+
+API request and response schemas: [restoreProjectFileFolder](/api-reference/files/restoreProjectFileFolder).
+
+## Restore project file
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files restore <projectId> <fileId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+API request and response schemas: [restoreProjectFile](/api-reference/files/restoreProjectFile).
+
+## Archive project file items
+
+OAuth login or personal API key required.
+
+This archives the selected Project files and folders, including folder contents.
+
+```bash
+sim projects files archive <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | No | Identifiers of the files to archive. Defaults to []. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder-ids <value...>` | No | Identifiers of folders to archive recursively, including their files and descendants. Defaults to []. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+API request and response schemas: [archiveProjectFileItems](/api-reference/files/archiveProjectFileItems).
+
+## Move project file items
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files move <projectId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--file-ids <value...>` | No | Identifiers of the files to move. Defaults to []. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--folder-ids <value...>` | No | Identifiers of folders to move with their contents. Defaults to []. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--to <value>` | No | Destination folder path; omit for root. |
+
+</CommandTable>
+
+API request and response schemas: [moveProjectFileItems](/api-reference/files/moveProjectFileItems).
+
+## Rename project file
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files rename <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | Yes | New file name, including its extension. |
+
+</CommandTable>
+
+API request and response schemas: [renameProjectFile](/api-reference/files/renameProjectFile).
+
+## Replace a shared project file’s contents
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files set-content <projectId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project identifier. |
+| `fileId` | Yes | File identifier within the Project. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
+| `--encoding <value>` | No | Content encoding. Defaults to "utf-8". Accepted values: `utf-8`, `base64`. |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
+
+</CommandTable>
+
+API request and response schemas: [updateProjectFileContent](/api-reference/files/updateProjectFileContent).
+
 ## Download a project file’s stored source to stdout or a local file
+
+OAuth login or personal API key required.
 
 ```bash
 sim projects files source <projectId> <fileId> [options]
 ```
-
-Download a Project file’s stored source to stdout or a local file (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -541,3 +550,38 @@ Download a Project file’s stored source to stdout or a local file (OAuth login
 | `--force` | No | Overwrite --output-file if it already exists. |
 
 </CommandTable>
+
+API request and response schemas: [readProjectFileContent](/api-reference/files/readProjectFileContent).
+
+## Download a project file version’s stored source to stdout or a local file
+
+OAuth login or personal API key required.
+
+```bash
+sim projects files versions source <projectId> <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `projectId` | Yes | Project that owns the file |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
+API request and response schemas: [readProjectFileVersionContent](/api-reference/files/readProjectFileVersionContent).

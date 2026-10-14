@@ -1,5 +1,5 @@
 import { dbFor } from '@sim/db'
-import { workspaceFileVersion } from '@sim/db/schema'
+import { workspaceFiles, workspaceFileVersion } from '@sim/db/schema'
 import { chunkArray } from '@sim/utils/helpers'
 import { and, asc, count, gt, inArray, isNotNull, lt, min, or, sql } from 'drizzle-orm'
 import {
@@ -75,22 +75,31 @@ export async function cleanupWorkspaceFileVersions(
       while (!exhausted && batches < DEFAULT_MAX_BATCHES_PER_TABLE && attempted < limit) {
         batches++
         const batchSize = Math.min(DEFAULT_DELETE_CHUNK_SIZE, limit - attempted)
-        const expired = await selectExpiredFileVersions(
-          cleanupDb,
-          fileIds,
-          cutoff,
-          maxSuperseded,
-          batchSize
-        )
-        attempted += expired.length
-        const removed =
-          expired.length > 0
-            ? await cleanupDb.transaction((tx) =>
-                releaseExpiredFileVersions(tx, expired, 'workspace')
-              )
-            : 0
+        const { selected, removed } = await cleanupDb.transaction(async (tx) => {
+          const locked = await tx
+            .select({ id: workspaceFiles.id })
+            .from(workspaceFiles)
+            .where(
+              and(inArray(workspaceFiles.id, fileIds), inArray(workspaceFiles.workspaceId, group))
+            )
+            .orderBy(asc(workspaceFiles.id))
+            .for('update')
+          if (!locked.length) return { selected: 0, removed: 0 }
+          const expired = await selectExpiredFileVersions(
+            tx,
+            locked.map(({ id }) => id),
+            cutoff,
+            maxSuperseded,
+            batchSize
+          )
+          return {
+            selected: expired.length,
+            removed: await releaseExpiredFileVersions(tx, expired, 'workspace'),
+          }
+        })
+        attempted += selected
         deleted += removed
-        exhausted = expired.length < batchSize || removed === 0
+        exhausted = selected < batchSize || removed === 0
       }
       if (!exhausted) break
     }

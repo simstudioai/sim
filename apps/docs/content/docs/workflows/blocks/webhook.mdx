@@ -1,82 +1,72 @@
 ---
 title: Webhook
-description: The Webhook block sends an HTTP POST to an external endpoint, with automatic headers and optional signing.
+description: Send an outbound HTTP POST with optional HMAC signing.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview, WorkflowPreview, WEBHOOK_NOTIFY_WORKFLOW, WEBHOOK_TRIGGER_WORKFLOW } from '@/components/workflow-preview'
 
-The Webhook block sends HTTP POST requests to external webhook endpoints with automatic webhook headers and optional HMAC signing.
+The **Webhook block** sends an HTTP POST to an external endpoint. It is an outbound action; the [Webhook trigger](/workflows/triggers/webhook) receives requests that start a run.
 
 <BlockPreview type="webhook" />
 
+## Notify an external service
+
+<WorkflowPreview workflow={WEBHOOK_NOTIFY_WORKFLOW} />
+
+Send the Agent's result as a JSON payload to a Slack incoming webhook or your own endpoint. Use the payload format required by that endpoint.
+
 ## Configuration
 
-### Webhook URL
-
-The destination endpoint for your webhook request. Supports both static URLs and dynamic values from other blocks.
-
-### Payload
-
-JSON data to send in the request body. Use the AI wand to generate payloads or reference workflow variables:
+| Field | Behavior |
+| --- | --- |
+| **Webhook URL** | Static endpoint URL or a value assembled from earlier outputs. |
+| **Payload** | JSON request body. The AI wand can help generate it. |
+| **Signing Secret** | Optional `{{WEBHOOK_SECRET}}` or another secret reference for HMAC-SHA256 signing. |
+| **Additional Headers** | Key-value headers merged over the automatic headers. |
 
 ```json
 {
   "event": "workflow.completed",
   "data": {
-    "result": "<agent.content>",
-    "timestamp": "<function.result>"
+    "result": "<agent.content>"
   }
 }
 ```
 
-### Signing Secret
+### Automatic headers and signing
 
-Optional secret for HMAC-SHA256 payload signing. When provided, adds an `X-Webhook-Signature` header:
-
-```
-X-Webhook-Signature: t=1704067200000,v1=5d41402abc4b2a76b9719d911017c592...
-```
-
-To verify signatures, compute `HMAC-SHA256(secret, "${timestamp}.${body}")` and compare with the `v1` value.
-
-### Additional Headers
-
-Custom key-value headers to include with the request. These override any automatic headers with the same name.
-
-## Automatic Headers
-
-Every request includes these headers automatically:
-
-| Header | Description |
-|--------|-------------|
+| Header | Value |
+| --- | --- |
 | `Content-Type` | `application/json` |
 | `X-Webhook-Timestamp` | Unix timestamp in milliseconds |
-| `X-Delivery-ID` | Unique UUID for this delivery |
-| `Idempotency-Key` | Same as `X-Delivery-ID` for deduplication |
+| `X-Delivery-ID` | UUID for this request |
+| `Idempotency-Key` | Same UUID as X-Delivery-ID |
+| `X-Webhook-Signature` | When a secret is supplied: `t=<timestamp>,v1=<signature>` |
 
-## Outputs
+The signature is the hexadecimal `HMAC-SHA256(secret, "${timestamp}.${body}")`, using the exact request body. Verify that value against `v1` at the destination.
 
-| Output | Type | Description |
-|--------|------|-------------|
-| `data` | json | Response body from the endpoint |
-| `status` | number | HTTP status code |
-| `headers` | object | Response headers |
+Custom headers can override these defaults. Overriding signing or timestamp headers can break verification. A new request gets a new delivery ID; the key does not deduplicate separate workflow executions automatically.
 
-## Examples
+## Outputs and failures
 
-### Notify an external service
+| Reference | Value |
+| --- | --- |
+| `<webhook.data>` | Endpoint response body |
+| `<webhook.status>` | Successful response's HTTP status |
+| `<webhook.headers>` | Response headers |
 
-<WorkflowPreview workflow={WEBHOOK_NOTIFY_WORKFLOW} />
+Non-2xx responses and request failures use the block's error path. Connect the error port when the workflow should recover.
 
-Format the result, then POST it to a Slack, Discord, or custom endpoint.
-
-### Fire an external process on a check
+## Send only when a condition passes
 
 <WorkflowPreview workflow={WEBHOOK_TRIGGER_WORKFLOW} />
 
-When the Condition passes, the Webhook starts a process in another system.
+Connect the Condition's **if** port to the Webhook to start an external process only for the matching event.
 
-<Callout>
-The Webhook block always uses POST. For other HTTP methods or more control, use the [API block](/workflows/blocks/api).
-</Callout>
+The Webhook block always uses POST. Use [API](/workflows/blocks/api) for another HTTP method, retry controls, or proxy configuration.
+
+## Related docs
+
+- [Webhook trigger](/workflows/triggers/webhook)
+- [API](/workflows/blocks/api)
+- [Credentials and secrets](/platform/credentials)

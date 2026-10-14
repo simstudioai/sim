@@ -1,44 +1,65 @@
 ---
 title: Google Meet
-description: Search recent conference transcripts and find generated meeting notes
+description: Find recent transcripts and generated-note links from Meet conferences
 ---
+
+Google Meet Search finds recent finalized transcripts and generated-note links. It uses **Member accounts** and your Meet permissions. Use Drive for saved note bodies and older documents; use Calendar for scheduled meetings.
 
 ## Connect
 
-An administrator enables **Google Meet → Member accounts** under **Settings → Sources**. In **Integrations**, click **Connect** beside Google Meet, sign in to your Google account, and approve the requested access. Return to Sim and confirm your account appears on the row. Sim uses the existing Google OAuth client and your Meet permissions. No service account is required.
+1. An admin adds **Google Meet → Member accounts** in **Settings → Sources**.
+2. In **Integrations**, select **Connect** beside Google Meet and authorize your Google account. Your Workspace administrator may need to approve the app.
+3. Return to Sim, confirm the account appears, then search a phrase from a recent meeting and read the result.
 
-For self-hosted deployments, enable the **Google Meet REST API** in the Google Cloud project used by Sim, configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and register:
+No service account is required. Search only reads conference records and artifacts, using the connection's `meetings.space.readonly` scope. Its `meetings.space.created` scope supports workflow actions.
+
+## Search recent meetings
+
+Use plain words or a phrase with optional meeting start dates. Native queries support:
+
+| Field | Behavior |
+| --- | --- |
+| `kind: transcript` | Searches finalized speech and participant names. |
+| `kind: smart_notes` | Finds generated-note metadata and a Google Docs link, without searching or returning the note body. |
+| No kind | Searches both artifact types. |
+| `project` | Known `spaces/ID` or meeting code. |
+
+Meet has no title or full-text search endpoint. Sim matches terms locally within at most three recent conferences and five finalized artifacts per call, reporting bounded coverage. Narrow dates or supply a known space; missing results do not establish absence.
+
+Dates use actual conference start, with an exclusive upper bound. Boolean operators, ownership filters, and modification-date filters are unsupported.
+
+## Read transcripts and saved documents
+
+Reads retrieve complete finalized transcripts within request, entry, and byte limits. Speaker attribution and timestamps are preserved. Incomplete reads are rejected rather than presented as complete transcripts. Sim does not process recording audio or generate missing artifacts.
+
+Conference records and transcript entries expire 30 days after the conference ends. Transcription or note-taking must have been enabled. [Meet conference records](https://developers.google.com/workspace/meet/api/reference/rest/v2/conferenceRecords), [artifact retention](https://developers.google.com/workspace/meet/api/guides/artifacts).
+
+Connect **Google Drive** to read saved transcripts and note bodies, including older shared documents remaining in the organizer's Drive. Use a Drive query such as `fullText contains 'rollback' and mimeType = 'application/vnd.google-apps.document'`. Drive dates mean modification time, not meeting dates; document sharing and retention still apply.
+
+Connect **Google Calendar** for scheduled meetings and invitations. A calendar event does not prove a transcript or recording exists.
+
+## Disconnect and troubleshoot
+
+Disconnect through the **…** menu beside Google Meet in **Integrations** and confirm. Workflows using the connection lose access too. This does not delete Drive transcripts or notes.
+
+| Problem | Check |
+| --- | --- |
+| Connect unavailable or permission denied | Ask an admin to enable the source and complete Google OAuth setup; Workspace app approval may also be needed. |
+| **Reconnect** needed | Authorize the account again. |
+| Transcript missing | Check meeting dates/space, transcription settings, and the 30-day API window. Use Drive for older saved documents and note bodies. |
+
+## Self-hosted operator setup
+
+Follow [Google OAuth setup](/platform/self-hosting/integrations-oauth#google), enable **Google Meet REST API**, and configure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Register:
 
 ```text
 https://<your-sim-domain>/api/auth/oauth2/callback/google-meet
 ```
 
-The existing Google Meet connection includes `meetings.space.readonly`, which authorizes these reads, and `meetings.space.created` for workflow actions. Search only reads conference records and artifacts. Google Workspace administrators may need to approve the app.
+The Meet scopes are sensitive. External OAuth apps may require Google verification; see [Meet authorization](https://developers.google.com/workspace/meet/api/guides/authenticate-authorize). The canonical setup guide contains the full member scope list and consent steps.
 
-These existing Meet scopes are [sensitive](https://developers.google.com/workspace/meet/api/guides/authenticate-authorize). A self-hosted OAuth app serving external users may need Google verification.
+## Related docs
 
-## Recent transcripts and notes
-
-Use plain words or a phrase, optionally with meeting start dates. `kind: transcript` searches finalized transcript text and participant names. `kind: smart_notes` finds generated-note metadata and a Google Docs link; it does not search or return the note body. Omit the kind to search both. `project` can narrow to a known `spaces/ID` or meeting code.
-
-Meet has no title or full-text search endpoint. Sim matches terms locally within at most 3 recent conferences and 5 finalized artifacts per call. Results explicitly report bounded coverage. Use a narrow date range or known meeting space; missing results do not establish that a meeting or phrase is absent. Boolean operators, ownership filters and modification-date filters are unsupported. Dates use the actual conference start; the upper bound is exclusive.
-
-Reads retrieve complete finalized transcripts within the request, entry and byte limits. Speech stays attributed to the participant and timestamp. Sim rejects incomplete reads instead of presenting truncated text as a complete transcript.
-
-[Meet conference records](https://developers.google.com/workspace/meet/api/reference/rest/v2/conferenceRecords) and [transcript entries](https://developers.google.com/workspace/meet/api/guides/artifacts) expire 30 days after the conference ends. Transcription or note-taking must have been enabled during the meeting. Sim does not generate a missing transcript or process recording audio.
-
-## Saved documents and scheduled meetings
-
-Connect **Google Drive** to read saved meeting notes and transcripts, including older documents that remain in the organizer's Drive. Use Drive's native query syntax, such as `fullText contains 'rollback' and mimeType = 'application/vnd.google-apps.document'`, then read the result. Drive dates mean file modification time, not the meeting date. Normal document sharing and retention rules apply.
-
-Use **Google Calendar** to search scheduled meetings and invitations. An event on the calendar does not establish that a Meet transcript or recording exists.
-
-## Disconnect and troubleshoot
-
-To disconnect, open **Integrations**, use the **…** menu beside Google Meet, choose **Disconnect** for your account, and confirm. Any workflows using that connection also lose access. This does not delete transcripts or notes from Google Drive.
-
-- **Connect is unavailable or permission is denied:** ask your Sim administrator to enable the source and finish Google OAuth setup. Your Google Workspace administrator may need to approve the app.
-- **Reconnect needed:** use **Reconnect** beside Google Meet and authorize the account again.
-- **No matching transcript:** narrow to the meeting's dates or space, confirm transcription was enabled, and check whether the conference is within the API's 30-day window. Use Google Drive for saved or older documents and the bodies of smart notes.
-
-For help, contact [help@sim.ai](mailto:help@sim.ai).
+- [Google Drive](/search/google-drive)
+- [Google Calendar](/search/google-calendar)
+- [Contact support](mailto:help@sim.ai)

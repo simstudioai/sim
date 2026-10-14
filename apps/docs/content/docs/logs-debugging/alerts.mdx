@@ -5,6 +5,10 @@ description: Send an alert when a watched workflow fails or exceeds an operation
 
 Use a [Sim Workspace Events trigger](/workflows/triggers/sim) to run an alert workflow when another workflow fails, slows down, exceeds a cost threshold, or goes quiet. Add delivery blocks for the channel you use, such as Slack, email, or an incident API.
 
+## Before you start
+
+You need permission to create and deploy the alert workflow, a credential for its delivery service, and a watched test workflow where you can reproduce the condition.
+
 ## Example: notify Slack after repeated failures
 
 1. Create a workflow with **Sim Workspace Events** as its trigger.
@@ -18,12 +22,23 @@ Workflow <workspaceevent.workflowName> has failed repeatedly.
 Latest run: <workspaceevent.triggeringRun.runId>
 ```
 
-6. Deploy the alert workflow to activate it. Trigger representative failures in a watched test workflow, then inspect the alert workflow's [run log](/logs-debugging) and the Slack message.
+6. Deploy the alert workflow to activate it.
+
+## Verify the alert
+
+Trigger three consecutive failures in a watched test workflow. Inspect the alert workflow's [run log](/logs-debugging), confirm its delivery block completed, and check the Slack message for the source workflow and run ID.
 
 ## Choose another condition
 
 Choose **Run Error** to respond to each failed run. Other conditions include failure rate, error count, latency, cost, and inactivity. Cost thresholds use credits. See the [event and rule reference](/workflows/triggers/sim) for settings, defaults, and event-specific outputs.
 
-Rule-based subscriptions have a one-hour cooldown after firing; plain events such as Run Error do not. Rate-based rules need at least five runs in their window. A subscription does not receive events about its own workflow, and runs started by this trigger do not emit new workspace events.
+Run-backed alert rules have a one-hour cooldown after firing. **No Activity** has a per-watched-workflow cooldown of at least one hour or the inactivity window, whichever is longer. Plain events such as Run Error have no rule cooldown. Rate-based rules need at least five runs in their window. A subscription does not receive events about its own workflow, and runs started by this trigger do not emit new workspace events.
 
-Delivery behavior comes from the action blocks you configure. If an alert is missing, check that the alert workflow is deployed, the source workflow matches its filter, the condition and cooldown allow it to fire, and the delivery block completed successfully.
+## If an alert is missing
+
+Delivery behavior comes from the action blocks you configure. Check that the alert workflow is deployed, the source workflow matches its filter, the condition and cooldown allow it to fire, and the delivery block completed successfully.
+
+## Related docs
+
+- [Sim Workspace Events](/workflows/triggers/sim) for event settings and outputs
+- [Logs](/logs-debugging) for tracing a failed alert run

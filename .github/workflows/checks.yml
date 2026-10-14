@@ -162,7 +162,7 @@ jobs:
 
       - name: Upload integration test reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integration-reports-${{ matrix.provision }}-${{ matrix.shard }}
           path: |
@@ -251,7 +251,7 @@ jobs:
 
       - name: Upload end-to-end reports and server logs
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: http-e2e-${{ matrix.group }}
           path: ${{ runner.temp }}/e2e/
@@ -308,7 +308,7 @@ jobs:
         run: bun run db:migrate
 
       - name: Download the production build
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: next-build
           path: ${{ runner.temp }}
@@ -331,7 +331,7 @@ jobs:
 
       - name: Upload end-to-end reports and server logs
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: http-e2e-mobile-${{ matrix.browser }}
           path: ${{ runner.temp }}/e2e/
@@ -525,7 +525,7 @@ jobs:
 
       - name: Upload Electron E2E results and server logs
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-live-e2e-results-${{ matrix.tests }}
           path: ${{ runner.temp }}/e2e/
@@ -718,7 +718,7 @@ jobs:
 
       - name: Upload compiler output and counts
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-types
           path: ${{ runner.temp }}/test-types/
@@ -764,7 +764,7 @@ jobs:
 
       - name: Upload shell placeholder execution report
         if: failure() && matrix.shard == 1
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: shell-placeholders
           path: ${{ runner.temp }}/shell-placeholders.json
@@ -916,7 +916,7 @@ jobs:
       # this job replace the earlier attempt's build; three days covers re-running a failed shard
       # after a weekend.
       - name: Upload the build for e2e-mobile
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: next-build
           path: ${{ runner.temp }}/next-build.tar.zst

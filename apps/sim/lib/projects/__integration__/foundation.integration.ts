@@ -48,6 +48,7 @@ import { archiveProjectInTransaction } from '@/lib/projects/lifecycle'
 import {
   createProjectRecord,
   lockProject,
+  lockWorkspaceProject,
   splitForkProject,
   transferWorkspaceProjects,
 } from '@/lib/projects/membership'
@@ -1295,6 +1296,33 @@ describe('Project foundation at the database and application boundary', () => {
       )
       const [record] = await db.select().from(project).where(eq(project.id, f.projectId))
       expect(record.archivedAt).toBeNull()
+    }
+  )
+
+  check(
+    'file writers in sibling environments share the Project lock that still fences a lifecycle holder',
+    async () => {
+      const f = await fixture(false)
+      const held = createDeferred<number>()
+      const release = createDeferred<void>()
+      const writer = db.transaction(async (tx) => {
+        await lockWorkspaceProject(tx, f.ids[0])
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        held.resolve(connection.pid)
+        await release.promise
+      })
+      const blocker = await held.promise
+      let lifecycle: Promise<void> | undefined
+      try {
+        const sibling = await db.transaction((tx) => lockWorkspaceProject(tx, f.ids[1]))
+        expect(sibling?.id).toBe(f.projectId)
+        lifecycle = db.transaction((tx) => lockProject(tx, f.projectId))
+        await waitUntilBlockedBy(blocker, "lock='project'")
+      } finally {
+        release.resolve()
+        await writer
+      }
+      await lifecycle
     }
   )
 

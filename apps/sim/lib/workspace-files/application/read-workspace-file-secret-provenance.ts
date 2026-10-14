@@ -6,6 +6,7 @@ import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { workspaceFileProvenanceIdentity } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -39,9 +40,7 @@ export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUs
     await admitContent(principal, [])
     return {
       provenance: await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
-        fileId: file.id,
-        key: file.key,
-        context: 'workspace',
+        ...workspaceFileProvenanceIdentity(file),
         contentUpdatedAt: input.expectedContentUpdatedAt,
       }),
       ownerUserId: file.uploadedBy,

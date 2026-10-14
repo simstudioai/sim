@@ -35,7 +35,9 @@ import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-tra
 import { createCleanupBudgets } from '@/lib/cleanup/limits'
 import { beginFileArchiveCleanup, cleanupFileVersions } from '@/lib/file-retention'
 import { loadProjectAccess } from '@/lib/projects/application/authorization'
+import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { deleteWorkspaceFileVersionInTx } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { deleteFile, downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import type { FileOwner } from '@/lib/workspace-files/ownership'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
@@ -226,6 +228,65 @@ async function cleanupEvents(entityId: string, kind = 'project') {
 }
 
 describe('Project file retention follows the current payer in PostgreSQL', () => {
+  check(
+    'workspace retention reranks history after a concurrent version deletion commits',
+    async () => {
+      const f = await fixture()
+      const seeded = await seedFile(f, 40 * 24, false, 'workspace')
+      const acquired = createDeferred<number>()
+      const release = createDeferred<void>()
+      const deletion = db.transaction(async (tx) => {
+        await lockWorkspaceProject(tx, f.workspaceId)
+        await tx
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.id, seeded.fileId))
+          .for('update')
+        expect(await deleteWorkspaceFileVersionInTx(tx, seeded.fileId, 11)).toMatchObject({
+          status: 'deleted',
+        })
+        const result = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        acquired.resolve(result[0].pid)
+        await release.promise
+      })
+      const pid = await Promise.race([
+        acquired.promise,
+        deletion.then(() => {
+          throw new Error('Deletion ended before acquiring its lock')
+        }),
+      ])
+      const cleanup = cleanupFileVersions(
+        [{ entityType: 'workspace', entityId: f.workspaceId }],
+        { plan: 'free', cutoff: new Date(), label: 'history-rerank' },
+        100
+      )
+      const settled = Promise.allSettled([deletion, cleanup])
+      try {
+        await expect
+          .poll(
+            async () => {
+              const rows =
+                await control`SELECT pid FROM pg_stat_activity WHERE ${pid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`
+              return rows.length
+            },
+            { timeout: 3000 }
+          )
+          .toBe(1)
+      } finally {
+        release.resolve()
+        await settled
+      }
+      expect((await settled).filter((result) => result.status === 'rejected')).toEqual([])
+      expect(await cleanup).toBe(1)
+      expect((await versions(seeded.fileId)).map(({ version }) => version)).toEqual([
+        2, 3, 4, 5, 6, 7, 8, 9, 10, 12,
+      ])
+      const events = await cleanupEvents(f.workspaceId, 'workspace')
+      expect(events).toHaveLength(1)
+      expect(events[0].payload).toMatchObject({ key: seeded.keys[0] })
+    }
+  )
+
   check(
     'unsupported file owners reject the whole batch before any history or archive deletion',
     async () => {
@@ -585,15 +646,17 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       )
     )
     try {
-      await runCleanupSoftDeletes(
-        {
-          workspaceIds: [f.workspaceId],
-          plan: 'free',
-          retentionHours: 30 * 24,
-          label: 'workspace-folder-rollback',
-        },
-        createCleanupBudgets({ folders: 1 })
-      ).catch(() => undefined)
+      await expect(
+        runCleanupSoftDeletes(
+          {
+            workspaceIds: [f.workspaceId],
+            plan: 'free',
+            retentionHours: 30 * 24,
+            label: 'workspace-folder-rollback',
+          },
+          createCleanupBudgets({ folders: 1 })
+        )
+      ).rejects.toMatchObject({ cause: { message: 'folder retention rollback fixture' } })
       const [child] = await db
         .select({ parentId: folder.parentId, name: folder.name })
         .from(folder)
@@ -628,6 +691,11 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       const restore = createDeferred<void>()
       const authority = db.transaction(async (tx) => {
         await loadProjectAccess(tx, f.ownerId, { projectId: f.projectId })
+        await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.id, f.workspaceId))
+          .for('share')
         const result = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
         acquired.resolve(result[0].pid)
         await restore.promise

@@ -16,6 +16,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { sha256Hex } from '@sim/security/hash'
+import { createExecutorPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { eq, inArray } from 'drizzle-orm'
@@ -34,6 +35,12 @@ import { observeContentDelivery } from '@/lib/core/application'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
+  PRIVATE_TOOL_METADATA_REQUEST_HEADER,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
+import { listDocumentsOperation } from '@/lib/internal/knowledge/operations'
+import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
@@ -51,6 +58,7 @@ import {
   readDetailedKnowledgeTagUsage,
   readKnowledgeTagUsage,
 } from '@/lib/knowledge/application/tags'
+import * as documentService from '@/lib/knowledge/documents/service'
 import {
   bindKnowledgeDocumentFieldSecretProvenance,
   classifyKnowledgeDocumentMetadata,
@@ -63,6 +71,7 @@ import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const SECRET = 'fixture-knowledge-token-41875'
@@ -95,6 +104,7 @@ async function seedDocument(
     content?: string
     provenance?: DurableSecretProvenance
     original?: boolean
+    contentHash?: string | null
   } = {}
 ) {
   const content = options.content ?? 'page public content'
@@ -105,6 +115,7 @@ async function seedDocument(
       id,
       knowledgeBaseId: ids.knowledgeBaseId,
       filename: options.name ?? 'page.txt',
+      contentHash: options.contentHash ?? null,
       fileUrl:
         options.original === false
           ? ''
@@ -229,6 +240,81 @@ afterAll(async () => {
 })
 
 describe('knowledge content delivery', () => {
+  it.each([null, sha256Hex('stable connector source')])(
+    'keeps workflow list provenance complete for an unchanged document with content hash %s',
+    async (contentHash) => {
+      const doc = await seedDocument({
+        name: `${SECRET}.txt`,
+        contentHash,
+        provenance: bindKnowledgeDocumentFieldSecretProvenance(exact, 'filename', `${SECRET}.txt`),
+      })
+      const context = {
+        principal: createExecutorPrincipal({
+          subjectUserId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+          audience: KNOWLEDGE_DELEGATION_AUDIENCE,
+          delegationContext: { kind: 'workflow_execution' as const, workflowId: generateId() },
+        }),
+        headers: new Headers({
+          [PRIVATE_TOOL_METADATA_REQUEST_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        }),
+      }
+      const result = await listDocumentsOperation(
+        ids.knowledgeBaseId,
+        { limit: 50, offset: 0 },
+        context
+      )
+      const provenance = result.bodyFields?.[RESOLVED_SECRET_PROVENANCE_FIELD]
+      expect(provenance).toMatchObject({ complete: true })
+      expect(result.body).toMatchObject({
+        data: { documents: [{ id: doc.id, filename: `${SECRET}.txt` }] },
+      })
+      expect(JSON.stringify(result.body)).not.toContain('contentHash')
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+      })
+      expect(await registry.importProvenance(provenance, { trusted: true })).toBe(true)
+      const projected = projectResolvedSecretModelContent(result.body, registry)
+      expect(projected.safe).toBe(true)
+      expect(JSON.stringify(projected)).toContain('{{FIXTURE_TOKEN}}.txt')
+      expect(JSON.stringify(projected)).not.toContain(SECRET)
+
+      const read = documentService.getDocuments
+      const replace = vi
+        .spyOn(documentService, 'getDocuments')
+        .mockImplementation(async (...args) => {
+          const snapshot = await read(...args)
+          await db.transaction(async (tx) => {
+            const [replacement] = await tx
+              .update(document)
+              .set({ contentHash: sha256Hex('replacement connector source') })
+              .where(eq(document.id, doc.id))
+              .returning()
+            await replaceKnowledgeDocumentSecretProvenanceInTx(
+              tx,
+              doc.id,
+              createKnowledgeDocumentSourceValue(replacement),
+              bindKnowledgeDocumentFieldSecretProvenance(exact, 'filename', `${SECRET}.txt`)
+            )
+          })
+          return snapshot
+        })
+      try {
+        const changed = await listDocumentsOperation(
+          ids.knowledgeBaseId,
+          { limit: 50, offset: 0 },
+          context
+        )
+        expect(changed.bodyFields?.[RESOLVED_SECRET_PROVENANCE_FIELD]).toMatchObject({
+          complete: false,
+        })
+      } finally {
+        replace.mockRestore()
+      }
+    }
+  )
+
   it('classifies a mixed metadata page without materializing multiple inline originals together', async () => {
     const content = 'inline source content '.repeat(8192)
     const legacy = await seedDocument({ content })

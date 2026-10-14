@@ -1,19 +1,24 @@
 ---
 title: Scripting
-description: File and stdin inputs, list flags, pagination, exit codes, and automation recipes
+description: Pass inputs, paginate results, and handle run and mutation outcomes in scripts.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Use these patterns to pass inputs, page through results, and handle command outcomes.
+Use JSON output and explicit authentication/workspace settings for unattended commands. Enable pipeline failure handling in shell scripts so a failed command is not hidden by a successful parser:
+
+```bash
+set -euo pipefail
+export SIM_API_KEY="${SIM_API_KEY:?missing}"
+export SIM_WORKSPACE="${SIM_WORKSPACE:?missing}"
+export SIM_OUTPUT=json
+```
+
+See [Authentication](/cli/authentication#authenticating-ci) for CI setup. Examples below assume Bash and `jq`.
 
 ## Reading input from files and stdin
 
-Any flag that takes JSON or a list also accepts `@path` to read a file, or `@-`
-to read stdin.
-
-When Sim runs a command for you, `@path` reads from the chat's sandbox, not from
-workspace Files. Use `sim files read` for a workspace path.
+JSON flags and primitive-list flags accept `@path` to read a file or `@-` to read stdin:
 
 ```bash
 sim workflows import --workflow @wf.json
@@ -21,10 +26,13 @@ sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --filter @filter.json
 cat wf.json | sim workflows import --workflow @-
 ```
 
+JSON input and the assembled JSON request body have a 10 MiB limit. JSON flags require JSON, including workflow imports; YAML exports must be converted before import. File-aware text flags, such as secret `--value`, are identified in the command reference; ordinary string flags do not all support file input.
+
+When Sim runs a command inside Chat, `@path` reads the Chat sandbox rather than workspace Files. Use `sim files read` for workspace file content. That embedded invocation has no stdin, so use `@path` or inline input instead of `@-`.
+
 ## List flags
 
-Primitive lists take space-separated values. With `@`, the file supplies one
-value per line:
+Primitive lists use space-separated values. An input file supplies one value per line:
 
 ```bash
 sim files mv --file-ids wf_3Qm8ZtLpR2yVnKd7BsXwC wf_5Hn1JvTqW9xUcMb4RzPgL --to Archive
@@ -32,26 +40,22 @@ sim files mv --file-ids @file-ids.txt --to Archive
 printf 'wf_3Qm8ZtLpR2yVnKd7BsXwC\nwf_5Hn1JvTqW9xUcMb4RzPgL\n' | sim files mv --file-ids @- --to Archive
 ```
 
-Arrays of objects stay JSON.
+Empty list entries are rejected. Arrays of objects remain JSON. Dependency-manifest flags can ignore blank lines and `#` comments; this exception does not apply to every list file.
 
 ## Passing a literal leading `@`
 
-Because `@` introduces a file reference, a value that genuinely starts with one
-is written `@@`. Only the leading `@` is dropped, and every `@`-aware flag
-accepts the escape:
+File-aware flags interpret a leading `@` as a file reference. Write `@@` to pass a literal leading `@`; only the first character is removed:
 
 ```bash
 sim files share set wf_3Qm8ZtLpR2yVnKd7BsXwC --is-active true --auth-type email --allowed-emails @@example.org
 sim secrets set API_HOST --scope workspace --value @@internal
 ```
 
-Without it, `--allowed-emails @example.org` can only be read as a request to
-open a file named `example.org`.
+Without escaping, `--allowed-emails @example.org` tries to open a file named `example.org`.
 
 ## Filtering table rows
 
-`--filter` takes the same predicate tree the API uses: `all` (AND) or `any` (OR)
-groups of `{field, op, value}` conditions, nestable.
+`--filter` accepts a predicate tree. Use `all` for AND, `any` for OR, and `{field, op, value}` for a condition. Groups can be nested:
 
 ```bash
 sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 \
@@ -60,11 +64,9 @@ sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 \
   --limit 50
 ```
 
-Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`,
-`ncontains`, `startsWith`, `endsWith`, `like`, `ilike`, `nlike`, `nilike`,
-`isEmpty`, `isNotEmpty`, `isNull`, `isNotNull`.
+Operators are `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `nin`, `contains`, `ncontains`, `startsWith`, `endsWith`, `like`, `ilike`, `nlike`, `nilike`, `isEmpty`, `isNotEmpty`, `isNull`, and `isNotNull`. Supported operators depend on the column type. Omit `value` for the empty/null checks.
 
-`--sort` is also JSON, an ordered list of keys:
+`--sort` is an ordered JSON list:
 
 ```bash
 sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --sort '[{"field":"createdAt","direction":"desc"}]'
@@ -72,196 +74,148 @@ sim tables rows query tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --sort '[{"field":"cr
 
 ## Pagination
 
-Resource lists and directory `ls` follow every page by default. Pass `--limit N`
-to cap the returned items:
+Inventory commands such as `workflows list` and `files list`, and resource directory `ls`, fetch all pages by default. Use a limit for a smaller result:
 
 ```bash
 sim workflows list --output json
 sim files ls /Reports --limit 50
 ```
 
-Table rows (including queries), logs, audit/billing events, workflow runs and
-versions, and knowledge documents/chunks retain a default limit of `100`.
-Connector document lists also use this cap. Use `--limit 0` to fetch every page
-of a large dataset:
+Data/history lists default to 100 items, including table rows and queries, logs, audit/billing events, workflow runs/versions, and knowledge documents/chunks. Connector document lists and other bounded collections also use this default. The command reference states each invocation's limit; these CLI limits differ from API per-page defaults.
+
+`--limit 0` fetches every remaining page:
 
 ```bash
 sim logs list --limit 0 --output json > all-logs.json
 ```
 
-Pages are fetched sequentially, accumulated in memory, and printed as one
-result. A large table can consume substantial memory; use filters or an explicit
-limit when you only need a subset. Each API request fetches at most 100 items.
+Pages are fetched sequentially, accumulated in memory, and printed as one result. Each paginated API request fetches at most 100 items. For large datasets, use filters or an explicit limit.
 
-Paginated JSON and YAML results have the shape `{ data: [...], nextCursor }`.
-`nextCursor` is the cursor after the last returned row, or `null` when all pages
-have been fetched. Scripts that read list rows should use `.data[]`:
+Paginated JSON/YAML output has `{ data: [...], nextCursor }`. The cursor follows the last returned row; null ends pagination:
 
 ```bash
 sim logs list --output json | jq -r '.data[].runId'
 ```
 
-The capped dataset commands accept `--cursor` to resume from the previous
-result's `nextCursor`. Keep the same resource, filters, and sort order, and stop
-when the cursor is `null`:
+Commands with `--cursor` can continue from the previous result. Keep the same scope, resource, filters, and sort order:
 
 ```bash
-sim tables rows list tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 100 --output json
-sim tables rows list tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 100 --cursor "$nextCursor" --output json
-```
-
-`--limit` applies to each invocation starting at its cursor. `--limit 0` with
-`--cursor` fetches every remaining page. Table-row queries, logs (including
-billing and audit logs), workflow run/version histories, and knowledge
-document/chunk lists all support this continuation.
-
-## Organization access and invitations
-
-Organization commands use `--organization`; workspace commands use `--workspace`
-or the active profile. Use `userId` from `organizations members list` or
-`workspaces members list` for member credit limits, including external collaborators.
-
-`access-requests mine` shows your requests in the selected scope. Organization
-`access-requests list` is the administrator inbox across all organization workspaces.
-Use discovery to find the exact target to submit:
-
-```bash
-sim workspaces access-requests discover --workspace "$workspace_id" --state requestable --output json
-sim workspaces access-requests create --workspace "$workspace_id" \
-  --target '{"kind":"feature","configKey":"hideTablesTab"}' --reason 'Maintain team data'
-sim workspaces access-requests mine --workspace "$workspace_id"
-```
-
-Administrators preview a request before approving it. Inspect `canApply`, `changes`,
-and `impact`: permission approvals change the governing group for all affected
-members. Pass the reviewed fingerprint explicitly; a conflict means you need a
-new preview.
-
-```bash
-sim organizations access-requests preview "$request_id" --organization "$organization_id" --output json > preview.json
-sim organizations access-requests resolve "$request_id" --organization "$organization_id" \
-  --action apply --expected-fingerprint "$(jq -r '.fingerprint' preview.json)"
-```
-
-For a credit-cap request, applying also requires `--new-limit-credits` greater than
-the current cap. To decline instead, use `--action decline --reason 'Explanation'`.
-
-Administrators can also set a cap directly. `0` prevents further credit-consuming
-usage; `null` removes only the per-person cap, so organization limits still apply:
-
-```bash
-sim organizations members usage-limit update "$user_id" --organization "$organization_id" --credit-limit 5000
-sim organizations members usage-limit update "$user_id" --organization "$organization_id" --credit-limit null
-```
-
-Workspace invitations accept a list of up to 50 emails. Recipients are processed
-independently. If any fail, the CLI prints the full result and exits `1`; successful
-invitations and grants remain committed. Inspect `failed` and current invitations
-before retrying, especially when delivery could not be confirmed.
-
-```bash
-sim workspaces invitations create --workspace "$workspace_id" \
-  --emails alex@example.com sam@example.com --permission write --membership member --output json
-```
-
-## Destructive commands
-
-Deletions require an explicit selector **and** `--yes`. There is no "delete
-everything" default:
-
-```bash
-sim tables rows batch-delete tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --row row_2f81c0a94db54e6f8a13c7e0526bd94a row_6b3e59d0af1c42d7b80e94f3a271c568 --yes
-sim files delete wf_8Kd2NpVrY6zTfQa3XwBmS --yes
-```
-
-Without `--yes` the command explains what it would have destroyed and stops.
-
-<Callout type="warn">
-On `batch-delete` and `batch-update`, `--limit` has no default and is not a page
-size — it is a ceiling on how many matching rows the one call may touch. Leave it
-off and the command acts on **every** row the filter matches, however many that
-is. `--limit 0` is not the unbounded form here and is rejected; pass a whole
-number of 1 or more to cap the blast radius, or omit the flag deliberately.
-</Callout>
-
-## Exit codes
-
-| Code | Meaning |
-| --- | --- |
-| `0` | Success |
-| `1` | API/configuration/argument failure, or a failed workflow when using `workflows runs wait` |
-| `2` | `whoami`: no verification verdict; `workflows runs wait`: the run was cancelled |
-| `3` | `workflows runs wait`: the run is paused for human input |
-| `4` | `workflows runs wait`: the wait timed out |
-| `130` | Interactive secret entry was cancelled with Ctrl-C |
-
-Errors print one line to stderr, prefixed `Error:`, plus the API's error code and
-validation details when it supplies them. Failures are safe to branch on:
-
-```bash
-if ! sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json > result.json; then
-  echo "run failed" >&2
-  exit 1
+sim tables rows list tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 100 --output json > page.json
+if next_cursor=$(jq -er '.nextCursor' page.json); then
+  sim tables rows list tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --limit 100 --cursor "$next_cursor" --output json
 fi
 ```
 
-An unexpected error prints a stack trace — that is a bug in the CLI, so please
-[open an issue](https://github.com/simstudioai/sim/issues).
+Run the next command only when the cursor is non-null. `--limit` applies to each invocation starting at its cursor; `--limit 0 --cursor ...` fetches all remaining pages. Table-row queries, logs, billing/audit logs, workflow run/version histories, and knowledge document/chunk lists support continuation.
 
-`sim whoami` splits its failure in two because the fixes differ: `1` means the
-credentials are wrong and a fresh `sim login` is the answer, while `2` means the
-CLI never got a verdict — no workspace to check against, or an endpoint that did
-not answer — and logging in again would not help.
+## Exit codes
+
+Results go to stdout; diagnostics go to stderr. JSON/YAML modes serialize API errors as `{error:{code,message,details?}}`. Display formats use `Error:` plus any supplied code/details. Configuration and argument-parser errors, run-wait outcome messages, and unexpected stack traces can remain text. Do not assume every stderr stream is a single JSON document.
+
+Most successful actions exit 0; API, configuration, or argument failures exit 1. Interactive secret entry cancelled with Ctrl-C exits 130. Other outcomes are command-specific:
+
+| Code | `sim whoami` |
+| --- | --- |
+| `0` | Verified, or verification skipped with `--no-verify` |
+| `1` | Missing credential or definitive refusal, including workspace access |
+| `2` | No verification verdict: unset workspace or unreachable endpoint |
+
+| Code | `sim workflows runs wait` |
+| --- | --- |
+| `0` | Completed |
+| `1` | Failed run or command/request failure |
+| `2` | Cancelled run |
+| `3` | Human pause or unspecified pause kind; input is needed |
+| `4` | Wait timed out |
+
+| Code | Workspace operation wait, or import/fork/push/pull with `--wait` |
+| --- | --- |
+| `0` | Completed, including completion with warnings |
+| `1` | Failed completion or command/request failure |
+| `3` | Committed operation requires configuration |
+| `4` | Wait timed out |
+
+Both waits default to 3600 seconds; `--wait-timeout 0` waits indefinitely. `SIM_TIMEOUT_SECONDS` independently bounds one API request. A timeout does not cancel the underlying run or operation.
+
+A synchronous or followed workflow run prints its result before exiting 1 for failure/cancellation. A paused run is not failed and can return 0; use `runs wait` or inspect status if your script requires completion. Fetching a failed run or listing runs only reports their state.
+
+Capture a failure without losing its output:
 
 ```bash
-sim whoami > /dev/null
-case $? in
-  0) ;;                                  # ready
-  1) echo "run: sim login" >&2; exit 1 ;;
-  2) echo "endpoint unreachable, retrying later" >&2; exit 75 ;;
-esac
+if sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --output json > result.json; then
+  printf 'command succeeded\n'
+else
+  status=$?
+  printf 'command exited %s; inspect result.json and stderr\n' "$status" >&2
+  exit "$status"
+fi
 ```
+
+For verification failures, inspect the endpoint, credential, and workspace before logging in again:
+
+```bash
+if sim whoami --output json > identity.json; then
+  :
+else
+  status=$?
+  case "$status" in
+    1) printf 'profile refused; inspect identity.json\n' >&2 ;;
+    2) printf 'verification incomplete; check workspace and endpoint\n' >&2 ;;
+  esac
+  exit "$status"
+fi
+```
+
+See [Troubleshooting](/cli/troubleshooting) for recovery and reporting unexpected failures.
+
+## Polling a long run
+
+Start asynchronously, retain the run ID, then wait:
+
+```bash
+run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --async --output json | jq -er '.runId')
+sim workflows runs wait "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --wait-timeout 3600 --output json
+```
+
+Time-based pauses continue waiting. Human or unspecified pauses return exit 3 and include the pause context needed by `sim workflows runs resume`. Inspect the saved result before resuming; use `sim logs get "$run_id" --trace --output table` for diagnostics.
+
+Starting another run is not an idempotent retry of the first. After a lost response or wait timeout, inspect the existing run rather than starting another execution blindly.
 
 ## Selecting workflow output
 
-`--select-output` returns the named values in `blockOutputs` on a sync run, or
-from the streamed result with `--follow`. It cannot be combined with `--async`.
-It takes `blockName.field` selectors; fields that a run did not produce are
-simply omitted:
+`--select-output` returns named values in `blockOutputs` on a synchronous run or its streamed result with `--follow`. It cannot be combined with `--async`. Use `blockName.field` selectors; outputs not produced by the run are omitted:
 
 ```bash
 sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --follow --select-output agent_1.content --output json
 ```
 
-To narrow a run that has already finished, read it back with
-`workflows runs get`, which takes the same `blockName.path` or `blockId.path`
-selectors; names resolve against the workflow's current blocks:
+For a finished run, `runs get` accepts `blockName.path` or `blockId.path`. Names resolve against the workflow's current blocks:
 
 ```bash
 sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 \
   --select-output 1d4c8f02-7b63-4a19-8e52-63f0a7c5d9b1.content --output json
 ```
 
-## Polling a long run
+## Destructive commands
 
-Start the run asynchronously, then use the CLI’s wait command:
+Deletion requires an explicit target and `--yes`; omission does not select everything:
 
 ```bash
-run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --async --output json | jq -r '.runId')
-sim workflows runs wait "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --wait-timeout 3600 --output json
+sim tables rows batch-delete tbl_9f3c1a05d4b7426e8c2f0917ab35de64 --row row_2f81c0a94db54e6f8a13c7e0526bd94a row_6b3e59d0af1c42d7b80e94f3a271c568 --yes
+sim files delete wf_8Kd2NpVrY6zTfQa3XwBmS --yes
 ```
 
-The command polls until the run completes, fails, is cancelled, or pauses for
-human input. Time-based pauses continue waiting. Its exit code identifies the
-outcome; `--wait-timeout 0` waits indefinitely.
+Without confirmation, the command explains the consequence and stops. Commands that support a non-writing `--dry-run` do not require `--yes` for that preview.
 
-Use `sim logs get "$run_id" --trace` for full diagnostics. A run paused for human
-input includes the context ID needed by `sim workflows runs resume`.
+<Callout type="warn">
+For row `batch-delete` and `batch-update`, `--limit` caps how many matching rows one call may change. It has no default: omission affects every matching row. `--limit 0` is rejected; use a whole number of at least 1. On `batch-delete`, an explicit `--row` list cannot be combined with this filter cap.
+</Callout>
+
+Other commands require confirmation for replacement or cancellation too. Read the [command reference](/cli/reference) for consequences, including chat-setting resets and partial table imports. Cancelling an import does not undo rows already written; replace mode clears the table before loading.
 
 ## Working with folders
 
-Every folder-backed resource — `workflows`, `tables`, `files`, `knowledge` —
-shares the same path commands:
+Workflow, table, file, and knowledge-base directories share path commands:
 
 ```bash
 sim tables ls Reports
@@ -270,11 +224,48 @@ sim tables folders mv Reports/Quarterly Archive/Quarterly
 sim tables folders delete Archive --recursive --yes
 ```
 
-`ls` lists the resources at a path plus that folder's direct children, never
-deeper. Its `ref` column is the value to pass to the next command. Use `list` for
-resources only, or `folders ls` for folders only. A leading `/` is optional.
+`ls` lists resources at a path and that folder's direct children. It does not descend further. Pass the displayed `ref` to the next command. Use `list` for resources only or `folders ls` for folders only. A leading `/` is optional.
+
+## Organization access and invitations
+
+Organization commands use `--organization`; workspace commands use `--workspace` or the active profile. Get `userId` from `organizations members list` or `workspaces members list` when setting member credit caps, including external collaborators.
+
+`access-requests mine` shows your requests in the selected scope. Organization `access-requests list` is the Admin inbox across organization workspaces. Discover the target before submitting:
+
+```bash
+sim workspaces access-requests discover --workspace "$workspace_id" --state requestable --output json
+sim workspaces access-requests create --workspace "$workspace_id" \
+  --target '{"kind":"feature","configKey":"hideTablesTab"}' --reason 'Maintain team data'
+sim workspaces access-requests mine --workspace "$workspace_id"
+```
+
+An Admin previews a request before applying it. Inspect `canApply`, `changes`, and `impact`: a permission approval changes the governing group for all affected members. Apply the reviewed fingerprint; a conflict requires a new preview:
+
+```bash
+sim organizations access-requests preview "$request_id" --organization "$organization_id" --output json > preview.json
+sim organizations access-requests resolve "$request_id" --organization "$organization_id" \
+  --action apply --expected-fingerprint "$(jq -er '.fingerprint' preview.json)"
+```
+
+Applying a credit-cap request also requires `--new-limit-credits` greater than the current cap. To decline, use `--action decline --reason 'Explanation'`.
+
+An Admin can set a cap directly. Zero prevents further credit-consuming usage; `null` removes only the per-person cap, leaving organization limits in effect:
+
+```bash
+sim organizations members usage-limit update "$user_id" --organization "$organization_id" --credit-limit 5000
+sim organizations members usage-limit update "$user_id" --organization "$organization_id" --credit-limit null
+```
+
+Workspace invitations accept up to 50 emails. Recipients are processed independently. Any failure makes the CLI print the full result and exit 1; successful invitations and grants remain committed. Inspect `failed` and current invitations before retrying, especially when delivery was uncertain:
+
+```bash
+sim workspaces invitations create --workspace "$workspace_id" \
+  --emails alex@example.com sam@example.com --permission write --membership member --output json
+```
 
 ## A nightly job, end to end
+
+This script starts one run, waits for its outcome, and preserves the run ID for recovery. The wait is inside an `if` so `set -e` does not exit before outcome handling:
 
 ```bash title="nightly-digest.sh"
 #!/usr/bin/env bash
@@ -284,10 +275,28 @@ export SIM_API_KEY="${SIM_API_KEY:?missing}"
 export SIM_WORKSPACE="${SIM_WORKSPACE:?missing}"
 export SIM_OUTPUT=json
 
-run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --input '{"source":"nightly"}' | jq -r '.runId')
+workflow_id=3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8
+sim workflows run "$workflow_id" --async --input '{"source":"nightly"}' > started.json
+run_id=$(jq -er '.runId' started.json)
 
-if [ "$(sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 | jq -r '.status')" != "completed" ]; then
-  sim logs get "$run_id" >&2
-  exit 1
+if sim workflows runs wait "$run_id" --workflow "$workflow_id" --wait-timeout 3600 > result.json; then
+  exit 0
+else
+  status=$?
 fi
+
+case "$status" in
+  1|2) sim logs get "$run_id" --trace --output table >&2 || true ;;
+  3) printf 'run %s needs input; inspect result.json before resuming\n' "$run_id" >&2 ;;
+  4) printf 'wait expired; inspect existing run %s before retrying\n' "$run_id" >&2 ;;
+esac
+exit "$status"
 ```
+
+## Related docs
+
+- [Output formats](/cli/output)
+- [Workflow commands](/cli/workflows)
+- [Workflow imports and workspace sync](/cli/workflow-sync)
+- [Organization commands](/cli/organizations)
+- [Troubleshooting](/cli/troubleshooting)

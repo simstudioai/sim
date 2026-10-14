@@ -15489,7 +15489,7 @@ export const V2_OPERATIONS = {
     pathParams: ['uploadId'] as const,
     pathParamDocs: { uploadId: 'Upload session identifier.' },
     responseMode: 'json',
-    summary: 'Abort File Upload',
+    summary: 'Abort file upload',
     query: {
       workspaceId: {
         kind: 'string',
@@ -15514,7 +15514,7 @@ export const V2_OPERATIONS = {
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
-    summary: 'Abort Document Upload',
+    summary: 'Abort document upload',
     query: {
       workspaceId: {
         kind: 'string',
@@ -15558,7 +15558,7 @@ export const V2_OPERATIONS = {
       version: 'Numeric deployment version.',
     },
     responseMode: 'json',
-    summary: 'Activate Workflow Version',
+    summary: 'Activate workflow version',
     workspaceKeyUnsupported: true,
   },
   addOrganizationDomain: {
@@ -15570,7 +15570,7 @@ export const V2_OPERATIONS = {
         'Organization whose single sign-on settings and verified domains are managed.',
     },
     responseMode: 'json',
-    summary: 'Add Organization Domain',
+    summary: 'Add organization domain',
     workspaceKeyUnsupported: true,
     body: {
       domain: {
@@ -15589,7 +15589,7 @@ export const V2_OPERATIONS = {
       groupId: 'Permission group identifier.',
     },
     responseMode: 'json',
-    summary: 'Add Permission Group Member',
+    summary: 'Add permission group member',
     workspaceKeyUnsupported: true,
     body: {
       userId: { kind: 'string', required: true, describe: 'Existing organization member to add.' },
@@ -15601,7 +15601,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Add Column',
+    summary: 'Add column',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
       column: { kind: 'object', required: true, describe: 'Column definition to add.' },
@@ -15613,7 +15613,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Add Workflow Group',
+    summary: 'Add workflow group',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       group: {
@@ -15640,7 +15640,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Index Workspace Files',
+    summary: 'Index workspace files',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -15652,7 +15652,7 @@ export const V2_OPERATIONS = {
         kind: 'array',
         required: true,
         describe:
-          'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.',
+          'Workspace file IDs or paths to index. Prefer IDs or canonical `files/<folder>/<name>` paths. Duplicates resolving to the same file are indexed once.',
       },
     },
   },
@@ -15662,7 +15662,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Apply Workflow Operations',
+    summary: 'Apply workflow operations',
     workspaceKeyUnsupported: true,
     query: {
       dryRun: {
@@ -15699,7 +15699,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Update Workflow Variables',
+    summary: 'Update workflow variables',
     body: {
       operations: {
         kind: 'array',
@@ -15735,7 +15735,7 @@ export const V2_OPERATIONS = {
       groupId: 'Permission group identifier.',
     },
     responseMode: 'json',
-    summary: 'Bulk Add Permission Group Members',
+    summary: 'Bulk add permission group members',
     workspaceKeyUnsupported: true,
     body: {
       userIds: {
@@ -15755,7 +15755,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/bulk-delete',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Delete Files',
+    summary: 'Delete files',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
       fileIds: { kind: 'array', required: true, describe: 'File identifiers to delete.' },
@@ -15766,7 +15766,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/bulk-delete',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Bulk Delete Tables and Folders',
+    summary: 'Bulk delete tables and folders',
     body: {
       workspaceId: {
         kind: 'string',
@@ -15786,7 +15786,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/bulk-download',
     pathParams: [] as const,
     responseMode: 'binary',
-    summary: 'Bulk Download Files',
+    summary: 'Bulk download files',
     query: {
       workspaceId: {
         kind: 'string',
@@ -15810,7 +15810,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Bulk Save Tag Definitions',
+    summary: 'Bulk save tag definitions',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -15834,7 +15834,7 @@ export const V2_OPERATIONS = {
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
-    summary: 'Bulk Update Chunks',
+    summary: 'Bulk update chunks',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -15862,7 +15862,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Bulk Enable or Disable Documents',
+    summary: 'Bulk enable or disable documents',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -15895,7 +15895,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Bulk Update Rows',
+    summary: 'Bulk update rows',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
       updates: {
@@ -15914,7 +15914,7 @@ export const V2_OPERATIONS = {
       requestId: 'Access request identifier.',
     },
     responseMode: 'json',
-    summary: 'Cancel Organization Access Request',
+    summary: 'Cancel organization access request',
     workspaceKeyUnsupported: true,
   },
   cancelTableDispatch: {
@@ -15926,7 +15926,7 @@ export const V2_OPERATIONS = {
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
-    summary: 'Cancel Run Dispatch',
+    summary: 'Cancel run dispatch',
     query: {
       workspaceId: {
         kind: 'string',
@@ -15944,7 +15944,7 @@ export const V2_OPERATIONS = {
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
-    summary: 'Cancel Table Export',
+    summary: 'Cancel table export',
     query: {
       workspaceId: {
         kind: 'string',
@@ -15959,7 +15959,7 @@ export const V2_OPERATIONS = {
     pathParams: ['importId'] as const,
     pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
-    summary: 'Cancel Table Import',
+    summary: 'Cancel table import',
     query: {
       workspaceId: {
         kind: 'string',
@@ -15980,7 +15980,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Cancel Column Runs',
+    summary: 'Cancel column runs',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       scope: {
@@ -16007,7 +16007,7 @@ export const V2_OPERATIONS = {
       runId: 'Unique workflow run identifier.',
     },
     responseMode: 'json',
-    summary: 'Cancel Workflow Run',
+    summary: 'Cancel workflow run',
   },
   cancelWorkspaceAccessRequest: {
     method: 'POST',
@@ -16018,7 +16018,7 @@ export const V2_OPERATIONS = {
       requestId: 'Access request identifier.',
     },
     responseMode: 'json',
-    summary: 'Cancel Workspace Access Request',
+    summary: 'Cancel workspace access request',
     workspaceKeyUnsupported: true,
   },
   chat: {
@@ -16050,7 +16050,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Compare Workflow Versions',
+    summary: 'Compare workflow versions',
     query: {
       base: { kind: 'integer', required: true, describe: 'Deployment version to compare from.' },
       target: {
@@ -16066,7 +16066,7 @@ export const V2_OPERATIONS = {
     pathParams: ['uploadId'] as const,
     pathParamDocs: { uploadId: 'Upload session identifier.' },
     responseMode: 'json',
-    summary: 'Complete File Upload',
+    summary: 'Complete file upload',
     query: {
       workspaceId: {
         kind: 'string',
@@ -16091,7 +16091,7 @@ export const V2_OPERATIONS = {
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
-    summary: 'Complete Document Upload',
+    summary: 'Complete document upload',
     query: {
       workspaceId: {
         kind: 'string',
@@ -16132,7 +16132,7 @@ export const V2_OPERATIONS = {
     pathParams: ['importId'] as const,
     pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
-    summary: 'Complete Table Import Upload',
+    summary: 'Complete table import upload',
     query: {
       workspaceId: {
         kind: 'string',
@@ -16153,7 +16153,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/credentials/connections',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Credential Connection',
+    summary: 'Create credential connection',
     workspaceKeyUnsupported: true,
     opaqueBody: true,
   },
@@ -16162,7 +16162,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/custom-tools',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Custom Tool',
+    summary: 'Create custom tool',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16191,7 +16191,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create File',
+    summary: 'Create file',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16216,7 +16216,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         default: '',
         describe:
-          'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.',
+          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads.',
       },
       encoding: {
         kind: 'enum',
@@ -16231,7 +16231,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Folder',
+    summary: 'Create folder',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16246,7 +16246,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/uploads',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create File Upload',
+    summary: 'Create file upload',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16268,7 +16268,7 @@ export const V2_OPERATIONS = {
     pathParams: ['uploadId'] as const,
     pathParamDocs: { uploadId: 'Upload session identifier.' },
     responseMode: 'json',
-    summary: 'Create File Upload Part URLs',
+    summary: 'Create file upload part URLs',
     query: {
       workspaceId: {
         kind: 'string',
@@ -16296,7 +16296,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/knowledge',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Knowledge Base',
+    summary: 'Create knowledge base',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16324,7 +16324,7 @@ export const V2_OPERATIONS = {
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
-    summary: 'Create Chunk',
+    summary: 'Create chunk',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -16335,7 +16335,8 @@ export const V2_OPERATIONS = {
       content: {
         kind: 'string',
         required: true,
-        describe: 'Text to embed. It is embedded on write, so the chunk is searchable immediately.',
+        describe:
+          'Text embedded before the response. Search includes it when the chunk and document are enabled and the document has completed processing.',
       },
       enabled: {
         kind: 'boolean',
@@ -16350,7 +16351,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Create Knowledge Connector',
+    summary: 'Create knowledge connector',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -16387,7 +16388,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Create Document Upload',
+    summary: 'Create document upload',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16424,7 +16425,7 @@ export const V2_OPERATIONS = {
       uploadId: 'Upload session identifier returned when the upload was created.',
     },
     responseMode: 'json',
-    summary: 'Create Document Upload Part URLs',
+    summary: 'Create document upload part URLs',
     query: {
       workspaceId: {
         kind: 'string',
@@ -16452,7 +16453,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/knowledge/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Folder',
+    summary: 'Create folder',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16468,7 +16469,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Create Tag',
+    summary: 'Create tag',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -16519,7 +16520,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/mcp-servers',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create MCP Server',
+    summary: 'Create MCP server',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16544,7 +16545,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['none', 'headers', 'oauth'] as const,
         describe:
-          'Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.',
+          'Authentication method. On creation, omission without `headers` probes once: an OAuth challenge selects `oauth`, an unauthenticated success selects `none`, and other outcomes fall back to `headers`. An OAuth client ID selects `oauth` when the method is omitted. Set explicitly to use headers with a server advertising OAuth; adding headers later does not change the saved method.',
       },
       headers: {
         kind: 'object',
@@ -16584,7 +16585,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
     responseMode: 'json',
-    summary: 'Create Organization Access Request',
+    summary: 'Create organization access request',
     workspaceKeyUnsupported: true,
     body: {
       target: {
@@ -16602,7 +16603,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'Create Organization Invitation',
+    summary: 'Create organization invitation',
     workspaceKeyUnsupported: true,
     body: {
       email: { kind: 'string', required: true, describe: 'Email address of the person to invite.' },
@@ -16621,7 +16622,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
     responseMode: 'json',
-    summary: 'Create Permission Group',
+    summary: 'Create permission group',
     workspaceKeyUnsupported: true,
     body: {
       name: {
@@ -16727,7 +16728,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/sandboxes',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Sandbox',
+    summary: 'Create sandbox',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -16768,7 +16769,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/credentials',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Service-Account Credential',
+    summary: 'Create service-account credential',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -16809,7 +16810,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/skills',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Skill',
+    summary: 'Create skill',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -16840,7 +16841,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Table',
+    summary: 'Create table',
     body: {
       name: { kind: 'string', required: true, describe: 'Table name.' },
       description: { kind: 'string', describe: 'Optional table description.' },
@@ -16855,7 +16856,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Create Run Dispatch',
+    summary: 'Create run dispatch',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       groupIds: {
@@ -16885,7 +16886,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Create Table Export',
+    summary: 'Create table export',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       format: {
@@ -16901,7 +16902,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Folder',
+    summary: 'Create folder',
     body: {
       workspaceId: {
         kind: 'string',
@@ -16916,7 +16917,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/imports',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Table Import',
+    summary: 'Create table import',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       source: { kind: 'unknown', required: true, describe: 'CSV source for the import.' },
@@ -16935,7 +16936,7 @@ export const V2_OPERATIONS = {
     pathParams: ['importId'] as const,
     pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
-    summary: 'Create Table Import Part URLs',
+    summary: 'Create table import part URLs',
     query: {
       workspaceId: {
         kind: 'string',
@@ -16964,7 +16965,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Create Rows',
+    summary: 'Create rows',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
@@ -16976,7 +16977,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Create View',
+    summary: 'Create view',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
       name: { kind: 'string', required: true, describe: 'Saved-view display name.' },
@@ -16992,7 +16993,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Workflow',
+    summary: 'Create workflow',
     body: {
       workspaceId: {
         kind: 'string',
@@ -17013,7 +17014,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Workflow Folder',
+    summary: 'Create workflow folder',
     body: {
       workspaceId: {
         kind: 'string',
@@ -17028,13 +17029,13 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflow-mcp-servers',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Create Workflow MCP Server',
+    summary: 'Create workflow MCP server',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
         kind: 'string',
         required: true,
-        describe: 'Workspace in which to publish the server.',
+        describe: 'Workspace in which to create the workflow MCP server.',
       },
       name: {
         kind: 'string',
@@ -17046,11 +17047,11 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         default: false,
         describe:
-          'Whether the server answers MCP clients without a Sim API key. Defaults to false — a public server executes the workflows it publishes for anyone holding its URL.',
+          'Whether the server accepts MCP clients without a Sim API key. Defaults to false; a public server lets anyone holding its URL execute the workflows it exposes.',
       },
       workflowIds: {
         kind: 'array',
-        describe: 'Deployed workflows to publish as tools on the new server.',
+        describe: 'Deployed workflows to expose as MCP tools on the new server.',
       },
     },
   },
@@ -17060,7 +17061,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
     responseMode: 'json',
-    summary: 'Create Workspace Access Request',
+    summary: 'Create workspace access request',
     workspaceKeyUnsupported: true,
     body: {
       target: {
@@ -17078,7 +17079,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
     responseMode: 'json',
-    summary: 'Create Workspace Invitations',
+    summary: 'Create workspace invitations',
     workspaceKeyUnsupported: true,
     body: {
       emails: {
@@ -17108,7 +17109,7 @@ export const V2_OPERATIONS = {
     pathParams: ['credentialId'] as const,
     pathParamDocs: { credentialId: 'Credential to disconnect.' },
     responseMode: 'json',
-    summary: 'Disconnect Credential',
+    summary: 'Disconnect credential',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -17124,7 +17125,7 @@ export const V2_OPERATIONS = {
     pathParams: ['customToolId'] as const,
     pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
-    summary: 'Delete Custom Tool',
+    summary: 'Delete custom tool',
     query: {
       workspaceId: {
         kind: 'string',
@@ -17139,7 +17140,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Delete File',
+    summary: 'Delete file',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
@@ -17149,7 +17150,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Delete Folder',
+    summary: 'Delete folder',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
@@ -17171,7 +17172,7 @@ export const V2_OPERATIONS = {
         ] as const,
         default: 'false',
         describe:
-          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+          "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
       },
     },
   },
@@ -17181,7 +17182,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId', 'version'] as const,
     pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
     responseMode: 'json',
-    summary: 'Delete File Version',
+    summary: 'Delete file version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
@@ -17192,7 +17193,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Delete Knowledge Base',
+    summary: 'Delete knowledge base',
     query: {
       workspaceId: {
         kind: 'string',
@@ -17211,7 +17212,7 @@ export const V2_OPERATIONS = {
       chunkId: 'Unique chunk identifier.',
     },
     responseMode: 'json',
-    summary: 'Delete Chunk',
+    summary: 'Delete chunk',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -17230,7 +17231,7 @@ export const V2_OPERATIONS = {
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
-    summary: 'Delete Knowledge Connector',
+    summary: 'Delete knowledge connector',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -17253,7 +17254,7 @@ export const V2_OPERATIONS = {
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
-    summary: 'Delete Document',
+    summary: 'Delete document',
     query: {
       workspaceId: {
         kind: 'string',
@@ -17267,7 +17268,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/knowledge/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Delete Folder',
+    summary: 'Delete folder',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
@@ -17289,7 +17290,7 @@ export const V2_OPERATIONS = {
         ] as const,
         default: 'false',
         describe:
-          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+          "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
       },
     },
   },
@@ -17302,7 +17303,7 @@ export const V2_OPERATIONS = {
       tagId: 'Unique tag definition identifier.',
     },
     responseMode: 'json',
-    summary: 'Delete Tag',
+    summary: 'Delete tag',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -17318,7 +17319,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Delete Tag Definitions',
+    summary: 'Delete tag definitions',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -17339,7 +17340,7 @@ export const V2_OPERATIONS = {
     pathParams: ['mcpServerId'] as const,
     pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
-    summary: 'Delete MCP Server',
+    summary: 'Delete MCP server',
     query: {
       workspaceId: {
         kind: 'string',
@@ -17357,7 +17358,7 @@ export const V2_OPERATIONS = {
       groupId: 'Permission group identifier.',
     },
     responseMode: 'json',
-    summary: 'Delete Permission Group',
+    summary: 'Delete permission group',
     workspaceKeyUnsupported: true,
   },
   deleteProjectFileVersion: {
@@ -17379,7 +17380,7 @@ export const V2_OPERATIONS = {
     pathParams: ['sandboxId'] as const,
     pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
     responseMode: 'json',
-    summary: 'Delete Sandbox',
+    summary: 'Delete sandbox',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
@@ -17391,7 +17392,7 @@ export const V2_OPERATIONS = {
     pathParams: ['name'] as const,
     pathParamDocs: { name: 'Secret to delete.' },
     responseMode: 'json',
-    summary: 'Delete Secret',
+    summary: 'Delete secret',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -17418,7 +17419,7 @@ export const V2_OPERATIONS = {
         'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
-    summary: 'Delete Skill',
+    summary: 'Delete skill',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
@@ -17434,7 +17435,7 @@ export const V2_OPERATIONS = {
       providerId: 'Identity provider identifier.',
     },
     responseMode: 'json',
-    summary: 'Delete SSO Provider',
+    summary: 'Delete SSO provider',
     workspaceKeyUnsupported: true,
   },
   deleteTable: {
@@ -17443,7 +17444,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Delete Table',
+    summary: 'Delete table',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -17454,7 +17455,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Delete Column',
+    summary: 'Delete column',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       columnName: { kind: 'string', required: true, describe: 'Name of the column to delete.' },
@@ -17465,7 +17466,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Delete Folder',
+    summary: 'Delete folder',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
@@ -17487,7 +17488,7 @@ export const V2_OPERATIONS = {
         ] as const,
         default: 'false',
         describe:
-          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+          "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
       },
     },
   },
@@ -17497,7 +17498,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId', 'rowId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
     responseMode: 'json',
-    summary: 'Delete Row',
+    summary: 'Delete row',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -17508,7 +17509,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Delete Rows',
+    summary: 'Delete rows',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       filter: {
@@ -17526,7 +17527,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId', 'viewId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
     responseMode: 'json',
-    summary: 'Delete View',
+    summary: 'Delete view',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -17537,7 +17538,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Delete Workflow',
+    summary: 'Delete workflow',
   },
   deleteWorkflowChatDeployment: {
     method: 'DELETE',
@@ -17545,7 +17546,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Delete Workflow Chat Deployment',
+    summary: 'Delete workflow chat deployment',
     workspaceKeyUnsupported: true,
   },
   deleteWorkflowFolder: {
@@ -17553,7 +17554,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Delete Workflow Folder',
+    summary: 'Delete workflow folder',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Path of the folder to delete.' },
@@ -17575,7 +17576,7 @@ export const V2_OPERATIONS = {
         ] as const,
         default: 'false',
         describe:
-          "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+          "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
       },
     },
   },
@@ -17585,7 +17586,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Delete Workflow Group',
+    summary: 'Delete workflow group',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       groupId: { kind: 'string', required: true, describe: 'Workflow group to delete.' },
@@ -17597,7 +17598,7 @@ export const V2_OPERATIONS = {
     pathParams: ['serverId'] as const,
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
-    summary: 'Delete Workflow MCP Server',
+    summary: 'Delete workflow MCP server',
     workspaceKeyUnsupported: true,
   },
   deployWorkflow: {
@@ -17606,7 +17607,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Deploy Workflow',
+    summary: 'Deploy workflow',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Optional label for the deployment version.' },
@@ -17622,13 +17623,13 @@ export const V2_OPERATIONS = {
     pathParams: ['serverId'] as const,
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
-    summary: 'Publish Workflow As MCP Tool',
+    summary: 'Deploy workflow as MCP tool',
     workspaceKeyUnsupported: true,
     body: {
       workflowId: {
         kind: 'string',
         required: true,
-        describe: 'Deployed workflow to publish. The workflow must already be deployed.',
+        describe: 'Workflow to expose as an MCP tool. It must already be deployed.',
       },
       toolName: {
         kind: 'string',
@@ -17652,7 +17653,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
     responseMode: 'json',
-    summary: 'Discover Organization Access Requests',
+    summary: 'Discover organization access requests',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -17711,7 +17712,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
     responseMode: 'json',
-    summary: 'Discover Workspace Access Requests',
+    summary: 'Discover workspace access requests',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -17770,7 +17771,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'binary',
-    summary: 'Download File',
+    summary: 'Download file',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
@@ -17781,7 +17782,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId', 'version'] as const,
     pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
     responseMode: 'binary',
-    summary: 'Download File Version',
+    summary: 'Download file version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
@@ -17796,7 +17797,7 @@ export const V2_OPERATIONS = {
       fileId: 'Identifier of a file the run produced, as reported by the run resource.',
     },
     responseMode: 'binary',
-    summary: 'Download Workflow Run File',
+    summary: 'Download workflow run file',
   },
   duplicateWorkflow: {
     method: 'POST',
@@ -17804,7 +17805,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Duplicate Workflow',
+    summary: 'Duplicate workflow',
     body: {
       name: {
         kind: 'string',
@@ -17822,7 +17823,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Edit File Content',
+    summary: 'Edit file content',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       edit: {
@@ -17834,7 +17835,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'string',
         describe:
-          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+          'Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },
@@ -17844,10 +17845,10 @@ export const V2_OPERATIONS = {
     pathParams: ['toolId'] as const,
     pathParamDocs: {
       toolId:
-        'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.',
+        'Tool identifier. An exact visible ID is retained; an unversioned name resolves to the newest visible family version. The response echoes the resolved ID.',
     },
     responseMode: 'json',
-    summary: 'Run Tool',
+    summary: 'Run tool',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -17860,16 +17861,17 @@ export const V2_OPERATIONS = {
         kind: 'object',
         default: {},
         describe:
-          'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.',
+          'Arguments keyed by published parameter IDs. Hidden and undeclared fields are rejected. Send connected credentials as top-level `credentialId`, not `input.credential`, `input.credentialId`, or `input.oauthCredential`. Whole-value `{{VAR_NAME}}` references resolve environment variables only for `user-only` parameters; other values pass through unchanged.',
       },
       credentialId: {
         kind: 'string',
         describe:
-          'Credential to authenticate with. Required when the tool declares an OAuth requirement; the workspace credentials list names the candidates.',
+          'Connected credential to authenticate with. Required for tools declaring required OAuth or a required credential-selector parameter. Use List credentials to find candidates; do not send credential aliases inside `input`.',
       },
       timeoutSeconds: {
         kind: 'integer',
-        describe: 'How long to wait for the tool before abandoning the call.',
+        describe:
+          'Maximum wait time in seconds; defaults to 120 and cannot exceed 300. Timeout does not guarantee that a third-party side effect was cancelled.',
       },
     },
   },
@@ -17879,7 +17881,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Execute Workflow',
+    summary: 'Execute workflow',
     body: {
       input: {
         kind: 'object',
@@ -17894,7 +17896,7 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         default: false,
         describe:
-          'Queue the run and return a 202 receipt when true. Requires an OAuth access token or API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).',
+          'Queue the run and return a 202 receipt. Requires an API key or OAuth access token and a deployed run source. Cannot stream, select outputs, enable thinking/tool events, or include file-inlining options (`includeFileBase64` or `base64MaxBytes`).',
       },
       executionTimeoutSeconds: {
         kind: 'integer',
@@ -17938,7 +17940,7 @@ export const V2_OPERATIONS = {
       'x-run-id': {
         kind: 'string',
         describe:
-          'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get Workflow Run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.',
+          'Run ID for API-key or OAuth callers; ignored for anonymous requests. Reuse it after an uncertain response: a claimed ID returns `409` with `RUN_ID_CONFLICT`, without replaying results. Check Get workflow run, but `404` can persist while the ID remains claimed and does not establish whether execution started. Do not automatically restart with a fresh or omitted ID; either can start another run.',
       },
       'x-sim-via': {
         kind: 'string',
@@ -17953,7 +17955,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'binary',
-    summary: 'Export Knowledge Base',
+    summary: 'Export knowledge base',
     query: {
       workspaceId: {
         kind: 'string',
@@ -17973,7 +17975,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Export Workflow',
+    summary: 'Export workflow',
     query: {
       includeReferences: {
         kind: 'boolean',
@@ -17983,7 +17985,7 @@ export const V2_OPERATIONS = {
       includeWorkspaceBindings: {
         kind: 'boolean',
         describe:
-          'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.',
+          'Keep non-secret table, knowledge base, document, folder, channel, and other workspace bindings for a same-workspace import. Defaults to false, which clears these IDs. Registered credential fields and opaque table/tool values are cleared either way; environment references and ordinary workflow variables remain included.',
       },
     },
   },
@@ -17993,7 +17995,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Fork Workspace',
+    summary: 'Fork workspace',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Display name of the workflow or workspace.' },
@@ -18005,12 +18007,14 @@ export const V2_OPERATIONS = {
       requestId: {
         kind: 'string',
         required: true,
-        describe: 'Stable client request ID for reconciliation and identical retries.',
+        describe:
+          'Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can apply another operation.',
       },
       previewFingerprint: {
         kind: 'string',
         required: true,
-        describe: 'Fingerprint of the reviewed preview and its choices.',
+        describe:
+          'Fingerprint returned by a preview with the same choices. A changed plan returns 409; preview again. The example hash is illustrative; use the actual preview value.',
       },
     },
   },
@@ -18020,7 +18024,7 @@ export const V2_OPERATIONS = {
     pathParams: ['auditLogId'] as const,
     pathParamDocs: { auditLogId: 'Audit-log entry identifier.' },
     responseMode: 'json',
-    summary: 'Get Audit Log',
+    summary: 'Get audit log',
     workspaceKeyUnsupported: true,
     query: {
       organizationId: {
@@ -18035,12 +18039,12 @@ export const V2_OPERATIONS = {
     path: '/api/v2/billing/status',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Get Billing Status',
+    summary: 'Get billing status',
     query: {
       workspaceId: {
         kind: 'string',
         describe:
-          'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.',
+          'Workspace whose payer to report. A workspace API key is bound to its own workspace; a different or unknown ID returns `404 Workspace not found`. Omit for account billing when using a personal API key or OAuth token.',
       },
     },
   },
@@ -18050,10 +18054,10 @@ export const V2_OPERATIONS = {
     pathParams: ['blockId'] as const,
     pathParamDocs: {
       blockId:
-        'Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id.',
+        'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.',
     },
     responseMode: 'json',
-    summary: 'Get Block',
+    summary: 'Get block',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18069,7 +18073,7 @@ export const V2_OPERATIONS = {
     pathParams: ['customToolId'] as const,
     pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
-    summary: 'Get Custom Tool',
+    summary: 'Get custom tool',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18084,7 +18088,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Get File Metadata',
+    summary: 'Get file metadata',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       scope: {
@@ -18102,7 +18106,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Get File Share',
+    summary: 'Get file share',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
@@ -18113,7 +18117,7 @@ export const V2_OPERATIONS = {
     pathParams: ['uploadId'] as const,
     pathParamDocs: { uploadId: 'Upload session identifier.' },
     responseMode: 'json',
-    summary: 'Get File Upload',
+    summary: 'Get file upload',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18135,7 +18139,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId', 'version'] as const,
     pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
     responseMode: 'json',
-    summary: 'Get File Version',
+    summary: 'Get file version',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
@@ -18146,7 +18150,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Get Knowledge Base',
+    summary: 'Get knowledge base',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18165,7 +18169,7 @@ export const V2_OPERATIONS = {
       chunkId: 'Unique chunk identifier.',
     },
     responseMode: 'json',
-    summary: 'Get Chunk',
+    summary: 'Get chunk',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -18184,7 +18188,7 @@ export const V2_OPERATIONS = {
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
-    summary: 'Get Knowledge Connector',
+    summary: 'Get knowledge connector',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -18203,7 +18207,7 @@ export const V2_OPERATIONS = {
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
-    summary: 'Get Document',
+    summary: 'Get document',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18218,7 +18222,7 @@ export const V2_OPERATIONS = {
     pathParams: ['runId'] as const,
     pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
-    summary: 'Get Log',
+    summary: 'Get log',
     query: {
       includeWorkflowState: {
         kind: 'boolean',
@@ -18232,7 +18236,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/logs/stats',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Get Log Statistics',
+    summary: 'Get log statistics',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18296,7 +18300,7 @@ export const V2_OPERATIONS = {
           'n',
           'disabled',
         ] as const,
-        default: false,
+        default: 'false',
         describe:
           'Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
       },
@@ -18308,7 +18312,7 @@ export const V2_OPERATIONS = {
     pathParams: ['mcpServerId'] as const,
     pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
-    summary: 'Get MCP Server',
+    summary: 'Get MCP server',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18322,7 +18326,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/meta',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Get API Capabilities',
+    summary: 'Get API status',
   },
   getNextKnowledgeTagSlot: {
     method: 'GET',
@@ -18330,7 +18334,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Get Next Tag Slot',
+    summary: 'Get next tag slot',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -18353,7 +18357,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'Get Organization',
+    summary: 'Get organization',
     workspaceKeyUnsupported: true,
   },
   getOrganizationAccessRequestSettings: {
@@ -18362,7 +18366,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
     responseMode: 'json',
-    summary: 'Get Organization Access Request Settings',
+    summary: 'Get organization access request settings',
     workspaceKeyUnsupported: true,
   },
   getOrganizationInvitation: {
@@ -18374,7 +18378,7 @@ export const V2_OPERATIONS = {
       invitationId: 'Invitation identifier.',
     },
     responseMode: 'json',
-    summary: 'Get Organization Invitation',
+    summary: 'Get organization invitation',
     workspaceKeyUnsupported: true,
   },
   getOrganizationMemberUsageLimit: {
@@ -18387,7 +18391,7 @@ export const V2_OPERATIONS = {
         'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
     },
     responseMode: 'json',
-    summary: 'Get Organization Member Credit Limit',
+    summary: 'Get organization member credit limit',
     workspaceKeyUnsupported: true,
   },
   getOrganizationUsageBreakdown: {
@@ -18396,7 +18400,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'Get Organization Usage Breakdown',
+    summary: 'Get organization usage breakdown',
     workspaceKeyUnsupported: true,
     query: {
       preset: {
@@ -18443,7 +18447,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'Get Organization Usage Summary',
+    summary: 'Get organization usage summary',
     workspaceKeyUnsupported: true,
     query: {
       preset: {
@@ -18481,7 +18485,7 @@ export const V2_OPERATIONS = {
       groupId: 'Permission group identifier.',
     },
     responseMode: 'json',
-    summary: 'Get Permission Group',
+    summary: 'Get permission group',
     workspaceKeyUnsupported: true,
   },
   getProjectFileMetadata: {
@@ -18564,7 +18568,7 @@ export const V2_OPERATIONS = {
       groupId: 'Workflow or enrichment group to run.',
     },
     responseMode: 'json',
-    summary: 'Get Row Group Run',
+    summary: 'Get row group run',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -18575,7 +18579,7 @@ export const V2_OPERATIONS = {
     pathParams: ['sandboxId'] as const,
     pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
     responseMode: 'json',
-    summary: 'Get Sandbox',
+    summary: 'Get sandbox',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
@@ -18585,7 +18589,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/selectors/get',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Get Selector Option',
+    summary: 'Get selector option',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -18708,7 +18712,7 @@ export const V2_OPERATIONS = {
           'providers.ollamaEmbeddingModels',
           'providers.openrouterEmbeddingModels',
         ] as const,
-        describe: 'Registered selector key for discovering this field’s destination options.',
+        describe: 'Registered selector key from an import or sync preview, such as `gmail.labels`.',
       },
       context: {
         kind: 'object',
@@ -18716,7 +18720,11 @@ export const V2_OPERATIONS = {
         describe:
           'Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization.',
       },
-      id: { kind: 'string', required: true, describe: 'Resource identifier.' },
+      id: {
+        kind: 'string',
+        required: true,
+        describe: 'Provider option ID to resolve with the same selector and declared context.',
+      },
     },
   },
   getSkill: {
@@ -18728,7 +18736,7 @@ export const V2_OPERATIONS = {
         'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
-    summary: 'Get Skill',
+    summary: 'Get skill',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
     },
@@ -18742,7 +18750,7 @@ export const V2_OPERATIONS = {
         'Organization whose single sign-on settings and verified domains are managed.',
     },
     responseMode: 'json',
-    summary: 'Get SSO Policy',
+    summary: 'Get SSO policy',
     workspaceKeyUnsupported: true,
   },
   getSsoProvider: {
@@ -18755,7 +18763,7 @@ export const V2_OPERATIONS = {
       providerId: 'Identity provider identifier.',
     },
     responseMode: 'json',
-    summary: 'Get SSO Provider',
+    summary: 'Get SSO provider',
     workspaceKeyUnsupported: true,
   },
   getTable: {
@@ -18764,7 +18772,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Get Table',
+    summary: 'Get table',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -18778,7 +18786,7 @@ export const V2_OPERATIONS = {
       dispatchId: 'Unique table run-dispatch identifier.',
     },
     responseMode: 'json',
-    summary: 'Get Run Dispatch',
+    summary: 'Get run dispatch',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18796,7 +18804,7 @@ export const V2_OPERATIONS = {
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
-    summary: 'Get Table Export',
+    summary: 'Get table export',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18811,7 +18819,7 @@ export const V2_OPERATIONS = {
     pathParams: ['importId'] as const,
     pathParamDocs: { importId: 'Unique table-import identifier.' },
     responseMode: 'json',
-    summary: 'Get Table Import',
+    summary: 'Get table import',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18832,12 +18840,13 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId', 'rowId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
     responseMode: 'json',
-    summary: 'Get Row',
+    summary: 'Get row',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
       includeRunState: {
         kind: 'boolean',
-        describe: 'Include per-workflow-group run state on the returned row. Off by default.',
+        describe:
+          'Include per-workflow-group run outcomes on the row. Off by default. Run state above 2 MiB returns `413`; omit this option to read the row without run state.',
       },
     },
   },
@@ -18847,7 +18856,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId', 'viewId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
     responseMode: 'json',
-    summary: 'Get View',
+    summary: 'Get view',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -18858,10 +18867,10 @@ export const V2_OPERATIONS = {
     pathParams: ['toolId'] as const,
     pathParamDocs: {
       toolId:
-        'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.',
+        'Tool identifier. An exact visible ID is retained; an unversioned name resolves to the newest visible family version. The response echoes the resolved ID.',
     },
     responseMode: 'json',
-    summary: 'Get Tool',
+    summary: 'Get tool',
     query: {
       workspaceId: {
         kind: 'string',
@@ -18877,7 +18886,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Get Workflow',
+    summary: 'Get workflow',
   },
   getWorkflowChatDeployment: {
     method: 'GET',
@@ -18885,7 +18894,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Get Workflow Chat Deployment',
+    summary: 'Get workflow chat deployment',
     workspaceKeyUnsupported: true,
   },
   getWorkflowDeployment: {
@@ -18894,7 +18903,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Get Workflow Deployment',
+    summary: 'Get workflow deployment',
   },
   getWorkflowMcpServer: {
     method: 'GET',
@@ -18902,7 +18911,7 @@ export const V2_OPERATIONS = {
     pathParams: ['serverId'] as const,
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
-    summary: 'Get Workflow MCP Server',
+    summary: 'Get workflow MCP server',
     workspaceKeyUnsupported: true,
   },
   getWorkflowRun: {
@@ -18914,7 +18923,7 @@ export const V2_OPERATIONS = {
       runId: 'Unique workflow run identifier.',
     },
     responseMode: 'json',
-    summary: 'Get Workflow Run',
+    summary: 'Get workflow run',
     query: {
       includeOutput: {
         kind: 'boolean',
@@ -18943,7 +18952,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Get Workflow State',
+    summary: 'Get workflow state',
   },
   getWorkflowVersion: {
     method: 'GET',
@@ -18954,7 +18963,7 @@ export const V2_OPERATIONS = {
       version: 'Numeric deployment version.',
     },
     responseMode: 'json',
-    summary: 'Get Workflow Version',
+    summary: 'Get workflow version',
   },
   getWorkspace: {
     method: 'GET',
@@ -18962,7 +18971,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Workspace to retrieve.' },
     responseMode: 'json',
-    summary: 'Get Workspace',
+    summary: 'Get workspace',
   },
   getWorkspaceForkAvailability: {
     method: 'GET',
@@ -18970,7 +18979,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Get Workspace Fork Availability',
+    summary: 'Get workspace fork availability',
     workspaceKeyUnsupported: true,
   },
   getWorkspaceForkLineage: {
@@ -18979,7 +18988,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Get Workspace Fork Lineage',
+    summary: 'Get workspace fork lineage',
     workspaceKeyUnsupported: true,
   },
   getWorkspaceForkMappings: {
@@ -18988,7 +18997,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Get Workspace Fork Mappings',
+    summary: 'Get workspace fork mappings',
     workspaceKeyUnsupported: true,
     query: {
       otherWorkspaceId: {
@@ -19037,7 +19046,7 @@ export const V2_OPERATIONS = {
       operationId: 'Durable operation identifier to use for polling.',
     },
     responseMode: 'json',
-    summary: 'Get Workspace Operation',
+    summary: 'Get workspace operation',
   },
   getWorkspacePermissionConfig: {
     method: 'GET',
@@ -19045,7 +19054,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Unique workspace identifier.' },
     responseMode: 'json',
-    summary: 'Get Workspace Permission Config',
+    summary: 'Get workspace permission config',
     workspaceKeyUnsupported: true,
   },
   grantSkillEditor: {
@@ -19057,7 +19066,7 @@ export const V2_OPERATIONS = {
         'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
-    summary: 'Grant Skill Editor',
+    summary: 'Grant skill editor',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
@@ -19073,7 +19082,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows/import',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Import Workflow',
+    summary: 'Import workflow',
     body: {
       workspaceId: {
         kind: 'string',
@@ -19094,7 +19103,7 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Override for the imported workflow description.' },
       mappings: {
         kind: 'array',
-        describe: 'Mappings keyed by resource type and source identifier.',
+        describe: 'Mapping entries addressed by resource kind and source identifier.',
       },
       bindings: {
         kind: 'array',
@@ -19103,15 +19112,17 @@ export const V2_OPERATIONS = {
       dependentValues: {
         kind: 'array',
         describe:
-          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+          'Destination-specific values addressed by the source block ID and field key, before imported IDs are regenerated.',
       },
       requestId: {
         kind: 'string',
-        describe: 'Stable client request ID for reconciliation and identical retries.',
+        describe:
+          'Stable client request ID for mapped import. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can create another workflow.',
       },
       previewFingerprint: {
         kind: 'string',
-        describe: 'Fingerprint of the reviewed preview and its choices.',
+        describe:
+          'Fingerprint returned by an import preview with the same choices. A changed plan returns 409; preview again. Do not invent this value.',
       },
     },
   },
@@ -19120,7 +19131,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/audit-logs',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Audit Logs',
+    summary: 'List audit logs',
     workspaceKeyUnsupported: true,
     query: {
       action: { kind: 'string', describe: 'Filter by exact action name.' },
@@ -19134,12 +19145,12 @@ export const V2_OPERATIONS = {
       startDate: {
         kind: 'string',
         describe:
-          'Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+          'Include audit entries created at or after this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.',
       },
       endDate: {
         kind: 'string',
         describe:
-          'Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+          'Include audit entries created at or before this UTC ISO 8601 timestamp, such as `2026-08-06T00:00:00Z`. Dates without a time, timestamps with an offset instead of `Z`, and year `0000` are rejected.',
       },
       includeDeparted: {
         kind: 'boolean',
@@ -19169,7 +19180,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/billing/logs',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Billing Logs',
+    summary: 'List billing logs',
     query: {
       source: {
         kind: 'enum',
@@ -19202,12 +19213,12 @@ export const V2_OPERATIONS = {
       startDate: {
         kind: 'string',
         describe:
-          'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+          'Include events at or after this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Required with `period=custom`. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected.',
       },
       endDate: {
         kind: 'string',
         describe:
-          'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.',
+          'Include events at or before this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Allowed only with `period=custom`; omission defaults to now. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected.',
       },
       limit: {
         kind: 'integer',
@@ -19227,7 +19238,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/blocks',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Blocks',
+    summary: 'List blocks',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19265,7 +19276,7 @@ export const V2_OPERATIONS = {
         values: ['id', 'name', 'category'] as const,
         default: 'id',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -19291,7 +19302,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/chat-deployments',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Chat Deployments',
+    summary: 'List chat deployments',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19330,13 +19341,13 @@ export const V2_OPERATIONS = {
     path: '/api/v2/connector-types',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Connector Types',
+    summary: 'List connector types',
     query: {
       workspaceId: {
         kind: 'string',
         required: true,
         describe:
-          'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+          'Workspace used to authorize Knowledge Base access to the deployment’s connector-type registry. Workspace integration allowlists and revealed preview blocks do not filter this catalog.',
       },
       search: {
         kind: 'string',
@@ -19368,7 +19379,7 @@ export const V2_OPERATIONS = {
     pathParams: ['credentialId'] as const,
     pathParamDocs: { credentialId: 'Credential whose sharing grants are managed.' },
     responseMode: 'json',
-    summary: 'List Credential Members',
+    summary: 'List credential members',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -19392,7 +19403,7 @@ export const V2_OPERATIONS = {
         values: ['email', 'name'] as const,
         default: 'email',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -19407,7 +19418,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/credentials/providers',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Credential Providers',
+    summary: 'List credential providers',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19426,7 +19437,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/credentials',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Credentials',
+    summary: 'List credentials',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19476,7 +19487,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/custom-tools',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Custom Tools',
+    summary: 'List custom tools',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19517,7 +19528,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Folders',
+    summary: 'List folders',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19538,7 +19549,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -19582,7 +19593,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Files',
+    summary: 'List files',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19629,7 +19640,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'size', 'uploadedAt', 'updatedAt'] as const,
         default: 'uploadedAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -19656,7 +19667,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'List File Versions',
+    summary: 'List file versions',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       sortBy: {
@@ -19689,7 +19700,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/knowledge',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Knowledge Bases',
+    summary: 'List knowledge bases',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19701,7 +19712,7 @@ export const V2_OPERATIONS = {
         values: ['active', 'archived'] as const,
         default: 'active',
         describe:
-          'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.',
+          'Lifecycle scope: active or archived knowledge bases. Use Restore knowledge base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.',
       },
       folderPath: {
         kind: 'string',
@@ -19717,7 +19728,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -19747,7 +19758,7 @@ export const V2_OPERATIONS = {
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
-    summary: 'List Chunks',
+    summary: 'List chunks',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -19799,7 +19810,7 @@ export const V2_OPERATIONS = {
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
-    summary: 'List Knowledge Connector Documents',
+    summary: 'List knowledge connector documents',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -19830,7 +19841,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'List Knowledge Connectors',
+    summary: 'List knowledge connectors',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -19869,7 +19880,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'List Documents',
+    summary: 'List documents',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19905,7 +19916,7 @@ export const V2_OPERATIONS = {
         ] as const,
         default: 'uploadedAt',
         describe:
-          'Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `filename`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -19930,7 +19941,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/knowledge/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Folders',
+    summary: 'List folders',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19951,7 +19962,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -19967,7 +19978,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'List Tags',
+    summary: 'List tags',
     query: {
       workspaceId: {
         kind: 'string',
@@ -19982,7 +19993,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'List Tag Usage',
+    summary: 'List tag usage',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -19997,7 +20008,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/logs',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Logs',
+    summary: 'List logs',
     query: {
       workspaceId: {
         kind: 'string',
@@ -20124,7 +20135,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/mcp-servers',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List MCP Servers',
+    summary: 'List MCP servers',
     query: {
       workspaceId: {
         kind: 'string',
@@ -20140,7 +20151,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20167,7 +20178,7 @@ export const V2_OPERATIONS = {
     pathParams: ['mcpServerId'] as const,
     pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
-    summary: 'List MCP Server Tools',
+    summary: 'List MCP server tools',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -20188,7 +20199,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
     responseMode: 'json',
-    summary: 'List My Organization Access Requests',
+    summary: 'List my organization access requests',
     workspaceKeyUnsupported: true,
     query: {
       status: {
@@ -20227,7 +20238,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Workspace in which the acting user requests access.' },
     responseMode: 'json',
-    summary: 'List My Workspace Access Requests',
+    summary: 'List my workspace access requests',
     workspaceKeyUnsupported: true,
     query: {
       status: {
@@ -20266,7 +20277,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
     responseMode: 'json',
-    summary: 'List Organization Access Requests',
+    summary: 'List organization access requests',
     workspaceKeyUnsupported: true,
     query: {
       status: {
@@ -20313,7 +20324,7 @@ export const V2_OPERATIONS = {
         'Organization whose single sign-on settings and verified domains are managed.',
     },
     responseMode: 'json',
-    summary: 'List Organization Domains',
+    summary: 'List organization domains',
     workspaceKeyUnsupported: true,
     query: {
       limit: {
@@ -20347,7 +20358,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'List Organization Invitations',
+    summary: 'List organization invitations',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -20393,7 +20404,7 @@ export const V2_OPERATIONS = {
       invitationId: 'Invitation identifier.',
     },
     responseMode: 'json',
-    summary: 'List Organization Invitation Workspaces',
+    summary: 'List organization invitation workspaces',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -20405,7 +20416,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'id'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20432,7 +20443,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'List Organization Members',
+    summary: 'List organization members',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -20444,7 +20455,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'email', 'joinedAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20470,7 +20481,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/organizations',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Organizations',
+    summary: 'List organizations',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -20482,7 +20493,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20509,7 +20520,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'List Organization Usage Events',
+    summary: 'List organization usage events',
     workspaceKeyUnsupported: true,
     query: {
       preset: {
@@ -20579,7 +20590,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization identifier.' },
     responseMode: 'json',
-    summary: 'List Organization Workspaces',
+    summary: 'List organization workspaces',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -20591,7 +20602,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'id'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20621,7 +20632,7 @@ export const V2_OPERATIONS = {
       groupId: 'Permission group identifier.',
     },
     responseMode: 'json',
-    summary: 'List Permission Group Members',
+    summary: 'List permission group members',
     workspaceKeyUnsupported: true,
     query: {
       sortBy: {
@@ -20655,7 +20666,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the permission groups.' },
     responseMode: 'json',
-    summary: 'List Permission Groups',
+    summary: 'List permission groups',
     workspaceKeyUnsupported: true,
     query: {
       search: {
@@ -20667,7 +20678,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20816,7 +20827,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/sandboxes',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Sandboxes',
+    summary: 'List sandboxes',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
       search: {
@@ -20828,7 +20839,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20854,7 +20865,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/secrets',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Secrets',
+    summary: 'List secrets',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -20876,7 +20887,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -20902,7 +20913,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/selectors/list',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Selector Options',
+    summary: 'List selector options',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -21025,7 +21036,7 @@ export const V2_OPERATIONS = {
           'providers.ollamaEmbeddingModels',
           'providers.openrouterEmbeddingModels',
         ] as const,
-        describe: 'Registered selector key for discovering this field’s destination options.',
+        describe: 'Registered selector key from an import or sync preview, such as `gmail.labels`.',
       },
       context: {
         kind: 'object',
@@ -21036,12 +21047,13 @@ export const V2_OPERATIONS = {
       search: { kind: 'string', describe: 'Provider option search text.' },
       cursor: {
         kind: 'string',
-        describe: 'Opaque continuation cursor returned by the preceding page.',
+        describe:
+          'Cursor returned by the preceding page. Keep `workspaceId`, `selectorKey`, `context`, and `search` unchanged; only `limit` may change. Restart without a cursor after a changed-page 409.',
       },
       limit: {
         kind: 'integer',
         default: 50,
-        describe: 'Maximum number of items to return on one page.',
+        describe: 'Maximum options per page, from 1 to 100. Defaults to 50.',
       },
     },
   },
@@ -21054,7 +21066,7 @@ export const V2_OPERATIONS = {
         'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
-    summary: 'List Skill Editors',
+    summary: 'List skill editors',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       sortBy: {
@@ -21062,7 +21074,7 @@ export const V2_OPERATIONS = {
         values: ['email', 'name'] as const,
         default: 'email',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21088,7 +21100,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/skills',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Skills',
+    summary: 'List skills',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
       search: {
@@ -21100,7 +21112,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21130,7 +21142,7 @@ export const V2_OPERATIONS = {
         'Organization whose single sign-on settings and verified domains are managed.',
     },
     responseMode: 'json',
-    summary: 'List SSO Providers',
+    summary: 'List SSO providers',
     workspaceKeyUnsupported: true,
     query: {
       limit: {
@@ -21164,7 +21176,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'List Run Dispatches',
+    summary: 'List run dispatches',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -21174,7 +21186,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Folders',
+    summary: 'List folders',
     query: {
       workspaceId: {
         kind: 'string',
@@ -21195,7 +21207,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21211,7 +21223,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'List Rows',
+    summary: 'List rows',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
       limit: {
@@ -21228,7 +21240,7 @@ export const V2_OPERATIONS = {
       includeRunState: {
         kind: 'boolean',
         describe:
-          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Caps `limit` at 200.',
+          'Include per-workflow-group run outcomes on every row. Off by default. Caps `limit` at 200. Run state above 2 MiB returns `413`; request fewer rows or omit run state.',
       },
     },
   },
@@ -21237,7 +21249,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Tables',
+    summary: 'List tables',
     query: {
       workspaceId: {
         kind: 'string',
@@ -21265,7 +21277,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21292,7 +21304,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'List Views',
+    summary: 'List views',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -21302,7 +21314,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tools',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Tools',
+    summary: 'List tools',
     query: {
       workspaceId: {
         kind: 'string',
@@ -21328,7 +21340,7 @@ export const V2_OPERATIONS = {
         values: ['id', 'name'] as const,
         default: 'id',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21354,7 +21366,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Workflow Folders',
+    summary: 'List workflow folders',
     query: {
       workspaceId: {
         kind: 'string',
@@ -21375,7 +21387,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'name',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21391,7 +21403,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'List Workflow Groups',
+    summary: 'List workflow groups',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
     },
@@ -21401,20 +21413,20 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflow-mcp-servers',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Workflow MCP Servers',
+    summary: 'List workflow MCP servers',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
         kind: 'string',
         required: true,
-        describe: 'Workspace whose published MCP servers to list.',
+        describe: 'Workspace whose workflow MCP servers to list.',
       },
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21441,7 +21453,7 @@ export const V2_OPERATIONS = {
     pathParams: ['serverId'] as const,
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
-    summary: 'List Workflow MCP Tools',
+    summary: 'List workflow MCP tools',
     workspaceKeyUnsupported: true,
   },
   listWorkflowRuns: {
@@ -21450,7 +21462,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'List Workflow Runs',
+    summary: 'List workflow runs',
     query: {
       status: {
         kind: 'enum',
@@ -21493,7 +21505,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Workflows',
+    summary: 'List workflows',
     query: {
       workspaceId: {
         kind: 'string',
@@ -21536,7 +21548,7 @@ export const V2_OPERATIONS = {
         values: ['position', 'name', 'createdAt', 'updatedAt', 'runCount'] as const,
         default: 'position',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21552,7 +21564,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'List Workflow Versions',
+    summary: 'List workflow versions',
     query: {
       limit: {
         kind: 'integer',
@@ -21573,7 +21585,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'List Workspace Fork Children',
+    summary: 'List workspace fork children',
     workspaceKeyUnsupported: true,
     query: {
       limit: {
@@ -21607,7 +21619,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'List Workspace Fork Resources',
+    summary: 'List workspace fork resources',
     workspaceKeyUnsupported: true,
     query: {
       limit: {
@@ -21633,7 +21645,7 @@ export const V2_OPERATIONS = {
           'mcpServers',
           'workflowMcpServers',
         ] as const,
-        describe: 'Resource or operation kind.',
+        describe: 'Kind of source resource to list for copy selection.',
       },
       sortBy: {
         kind: 'enum',
@@ -21655,7 +21667,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Workspace to retrieve.' },
     responseMode: 'json',
-    summary: 'List Workspace Members',
+    summary: 'List workspace members',
     query: {
       limit: {
         kind: 'integer',
@@ -21676,7 +21688,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'List Workspace Operations',
+    summary: 'List workspace operations',
     query: {
       limit: {
         kind: 'integer',
@@ -21691,7 +21703,8 @@ export const V2_OPERATIONS = {
       },
       requestId: {
         kind: 'string',
-        describe: 'Stable client request ID for reconciliation and identical retries.',
+        describe:
+          'Find an uncertain mutation by the original client request ID; keep the same filter while paging.',
       },
     },
   },
@@ -21700,14 +21713,14 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workspaces',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'List Workspaces',
+    summary: 'List workspaces',
     query: {
       sortBy: {
         kind: 'enum',
         values: ['name', 'createdAt', 'updatedAt'] as const,
         default: 'createdAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -21733,7 +21746,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/move',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Move Files',
+    summary: 'Move files',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the files.' },
       fileIds: { kind: 'array', required: true, describe: 'File identifiers to update.' },
@@ -21770,7 +21783,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/move',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Move Tables and Folders',
+    summary: 'Move tables and folders',
     body: {
       workspaceId: {
         kind: 'string',
@@ -21790,7 +21803,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows/move',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Move Workflows',
+    summary: 'Move workflows',
     body: {
       workspaceId: {
         kind: 'string',
@@ -21818,7 +21831,7 @@ export const V2_OPERATIONS = {
       requestId: 'Access request identifier.',
     },
     responseMode: 'json',
-    summary: 'Preview Organization Access Request',
+    summary: 'Preview organization access request',
     workspaceKeyUnsupported: true,
   },
   previewWorkflowImport: {
@@ -21826,7 +21839,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows/import/preview',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Preview Workflow Import',
+    summary: 'Preview workflow import',
     body: {
       workspaceId: {
         kind: 'string',
@@ -21847,7 +21860,7 @@ export const V2_OPERATIONS = {
       description: { kind: 'string', describe: 'Override for the imported workflow description.' },
       mappings: {
         kind: 'array',
-        describe: 'Mappings keyed by resource type and source identifier.',
+        describe: 'Mapping entries addressed by resource kind and source identifier.',
       },
       bindings: {
         kind: 'array',
@@ -21856,7 +21869,7 @@ export const V2_OPERATIONS = {
       dependentValues: {
         kind: 'array',
         describe:
-          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+          'Destination-specific values addressed by the source block ID and field key, before imported IDs are regenerated.',
       },
     },
   },
@@ -21866,7 +21879,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Preview Workspace Fork',
+    summary: 'Preview workspace fork',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Display name of the workflow or workspace.' },
@@ -21883,7 +21896,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Preview Workspace Pull',
+    summary: 'Preview workspace pull',
     workspaceKeyUnsupported: true,
     body: {
       otherWorkspaceId: {
@@ -21893,12 +21906,13 @@ export const V2_OPERATIONS = {
       },
       mappings: {
         kind: 'array',
-        describe: 'Mappings keyed by resource type and source identifier.',
+        describe:
+          'Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync.',
       },
       dependentValues: {
         kind: 'array',
         describe:
-          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+          'Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them.',
       },
       copyResources: {
         kind: 'object',
@@ -21922,7 +21936,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Preview Workspace Push',
+    summary: 'Preview workspace push',
     workspaceKeyUnsupported: true,
     body: {
       otherWorkspaceId: {
@@ -21932,12 +21946,13 @@ export const V2_OPERATIONS = {
       },
       mappings: {
         kind: 'array',
-        describe: 'Mappings keyed by resource type and source identifier.',
+        describe:
+          'Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync.',
       },
       dependentValues: {
         kind: 'array',
         describe:
-          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+          'Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them.',
       },
       copyResources: {
         kind: 'object',
@@ -21961,7 +21976,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Pull Workspace',
+    summary: 'Pull workspace',
     workspaceKeyUnsupported: true,
     body: {
       otherWorkspaceId: {
@@ -21971,12 +21986,13 @@ export const V2_OPERATIONS = {
       },
       mappings: {
         kind: 'array',
-        describe: 'Mappings keyed by resource type and source identifier.',
+        describe:
+          'Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync.',
       },
       dependentValues: {
         kind: 'array',
         describe:
-          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+          'Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them.',
       },
       copyResources: {
         kind: 'object',
@@ -21995,17 +22011,20 @@ export const V2_OPERATIONS = {
       requestId: {
         kind: 'string',
         required: true,
-        describe: 'Stable client request ID for reconciliation and identical retries.',
+        describe:
+          'Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can apply another operation.',
       },
       previewFingerprint: {
         kind: 'string',
         required: true,
-        describe: 'Fingerprint of the reviewed preview and its choices.',
+        describe:
+          'Fingerprint returned by a preview with the same choices. A changed plan returns 409; preview again. The example hash is illustrative; use the actual preview value.',
       },
       confirm: {
         kind: 'boolean',
         required: true,
-        describe: 'Explicit acknowledgement that sync replaces target workflows.',
+        describe:
+          'Confirm replacement of mapped target drafts and archival of mapped targets whose sources were deleted or archived.',
       },
     },
   },
@@ -22015,7 +22034,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Push Workspace',
+    summary: 'Push workspace',
     workspaceKeyUnsupported: true,
     body: {
       otherWorkspaceId: {
@@ -22025,12 +22044,13 @@ export const V2_OPERATIONS = {
       },
       mappings: {
         kind: 'array',
-        describe: 'Mappings keyed by resource type and source identifier.',
+        describe:
+          'Proposed mapping entries addressed by resource type and `sourceId`. Preview does not save them; apply commits them with the sync.',
       },
       dependentValues: {
         kind: 'array',
         describe:
-          'Destination-dependent choices keyed by source workflow, block, and field identities.',
+          'Destination-specific choices addressed by source workflow ID, source block ID, and field key. Omission keeps saved overrides; an explicit empty array clears them.',
       },
       copyResources: {
         kind: 'object',
@@ -22049,17 +22069,20 @@ export const V2_OPERATIONS = {
       requestId: {
         kind: 'string',
         required: true,
-        describe: 'Stable client request ID for reconciliation and identical retries.',
+        describe:
+          'Stable client request ID. Reuse it with identical inputs after an uncertain response; changed inputs return 409. A new ID can apply another operation.',
       },
       previewFingerprint: {
         kind: 'string',
         required: true,
-        describe: 'Fingerprint of the reviewed preview and its choices.',
+        describe:
+          'Fingerprint returned by a preview with the same choices. A changed plan returns 409; preview again. The example hash is illustrative; use the actual preview value.',
       },
       confirm: {
         kind: 'boolean',
         required: true,
-        describe: 'Explicit acknowledgement that sync replaces target workflows.',
+        describe:
+          'Confirm replacement of mapped target drafts and archival of mapped targets whose sources were deleted or archived.',
       },
     },
   },
@@ -22069,7 +22092,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Query Rows',
+    summary: 'Query rows',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       predicate: {
@@ -22080,14 +22103,15 @@ export const V2_OPERATIONS = {
       sort: { kind: 'array', describe: 'Ordered table-row sort specification.' },
       limit: {
         kind: 'integer',
-        describe: 'Maximum rows to return; zero requests an unbounded result.',
+        describe:
+          'Maximum rows per page. `0` requests all matches, subject to a 5 MiB row-data ceiling; larger results return `400` with `TABLE_QUERY_RESULT_TOO_LARGE`. Use paged queries or an export for larger results.',
       },
       cursor: { kind: 'string', describe: 'Opaque cursor returned by the previous query page.' },
       includeRunState: {
         kind: 'boolean',
         default: false,
         describe:
-          'Include per-workflow-group run state on every returned row. Off by default: run state is a separate sidecar read and its `blockErrors` are unbounded, so a full page carries it only when asked. Incompatible with `limit: 0`, and caps `limit` at 200.',
+          'Include per-workflow-group run outcomes on every row. Off by default. Incompatible with `limit: 0`; caps `limit` at 200. Run state above 2 MiB returns `413`; request fewer rows or omit run state.',
       },
     },
   },
@@ -22097,7 +22121,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Count Rows',
+    summary: 'Count rows',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       predicate: {
@@ -22116,7 +22140,7 @@ export const V2_OPERATIONS = {
         'File identifier, or the file’s VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a Chat upload.',
     },
     responseMode: 'json',
-    summary: 'Read File Text',
+    summary: 'Read file text',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       maxBytes: {
@@ -22141,7 +22165,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId', 'version'] as const,
     pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
     responseMode: 'json',
-    summary: 'Read File Version Text',
+    summary: 'Read file version text',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       maxBytes: {
@@ -22190,7 +22214,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Rename or Move Folder',
+    summary: 'Rename or move folder',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Current folder path.' },
@@ -22207,7 +22231,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/knowledge/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Rename or Move Folder',
+    summary: 'Rename or move folder',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Current folder path.' },
@@ -22224,7 +22248,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Rename or Move Folder',
+    summary: 'Rename or move folder',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Current folder path.' },
@@ -22241,7 +22265,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/workflows/folders',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Rename or Move Workflow Folder',
+    summary: 'Rename or move workflow folder',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace containing the folder.' },
       path: { kind: 'string', required: true, describe: 'Current folder path.' },
@@ -22262,7 +22286,7 @@ export const V2_OPERATIONS = {
       userId: 'User whose explicit grant will be revoked.',
     },
     responseMode: 'json',
-    summary: 'Remove Credential Member',
+    summary: 'Remove credential member',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -22282,7 +22306,7 @@ export const V2_OPERATIONS = {
       domainId: 'Domain claim owned by this organization.',
     },
     responseMode: 'json',
-    summary: 'Remove Organization Domain',
+    summary: 'Remove organization domain',
     workspaceKeyUnsupported: true,
   },
   removeOrganizationMember: {
@@ -22294,7 +22318,7 @@ export const V2_OPERATIONS = {
       userId: 'User identifier of the organization member.',
     },
     responseMode: 'json',
-    summary: 'Remove Organization Member',
+    summary: 'Remove organization member',
     workspaceKeyUnsupported: true,
   },
   removePermissionGroupMember: {
@@ -22307,7 +22331,7 @@ export const V2_OPERATIONS = {
       userId: 'User identifier of the member to remove.',
     },
     responseMode: 'json',
-    summary: 'Remove Permission Group Member',
+    summary: 'Remove permission group member',
     workspaceKeyUnsupported: true,
   },
   renameFile: {
@@ -22316,7 +22340,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Rename File',
+    summary: 'Rename file',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
@@ -22343,7 +22367,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Create or Replace Workflow Chat Deployment',
+    summary: 'Create or replace workflow chat deployment',
     workspaceKeyUnsupported: true,
     body: {
       identifier: {
@@ -22358,7 +22382,8 @@ export const V2_OPERATIONS = {
       },
       customizations: {
         kind: 'object',
-        describe: 'Presentation overrides. Omitted fields take platform defaults.',
+        describe:
+          'Presentation overrides. Omitted `primaryColor` and `welcomeMessage` use platform defaults; an omitted or empty `imageUrl` keeps the existing avatar. An empty `welcomeMessage` keeps the existing message.',
       },
       authType: {
         kind: 'enum',
@@ -22399,7 +22424,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Replace Workflow State',
+    summary: 'Replace workflow state',
     workspaceKeyUnsupported: true,
     query: {
       dryRun: {
@@ -22434,7 +22459,7 @@ export const V2_OPERATIONS = {
       invitationId: 'Invitation identifier.',
     },
     responseMode: 'json',
-    summary: 'Resend Organization Invitation',
+    summary: 'Resend organization invitation',
     workspaceKeyUnsupported: true,
   },
   resolveOrganizationAccessRequest: {
@@ -22446,7 +22471,7 @@ export const V2_OPERATIONS = {
       requestId: 'Access request identifier.',
     },
     responseMode: 'json',
-    summary: 'Resolve Organization Access Request',
+    summary: 'Resolve organization access request',
     workspaceKeyUnsupported: true,
     body: {
       action: {
@@ -22514,7 +22539,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Restore File',
+    summary: 'Restore file',
     body: {
       workspaceId: {
         kind: 'string',
@@ -22528,7 +22553,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/folders/restore',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Restore Folder',
+    summary: 'Restore folder',
     body: {
       workspaceId: {
         kind: 'string',
@@ -22549,7 +22574,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Restore Knowledge Base',
+    summary: 'Restore knowledge base',
     body: {
       workspaceId: {
         kind: 'string',
@@ -22590,7 +22615,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Restore Table',
+    summary: 'Restore table',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
@@ -22600,7 +22625,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/tables/folders/restore',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Restore Folder',
+    summary: 'Restore folder',
     body: {
       workspaceId: {
         kind: 'string',
@@ -22620,7 +22645,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Restore Workflow',
+    summary: 'Restore workflow',
   },
   resumeWorkflow: {
     method: 'POST',
@@ -22631,7 +22656,7 @@ export const V2_OPERATIONS = {
       runId: 'Unique workflow run identifier.',
     },
     responseMode: 'json',
-    summary: 'Resume Workflow Run',
+    summary: 'Resume workflow run',
     body: {
       contextId: {
         kind: 'string',
@@ -22647,7 +22672,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId', 'version'] as const,
     pathParamDocs: { fileId: 'File identifier.', version: 'Version number.' },
     responseMode: 'json',
-    summary: 'Revert File Version',
+    summary: 'Revert file version',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       expectedCurrentVersion: {
@@ -22658,7 +22683,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'string',
         describe:
-          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
+          'Revert only while the file still holds the content this revision names, as returned by Get file metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
       },
     },
   },
@@ -22696,7 +22721,7 @@ export const V2_OPERATIONS = {
       version: 'Numeric deployment version, or `active` for the currently live version.',
     },
     responseMode: 'json',
-    summary: 'Revert Workflow To Version',
+    summary: 'Revert workflow to version',
     workspaceKeyUnsupported: true,
   },
   revokeOrganizationInvitation: {
@@ -22708,7 +22733,7 @@ export const V2_OPERATIONS = {
       invitationId: 'Invitation identifier.',
     },
     responseMode: 'json',
-    summary: 'Revoke Organization Invitation',
+    summary: 'Revoke organization invitation',
     workspaceKeyUnsupported: true,
   },
   revokeSkillEditor: {
@@ -22720,7 +22745,7 @@ export const V2_OPERATIONS = {
         'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
-    summary: 'Revoke Skill Editor',
+    summary: 'Revoke skill editor',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
@@ -22737,7 +22762,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Rollback Workflow',
+    summary: 'Rollback workflow',
     workspaceKeyUnsupported: true,
     body: {
       version: {
@@ -22752,7 +22777,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Rollback Workspace Fork',
+    summary: 'Rollback workspace fork',
     workspaceKeyUnsupported: true,
     body: {
       otherWorkspaceId: {
@@ -22772,7 +22797,7 @@ export const V2_OPERATIONS = {
       groupId: 'Workflow or enrichment group to run.',
     },
     responseMode: 'json',
-    summary: 'Run Enrichment For One Row',
+    summary: 'Run enrichment for one row',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
     },
@@ -22786,7 +22811,7 @@ export const V2_OPERATIONS = {
         'Organization whose single sign-on settings and verified domains are managed.',
     },
     responseMode: 'json',
-    summary: 'Save SSO Provider',
+    summary: 'Save SSO provider',
     workspaceKeyUnsupported: true,
     body: {
       providerType: {
@@ -23061,7 +23086,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/files/search',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Search File Content',
+    summary: 'Search file content',
     query: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace to search.' },
       query: {
@@ -23107,7 +23132,7 @@ export const V2_OPERATIONS = {
     path: '/api/v2/knowledge/search',
     pathParams: [] as const,
     responseMode: 'json',
-    summary: 'Search Knowledge',
+    summary: 'Search knowledge',
     body: {
       workspaceId: {
         kind: 'string',
@@ -23117,7 +23142,8 @@ export const V2_OPERATIONS = {
       knowledgeBaseIds: {
         kind: 'unknown',
         required: true,
-        describe: 'One knowledge base identifier or an array of up to 20 identifiers.',
+        describe:
+          'One knowledge base ID or an array of up to 20 IDs. Query searches require the same embedding model and dimensions across all selected bases; search incompatible bases separately. Tag-only searches do not require this.',
       },
       query: {
         kind: 'string',
@@ -23138,12 +23164,12 @@ export const V2_OPERATIONS = {
       searchMode: {
         kind: 'enum',
         describe:
-          'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.',
+          'Retrieval strategy: `vector` uses semantic search; `hybrid` also runs full-text search. Omit to use the workspace policy.',
       },
       rerankerEnabled: {
         kind: 'boolean',
         describe:
-          'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.',
+          'Reorder retrieved chunks with a reranking model before truncating to `topK`. Ignored for tag-only searches. A completed reranking call adds a search unit. If reranking is unavailable, results keep their retrieval order; check `rerankerStatus`.',
       },
       rerankerModel: {
         kind: 'enum',
@@ -23165,7 +23191,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Search Rows',
+    summary: 'Search rows',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       q: { kind: 'string', required: true, describe: 'Case-insensitive cell substring to find.' },
@@ -23187,7 +23213,7 @@ export const V2_OPERATIONS = {
       providerId: 'Identity provider identifier.',
     },
     responseMode: 'json',
-    summary: 'Set Primary SSO Provider',
+    summary: 'Set primary SSO provider',
     workspaceKeyUnsupported: true,
   },
   setSecret: {
@@ -23196,7 +23222,7 @@ export const V2_OPERATIONS = {
     pathParams: ['name'] as const,
     pathParamDocs: { name: 'Secret to create or replace.' },
     responseMode: 'json',
-    summary: 'Set Secret',
+    summary: 'Set secret',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -23215,7 +23241,7 @@ export const V2_OPERATIONS = {
       value: {
         kind: 'string',
         describe:
-          'Write-only secret value. It is never returned. Omit it on a workspace secret to change description or unredacted alone, leaving the stored value untouched; the secret must already exist. Always required for a personal secret, which carries no other writable field.',
+          'Secret value, omitted from the Set secret response. For an existing workspace secret, omit it to change only `description` or `unredacted`. Personal secrets always require a value and accept no writable metadata.',
       },
       description: {
         kind: 'string',
@@ -23238,7 +23264,7 @@ export const V2_OPERATIONS = {
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
-    summary: 'Sync Knowledge Connector',
+    summary: 'Sync knowledge connector',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -23262,7 +23288,7 @@ export const V2_OPERATIONS = {
       exportId: 'Unique table-export identifier.',
     },
     responseMode: 'json',
-    summary: 'Download Table Export',
+    summary: 'Download table export',
     query: {
       workspaceId: {
         kind: 'string',
@@ -23277,7 +23303,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Undeploy Workflow',
+    summary: 'Undeploy workflow',
     workspaceKeyUnsupported: true,
   },
   undeployWorkflowMcpTool: {
@@ -23286,10 +23312,10 @@ export const V2_OPERATIONS = {
     pathParams: ['serverId', 'workflowId'] as const,
     pathParamDocs: {
       serverId: 'Unique workflow-MCP server identifier.',
-      workflowId: 'Workflow published as a tool on this server.',
+      workflowId: 'Workflow registered as an MCP tool on this server.',
     },
     responseMode: 'json',
-    summary: 'Unpublish Workflow MCP Tool',
+    summary: 'Undeploy workflow MCP tool',
     workspaceKeyUnsupported: true,
   },
   unlinkWorkspaceFork: {
@@ -23298,7 +23324,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Unlink Workspace Fork',
+    summary: 'Unlink workspace fork',
     workspaceKeyUnsupported: true,
     body: {
       otherWorkspaceId: {
@@ -23314,7 +23340,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Unzip File',
+    summary: 'Unzip file',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
     },
@@ -23325,7 +23351,7 @@ export const V2_OPERATIONS = {
     pathParams: ['credentialId'] as const,
     pathParamDocs: { credentialId: 'Credential to update.' },
     responseMode: 'json',
-    summary: 'Update Credential',
+    summary: 'Update credential',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -23380,7 +23406,7 @@ export const V2_OPERATIONS = {
     pathParams: ['customToolId'] as const,
     pathParamDocs: { customToolId: 'Unique custom tool identifier.' },
     responseMode: 'json',
-    summary: 'Update Custom Tool',
+    summary: 'Update custom tool',
     body: {
       workspaceId: {
         kind: 'string',
@@ -23398,14 +23424,14 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Replace File Content',
+    summary: 'Replace file content',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
       content: {
         kind: 'string',
         required: true,
         describe:
-          'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.',
+          'Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content.',
       },
       encoding: {
         kind: 'enum',
@@ -23416,7 +23442,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'string',
         describe:
-          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+          'Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },
@@ -23426,7 +23452,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Update Knowledge Base',
+    summary: 'Update knowledge base',
     body: {
       workspaceId: {
         kind: 'string',
@@ -23449,7 +23475,7 @@ export const V2_OPERATIONS = {
       chunkId: 'Unique chunk identifier.',
     },
     responseMode: 'json',
-    summary: 'Update Chunk',
+    summary: 'Update chunk',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -23477,7 +23503,7 @@ export const V2_OPERATIONS = {
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
-    summary: 'Update Knowledge Connector',
+    summary: 'Update knowledge connector',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -23510,7 +23536,7 @@ export const V2_OPERATIONS = {
       connectorId: 'Connector selected for the operation.',
     },
     responseMode: 'json',
-    summary: 'Update Knowledge Connector Documents',
+    summary: 'Update knowledge connector documents',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -23540,7 +23566,7 @@ export const V2_OPERATIONS = {
       documentId: 'Unique knowledge document identifier.',
     },
     responseMode: 'json',
-    summary: 'Update Document',
+    summary: 'Update document',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -23586,7 +23612,7 @@ export const V2_OPERATIONS = {
       tagId: 'Unique tag definition identifier.',
     },
     responseMode: 'json',
-    summary: 'Update Tag',
+    summary: 'Update tag',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: {
@@ -23608,7 +23634,7 @@ export const V2_OPERATIONS = {
     pathParams: ['mcpServerId'] as const,
     pathParamDocs: { mcpServerId: 'Unique MCP server identifier.' },
     responseMode: 'json',
-    summary: 'Update MCP Server',
+    summary: 'Update MCP server',
     body: {
       workspaceId: {
         kind: 'string',
@@ -23632,7 +23658,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['none', 'headers', 'oauth'] as const,
         describe:
-          'Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.',
+          'Authentication method. On creation, omission without `headers` probes once: an OAuth challenge selects `oauth`, an unauthenticated success selects `none`, and other outcomes fall back to `headers`. An OAuth client ID selects `oauth` when the method is omitted. Set explicitly to use headers with a server advertising OAuth; adding headers later does not change the saved method.',
       },
       headers: {
         kind: 'object',
@@ -23672,7 +23698,7 @@ export const V2_OPERATIONS = {
     pathParams: ['organizationId'] as const,
     pathParamDocs: { organizationId: 'Organization that owns the access requests.' },
     responseMode: 'json',
-    summary: 'Update Organization Access Request Settings',
+    summary: 'Update organization access request settings',
     workspaceKeyUnsupported: true,
     body: {
       allowRequests: {
@@ -23692,7 +23718,7 @@ export const V2_OPERATIONS = {
       userId: 'User identifier of the organization member.',
     },
     responseMode: 'json',
-    summary: 'Update Organization Member',
+    summary: 'Update organization member',
     workspaceKeyUnsupported: true,
     body: {
       role: {
@@ -23713,7 +23739,7 @@ export const V2_OPERATIONS = {
         'User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it.',
     },
     responseMode: 'json',
-    summary: 'Update Organization Member Credit Limit',
+    summary: 'Update organization member credit limit',
     workspaceKeyUnsupported: true,
     body: {
       creditLimit: {
@@ -23734,7 +23760,7 @@ export const V2_OPERATIONS = {
       groupId: 'Permission group identifier.',
     },
     responseMode: 'json',
-    summary: 'Update Permission Group',
+    summary: 'Update permission group',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Group name, unique within the organization.' },
@@ -23818,7 +23844,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Update Rows by Filter',
+    summary: 'Update rows by filter',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       filter: {
@@ -23841,7 +23867,7 @@ export const V2_OPERATIONS = {
     pathParams: ['sandboxId'] as const,
     pathParamDocs: { sandboxId: 'Unique sandbox identifier.' },
     responseMode: 'json',
-    summary: 'Update Sandbox',
+    summary: 'Update sandbox',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
@@ -23878,7 +23904,7 @@ export const V2_OPERATIONS = {
         'Unique skill identifier. A built-in skill is `builtin-` followed by its name, for example `builtin-research`.',
     },
     responseMode: 'json',
-    summary: 'Update Skill',
+    summary: 'Update skill',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the skill.' },
@@ -23896,7 +23922,7 @@ export const V2_OPERATIONS = {
         'Organization whose single sign-on settings and verified domains are managed.',
     },
     responseMode: 'json',
-    summary: 'Update SSO Policy',
+    summary: 'Update SSO policy',
     workspaceKeyUnsupported: true,
     body: {
       requireSso: {
@@ -23912,7 +23938,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Update Table',
+    summary: 'Update table',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       name: { kind: 'string', describe: 'Replacement table name.' },
@@ -23933,7 +23959,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Update Column',
+    summary: 'Update column',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
       columnName: {
@@ -23950,7 +23976,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId', 'rowId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.', rowId: 'Unique table row identifier.' },
     responseMode: 'json',
-    summary: 'Update Row',
+    summary: 'Update row',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       data: {
@@ -23966,7 +23992,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId', 'viewId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.', viewId: 'Unique saved-view identifier.' },
     responseMode: 'json',
-    summary: 'Update View',
+    summary: 'Update view',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the table.' },
       name: { kind: 'string', describe: 'Replacement saved-view display name.' },
@@ -23987,7 +24013,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Update Workflow',
+    summary: 'Update workflow',
     body: {
       name: { kind: 'string', describe: 'Replacement workflow name.' },
       description: {
@@ -24006,7 +24032,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Update Workflow Group',
+    summary: 'Update workflow group',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       groupId: { kind: 'string', required: true, describe: 'Workflow group to update.' },
@@ -24037,7 +24063,7 @@ export const V2_OPERATIONS = {
     pathParams: ['serverId'] as const,
     pathParamDocs: { serverId: 'Unique workflow-MCP server identifier.' },
     responseMode: 'json',
-    summary: 'Update Workflow MCP Server',
+    summary: 'Update workflow MCP server',
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', describe: 'Server display name, shown to connecting MCP clients.' },
@@ -24054,7 +24080,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workflowId'] as const,
     pathParamDocs: { workflowId: 'Unique workflow identifier.' },
     responseMode: 'json',
-    summary: 'Update Workflow Public API Access',
+    summary: 'Update workflow public API access',
     workspaceKeyUnsupported: true,
     body: {
       isPublicApi: {
@@ -24074,7 +24100,7 @@ export const V2_OPERATIONS = {
       version: 'Numeric deployment version.',
     },
     responseMode: 'json',
-    summary: 'Update Workflow Version',
+    summary: 'Update workflow version',
     body: {
       name: { kind: 'string', describe: 'New label for the deployment version.' },
       description: {
@@ -24089,7 +24115,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Update Workspace Fork Exclusions',
+    summary: 'Update workspace fork exclusions',
     workspaceKeyUnsupported: true,
     body: {
       workflowIds: {
@@ -24110,7 +24136,7 @@ export const V2_OPERATIONS = {
     pathParams: ['workspaceId'] as const,
     pathParamDocs: { workspaceId: 'Explicit current workspace scope.' },
     responseMode: 'json',
-    summary: 'Update Workspace Fork Mappings',
+    summary: 'Update workspace fork mappings',
     workspaceKeyUnsupported: true,
     body: {
       otherWorkspaceId: {
@@ -24128,7 +24154,8 @@ export const V2_OPERATIONS = {
       mappings: {
         kind: 'array',
         required: true,
-        describe: 'Mappings keyed by resource type and source identifier.',
+        describe:
+          'Mapping entries addressed by resource type and `sourceId`. `targetId: null` clears a mapping.',
       },
     },
   },
@@ -24138,7 +24165,7 @@ export const V2_OPERATIONS = {
     pathParams: ['knowledgeBaseId'] as const,
     pathParamDocs: { knowledgeBaseId: 'Unique knowledge base identifier.' },
     responseMode: 'json',
-    summary: 'Upload Document',
+    summary: 'Upload document',
     query: {
       workspaceId: {
         kind: 'string',
@@ -24153,7 +24180,7 @@ export const V2_OPERATIONS = {
     pathParams: ['credentialId'] as const,
     pathParamDocs: { credentialId: 'Credential whose sharing grants are managed.' },
     responseMode: 'json',
-    summary: 'Upsert Credential Member',
+    summary: 'Upsert credential member',
     workspaceKeyUnsupported: true,
     query: {
       workspaceId: {
@@ -24182,7 +24209,7 @@ export const V2_OPERATIONS = {
     pathParams: ['fileId'] as const,
     pathParamDocs: { fileId: 'File identifier.' },
     responseMode: 'json',
-    summary: 'Enable or Disable File Share',
+    summary: 'Enable or disable file share',
     workspaceKeyUnsupported: true,
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
@@ -24216,7 +24243,7 @@ export const V2_OPERATIONS = {
     pathParams: ['tableId'] as const,
     pathParamDocs: { tableId: 'Unique table identifier.' },
     responseMode: 'json',
-    summary: 'Upsert Row',
+    summary: 'Upsert row',
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Unique workspace identifier.' },
       data: {
@@ -24238,7 +24265,7 @@ export const V2_OPERATIONS = {
       domainId: 'Domain claim owned by this organization.',
     },
     responseMode: 'json',
-    summary: 'Verify Organization Domain',
+    summary: 'Verify organization domain',
     workspaceKeyUnsupported: true,
   },
 } as const

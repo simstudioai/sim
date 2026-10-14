@@ -151,12 +151,15 @@ export function attachTableImport(tables: Command): void {
     'getTableImport',
   ])
   importCommand
-    .argument('[path]', 'Local CSV file to import; omit when using --file-id')
+    .argument(
+      '[path]',
+      'Local CSV file to import; choose exactly one source: this path or --file-id'
+    )
     .allowExcessArguments(false)
     .description('Import a CSV, into a new table by default')
     .option(
       '--name <name>',
-      'Identifier for the new table: letters, numbers, and underscores; defaults to the sanitized file name'
+      'Name for a new table: letters, numbers, and underscores. A local CSV defaults to its sanitized filename; required with --file-id unless --table-id names an existing table'
     )
     .option('--table-id <id>', 'Import into this existing table instead of creating one')
     .addOption(

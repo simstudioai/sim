@@ -39,7 +39,6 @@ import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import { createProjectFileUploadSession } from '@/lib/projects/files/application/uploads'
 import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
-import * as storageService from '@/lib/uploads/core/storage-service'
 import { UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
 import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
@@ -475,26 +474,6 @@ describe('Private Project teardown and durable object cleanup', () => {
       await expect(readdir(join(storageRoot, `project/${f.projectId}`))).rejects.toMatchObject({
         code: 'ENOENT',
       })
-      await mkdir(dirname(join(storageRoot, upload.finalKey)), { recursive: true })
-      await writeFile(join(storageRoot, upload.finalKey), 'finished-after-empty-sweep')
-      const reconciliationId = 'project-file.storage.reconcile'
-      await db
-        .update(outboxEvent)
-        .set({ availableAt: new Date(0), attempts: 4 })
-        .where(eq(outboxEvent.id, reconciliationId))
-      expect(
-        await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
-      ).toBe('pending')
-      await expect(readFile(join(storageRoot, upload.finalKey))).rejects.toMatchObject({
-        code: 'ENOENT',
-      })
-      expect(await readFile(join(storageRoot, live.keys[0]), 'utf8')).toBe('new')
-      const [reconciled] = await db
-        .select()
-        .from(outboxEvent)
-        .where(eq(outboxEvent.id, reconciliationId))
-      expect(reconciled.attempts).toBe(0)
-      expect(reconciled.availableAt.getTime()).toBeGreaterThan(Date.now())
       const unsafe = generateId()
       await db.insert(outboxEvent).values({
         id: unsafe,
@@ -571,7 +550,7 @@ describe('Private Project teardown and durable object cleanup', () => {
     }
   )
 
-  check('retirement batches finish while sharing one inventory reconciliation event', async () => {
+  check('retirement batches finish without arming a bucket inventory', async () => {
     const f = await fixture()
     await Promise.all(
       Array.from({ length: 501 }, (_, index) => seedUpload(f, `batch-${index}.bin`))
@@ -615,175 +594,29 @@ describe('Private Project teardown and durable object cleanup', () => {
       .select()
       .from(outboxEvent)
       .where(eq(outboxEvent.eventType, 'project-file.storage.reconcile'))
-    expect(reconciliations).toHaveLength(1)
+    expect(reconciliations).toHaveLength(0)
   })
 
   check(
-    'retirement revives terminal reconciliation without replacing active progress',
+    'a previously armed storage inventory drains without deleting unowned prefixes',
     async () => {
-      const initial = await fixture()
-      await erasePrivateProject(initial)
       const reconciliationId = 'project-file.storage.reconcile'
-      for (const status of ['completed', 'dead_letter', 'pending', 'processing']) {
-        const f = await fixture()
-        const lockedAt = new Date()
-        await db
-          .update(outboxEvent)
-          .set({ status, attempts: 4, payload: { cursor: 'saved-progress' }, lockedAt })
-          .where(eq(outboxEvent.id, reconciliationId))
-        await erasePrivateProject(f)
-        const [event] = await db
-          .select()
-          .from(outboxEvent)
-          .where(eq(outboxEvent.id, reconciliationId))
-        if (status === 'completed' || status === 'dead_letter') {
-          expect(event).toMatchObject({
-            status: 'pending',
-            attempts: 0,
-            payload: {},
-            lockedAt: null,
-          })
-        } else {
-          expect(event).toMatchObject({
-            status,
-            attempts: 4,
-            payload: { cursor: 'saved-progress' },
-            lockedAt,
-          })
-        }
-      }
-      await db
-        .update(outboxEvent)
-        .set({ status: 'pending', attempts: 0, payload: {}, lockedAt: null })
-        .where(eq(outboxEvent.id, reconciliationId))
-    }
-  )
-
-  check(
-    'inventory reconciliation isolates a failed prefix and retries it next cycle while preserving live owners',
-    async () => {
-      const retired = await fixture()
-      await erasePrivateProject(retired)
-      const live = await fixture()
-      const reconciliationId = 'project-file.storage.reconcile'
-      const orphanIds = Array.from({ length: 505 }, () => generateId()).sort()
-      const obstructed = join(storageRoot, `project/${orphanIds[0]}`)
-      for (const id of orphanIds) {
-        const prefix = join(storageRoot, `project/${id}`)
-        await mkdir(prefix, { recursive: true })
-        await writeFile(join(prefix, 'late.bin'), 'late')
-      }
-      const deleteStoredFile = storageService.deleteFile
-      const deletion = vi.spyOn(storageService, 'deleteFile').mockImplementation((params) => {
-        if (params.key.startsWith(`project/${orphanIds[0]}/`)) {
-          return Promise.reject(
-            Object.assign(new Error('Fixture prefix deletion failed'), { code: 'EACCES' })
-          )
-        }
-        return deleteStoredFile(params)
+      const unowned = `project/${generateId()}/compiled/late.bin`
+      await mkdir(dirname(join(storageRoot, unowned)), { recursive: true })
+      await writeFile(join(storageRoot, unowned), 'late')
+      await db.insert(outboxEvent).values({
+        id: reconciliationId,
+        eventType: reconciliationId,
+        payload: {},
+        availableAt: new Date(0),
       })
       const { projectFilePrefixCleanupOutboxHandlers } = await import(
         '@/lib/projects/files/prefix-cleanup'
       )
-      try {
-        await db
-          .update(outboxEvent)
-          .set({ availableAt: new Date(0), payload: {}, attempts: 3 })
-          .where(eq(outboxEvent.id, reconciliationId))
-        expect(
-          await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
-        ).toBe('pending')
-        const [failed] = await db
-          .select()
-          .from(outboxEvent)
-          .where(eq(outboxEvent.id, reconciliationId))
-        expect(failed.attempts).toBe(3)
-        expect(failed.payload).toMatchObject({ failedPrefixes: 1, cursor: expect.any(String) })
-        let completedCycle = false
-        for (let attempt = 0; attempt < 10; attempt++) {
-          await db
-            .update(outboxEvent)
-            .set({ availableAt: new Date(0) })
-            .where(eq(outboxEvent.id, reconciliationId))
-          expect(
-            await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
-          ).toBe('pending')
-          const [continued] = await db
-            .select()
-            .from(outboxEvent)
-            .where(eq(outboxEvent.id, reconciliationId))
-          if (continued.availableAt.getTime() > Date.now() + 60 * 60 * 1000) {
-            expect(continued.attempts).toBe(3)
-            completedCycle = true
-            break
-          }
-          expect(continued.payload).toMatchObject({ cursor: expect.any(String) })
-        }
-        expect(completedCycle).toBe(true)
-        for (const id of orphanIds.slice(1))
-          await expect(readdir(join(storageRoot, `project/${id}`))).rejects.toMatchObject({
-            code: 'ENOENT',
-          })
-        expect(await readFile(join(storageRoot, live.keys[0]), 'utf8')).toBe('new')
-      } finally {
-        deletion.mockRestore()
-      }
-      expect(await readFile(join(obstructed, 'late.bin'), 'utf8')).toBe('late')
-      await db
-        .update(outboxEvent)
-        .set({ availableAt: new Date(0) })
-        .where(eq(outboxEvent.id, reconciliationId))
       expect(
         await processOutboxEventById(reconciliationId, projectFilePrefixCleanupOutboxHandlers)
-      ).toBe('pending')
-      await expect(readdir(obstructed)).rejects.toMatchObject({ code: 'ENOENT' })
-      const [recovered] = await db
-        .select()
-        .from(outboxEvent)
-        .where(eq(outboxEvent.id, reconciliationId))
-      expect(recovered.attempts).toBe(0)
-    }
-  )
-
-  check(
-    'periodic reconciliation recovery respects cooldown and active leases while preserving progress',
-    async () => {
-      const f = await fixture()
-      await erasePrivateProject(f)
-      const reconciliationId = 'project-file.storage.reconcile'
-      const { recoverProjectStorageReconciliation } = await import(
-        '@/lib/projects/files/prefix-cleanup'
-      )
-      const now = new Date()
-      const checkpoint = { cursor: 'provider-page', page: [f.projectId], index: 0 }
-      const old = new Date(now.getTime() - 25 * 60 * 60 * 1000)
-      for (const status of ['pending', 'processing', 'dead_letter']) {
-        await db
-          .update(outboxEvent)
-          .set({ status, attempts: 10, payload: checkpoint, processedAt: old, lockedAt: now })
-          .where(eq(outboxEvent.id, reconciliationId))
-        await recoverProjectStorageReconciliation(now)
-        const [event] = await db
-          .select()
-          .from(outboxEvent)
-          .where(eq(outboxEvent.id, reconciliationId))
-        expect(event.payload).toEqual(checkpoint)
-        expect(event).toMatchObject(
-          status === 'dead_letter'
-            ? { status: 'pending', attempts: 0, lockedAt: null, processedAt: null }
-            : { status, attempts: 10, lockedAt: now, processedAt: old }
-        )
-      }
-      await db
-        .update(outboxEvent)
-        .set({ status: 'dead_letter', attempts: 10, processedAt: now })
-        .where(eq(outboxEvent.id, reconciliationId))
-      await recoverProjectStorageReconciliation(now)
-      const [cooling] = await db
-        .select()
-        .from(outboxEvent)
-        .where(eq(outboxEvent.id, reconciliationId))
-      expect(cooling).toMatchObject({ status: 'dead_letter', attempts: 10, payload: checkpoint })
+      ).toBe('completed')
+      expect(await readFile(join(storageRoot, unowned), 'utf8')).toBe('late')
     }
   )
 

@@ -89,15 +89,35 @@ export function fileSearchInputCondition(
           AND ${changelogRelease.workspaceId} = ${owner.entityId})))`
 }
 
-/** Input deletion leaves manifest rows intact, so absence can never become valid empty provenance. */
-export function currentFileSearchDependencies(buildId: SQLWrapper, owner: EditableFileOwner): SQL {
+/**
+ * Dependency rows, among those `scope` selects, whose input is missing, deleted, or changed since the
+ * build compiled it. Input deletion leaves manifest rows intact, so absence can never become valid
+ * empty provenance.
+ */
+function staleFileSearchDependencies(owner: EditableFileOwner, scope: SQL): SQL {
   const input = alias(workspaceFiles, 'input')
-  return sql`NOT EXISTS (
-    SELECT 1 FROM file_search_dependency dependency
+  return sql`SELECT dependency.build_id FROM file_search_dependency dependency
     LEFT JOIN workspace_files input ON input.id = dependency.file_id
       AND ${fileSearchInputCondition(owner, input)}
-    WHERE dependency.build_id = ${buildId}
+    WHERE ${scope}
       AND (input.id IS NULL OR input.deleted_at IS NOT NULL OR input.key <> dependency.key
-        OR input.content_updated_at <> dependency.source_content_updated_at)
-  )`
+        OR input.content_updated_at <> dependency.source_content_updated_at)`
+}
+
+/** True when every dependency of `buildId` is still current for `owner`. */
+export function currentFileSearchDependencies(buildId: SQLWrapper, owner: EditableFileOwner): SQL {
+  return sql`NOT EXISTS (${staleFileSearchDependencies(owner, sql`dependency.build_id = ${buildId}`)})`
+}
+
+/**
+ * Builds of `owner` with a stale dependency, found from the owner's dependency rows through
+ * `file_search_dependency_owner_idx`. A build is stale exactly when
+ * {@link currentFileSearchDependencies} is false for it under the same owner: a dependency row
+ * carries its build's owner, and a revision only ever points at a build of its own owner.
+ */
+export function staleFileSearchDependencyBuilds(owner: EditableFileOwner): SQL {
+  return staleFileSearchDependencies(
+    owner,
+    sql`dependency.entity_type = ${owner.entityType} AND dependency.entity_id = ${owner.entityId}`
+  )
 }

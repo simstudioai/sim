@@ -5,6 +5,7 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
+import { lockWorkspaceStorageForMutationInTx } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
@@ -308,6 +309,17 @@ async function acquireFileFolderMutationLock(tx: DbTransaction, owner: EditableF
   await lockFileDirectories(tx, [owner])
 }
 
+/**
+ * For operations that archive or restore many file rows: their search-index trigger upserts the
+ * dispatch queue row, so the workspace row must be locked first, the order
+ * {@link lockWorkspaceStorageForMutationInTx} requires of every file writer.
+ */
+async function acquireFileItemsMutationLock(tx: DbTransaction, owner: EditableFileOwner) {
+  await acquireFileFolderMutationLock(tx, owner)
+  if (owner.entityType === 'workspace')
+    await lockWorkspaceStorageForMutationInTx(tx, owner.entityId)
+}
+
 export function buildWorkspaceFileFolderPathMap(
   folders: Array<Pick<RawWorkspaceFileFolder, 'id' | 'name' | 'parentId'>>
 ): Map<string, string> {
@@ -582,8 +594,7 @@ export async function resolveFileFolderTarget<O extends EditableFileOwner>(
   if (target.folderPath !== undefined) {
     const path = buildFolderPath(folderPathSegments(target.folderPath))
     if (path === '/') return null
-    const rows = await selectFileFolderPathRows(owner, client)
-    folderId = buildFolderPathIndex(rows).idByPath.get(path) ?? null
+    folderId = (await loadActiveFileFolderPathIndex(owner, client)).idByPath.get(path) ?? null
     if (!folderId) throw new OrchestrationError('not_found', 'Target folder not found')
   }
   if (!folderId) return null
@@ -1260,7 +1271,7 @@ export async function restoreFileFolder<O extends EditableFileOwner>(
   folderId: string,
   tx: DbTransaction
 ) {
-  await acquireFileFolderMutationLock(tx, owner)
+  await acquireFileItemsMutationLock(tx, owner)
 
   const raw = await tx
     .select()
@@ -1433,7 +1444,7 @@ export async function archiveFileItems(
   const explicitFileIds = Array.from(new Set(params.fileIds ?? []))
   const explicitFolderIds = Array.from(new Set(params.folderIds ?? []))
 
-  await acquireFileFolderMutationLock(tx, params.owner)
+  await acquireFileItemsMutationLock(tx, params.owner)
   await assertFileItemsBelongToOwner(params, tx)
 
   const activeFolders = await selectAffectedFileFolders(params.owner, explicitFolderIds, tx)
@@ -1701,7 +1712,10 @@ export async function deleteWorkspaceFileFolderByPath(params: {
   const now = new Date()
 
   return db.transaction(async (tx) => {
-    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+    await acquireFileItemsMutationLock(tx, {
+      entityType: 'workspace',
+      entityId: params.workspaceId,
+    })
     const index = await loadActiveFileFolderPathIndex(
       { entityType: 'workspace', entityId: params.workspaceId },
       tx

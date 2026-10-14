@@ -10,7 +10,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, children, className }: PageHeaderProps) {
   return (
-    <div className={cn('mt-6 flex flex-wrap items-start gap-x-4 gap-y-2 sm:mt-0', className)}>
+    <div className={cn('flex flex-wrap items-start gap-x-4 gap-y-2', className)}>
       <DocsTitle className='mb-2 min-w-0 flex-[1_1_16rem] [overflow-wrap:anywhere]'>
         {title}
       </DocsTitle>

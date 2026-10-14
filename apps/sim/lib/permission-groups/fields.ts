@@ -379,7 +379,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'hide-deploy-chatbot',
     label: 'Chat Deployment',
     category: 'Deployment',
-    hint: 'Prevent publishing a workflow as a chat.',
+    hint: 'Prevent deploying a workflow as a chat.',
   }),
   allowedChatDeployAuthTypes: allowlist(shareAuthType, 'capability', {
     limited:

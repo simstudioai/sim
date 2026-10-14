@@ -4006,7 +4006,6 @@
   "apps/sim/lib/api/openapi/types.ts#OpenApiInfo",
   "apps/sim/lib/api/openapi/types.ts#OpenApiOperationSuccess",
   "apps/sim/lib/api/openapi/types.ts#OpenApiRequestBodySchema",
-  "apps/sim/lib/api/openapi/types.ts#OpenApiSecurityRequirement",
   "apps/sim/lib/api/openapi/types.ts#OpenApiServer",
   "apps/sim/lib/api/openapi/types.ts#OpenApiTag",
   "apps/sim/lib/api/server/routes/internal-json-route.ts#InternalJsonPresenterContext",

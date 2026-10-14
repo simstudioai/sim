@@ -1,76 +1,41 @@
 ---
-title: Session Policies
-description: Set session lifetime limits and sign out every member of your organization at once
+title: Session policies
+description: Limit member session lifetimes and revoke organization sessions
 ---
 
-import { FAQ } from '@/components/ui/faq'
+Session policies control how long organization members stay signed in. Organization owners and admins can configure them on Enterprise plans, or on self-hosted deployments where session policies are enabled.
 
-Session Policies let organization owners and admins on Enterprise plans control how long member sign-in sessions last, and sign out every member org-wide in one action. Policies apply to every member of the organization on every device.
+The limits apply to member sign-in sessions across devices, including SSO sessions. Your identity provider can enforce additional session rules.
 
----
+## Set session limits
 
-## Setup
+Open **Settings → Organization → Security → Session policies**. Enter whole numbers in hours, then select **Save**. **Discard** restores the saved values.
 
-Go to **Settings → Security → Session policies** in your organization settings.
+| Setting | Behavior | Accepted values |
+| --- | --- | --- |
+| **Max session lifetime (hours)** | Caps a session's age from sign-in, regardless of activity. A value of `168` requires sign-in again at least weekly. | 1–8760 hours |
+| **Idle timeout (hours)** | Expires a session after inactivity. Activity refreshes the session within any maximum lifetime. | 48–8760 hours |
 
-Both limits are optional. Leave a field empty to keep the default behavior: sessions last 30 days and extend automatically while a member stays active.
+Both fields are optional. Leaving a field empty removes that organization limit. With neither limit set, sessions use the default 30-day sliding expiry and extend automatically while a member stays active.
 
----
-
-## Settings
-
-### Max session lifetime
-
-Caps how long a session can exist from the moment a member signs in, regardless of activity. When the limit is reached, the member must sign in again.
-
-Use this to enforce periodic re-authentication — for example, a value of `168` requires everyone to sign in again at least weekly. Accepts 1 to 8760 hours (1 year).
-
-### Idle timeout
-
-Signs a member out after this many hours without activity. Activity extends the session, so members who use Sim regularly stay signed in; dormant sessions expire.
-
-Accepts 48 to 8760 hours. The 48-hour minimum exists because session activity is recorded at most once per day — a shorter window could sign out members who are actively working.
-
-### Sign out all members
-
-The **Sign out all members** action immediately revokes every member session in the organization except your own. Members are signed out on their next request — typically within a minute — and must sign in again.
-
-Use this after a security incident, an offboarding wave, or before tightening a policy you want to take effect everywhere at once.
-
----
+The idle minimum is 48 hours because session activity refreshes are recorded at most once every 24 hours. A shorter limit could expire a session while its member is actively using Sim.
 
 ## How enforcement works
 
-- **New sign-ins** get an expiry that respects the policy from the moment the session is created.
-- **Existing sessions** are shortened immediately when you save a tighter policy — no member keeps a longer session than the new policy allows.
-- **Loosening a policy never extends existing sessions.** Members pick up the longer limit the next time they sign in.
-- Changes propagate to active members within about a minute; there is no need to redeploy or wait for sessions to naturally expire.
+- New sign-ins receive an expiry constrained by the current policy.
+- Saving a tighter policy shortens existing member sessions. Changes reach other application instances within about a minute.
+- Saving a looser policy does not immediately extend stored session expiries. Later session refreshes and new sign-ins use the current limits.
 
----
+When a session expires, the member must sign in again on their next request. Workflow changes that have already synced remain saved; don't rely on session recovery to preserve an edit that has not synced.
 
-## FAQ
+## Sign out all members
 
-<FAQ
-  items={[
-    {
-      question: 'Do session policies apply to SSO sign-ins?',
-      answer:
-        'Yes. Sessions created through SSO follow the same lifetime and idle limits as any other sign-in method. Your identity provider may enforce its own, stricter session rules on top.',
-    },
-    {
-      question: 'What happens to a member who is working when their session expires?',
-      answer:
-        'They are redirected to sign in again on their next request. Unsaved workflow changes in the editor are preserved by the collaborative editor, which continuously syncs edits.',
-    },
-    {
-      question: 'Does "Sign out all members" affect API keys or running workflows?',
-      answer:
-        'No. It revokes browser sign-in sessions only. API keys, deployed workflows, webhooks, and schedules keep working — manage those separately from the API keys settings.',
-    },
-    {
-      question: 'Why is the minimum idle timeout 48 hours?',
-      answer:
-        'Session activity is recorded at most once per 24 hours for performance. The minimum is twice that window so a member who stays active always registers activity before the idle limit can expire their session.',
-    },
-  ]}
-/>
+Use **Sign out all members** after a security incident or when you need members to authenticate again. Confirm the action to revoke the organization's member sessions, except **your current session**. Your sessions on other devices are also revoked.
+
+Members must sign in again on their next request, typically within a minute. Revocation affects sign-in sessions only: API keys, deployed workflows, webhooks, and schedules keep working. Manage those credentials and resources separately when offboarding a member or responding to an incident.
+
+## Related docs
+
+- [Single sign-on](/platform/enterprise/sso)
+- [Directory provisioning](/platform/enterprise/scim)
+- [Self-hosted enterprise](/platform/enterprise/self-hosted)

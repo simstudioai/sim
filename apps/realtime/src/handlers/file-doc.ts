@@ -515,6 +515,59 @@ async function persistRoom(name: string, room: FileDocRoom, final: boolean): Pro
   }
 }
 
+const FILE_DOC_PRESENCE_CHANGED = 'file-doc-presence-changed'
+const FILE_DOC_PRESENCE_RETRIES = 2
+const FILE_DOC_PRESENCE_RETRY_MS = 100
+const presenceRefreshes = new WeakMap<Server, Map<string, { revision: number }>>()
+
+function setupFileDocPresence(io: Server) {
+  if (presenceRefreshes.has(io)) return
+  presenceRefreshes.set(io, new Map())
+  io.on(FILE_DOC_PRESENCE_CHANGED, (name: string, fileId: string) => {
+    if (fileDocRooms.has(name)) void refreshFileDocPresence(io, name, fileId)
+  })
+}
+
+async function refreshFileDocPresence(io: Server, name: string, fileId: string) {
+  const refreshes = presenceRefreshes.get(io)
+  if (!refreshes) return
+  const pending = refreshes.get(name)
+  if (pending) {
+    pending.revision += 1
+    return
+  }
+  const refresh = { revision: 0 }
+  refreshes.set(name, refresh)
+  try {
+    let failures = 0
+    while (true) {
+      const revision = refresh.revision
+      let sockets: Awaited<ReturnType<Server['fetchSockets']>>
+      try {
+        sockets = await io.to(name).except(`${name}:pending`).fetchSockets()
+      } catch (error) {
+        if (failures >= FILE_DOC_PRESENCE_RETRIES) throw error
+        failures += 1
+        await sleep(FILE_DOC_PRESENCE_RETRY_MS)
+        continue
+      }
+      if (revision !== refresh.revision) continue
+      const users: FileDocPresenceUser[] = []
+      for (const socket of sockets) {
+        const { fileDocPresence } = socket.data as AuthenticatedSocket['data']
+        if (fileDocPresence?.roomName === name) users.push(fileDocPresence.user)
+      }
+      // Each replica refreshes its own clients, so a delayed remote snapshot cannot overwrite theirs.
+      io.local.to(name).except(`${name}:pending`).emit(FILE_DOC_EVENTS.PRESENCE, { fileId, users })
+      return
+    }
+  } catch (error) {
+    logger.warn('Skipping file document presence refresh', { error: getErrorMessage(error) })
+  } finally {
+    refreshes.delete(name)
+  }
+}
+
 /**
  * Broadcast the room's collaborator roster to everyone in it, for the avatar stack. One entry
  * PER SESSION (socket) — the client excludes its own socket and dedupes the remainder per user
@@ -525,23 +578,8 @@ async function persistRoom(name: string, room: FileDocRoom, final: boolean): Pro
  * — so a peer cannot spoof or suppress an entry.
  */
 function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
-  const users: FileDocPresenceUser[] = []
-  // One entry PER SOCKET (session), not per clientID: a socket's several providers are the same
-  // authenticated user, so any of its owners carries the identity; the client dedupes per user for the
-  // avatar stack (see the roster comment above). An empty inner map is never stored, so `owner` exists.
-  for (const [socketId, clientMap] of room.owners) {
-    const owner = clientMap.values().next().value
-    if (!owner) continue
-    users.push({
-      socketId,
-      userId: owner.userId,
-      userName: owner.userName,
-      avatarUrl: owner.avatarUrl,
-    })
-  }
-  io.to(name)
-    .except(`${name}:pending`)
-    .emit(FILE_DOC_EVENTS.PRESENCE, { fileId: room.fileId, users })
+  if (getFileDocStore().enabled) io.serverSideEmit(FILE_DOC_PRESENCE_CHANGED, name, room.fileId)
+  void refreshFileDocPresence(io, name, room.fileId)
 }
 
 /** Whether the client has recorded that it seeded the document's initial content. */
@@ -1461,6 +1499,8 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
   // caret via its awareness removal.
   const clientMap = room.owners.get(socketId)
   room.owners.delete(socketId)
+  const socket = io.sockets.sockets.get(socketId) as AuthenticatedSocket | undefined
+  if (socket?.data.fileDocPresence?.roomName === name) socket.data.fileDocPresence = undefined
   if (clientMap !== undefined && clientMap.size > 0) {
     // Fires the awareness `update` handler with a non-socket origin → the removals
     // are broadcast to every remaining client, so the departed carets vanish.
@@ -1478,16 +1518,15 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
  * workspace-files join shape (auth → readiness → validate → authorize → join),
  * then runs the Yjs sync/awareness handshake.
  *
- * The avatar roster is derived from this room's own `owners` map and broadcast as
- * `FILE_DOC_EVENTS.PRESENCE` — NOT the Redis-backed room-manager presence the workflow /
- * table rooms use — because the file-doc room already owns an authoritative in-memory Y.Doc
- * pinned to a single replica, so the session identity is right here with no extra store.
+ * The avatar roster is collected across the Socket.IO adapter from admitted sockets' authenticated
+ * identities. Ownership of document providers remains local to each socket's replica.
  */
 export function setupWorkspaceFileDocHandlers(
   socket: AuthenticatedSocket,
   roomManager: IRoomManager
 ) {
   const io = roomManager.io
+  setupFileDocPresence(io)
   // Owner-qualified intent fences delayed admissions and leaves across document switches.
   let currentFileRoom: string | null = null
   /** Co-mounted providers share invalidation membership until their last admission settles. */
@@ -1794,7 +1833,12 @@ export function setupWorkspaceFileDocHandlers(
           if (clientMap.size === 0) {
             entry.owners.delete(otherSid)
             socketToRoomName.delete(otherSid)
+            const previousSocket = io.sockets.sockets.get(otherSid) as
+              | AuthenticatedSocket
+              | undefined
+            if (previousSocket) previousSocket.data.fileDocPresence = undefined
             io.in(otherSid).socketsLeave(name)
+            broadcastFileDocPresence(io, name, entry)
           }
         }
 
@@ -1829,6 +1873,11 @@ export function setupWorkspaceFileDocHandlers(
             await leaveUnclaimedRoom(name)
           }
           return
+        }
+
+        socket.data.fileDocPresence = {
+          roomName: name,
+          user: { socketId: socket.id, userId, userName, avatarUrl },
         }
 
         // Attribution for the server-side persist, refreshed to the actual editor on each edit in

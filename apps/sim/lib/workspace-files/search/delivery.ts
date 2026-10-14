@@ -44,7 +44,13 @@ export function resolveFileSearchFolderScope(
   return { folderIds: selection.folderIds, includeRootItems: selection.includeRootItems }
 }
 
-/** Validates a private index snapshot against current rows after its caller authorizes the owner. */
+/**
+ * Validates a private index snapshot against current rows after its caller authorizes the owner.
+ * Each source is judged on its own: one that left the folder scope is listed in `outOfScope` for
+ * the caller to drop, and one whose file, revision, or inputs changed since the search gets
+ * `unknown` provenance so its stale preview is withheld. Only inputs of current sources are
+ * returned for access checks.
+ */
 export async function loadFileSearchDelivery(
   tx: DbTransaction,
   {
@@ -62,6 +68,7 @@ export async function loadFileSearchDelivery(
   }
 ): Promise<{
   provenance: Map<string, WorkspaceFileSecretProvenance>
+  outOfScope: Set<string>
   inputs: { fileId: string; fileContext: string }[]
 }> {
   signal?.throwIfAborted()
@@ -111,8 +118,7 @@ export async function loadFileSearchDelivery(
             isNull(workspaceFiles.deletedAt)
           )
         )
-        .orderBy(asc(workspaceFiles.id))
-        .for('share'))
+        .orderBy(asc(workspaceFiles.id)))
     )
   }
   const byId = new Map(rows.map((row) => [row.id, row]))
@@ -133,40 +139,40 @@ export async function loadFileSearchDelivery(
             )
           )
   const statesById = new Map(states.map((state) => [state.fileId, state]))
+  const outOfScope = new Set<string>()
+  const current: FileSearchResult['sources'] = []
   for (const source of prepared.sources) {
-    const current = byId.get(source.identity.fileId)
+    const row = byId.get(source.identity.fileId)
     const state = statesById.get(source.identity.fileId)
     if (
-      !current ||
-      current.context !== owner.entityType ||
-      current.key !== source.identity.key ||
-      current.contentUpdatedAt.getTime() !== source.identity.contentUpdatedAt?.getTime() ||
-      state?.status !== 'ready' ||
-      state.buildId !== source.buildId ||
-      (scope &&
-        (current.folderId ? !scope.folderIds.has(current.folderId) : !scope.includeRootItems))
-    )
-      throw new OrchestrationError(
-        'conflict',
-        'A matching file changed during search. Retry the search.'
-      )
-    for (const dependency of source.dependencies) {
-      const currentInput = byId.get(dependency.fileId)
-      if (
-        !currentInput ||
-        currentInput.key !== dependency.key ||
-        currentInput.contentUpdatedAt.getTime() !== dependency.sourceContentUpdatedAt.getTime()
-      )
-        throw new OrchestrationError(
-          'conflict',
-          'A matching document input changed during search. Retry the search.'
-        )
+      row &&
+      scope &&
+      (row.folderId ? !scope.folderIds.has(row.folderId) : !scope.includeRootItems)
+    ) {
+      outOfScope.add(source.identity.fileId)
+      continue
     }
+    const unchanged =
+      row !== undefined &&
+      row.context === owner.entityType &&
+      row.key === source.identity.key &&
+      row.contentUpdatedAt.getTime() === source.identity.contentUpdatedAt?.getTime() &&
+      state?.status === 'ready' &&
+      state.buildId === source.buildId &&
+      source.dependencies.every((dependency) => {
+        const input = byId.get(dependency.fileId)
+        return (
+          input !== undefined &&
+          input.key === dependency.key &&
+          input.contentUpdatedAt.getTime() === dependency.sourceContentUpdatedAt.getTime()
+        )
+      })
+    if (unchanged) current.push(source)
   }
   const sources = new Map<string, WorkspaceFileSecretProvenance>()
   if (classify) {
     const provenance = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, rows)
-    for (const source of prepared.sources) {
+    for (const source of current) {
       let secretProvenance: WorkspaceFileSecretProvenance = { status: 'exact', entries: [] }
       for (const id of [
         source.identity.fileId,
@@ -180,10 +186,14 @@ export async function loadFileSearchDelivery(
     }
   }
   signal?.throwIfAborted()
+  const inputIds = new Set(
+    current.flatMap((source) => source.dependencies.map((input) => input.fileId))
+  )
   return {
     provenance: sources,
+    outOfScope,
     inputs: rows
-      .filter((row) => row.context !== owner.entityType)
+      .filter((row) => row.context !== owner.entityType && inputIds.has(row.id))
       .map((row) => ({ fileId: row.id, fileContext: row.context })),
   }
 }

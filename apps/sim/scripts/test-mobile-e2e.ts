@@ -1111,7 +1111,7 @@ async function exerciseViewport(
         await expectContained(page, navigation)
         await navigation.getByRole('button', { name: 'General', exact: true }).tap()
         await expectContained(page, page.getByRole('menu'))
-        await page.getByRole('menuitem', { name: 'General', exact: true }).tap()
+        await page.getByRole('menuitemradio', { name: 'General', exact: true }).tap()
         await expect(page.getByRole('menu')).toHaveCount(0)
         await expect(page).toHaveURL(/\/selfhost\/settings\/general/)
         await expect(navigation).toBeVisible()

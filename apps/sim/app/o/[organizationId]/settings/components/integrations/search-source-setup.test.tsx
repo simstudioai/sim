@@ -280,7 +280,7 @@ async function openSyncFrequency() {
 }
 
 function menuItem(label: string): HTMLElement {
-  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')).find(
     (node) => node.textContent?.trim() === label
   )
   expect(match, `Menu item ${label}`).toBeDefined()

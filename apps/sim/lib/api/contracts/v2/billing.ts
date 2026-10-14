@@ -42,7 +42,7 @@ export const v2BillingStatusQuerySchema = z
     workspaceId: workspaceIdSchema
       .optional()
       .describe(
-        'Workspace whose payer should be resolved. A workspace API key is pinned to its own workspace: any other id answers `404 Workspace not found`, which is also what an id that does not exist answers.'
+        'Workspace whose payer to report. A workspace API key is bound to its own workspace; a different or unknown ID returns `404 Workspace not found`. Omit for account billing when using a personal API key or OAuth token.'
       ),
   })
   .strict()
@@ -85,7 +85,7 @@ export const v2BillingStatusDataSchema = z
           .meta({ format: 'date-time' }),
       })
       .describe(
-        'Current billing period. Only a Stripe subscription defines a real period; without one — notably on the free plan — this is the open interval 1970-01-01 to 9999-12-31 and must not be read as a monthly window.'
+        'Current subscription billing period. Without a Stripe subscription, including on Free, the bounds are 1970-01-01 to 9999-12-31; they do not represent a monthly window.'
       ),
     plan: z.string().describe('Current billing plan.'),
     status: z
@@ -96,7 +96,7 @@ export const v2BillingStatusDataSchema = z
         used: z
           .number()
           .describe(
-            'Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption.'
+            'Credits consumed during the current billing period on a paid plan, or over the account’s lifetime on Free.'
           ),
         limit: z
           .number()
@@ -107,7 +107,7 @@ export const v2BillingStatusDataSchema = z
       })
       .nullable()
       .describe(
-        "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+        'The payer’s credit usage and allowance: per billing period on paid plans, lifetime on Free. Null when the caller cannot manage the payer’s billing, including every workspace API key.'
       ),
     storage: z
       .object({
@@ -154,10 +154,10 @@ export const v2GetBillingStatusContract = defineRouteContract({
  * question about a value the caller was just told is not acceptable.
  */
 const billingWindowStartSchema = v2RunWindowBoundSchema('startDate').describe(
-  'Only include usage events recorded at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
+  'Include events at or after this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Required with `period=custom`. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected.'
 )
 const billingWindowEndSchema = v2RunWindowBoundSchema('endDate').describe(
-  'Only include usage events recorded at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. Requires `period=custom`, and defaults to now when omitted. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant.'
+  'Include events at or before this UTC ISO 8601 timestamp, for example `2026-08-06T00:00:00Z`. Allowed only with `period=custom`; omission defaults to now. Date-only values, UTC offsets instead of `Z`, and year `0000` are rejected.'
 )
 
 export const v2BillingLogsQuerySchema = z
@@ -256,7 +256,9 @@ export const v2BillingLogEntrySchema = z
       .string()
       .describe('ISO 8601 timestamp when the usage event was recorded.')
       .meta({ format: 'date-time' }),
-    source: usageLogSourceSchema.describe('Product surface that consumed the credits.'),
+    source: usageLogSourceSchema.describe(
+      'Product surface that consumed credits. The legacy `mothership_block` value identifies the Agent block; `sim-chat` identifies Sim Chat.'
+    ),
     workspaceId: z
       .string()
       .nullable()

@@ -253,8 +253,8 @@ export const v2CursorListResponse = <T extends z.ZodType>(
       .nullable()
       .describe(
         options.paged === false
-          ? 'Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change.'
-          : 'Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself.'
+          ? 'Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits.'
+          : 'Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself.'
       ),
   })
 
@@ -455,15 +455,11 @@ export const V2_SEARCH_MAX_LENGTH = 200
 /**
  * Added to `sortBy` wherever a text name column is sortable.
  *
- * Name ordering is `ORDER BY` on the stored text with no `COLLATE` and no
- * `lower()`, so it is whatever the server database's collation does — under a
- * `C`-collated deployment that is byte order, which puts every capitalized name
- * ahead of every lowercase one. Nothing in the API pins the collation, so the
- * spec must not promise one; what it can promise is that Sim does not case-fold,
- * which is the part a caller gets wrong.
+ * Lists use different database and in-memory comparators, so the shared
+ * description does not promise one collation or case-folding rule.
  */
 export function nameSortCollation(field = 'name') {
-  return `Sorting by \`${field}\` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.`
+  return `Do not rely on case-insensitive ordering when sorting by \`${field}\`.`
 }
 
 export const v2SearchSchema = z
@@ -661,7 +657,7 @@ export const v2DeleteFolderQuerySchema = z
       .stringbool({ case: 'sensitive' })
       .prefault('false')
       .describe(
-        "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected."
+        "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted."
       )
       .meta({ enum: [...V2_TRUE_VALUES, ...V2_FALSE_VALUES] }),
   })

@@ -215,7 +215,7 @@ export function attachWorkflowRunWait(runs: Command): void {
   wait
     .argument('<runId>', V2_OPERATIONS.getWorkflowRun.pathParamDocs?.runId)
     .allowExcessArguments(false)
-    .description('Wait for a run to reach a terminal state, then show it')
+    .description('Wait until a run finishes or needs input')
     .addOption(
       new Option('--workflow <workflowId>', 'Workflow ID (required)').makeOptionMandatory()
     )
@@ -224,6 +224,10 @@ export function attachWorkflowRunWait(runs: Command): void {
         WAIT_TIMEOUT_FLAG,
         `Give up after this many seconds, or 0 to wait indefinitely (default: ${DEFAULT_WAIT_TIMEOUT_SECONDS}). Bounds the whole wait; SIM_TIMEOUT_SECONDS bounds one request`
       )
+    )
+    .addHelpText(
+      'after',
+      'Exit codes: 0 completed, 1 failed, 2 cancelled, 3 needs input, 4 timed out. Time-based pauses continue waiting; a human pause or an unspecified pause kind ends the wait with code 3. Use `sim workflows runs resume` with the pause context to continue.'
     )
     .action(async (runId: string, options: { workflow: string; waitTimeout?: string }) => {
       const timeoutSeconds =
