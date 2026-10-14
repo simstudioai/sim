@@ -571,10 +571,14 @@ async function refreshFileDocPresence(io: Server, name: string, fileId: string) 
         sockets = await io.to(name).except(`${name}:pending`).fetchSockets()
       } catch (error) {
         const retryable = !isAdapterTimeout(error) && failures < FILE_DOC_PRESENCE_RETRIES
+        if (retryable) {
+          failures += 1
+          await sleep(FILE_DOC_PRESENCE_RETRY_MS)
+          continue
+        }
         // A membership change that arrived during the failed read still needs its own snapshot.
-        if (!retryable && refresh.revision === revision) throw error
-        failures += 1
-        if (retryable) await sleep(FILE_DOC_PRESENCE_RETRY_MS)
+        if (refresh.revision === revision) throw error
+        failures = 0
         continue
       }
       failures = 0

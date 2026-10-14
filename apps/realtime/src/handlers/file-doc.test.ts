@@ -1134,6 +1134,46 @@ describe('setupWorkspaceFileDocHandlers', () => {
     }
   })
 
+  it('re-reads the roster when membership changes during a successful presence read', async () => {
+    let reads = 0
+    const { io, sent } = createIo(undefined, async () => {
+      reads += 1
+      const snapshot = [...testSockets.values()]
+      if (reads === 1) await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+      return snapshot
+    })
+    const a = setup('socket-a', io, { userId: 'user-a' })
+    const b = setup('socket-b', io, { userId: 'user-b' })
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await vi.waitFor(() => expect(reads).toBe(2))
+
+    const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as
+      | { users: Array<{ socketId: string }> }
+      | undefined
+    expect(roster?.users.map((user) => user.socketId).sort()).toEqual(['socket-a', 'socket-b'])
+  })
+
+  it('does not retry a presence read the adapter timed out', async () => {
+    vi.useFakeTimers()
+    try {
+      let reads = 0
+      const { io, sent } = createIo(undefined, async () => {
+        reads += 1
+        throw new Error('timeout reached while waiting for fetchSockets response')
+      })
+      const a = setup('socket-a', io, { userId: 'user-a' })
+
+      await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(reads).toBe(1)
+      expect(sent.some((m) => m.event === FILE_DOC_EVENTS.PRESENCE)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('broadcasts a server-authenticated presence roster on join, one entry per session', async () => {
     const { io, sent } = createIo()
     const a = setup('socket-a', io, { userId: 'user-a', userName: 'Ada', userImage: 'ada.png' })

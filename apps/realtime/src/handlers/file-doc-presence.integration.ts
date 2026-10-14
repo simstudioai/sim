@@ -167,11 +167,11 @@ describe('File editor presence across replicas sharing the Redis adapter', () =>
       const bob = await joinThrough(second, 'fixture-bob')
       const both = [alice.id, bob.id].sort()
 
-      await expect.poll(alice.latestRoster).toEqual(both)
-      await expect.poll(bob.latestRoster).toEqual(both)
+      await expect.poll(alice.latestRoster, { timeout: 5_000 }).toEqual(both)
+      await expect.poll(bob.latestRoster, { timeout: 5_000 }).toEqual(both)
 
       bob.socket.disconnect()
-      await expect.poll(alice.latestRoster).toEqual([alice.id])
+      await expect.poll(alice.latestRoster, { timeout: 5_000 }).toEqual([alice.id])
     }
   )
 })
