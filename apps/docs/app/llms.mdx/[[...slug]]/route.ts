@@ -4,6 +4,7 @@ import { getLLMText } from '@/lib/llms'
 import { source } from '@/lib/source'
 
 export const revalidate = false
+export const dynamicParams = false
 
 export async function GET(
   _request: NextRequest,

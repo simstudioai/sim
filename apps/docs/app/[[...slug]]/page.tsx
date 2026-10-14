@@ -300,6 +300,9 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   )
 }
 
+/** Every docs page is prerendered, so an unknown path is a static 404 rather than a function call. */
+export const dynamicParams = false
+
 export async function generateStaticParams() {
   return source.generateParams()
 }

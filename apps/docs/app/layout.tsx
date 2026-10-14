@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { INTEGRATION_REACH } from '@sim/deployment-config/integration-claims'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { SidebarProvider, SidebarTrigger, useSidebar } from 'fumadocs-ui/layouts/docs/slots/sidebar'
 import { RootProvider } from 'fumadocs-ui/provider/next'
@@ -21,12 +22,13 @@ const inter = Inter({
   display: 'swap',
 })
 
+const DOCS_DESCRIPTION = `Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_REACH} and every major LLM.`
+
 const structuredData = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Sim Documentation',
-  description:
-    'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
+  description: DOCS_DESCRIPTION,
   url: DOCS_BASE_URL,
   publisher: {
     '@type': 'Organization',
@@ -118,8 +120,7 @@ export const metadata = {
     default: 'Sim Documentation — The AI Workspace for Teams',
     template: '%s | Sim Docs',
   },
-  description:
-    'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
+  description: DOCS_DESCRIPTION,
   applicationName: 'Sim Docs',
   generator: 'Next.js',
   referrer: 'origin-when-cross-origin' as const,
@@ -165,8 +166,7 @@ export const metadata = {
     url: DOCS_BASE_URL,
     siteName: 'Sim Documentation',
     title: 'Sim Documentation — The AI Workspace for Teams',
-    description:
-      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
+    description: DOCS_DESCRIPTION,
     images: [
       {
         url: `${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`,
@@ -179,8 +179,7 @@ export const metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Sim Documentation — The AI Workspace for Teams',
-    description:
-      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
+    description: DOCS_DESCRIPTION,
     creator: '@simdotai',
     site: '@simdotai',
     images: [`${DOCS_BASE_URL}/api/og?title=Sim%20Documentation`],

@@ -138,6 +138,8 @@ const PATH_REDIRECTS: DocsRedirect[] = [
     destination: '/workflows/triggers/:slug',
     permanent: true,
   },
+  // the API trigger merged into the Start block; calling a workflow is documented under API deployment
+  { source: '/triggers/api', destination: '/workflows/deployment/api', permanent: true },
   { source: '/deployment', destination: '/workflows/deployment', permanent: true },
   {
     source: '/deployment/:path*',

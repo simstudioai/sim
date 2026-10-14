@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@sim/db": "workspace:*",
+    "@sim/deployment-config": "workspace:*",
     "@sim/emcn": "workspace:*",
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",

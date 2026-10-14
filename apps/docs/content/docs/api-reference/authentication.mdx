@@ -38,7 +38,7 @@ administrators can create shared keys from **Workspace settings** → **Sim API 
 
 ## Using API Keys
 
-Pass your API key in the `X-API-Key` header with every request:
+Pass your API key in the `X-API-Key` header with every request. An API key is never accepted as `Authorization: Bearer`; that header is only for [OAuth access tokens](#oauth-access-tokens).
 
 <Tabs items={['curl', 'TypeScript', 'Python']}>
   <Tab value="curl">
@@ -66,6 +66,8 @@ Pass your API key in the `X-API-Key` header with every request:
   </Tab>
   <Tab value="Python">
     ```python
+    import os
+
     import requests
 
     response = requests.post(
