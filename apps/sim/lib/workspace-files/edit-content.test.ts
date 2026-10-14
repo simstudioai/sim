@@ -188,7 +188,7 @@ describe('applyWorkspaceFileContentEdit', () => {
     ).toThrow(/whole number/)
   })
 
-  it('refuses a matching end-anchor occurrence that precedes the start anchor', () => {
+  it('refuses an end anchor that only appears before the start anchor', () => {
     expect(() =>
       applyWorkspaceFileContentEdit('end\nstart', {
         mode: 'replace_between',
@@ -196,7 +196,46 @@ describe('applyWorkspaceFileContentEdit', () => {
         afterAnchor: 'end',
         content: 'x',
       })
-    ).toThrow(/end anchor must follow the start anchor/)
+    ).toThrow(/Anchor line not found after the start anchor/)
+  })
+
+  it('ends the range at the first end anchor after the start, wherever earlier ones sit', () => {
+    expect(
+      applyWorkspaceFileContentEdit('a {\n}\nb {\nx\n}', {
+        mode: 'delete_between',
+        startAnchor: 'b {',
+        endAnchor: '}',
+      })
+    ).toBe('a {\n}\n}')
+
+    expect(
+      applyWorkspaceFileContentEdit(['s', 'e', 's', 'e', 's', 'one', 'e'].join('\n'), {
+        mode: 'replace_between',
+        beforeAnchor: 's',
+        afterAnchor: 'e',
+        occurrence: 3,
+        content: 'two',
+      })
+    ).toBe(['s', 'e', 's', 'e', 's', 'two', 'e'].join('\n'))
+  })
+
+  it('keeps each untouched line ending in a file with mixed endings', () => {
+    expect(
+      applyWorkspaceFileContentEdit('crlf\r\nanchor\nlf\nend\r\n', {
+        mode: 'insert_after',
+        anchor: 'anchor',
+        content: 'one\r\ntwo',
+      })
+    ).toBe('crlf\r\nanchor\none\ntwo\nlf\nend\r\n')
+
+    expect(
+      applyWorkspaceFileContentEdit('start\r\nold\nend\nlf\n', {
+        mode: 'replace_between',
+        beforeAnchor: 'start',
+        afterAnchor: 'end',
+        content: 'a\nb',
+      })
+    ).toBe('start\r\na\r\nb\nend\nlf\n')
   })
 })
 
