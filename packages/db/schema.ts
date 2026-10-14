@@ -3216,10 +3216,20 @@ export const fileSearchDependency = pgTable(
     fileId: text('file_id').notNull(),
     key: text('key').notNull(),
     sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    /**
+     * The build's canonical owner, always derived from the build by the
+     * `file_search_dependency_owner` trigger, so the dispatcher can find an owner's stale
+     * dependencies without testing every ready revision.
+     */
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.buildId, table.fileId] }),
     fileIdx: index('file_search_dependency_file_idx').on(table.fileId, table.buildId),
+    ownerIdx: index('file_search_dependency_owner_idx')
+      .on(table.entityType, table.entityId, table.buildId)
+      .concurrently(),
   })
 )
 

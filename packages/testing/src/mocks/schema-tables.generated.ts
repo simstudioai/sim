@@ -763,7 +763,14 @@ export const GENERATED_SCHEMA_TABLES = {
     'overlap',
     'content',
   ],
-  fileSearchDependency: ['buildId', 'fileId', 'key', 'sourceContentUpdatedAt'],
+  fileSearchDependency: [
+    'buildId',
+    'fileId',
+    'key',
+    'sourceContentUpdatedAt',
+    'entityType',
+    'entityId',
+  ],
   uploadSession: [
     'id',
     'tokenHash',

@@ -61,9 +61,9 @@ import {
 } from '@/lib/workspace-files/search/indexing'
 import { lockFileSearchOwners } from '@/lib/workspace-files/search/owner-policy'
 import {
-  currentFileSearchDependencies,
   fileSearchOwnerFields,
   resolveFileSearchOwner,
+  staleFileSearchDependencyBuilds,
 } from '@/lib/workspace-files/search/scope'
 import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 import type { workspaceFileSearchIndexTask } from '@/background/workspace-file-search-index'
@@ -162,15 +162,12 @@ function rowOwner(row: { entityType: string; entityId: string }): EditableFileOw
   return resolveFileSearchOwner({ owner: row })
 }
 
+function queuedOwner(owner: EditableFileOwner): SQL {
+  return sql`(${fileSearchDispatchQueue.entityType} = ${owner.entityType} AND ${fileSearchDispatchQueue.entityId} = ${owner.entityId})`
+}
+
 function queuedOwnerFilter(owners: readonly EditableFileOwner[]): SQL | undefined {
-  return or(
-    ...owners.map((owner) =>
-      and(
-        eq(fileSearchDispatchQueue.entityType, owner.entityType),
-        eq(fileSearchDispatchQueue.entityId, owner.entityId)
-      )
-    )
-  )
+  return or(...owners.map(queuedOwner))
 }
 
 async function enqueueOwners(
@@ -216,16 +213,17 @@ function staleClaim(now: Date): SQL | undefined {
 }
 
 /**
- * Seeds one page of the backfill that walks every live workspace file into the revision table.
+ * Seeds one page of the backfill that walks every live workspace and project file into the
+ * revision table.
  *
  * Two things keep this page cheap, and losing either one reintroduces a dispatch that times out.
  *
- * `workspace_files_workspace_active_keyset_idx` supplies the `(workspace_id, id)` order under this
- * exact filter. Without it nothing does, so the page sorts every remaining row instead of reading
- * only the thousand it returns.
+ * `workspace_files_search_owner_keyset_idx` supplies the `(owner type, owner id, id)` order under
+ * this exact filter, spelled with the same owner expressions. Without it nothing does, so the page
+ * sorts every remaining row instead of reading only the thousand it returns.
  *
  * The cursor is then compared row-wise so that order becomes a seek. The equivalent
- * `workspace_id > :ws OR (workspace_id = :ws AND id > :id)` spelling is not something the planner
+ * `owner > :owner OR (owner = :owner AND id > :id)` spelling is not something the planner
  * can turn into an index condition; it stays a filter, so each page restarts at the low end of the
  * index and re-reads every page before it, making the walk quadratic in the file count.
  */
@@ -363,6 +361,20 @@ async function reapStaleClaims(
 }
 
 /**
+ * A ready revision of `owner` whose build compiled an input that has since changed. Driven from the
+ * owner's dependency rows, so its cost follows the owner's compiled documents rather than every
+ * ready file it has: a revision whose build has no dependency rows can never be stale.
+ */
+function staleReadyRevision(owner: EditableFileOwner): SQL | undefined {
+  return and(
+    sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${owner.entityType}`,
+    sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${owner.entityId}`,
+    eq(workspaceFileSearchRevision.status, 'ready'),
+    sql`${workspaceFileSearchRevision.buildId} IN (${staleFileSearchDependencyBuilds(owner)})`
+  )
+}
+
+/**
  * Probe each workspace's available slots and lock candidates before the update, skipping busy rows.
  *
  * The live-file check is a correlated LATERAL with `LIMIT 1` rather than a join. `FOR UPDATE`
@@ -382,14 +394,7 @@ async function reconcileOwnerDependencies(
       .select({ fileId: workspaceFiles.id, buildId: workspaceFileSearchRevision.buildId })
       .from(workspaceFileSearchRevision)
       .innerJoin(workspaceFiles, eq(workspaceFiles.id, workspaceFileSearchRevision.fileId))
-      .where(
-        and(
-          sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${owner.entityType}`,
-          sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${owner.entityId}`,
-          eq(workspaceFileSearchRevision.status, 'ready'),
-          sql`NOT (${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)})`
-        )
-      )
+      .where(staleReadyRevision(owner))
       .orderBy(asc(workspaceFiles.id))
       .limit(FILE_SEARCH_BACKFILL_PAGE_SIZE)
       .for('update', { of: workspaceFiles, skipLocked: true })
@@ -481,36 +486,29 @@ async function claimQueuedOwnerJobs(
         coalesce(search_index.entity_id, search_index.workspace_id) AS "entityId",
         search_index.file_id AS "fileId", search_index.source_content_updated_at AT TIME ZONE 'UTC' AS "sourceContentUpdatedAt"
   `)
-  const remaining = tx
+  const pendingRevision = tx
     .select({ fileId: workspaceFileSearchRevision.fileId })
     .from(workspaceFileSearchRevision)
     .where(
       and(
         sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${fileSearchDispatchQueue.entityType}`,
         sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${fileSearchDispatchQueue.entityId}`,
-        or(
-          and(
-            eq(workspaceFileSearchRevision.status, 'pending'),
-            isNull(workspaceFileSearchRevision.dispatchedAt)
-          ),
-          and(
-            eq(workspaceFileSearchRevision.status, 'ready'),
-            or(
-              ...owners.map((owner) =>
-                and(
-                  sql`coalesce(${workspaceFileSearchRevision.entityType}, 'workspace') = ${owner.entityType}`,
-                  sql`coalesce(${workspaceFileSearchRevision.entityId}, ${workspaceFileSearchRevision.workspaceId}) = ${owner.entityId}`,
-                  sql`NOT (${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)})`
-                )
-              )
-            )
-          )
-        )
+        eq(workspaceFileSearchRevision.status, 'pending'),
+        isNull(workspaceFileSearchRevision.dispatchedAt)
       )
     )
+  const keepsStaleRevision = owners.map(
+    (owner) =>
+      sql`NOT (${queuedOwner(owner)} AND ${exists(
+        tx
+          .select({ fileId: workspaceFileSearchRevision.fileId })
+          .from(workspaceFileSearchRevision)
+          .where(staleReadyRevision(owner))
+      )})`
+  )
   await tx
     .delete(fileSearchDispatchQueue)
-    .where(and(queuedOwnerFilter(owners), notExists(remaining)))
+    .where(and(queuedOwnerFilter(owners), notExists(pendingRevision), ...keepsStaleRevision))
   return rows.map((row) => ({
     owner: rowOwner(row),
     fileId: row.fileId,
