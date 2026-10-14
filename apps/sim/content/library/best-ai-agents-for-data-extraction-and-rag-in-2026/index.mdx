@@ -24,7 +24,7 @@ faq:
   - q: "Is n8n good for RAG workflows?"
     a: "n8n is a strong choice for RAG workflows that must connect to a broad business automation estate. n8n should be tested carefully when retrieval evaluation, document-specific processing, or complex agent state is central to the application."
   - q: "Is Sim open source?"
-    a: "Sim's core is open source under the OSI-approved Apache License 2.0 and supports free self-hosting. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use: https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE. Teams should consult Sim's official pricing page for current hosted product terms."
+    a: "Sim's core is open source under the OSI-approved Apache License 2.0 and supports free self-hosting. Enterprise features in apps/sim/ee use the separate Sim Enterprise License, which requires an Enterprise subscription for production use. Teams should consult Sim's official pricing page for current hosted product terms."
   - q: "Is n8n open source?"
     a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license. The license permits many internal and self-hosted uses but includes restrictions that teams should review before commercial redistribution or offering hosted n8n to third parties."
   - q: "Sim vs n8n: which is better for data extraction and RAG?"
@@ -32,7 +32,7 @@ faq:
   - q: "Sim vs Gumloop: which is better for data extraction and RAG?"
     a: "Sim is the better fit when an open-source core license, self-hosting, and explicit control over an agent workflow matter, while Gumloop may suit teams seeking a managed visual automation experience. Teams should consult Gumloop’s official pages for current pricing, deployment options, and product limits before selection."
   - q: "Can I self-host an AI agent for data extraction and RAG?"
-    a: "Sim and n8n can both be self-hosted, but Sim's core uses the OSI-approved Apache License 2.0 while enterprise features use the separate Sim Enterprise License: https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE. n8n uses the source-available Sustainable Use License. Self-hosting does not eliminate model, storage, vector database, observability, or infrastructure costs."
+    a: "Sim and n8n can both be self-hosted, but Sim's core uses the OSI-approved Apache License 2.0 while enterprise features use the separate Sim Enterprise License. n8n uses the source-available Sustainable Use License. Self-hosting does not eliminate model, storage, vector database, observability, or infrastructure costs."
   - q: "Do I need a vector database for RAG?"
     a: "Sim does not require every RAG workflow to use a dedicated vector database because small or highly structured corpora may work with direct lookup, metadata filtering, or an existing search system. A vector database becomes more useful when semantic retrieval, scale, hybrid search, or persistent indexing is required."
   - q: "How do I test whether a RAG agent is accurate?"
@@ -68,7 +68,7 @@ faq:
   - q: "Should extracted documents be stored directly in a vector database?"
     a: "Sim should send documents to a vector database only after parsing, cleaning, deduplication, metadata assignment, access-control checks, and validation have succeeded."
   - q: "Is web scraping legal?"
-    a: "Sim users must configure web collection to comply with applicable law, contractual restrictions, website terms, access controls, privacy obligations, and organizational policy, and legal advice may be necessary for a specific use case."
+    a: "Teams using Sim must configure web collection to comply with applicable law, contractual restrictions, website terms, access controls, privacy obligations, and organizational policy, and legal advice may be necessary for a specific use case."
 ---
 
 ## TL;DR
