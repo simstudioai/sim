@@ -244,9 +244,9 @@ describe('generated OpenAPI documents', () => {
         )
         expect(generated['x-sim-operation']).toBe(route.operation.applicationOperation.id)
         const operationScope = route.operation.applicationOperation.oauthScope
-        expect(generated['x-oauth-scope']).toBe(
-          operationScope === 'search:read' ? 'api:read' : operationScope
-        )
+        const expectedScope = operationScope === 'search:read' ? 'api:read' : operationScope
+        expect(generated['x-oauth-scope']).toBe(expectedScope)
+        expect(generated.security).toContainEqual({ oauthBearer: [expectedScope] })
       }
     }
   }, 30_000)
