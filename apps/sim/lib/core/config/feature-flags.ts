@@ -181,7 +181,8 @@ export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
       environment: env.APPCONFIG_ENVIRONMENT as string,
       profile: FEATURE_FLAGS_PROFILE,
     },
-    parseGateConfig
+    parseGateConfig,
+    { shareWithTriggerRuns: true }
   )
 
   return value ?? fallbackFlags()
