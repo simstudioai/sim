@@ -24,6 +24,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
       options: [
         { id: 'execution_error', label: 'Run Error', group: 'Events' },
         { id: 'execution_success', label: 'Run Success', group: 'Events' },
+        { id: 'agent_tool_error', label: 'Agent Tool Error', group: 'Events' },
         { id: 'workflow_deployed', label: 'Workflow Deployed', group: 'Events' },
         { id: 'workflow_undeployed', label: 'Workflow Undeployed', group: 'Events' },
         { id: 'consecutive_failures', label: 'Consecutive Failures', group: 'Alert Conditions' },
