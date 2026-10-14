@@ -2,8 +2,6 @@
   "title": "Search",
   "pages": [
     "connect-your-account",
-    "generic-secrets",
-    "mcp",
     "coda",
     "confluence",
     "fireflies",
@@ -20,6 +18,8 @@
     "lucid",
     "notion",
     "slack",
-    "zoom"
+    "zoom",
+    "mcp",
+    "generic-secrets"
   ]
 }

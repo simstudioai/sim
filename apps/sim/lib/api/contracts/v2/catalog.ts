@@ -318,7 +318,9 @@ const v2ToolParamSchema = z
     visibility: z
       .string()
       .optional()
-      .describe('Who may supply the value: `user-or-llm`, `user-only`, `llm-only`, or `hidden`.'),
+      .describe(
+        'Source of the value in a workflow or Agent block: `user-or-llm`, `user-only`, `llm-only`, or `hidden`. A direct Run tool caller may supply non-hidden parameters; Sim supplies hidden ones.'
+      ),
     description: z.string().optional().describe('What the parameter means.'),
     default: z.unknown().optional().describe('Value used when the parameter is omitted.'),
     // untyped-response: tool param JSON Schema is provider-defined and arbitrarily nested
@@ -392,7 +394,7 @@ export type V2ToolOutput = z.output<typeof v2ToolOutputSchema>
 const v2HostedApiKeySchema = z
   .enum(['always', 'conditional', 'none'])
   .describe(
-    'Whether Sim supplies the API key on THIS deployment: `always`, `conditional` (only for some parameter combinations), or `none` (bring your own). Self-hosted deployments supply no hosted keys, so every tool reports `none` there regardless of what it declares.'
+    'API-key hosting on this deployment: `always`, `conditional` for some parameter combinations, or `none` when Sim does not supply a key. Supply your own key only if the tool requires one. Self-hosted deployments report `none` for every tool.'
   )
 
 const v2ToolOAuthSchema = z.object({
@@ -450,12 +452,12 @@ export const v2ExecuteToolBodySchema = z
       )
       .default({})
       .describe(
-        'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.'
+        'Arguments keyed by published parameter IDs. Hidden and undeclared fields are rejected. Send connected credentials as top-level `credentialId`, not `input.credential`, `input.credentialId`, or `input.oauthCredential`. Whole-value `{{VAR_NAME}}` references resolve environment variables only for `user-only` parameters; other values pass through unchanged.'
       ),
     credentialId: catalogIdSchema
       .optional()
       .describe(
-        'Credential to authenticate with. Required when the tool declares an OAuth requirement; the workspace credentials list names the candidates.'
+        'Connected credential to authenticate with. Required for tools declaring required OAuth or a required credential-selector parameter. Use List credentials to find candidates; do not send credential aliases inside `input`.'
       ),
     timeoutSeconds: z
       .number()
@@ -466,7 +468,9 @@ export const v2ExecuteToolBodySchema = z
         `timeoutSeconds cannot exceed ${V2_TOOL_EXECUTION_MAX_TIMEOUT_SECONDS}`
       )
       .optional()
-      .describe('How long to wait for the tool before abandoning the call.'),
+      .describe(
+        'Maximum wait time in seconds; defaults to 120 and cannot exceed 300. Timeout does not guarantee that a third-party side effect was cancelled.'
+      ),
   })
   .strict()
 export type V2ExecuteToolBody = z.input<typeof v2ExecuteToolBodySchema>
@@ -521,7 +525,9 @@ const v2OperationInputSchema = z
     visibility: z
       .string()
       .optional()
-      .describe('Who may supply the value: `user-or-llm`, `user-only`, `llm-only`, or `hidden`.'),
+      .describe(
+        'Source of the value in a workflow or Agent block: `user-or-llm`, `user-only`, `llm-only`, or `hidden`. A direct Run tool caller may supply non-hidden parameters; Sim supplies hidden ones.'
+      ),
     description: z.string().optional().describe('What the value means.'),
     default: z.unknown().optional().describe('Value used when this input is omitted.'),
     // untyped-response: tool param JSON Schema is provider-defined and arbitrarily nested
@@ -853,20 +859,23 @@ export type V2ListToolsQuery = z.output<typeof v2ListToolsQuerySchema>
 
 export const v2GetBlockParamsSchema = z.object({
   blockId: catalogIdSchema.describe(
-    'Block type identifier. An unversioned base type resolves to the newest version, and the response echoes the resolved id.'
+    'Block type identifier. An unversioned base type resolves to the newest visible version. The response echoes the resolved ID.'
   ),
 })
 export type V2GetBlockParams = z.output<typeof v2GetBlockParamsSchema>
 
 export const v2GetToolParamsSchema = z.object({
   toolId: catalogIdSchema.describe(
-    'Tool identifier. An unversioned name resolves to the newest version, and the response echoes the resolved id.'
+    'Tool identifier. An exact visible ID is retained; an unversioned name resolves to the newest visible family version. The response echoes the resolved ID.'
   ),
 })
 export type V2GetToolParams = z.output<typeof v2GetToolParamsSchema>
 
 export const v2ListConnectorTypesQuerySchema = catalogWorkspaceQuerySchema
   .extend({
+    workspaceId: catalogWorkspaceQuerySchema.shape.workspaceId.describe(
+      'Workspace used to authorize Knowledge Base access to the deployment’s connector-type registry. Workspace integration allowlists and revealed preview blocks do not filter this catalog.'
+    ),
     search: v2SearchSchema.describe('Case-insensitive substring match against the connector name.'),
     detail: v2ConnectorTypeDetailSchema
       .optional()

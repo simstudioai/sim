@@ -69,7 +69,7 @@ const FOLDER_PATH_FLAG = {
 } as const
 const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
-  recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
+  recursive: { boolean: true, describe: 'Archive the folder and its descendants' },
 } as const
 const KNOWLEDGE_BASE_PATH_ARGUMENT = { knowledgeBaseId: 'knowledgeBaseId' } as const
 /**
@@ -153,7 +153,7 @@ export const CLI_CONTRACT: CliContract = {
     // fields otherwise render as an unexplained em-dash for exactly the key
     // most people run the CLI with.
     describe:
-      'Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)',
+      'Show billing status, credits spent, and storage used (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -180,7 +180,9 @@ export const CLI_CONTRACT: CliContract = {
     describe:
       "List credit usage events (an OAuth login or personal API key reports only your events; a workspace API key reports every member's in aggregate, unattributed)",
     flags: {
-      source: { describe: 'Filter by usage source; sim-chat combines Copilot and workspace chat' },
+      source: {
+        describe: 'Filter by usage source; sim-chat combines Sim agent and workspace Chat usage',
+      },
       period: { describe: 'Billing period' },
       startDate: { describe: 'Custom period start (ISO 8601)' },
       endDate: { describe: 'Custom period end (ISO 8601)' },
@@ -470,7 +472,7 @@ export const CLI_CONTRACT: CliContract = {
    */
   getMeta: {
     command: 'meta status',
-    describe: 'Show what this API supports and which limits apply',
+    describe: 'Show API availability and the calling credential’s type and expiry',
   },
   getWorkflowChatDeployment: {
     command: 'workflows chat status',
@@ -569,7 +571,8 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
   applyWorkflowVariables: {
-    confirm: 'This replaces the workflow’s variables and cannot be undone.',
+    confirm:
+      'This applies the listed variable changes; variables omitted from the operations remain unchanged.',
     flags: {
       operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
     },
@@ -640,7 +643,8 @@ export const CLI_CONTRACT: CliContract = {
     // collision rename as `files batch-delete` above and takes the same word.
     command: 'tables batch-delete',
     flags: { folderPaths: FOLDER_PATHS_FLAG },
-    confirm: 'This deletes every listed table and all of their rows.',
+    confirm:
+      'This archives the selected tables and folders, including their rows. Restore eligible tables with `tables restore`.',
   },
   searchFileContent: {
     flags: {
@@ -686,7 +690,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   upsertTableRow: {
-    describe: 'Insert a row, or update the one that conflicts on a unique column',
+    describe: 'Insert a row, or replace the one matching a unique column',
     flags: {
       data: { json: true },
       conflictTarget: { name: 'on', describe: 'Unique column to resolve the conflict against' },
@@ -697,6 +701,10 @@ export const CLI_CONTRACT: CliContract = {
     command: 'tables rows query',
     describe: 'Query rows with a filter and sort',
     flags: {
+      includeRunState: {
+        describe:
+          'Include per-workflow-group run outcomes on every row. Off by default. Each request above 2 MiB of run state returns 413; request fewer rows or omit run state. CLI --limit 0 still fetches bounded pages.',
+      },
       predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
@@ -737,7 +745,15 @@ export const CLI_CONTRACT: CliContract = {
       folderPath: FOLDER_PATH_FLAG,
     },
   },
-  createFile: { flags: { folderPath: FOLDER_PATH_FLAG } },
+  createFile: {
+    flags: {
+      folderPath: FOLDER_PATH_FLAG,
+      content: {
+        describe:
+          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including encoding and the envelope; the separate decoded-file limit is 50 MiB. For larger payloads, use `sim files upload <path>`',
+      },
+    },
+  },
   createKnowledgeBase: { flags: { folderPath: FOLDER_PATH_FLAG } },
   updateKnowledgeBase: {
     variants: [moveResource('knowledge mv', 'knowledge base')],
@@ -944,7 +960,7 @@ export const CLI_CONTRACT: CliContract = {
       fileReferences: {
         name: 'file',
         list: true,
-        describe: 'Workspace file ID or key (repeatable)',
+        describe: 'Workspace file ID or canonical files/<folder>/<name> path (repeatable)',
       },
     },
   },
@@ -1392,7 +1408,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
+          'Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403',
       },
     },
     columns: [
@@ -1411,7 +1427,7 @@ export const CLI_CONTRACT: CliContract = {
       organizationId: {
         name: 'organization',
         describe:
-          'Organization ID; defaults to your only organization, and is required when your account belongs to more than one (OAuth login or personal API key required)',
+          'Organization whose audit trail to read; defaults to the caller’s organization. A caller that belongs to no organization, or names one it does not belong to, is refused with 403',
       },
     },
   },
@@ -1426,7 +1442,7 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       fileIds: { list: true },
     },
-    confirm: 'This deletes every listed file.',
+    confirm: 'This archives the listed files; restore them with `files restore`.',
   },
   getFile: {
     command: 'files describe',
@@ -1532,7 +1548,8 @@ export const CLI_CONTRACT: CliContract = {
   deleteFileVersion: {
     command: 'files versions delete',
     describe: 'Permanently delete a previous version of a file',
-    confirm: 'This permanently deletes the version and its stored content.',
+    confirm:
+      'This permanently removes the version from history and schedules deletion of its stored content; storage cleanup may retry in the background.',
   },
   // Left to derive, the folder restore lands under `files restore` and turns
   // that leaf back into a group holding a lone `create` — the exact shape the
@@ -1575,9 +1592,9 @@ export const CLI_CONTRACT: CliContract = {
   },
   replaceWorkflowChatDeployment: {
     command: 'workflows chat publish',
-    describe: 'Publish or replace a workflow’s chat deployment',
+    describe: 'Deploy or replace a workflow chat',
     confirm:
-      'This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.',
+      'This replaces visitor access settings for the chat deployment. Omitted authentication fields reset to defaults, including the password and allowed-email list; avatar and welcome-message behavior follows their option descriptions.',
   },
   deleteWorkflowChatDeployment: {
     command: 'workflows chat unpublish',
@@ -2018,7 +2035,7 @@ export const CLI_CONTRACT: CliContract = {
       // `workflow-run-follow.ts`, because an `--async` run rejects the field.
       includeFileBase64: {
         describe:
-          'Inline eligible output files as base64 content (default: true; Sim’s in-app agent gets file references only unless this flag is passed). Rejected when `async` is true.',
+          'Inline eligible output files as base64 content. Defaults to true for the installed CLI; Chat defaults to file references and admits requested bytes only for synchronous runs. Rejected when async is true.',
       },
       // Exposed under its domain name: every other flag in the CLI is one, and
       // `--x-run-id` would be the only place the raw HTTP header spelling

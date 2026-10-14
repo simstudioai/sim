@@ -38,7 +38,7 @@
     "/api/v2/knowledge": {
       "get": {
         "operationId": "listKnowledgeBases",
-        "summary": "List Knowledge Bases",
+        "summary": "List knowledge bases",
         "description": "List active knowledge bases in a workspace with folder filtering, search, sorting, and cursor pagination. Use `scope=archived` to find knowledge bases available for restoration. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.list",
         "x-oauth-scope": "api:read",
@@ -68,10 +68,10 @@
             "name": "scope",
             "in": "query",
             "required": false,
-            "description": "Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.",
+            "description": "Lifecycle scope: active or archived knowledge bases. Use Restore knowledge base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.",
             "schema": {
               "default": "active",
-              "description": "Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.",
+              "description": "Lifecycle scope: active or archived knowledge bases. Use Restore knowledge base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.",
               "type": "string",
               "enum": ["active", "archived"]
             }
@@ -102,10 +102,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
             "schema": {
               "default": "createdAt",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -197,7 +197,7 @@
       },
       "post": {
         "operationId": "createKnowledgeBase",
-        "summary": "Create Knowledge Base",
+        "summary": "Create knowledge base",
         "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` returns `404`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.create",
         "x-oauth-scope": "api:write",
@@ -217,6 +217,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateKnowledgeBaseRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Product Documentation",
+                    "folderPath": "/Product"
+                  }
+                }
               }
             }
           }
@@ -279,7 +289,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}": {
       "get": {
         "operationId": "getKnowledgeBase",
-        "summary": "Get Knowledge Base",
+        "summary": "Get knowledge base",
         "description": "Get a knowledge base's metadata and document counts. Inaccessible knowledge bases return `404`. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.read",
         "x-oauth-scope": "api:read",
@@ -366,7 +376,7 @@
       },
       "patch": {
         "operationId": "updateKnowledgeBase",
-        "summary": "Update Knowledge Base",
+        "summary": "Update knowledge base",
         "description": "Update a knowledge base's name, description, chunking configuration, or folder placement. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.update",
         "x-oauth-scope": "api:write",
@@ -399,6 +409,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateKnowledgeBaseRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "Updated Product Documentation"
+                  }
+                }
               }
             }
           }
@@ -459,8 +478,8 @@
       },
       "delete": {
         "operationId": "deleteKnowledgeBase",
-        "summary": "Delete Knowledge Base",
-        "description": "Archive a knowledge base, its documents, and its connectors, pausing synchronization. Use List Knowledge Bases with `scope=archived` to find it and Restore Knowledge Base to recover it.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete knowledge base",
+        "description": "Archive a knowledge base, its documents, and its connectors, pausing synchronization. Use List knowledge bases with `scope=archived` to find it and Restore knowledge base to recover it.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -545,8 +564,8 @@
     "/api/v2/knowledge/{knowledgeBaseId}/export": {
       "get": {
         "operationId": "exportKnowledgeBase",
-        "summary": "Export Knowledge Base",
-        "description": "Stream a knowledge base as a bundle archive: its configuration, tag definitions, each workspace-visible document's file and chunk text, and optionally chunk vectors. Access-control lists, connector links, and credentials never leave. More than 2000 documents returns `413`. Exports record an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "summary": "Export knowledge base",
+        "description": "Stream a knowledge base as a bundle archive: its configuration, tag definitions, each workspace-visible document's file and chunk text, and optionally chunk vectors. Access-control lists, connector links, and credentials never leave. More than 2000 documents returns `413`. Exports record an audit event. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length` and cannot determine the download size.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.export",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -652,7 +671,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/connectors": {
       "get": {
         "operationId": "listKnowledgeConnectors",
-        "summary": "List Knowledge Connectors",
+        "summary": "List knowledge connectors",
         "description": "List external sources connected to a knowledge base with cursor pagination. Stored API keys are never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.connectors.list",
         "x-oauth-scope": "api:read",
@@ -756,6 +775,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2KnowledgeConnectorListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "kc-9f8e7d6c",
+                          "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                          "connectorType": "notion",
+                          "credentialId": "cred-4b3a2c1d",
+                          "sourceConfig": {
+                            "pageIds": ["page-123"]
+                          },
+                          "syncMode": "full",
+                          "syncIntervalMinutes": 1440,
+                          "status": "active",
+                          "lastSyncAt": "2026-06-20T14:02:11.000Z",
+                          "lastSyncError": null,
+                          "lastSyncDocCount": 42,
+                          "nextSyncAt": "2026-06-21T14:02:11.000Z",
+                          "consecutiveFailures": 0,
+                          "createdAt": "2026-06-01T09:14:00.000Z",
+                          "updatedAt": "2026-06-20T14:02:11.000Z"
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
                 }
               }
             }
@@ -785,7 +833,7 @@
       },
       "post": {
         "operationId": "createKnowledgeConnector",
-        "summary": "Create Knowledge Connector",
+        "summary": "Create knowledge connector",
         "description": "Validate and connect an external source, then queue its initial synchronization. The `apiKey` field is never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.connectors.create",
         "x-oauth-scope": "api:write",
@@ -818,6 +866,20 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateKnowledgeConnectorRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "connectorType": "notion",
+                    "credentialId": "cred-4b3a2c1d",
+                    "sourceConfig": {
+                      "pageIds": ["page-123"]
+                    },
+                    "syncIntervalMinutes": 1440
+                  }
+                }
               }
             }
           }
@@ -840,6 +902,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2KnowledgeConnectorResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "kc-9f8e7d6c",
+                        "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "connectorType": "notion",
+                        "credentialId": "cred-4b3a2c1d",
+                        "sourceConfig": {
+                          "pageIds": ["page-123"]
+                        },
+                        "syncMode": "full",
+                        "syncIntervalMinutes": 1440,
+                        "status": "active",
+                        "lastSyncAt": "2026-06-20T14:02:11.000Z",
+                        "lastSyncError": null,
+                        "lastSyncDocCount": 42,
+                        "nextSyncAt": "2026-06-21T14:02:11.000Z",
+                        "consecutiveFailures": 0,
+                        "createdAt": "2026-06-01T09:14:00.000Z",
+                        "updatedAt": "2026-06-20T14:02:11.000Z"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -880,7 +968,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/connectors/{connectorId}": {
       "get": {
         "operationId": "getKnowledgeConnector",
-        "summary": "Get Knowledge Connector",
+        "summary": "Get knowledge connector",
         "description": "Get one connector and its ten most recent synchronization attempts. Stored API keys are never returned. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.connectors.read",
         "x-oauth-scope": "api:read",
@@ -947,6 +1035,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2KnowledgeConnectorDetailResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "kc-9f8e7d6c",
+                        "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "connectorType": "notion",
+                        "credentialId": "cred-4b3a2c1d",
+                        "sourceConfig": {
+                          "pageIds": ["page-123"]
+                        },
+                        "syncMode": "full",
+                        "syncIntervalMinutes": 1440,
+                        "status": "active",
+                        "lastSyncAt": "2026-06-20T14:02:11.000Z",
+                        "lastSyncError": null,
+                        "lastSyncDocCount": 42,
+                        "nextSyncAt": "2026-06-21T14:02:11.000Z",
+                        "consecutiveFailures": 0,
+                        "createdAt": "2026-06-01T09:14:00.000Z",
+                        "updatedAt": "2026-06-20T14:02:11.000Z",
+                        "syncLogs": []
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -976,7 +1091,7 @@
       },
       "patch": {
         "operationId": "updateKnowledgeConnector",
-        "summary": "Update Knowledge Connector",
+        "summary": "Update knowledge connector",
         "description": "Update connector source configuration, schedule, or active state. Replacing source configuration on a runnable connector queues an immediate synchronization; paused connectors retain the change without synchronizing until resumed. Source configuration cannot be replaced while synchronization is already in progress. Authentication material cannot be changed through this operation. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.connectors.update",
         "x-oauth-scope": "api:write",
@@ -1020,6 +1135,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateKnowledgeConnectorRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "status": "paused"
+                  }
+                }
               }
             }
           }
@@ -1041,7 +1165,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2KnowledgeConnectorResponse"
+                  "$ref": "#/components/schemas/UpdateKnowledgeConnectorResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "kc-9f8e7d6c",
+                        "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "connectorType": "notion",
+                        "credentialId": "cred-4b3a2c1d",
+                        "sourceConfig": {
+                          "pageIds": ["page-123"]
+                        },
+                        "syncMode": "full",
+                        "syncIntervalMinutes": 1440,
+                        "status": "paused",
+                        "lastSyncAt": "2026-06-20T14:02:11.000Z",
+                        "lastSyncError": null,
+                        "lastSyncDocCount": 42,
+                        "nextSyncAt": "2026-06-21T14:02:11.000Z",
+                        "consecutiveFailures": 0,
+                        "createdAt": "2026-06-01T09:14:00.000Z",
+                        "updatedAt": "2026-06-20T14:03:00.000Z"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1080,7 +1230,7 @@
       },
       "delete": {
         "operationId": "deleteKnowledgeConnector",
-        "summary": "Delete Knowledge Connector",
+        "summary": "Delete knowledge connector",
         "description": "Delete a connector and optionally its synchronized documents. Documents are retained by default. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.connectors.delete",
         "x-oauth-scope": "api:write",
@@ -1157,6 +1307,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2KnowledgeConnectorDeleteResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "kc-9f8e7d6c",
+                        "deleted": true,
+                        "documentsDeleted": 0,
+                        "documentsKept": 42
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1188,7 +1351,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/connectors/{connectorId}/sync": {
       "post": {
         "operationId": "syncKnowledgeConnector",
-        "summary": "Sync Knowledge Connector",
+        "summary": "Sync knowledge connector",
         "description": "Queue a connector synchronization. Rehydration forces existing documents to be fetched and indexed again. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.connectors.sync",
         "x-oauth-scope": "api:write",
@@ -1232,6 +1395,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SyncKnowledgeConnectorRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "rehydrate": false
+                  }
+                }
               }
             }
           }
@@ -1254,6 +1426,17 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2KnowledgeConnectorSyncResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "id": "kc-9f8e7d6c",
+                        "syncTriggered": true
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1294,7 +1477,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/connectors/{connectorId}/documents": {
       "get": {
         "operationId": "listKnowledgeConnectorDocuments",
-        "summary": "List Knowledge Connector Documents",
+        "summary": "List knowledge connector documents",
         "description": "List documents produced by one connector with opaque cursor pagination. Excluded documents are omitted unless explicitly requested. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.connectors.documents.list",
         "x-oauth-scope": "api:read",
@@ -1395,6 +1578,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2KnowledgeConnectorDocumentListResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": [
+                        {
+                          "id": "doc-8a7b6c5d",
+                          "filename": "Product requirements",
+                          "externalId": "page-123",
+                          "sourceUrl": "https://www.notion.so/page-123",
+                          "enabled": true,
+                          "userExcluded": false,
+                          "createdAt": "2026-06-01T09:15:00.000Z",
+                          "processingStatus": "completed"
+                        }
+                      ],
+                      "nextCursor": null
+                    }
+                  }
                 }
               }
             }
@@ -1424,7 +1627,7 @@
       },
       "patch": {
         "operationId": "updateKnowledgeConnectorDocuments",
-        "summary": "Update Knowledge Connector Documents",
+        "summary": "Update knowledge connector documents",
         "description": "Exclude connector documents from knowledge search or restore previously excluded documents. Only documents produced by the selected connector can change. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.connectors.documents.update",
         "x-oauth-scope": "api:write",
@@ -1468,6 +1671,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateKnowledgeConnectorDocumentsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "operation": "exclude",
+                    "documentIds": ["doc-8a7b6c5d"]
+                  }
+                }
               }
             }
           }
@@ -1490,6 +1703,18 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/V2KnowledgeConnectorDocumentsUpdateResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "operation": "exclude",
+                        "updatedCount": 1,
+                        "documentIds": ["doc-8a7b6c5d"]
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -1527,7 +1752,7 @@
     "/api/v2/knowledge/search": {
       "post": {
         "operationId": "searchKnowledge",
-        "summary": "Search Knowledge",
+        "summary": "Search knowledge",
         "description": "Search one or more knowledge bases with semantic vector retrieval, optional hybrid full-text retrieval, and structured tag filters. Every result names the `knowledgeBaseId` it came from. A request body over 2 MiB is a `413`. Reranking returns `409` when the stored results cannot pass secret-provenance enforcement.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.search",
         "x-oauth-scope": "api:read",
@@ -1547,6 +1772,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SearchKnowledgeRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "knowledgeBaseIds": ["7c9e6679-7425-40de-944b-e07fc1f90ae7"],
+                    "query": "How do I reset my password?",
+                    "topK": 10
+                  }
+                }
               }
             }
           }
@@ -1612,8 +1848,8 @@
     "/api/v2/knowledge/{knowledgeBaseId}/tags": {
       "get": {
         "operationId": "listKnowledgeTags",
-        "summary": "List Tags",
-        "description": "List the knowledge base's tag definitions with display names, write slots, and field types. Filters and document reads use display names; document writes use slots. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "summary": "List tags",
+        "description": "List the knowledge base's tag definitions with display names, write slots, and field types. Filters and document reads use display names; document writes use slots. Returns one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.tags.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -1696,8 +1932,8 @@
       },
       "post": {
         "operationId": "createKnowledgeTag",
-        "summary": "Create Tag",
-        "description": "Create a tag definition. Write document values by `tagSlot` and filter by `displayName`. Omitting `tagSlot` selects a free slot; exhaustion returns `400`. An occupied slot or duplicate name returns `409`. Use Bulk Save Tag Definitions for multiple definitions. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "summary": "Create tag",
+        "description": "Create a tag definition. Write document values by `tagSlot` and filter by `displayName`. Omitting `tagSlot` selects a free slot; exhaustion returns `400`. An occupied slot or duplicate name returns `409`. Use Bulk save tag definitions for multiple definitions. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.tags.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -1729,6 +1965,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateKnowledgeTagRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "displayName": "category",
+                    "fieldType": "text"
+                  }
+                }
               }
             }
           }
@@ -1789,8 +2035,8 @@
       },
       "put": {
         "operationId": "bulkSaveKnowledgeTagDefinitions",
-        "summary": "Bulk Save Tag Definitions",
-        "description": "Create or update tag definitions, preserving unspecified slots. Updates require `originalDisplayName`; other entries create tags. Slot and name conflicts appear in per-definition `errors` with HTTP `200`, leaving conflicting values unchanged. Use Update Document to set tag values. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "summary": "Bulk save tag definitions",
+        "description": "Create or update tag definitions, preserving unspecified slots. Updates require `originalDisplayName`; other entries create tags. Slot and name conflicts appear in per-definition `errors` with HTTP `200`, leaving conflicting values unchanged. Use Update document to set tag values. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.tags.bulk_save",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -1822,6 +2068,21 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkSaveKnowledgeTagDefinitionsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "definitions": [
+                      {
+                        "tagSlot": "tag1",
+                        "displayName": "category",
+                        "fieldType": "text"
+                      }
+                    ]
+                  }
+                }
               }
             }
           }
@@ -1879,8 +2140,8 @@
       },
       "delete": {
         "operationId": "deleteKnowledgeTagDefinitions",
-        "summary": "Delete Tag Definitions",
-        "description": "Delete unused tag definitions by default. With `unused=false`, permanently delete all definitions and their values from documents and chunks. Use Delete Tag to remove one definition. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete tag definitions",
+        "description": "Delete unused tag definitions by default. With `unused=false`, permanently delete all definitions and their values from documents and chunks. Use Delete tag to remove one definition. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.tags.cleanup",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -1976,8 +2237,8 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents": {
       "get": {
         "operationId": "listKnowledgeDocuments",
-        "summary": "List Documents",
-        "description": "List documents with filename search, state and tag filters, sorting, and cursor pagination. Tag values use display names; use List Tags to resolve the slots required for writes.\n\nOAuth scope: `api:read`.",
+        "summary": "List documents",
+        "description": "List documents with filename search, state and tag filters, sorting, and cursor pagination. Tag values use display names; use List tags to resolve the slots required for writes.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.documents.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -2053,10 +2314,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `filename`.",
             "schema": {
               "default": "uploadedAt",
-              "description": "Field used to sort the result. Sorting by `filename` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `filename`.",
               "type": "string",
               "enum": [
                 "filename",
@@ -2153,8 +2414,8 @@
       },
       "patch": {
         "operationId": "bulkUpdateKnowledgeDocuments",
-        "summary": "Bulk Enable or Disable Documents",
-        "description": "Enable or disable selected documents, or use `selectAll` for the entire knowledge base. Use Delete Document to remove documents individually. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "summary": "Bulk enable or disable documents",
+        "description": "Enable or disable selected documents, or use `selectAll` for the entire knowledge base. Use Delete document to remove documents individually. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.bulk",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -2186,6 +2447,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkUpdateKnowledgeDocumentsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "operation": "disable",
+                    "documentIds": ["b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12"]
+                  }
+                }
               }
             }
           }
@@ -2243,7 +2514,7 @@
       },
       "post": {
         "operationId": "uploadKnowledgeDocument",
-        "summary": "Upload Document",
+        "summary": "Upload document",
         "description": "Upload one document as multipart form data. Processing continues asynchronously after the document is accepted.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.upload",
         "x-oauth-scope": "api:write",
@@ -2350,7 +2621,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads": {
       "post": {
         "operationId": "createKnowledgeDocumentUpload",
-        "summary": "Create Document Upload",
+        "summary": "Create document upload",
         "description": "Create a resumable upload session and receive direct PUT or multipart transfer instructions.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.upload.create",
         "x-oauth-scope": "api:write",
@@ -2383,6 +2654,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateKnowledgeDocumentUploadRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "name": "getting-started.pdf",
+                    "contentType": "application/pdf",
+                    "size": 248913
+                  }
+                }
               }
             }
           }
@@ -2445,7 +2727,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads/{uploadId}": {
       "delete": {
         "operationId": "abortKnowledgeDocumentUpload",
-        "summary": "Abort Document Upload",
+        "summary": "Abort document upload",
         "description": "Abort an incomplete upload session and discard its uploaded data. Completed uploads cannot be aborted.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.upload.cancel",
         "x-oauth-scope": "api:write",
@@ -2557,7 +2839,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads/{uploadId}/parts": {
       "post": {
         "operationId": "createKnowledgeDocumentUploadPartUrls",
-        "summary": "Create Document Upload Part URLs",
+        "summary": "Create document upload part URLs",
         "description": "Create short-lived signed PUT URLs for up to 100 multipart part numbers.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.upload.parts",
         "x-oauth-scope": "api:write",
@@ -2624,6 +2906,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateKnowledgeDocumentUploadPartUrlsRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "partNumbers": [1, 2, 3]
+                  }
+                }
               }
             }
           }
@@ -2686,7 +2976,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/uploads/{uploadId}/complete": {
       "post": {
         "operationId": "completeKnowledgeDocumentUpload",
-        "summary": "Complete Document Upload",
+        "summary": "Complete document upload",
         "description": "Verify a direct upload or assemble multipart parts, create the knowledge document, and queue asynchronous processing.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.upload.complete",
         "x-oauth-scope": "api:write",
@@ -2798,7 +3088,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}": {
       "get": {
         "operationId": "getKnowledgeDocument",
-        "summary": "Get Document",
+        "summary": "Get document",
         "description": "Get document metadata, processing status, and source connector details.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.documents.read",
         "x-oauth-scope": "api:read",
@@ -2893,8 +3183,8 @@
       },
       "patch": {
         "operationId": "updateKnowledgeDocument",
-        "summary": "Update Document",
-        "description": "Rename a document, change search availability, update tag slots, or requeue processing. Omitted fields remain unchanged; indexing state is read-only. Use List Tags to resolve names to slots and Get Document for source connector details, which this response omits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "summary": "Update document",
+        "description": "Rename a document, change search availability, update tag slots, or requeue processing. Omitted fields remain unchanged; indexing state is read-only. Use List tags to resolve names to slots and Get document for source connector details, which this response omits. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -2937,6 +3227,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateKnowledgeDocumentRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "enabled": false,
+                    "tag1": "billing"
+                  }
+                }
               }
             }
           }
@@ -2994,7 +3294,7 @@
       },
       "delete": {
         "operationId": "deleteKnowledgeDocument",
-        "summary": "Delete Document",
+        "summary": "Delete document",
         "description": "Remove a document from listings and search. Uploaded documents and their chunks are deleted. Connector documents are excluded while retaining their stored data; later synchronization does not re-add them.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.delete",
         "x-oauth-scope": "api:write",
@@ -3091,8 +3391,8 @@
     "/api/v2/knowledge/folders": {
       "get": {
         "operationId": "listKnowledgeFolders",
-        "summary": "List Folders",
-        "description": "List folders in the knowledge-base folder tree with filtering and sorting. Returns the complete set in one page; `nextCursor` is always null. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "summary": "List folders",
+        "description": "List folders in the knowledge-base folder tree with filtering and sorting. Returns one page; `nextCursor` is always null. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -3143,10 +3443,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
             "schema": {
               "default": "name",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
               "type": "string",
               "enum": ["name", "createdAt", "updatedAt"]
             }
@@ -3214,7 +3514,7 @@
       },
       "post": {
         "operationId": "createKnowledgeFolder",
-        "summary": "Create Folder",
+        "summary": "Create folder",
         "description": "Create a folder in the knowledge-base folder tree. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.folders.create",
         "x-oauth-scope": "api:write",
@@ -3234,6 +3534,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateKnowledgeFolderRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "path": "/Product"
+                  }
+                }
               }
             }
           }
@@ -3294,7 +3603,7 @@
       },
       "patch": {
         "operationId": "relocateKnowledgeFolder",
-        "summary": "Rename or Move Folder",
+        "summary": "Rename or move folder",
         "description": "Rename or move a folder and atomically rewrite descendant paths. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.folders.relocate",
         "x-oauth-scope": "api:write",
@@ -3314,6 +3623,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RelocateKnowledgeFolderRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "path": "/Product",
+                    "destinationPath": "/Archive/Product"
+                  }
+                }
               }
             }
           }
@@ -3374,8 +3693,8 @@
       },
       "delete": {
         "operationId": "deleteKnowledgeFolder",
-        "summary": "Delete Folder",
-        "description": "Archive an empty folder, or set `recursive=true` to archive its subfolders and knowledge bases. Use Restore Knowledge Base to recover knowledge bases.\n\nOAuth scope: `api:write`.",
+        "summary": "Delete folder",
+        "description": "Archive an empty folder, or set `recursive=true` to archive its subfolders and knowledge bases. Use Restore knowledge base to recover knowledge bases.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -3414,9 +3733,9 @@
             "name": "recursive",
             "in": "query",
             "required": false,
-            "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+            "description": "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
             "schema": {
-              "description": "Delete the folder's nested files and folders too. An empty folder deletes either way; a non-empty one needs this. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.",
+              "description": "Delete the folder's contents and nested folders too. Required for a non-empty folder. Only the listed case-sensitive spellings are accepted.",
               "enum": [
                 "true",
                 "1",
@@ -3491,7 +3810,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/restore": {
       "post": {
         "operationId": "restoreKnowledgeBase",
-        "summary": "Restore Knowledge Base",
+        "summary": "Restore knowledge base",
         "description": "Restore a knowledge base and the documents and connectors archived with it. Active knowledge bases return unchanged without a new audit event. An archived workspace returns `409`; an archived containing folder moves the restored knowledge base to the workspace root. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.restore",
         "x-oauth-scope": "api:write",
@@ -3524,6 +3843,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RestoreKnowledgeBaseRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64"
+                  }
+                }
               }
             }
           }
@@ -3586,8 +3913,8 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/from-workspace-files": {
       "post": {
         "operationId": "addWorkspaceFilesToKnowledgeBase",
-        "summary": "Index Workspace Files",
-        "description": "Queue stored workspace files for indexing without re-uploading bytes. Unreadable, unsupported, or over-100 MB files appear in `failed`; valid files are queued. Partial success returns `200`. Use Get Document to poll processing after receiving document IDs. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "summary": "Index workspace files",
+        "description": "Queue stored workspace files for indexing without re-uploading bytes. Unreadable, unsupported, or over-100 MiB files appear in `failed`; valid files are queued. Partial success returns `200`. Use Get document to poll processing after receiving document IDs. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.documents.add_workspace_files",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -3619,6 +3946,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AddWorkspaceFilesToKnowledgeBaseRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "fileReferences": ["handbook.pdf"]
+                  }
+                }
               }
             }
           }
@@ -3681,8 +4017,8 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/chunks": {
       "get": {
         "operationId": "listKnowledgeChunks",
-        "summary": "List Chunks",
-        "description": "List document chunks with content search, enabled filtering, sorting, and cursor pagination. Tags use slots; use List Tags to resolve display names. Documents that have not finished processing return `409` with their current status. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "summary": "List chunks",
+        "description": "List document chunks with content search, enabled filtering, sorting, and cursor pagination. Tags use slots; use List tags to resolve display names. Documents that have not finished processing return `409` with their current status. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.chunks.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -3852,8 +4188,8 @@
       },
       "post": {
         "operationId": "createKnowledgeChunk",
-        "summary": "Create Chunk",
-        "description": "Append a chunk, embedding it before the response so it is immediately searchable. It inherits the document's tags and next `chunkIndex`. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "summary": "Create chunk",
+        "description": "Append a chunk and embed it before returning. It inherits the document's tags and next `chunkIndex`. Search includes it when the chunk and document are enabled and the document has completed processing. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.chunks.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
@@ -3896,6 +4232,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateKnowledgeChunkRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "content": "To reset your password, open Settings and choose Security."
+                  }
+                }
               }
             }
           }
@@ -3953,7 +4298,7 @@
       },
       "patch": {
         "operationId": "bulkUpdateKnowledgeChunks",
-        "summary": "Bulk Update Chunks",
+        "summary": "Bulk update chunks",
         "description": "Enable, disable, or delete multiple chunks in one best-effort request. Unknown chunk IDs appear in `errors` without failing the request; `processed` counts matched chunks, not changes. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.chunks.bulk",
         "x-oauth-scope": "api:write",
@@ -3997,6 +4342,16 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkUpdateKnowledgeChunksRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "operation": "disable",
+                    "chunkIds": ["4c1f9e77-2b3a-4f8d-9e10-6a2c8d4b1e05"]
+                  }
+                }
               }
             }
           }
@@ -4056,7 +4411,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}/chunks/{chunkId}": {
       "get": {
         "operationId": "getKnowledgeChunk",
-        "summary": "Get Chunk",
+        "summary": "Get chunk",
         "description": "Get one chunk of a document, including the exact text that was embedded. Documents that have not finished processing return `409` with their current status. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.chunks.read",
         "x-oauth-scope": "api:read",
@@ -4166,7 +4521,7 @@
       },
       "patch": {
         "operationId": "updateKnowledgeChunk",
-        "summary": "Update Chunk",
+        "summary": "Update chunk",
         "description": "Correct chunk text or disable it from search. Changing `content` re-embeds immediately and recalculates document token and character counts; disabling retains the index. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. Documents that have not finished processing return `409` with their current status. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.chunks.update",
         "x-oauth-scope": "api:write",
@@ -4221,6 +4576,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateKnowledgeChunkRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "enabled": false
+                  }
+                }
               }
             }
           }
@@ -4281,7 +4645,7 @@
       },
       "delete": {
         "operationId": "deleteKnowledgeChunk",
-        "summary": "Delete Chunk",
+        "summary": "Delete chunk",
         "description": "Permanently remove one chunk and subtract it from document counts. Remaining `chunkIndex` values stay stable and may become non-contiguous. Connector-synced chunks are read-only and return `403` with `error.details.code: \"CONNECTOR_MANAGED_RESOURCE_READ_ONLY\"`; change the source and re-sync, or exclude the document. Documents that have not finished processing return `409` with their current status. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.chunks.delete",
         "x-oauth-scope": "api:write",
@@ -4393,7 +4757,7 @@
     "/api/v2/knowledge/{knowledgeBaseId}/tags/{tagId}": {
       "patch": {
         "operationId": "updateKnowledgeTag",
-        "summary": "Update Tag",
+        "summary": "Update tag",
         "description": "Rename a tag or change its slot-compatible `fieldType`. Renaming changes read and filter names without moving the slot or its values. Slots are fixed for a tag's lifetime; an incompatible type returns `400` and requires creating a new tag. A duplicate display name returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.tags.update",
         "x-oauth-scope": "api:write",
@@ -4437,6 +4801,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateKnowledgeTagRequest"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+                    "displayName": "topic"
+                  }
+                }
               }
             }
           }
@@ -4497,7 +4870,7 @@
       },
       "delete": {
         "operationId": "deleteKnowledgeTag",
-        "summary": "Delete Tag",
+        "summary": "Delete tag",
         "description": "Permanently delete a tag definition and its values from every document and chunk in the knowledge base. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "knowledge.tags.delete",
         "x-oauth-scope": "api:write",
@@ -4598,8 +4971,8 @@
     "/api/v2/knowledge/{knowledgeBaseId}/tags/next-slot": {
       "get": {
         "operationId": "getNextKnowledgeTagSlot",
-        "summary": "Get Next Tag Slot",
-        "description": "Get the next available slot and remaining capacity for a field type. This does not reserve a slot. Create Tag selects a free slot when `tagSlot` is omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "summary": "Get next tag slot",
+        "description": "Get the next available slot and remaining capacity for a field type. This does not reserve a slot. Create tag selects a free slot when `tagSlot` is omitted. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.tags.read_next_slot",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -4697,8 +5070,8 @@
     "/api/v2/knowledge/{knowledgeBaseId}/tags/usage": {
       "get": {
         "operationId": "listKnowledgeTagUsage",
-        "summary": "List Tag Usage",
-        "description": "Count the documents and chunks with a value for each defined tag. Returns the complete set in one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "summary": "List tag usage",
+        "description": "Count the documents and chunks with a value for each defined tag. Returns one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "knowledge.tags.read_usage",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
@@ -4977,7 +5350,7 @@
             "example": {
               "error": {
                 "code": "CONFLICT",
-                "message": "Upload has already been completed"
+                "message": "The request conflicts with current knowledge resource state"
               }
             }
           }
@@ -5056,7 +5429,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable. `Retry-After` carries the seconds to wait; treat it as a floor and add jitter. The header is omitted when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, because the run may already have started — reconcile against the returned run id instead of retrying.",
+        "description": "A required service is temporarily unavailable. When present, `Retry-After` gives the minimum seconds to wait; add jitter before retrying. Check operation-specific guidance before repeating a change after an uncertain response.",
         "headers": {
           "Retry-After": {
             "$ref": "#/components/headers/Retry-After"
@@ -5274,7 +5647,7 @@
                 "type": "null"
               }
             ],
-            "description": "ISO 8601 archive timestamp, or null while active. Use List Knowledge Bases with `scope=archived` to find archived knowledge bases.",
+            "description": "ISO 8601 archive timestamp, or null while active. Use List knowledge bases with `scope=archived` to find archived knowledge bases.",
             "format": "date-time",
             "examples": ["2026-01-16T09:00:00Z"]
           }
@@ -5313,7 +5686,7 @@
           },
           "overlap": {
             "type": "number",
-            "description": "Number of overlapping characters between adjacent chunks.",
+            "description": "Requested overlap in tokens between adjacent chunks.",
             "examples": [200]
           },
           "strategy": {
@@ -5376,7 +5749,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -5418,7 +5791,7 @@
           },
           "overlap": {
             "default": 200,
-            "description": "Number of overlapping characters between adjacent chunks.",
+            "description": "Requested overlap in tokens between adjacent chunks.",
             "examples": [200],
             "type": "number",
             "minimum": 0,
@@ -5736,7 +6109,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6160,6 +6533,42 @@
           }
         ]
       },
+      "UpdateKnowledgeConnectorResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeConnector"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update knowledge connector response",
+        "description": "A single connector without secret material.",
+        "examples": [
+          {
+            "data": {
+              "id": "kc-9f8e7d6c",
+              "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "connectorType": "notion",
+              "credentialId": "cred-4b3a2c1d",
+              "sourceConfig": {
+                "pageIds": ["page-123"]
+              },
+              "syncMode": "full",
+              "syncIntervalMinutes": 1440,
+              "status": "paused",
+              "lastSyncAt": "2026-06-20T14:02:11.000Z",
+              "lastSyncError": null,
+              "lastSyncDocCount": 42,
+              "nextSyncAt": "2026-06-21T14:02:11.000Z",
+              "consecutiveFailures": 0,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:03:00.000Z"
+            }
+          }
+        ]
+      },
       "UpdateKnowledgeConnectorRequest": {
         "type": "object",
         "properties": {
@@ -6409,7 +6818,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6664,7 +7073,7 @@
           "rerankerStatus": {
             "type": "string",
             "enum": ["not_requested", "skipped", "unavailable", "applied"],
-            "description": "What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means it was attempted but could not complete, so results are in vector order with no `rerankerScore` — the search still succeeded, and is worth retrying. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.",
+            "description": "Reranking outcome. `applied` means results carry `rerankerScore` and follow that score. `unavailable` means reranking could not produce a usable order; the search succeeded in retrieval order without `rerankerScore`. Retry if reranking is needed. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.",
             "examples": ["applied"]
           }
         },
@@ -6782,7 +7191,7 @@
                 }
               }
             ],
-            "description": "One knowledge base identifier or an array of up to 20 identifiers.",
+            "description": "One knowledge base ID or an array of up to 20 IDs. Query searches require the same embedding model and dimensions across all selected bases; search incompatible bases separately. Tag-only searches do not require this.",
             "examples": [["7c9e6679-7425-40de-944b-e07fc1f90ae7"]]
           },
           "query": {
@@ -6807,7 +7216,7 @@
             }
           },
           "searchMode": {
-            "description": "Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.",
+            "description": "Retrieval strategy: `vector` uses semantic search; `hybrid` also runs full-text search. Omit to use the workspace policy.",
             "anyOf": [
               {
                 "type": "string",
@@ -6819,7 +7228,7 @@
             ]
           },
           "rerankerEnabled": {
-            "description": "Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.",
+            "description": "Reorder retrieved chunks with a reranking model before truncating to `topK`. Ignored for tag-only searches. A completed reranking call adds a search unit. If reranking is unavailable, results keep their retrieval order; check `rerankerStatus`.",
             "type": "boolean"
           },
           "rerankerModel": {
@@ -6845,7 +7254,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Tag definition ID used by Update Tag and Delete Tag."
+            "description": "Tag definition ID used by Update tag and Delete tag."
           },
           "displayName": {
             "type": "string",
@@ -6854,7 +7263,7 @@
           },
           "tagSlot": {
             "type": "string",
-            "description": "Storage slot the tag occupies. Document writes set tag values by slot (`tag1`..`tag7`).",
+            "description": "Slot used by document updates: `tag1`–`tag7`, `number1`–`number5`, `date1`–`date2`, or `boolean1`–`boolean3`. Upload creation accepts text slots; use Update document for other types.",
             "examples": ["tag1"]
           },
           "fieldType": {
@@ -6887,7 +7296,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6984,7 +7393,7 @@
               ],
               "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
             },
-            "description": "Document tag values keyed by display name. Writes use slots such as `tag1`; use List Tags to map names to slots.",
+            "description": "Document tag values keyed by display name. Writes use slots such as `tag1`; use List tags to map names to slots.",
             "examples": [
               {
                 "category": "billing",
@@ -7030,7 +7439,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -7232,7 +7641,7 @@
             "format": "binary",
             "contentEncoding": "binary",
             "maxLength": 104857600,
-            "description": "Document file to upload; the maximum size is 100 MB."
+            "description": "Document file to upload; the maximum size is 100 MiB."
           }
         },
         "required": ["file"],
@@ -7721,7 +8130,7 @@
               ],
               "description": "Tag value; dates are ISO 8601 strings and an unset tag is null."
             },
-            "description": "Document tag values keyed by display name. Writes use slots such as `tag1`; use List Tags to map names to slots.",
+            "description": "Document tag values keyed by display name. Writes use slots such as `tag1`; use List tags to map names to slots.",
             "examples": [
               {
                 "category": "billing",
@@ -8053,7 +8462,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],
@@ -8279,7 +8688,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once."
+            "description": "Workspace file IDs or paths to index. Prefer IDs or canonical `files/<folder>/<name>` paths. Duplicates resolving to the same file are indexed once."
           }
         },
         "required": ["workspaceId", "fileReferences"],
@@ -8475,7 +8884,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -8509,7 +8918,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 10000,
-            "description": "Text to embed. It is embedded on write, so the chunk is searchable immediately."
+            "description": "Text embedded before the response. Search includes it when the chunk and document are enabled and the document has completed processing."
           },
           "enabled": {
             "default": true,
@@ -8900,7 +9309,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],

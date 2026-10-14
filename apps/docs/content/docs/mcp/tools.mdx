@@ -1,12 +1,11 @@
 ---
 title: Tools
-description: How an agent finds, reads, and calls Sim operations through four tools
+description: Discover an operation, inspect its request, and call it with the correct access.
 ---
 
-The Sim API has more than 200 operations. Instead of one tool per operation,
-which would crowd your app's tool list and your agent's context, the server
-exposes four tools. The agent searches for an operation, reads its inputs, and
-calls it.
+Sim MCP exposes four tools for discovering and calling its supported JSON API operations. Search for an operation, inspect its inputs, then call the read or write tool named in its description.
+
+## Tools
 
 | Tool | Does |
 | --- | --- |
@@ -15,8 +14,9 @@ calls it.
 | `call_read_operation` | Runs an operation that only needs read access, such as `listWorkspaces`, `queryRows`, or `getWorkflowRun`. |
 | `call_write_operation` | Runs an operation that needs write access: one that creates, changes, runs, or deletes something, or reaches out to another service, such as `createTable`, `executeWorkflow`, or `listMcpServerTools`. |
 
-Reads and writes are separate tools so your app can approve reads once and still
-ask you before each change.
+The operation's required access determines the tool, rather than its HTTP method: a read can use POST, and a GET that contacts another service can require write access. Your app controls tool approvals.
+
+`search_operations` returns the total number of matches and at most `limit` operations: 25 by default, 100 maximum. Catalog search has no cursor. Narrow the keywords or `domain` when matches exceed that limit; this is separate from paginating API resources.
 
 ## Calling an operation
 
@@ -36,11 +36,25 @@ fills the parts of the request it needs:
 | --- | --- |
 | `params` | Path parameters, such as `tableId` or `workflowId` |
 | `query` | Query-string parameters; most operations need `workspaceId` |
-| `body` | The JSON request body (write operations only) |
-| `headers` | Headers the operation declares, such as `upload-token` |
+| `body` | The JSON request body when the operation declares one, including read operations such as `queryRows` |
+| `headers` | Only headers the operation declares, such as `upload-token` |
 
-The result is the same JSON the API returns, usually `{ "data": … }`. List
-operations page with `limit` and `cursor`. A failed call returns the API's error,
+For example, `queryRows` uses the read tool with a JSON body:
+
+```json
+{
+  "operation": "queryRows",
+  "params": { "tableId": "tbl_8f2c" },
+  "body": { "workspaceId": "ws_91ab", "limit": 50 }
+}
+```
+
+Keep authentication in your app's connection configuration. You cannot pass undeclared authentication or protocol headers, including `X-API-Key`, `Authorization`, or `Accept`, through the call's `headers` field.
+
+## Results and errors
+
+The result is the same JSON the API returns, usually `{ "data": … }`. Paginated list
+operations use `limit` and `cursor`; check the operation because some lists do not support pagination. A failed API call returns its error,
 such as `{ "error": { "code": "NOT_FOUND", "message": "…" } }`, so the agent can
 correct its request.
 
@@ -48,8 +62,14 @@ correct its request.
 
 - **Same rules as the API.** Permissions, rate limits, and request validation
   are the API's own; nothing is looser through MCP.
-- **1 MiB per result.** Page through larger lists with `limit` and `cursor`.
+- **1 MiB per API result.** Request smaller pages for paginated lists. A single-resource result may also exceed the limit. The size check happens after the API executes: if a write returns a size error, check the resource state before repeating it because the change may already have succeeded.
 - **No streaming.** Run a workflow without `stream: true` to wait for its
   result, or with `async: true` and poll `getWorkflowRun`.
 - **No file bytes.** Downloads, knowledge base exports, and multipart document
   uploads are not available over MCP; use the [CLI](/cli/files) or the API.
+
+## Related docs
+
+- [Authentication](/mcp/authentication) for scopes and credential access
+- [API getting started](/api-reference/getting-started) for response and pagination contracts
+- [Workflow runs](/workflows/deployment/api) for synchronous and asynchronous execution

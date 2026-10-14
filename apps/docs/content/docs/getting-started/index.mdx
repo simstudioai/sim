@@ -1,95 +1,136 @@
 ---
-title: Getting Started
-description: Build your first agent in 10 minutes — a people researcher with web search tools and structured output.
+title: Getting started
+description: Build and test a research agent with web search tools and structured output.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Video } from '@/components/ui/video'
-import { Image } from '@/components/ui/image'
 
-Build a people research agent in 10 minutes. It takes a name through a chat interface, searches the web with AI search tools, and returns structured JSON with the person's location, profession, and education.
+Build an agent that receives a person's name, searches for their professional background, and returns `location`, `profession`, and `education` fields. You will test it in the workflow builder before deploying it.
 
-<Image
-  src="/static/getting-started/started-1.png"
-  alt="The finished people research workflow"
-  width={800}
-  height={340}
-/>
+## Prerequisites
 
-## Tutorial
+- A workspace where you can create and edit workflows.
+- An available model that supports tool calls and structured output.
+- Access to Exa and Linkup search tools. Use Sim-provided credentials where offered, or enter your own provider keys where prompted. Self-hosted deployments must supply the credentials they use.
+
+Model and tool calls can incur usage charges. See [Costs](/platform/costs) and [Credentials](/platform/credentials) for hosted credentials and your own keys.
+
+## Build the agent
 
 <Steps>
-  <Step title="Create a workflow and add an Agent">
-    In the sidebar, click the **+** next to **Workflows** and name the new workflow "Getting Started". The **Start block** is already on the canvas — it's the entry point that receives your chat input.
+<Step title="Create a workflow">
 
-    Drag an **Agent block** onto the canvas and configure its **Messages**:
-    - **System**: "You are a people research agent. When given a person's name, use your search tools to find their location, profession, educational background, and other relevant details."
-    - **User**: insert `<start.input>` so the agent reads whatever the chat receives.
+Click **+** beside **Workflows** in the sidebar. Right-click the new workflow, choose **Rename**, and name it `People research`.
 
-    Leave the **Model** on the default (`claude-sonnet-5-5`), or pick any other.
+The new workflow contains a **Start** block. Its built-in `input` field receives messages from the workflow test chat; you do not need to add a custom field for this tutorial.
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-2.mp4" width={700} height={450} />
-    </div>
-  </Step>
+</Step>
+<Step title="Add and connect Agent">
 
-  <Step title="Add search tools">
-    In the Agent block's **Tools** section, add **Exa** and **Linkup**. The agent decides when to call them.
+Open **Toolbar** and drag **Agent** into the workflow. Check that **Start** connects to **Agent**. If no connection appears, drag from Start's output handle to Agent's input handle.
 
-    <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
-      <Video src="getting-started/started-3.mp4" width={700} height={450} />
-    </div>
-  </Step>
+Select **Agent** to open its fields in **Editor**. Choose a model that supports tools and structured output, and configure its credentials if prompted.
 
-  <Step title="Test it">
-    Open the **Chat panel**, select `agent.content` as the output to display, and send: *"John is a software engineer from San Francisco who studied Computer Science at Stanford University."*
+</Step>
+<Step title="Configure Messages">
 
-    The agent searches, then returns what it found.
+In **Messages**, create these two messages. Use the role dropdown to choose **System** or **User**, and the plus button to add another message.
 
-    {/* Why this callout exists: the largest funnel drop in platform data (2026-06) is created-a-workflow -> first-successful-run, 92% -> 49% — this is the stall point it targets. */}
-    <Callout type="info">
-    If the run doesn't go green, open the output dropdown and read what each block returned — the failure is almost always visible there. The two most common causes are a missing API key on a tool and a reference pointing at a value that isn't there. For the full method, see [tracing a failure backward](/logs-debugging).
-    </Callout>
+| Role | Content |
+| --- | --- |
+| **System** | `Research the person named in the user's message using the available search tools. Find their location, profession, and education. Use Unknown for anything you cannot verify. Include sources in your answer.` |
+| **User** | `<start.input>` |
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-4.mp4" width={700} height={450} />
-    </div>
-  </Step>
+`<start.input>` inserts the message passed into Start. See [References](/workflows/connections) for using block outputs in another block.
 
-  <Step title="Add structured output">
-    In the Agent block's **Response Format**, click the magic wand (✨) and prompt: *"create a schema named person, that contains location, profession, and education"*. The schema is generated for you.
+</Step>
+<Step title="Add search tools">
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-5.mp4" width={700} height={450} />
-    </div>
-  </Step>
+In Agent's **Tools**, open **Add tool...** and add **Exa** and **Linkup**. Select Exa's search operation and configure the fields shown for each tool, including credentials where required.
 
-  <Step title="Test the structured output">
-    Back in the **Chat panel**, select the new structured output option and send: *"Sarah is a marketing manager from New York who has an MBA from Harvard Business School."*
+The agent chooses which tools to call. A tool with a missing credential or required setting can fail when the agent calls it.
 
-    The agent now returns JSON with `location`, `profession`, and `education` fields — ready for any downstream block to read by name.
+</Step>
+<Step title="Test and inspect the run">
 
-    <div className="mx-auto w-full overflow-hidden rounded-lg">
-      <Video src="getting-started/started-6.mp4" width={700} height={450} />
-    </div>
-  </Step>
+Click **Open chat** beside the workflow's More actions menu. This opens the workflow test chat, which has an **Outputs** dropdown. The **Chat** tab in the panel is where you talk to Sim about building the workflow.
+
+In **Outputs**, select **Agent → content**. Send:
+
+```text
+Research the professional background of Tim Berners-Lee. Find his profession,
+education, and a publicly documented location. Mark anything you cannot verify
+as Unknown.
+```
+
+Expand **Logs** at the bottom of the builder and select Agent's row. Inspect its output, tool calls, and sources. Check that the results identify the intended person and support the returned facts.
+
+</Step>
+<Step title="Define structured output">
+
+In Agent's **Response Format**, paste this schema:
+
+```json
+{
+  "name": "person",
+  "description": "A researched professional profile",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "location": {
+        "type": "string",
+        "description": "A publicly documented location, or Unknown"
+      },
+      "profession": {
+        "type": "string",
+        "description": "The person's profession, or Unknown"
+      },
+      "education": {
+        "type": "string",
+        "description": "The person's education, or Unknown"
+      }
+    },
+    "required": ["location", "profession", "education"],
+    "additionalProperties": false
+  }
+}
+```
+
+You can also use the generation control beside **Response Format** to create a schema from a description. Check the generated schema before running it.
+
+`person` names the schema. Its properties become outputs directly on Agent; it does not add a nested `person` field. Replace the System message with:
+
+```text
+Research the person named in the user's message using the available search tools.
+Return only the location, profession, and education fields defined by the response
+format. Use Unknown for anything you cannot verify.
+```
+
+Keep the User message set to `<start.input>`.
+
+</Step>
+<Step title="Verify the structured result">
+
+Send the same prompt in the workflow test chat. In **Outputs**, select Agent's `location`, `profession`, and `education` fields. Open Agent's complete output in **Logs** and check their values before using them downstream.
+
+When the model returns the schema's fields as valid JSON, they are available as `<agent.location>`, `<agent.profession>`, and `<agent.education>`. Structured output requests a shape; it does not verify the facts.
+
+<Callout type="warn">
+  A model can return malformed JSON even when a response format is configured. Sim can then fall back to `content` and add `_responseFormatWarning`. Inspect the output and correct the response or model configuration before relying on the schema fields.
+</Callout>
+
+</Step>
 </Steps>
 
-## Next
+## Fix a failed run
 
-<Cards>
-  <Card title="Workflows" href="/workflows">
-    The full model: blocks, connections, triggers, and how runs execute.
-  </Card>
-  <Card title="Agent block" href="/workflows/blocks/agent">
-    Everything the block you just used can do — tools, memory, skills, structured output.
-  </Card>
-  <Card title="Integrations" href="/integrations">
-    supported services your agents can act on, from Gmail to HubSpot.
-  </Card>
-  <Card title="Deploy it" href="/workflows/deployment">
-    Ship the workflow as an API, a chat, or an MCP server.
-  </Card>
-</Cards>
+Select the failed block in **Logs** and read its error, input, and output. Check the credentials on the model or tool, then confirm that each reference points to an existing output. Rerun after correcting the failure. See [Logs and debugging](/logs-debugging) for tracing a failure through earlier blocks.
+
+## Related docs
+
+- [Agent block](/workflows/blocks/agent): Tools, memory, skills, and response formats.
+- [Connections](/workflows/connections): Pass outputs between blocks.
+- [Deploy a workflow](/workflows/deployment): Expose the agent through an API, chat, or MCP server.
+- [Integrations](/integrations): Configure tools for other services.

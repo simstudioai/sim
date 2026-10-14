@@ -97,7 +97,7 @@ const v2KnowledgeChunkingConfigSchema = knowledgeBaseDataSchema.shape.chunkingCo
       .describe('Minimum chunk size in characters.')
       .meta({ examples: [100] }),
     overlap: knowledgeBaseDataSchema.shape.chunkingConfig.shape.overlap
-      .describe('Number of overlapping characters between adjacent chunks.')
+      .describe('Requested overlap in tokens between adjacent chunks.')
       .meta({ examples: [200] }),
     strategy: knowledgeBaseDataSchema.shape.chunkingConfig.shape.strategy.describe(
       'Chunking strategy applied during document processing.'
@@ -174,7 +174,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     deletedAt: v2TimestampSchema
       .nullable()
       .describe(
-        'ISO 8601 archive timestamp, or null while active. Use List Knowledge Bases with `scope=archived` to find archived knowledge bases.'
+        'ISO 8601 archive timestamp, or null while active. Use List knowledge bases with `scope=archived` to find archived knowledge bases.'
       )
       .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
@@ -282,7 +282,7 @@ export const v2KnowledgeDocumentTagsSchema = z
       .describe('Tag value; dates are ISO 8601 strings and an unset tag is null.')
   )
   .describe(
-    'Document tag values keyed by display name. Writes use slots such as `tag1`; use List Tags to map names to slots.'
+    'Document tag values keyed by display name. Writes use slots such as `tag1`; use List tags to map names to slots.'
   )
   .meta({ examples: [{ category: 'billing', priority: 2 }] })
 
@@ -440,16 +440,10 @@ export const v2KnowledgeSearchDataSchema = z
       .nonnegative()
       .describe('Number of results returned.')
       .meta({ examples: [4] }),
-    /**
-     * Required, not optional. Reranking degrades to vector ordering on a provider
-     * failure or an unconfigured credential, and that fallback was previously
-     * indistinguishable from a reranker that ran — same 200, same order, no
-     * `rerankerScore` on any result. A field a caller has to remember to look for
-     * would reproduce the same gap for anyone who does not.
-     */
+    /** Required so callers can distinguish a successful rerank from fallback retrieval ordering after provider or credential failures. */
     rerankerStatus: rerankerStatusSchema
       .describe(
-        'What the reranker did on this search. `applied` means it ordered the results, which carry `rerankerScore`. `unavailable` means it was attempted but could not complete, so results are in vector order with no `rerankerScore` — the search still succeeded, and is worth retrying. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.'
+        'Reranking outcome. `applied` means results carry `rerankerScore` and follow that score. `unavailable` means reranking could not produce a usable order; the search succeeded in retrieval order without `rerankerScore`. Retry if reranking is needed. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.'
       )
       .meta({ examples: ['applied'] }),
   })
@@ -564,7 +558,7 @@ export const v2UploadKnowledgeDocumentFormSchema = z
     file: z
       .file()
       .max(MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE)
-      .describe('Document file to upload; the maximum size is 100 MB.'),
+      .describe('Document file to upload; the maximum size is 100 MiB.'),
   })
   .catchall(z.unknown().describe('Additional multipart form fields are ignored.'))
 export type V2UploadKnowledgeDocumentForm = z.input<typeof v2UploadKnowledgeDocumentFormSchema>
@@ -642,7 +636,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
     scope: v2KnowledgeBaseScopeSchema
       .default('active')
       .describe(
-        'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.'
+        'Lifecycle scope: active or archived knowledge bases. Use Restore knowledge base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()
@@ -668,7 +662,7 @@ const v2KnowledgeChunkingConfigInputSchema = withChunkingConfigRules(
         .meta({ examples: [100] }),
       overlap: chunkingConfigFieldsSchema.shape.overlap
         .default(DEFAULT_CHUNKING_CONFIG.overlap)
-        .describe('Number of overlapping characters between adjacent chunks.')
+        .describe('Requested overlap in tokens between adjacent chunks.')
         .meta({ examples: [200] }),
       strategy: chunkingConfigFieldsSchema.shape.strategy.describe(
         'Chunking strategy applied during document processing. `regex` additionally requires `strategyOptions.pattern`.'
@@ -954,7 +948,9 @@ export const v2KnowledgeSearchBodySchema = z
       'Workspace that owns the knowledge bases.'
     ),
     knowledgeBaseIds: v1KnowledgeSearchBodySchema.shape.knowledgeBaseIds
-      .describe('One knowledge base identifier or an array of up to 20 identifiers.')
+      .describe(
+        'One knowledge base ID or an array of up to 20 IDs. Query searches require the same embedding model and dimensions across all selected bases; search incompatible bases separately. Tag-only searches do not require this.'
+      )
       .meta({ examples: [['7c9e6679-7425-40de-944b-e07fc1f90ae7']] }),
     query: z
       .string()
@@ -986,13 +982,13 @@ export const v2KnowledgeSearchBodySchema = z
         `Up to ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.`
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
-      'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
+      'Retrieval strategy: `vector` uses semantic search; `hybrid` also runs full-text search. Omit to use the workspace policy.'
     ),
     rerankerEnabled: z
       .boolean()
       .optional()
       .describe(
-        'Re-order retrieved chunks with a reranking model before truncating to `topK`. Ignored for a tag-only search, and billed as an additional search unit. Reranking is best-effort — a provider failure falls back to vector ordering, so check `rerankerStatus` on the response.'
+        'Reorder retrieved chunks with a reranking model before truncating to `topK`. Ignored for tag-only searches. A completed reranking call adds a search unit. If reranking is unavailable, results keep their retrieval order; check `rerankerStatus`.'
       ),
     /**
      * Defaulted, matching the internal search contract this one otherwise
@@ -1225,7 +1221,7 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
  */
 export const v2KnowledgeTagSchema = z
   .object({
-    id: z.string().describe('Tag definition ID used by Update Tag and Delete Tag.'),
+    id: z.string().describe('Tag definition ID used by Update tag and Delete tag.'),
     displayName: z
       .string()
       .describe('Display name used by tag filters and by tag values on document reads.')
@@ -1233,7 +1229,7 @@ export const v2KnowledgeTagSchema = z
     tagSlot: z
       .string()
       .describe(
-        'Storage slot the tag occupies. Document writes set tag values by slot (`tag1`..`tag7`).'
+        'Slot used by document updates: `tag1`–`tag7`, `number1`–`number5`, `date1`–`date2`, or `boolean1`–`boolean3`. Upload creation accepts text slots; use Update document for other types.'
       )
       .meta({ examples: ['tag1'] }),
     fieldType: z
@@ -2005,7 +2001,7 @@ export const v2AddWorkspaceFilesToKnowledgeBaseBodySchema = z
         `fileReferences cannot contain more than ${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} files`
       )
       .describe(
-        'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.'
+        'Workspace file IDs or paths to index. Prefer IDs or canonical `files/<folder>/<name>` paths. Duplicates resolving to the same file are indexed once.'
       ),
   })
   .strict()
