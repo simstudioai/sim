@@ -1,7 +1,4 @@
-import {
-  INTEGRATION_COUNT_LABEL,
-  INTEGRATION_REACH,
-} from '@sim/deployment-config/integration-claims'
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 
@@ -113,7 +110,7 @@ const HOME_JSON_LD = {
         'Chat: build and manage agents in natural language',
         'Visual workflow builder',
         'CLI access for coding agents and terminal workflows',
-        INTEGRATION_REACH,
+        `${INTEGRATION_COUNT_LABEL} integrations`,
         'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
         'Knowledge base creation',
         'Table creation',
