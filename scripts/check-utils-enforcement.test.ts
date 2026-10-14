@@ -41,11 +41,17 @@ describe('record coercion', () => {
     ])
   })
 
+  it('treats optional chaining in the guard as the same property', () => {
+    const source = 'const metadata = isRecordLike(existing?.metadata) ? existing.metadata : {}'
+    expect(descriptions('apps/sim/lib/example.ts', source)).toEqual(['isRecordLike(v) ? v : {}'])
+  })
+
   it('leaves a ternary that falls back to something else, or returns another value', () => {
     const source = [
       'const a = isRecordLike(value) ? value : undefined',
       'const b = isRecordLike(value) ? other : {}',
       'const c = isRecordLike(value) ? { ...value } : {}',
+      'const d = isRecordLike(item?.data) ? item.meta : null',
     ].join('\n')
     expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([])
   })

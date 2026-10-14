@@ -53,6 +53,17 @@ const TRUNCATED = String.raw`(?:\`\$\{\1\.(?:slice|substring)\(\s*0\s*,\s*\2\s*\
 /** Literal gate for both truncate patterns, whose backreferences are slow over every file. */
 const TRUNCATE_PREFILTER = /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/
 
+/** `a`, `a.b`, `a?.b.c`: a property path, with or without optional chaining. */
+const MEMBER_PATH = String.raw`[\w$]+(?:\??\.[\w$]+)*`
+
+/**
+ * Whether the guarded path and the returned path are the same property. Optional chaining is
+ * spelling, not meaning, once the guard has passed: `isRecordLike(a?.b) ? a.b : {}` is `toRecord(a?.b)`.
+ */
+function sameMemberPath(match: RegExpExecArray): boolean {
+  return match[1].replaceAll('?.', '.') === match[2].replaceAll('?.', '.')
+}
+
 /** Literal gate shared by the `filterUndefined` and `omit` patterns. */
 const FROM_ENTRIES = /Object\.fromEntries\(/
 
@@ -64,6 +75,8 @@ const BANNED_PATTERNS: Array<{
   prefilter?: RegExp
   /** Bans re-implementing a helper, so `@sim/utils` and the allowlisted files are exempt. */
   replacesHelper?: true
+  /** A further condition on a match that a regex backreference cannot express. */
+  accept?: (match: RegExpExecArray) => boolean
 }> = [
   // Randomness / ID generation — global property access that import bans miss
   {
@@ -122,18 +135,26 @@ const BANNED_PATTERNS: Array<{
     replacesHelper: true,
   },
   {
-    pattern: /\bisRecordLike\(\s*([\w.]+)\s*\)\s*\?\s*\1\s*:\s*\{\s*\}/g,
+    pattern: new RegExp(
+      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*\{\s*\}`,
+      'g'
+    ),
     description: 'isRecordLike(v) ? v : {}',
     suggestion: 'toRecord(v) from @sim/utils/object',
     prefilter: /isRecordLike\(/,
     replacesHelper: true,
+    accept: sameMemberPath,
   },
   {
-    pattern: /\bisRecordLike\(\s*([\w.]+)\s*\)\s*\?\s*\1\s*:\s*null\b/g,
+    pattern: new RegExp(
+      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*null\b`,
+      'g'
+    ),
     description: 'isRecordLike(v) ? v : null',
     suggestion: 'toRecordOrNull(v) from @sim/utils/object',
     prefilter: /isRecordLike\(/,
     replacesHelper: true,
+    accept: sameMemberPath,
   },
   {
     pattern:
@@ -318,7 +339,14 @@ export function findViolations(file: string, content: string): Violation[] {
   }> = []
 
   const prefilterHits = new Map<RegExp, boolean>()
-  for (const { pattern, description, suggestion, prefilter, replacesHelper } of BANNED_PATTERNS) {
+  for (const {
+    pattern,
+    description,
+    suggestion,
+    prefilter,
+    replacesHelper,
+    accept,
+  } of BANNED_PATTERNS) {
     if (helperSource && replacesHelper) continue
     if (prefilter) {
       let hit = prefilterHits.get(prefilter)
@@ -330,6 +358,7 @@ export function findViolations(file: string, content: string): Violation[] {
     }
     pattern.lastIndex = 0
     for (let match = pattern.exec(content); match !== null; match = pattern.exec(content)) {
+      if (accept && !accept(match)) continue
       matches.push({ index: match.index, description, suggestion })
     }
   }

@@ -6,12 +6,14 @@
  * - `relative-import` (`.claude/rules/sim-imports.md`): an `apps/sim` module imports, re-exports,
  *   dynamically imports or `require`s a relative path. The one exception is a barrel `index.ts(x)`
  *   re-exporting from inside its own folder, written either as `export { X } from './x'` or as an
- *   import followed by `export { X }`; a barrel reaching out with `../` is still flagged.
- * - `text-size-literal` (`.claude/rules/sim-styling.md` "Tailwind" 3): an `apps/sim` class string
- *   sets type size with `text-[Npx]` where the documented text scale has a token for that size
- *   (`text-[13px]` → `text-small`). The literal also drops the token's line-height. Sizes the
- *   scale does not cover (display headings such as `text-[32px]`) are a design-system gap, not a
- *   rename, so they are not counted.
+ *   import whose every binding the barrel then exports (`export { X }`, or renamed with
+ *   `export const Y = X`). A path that leaves the folder (`../x`,
+ *   `./../x`), a side-effect import, and an import the barrel keeps for itself are all flagged.
+ * - `text-size-literal` (`.claude/rules/sim-styling.md` "Tailwind" 3): an `apps/sim` string or
+ *   template literal sets type size with `text-[Npx]` where the documented text scale has a token
+ *   for that size (`text-[13px]` → `text-small`). The literal also drops the token's line-height.
+ *   Sizes the scale does not cover (display headings such as `text-[32px]`) are a design-system
+ *   gap, not a rename, so they are not counted. Comments are not code and are not counted.
  * - `static-inline-style` (`sim-styling.md` "Tailwind" 1): a JSX `style={{ … }}` whose every
  *   property is a literal that is not a CSS variable, so the whole object could be classes. A
  *   style with any dynamic value, spread, computed key or custom property is left alone, and so is
@@ -19,10 +21,14 @@
  * - `api-db-import` (CLAUDE.md "Application Operation Boundary"): a module under `app/api/`
  *   imports a value from `@sim/db`. Surface adapters never query protected data; the query belongs
  *   in an application use case or manager. Type-only imports are allowed.
- * - `bare-route-handler` (CLAUDE.md "API Contracts and Routes"): a `route.ts` HTTP verb export is
- *   itself a handler body (a function declaration, an async function, or a function with a block
- *   body) instead of the result of `withRouteHandler` or a route builder. A synchronous one-call
- *   delegate such as `(req, ctx) => withSpan(…, () => handler(req, ctx))` is allowed.
+ * - `bare-route-handler` (CLAUDE.md "API Contracts and Routes"): an `app/api/**` `route.ts` HTTP
+ *   verb export is a handler body written in the route file — a function declaration, a function
+ *   expression, an async or block-bodied arrow, or an expression arrow that does not delegate to a
+ *   wrapped handler — directly or through a local alias. Allowed: the result of a call (a route
+ *   builder, `withRouteHandler`, or a factory that composes them in another module), an alias or
+ *   member of such a result, and a synchronous expression arrow that delegates to one, such as
+ *   `(req, ctx) => withSpan(…, () => handler(req, ctx))`. Whether a factory in another module
+ *   applies `withRouteHandler` is that module's concern; this rule only sees the route file.
  *
  * Existing hits are counted per rule and file in `scripts/check-source-conventions.baseline.json`.
  * A file whose count rises, or that gains its first hit, fails. A count that drops also fails until
@@ -52,13 +58,21 @@ const RULES = [
 
 export type Rule = (typeof RULES)[number]
 type Counts = Record<string, number>
-type Baseline = Partial<Record<Rule, Counts>>
+export type Baseline = Partial<Record<Rule, Counts>>
+export type CurrentCounts = Record<Rule, Counts>
 
 interface Violation {
   rule: Rule
   file: string
   line: number
   detail: string
+}
+
+export interface CountChange {
+  rule: Rule
+  file: string
+  count: number
+  allowed: number
 }
 
 const HOW_TO_FIX: Record<Rule, string> = {
@@ -90,6 +104,14 @@ const TEXT_SIZE_TOKENS: Record<string, string> = {
 }
 /** Imports that mean the file renders without the app stylesheet, so inline style is the only option. */
 const NO_TAILWIND_RENDERERS = /from\s+['"](?:@react-email\/[^'"]+|next\/og)['"]/
+/** Wrappers that leave the wrapped expression's value unchanged. */
+const TRANSPARENT_WRAPPERS = new Set([
+  'ParenthesizedExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSTypeAssertion',
+])
 
 type Node = { type: string; loc?: { start: { line: number } }; [key: string]: unknown }
 
@@ -128,6 +150,12 @@ function lineOf(node: Node): number {
   return node.loc?.start.line ?? 0
 }
 
+function unwrap(node: Node | undefined): Node | undefined {
+  let current = node
+  while (current && TRANSPARENT_WRAPPERS.has(current.type)) current = current.expression as Node
+  return current
+}
+
 function stringValue(node: unknown): string | undefined {
   const candidate = node as Node | undefined
   if (candidate?.type === 'StringLiteral') return candidate.value as string
@@ -139,6 +167,12 @@ function stringValue(node: unknown): string | undefined {
 
 function isRelative(specifier: string | undefined): specifier is string {
   return specifier !== undefined && (specifier.startsWith('./') || specifier.startsWith('../'))
+}
+
+/** `./x` and `./a/b` stay inside the importing file's folder; `../x` and `./../x` leave it. */
+function staysInFolder(specifier: string): boolean {
+  const normalized = path.posix.normalize(specifier)
+  return normalized !== '..' && !normalized.startsWith('../')
 }
 
 function isBarrel(file: string): boolean {
@@ -167,34 +201,87 @@ function declarationSpecifier(node: Node): string | undefined {
   return isModuleDeclaration ? stringValue(node.source) : undefined
 }
 
+/**
+ * Local names a module passes straight through: `export { a, b as c }`, `export default a`, and the
+ * renaming alias `export const c = a`.
+ */
+function exportedLocals(program: Node): Set<string> {
+  const names = new Set<string>()
+  for (const statement of program.body as Node[]) {
+    if (statement.type === 'ExportNamedDeclaration' && !statement.source) {
+      for (const specifier of (statement.specifiers as Node[] | undefined) ?? []) {
+        const local = specifier.local as Node | undefined
+        if (local?.type === 'Identifier') names.add(local.name as string)
+      }
+      const declaration = statement.declaration as Node | null
+      if (declaration?.type === 'VariableDeclaration') {
+        for (const declarator of declaration.declarations as Node[]) {
+          const init = unwrap(declarator.init as Node | undefined)
+          if (init?.type === 'Identifier') names.add(init.name as string)
+        }
+      }
+    }
+    if (statement.type === 'ExportDefaultDeclaration') {
+      const declaration = statement.declaration as Node
+      if (declaration.type === 'Identifier') names.add(declaration.name as string)
+    }
+  }
+  return names
+}
+
+/** A barrel line that only passes a sibling module through: the one allowed relative form. */
+function isBarrelReExport(node: Node, specifier: string, reExported: Set<string>): boolean {
+  if (!staysInFolder(specifier)) return false
+  if (node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') return true
+  if (node.type !== 'ImportDeclaration') return false
+  const specifiers = node.specifiers as Node[]
+  return (
+    specifiers.length > 0 &&
+    specifiers.every((imported) => reExported.has((imported.local as Node).name as string))
+  )
+}
+
 function findRelativeImports(file: string, program: Node): Violation[] {
   const violations: Violation[] = []
-  const barrel = isBarrel(file)
+  const reExported = isBarrel(file) ? exportedLocals(program) : undefined
   walk(program, (node) => {
     const declared = declarationSpecifier(node)
     const specifier = declared ?? dynamicSpecifier(node)
     if (!isRelative(specifier)) return
-    if (declared !== undefined && barrel && specifier.startsWith('./')) return
+    if (reExported && isBarrelReExport(node, specifier, reExported)) return
     violations.push({ rule: 'relative-import', file, line: lineOf(node), detail: specifier })
   })
   return violations
 }
 
-function findTextSizeLiterals(file: string, source: string): Violation[] {
+/** Every string and template chunk in the file with its first line; comments are not included. */
+function stringChunks(program: Node): Array<{ text: string; line: number }> {
+  const chunks: Array<{ text: string; line: number }> = []
+  walk(program, (node) => {
+    if (node.type === 'StringLiteral') {
+      chunks.push({ text: node.value as string, line: lineOf(node) })
+    } else if (node.type === 'TemplateElement') {
+      chunks.push({ text: (node.value as { raw: string }).raw, line: lineOf(node) })
+    }
+  })
+  return chunks
+}
+
+function findTextSizeLiterals(file: string, program: Node): Violation[] {
   const violations: Violation[] = []
-  const lines = source.split('\n')
-  lines.forEach((text, index) => {
+  for (const { text, line } of stringChunks(program)) {
     for (const match of text.matchAll(TEXT_SIZE_LITERAL)) {
       const token = TEXT_SIZE_TOKENS[match[1]]
       if (!token) continue
+      const linesBefore = text.slice(0, match.index).split('\n').length - 1
       violations.push({
         rule: 'text-size-literal',
         file,
-        line: index + 1,
+        line: line + linesBefore,
         detail: `text-[${match[1]}px] → ${token}`,
       })
     }
-  })
+  }
   return violations
 }
 
@@ -239,8 +326,8 @@ function findStaticInlineStyles(file: string, source: string, program: Node): Vi
     if (name.type !== 'JSXIdentifier' || name.name !== 'style') return
     const value = node.value as Node | null
     if (value?.type !== 'JSXExpressionContainer') return
-    const expression = value.expression as Node
-    if (expression.type === 'ObjectExpression' && isFullyStaticStyle(expression)) {
+    const expression = unwrap(value.expression as Node)
+    if (expression?.type === 'ObjectExpression' && isFullyStaticStyle(expression)) {
       violations.push({ rule: 'static-inline-style', file, line: lineOf(node), detail: 'style' })
     }
   })
@@ -274,45 +361,94 @@ function findApiDbImports(file: string, program: Node): Violation[] {
   return violations
 }
 
-/** A function value that implements a handler itself rather than delegating in one call. */
-function isHandlerBody(node: Node | undefined): boolean {
-  if (!node) return false
-  if (node.type === 'FunctionExpression') return true
-  if (node.type === 'ArrowFunctionExpression') {
-    return Boolean(node.async) || (node.body as Node).type === 'BlockStatement'
-  }
-  return false
-}
-
-function findBareRouteHandlers(file: string, program: Node): Violation[] {
-  const violations: Violation[] = []
-  const body = program.body as Node[]
-  const report = (node: Node, verb: string) =>
-    violations.push({ rule: 'bare-route-handler', file, line: lineOf(node), detail: verb })
-
-  /** Top-level bindings, so `export { handler as GET }` resolves to what `handler` is. */
-  const locals = new Map<string, Node>()
-  for (const statement of body) {
+/** Top-level function declarations and `const`/`let` declarators by name. */
+function topLevelBindings(program: Node): Map<string, Node> {
+  const bindings = new Map<string, Node>()
+  for (const statement of program.body as Node[]) {
     const declaration =
       statement.type === 'ExportNamedDeclaration'
         ? (statement.declaration as Node | null)
         : statement
-    if (!declaration) continue
-    if (declaration.type === 'FunctionDeclaration' && declaration.id) {
-      locals.set((declaration.id as Node).name as string, declaration)
+    if (declaration?.type === 'FunctionDeclaration' && declaration.id) {
+      bindings.set((declaration.id as Node).name as string, declaration)
     }
-    if (declaration.type === 'VariableDeclaration') {
+    if (declaration?.type === 'VariableDeclaration') {
       for (const declarator of declaration.declarations as Node[]) {
         const id = declarator.id as Node
-        if (id.type === 'Identifier') locals.set(id.name as string, declarator)
+        if (id.type === 'Identifier') bindings.set(id.name as string, declarator)
       }
     }
   }
-  const isBare = (binding: Node | undefined): boolean =>
-    binding?.type === 'FunctionDeclaration' ||
-    (binding?.type === 'VariableDeclarator' && isHandlerBody(binding.init as Node | undefined))
+  return bindings
+}
 
-  for (const statement of body) {
+/**
+ * Classifies a route verb's value. A handler is `wrapped` when it is the result of a call, or an
+ * alias or member of one; `bare` when it is a function written in this file (directly or through
+ * an alias); `opaque` when it comes from outside the file (an import), which this rule cannot see.
+ */
+function classifyHandler(
+  value: Node | undefined,
+  bindings: Map<string, Node>,
+  seen: Set<string> = new Set()
+): 'wrapped' | 'bare' | 'opaque' {
+  const node = unwrap(value)
+  if (!node) return 'opaque'
+  switch (node.type) {
+    case 'CallExpression':
+      return 'wrapped'
+    case 'FunctionExpression':
+      return 'bare'
+    case 'ArrowFunctionExpression':
+      if (node.async || (node.body as Node).type === 'BlockStatement') return 'bare'
+      return delegatesToWrapped(node.body as Node, bindings, seen) ? 'wrapped' : 'bare'
+    case 'ConditionalExpression': {
+      const branches = [node.consequent, node.alternate].map((branch) =>
+        classifyHandler(branch as Node, bindings, new Set(seen))
+      )
+      return branches.includes('bare')
+        ? 'bare'
+        : branches.includes('wrapped')
+          ? 'wrapped'
+          : 'opaque'
+    }
+    case 'MemberExpression':
+      return classifyHandler(node.object as Node, bindings, seen)
+    case 'Identifier': {
+      const name = node.name as string
+      const binding = bindings.get(name)
+      if (!binding || seen.has(name)) return 'opaque'
+      seen.add(name)
+      if (binding.type === 'FunctionDeclaration') return 'bare'
+      return classifyHandler(binding.init as Node | undefined, bindings, seen)
+    }
+    default:
+      return 'bare'
+  }
+}
+
+/** Whether an arrow's expression body calls through a local binding that is a wrapped handler. */
+function delegatesToWrapped(body: Node, bindings: Map<string, Node>, seen: Set<string>): boolean {
+  let delegates = false
+  walk(body, (node) => {
+    if (delegates || node.type !== 'Identifier') return
+    const name = node.name as string
+    const binding = bindings.get(name)
+    if (binding?.type !== 'VariableDeclarator' || seen.has(name)) return
+    delegates =
+      classifyHandler(binding.init as Node | undefined, bindings, new Set([...seen, name])) ===
+      'wrapped'
+  })
+  return delegates
+}
+
+function findBareRouteHandlers(file: string, program: Node): Violation[] {
+  const violations: Violation[] = []
+  const bindings = topLevelBindings(program)
+  const report = (node: Node, verb: string) =>
+    violations.push({ rule: 'bare-route-handler', file, line: lineOf(node), detail: verb })
+
+  for (const statement of program.body as Node[]) {
     if (statement.type !== 'ExportNamedDeclaration' || statement.source) continue
     const declaration = statement.declaration as Node | null
     if (declaration?.type === 'FunctionDeclaration') {
@@ -323,20 +459,19 @@ function findBareRouteHandlers(file: string, program: Node): Violation[] {
     if (declaration?.type === 'VariableDeclaration') {
       for (const declarator of declaration.declarations as Node[]) {
         const id = declarator.id as Node
-        if (id.type === 'Identifier' && HTTP_VERBS.has(id.name as string) && isBare(declarator)) {
+        if (id.type !== 'Identifier' || !HTTP_VERBS.has(id.name as string)) continue
+        if (classifyHandler(declarator.init as Node | undefined, bindings) === 'bare') {
           report(statement, id.name as string)
         }
       }
       continue
     }
-    for (const specifier of statement.specifiers as Node[]) {
+    for (const specifier of (statement.specifiers as Node[] | undefined) ?? []) {
       const exported = specifier.exported as Node
       const verb =
         exported.type === 'Identifier' ? (exported.name as string) : stringValue(exported)
-      const local = (specifier.local as Node | undefined)?.name as string | undefined
-      if (verb && HTTP_VERBS.has(verb) && local && isBare(locals.get(local))) {
-        report(statement, verb)
-      }
+      if (!verb || !HTTP_VERBS.has(verb)) continue
+      if (classifyHandler(specifier.local as Node, bindings) === 'bare') report(statement, verb)
     }
   }
   return violations
@@ -350,24 +485,98 @@ function isTestFile(file: string): boolean {
 /** Every convention violation in one file; `file` is repo-relative with forward slashes. */
 export function findViolations(file: string, source: string): Violation[] {
   if (!file.startsWith('apps/sim/') || !/\.tsx?$/.test(file) || file.endsWith('.d.ts')) return []
-  const violations: Violation[] = []
-  const wantsRelative = /(?:from|import|require)\s*\(?\s*['"`]\.\.?\//.test(source)
-  const wantsStyle = file.endsWith('.tsx') && source.includes('style={{')
-  const isApi = file.startsWith('apps/sim/app/api/') && !isTestFile(file)
+  const test = isTestFile(file)
+  const isApi = file.startsWith('apps/sim/app/api/') && !test
+  // Cheap textual gates; each is a superset of what its rule can match, and the AST decides.
+  const wantsRelative = /['"`]\.\.?\//.test(source)
+  const wantsTextSize = !test && /text-\[\d/.test(source)
+  const wantsStyle = !test && file.endsWith('.tsx') && /\bstyle\s*=\s*\{/.test(source)
   const wantsDb = isApi && source.includes('@sim/db')
   const wantsRoute = isApi && /(?:^|\/)route\.ts$/.test(file)
-
-  if (!isTestFile(file)) violations.push(...findTextSizeLiterals(file, source))
-  if (!(wantsRelative || wantsStyle || wantsDb || wantsRoute)) return violations
+  if (!(wantsRelative || wantsTextSize || wantsStyle || wantsDb || wantsRoute)) return []
 
   const program = parseSource(file, source)
-  if (wantsRelative) violations.push(...findRelativeImports(file, program))
-  if (wantsStyle && !isTestFile(file)) {
-    violations.push(...findStaticInlineStyles(file, source, program))
+  return [
+    ...(wantsRelative ? findRelativeImports(file, program) : []),
+    ...(wantsTextSize ? findTextSizeLiterals(file, program) : []),
+    ...(wantsStyle ? findStaticInlineStyles(file, source, program) : []),
+    ...(wantsDb ? findApiDbImports(file, program) : []),
+    ...(wantsRoute ? findBareRouteHandlers(file, program) : []),
+  ]
+}
+
+/** Files whose count rose past the baseline, and baselined files whose count fell below it. */
+export function compareToBaseline(
+  baseline: Baseline,
+  current: CurrentCounts
+): { raised: CountChange[]; dropped: CountChange[] } {
+  const raised: CountChange[] = []
+  const dropped: CountChange[] = []
+  for (const rule of RULES) {
+    const before = baseline[rule] ?? {}
+    const after = current[rule]
+    for (const [file, count] of Object.entries(after)) {
+      const allowed = before[file] ?? 0
+      if (count > allowed) raised.push({ rule, file, count, allowed })
+    }
+    for (const [file, allowed] of Object.entries(before)) {
+      const count = after[file] ?? 0
+      if (count < allowed) dropped.push({ rule, file, count, allowed })
+    }
   }
-  if (wantsDb) violations.push(...findApiDbImports(file, program))
-  if (wantsRoute) violations.push(...findBareRouteHandlers(file, program))
-  return violations
+  return { raised, dropped }
+}
+
+/**
+ * The baseline `--update` writes: every tracked rule shrunk to the current counts, never raised.
+ * `initRule` admits the current hits of a rule the baseline has never tracked, and nothing else.
+ */
+export function nextBaseline(
+  baseline: Baseline,
+  current: CurrentCounts,
+  initRule?: string
+): { baseline: Baseline } | { errors: string[] } {
+  if (initRule !== undefined) {
+    if (!(RULES as readonly string[]).includes(initRule)) {
+      return {
+        errors: [`--init-rule ${initRule}: not a rule in this script (${RULES.join(', ')})`],
+      }
+    }
+    if (baseline[initRule as Rule] !== undefined) {
+      return {
+        errors: [
+          `--init-rule ${initRule}: the baseline already tracks this rule, so its debt can only shrink. Fix the new hits instead.`,
+        ],
+      }
+    }
+  }
+  const errors: string[] = []
+  const next: Baseline = {}
+  for (const rule of RULES) {
+    const before = rule === initRule ? current[rule] : baseline[rule]
+    if (before === undefined) {
+      if (Object.keys(current[rule]).length) {
+        errors.push(
+          `${rule} is not in the baseline. Admit its existing hits once with --update --init-rule ${rule}.`
+        )
+      }
+      next[rule] = {}
+      continue
+    }
+    const kept: Counts = {}
+    for (const file of Object.keys(current[rule]).sort()) {
+      const count = current[rule][file]
+      const allowed = before[file] ?? 0
+      if (count > allowed) {
+        errors.push(
+          `refused to raise ${rule} ${file}: ${count} (baseline ${allowed}); fix it instead`
+        )
+      }
+      if (Math.min(count, allowed) > 0) kept[file] = Math.min(count, allowed)
+    }
+    next[rule] = kept
+  }
+  return errors.length ? { errors } : { baseline: next }
 }
 
 /** Tracked and untracked-but-not-ignored sources, so a new file is checked before it is staged. */
@@ -383,8 +592,8 @@ function sourceFiles(): string[] {
     .sort()
 }
 
-function collect(): { counts: Required<Baseline>; violations: Violation[] } {
-  const counts = Object.fromEntries(RULES.map((rule) => [rule, {}])) as Required<Baseline>
+function collect(): { counts: CurrentCounts; violations: Violation[] } {
+  const counts = Object.fromEntries(RULES.map((rule) => [rule, {}])) as CurrentCounts
   const violations: Violation[] = []
   for (const file of sourceFiles()) {
     for (const violation of findViolations(file, readFileSync(path.join(ROOT, file), 'utf8'))) {
@@ -395,16 +604,8 @@ function collect(): { counts: Required<Baseline>; violations: Violation[] } {
   return { counts, violations }
 }
 
-function sorted(counts: Counts): Counts {
-  return Object.fromEntries(
-    Object.keys(counts)
-      .sort()
-      .map((file) => [file, counts[file]])
-  )
-}
-
-function total(counts: Counts): number {
-  return Object.values(counts).reduce((sum, count) => sum + count, 0)
+function total(counts: Counts | undefined): number {
+  return Object.values(counts ?? {}).reduce((sum, count) => sum + count, 0)
 }
 
 function argValue(flag: string): string | undefined {
@@ -416,7 +617,7 @@ function argValue(flag: string): string | undefined {
  * The committed baseline. A missing file fails closed: restore it from git. `--update --init` is
  * the only way to create one, and it accepts every current hit.
  */
-function readBaseline(current: Required<Baseline>): Baseline {
+function readBaseline(current: CurrentCounts): Baseline {
   if (existsSync(BASELINE)) return JSON.parse(readFileSync(BASELINE, 'utf8')) as Baseline
   if (process.argv.includes('--update') && process.argv.includes('--init')) return current
   console.error(
@@ -426,89 +627,31 @@ function readBaseline(current: Required<Baseline>): Baseline {
   process.exit(1)
 }
 
-function update(current: Required<Baseline>, baseline: Baseline): never {
-  const initRule = argValue('--init-rule')
-  if (initRule !== undefined) {
-    if (!(RULES as readonly string[]).includes(initRule)) {
-      console.error(`✗ --init-rule ${initRule}: not a rule in this script (${RULES.join(', ')})`)
-      process.exit(1)
-    }
-    if (baseline[initRule as Rule] !== undefined) {
-      console.error(
-        `✗ --init-rule ${initRule}: the baseline already tracks this rule, so its debt can only ` +
-          'shrink. Fix the new hits instead.'
-      )
-      process.exit(1)
-    }
-  }
-  const next: Baseline = {}
-  const raised: string[] = []
-  for (const rule of RULES) {
-    if (rule === initRule) {
-      next[rule] = sorted(current[rule])
-      continue
-    }
-    const before = baseline[rule]
-    if (before === undefined) {
-      if (Object.keys(current[rule]).length) {
-        console.error(
-          `✗ ${rule} is not in the baseline. Admit its existing hits once with ` +
-            `--update --init-rule ${rule}.`
-        )
-        process.exit(1)
-      }
-      next[rule] = {}
-      continue
-    }
-    for (const [file, count] of Object.entries(current[rule])) {
-      if (count > (before[file] ?? 0)) {
-        raised.push(`  ${rule} ${file}: ${count} (baseline ${before[file] ?? 0})`)
-      }
-    }
-    next[rule] = sorted(
-      Object.fromEntries(
-        Object.entries(current[rule])
-          .map(([file, count]): [string, number] => [file, Math.min(count, before[file] ?? 0)])
-          .filter(([, count]) => count > 0)
-      )
-    )
-  }
-  if (raised.length) {
-    console.error(`✗ refused to raise the baseline for ${raised.length} file(s); fix them instead:`)
-    console.error(raised.sort().join('\n'))
-    process.exit(1)
-  }
-  writeFileSync(BASELINE, `${JSON.stringify(next, null, 2)}\n`)
-  console.log(
-    `Wrote ${path.relative(ROOT, BASELINE)}: ` +
-      RULES.map((rule) => `${rule} ${total(next[rule] ?? {})}`).join(', ')
-  )
-  process.exit(0)
-}
-
 function main(): void {
   const { counts: current, violations } = collect()
   const baseline = readBaseline(current)
-  if (process.argv.includes('--update')) update(current, baseline)
 
-  let regressed = 0
-  let stale = 0
-  let vanished = false
+  if (process.argv.includes('--update')) {
+    const result = nextBaseline(baseline, current, argValue('--init-rule'))
+    if ('errors' in result) {
+      for (const error of result.errors) console.error(`✗ ${error}`)
+      process.exit(1)
+    }
+    writeFileSync(BASELINE, `${JSON.stringify(result.baseline, null, 2)}\n`)
+    console.log(
+      `Wrote ${path.relative(ROOT, BASELINE)}: ` +
+        RULES.map((rule) => `${rule} ${total(result.baseline[rule])}`).join(', ')
+    )
+    process.exit(0)
+  }
+
+  const { raised, dropped } = compareToBaseline(baseline, current)
   for (const rule of RULES) {
-    const before = baseline[rule] ?? {}
-    const after = current[rule]
-    const raisedFiles = Object.entries(after)
-      .filter(([file, count]) => count > (before[file] ?? 0))
-      .map(([file]) => file)
-      .sort()
-    const shrunk = Object.entries(before)
-      .filter(([file, count]) => (after[file] ?? 0) < count)
-      .map(([file, count]) => `  ${file}: ${after[file] ?? 0} (baseline ${count})`)
-    if (Object.keys(before).some((file) => !(file in after))) vanished = true
-    if (raisedFiles.length) {
-      console.error(`✗ ${rule}: ${raisedFiles.length} file(s) gained hits`)
-      for (const file of raisedFiles) {
-        console.error(`  ${file}: ${after[file]} (baseline ${before[file] ?? 0})`)
+    const raisedHere = raised.filter((change) => change.rule === rule)
+    if (raisedHere.length) {
+      console.error(`✗ ${rule}: ${raisedHere.length} file(s) gained hits`)
+      for (const { file, count, allowed } of raisedHere) {
+        console.error(`  ${file}: ${count} (baseline ${allowed})`)
         for (const violation of violations) {
           if (violation.rule === rule && violation.file === file) {
             console.error(`    ${file}:${violation.line} ${violation.detail}`)
@@ -517,23 +660,24 @@ function main(): void {
       }
       console.error(`  ${HOW_TO_FIX[rule]}\n`)
     }
-    if (shrunk.length) {
-      console.error(`✗ ${rule}: ${shrunk.length} file(s) dropped below the baseline`)
-      console.error(shrunk.sort().join('\n'))
+    const droppedHere = dropped.filter((change) => change.rule === rule)
+    if (droppedHere.length) {
+      console.error(`✗ ${rule}: ${droppedHere.length} file(s) dropped below the baseline`)
+      for (const { file, count, allowed } of droppedHere) {
+        console.error(`  ${file}: ${count} (baseline ${allowed})`)
+      }
     }
-    regressed += raisedFiles.length
-    stale += shrunk.length
   }
 
-  if (regressed || stale) {
-    if (stale) {
+  if (raised.length || dropped.length) {
+    if (dropped.length) {
       console.error(
         '\nCounts dropped — shrink the baseline so they cannot creep back: ' +
           'bun run scripts/check-source-conventions.ts --update'
       )
     }
-    if (regressed) console.error('\nNever raise the baseline to make a new hit pass.')
-    if (regressed && vanished) {
+    if (raised.length) console.error('\nNever raise the baseline to make a new hit pass.')
+    if (raised.length && dropped.some((change) => change.count === 0)) {
       console.error(
         'If a regressed file is a baselined file you only moved (git mv), move its entry to the ' +
           `new path in ${path.relative(ROOT, BASELINE)}; its count may not grow.`

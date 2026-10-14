@@ -190,7 +190,7 @@ export const emailBisonHandler: WebhookProviderHandler = {
       )
     }
 
-    const data = isRecordLike(responseBody?.data) ? responseBody.data : null
+    const data = toRecordOrNull(responseBody?.data)
     const externalId = data?.id
     if (externalId === undefined || externalId === null || externalId === '') {
       throw new Error('Email Bison webhook was created but the API response did not include an ID.')
