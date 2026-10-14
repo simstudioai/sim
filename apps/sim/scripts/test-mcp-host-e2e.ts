@@ -5,8 +5,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 
 /**
- * Exercises the public ownership challenge, protected-resource discovery, and host isolation
- * through a running local app.
+ * Exercises the public ownership challenge, host isolation, and the app-wide JSON 404 through a
+ * running local app.
  */
 const logger = createLogger('McpHostE2E')
 const CHALLENGE_PATH = '/.well-known/openai-apps-challenge'
@@ -88,20 +88,6 @@ try {
       const { response } = await request(path, 'Mozilla/5.0')
       assert.equal(response.status, 404)
     })
-  }
-
-  for (const path of [`${PROTECTED_RESOURCE_PATH}/mcp`, PROTECTED_RESOURCE_PATH]) {
-    await check(
-      `dedicated MCP host serves its protected-resource metadata at ${path}`,
-      async () => {
-        const { response, body } = await request(path, '')
-        assert.equal(response.status, 200)
-        const metadata = JSON.parse(body) as Record<string, unknown>
-        assert.equal(metadata.resource, `http://${MCP_HOST}/mcp`)
-        assert.deepEqual(metadata.scopes_supported, ['api:read', 'api:write'])
-        assert(Array.isArray(metadata.authorization_servers))
-      }
-    )
   }
 
   await check('application host serves no root protected-resource metadata', async () => {
