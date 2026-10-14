@@ -161,7 +161,7 @@ export async function revokeWorkspaceAccessTx(
     }
   }
 
-  /** The handoff above already refused an owner without a successor, under the workspace row lock. */
+  // The handoff above already refused an owner without a successor, under the workspace row lock.
   const ownershipTransferred = await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
     tx,
     workspaceId: params.workspaceId,

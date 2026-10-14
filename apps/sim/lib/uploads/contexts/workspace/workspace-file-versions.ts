@@ -103,17 +103,27 @@ export async function loadWorkspaceFileVersionHead(
   return head
 }
 
-/** Batched {@link loadWorkspaceFileVersionHead}: each file's highest version, keyed by file id. */
+/**
+ * Batched {@link loadWorkspaceFileVersionHead}: each file's highest version, keyed by file id.
+ * The max is resolved from the `(file_id, version)` index first, so only head rows are fetched
+ * rather than every retained version.
+ */
 export async function loadWorkspaceFileVersionHeads(
   fileIds: string[],
   executor: DbOrTx = db
 ): Promise<Map<string, WorkspaceFileVersionSummaryRow>> {
   if (!fileIds.length) return new Map()
   const heads = await executor
-    .selectDistinctOn([workspaceFileVersion.fileId], versionSummaryColumns)
+    .select(versionSummaryColumns)
     .from(workspaceFileVersion)
-    .where(inArray(workspaceFileVersion.fileId, fileIds))
-    .orderBy(workspaceFileVersion.fileId, desc(workspaceFileVersion.version))
+    .where(
+      sql`(${workspaceFileVersion.fileId}, ${workspaceFileVersion.version}) IN (
+        SELECT ${workspaceFileVersion.fileId}, max(${workspaceFileVersion.version})
+        FROM ${workspaceFileVersion}
+        WHERE ${inArray(workspaceFileVersion.fileId, fileIds)}
+        GROUP BY ${workspaceFileVersion.fileId}
+      )`
+    )
   return new Map(heads.map((head) => [head.fileId, head]))
 }
 
