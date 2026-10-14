@@ -31,7 +31,7 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { MAX_ZIP_DOWNLOAD_FILES } from '@/lib/workspace-files/limits'
 
-export const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
+const MAX_ZIP_DOWNLOAD_BYTES = 250 * 1024 * 1024
 const MAX_REQUESTED_FILE_IDS = 1_000
 const MAX_REQUESTED_FOLDER_IDS = 1_000
 
@@ -102,6 +102,14 @@ function resolveFolderIdsFromPaths(
 
 function validationError(message: string): never {
   throw new OrchestrationError('validation', message)
+}
+
+function validateDeclaredBytes(bytes: number): void {
+  if (bytes > MAX_ZIP_DOWNLOAD_BYTES) {
+    validationError(
+      `Selected files total ${formatFileSize(bytes)}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`
+    )
+  }
 }
 
 async function executeDownloadWorkspaceFileItems({
@@ -183,16 +191,11 @@ async function executeDownloadWorkspaceFileItems({
     'opaque'
   )
 
-  const declaredBytes = filesToZip.reduce((sum, file) => sum + file.size, 0)
-  if (declaredBytes > MAX_ZIP_DOWNLOAD_BYTES) {
-    validationError(
-      `Selected files total ${formatFileSize(declaredBytes)}, which exceeds the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit.`
-    )
-  }
-
   const reservedForStreamed = filesToZip
     .filter((file) => !needsRenderedArtifact(file.type, file.name))
     .reduce((sum, file) => sum + file.size, 0)
+  let declaredBytes = reservedForStreamed
+  validateDeclaredBytes(declaredBytes)
   const renderedDocuments = new Map<string, Buffer>()
   const pendingNames: string[] = []
   let renderedBytes = 0
@@ -211,6 +214,8 @@ async function executeDownloadWorkspaceFileItems({
         filesToZip = filesToZip.filter((admitted) => admitted.id !== file.id)
         continue
       }
+      declaredBytes += file.size
+      validateDeclaredBytes(declaredBytes)
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {
@@ -240,7 +245,7 @@ async function executeDownloadWorkspaceFileItems({
     folderPaths,
     renderedDocuments,
     /** Counted over what is zipped, after any rendered document whose contributors were refused. */
-    declaredBytes: filesToZip.reduce((sum, file) => sum + file.size, 0),
+    declaredBytes,
   }
 }
 

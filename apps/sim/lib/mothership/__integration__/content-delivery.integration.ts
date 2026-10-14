@@ -103,6 +103,7 @@ import {
   userTableRowSecretProvenance,
   workflowTest,
   workspaceFileSearchRevision,
+  workspaceFiles,
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { eq, sql } from 'drizzle-orm'
@@ -210,11 +211,18 @@ function noteExercised(method: string, route: string) {
 }
 
 describe('content reaching Chat is admitted per item', () => {
+  let redis: NonNullable<ReturnType<typeof getRedisClient>>
   let fixture: ContentFixture
   let connector: { connectorId: string; documentId: string }
 
   beforeAll(async () => {
     fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-content-delivery-'))
+    const client = getRedisClient()
+    if (!client)
+      throw new Error(
+        'Set TEST_REDIS_URL to a disposable local Redis or use bun run test:integration'
+      )
+    redis = client
     // Compile the lazy tool graph before request deadlines and per-case provider fixtures exist.
     await matchV2Route('/api/v2/tools/file_get_content/execute')?.load()
     fixture = await seedContentFixture()
@@ -273,7 +281,7 @@ describe('content reaching Chat is admitted per item', () => {
       workspaceId: fixture.ids.workspaceId,
       type: 'mothership',
     })
-    await getRedisClient()?.set(
+    await redis.set(
       `mothership:sandbox-resources:${token}:context`,
       JSON.stringify({
         toolCallId: generateId(),
@@ -607,6 +615,51 @@ describe('content reaching Chat is admitted per item', () => {
       expect(refused.status).toBe(403)
       expect(refused.body).not.toContain('gamma')
     })
+
+    it.each(['clean', 'entries'] as const)(
+      'applies the archive declared-size budget after %s contributor admission',
+      async (kind) => {
+        const input = await getWorkspaceFile(ws(), fixture.files[kind], { throwOnError: true })
+        if (!input) throw new Error('Missing archive contributor fixture')
+        const source = `await getFileBase64('${input.id}'); pdf.addPage().drawText('fixture render');`
+        const documentIds: string[] = []
+        for (let index = 0; index < (kind === 'clean' ? 6 : 5); index += 1) {
+          const doc = await uploadWorkspaceFile(
+            ws(),
+            fixture.ids.aliceId,
+            Buffer.from(
+              index === 5 ? 'throw new Error("archive budget checked too late")' : source
+            ),
+            `archive-budget-${generateId()}.pdf`,
+            'text/x-python-pdf',
+            {
+              notifyWorkspaceChange: false,
+              secretProvenance: { status: 'exact', entries: [] },
+            }
+          )
+          // Declared source sizes exercise aggregate accounting without large fixture allocations.
+          await db
+            .update(workspaceFiles)
+            .set({ sizeBytes: 50 * 1024 * 1024 })
+            .where(eq(workspaceFiles.id, doc.id))
+          documentIds.push(doc.id)
+        }
+        const result = await cli(
+          'GET',
+          `/api/v2/files/bulk-download?workspaceId=${ws()}&fileIds=${fixture.files.clean},${documentIds}`
+        )
+        if (kind === 'clean') {
+          expect(result.status, result.body).toBe(400)
+          expect(result.body).toMatch(/download limit/i)
+        } else {
+          expect(result.status, result.body).toBe(200)
+          expect(result.body).toContain(CANARY.clean)
+          expect(result.body).toContain('sim-download-report.json')
+          for (const id of documentIds) expect(result.body).toContain(id)
+          expect(result.body).not.toContain('%PDF-1.7')
+        }
+      }
+    )
 
     it('shares only clean files publicly on Chat’s behalf (#9, D1)', async () => {
       const share = (fileId: string) =>

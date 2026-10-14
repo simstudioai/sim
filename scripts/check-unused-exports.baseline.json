@@ -5280,7 +5280,6 @@
   "apps/sim/lib/workspace-events/constants.ts#SIM_RULE_EVENT_TYPES",
   "apps/sim/lib/workspace-files/application/csv-preview-workspace-file.ts#CsvPreviewWorkspaceFileInput",
   "apps/sim/lib/workspace-files/application/delete-workspace-file.ts#DeleteWorkspaceFileInput",
-  "apps/sim/lib/workspace-files/application/download-workspace-file-items.ts#MAX_ZIP_DOWNLOAD_BYTES",
   "apps/sim/lib/workspace-files/application/download-workspace-file.ts#DownloadWorkspaceFileInput",
   "apps/sim/lib/workspace-files/application/extract-workspace-file.ts#ExtractWorkspaceFileInput",
   "apps/sim/lib/workspace-files/application/extract-workspace-file.ts#ExtractWorkspaceFileResult",

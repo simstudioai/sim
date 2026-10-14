@@ -1,4 +1,8 @@
 /** Real PostgreSQL content admission, pagination, captured metadata, and streamed ZIP readback. */
+import { mkdtempSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import * as audit from '@sim/audit'
 import { db } from '@sim/db'
 import {
@@ -18,6 +22,14 @@ import { eq, inArray } from 'drizzle-orm'
 import { PostgresJsPreparedQuery } from 'drizzle-orm/postgres-js/session'
 import JSZip from 'jszip'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+const fixtureStorage = vi.hoisted(() => ({ root: '' }))
+vi.mock('@/lib/uploads/core/setup.server', () => ({
+  get UPLOAD_DIR_SERVER() {
+    return fixtureStorage.root
+  },
+}))
+
 import { observeContentDelivery } from '@/lib/core/application'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
@@ -28,11 +40,13 @@ import {
 import { admitKnowledgeChunks } from '@/lib/knowledge/application/admit-knowledge-content'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
+import * as knowledgeContexts from '@/lib/knowledge/application/contexts'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
 import {
   exportKnowledgeBase,
   type KnowledgeBaseExportBundle,
 } from '@/lib/knowledge/application/exports'
+import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import {
   readDetailedKnowledgeTagUsage,
   readKnowledgeTagUsage,
@@ -48,6 +62,7 @@ import { buildKnowledgeBundleArchive } from '@/lib/knowledge/transfer/export-arc
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const SECRET = 'fixture-knowledge-token-41875'
@@ -173,6 +188,7 @@ async function drainAudits() {
 }
 
 beforeAll(async () => {
+  fixtureStorage.root = mkdtempSync(path.join(tmpdir(), 'sim-knowledge-delivery-'))
   await seedKnowledgeAclFixture(ids)
   const record = audit.recordAudit
   vi.spyOn(audit, 'recordAudit').mockImplementation((entry) => {
@@ -208,6 +224,7 @@ afterAll(async () => {
   await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
   await db.delete(organization).where(eq(organization.id, ids.organizationId))
   await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+  await rm(fixtureStorage.root, { recursive: true, force: true })
   await db.$client.end()
 })
 
@@ -443,6 +460,68 @@ describe('knowledge content delivery', () => {
       expect(await inChat(() => admitKnowledgeChunks(principal, [captured]))).toEqual(new Set())
     }
   )
+
+  it('binds an original read to the captured storage key across a concurrent replacement', async () => {
+    const doc = await seedDocument({ original: false, content: SECRET, provenance: exact })
+    const oldKey = `kb/${generateId()}.txt`
+    const newKey = `kb/${generateId()}.txt`
+    for (const [key, content] of [
+      [oldKey, SECRET],
+      [newKey, 'replacement public content'],
+    ]) {
+      await uploadFile({
+        file: Buffer.from(content),
+        fileName: 'fixture.txt',
+        contentType: 'text/plain',
+        context: 'knowledge-base',
+        customKey: key,
+        preserveKey: true,
+        persistMetadata: false,
+      })
+    }
+    await db.update(document).set({ storageKey: oldKey }).where(eq(document.id, doc.id))
+    const input = {
+      knowledgeBaseId: ids.knowledgeBaseId,
+      documentId: doc.id,
+      assertedWorkspaceId: ids.workspaceId,
+    }
+    const matched = await inChat(() => readOriginalKnowledgeDocument.execute({ principal, input }))
+    expect(matched.buffer?.toString()).toBe(SECRET)
+    expect(matched.hasRecordedSecrets).toBe(true)
+    const resolve = knowledgeContexts.resolveCanonicalActiveKnowledgeDocumentContext
+    let replaced = false
+    const interleave = vi
+      .spyOn(knowledgeContexts, 'resolveCanonicalActiveKnowledgeDocumentContext')
+      .mockImplementation(async (...args) => {
+        const context = await resolve(...args)
+        await db.transaction(async (tx) => {
+          const [row] = await tx
+            .update(document)
+            .set({ storageKey: newKey })
+            .where(eq(document.id, doc.id))
+            .returning()
+          await replaceKnowledgeDocumentSecretProvenanceInTx(
+            tx,
+            doc.id,
+            createKnowledgeDocumentSourceValue(row),
+            { status: 'exact', entries: [] }
+          )
+        })
+        replaced = true
+        return context
+      })
+    try {
+      await expect(
+        inChat(() => readOriginalKnowledgeDocument.execute({ principal, input }))
+      ).rejects.toThrow(/provenance|model/i)
+      expect(replaced).toBe(true)
+    } finally {
+      interleave.mockRestore()
+    }
+    const current = await inChat(() => readOriginalKnowledgeDocument.execute({ principal, input }))
+    expect(current.buffer?.toString()).toBe('replacement public content')
+    expect(current.hasRecordedSecrets).toBe(false)
+  })
 
   it('exports clean and legacy originals with chunks through the existing ZIP stream', async () => {
     const docs = [

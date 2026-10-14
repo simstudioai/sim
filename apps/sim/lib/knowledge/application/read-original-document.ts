@@ -53,8 +53,9 @@ export const readOriginalKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       )
     const snapshot = await loadKnowledgeDocumentDurableSecretProvenance(doc.id)
     const provenance =
+      snapshot.storageKey === doc.storageKey &&
       hashDurableSecretProvenanceValue(snapshot.source) ===
-      hashDurableSecretProvenanceValue(createKnowledgeDocumentSourceValue(doc))
+        hashDurableSecretProvenanceValue(createKnowledgeDocumentSourceValue(doc))
         ? snapshot.provenance
         : ({ status: 'unknown' } as const)
     await requireAdmittedContent(principal, {

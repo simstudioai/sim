@@ -89,6 +89,7 @@ describe('original knowledge document read', () => {
     )
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
       source: { filename: document.filename, fileUrl: document.fileUrl },
       provenance: { status: 'exact', entries: [] },
     })
@@ -104,6 +105,7 @@ describe('original knowledge document read', () => {
       },
     })
     mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
       source: { filename: document.filename, fileUrl: 'https://example.test/private' },
       provenance: { status: 'exact', entries: [] },
     })
@@ -144,6 +146,7 @@ describe('original knowledge document read', () => {
     'refuses Chat an original its gate refuses, before reading it: %j',
     async (provenance) => {
       mocks.provenance.mockResolvedValue({
+        storageKey: document.storageKey,
         source: { filename: document.filename, fileUrl: document.fileUrl },
         provenance,
       })
@@ -156,6 +159,7 @@ describe('original knowledge document read', () => {
   })
   it('classifies a concurrent source replacement as unknown, refusing it before reading', async () => {
     mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
       source: { filename: 'changed', fileUrl: document.fileUrl },
       provenance: { status: 'exact', entries: [] },
     })
@@ -164,6 +168,7 @@ describe('original knowledge document read', () => {
   })
   it('reads for a caller outside Chat without classifying, flagging recorded secrets', async () => {
     mocks.provenance.mockResolvedValue({
+      storageKey: document.storageKey,
       source: { filename: document.filename, fileUrl: document.fileUrl },
       provenance: { status: 'exact', entries: [{ secret: 'private' }] },
     })
