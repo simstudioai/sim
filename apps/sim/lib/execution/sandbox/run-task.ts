@@ -66,13 +66,16 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}
   const runInCallerContext = AsyncLocalStorage.snapshot()
-  let brokerRefusal: ContentRefusedError | undefined
+  let brokerRefusals: Map<number, ContentRefusedError> | undefined
   for (const broker of task.brokers) {
-    brokers[broker.name] = async (args) => {
+    brokers[broker.name] = async (args, brokerId) => {
       try {
         return await runInCallerContext(() => broker.handle(brokerContext, args))
       } catch (error) {
-        if (error instanceof ContentRefusedError) brokerRefusal = error
+        if (error instanceof ContentRefusedError) {
+          brokerRefusals ??= new Map()
+          brokerRefusals.set(brokerId, error)
+        }
         throw error
       }
     }
@@ -133,8 +136,11 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
       if (result.error.stack) err.stack = result.error.stack
       throw err
     }
-    // IPC carries strings; retain a matching host refusal without reclassifying user-thrown errors.
-    if (brokerRefusal && result.error.message === brokerRefusal.message) throw brokerRefusal
+    const brokerRefusal =
+      result.error.brokerErrorId === undefined
+        ? undefined
+        : brokerRefusals?.get(result.error.brokerErrorId)
+    if (brokerRefusal) throw brokerRefusal
     throw new SandboxUserCodeError(
       result.error.message,
       result.error.name || 'SandboxTaskError',
