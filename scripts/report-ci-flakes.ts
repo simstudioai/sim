@@ -33,6 +33,7 @@ const MAX_TITLE_LENGTH = 200
 /** The key is URI-encoded so a test name can never close the HTML comment that carries it. */
 const KEY_MARKER = /<!-- ci-flake-key: (\S+) -->/
 const COUNTED_MARKER = /<!-- ci-flake-jobs: ([\d,]*) -->/
+const TOTAL_LINE = /^Occurrences: (\d+)$/m
 /**
  * Job ids only grow, and a counted job can only be seen again while its run is inside the lookback
  * window, so keeping the newest ids is enough. The cap keeps the body under GitHub's size limit.
@@ -138,10 +139,16 @@ function parseOccurrences(body: string): Occurrence[] {
 }
 
 /**
- * Renders an issue body: the newest occurrences as a table, and `counted`, every job id counted
- * so far, listed or not.
+ * Renders an issue body: the newest occurrences as a table, `total` counting every occurrence ever
+ * recorded, and `counted` the job ids counted so far, listed or not. The total is kept apart from
+ * the ids because the ids are capped.
  */
-function renderIssueBody(flake: Flake, occurrences: Occurrence[], counted: number[]): string {
+function renderIssueBody(
+  flake: Flake,
+  occurrences: Occurrence[],
+  total: number,
+  counted: number[]
+): string {
   const listed = [...occurrences]
     .sort((left, right) => compareStrings(right.at, left.at))
     .slice(0, MAX_LISTED_OCCURRENCES)
@@ -155,7 +162,7 @@ function renderIssueBody(flake: Flake, occurrences: Occurrence[], counted: numbe
     '',
     'Fix the nondeterminism (clock, ordering, shared state, an unawaited condition) rather than adding a retry or a longer timeout. Close this issue once it is fixed; `scripts/report-ci-flakes.ts` reopens it if the flake recurs.',
     '',
-    `Occurrences: ${kept.length}`,
+    `Occurrences: ${total}`,
     '',
     '| Failed at | Job | Run |',
     '| --- | --- | --- |',
@@ -188,6 +195,7 @@ export function planIssueActions(flakes: Flake[], issues: IssueSnapshot[]): Issu
         body: renderIssueBody(
           flake,
           flake.occurrences,
+          flake.occurrences.length,
           flake.occurrences.map((occurrence) => occurrence.jobId)
         ),
       })
@@ -198,16 +206,16 @@ export function planIssueActions(flakes: Flake[], issues: IssueSnapshot[]): Issu
     const added = flake.occurrences.filter((occurrence) => !countedIds.has(occurrence.jobId))
     if (added.length === 0) continue
     const listed = parseOccurrences(issue.body)
+    const previousTotal = Number(TOTAL_LINE.exec(issue.body)?.[1] ?? counted.length)
     actions.push({
       kind: 'update',
       number: issue.number,
       reopen: issue.state === 'closed',
       added: added.length,
-      body: renderIssueBody(
-        flake,
-        [...listed, ...added],
-        [...counted, ...added.map((occurrence) => occurrence.jobId)]
-      ),
+      body: renderIssueBody(flake, [...listed, ...added], previousTotal + added.length, [
+        ...counted,
+        ...added.map((occurrence) => occurrence.jobId),
+      ]),
     })
   }
   return actions
@@ -240,6 +248,7 @@ class GitHubClient {
         accept: 'application/vnd.github+json',
         authorization: `Bearer ${this.token}`,
         'x-github-api-version': '2022-11-28',
+        ...(init.body ? { 'content-type': 'application/json' } : {}),
       },
     })
   }
