@@ -20,6 +20,7 @@ import {
   getErrorMessage,
   getPostgresConstraintName,
   getPostgresErrorCode,
+  isPostgresCommitRejection,
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -41,11 +42,9 @@ import {
   timestampKey,
 } from '@/lib/api/list-query'
 import {
-  decrementStorageUsageForBillingContextInTx,
-  incrementStorageUsageForBillingContextInTx,
   lockWorkspaceStorageForMutationInTx,
   maybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext,
+  prepareFileAccountingInTx,
 } from '@/lib/billing/storage'
 import {
   CollabDocStateConflictError,
@@ -66,10 +65,7 @@ import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import {
-  enqueueWorkspaceFileLiveDocReconciliation,
-  processWorkspaceFileLiveDocReconciliationNow,
-} from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
+import { enqueueWorkspaceFileLiveDocReconciliation } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
 import {
   applyWorkspaceFileSecretProvenancePolicyInTx,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
@@ -101,6 +97,7 @@ import {
   headObject,
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
+import { finishFileContentEffects } from '@/lib/uploads/server/content-effects'
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
@@ -120,7 +117,7 @@ import {
 import {
   type EditableFileOwner,
   editableFileOwnerColumns,
-  type FileOwner,
+  matchesFileOwner,
   resolveFileOwner,
 } from '@/lib/workspace-files/ownership'
 import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
@@ -142,6 +139,7 @@ import {
   listFileFolders,
   listWorkspaceFileFolders,
   normalizeWorkspaceFileItemName,
+  resolveFileFolderTarget,
   resolveWorkspaceFileFolderTarget,
   workspaceFileNameFolderCondition,
 } from './workspace-file-folder-manager'
@@ -489,6 +487,20 @@ interface StagedFileContent {
 }
 
 const stagedFileContents = new WeakSet<StagedFileContent>()
+
+interface PlannedFileIdentity {
+  readonly id: string
+}
+
+const plannedFileOwners = new WeakMap<PlannedFileIdentity, Readonly<EditableFileOwner>>()
+
+/** Reserves an in-process destination identity so a compound copy can rewrite selected references. */
+function planFileIdentity(owner: EditableFileOwner): PlannedFileIdentity {
+  const identity = Object.freeze({ id: `wf_${generateShortId()}` })
+  plannedFileOwners.set(identity, Object.freeze({ ...owner }))
+  return identity
+}
+
 /** Writes private bytes before the owner-authorized metadata transaction begins. */
 async function stageFileContent(args: {
   owner: EditableFileOwner
@@ -497,7 +509,9 @@ async function stageFileContent(args: {
   contentType: string
   content: Buffer
   folderId?: string | null
+  signal?: AbortSignal
 }): Promise<StagedFileContent> {
+  args.signal?.throwIfAborted()
   const name = normalizeWorkspaceFileItemName(args.name, 'File')
   const owner = Object.freeze({ ...args.owner })
   const key =
@@ -532,6 +546,7 @@ async function stageFileContent(args: {
         ...(args.folderId ? { folderId: args.folderId } : {}),
       },
       persistMetadata: false,
+      signal: args.signal,
     })
     if (uploaded.key !== key) throw new Error('Storage returned an unexpected file key')
   } catch (error) {
@@ -581,30 +596,6 @@ async function discardStagedFileContent(staged: StagedFileContent): Promise<void
   })
 }
 
-const POSTGRES_COMMIT_REJECTION_CODES = new Set([
-  '23000',
-  '23001',
-  '23502',
-  '23503',
-  '23505',
-  '23514',
-  '23P01',
-  '40000',
-  '40001',
-  '40002',
-  '40P01',
-])
-
-/**
- * Recognizes explicit PostgreSQL constraint/rollback rejections at COMMIT. Use only on the
- * transaction's rejection after its callback completed, never on errors from post-commit work.
- * Unknown outcomes, including 40003 and connection failures, are not safe cleanup authority.
- */
-function isPostgresCommitRejection(error: unknown): boolean {
-  const code = getPostgresErrorCode(error)
-  return code !== undefined && POSTGRES_COMMIT_REJECTION_CODES.has(code)
-}
-
 /** Discards known rollbacks while retaining bytes whose COMMIT outcome is uncertain. */
 async function finalizeStagedFileContent<T>(
   staged: StagedFileContent,
@@ -632,6 +623,81 @@ async function finalizeStagedFileContent<T>(
     }
     throw error
   }
+}
+
+/** Commits new canonical metadata and provenance under the owner's directory lock. */
+async function commitFileCreateInTx(
+  tx: DbTransaction,
+  args: {
+    owner: EditableFileOwner
+    staged: StagedFileContent
+    userId: string
+    folderId?: string | null
+    folderPath?: string
+    exactName?: boolean
+    identity?: PlannedFileIdentity
+    secretProvenance?: WorkspaceFileSecretProvenance
+  }
+): Promise<WorkspaceFileRow> {
+  assertStagedFileOwner(args.owner, args.staged)
+  if (args.identity) {
+    const plannedOwner = plannedFileOwners.get(args.identity)
+    if (
+      plannedOwner?.entityType !== args.owner.entityType ||
+      plannedOwner.entityId !== args.owner.entityId
+    )
+      throw new Error('Planned file identity does not belong to this owner')
+  }
+  if (args.owner.entityType === 'workspace') await lockWorkspaceProject(tx, args.owner.entityId)
+  await lockFileDirectories(tx, [args.owner])
+  const target = await resolveFileFolderTarget(args.owner, args, tx)
+  const folderId = target?.id ?? null
+  const exists = async (name: string) => {
+    const [row] = await tx
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          fileOwnerCondition(args.owner),
+          eq(workspaceFiles.originalName, name),
+          workspaceFileNameFolderCondition(folderId),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(1)
+    return Boolean(row)
+  }
+  let name = args.staged.name
+  if (await exists(name)) {
+    if (args.exactName) throw new FileConflictError(name)
+    let suffix = 1
+    do {
+      name = withCopySuffix(
+        args.staged.name,
+        suffix <= MAX_NUMBERED_COPY_SUFFIX ? suffix : generateShortId(8)
+      )
+      suffix += 1
+    } while (suffix <= MAX_NUMBERED_COPY_SUFFIX + 2 && (await exists(name)))
+  }
+  const inserted = await insertFileMetadataInTx(tx, args.owner, {
+    id: args.identity?.id ?? `wf_${generateShortId()}`,
+    key: args.staged.key,
+    userId: args.userId,
+    folderId,
+    originalName: name,
+    contentType: args.staged.contentType,
+    size: args.staged.size,
+  })
+  if (!inserted) throw new FileConflictError(name)
+  if (args.secretProvenance) {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      tx,
+      inserted.id,
+      inserted.contentUpdatedAt,
+      args.secretProvenance
+    )
+  }
+  return inserted
 }
 
 /**
@@ -679,7 +745,6 @@ export async function uploadWorkspaceFile(
   const effectiveName = pageRestore?.name ?? normalizedFileName
   const effectiveContentType = pageRestore ? SIM_PAGE_CONTENT_TYPE : contentType
   const exactName = options?.exactName ?? false
-  const storageBillingContext = await resolveStorageBillingContext(workspaceId)
 
   let lastError: unknown
   const maxAttempts = exactName ? 1 : MAX_UPLOAD_UNIQUE_RETRIES
@@ -690,7 +755,7 @@ export async function uploadWorkspaceFile(
     if (exactName && (await fileExistsInWorkspace(workspaceId, uniqueName, folderId))) {
       throw new FileConflictError(uniqueName)
     }
-    const fileId = `wf_${generateShortId()}`
+    const identity = planFileIdentity({ entityType: 'workspace', entityId: workspaceId })
 
     try {
       const uploadResult = await stageFileContent({
@@ -703,49 +768,34 @@ export async function uploadWorkspaceFile(
       })
 
       const finalized = await finalizeStagedFileContent(uploadResult, async (tx) => {
-        await lockWorkspaceProject(tx, workspaceId)
-        await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
-        let activeFolderId: string | null
+        const accounting = await prepareFileAccountingInTx(tx, {
+          entityType: 'workspace',
+          entityId: workspaceId,
+        })
+        let activeFolderId = folderId
         if (options?.folderPath !== undefined) {
+          await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
           const folderIndex = await loadActiveFolderPathIndex(workspaceId, 'file', tx)
           const resolvedFolderId = resolveFolderPathFromIndex(folderIndex, options.folderPath)
           if (resolvedFolderId === undefined) {
             throw new OrchestrationError('not_found', 'Target folder not found')
           }
           activeFolderId = resolvedFolderId
-        } else {
-          activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
         }
-        const inserted = await insertWorkspaceFileMetadataInTx(tx, {
-          id: fileId,
-          key: uploadResult.key,
+        const inserted = await commitFileCreateInTx(tx, {
+          owner: { entityType: 'workspace', entityId: workspaceId },
+          staged: uploadResult,
+          identity,
           userId,
-          workspaceId,
           folderId: activeFolderId,
-          originalName: uniqueName,
-          contentType: effectiveContentType,
-          size: effectiveBuffer.length,
+          exactName: true,
+          secretProvenance: options?.secretProvenance,
         })
-        if (!inserted) {
-          throw new FileConflictError(uniqueName)
-        }
-        if (options?.secretProvenance) {
-          await replaceWorkspaceFileSecretProvenanceInTx(
-            tx,
-            inserted.id,
-            inserted.contentUpdatedAt,
-            options.secretProvenance
-          )
-        }
-        const usage = await incrementStorageUsageForBillingContextInTx(
-          tx,
-          storageBillingContext,
-          effectiveBuffer.length
-        )
-        return { inserted, updatedUsage: usage }
+        const usage = await accounting.mutation.applyDelta(effectiveBuffer.length)
+        return { inserted, updatedUsage: usage, billing: accounting.billing }
       })
 
-      void maybeNotifyStorageLimitForBillingContext(storageBillingContext, finalized.updatedUsage)
+      void maybeNotifyStorageLimitForBillingContext(finalized.billing, finalized.updatedUsage)
 
       logger.info(
         `Successfully uploaded workspace file: ${uniqueName} with key: ${uploadResult.key}`
@@ -812,7 +862,6 @@ export async function createOwnedWorkspaceFile<T>(params: {
   const fileId = `wf_${generateShortId()}`
   const name = params.fileName(fileId)
   const buffer = Buffer.from(params.content, 'utf-8')
-  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
   const staged = await stageFileContent({
     owner: { entityType: 'workspace', entityId: params.workspaceId },
     userId: params.userId,
@@ -820,7 +869,11 @@ export async function createOwnedWorkspaceFile<T>(params: {
     contentType: params.contentType,
     content: buffer,
   })
-  const { owner, updatedUsage } = await finalizeStagedFileContent(staged, async (tx) => {
+  const { owner, updatedUsage, billing } = await finalizeStagedFileContent(staged, async (tx) => {
+    const accounting = await prepareFileAccountingInTx(tx, {
+      entityType: 'workspace',
+      entityId: params.workspaceId,
+    })
     const inserted = await insertWorkspaceFileMetadataInTx(tx, {
       id: fileId,
       key: staged.key,
@@ -833,14 +886,14 @@ export async function createOwnedWorkspaceFile<T>(params: {
       context: params.context,
     })
     if (!inserted) throw new Error(`Owned ${params.context} file ${fileId} was not inserted`)
-    const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-      tx,
-      storageBillingContext,
-      buffer.length
-    )
-    return { owner: await params.insertOwner(tx, fileId), updatedUsage }
+    const updatedUsage = await accounting.mutation.applyDelta(buffer.length)
+    return {
+      owner: await params.insertOwner(tx, fileId),
+      updatedUsage,
+      billing: accounting.billing,
+    }
   })
-  void maybeNotifyStorageLimitForBillingContext(storageBillingContext, updatedUsage)
+  void maybeNotifyStorageLimitForBillingContext(billing, updatedUsage)
   return { fileId, owner }
 }
 
@@ -1012,13 +1065,15 @@ export async function registerUploadedWorkspaceFile(params: {
 
   const folderId = params.folderId ?? null
 
-  const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
     const fileId = `wf_${generateShortId()}`
     const displayName = await allocateUniqueWorkspaceFileName(workspaceId, effectiveName, folderId)
 
     const finalized = await db.transaction(async (tx) => {
-      await lockWorkspaceProject(tx, workspaceId)
+      const accounting = await prepareFileAccountingInTx(tx, {
+        entityType: 'workspace',
+        entityId: workspaceId,
+      })
       await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: workspaceId }])
       const activeFolderId = await assertWorkspaceFileFolderTarget(workspaceId, folderId, tx)
       const inserted = await insertWorkspaceFileMetadataInTx(tx, {
@@ -1055,11 +1110,7 @@ export async function registerUploadedWorkspaceFile(params: {
         return { kind: 'existing', file: raceWinner } as const
       }
 
-      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-        tx,
-        storageBillingContext,
-        effectiveSize
-      )
+      const updatedUsage = await accounting.mutation.applyDelta(effectiveSize)
       await replaceWorkspaceFileSecretProvenanceInTx(
         tx,
         inserted.id,
@@ -1067,7 +1118,7 @@ export async function registerUploadedWorkspaceFile(params: {
         secretProvenance
       )
       await markUploadSessionFileRegistered(tx, params.uploadSessionId, workspaceId, inserted.id)
-      return { kind: 'created', file: inserted, updatedUsage } as const
+      return { kind: 'created', file: inserted, updatedUsage, billing: accounting.billing } as const
     })
 
     if (finalized.kind === 'name-conflict') {
@@ -1078,7 +1129,7 @@ export async function registerUploadedWorkspaceFile(params: {
     }
 
     if (finalized.kind === 'created') {
-      void maybeNotifyStorageLimitForBillingContext(storageBillingContext, finalized.updatedUsage)
+      void maybeNotifyStorageLimitForBillingContext(finalized.billing, finalized.updatedUsage)
     }
 
     await commitPageRestoreRewrite()
@@ -1694,6 +1745,7 @@ const WORKSPACE_FILE_SORTS = {
 } satisfies Record<V2FileSortBy, readonly KeysetKey<OwnedFileRecord>[]>
 
 export interface QueryWorkspaceFilesOptions {
+  fileIds?: readonly string[]
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
   /** `undefined` lists every folder, `null` lists only root files. */
@@ -1801,6 +1853,7 @@ async function queryFileRecords<const O extends EditableFileOwner>(
 
   const conditions = [
     fileOwnerCondition(owner),
+    options.fileIds ? inArray(workspaceFiles.id, [...options.fileIds]) : undefined,
     scope === 'all'
       ? undefined
       : scope === 'archived'
@@ -2073,64 +2126,12 @@ async function listWorkspaceFileReferenceCandidates(
   return hydrateWorkspaceFilePaths(rows, workspaceId)
 }
 
-/**
- * Load the canonical authorization context for an active workspace file by resource ID.
- * Database failures propagate so callers never confuse unavailable state with a missing file.
- * Chat uploads are admitted only on explicit opt-in (see {@link WorkspaceFileLookupOptions}).
- */
-export async function loadActiveWorkspaceFileContext(
+async function loadWorkspaceFileContext(
   fileId: string,
-  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean }
-): Promise<ActiveWorkspaceFileContext | null> {
-  const [context] = await db
-    .select({
-      fileId: workspaceFiles.id,
-      fileContext: workspaceFiles.context,
-      workspaceId: workspace.id,
-      workspaceOrganizationId: workspace.organizationId,
-      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
-      billedAccountUserId: workspace.billedAccountUserId,
-      ownership: {
-        projectId: workspaceFiles.projectId,
-        context: workspaceFiles.context,
-        workspaceId: workspaceFiles.workspaceId,
-        organizationId: workspaceFiles.organizationId,
-        userId: workspaceFiles.userId,
-        chatId: workspaceFiles.chatId,
-      },
-    })
-    .from(workspaceFiles)
-    .innerJoin(workspace, eq(workspaceFiles.workspaceId, workspace.id))
-    .where(
-      and(
-        eq(workspaceFiles.id, fileId),
-        workspaceFileContextCondition(options),
-        ...(options?.includeDeleted ? [] : [isNull(workspaceFiles.deletedAt)]),
-        isNull(workspace.archivedAt)
-      )
-    )
-    .limit(1)
-
-  if (
-    !context ||
-    !matchesWorkspaceFileOwner(resolveFileOwner(context.ownership), context.workspaceId)
-  ) {
-    return null
+  options: WorkspaceFileLookupOptions & {
+    includeDeleted?: boolean
+    includeArchivedWorkspace?: boolean
   }
-  return omit(context, ['ownership'])
-}
-
-function matchesWorkspaceFileOwner(owner: FileOwner | null, workspaceId: string): boolean {
-  return owner?.entityType === 'workspace' && owner.entityId === workspaceId
-}
-
-/**
- * Load a workspace file for a lifecycle transition, including archived files.
- * The workspace archive state is returned by the canonical workspace record and is enforced by
- * the operation's manager primitive where the transition requires an active workspace.
- */
-export async function loadWorkspaceFileLifecycleContext(
-  fileId: string
 ): Promise<WorkspaceFileLifecycleContext | null> {
   const [context] = await db
     .select({
@@ -2152,16 +2153,46 @@ export async function loadWorkspaceFileLifecycleContext(
     })
     .from(workspaceFiles)
     .innerJoin(workspace, eq(workspaceFiles.workspaceId, workspace.id))
-    .where(and(eq(workspaceFiles.id, fileId), eq(workspaceFiles.context, 'workspace')))
+    .where(
+      and(
+        eq(workspaceFiles.id, fileId),
+        workspaceFileContextCondition(options),
+        options.includeDeleted ? undefined : isNull(workspaceFiles.deletedAt),
+        options.includeArchivedWorkspace ? undefined : isNull(workspace.archivedAt)
+      )
+    )
     .limit(1)
 
   if (
     !context ||
-    !matchesWorkspaceFileOwner(resolveFileOwner(context.ownership), context.workspaceId)
+    !matchesFileOwner(resolveFileOwner(context.ownership), {
+      entityType: 'workspace',
+      entityId: context.workspaceId,
+    })
   ) {
     return null
   }
   return omit(context, ['ownership'])
+}
+
+/** Loads canonical active-workspace identity; chat uploads and deleted files require explicit opt-in. */
+export async function loadActiveWorkspaceFileContext(
+  fileId: string,
+  options?: WorkspaceFileLookupOptions & { includeDeleted?: boolean }
+): Promise<ActiveWorkspaceFileContext | null> {
+  const context = await loadWorkspaceFileContext(fileId, {
+    includeDeleted: options?.includeDeleted,
+    includeChatUploads: options?.includeChatUploads,
+    includeOwnedFiles: options?.includeOwnedFiles,
+  })
+  return context ? omit(context, ['deletedAt']) : null
+}
+
+/** Loads workspace files for lifecycle transitions; the manager enforces the operation's archive policy. */
+export async function loadWorkspaceFileLifecycleContext(
+  fileId: string
+): Promise<WorkspaceFileLifecycleContext | null> {
+  return loadWorkspaceFileContext(fileId, { includeDeleted: true, includeArchivedWorkspace: true })
 }
 
 /**
@@ -2379,13 +2410,10 @@ interface CommitFileContentOptions {
   secretProvenancePolicy?: WorkspaceFileSecretProvenancePolicy
 }
 
-/** Commits bytes, history and provenance under canonical scope and storage locks. */
+/** Commits bytes, history and provenance after the caller has locked its canonical billing payer. */
 async function commitFileContentInTx(tx: DbTransaction, options: CommitFileContentOptions) {
   const { owner, fileId, staged } = options
-  if (owner.entityType === 'workspace') {
-    await lockWorkspaceProject(tx, owner.entityId)
-    await lockWorkspaceStorageForMutationInTx(tx, owner.entityId)
-  }
+  if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
   if (staged.contentHash === null)
     throw new Error('Content replacement requires staged bytes with a verified content hash')
   assertStagedFileOwner(owner, staged)
@@ -2557,7 +2585,6 @@ export async function updateWorkspaceFileContent(
     throw new OrchestrationError('not_found', 'File not found')
   }
 
-  const storageBillingContext = await resolveStorageBillingContext(workspaceId)
   const nextContentType = contentType || fileRecord.type
   try {
     const staged = await stageFileContent({
@@ -2570,6 +2597,10 @@ export async function updateWorkspaceFileContent(
     })
 
     const finalized = await finalizeStagedFileContent(staged, async (tx) => {
+      const accounting = await prepareFileAccountingInTx(tx, {
+        entityType: 'workspace',
+        entityId: workspaceId,
+      })
       const committed = await commitFileContentInTx(tx, {
         owner: { entityType: 'workspace', entityId: workspaceId },
         fileId,
@@ -2582,20 +2613,7 @@ export async function updateWorkspaceFileContent(
         sizeDiff,
         storageCleanupEventIds,
       } = committed
-      let updatedUsage: number | undefined
-      if (sizeDiff > 0) {
-        updatedUsage = await incrementStorageUsageForBillingContextInTx(
-          tx,
-          storageBillingContext,
-          sizeDiff
-        )
-      } else if (sizeDiff < 0) {
-        await decrementStorageUsageForBillingContextInTx(
-          tx,
-          storageBillingContext,
-          Math.abs(sizeDiff)
-        )
-      }
+      const updatedUsage = await accounting.mutation.applyDelta(sizeDiff)
 
       const liveDocEventId =
         options.syncLiveDoc !== false &&
@@ -2612,6 +2630,7 @@ export async function updateWorkspaceFileContent(
         file: updatedFile,
         sizeDiff,
         updatedUsage,
+        billing: accounting.billing,
         liveDocEventId,
         storageCleanupEventIds,
         currentVersion: committed.currentVersion,
@@ -2620,37 +2639,15 @@ export async function updateWorkspaceFileContent(
 
     if (finalized.sizeDiff !== 0) {
       void maybeNotifyStorageLimitForBillingContext(
-        storageBillingContext,
+        finalized.billing,
         finalized.updatedUsage,
         finalized.sizeDiff < 0
       )
     }
-    await processWorkspaceFileStorageCleanupsNow(finalized.storageCleanupEventIds, {
-      workspaceId,
-      fileId,
-      reason: 'released version',
-    })
-
-    if (finalized.liveDocEventId) {
-      try {
-        const result = await processWorkspaceFileLiveDocReconciliationNow(finalized.liveDocEventId)
-        if (result !== 'completed') {
-          logger.warn('Live document reconciliation deferred to outbox retry', {
-            workspaceId,
-            fileId,
-            eventId: finalized.liveDocEventId,
-            result,
-          })
-        }
-      } catch (error) {
-        logger.warn('Live document reconciliation deferred after inline processing error', {
-          workspaceId,
-          fileId,
-          eventId: finalized.liveDocEventId,
-          error: getErrorMessage(error),
-        })
-      }
-    }
+    await finishFileContentEffects(
+      { cleanupIds: finalized.storageCleanupEventIds, liveDocEventId: finalized.liveDocEventId },
+      { workspaceId, fileId, reason: 'released version' }
+    )
 
     const currentFolderPath =
       finalized.file.folderId === fileRecord.folderId ? fileRecord.folderPath : null
@@ -2851,7 +2848,6 @@ export async function purgeCreatedWorkspaceFile(params: {
   expectedFolderId: string | null
   expectedUpdatedAt: Date
 }): Promise<boolean> {
-  const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
   const expectedFolder =
     params.expectedFolderId === null
       ? isNull(workspaceFiles.folderId)
@@ -2868,8 +2864,10 @@ export async function purgeCreatedWorkspaceFile(params: {
     isNull(workspaceFiles.deletedAt)
   )
   const cleanupEventIds = await db.transaction(async (tx) => {
-    await lockWorkspaceProject(tx, params.workspaceId)
-    await lockWorkspaceStorageForMutationInTx(tx, params.workspaceId)
+    const accounting = await prepareFileAccountingInTx(tx, {
+      entityType: 'workspace',
+      entityId: params.workspaceId,
+    })
     const [lockedFile] = await tx
       .select({
         id: workspaceFiles.id,
@@ -2890,11 +2888,7 @@ export async function purgeCreatedWorkspaceFile(params: {
       .returning({ id: workspaceFiles.id })
     if (!deleted) throw new Error('Locked archive-created file could not be deleted')
 
-    await decrementStorageUsageForBillingContextInTx(
-      tx,
-      storageBillingContext,
-      getWorkspaceFileSize(lockedFile)
-    )
+    await accounting.mutation.applyDelta(-getWorkspaceFileSize(lockedFile))
     const keys = new Set([lockedFile.key, ...versionKeys])
     return enqueueWorkspaceFileStorageCleanups(tx, [...keys])
   })

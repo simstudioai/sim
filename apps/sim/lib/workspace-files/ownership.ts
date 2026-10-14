@@ -62,3 +62,8 @@ export function resolveFileOwner(file: PersistedFileOwnership): FileOwner | null
   }
   return null
 }
+
+/** Compares canonical owner identity without treating attribution as authority. */
+export function matchesFileOwner(owner: FileOwner | null, assertedOwner: FileOwner): boolean {
+  return owner?.entityType === assertedOwner.entityType && owner.entityId === assertedOwner.entityId
+}

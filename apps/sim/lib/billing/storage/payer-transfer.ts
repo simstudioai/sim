@@ -49,7 +49,7 @@ export interface ChangeProjectStoragePayerParams extends ProjectStorageOwnerSnap
   expectedCurrentOwner: Pick<ProjectStorageOwnerSnapshot, 'ownerId' | 'organizationId'>
 }
 
-interface ChangeProjectStoragePayerResult {
+export interface ChangeProjectStoragePayerResult {
   projectId: string
   billableBytes: number
   oldPayer: BillingEntity
