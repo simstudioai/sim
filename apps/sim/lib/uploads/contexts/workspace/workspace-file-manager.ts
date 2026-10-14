@@ -126,7 +126,10 @@ import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
   restoreSimPageSourceBuffer,
 } from '@/lib/workspace-files/page-source-embed'
-import { contentWritableWorkspaceFileContextCondition } from '@/lib/workspace-files/query-scope'
+import {
+  contentWritableWorkspaceFileContextCondition,
+  workspaceFileFolderScopeCondition,
+} from '@/lib/workspace-files/query-scope'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -1786,16 +1789,6 @@ function workspaceFileFolderCondition(
   if (folderId === null) return isNull(workspaceFiles.folderId)
   if (Array.isArray(folderId)) return inArray(workspaceFiles.folderId, folderId)
   return eq(workspaceFiles.folderId, folderId as string)
-}
-
-/** The SQL predicate for a folder scope that can include both ids and root files. */
-function workspaceFileFolderScopeCondition(scope: FolderIdScope | undefined): SQL | undefined {
-  if (!scope) return undefined
-  const ids = [...scope.folderIds]
-  const inScope = ids.length > 0 ? inArray(workspaceFiles.folderId, ids) : undefined
-  const atRoot = scope.includeRootItems ? isNull(workspaceFiles.folderId) : undefined
-  if (inScope && atRoot) return or(inScope, atRoot)
-  return inScope ?? atRoot ?? sql`false`
 }
 
 /**

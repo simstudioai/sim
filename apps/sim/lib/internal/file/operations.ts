@@ -2196,7 +2196,7 @@ export async function executeFileManageOperation(
           if (selection.missingPath !== undefined) {
             throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
           }
-          rootId = [...selection.folderIds][0] ?? null
+          rootId = [...(selection.scope?.folderIds ?? [])][0] ?? null
         }
 
         const maxDepth = body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1
