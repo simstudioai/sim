@@ -1,7 +1,7 @@
 import type Stripe from 'stripe'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
-import { isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
 
@@ -107,6 +107,15 @@ export function getPlanByPriceId(priceId: string): BillingPlan | undefined {
   return getPlans().find(
     (plan) => plan.priceId === priceId || plan.annualDiscountPriceId === priceId
   )
+}
+
+/**
+ * Whether a stored plan is billed at a price outside the plan catalog, so its Stripe price is
+ * expected not to resolve: enterprise prices are set per customer, and legacy `pro`/`team`
+ * subscriptions keep the price they were sold at.
+ */
+export function isOffCatalogPlan(plan: string | null | undefined): boolean {
+  return isEnterprise(plan) || plan === 'pro' || plan === 'team'
 }
 
 export interface StripePlanResolution {

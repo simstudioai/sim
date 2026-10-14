@@ -99,7 +99,7 @@ import {
 } from '@/lib/billing/organization'
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { getPlans, isOffCatalogPlan, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -176,6 +176,24 @@ import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
 const logger = createLogger('Auth')
+
+/**
+ * A Stripe price that maps to no catalog plan leaves the stored plan in place. That is expected
+ * for off-catalog plans; for a catalog plan it means a price env var is missing or wrong.
+ */
+function logUnresolvedStripePlan(
+  hook: 'onSubscriptionComplete' | 'onSubscriptionUpdate',
+  details: { subscriptionId: string; dbPlan: string | null; priceId: string | undefined }
+): void {
+  if (isOffCatalogPlan(details.dbPlan)) {
+    logger.info(`[${hook}] Off-catalog Stripe price; keeping the stored plan`, details)
+    return
+  }
+  logger.error(
+    `[${hook}] Could not resolve plan from Stripe price; keeping the stored plan — check env var configuration`,
+    details
+  )
+}
 
 function buildSsoAdmissionErrorUrl(code: string, callbackLocation?: string | null): string {
   const callbackUrl =
@@ -1554,10 +1572,11 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.error(
-                    '[onSubscriptionComplete] Could not resolve plan from Stripe price — check env var configuration',
-                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
-                  )
+                  logUnresolvedStripePlan('onSubscriptionComplete', {
+                    subscriptionId: subscription.id,
+                    dbPlan: subscription.plan,
+                    priceId,
+                  })
                 }
 
                 const syncedPlan = await syncSubscriptionPlan(
@@ -1633,17 +1652,6 @@ export const auth = betterAuth({
                 const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
-                if (priceId && !planFromStripe) {
-                  logger.warn(
-                    '[onSubscriptionUpdate] Could not determine plan from Stripe price ID',
-                    {
-                      subscriptionId: subscription.id,
-                      priceId,
-                      dbPlan: subscription.plan,
-                    }
-                  )
-                }
-
                 const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
                   subscription.referenceId
                 )
@@ -1662,10 +1670,11 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.error(
-                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price — org creation may be skipped for team upgrades',
-                    { subscriptionId: subscription.id, dbPlan: subscription.plan }
-                  )
+                  logUnresolvedStripePlan('onSubscriptionUpdate', {
+                    subscriptionId: subscription.id,
+                    dbPlan: subscription.plan,
+                    priceId,
+                  })
                 }
 
                 const syncedPlan = await syncSubscriptionPlan(

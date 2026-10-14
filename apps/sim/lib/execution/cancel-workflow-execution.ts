@@ -1200,12 +1200,12 @@ export async function cancelWorkflowExecution({
       reason,
     }
   } catch (error) {
-    const normalizedError = toError(error)
-    logger.error('Failed to cancel execution', {
-      workflowId,
-      executionId,
-      error: normalizedError.message,
-    })
+    const details = { workflowId, executionId, error: toError(error).message }
+    if (error instanceof OrchestrationError && error.code !== 'internal') {
+      logger.info('Execution cancellation refused', details)
+    } else {
+      logger.error('Failed to cancel execution', details)
+    }
     throw error
   }
 }

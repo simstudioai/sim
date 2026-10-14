@@ -90,6 +90,35 @@ function acknowledgeSettledToolCall(
 }
 
 /**
+ * A workflow result for a call that is already settled — a retried delivery, or one that lost to
+ * the server recording the execution's outcome first — answers with the stored outcome when it is
+ * for the same execution. Nothing is written or published again.
+ */
+function acknowledgeSettledWorkflowToolCall(
+  span: Span,
+  toolCallId: string,
+  settled: { status: AsyncTerminalStatus; result: unknown },
+  submittedExecutionId: string | undefined
+): NextResponse {
+  const executionId = getWorkflowToolCompletionExecutionId(settled.result)
+  if (executionId && submittedExecutionId !== undefined && submittedExecutionId !== executionId) {
+    span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+    return createNotFoundResponse('Completed workflow execution not found')
+  }
+
+  const terminalStatus = getTerminalConfirmationStatus(settled.status)
+  span.setAttributes({
+    [TraceAttr.ToolConfirmationStatus]: terminalStatus,
+    [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
+  })
+  return createConfirmationResponse(
+    toolCallId,
+    terminalStatus,
+    getWorkflowToolCompletionMessage(terminalStatus)
+  )
+}
+
+/**
  * A desktop call this report may not settle: the desktop app holds it under its claim (or a
  * report raced that claim and lost), so only the claim's own result settles it. Final, not
  * retryable: the reporter stops.
@@ -231,28 +260,11 @@ export const POST = withRouteHandler((req: NextRequest) => {
           : undefined
 
         if (isWorkflowTool && isTerminalAsyncStatus(existing.status)) {
-          const executionId = getWorkflowToolCompletionExecutionId(existing.result)
-          if (
-            executionId &&
-            submittedExecutionId !== undefined &&
-            submittedExecutionId !== executionId
-          ) {
-            span.setAttribute(
-              TraceAttr.CopilotConfirmOutcome,
-              CopilotConfirmOutcome.ToolCallNotFound
-            )
-            return createNotFoundResponse('Completed workflow execution not found')
-          }
-
-          const terminalStatus = getTerminalConfirmationStatus(existing.status)
-          span.setAttributes({
-            [TraceAttr.ToolConfirmationStatus]: terminalStatus,
-            [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
-          })
-          return createConfirmationResponse(
+          return acknowledgeSettledWorkflowToolCall(
+            span,
             toolCallId,
-            terminalStatus,
-            getWorkflowToolCompletionMessage(terminalStatus)
+            { status: existing.status, result: existing.result },
+            submittedExecutionId
           )
         }
 
@@ -467,10 +479,17 @@ export const POST = withRouteHandler((req: NextRequest) => {
               )
             : updateOutcome
 
-        if (reconciledOutcome === 'conflict' && !isWorkflowTool) {
+        if (reconciledOutcome === 'conflict') {
           const settled = await getAsyncToolCall(toolCallId).catch(() => null)
           if (settled && isTerminalAsyncStatus(settled.status)) {
-            return acknowledgeSettledToolCall(span, toolCallId, settled.status)
+            return isWorkflowTool
+              ? acknowledgeSettledWorkflowToolCall(
+                  span,
+                  toolCallId,
+                  { status: settled.status, result: settled.result },
+                  submittedExecutionId
+                )
+              : acknowledgeSettledToolCall(span, toolCallId, settled.status)
           }
         }
 
@@ -485,7 +504,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
             toolCallId,
             status: effectiveStatus,
             internalStatus: effectiveStatus,
-            message: projected.message,
+            completionMessage: projected.message,
           })
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.UpdateFailed)
           // DB write failed — 500, not 400. 400 is a client-shape error.
