@@ -8804,6 +8804,60 @@
           "concurrently": true,
           "method": "btree",
           "with": {}
+        },
+        "folder_workspace_owner_type_unique": {
+          "name": "folder_workspace_owner_type_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
+        },
+        "folder_project_owner_type_unique": {
+          "name": "folder_project_owner_type_unique",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -8841,6 +8895,24 @@
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
           "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "folder_workspace_parent_owner_fk": {
+          "name": "folder_workspace_parent_owner_fk",
+          "tableFrom": "folder",
+          "tableTo": "folder",
+          "columnsFrom": ["parent_id", "workspace_id", "resource_type"],
+          "columnsTo": ["id", "workspace_id", "resource_type"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "folder_project_parent_owner_fk": {
+          "name": "folder_project_parent_owner_fk",
+          "tableFrom": "folder",
+          "tableTo": "folder",
+          "columnsFrom": ["parent_id", "project_id", "resource_type"],
+          "columnsTo": ["id", "project_id", "resource_type"],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },

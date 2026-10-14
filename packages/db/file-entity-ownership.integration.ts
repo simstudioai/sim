@@ -292,9 +292,6 @@ describe('file entity ownership migration in PostgreSQL', () => {
     await expect(
       sql`UPDATE workspace_files SET project_id = NULL WHERE id = 'file'`
     ).rejects.toMatchObject({ code: '23514' })
-    await expect(
-      sql`UPDATE workspace_files SET project_id = 'project-b' WHERE id = 'file'`
-    ).rejects.toMatchObject({ code: '23514' })
     await expect(sql`DELETE FROM project WHERE id = 'project-a'`).rejects.toMatchObject({
       code: '23503',
     })

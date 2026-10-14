@@ -107,7 +107,7 @@ describe('file folder and version ownership in PostgreSQL', () => {
   it('preserves metadata and content changes on existing workspace files with retained versions', async () => {
     await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('file', 'workspace', 'user-a', 'workspace-a')`
-    await sql`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
+    await sql`INSERT INTO workspace_file_version (id, file_id, workspace_id) VALUES ('version', 'file', 'workspace-a')`
     await sql`UPDATE workspace_files SET key = 'new-revision-key', original_name = 'renamed.md' WHERE id = 'file'`
     const [file] =
       await sql`SELECT workspace_id, project_id, key, secret_provenance_version FROM workspace_files`
@@ -181,10 +181,10 @@ describe('file folder and version ownership in PostgreSQL', () => {
         ('workflow-folder', 'Workflows', 'user-a', 'workspace-a', 'workflow')`
     await expect(
       sql`UPDATE folder SET parent_id = 'other-folder' WHERE id = 'file-folder'`
-    ).rejects.toMatchObject({ code: '23514' })
+    ).rejects.toMatchObject({ code: '23503' })
     await expect(
       sql`UPDATE folder SET parent_id = 'workflow-folder' WHERE id = 'file-folder'`
-    ).rejects.toMatchObject({ code: '23514' })
+    ).rejects.toMatchObject({ code: '23503' })
     await expect(
       sql`UPDATE folder SET workspace_id = 'workspace-b' WHERE id = 'file-folder'`
     ).rejects.toMatchObject({ code: '23514' })
@@ -196,24 +196,54 @@ describe('file folder and version ownership in PostgreSQL', () => {
     ).rejects.toMatchObject({ code: '23514' })
   })
 
-  it('supports child-before-parent bulk creation and rejects cycles after the complete statement', async () => {
+  it('supports child-before-parent bulk creation with matching ownership', async () => {
     await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
       VALUES ('child', 'Child', 'user-a', 'workspace-a', 'file', 'parent'),
         ('parent', 'Parent', 'user-a', 'workspace-a', 'file', NULL)`
-    await expect(
-      sql`UPDATE folder SET parent_id = 'child' WHERE id = 'parent'`
-    ).rejects.toMatchObject({ code: '23514' })
-    await expect(sql`UPDATE folder SET parent_id = id WHERE id = 'parent'`).rejects.toMatchObject({
-      code: '23514',
-    })
+    expect(await sql`SELECT id, parent_id FROM folder ORDER BY id`).toEqual([
+      { id: 'child', parent_id: 'parent' },
+      { id: 'parent', parent_id: null },
+    ])
     await expect(sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, parent_id)
-      VALUES ('cycle-a', 'A', 'user-a', 'workspace-a', 'file', 'cycle-b'),
-        ('cycle-b', 'B', 'user-a', 'workspace-a', 'file', 'cycle-a')`).rejects.toMatchObject({
-      code: '23514',
-    })
-    expect(await sql`SELECT id FROM folder ORDER BY id`).toEqual([
-      { id: 'child' },
-      { id: 'parent' },
+      VALUES ('wrong-child', 'Wrong child', 'user-a', 'workspace-a', 'file', 'wrong-parent'),
+        ('wrong-parent', 'Wrong parent', 'user-a', 'workspace-b', 'file', NULL)`).rejects.toMatchObject(
+      { code: '23503' }
+    )
+  })
+
+  it.each(['workspace', 'project'] as const)(
+    'parent deletion detaches %s children without changing their owner or content',
+    async (kind) => {
+      const workspaceId = kind === 'workspace' ? 'workspace-a' : null
+      const projectId = kind === 'project' ? 'project-a' : null
+      await sql`INSERT INTO folder (id, name, user_id, workspace_id, project_id, resource_type, parent_id)
+        VALUES ('parent', 'Parent', 'user-a', ${workspaceId}, ${projectId}, 'file', NULL),
+          ('child', 'Child', 'user-a', ${workspaceId}, ${projectId}, 'file', 'parent')`
+      await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, project_id, folder_id)
+        VALUES ('file', ${kind}, 'user-a', ${workspaceId}, ${projectId}, 'child')`
+      await sql`DELETE FROM folder WHERE id = 'parent'`
+      expect(
+        await sql`SELECT parent_id, workspace_id, project_id FROM folder WHERE id = 'child'`
+      ).toEqual([{ parent_id: null, workspace_id: workspaceId, project_id: projectId }])
+      await sql`DELETE FROM folder WHERE id = 'child'`
+      expect(await sql`SELECT folder_id, key FROM workspace_files WHERE id = 'file'`).toEqual([
+        { folder_id: null, key: 'unchanged-object-key' },
+      ])
+    }
+  )
+
+  it('preserves Project ownership without history through attribution and folder changes', async () => {
+    await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
+      VALUES ('file', 'project', 'user-a', 'project-a')`
+    await sql`UPDATE workspace_files SET user_id = 'user-b', deleted_at = now() WHERE id = 'file'`
+    await expect(
+      sql`UPDATE workspace_files SET project_id = 'project-b' WHERE id = 'file'`
+    ).rejects.toMatchObject({ code: '23514' })
+    await expect(
+      sql`UPDATE workspace_files SET project_id = NULL, workspace_id = 'workspace-a', context = 'workspace' WHERE id = 'file'`
+    ).rejects.toMatchObject({ code: '23514' })
+    expect(await sql`SELECT project_id, user_id FROM workspace_files WHERE id = 'file'`).toEqual([
+      { project_id: 'project-a', user_id: 'user-b' },
     ])
   })
 
@@ -224,7 +254,7 @@ describe('file folder and version ownership in PostgreSQL', () => {
       VALUES ('project-folder', 'Docs', 'user-a', 'file', 'same-id')`
     await expect(
       sql`UPDATE folder SET parent_id = 'workspace-folder' WHERE id = 'project-folder'`
-    ).rejects.toMatchObject({ code: '23514' })
+    ).rejects.toMatchObject({ code: '23503' })
     await expect(sql`INSERT INTO folder (id, name, user_id, resource_type, project_id)
       VALUES ('duplicate', 'Docs', 'user-a', 'file', 'same-id')`).rejects.toMatchObject({
       code: '23505',
@@ -286,15 +316,17 @@ describe('file folder and version ownership in PostgreSQL', () => {
     await sql`DELETE FROM project WHERE id = 'project-a'`
   })
 
-  it('derives version ownership from the file and refuses incompatible legacy pointers', async () => {
+  it('requires explicit version ownership matching the canonical file', async () => {
     await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id)
       VALUES ('workspace-file', 'workspace', 'user-a', 'workspace-a'),
         ('chat-file', 'mothership', 'user-a', 'workspace-a')`
     await sql`INSERT INTO workspace_files (id, context, user_id, project_id)
       VALUES ('project-file', 'project', 'user-a', 'project-a')`
     await sql`INSERT INTO workspace_files (id, context, user_id) VALUES ('personal', 'copilot', 'user-a')`
-    await sql`INSERT INTO workspace_file_version (id, file_id)
-      VALUES ('workspace-version', 'workspace-file'), ('project-version', 'project-file')`
+    await expect(sql`INSERT INTO workspace_file_version (id, file_id)
+      VALUES ('missing-owner', 'workspace-file')`).rejects.toMatchObject({ code: '23514' })
+    await sql`INSERT INTO workspace_file_version (id, file_id, workspace_id)
+      VALUES ('workspace-version', 'workspace-file', 'workspace-a'), ('project-version', 'project-file', NULL)`
     expect(await sql`SELECT id, workspace_id FROM workspace_file_version ORDER BY id`).toEqual([
       { id: 'project-version', workspace_id: null },
       { id: 'workspace-version', workspace_id: 'workspace-a' },
@@ -324,56 +356,29 @@ describe('file folder and version ownership in PostgreSQL', () => {
     expect(await sql`SELECT id FROM workspace_file_version`).toHaveLength(0)
   })
 
-  it.each([
-    ['workspace', 'read committed'],
-    ['workspace', 'repeatable read'],
-    ['project', 'read committed'],
-    ['project', 'repeatable read'],
-  ])(
-    'prevents concurrent crossed folder moves for %s at %s isolation',
-    async (ownerType, isolation) => {
-      const ownerId = ownerType === 'workspace' ? 'workspace-a' : 'project-a'
-      const workspaceId = ownerType === 'workspace' ? ownerId : null
-      const projectId = ownerType === 'project' ? ownerId : null
-      const lockKey = `resource_folders:file:${ownerType === 'workspace' ? ownerId : `${ownerType}:${ownerId}`}`
-      await sql`INSERT INTO folder (id, name, user_id, workspace_id, resource_type, project_id)
-      VALUES ('folder-a', 'A', 'user-a', ${workspaceId}, 'file', ${projectId}),
-        ('folder-b', 'B', 'user-a', ${workspaceId}, 'file', ${projectId})`
-      const moved = createDeferred<number>()
-      const release = createDeferred<void>()
-      const firstMove = sql.begin(async (tx) => {
-        await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
-        await tx`UPDATE folder SET parent_id = 'folder-b' WHERE id = 'folder-a'`
-        const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
-        moved.resolve(writer.pid)
-        await release.promise
+  it('does not take the application hierarchy lock for direct folder inserts', async () => {
+    const locked = createDeferred<void>()
+    const release = createDeferred<void>()
+    const holder = sql.begin(async (tx) => {
+      await tx`SELECT pg_advisory_xact_lock(hashtextextended('resource_folders:file:workspace-a', 0))`
+      locked.resolve()
+      await release.promise
+    })
+    try {
+      await locked.promise
+      await sql.begin(async (tx) => {
+        await tx`SET LOCAL lock_timeout = '100ms'`
+        await tx`INSERT INTO folder (id, name, user_id, workspace_id, resource_type)
+          VALUES ('independent-folder', 'Independent', 'user-a', 'workspace-a', 'file')`
       })
-      const waiting = createDeferred<number>()
-      let rejection: Promise<void> | undefined
-      try {
-        await moved.promise
-        const secondMove = sql.begin(`isolation level ${isolation}`, async (tx) => {
-          await tx`SET LOCAL statement_timeout = '5s'`
-          const [backend] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
-          waiting.resolve(backend.pid)
-          await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
-          await tx`UPDATE folder SET parent_id = 'folder-a' WHERE id = 'folder-b'`
-        })
-        rejection = expect(secondMove).rejects.toMatchObject({
-          code: isolation === 'repeatable read' ? '40001' : '23514',
-        })
-        await waitForDatabaseLock(await waiting.promise, await moved.promise)
-      } finally {
-        release.resolve()
-        await firstMove
-        await rejection
-      }
-      expect(await sql`SELECT id, parent_id FROM folder ORDER BY id`).toEqual([
-        { id: 'folder-a', parent_id: 'folder-b' },
-        { id: 'folder-b', parent_id: null },
+      expect(await sql`SELECT id FROM folder WHERE id = 'independent-folder'`).toEqual([
+        { id: 'independent-folder' },
       ])
+    } finally {
+      release.resolve()
+      await holder
     }
-  )
+  })
 
   it.each(['read committed', 'repeatable read'])(
     'prevents an owner change from racing a retained version at %s isolation',

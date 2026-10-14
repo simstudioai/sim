@@ -40,19 +40,6 @@ LANGUAGE sql IMMUTABLE AS $$
       AND file_context IN ('copilot', 'profile-pictures') THEN file_user_id
     END
 $$;--> statement-breakpoint
-CREATE OR REPLACE FUNCTION workspace_files_preserve_project_owner()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF OLD.project_id IS NOT NULL AND NEW.project_id IS DISTINCT FROM OLD.project_id THEN
-    RAISE EXCEPTION 'Project file ownership cannot change through a metadata update' USING ERRCODE = '23514';
-  END IF;
-  RETURN NEW;
-END;
-$$;--> statement-breakpoint
-DROP TRIGGER IF EXISTS workspace_files_preserve_project_owner ON workspace_files;--> statement-breakpoint
-CREATE TRIGGER workspace_files_preserve_project_owner
-BEFORE UPDATE OF project_id ON workspace_files
-FOR EACH ROW EXECUTE FUNCTION workspace_files_preserve_project_owner();--> statement-breakpoint
 CREATE OR REPLACE FUNCTION project_file_uploader_delete_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

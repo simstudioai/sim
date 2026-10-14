@@ -13,69 +13,18 @@ DO $$ BEGIN
 END $$;--> statement-breakpoint
 CREATE OR REPLACE FUNCTION folder_validate_owner()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE hierarchy_changed boolean := true; lock_key text;
 BEGIN
-  IF TG_OP = 'UPDATE' THEN
-    IF ROW(OLD.workspace_id, OLD.project_id, OLD.resource_type, OLD.id)
-      IS DISTINCT FROM ROW(NEW.workspace_id, NEW.project_id, NEW.resource_type, NEW.id) THEN
-      RAISE EXCEPTION 'Folder identity, owner, and resource type cannot be changed' USING ERRCODE = '23514';
-    END IF;
-    hierarchy_changed := NEW.parent_id IS DISTINCT FROM OLD.parent_id;
-  END IF;
-  IF hierarchy_changed THEN
-    -- Existing workspace writers use this key before taking folder row locks.
-    lock_key := 'resource_folders:' || NEW.resource_type::text || ':' ||
-      coalesce(NEW.workspace_id, 'project:' || NEW.project_id);
-    PERFORM pg_advisory_xact_lock(hashtextextended(lock_key, 0));
+  IF ROW(OLD.workspace_id, OLD.project_id, OLD.resource_type, OLD.id)
+    IS DISTINCT FROM ROW(NEW.workspace_id, NEW.project_id, NEW.resource_type, NEW.id) THEN
+    RAISE EXCEPTION 'Folder identity, owner, and resource type cannot be changed' USING ERRCODE = '23514';
   END IF;
   RETURN NEW;
 END;
 $$;--> statement-breakpoint
 DROP TRIGGER IF EXISTS folder_validate_owner ON folder;--> statement-breakpoint
 CREATE TRIGGER folder_validate_owner
-BEFORE INSERT OR UPDATE OF id, workspace_id, project_id, resource_type, parent_id
+BEFORE UPDATE OF id, workspace_id, project_id, resource_type
 ON folder FOR EACH ROW EXECUTE FUNCTION folder_validate_owner();--> statement-breakpoint
-CREATE OR REPLACE FUNCTION folder_parent_resource_type_match()
-RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE
-  child folder%ROWTYPE;
-  ancestor folder%ROWTYPE;
-  ancestor_id text;
-  seen text[];
-BEGIN
-  SELECT * INTO child FROM folder WHERE id = NEW.id;
-  IF NOT FOUND THEN RETURN NEW; END IF;
-  IF TG_OP = 'UPDATE' AND OLD.parent_id IS NOT DISTINCT FROM child.parent_id
-    AND OLD.resource_type = child.resource_type
-    AND ROW(OLD.workspace_id, OLD.project_id)
-      IS NOT DISTINCT FROM ROW(child.workspace_id, child.project_id) THEN
-    RETURN NEW;
-  END IF;
-  ancestor_id := child.parent_id;
-  seen := ARRAY[child.id];
-  WHILE ancestor_id IS NOT NULL LOOP
-    IF ancestor_id = ANY(seen) THEN
-      RAISE EXCEPTION 'Folder hierarchy contains a cycle' USING ERRCODE = '23514';
-    END IF;
-    seen := array_append(seen, ancestor_id);
-    -- Lock every ancestor, so a stale REPEATABLE READ traversal cannot miss a concurrent move.
-    SELECT * INTO ancestor FROM folder WHERE id = ancestor_id FOR SHARE;
-    IF NOT FOUND THEN RAISE EXCEPTION 'Folder parent does not exist' USING ERRCODE = '23503'; END IF;
-    IF ancestor.resource_type <> child.resource_type
-      OR ROW(ancestor.workspace_id, ancestor.project_id)
-        IS DISTINCT FROM ROW(child.workspace_id, child.project_id) THEN
-      RAISE EXCEPTION 'Folder parent belongs to a different owner or resource type' USING ERRCODE = '23514';
-    END IF;
-    ancestor_id := ancestor.parent_id;
-  END LOOP;
-  RETURN NEW;
-END;
-$$;--> statement-breakpoint
-DROP TRIGGER IF EXISTS folder_parent_resource_type_match ON folder;--> statement-breakpoint
--- End-of-statement checks preserve the supported child-before-parent bulk insert order.
-CREATE CONSTRAINT TRIGGER folder_parent_resource_type_match
-AFTER INSERT OR UPDATE ON folder DEFERRABLE INITIALLY IMMEDIATE
-FOR EACH ROW EXECUTE FUNCTION folder_parent_resource_type_match();--> statement-breakpoint
 CREATE OR REPLACE FUNCTION workspace_files_validate_relations()
 RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
@@ -88,6 +37,9 @@ BEGIN
   SELECT entity_type, entity_id INTO current_type, current_id
     FROM workspace_file_owner(NEW.context, NEW.workspace_id, NEW.project_id, NEW.organization_id, NEW.user_id);
   IF TG_OP = 'UPDATE' THEN
+    IF OLD.project_id IS NOT NULL AND NEW.project_id IS DISTINCT FROM OLD.project_id THEN
+      RAISE EXCEPTION 'Project file ownership cannot change through a metadata update' USING ERRCODE = '23514';
+    END IF;
     SELECT entity_type, entity_id INTO previous_type, previous_id
       FROM workspace_file_owner(OLD.context, OLD.workspace_id, OLD.project_id, OLD.organization_id, OLD.user_id);
     IF (ROW(previous_type, previous_id) IS DISTINCT FROM ROW(current_type, current_id)
@@ -114,8 +66,11 @@ END;
 $$;--> statement-breakpoint
 DROP TRIGGER IF EXISTS workspace_files_validate_relations ON workspace_files;--> statement-breakpoint
 CREATE CONSTRAINT TRIGGER workspace_files_validate_relations
-AFTER INSERT OR UPDATE ON workspace_files DEFERRABLE INITIALLY IMMEDIATE
+AFTER INSERT OR UPDATE OF id, folder_id, context, workspace_id, project_id, organization_id, user_id
+ON workspace_files DEFERRABLE INITIALLY IMMEDIATE
 FOR EACH ROW EXECUTE FUNCTION workspace_files_validate_relations();--> statement-breakpoint
+DROP TRIGGER IF EXISTS workspace_files_preserve_project_owner ON workspace_files;--> statement-breakpoint
+DROP FUNCTION IF EXISTS workspace_files_preserve_project_owner();--> statement-breakpoint
 -- Relationship fences advance the row version without changing durable content or its provenance.
 -- Real inserts and metadata/content changes must still normalize before downstream triggers run.
 CREATE OR REPLACE FUNCTION workspace_file_content_version_millisecond()
@@ -146,7 +101,6 @@ BEGIN
   SELECT entity_type, entity_id INTO parent_type, parent_id
     FROM workspace_file_owner(parent.context, parent.workspace_id, parent.project_id, parent.organization_id, parent.user_id);
   IF parent_type = 'workspace' AND parent.context IN ('workspace', 'test', 'changelog') THEN
-    IF NEW.workspace_id IS NULL THEN NEW.workspace_id := parent_id; END IF;
     IF NEW.workspace_id IS DISTINCT FROM parent_id THEN
       RAISE EXCEPTION 'Version workspace differs from its file owner' USING ERRCODE = '23514';
     END IF;
@@ -190,3 +144,42 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "workspace_files_project_folder_n
 ON "workspace_files" USING btree ("project_id", coalesce("folder_id", ''), "original_name")
 WHERE "deleted_at" IS NULL AND "project_id" IS NOT NULL;--> statement-breakpoint
 SET lock_timeout = '5s';
+
+--> statement-breakpoint
+DO $$
+DECLARE target text; recovery_name text;
+BEGIN
+  FOREACH target IN ARRAY ARRAY['folder_workspace_owner_type_unique', 'folder_project_owner_type_unique'] LOOP
+    recovery_name := target || '_failed';
+    IF EXISTS (SELECT 1 FROM pg_index WHERE indexrelid = to_regclass(recovery_name)
+      AND (indisvalid OR indrelid <> 'folder'::regclass)) THEN
+      RAISE EXCEPTION 'Refusing to drop unexpected recovery index %', recovery_name;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_index WHERE indexrelid = to_regclass(target)
+      AND indrelid = 'folder'::regclass AND NOT indisvalid) THEN
+      EXECUTE format('ALTER INDEX %I RENAME TO %I', target, recovery_name);
+    END IF;
+  END LOOP;
+END $$;--> statement-breakpoint
+COMMIT;--> statement-breakpoint
+SET lock_timeout = 0;--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS folder_workspace_owner_type_unique_failed;--> statement-breakpoint
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS folder_workspace_owner_type_unique
+ON folder (id, workspace_id, resource_type);--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS folder_project_owner_type_unique_failed;--> statement-breakpoint
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS folder_project_owner_type_unique
+ON folder (id, project_id, resource_type);--> statement-breakpoint
+SET lock_timeout = '5s';--> statement-breakpoint
+-- The exclusive owner check makes exactly one parent-owner FK applicable to every folder.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'folder_workspace_parent_owner_fk' AND conrelid = 'folder'::regclass) THEN
+    ALTER TABLE folder ADD CONSTRAINT folder_workspace_parent_owner_fk
+      FOREIGN KEY (parent_id, workspace_id, resource_type) REFERENCES folder(id, workspace_id, resource_type) NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'folder_project_parent_owner_fk' AND conrelid = 'folder'::regclass) THEN
+    ALTER TABLE folder ADD CONSTRAINT folder_project_parent_owner_fk
+      FOREIGN KEY (parent_id, project_id, resource_type) REFERENCES folder(id, project_id, resource_type) NOT VALID;
+  END IF;
+END $$;--> statement-breakpoint
+DROP TRIGGER IF EXISTS folder_parent_resource_type_match ON folder;--> statement-breakpoint
+DROP FUNCTION IF EXISTS folder_parent_resource_type_match();

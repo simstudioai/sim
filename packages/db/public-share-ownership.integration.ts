@@ -11,7 +11,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
@@ -165,7 +165,7 @@ describe('Public share canonical ownership in PostgreSQL', () => {
       VALUES (${id}, ${kind}, 'user-a', ${kind === 'workspace' ? owner : null}, ${kind === 'project' ? owner : null}, ${id})`
   }
   function share(
-    executor: Sql,
+    executor: Sql | TransactionSql,
     id = 'share',
     fileId = 'file',
     owner = 'project-a',
@@ -190,7 +190,8 @@ describe('Public share canonical ownership in PostgreSQL', () => {
         const before = await sql`SELECT content_updated_at::text, secret_provenance_version, key
       FROM workspace_files WHERE id = 'file'`
         if (relationship === 'share') await share(sql, 'share', 'file', 'workspace-a', 'workspace')
-        else await sql`INSERT INTO workspace_file_version (id, file_id) VALUES ('version', 'file')`
+        else
+          await sql`INSERT INTO workspace_file_version (id, file_id, workspace_id) VALUES ('version', 'file', 'workspace-a')`
         expect(
           await sql`SELECT content_updated_at::text, secret_provenance_version, key
       FROM workspace_files WHERE id = 'file'`
@@ -279,12 +280,25 @@ describe('Public share canonical ownership in PostgreSQL', () => {
   )
 
   check(
-    'workspace owner changes invalidate existing links and preserve legacy nonfile shares',
+    'workspace owner changes are refused while file shares exist, preserving links and configuration',
     async () => {
       await file('file', 'workspace-a', 'workspace')
       await share(sql, 'share', 'file', 'workspace-a', 'workspace')
-      await sql`UPDATE workspace_files SET workspace_id = 'workspace-b' WHERE id = 'file'`
-      expect(await sql`SELECT id FROM public_share`).toEqual([])
+      const before = await sql`SELECT * FROM public_share WHERE id = 'share'`
+      await expect(
+        sql`UPDATE workspace_files SET workspace_id = 'workspace-b' WHERE id = 'file'`
+      ).rejects.toMatchObject({ code: '23514' })
+      expect(await sql`SELECT * FROM public_share WHERE id = 'share'`).toEqual(before)
+      expect(await sql`SELECT workspace_id FROM workspace_files WHERE id = 'file'`).toEqual([
+        { workspace_id: 'workspace-a' },
+      ])
+      await sql.begin(async (tx) => {
+        await tx`DELETE FROM public_share WHERE id = 'share'`
+        await tx`UPDATE workspace_files SET workspace_id = 'workspace-b' WHERE id = 'file'`
+      })
+      expect(await sql`SELECT workspace_id FROM workspace_files WHERE id = 'file'`).toEqual([
+        { workspace_id: 'workspace-b' },
+      ])
       await sql`INSERT INTO public_share (id, resource_type, resource_id, workspace_id, token)
       VALUES ('legacy', 'folder', 'unregistered-legacy-target', 'workspace-a', 'legacy')`
       expect(await sql`SELECT entity_type, entity_id FROM public_share`).toEqual([
@@ -505,74 +519,85 @@ describe('Public share canonical ownership in PostgreSQL', () => {
   )
 
   for (const isolation of ['read committed', 'repeatable read'] as const) {
-    check(
-      `${isolation}: file deletion waits for share insertion and cannot leave an orphan`,
-      async () => {
-        await file()
-        const snapshot = createDeferred<void>()
-        const startDelete = createDeferred<void>()
-        const pid = createDeferred<number>()
-        const deleting = sql
-          .begin(`isolation level ${isolation}`, async (tx) => {
-            await tx`SELECT count(*) FROM public_share`
-            snapshot.resolve()
-            await startDelete.promise
-            const [connection] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
-            pid.resolve(connection.pid)
-            await tx`DELETE FROM workspace_files WHERE id = 'file'`
-          })
-          .then(
-            () => null,
-            (error: unknown) => error
-          )
-        await Promise.race([
-          snapshot.promise,
-          deleting.then((error) => {
-            if (error) throw error
-            throw new Error('Deletion ended before acquiring its snapshot')
-          }),
-        ])
-        const inserted = createDeferred<number>()
-        const release = createDeferred<void>()
-        const inserting = sql.begin(async (tx) => {
-          await tx`INSERT INTO public_share (id, resource_type, resource_id, token, entity_type, entity_id)
-          VALUES ('share', 'file', 'file', 'share', 'project', 'project-a')`
-          const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
-          inserted.resolve(writer.pid)
-          await release.promise
-        })
-        let waited = false
-        try {
-          await Promise.race([inserted.promise, inserting])
-          startDelete.resolve()
-          const deletePid = await Promise.race([
-            pid.promise,
-            deleting.then((error) => {
+    for (const operation of ['deletion', 'owner change'] as const) {
+      check(
+        `${isolation}: file ${operation} waits for share insertion and preserves ownership`,
+        async () => {
+          await file('file', 'workspace-a', 'workspace')
+          const snapshot = createDeferred<void>()
+          const startMutation = createDeferred<void>()
+          const pid = createDeferred<number>()
+          const mutating = sql
+            .begin(`isolation level ${isolation}`, async (tx) => {
+              await tx`SELECT count(*) FROM public_share`
+              snapshot.resolve()
+              await startMutation.promise
+              const [connection] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+              pid.resolve(connection.pid)
+              if (operation === 'deletion') await tx`DELETE FROM workspace_files WHERE id = 'file'`
+              else
+                await tx`UPDATE workspace_files SET workspace_id = 'workspace-b' WHERE id = 'file'`
+            })
+            .then(
+              () => null,
+              (error: unknown) => error
+            )
+          await Promise.race([
+            snapshot.promise,
+            mutating.then((error) => {
               if (error) throw error
-              throw new Error('Deletion ended before publishing its connection')
+              throw new Error('Mutation ended before acquiring its snapshot')
             }),
           ])
-          waited = await waitForDatabaseLock(deletePid, await inserted.promise)
-        } finally {
-          startDelete.resolve()
-          release.resolve()
-          await inserting
-          await deleting
-        }
-        expect(waited, 'target deletion must wait for share insertion').toBe(true)
-        const result = await deleting
-        expect(
-          await sql`SELECT share.id FROM public_share share
+          const inserted = createDeferred<number>()
+          const release = createDeferred<void>()
+          const inserting = sql.begin(async (tx) => {
+            await share(tx, 'share', 'file', 'workspace-a', 'workspace')
+            const [writer] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+            inserted.resolve(writer.pid)
+            await release.promise
+          })
+          let waited = false
+          try {
+            await Promise.race([inserted.promise, inserting])
+            startMutation.resolve()
+            const mutationPid = await Promise.race([
+              pid.promise,
+              mutating.then((error) => {
+                if (error) throw error
+                throw new Error('Mutation ended before publishing its connection')
+              }),
+            ])
+            waited = await waitForDatabaseLock(mutationPid, await inserted.promise)
+          } finally {
+            startMutation.resolve()
+            release.resolve()
+            await inserting
+            await mutating
+          }
+          expect(waited, 'target mutation must wait for share insertion').toBe(true)
+          const result = await mutating
+          expect(
+            await sql`SELECT share.id FROM public_share share
           LEFT JOIN workspace_files file ON file.id = share.resource_id
           WHERE share.resource_type = 'file' AND file.id IS NULL`
-        ).toEqual([])
-        if (isolation === 'repeatable read') expect(result).toMatchObject({ code: '40001' })
-        else expect(result).toBeNull()
-        await sql`DELETE FROM workspace_files WHERE id = 'file'`
-        expect(await sql`SELECT id FROM public_share`).toEqual([])
-      }
-    )
-
+          ).toEqual([])
+          if (isolation === 'repeatable read') expect(result).toMatchObject({ code: '40001' })
+          else if (operation === 'deletion') expect(result).toBeNull()
+          else expect(result).toMatchObject({ code: '23514' })
+          if (operation === 'owner change') {
+            expect(await sql`SELECT workspace_id FROM workspace_files WHERE id = 'file'`).toEqual([
+              { workspace_id: 'workspace-a' },
+            ])
+            expect(await sql`SELECT token, entity_id FROM public_share WHERE id = 'share'`).toEqual(
+              [{ token: 'share', entity_id: 'workspace-a' }]
+            )
+          }
+          await sql`DELETE FROM workspace_files WHERE id = 'file'`
+          expect(await sql`SELECT id FROM public_share`).toEqual([])
+        }
+      )
+    }
     check(`${isolation}: a new share cannot commit behind target deletion`, async () => {
       await file()
       const deleted = createDeferred<number>()

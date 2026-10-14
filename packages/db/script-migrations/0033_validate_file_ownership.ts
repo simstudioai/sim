@@ -16,7 +16,9 @@ export async function validateFileOwnership(sql: Sql) {
       VALIDATE CONSTRAINT workspace_files_project_binding_check`
     await tx`ALTER TABLE folder
       VALIDATE CONSTRAINT folder_project_id_project_id_fk,
-      VALIDATE CONSTRAINT folder_owner_check`
+      VALIDATE CONSTRAINT folder_owner_check,
+      VALIDATE CONSTRAINT folder_workspace_parent_owner_fk,
+      VALIDATE CONSTRAINT folder_project_parent_owner_fk`
   })
 
   let afterVersionId = ''

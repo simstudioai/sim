@@ -190,6 +190,44 @@ describe('workspace file names in PostgreSQL', () => {
     )
   })
 
+  it('serializes crossed folder moves and rejects the move that would close a cycle', async () => {
+    const fixture = await seedWorkspace()
+    const first = await createWorkspaceFileFolder({
+      workspaceId: fixture.workspaceId,
+      userId: fixture.aliceId,
+      name: 'First',
+    })
+    const second = await createWorkspaceFileFolder({
+      workspaceId: fixture.workspaceId,
+      userId: fixture.aliceId,
+      name: 'Second',
+    })
+    const outcomes = await Promise.allSettled([
+      updateWorkspaceFileFolder({
+        workspaceId: fixture.workspaceId,
+        folderId: first.id,
+        parentId: second.id,
+      }),
+      updateWorkspaceFileFolder({
+        workspaceId: fixture.workspaceId,
+        folderId: second.id,
+        parentId: first.id,
+      }),
+    ])
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+    const rejected = outcomes.find((outcome) => outcome.status === 'rejected')
+    expect(rejected?.status === 'rejected' && rejected.reason).toMatchObject({
+      code: 'validation',
+      message: 'Cannot move a folder into one of its descendants',
+    })
+    const parents = [
+      ...(await db.execute<{ id: string; parent_id: string | null }>(sql`
+      SELECT id, parent_id FROM folder WHERE id IN (${first.id}, ${second.id})`)),
+    ]
+    expect(parents.filter((row) => row.parent_id === null)).toHaveLength(1)
+    expect(parents.filter((row) => row.parent_id !== null)).toHaveLength(1)
+  })
+
   function upload(workspaceId: string, userId: string, name: string, folderId?: string | null) {
     return uploadWorkspaceFile(workspaceId, userId, Buffer.from(name), name, 'text/plain', {
       folderId,

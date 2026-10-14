@@ -73,9 +73,10 @@ BEGIN
     FROM workspace_file_owner(OLD.context, OLD.workspace_id, OLD.project_id, OLD.organization_id, OLD.user_id);
   SELECT entity_type, entity_id INTO current_type, current_id
     FROM workspace_file_owner(NEW.context, NEW.workspace_id, NEW.project_id, NEW.organization_id, NEW.user_id);
-  IF NEW.id IS DISTINCT FROM OLD.id
-    OR ROW(previous_type, previous_id) IS DISTINCT FROM ROW(current_type, current_id) THEN
-    DELETE FROM public_share WHERE resource_type = 'file' AND resource_id = OLD.id;
+  IF (NEW.id IS DISTINCT FROM OLD.id
+    OR ROW(previous_type, previous_id) IS DISTINCT FROM ROW(current_type, current_id))
+    AND EXISTS (SELECT 1 FROM public_share WHERE resource_type = 'file' AND resource_id = OLD.id) THEN
+    RAISE EXCEPTION 'Revoke file shares explicitly before changing file identity or ownership' USING ERRCODE = '23514';
   END IF;
   RETURN NEW;
 END;
