@@ -17,12 +17,14 @@ export default function proxy(request: NextRequest) {
 
     if (result) {
       const response = NextResponse.rewrite(new URL(result, request.nextUrl))
-      response.headers.set('Vary', 'Accept')
+      response.headers.append('Vary', 'Accept')
       return response
     }
   }
 
-  return NextResponse.next()
+  const response = NextResponse.next()
+  response.headers.append('Vary', 'Accept')
+  return response
 }
 
 export const config = {
