@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { lockProjectsForResourceDepartureTx } from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
 import {
@@ -129,6 +130,7 @@ export async function revokeWorkspaceAccessTx(
   tx: DbTransaction,
   params: { workspaceId: string; userId: string; expectedPermissionId?: string }
 ): Promise<RevokeWorkspaceAccessResult> {
+  await lockProjectsForResourceDepartureTx(tx, [params.workspaceId])
   if (params.expectedPermissionId !== undefined) {
     /** Match the handoff's workspace-before-grant lock order before validating the selected row. */
     await tx

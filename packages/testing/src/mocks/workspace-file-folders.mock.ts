@@ -72,6 +72,7 @@ export const workspaceFileFoldersMockFns = {
   mockGetWorkspaceFileFolderPath: vi.fn(),
   mockFindWorkspaceFileFolderIdByPath: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+  mockListFileFolders: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
   mockGetWorkspaceFileFolder: vi.fn(),
   mockResolveWorkspaceFileFolderTarget: vi.fn(
     async (..._args: unknown[]): Promise<string | null> => null
@@ -120,6 +121,7 @@ export const workspaceFileFoldersMock = {
   getWorkspaceFileFolderPath: fns.mockGetWorkspaceFileFolderPath,
   findWorkspaceFileFolderIdByPath: fns.mockFindWorkspaceFileFolderIdByPath,
   listWorkspaceFileFolders: fns.mockListWorkspaceFileFolders,
+  listFileFolders: fns.mockListFileFolders,
   getWorkspaceFileFolder: fns.mockGetWorkspaceFileFolder,
   resolveWorkspaceFileFolderTarget: fns.mockResolveWorkspaceFileFolderTarget,
   assertWorkspaceFileFolderTarget: fns.mockAssertWorkspaceFileFolderTarget,

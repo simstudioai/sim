@@ -65,6 +65,7 @@ import {
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
 import { reassignOrganizationProjects } from '@/lib/projects/membership'
+import { handoffProjectsForOrganizationDepartureTx } from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
@@ -577,6 +578,7 @@ async function reassignOwnedOrganizationResourcesTx({
     toUserId: ownerId,
     workspaceIds,
   })
+  await handoffProjectsForOrganizationDepartureTx(tx, organizationId, userId)
 
   if (workspaceIds.length === 0) return 0
 

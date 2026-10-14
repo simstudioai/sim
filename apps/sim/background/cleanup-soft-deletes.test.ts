@@ -54,6 +54,7 @@ vi.mock('@/lib/cleanup/batch-delete', () => ({
   chunkedBatchDelete: mockChunkedBatchDelete,
   chunkedBatchDeleteByScope: mockScopedChunkedBatchDelete,
   DEFAULT_DELETE_CHUNK_SIZE: 1000,
+  DEFAULT_MAX_BATCHES_PER_TABLE: 50,
   deleteRowsById: mockDeleteRowsById,
   selectRowsByIdChunks: mockSelectRowsByIdChunks,
 }))
@@ -494,7 +495,13 @@ describe('folder cleanup target', () => {
       queueTableRows(schemaMock.workflow, [])
       queueTableRows(schemaMock.workspaceFiles, [])
       queueTableRows(schemaMock.folder, [
-        { id: 'sub-1', name: 'Reports', workspaceId: 'ws-1', resourceType: 'knowledge_base' },
+        {
+          id: 'sub-1',
+          name: 'Reports',
+          workspaceId: 'ws-1',
+          resourceType: 'knowledge_base',
+          projectId: null,
+        },
       ])
       mockDeduplicateFolderName.mockResolvedValueOnce('Reports (1)')
 

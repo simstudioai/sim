@@ -31,6 +31,19 @@ export async function runOutboxProcessor(): Promise<OutboxProcessorResult> {
     minRemainingMs: 95_000,
   })
 
+  try {
+    if (Date.now() - startedAt < OUTBOX_PROCESSOR_RECOVERY_CUTOFF_MS) {
+      const { recoverProjectStorageReconciliation } = await import(
+        '@/lib/projects/files/prefix-cleanup'
+      )
+      await recoverProjectStorageReconciliation()
+    }
+  } catch (error) {
+    logger.error('Project storage reconciliation recovery failed', {
+      error: toError(error).message,
+    })
+  }
+
   let recoveredDocuments = 0
   try {
     if (Date.now() - startedAt < OUTBOX_PROCESSOR_RECOVERY_CUTOFF_MS) {

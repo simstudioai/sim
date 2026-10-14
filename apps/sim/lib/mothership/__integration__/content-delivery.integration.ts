@@ -136,7 +136,6 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { resolveServableDoc } from '@/lib/mothership/tools/server/files/doc-compile'
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
 import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
@@ -148,6 +147,8 @@ import {
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { resolveServableDoc } from '@/lib/uploads/documents/compile'
+import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -155,7 +156,6 @@ import {
   getWorkspaceFileShares,
   updateWorkspaceFileShare,
 } from '@/lib/workspace-files/application/share-workspace-file'
-import { storeCompiledDoc } from '@/lib/workspace-files/compiled-document-store'
 import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'

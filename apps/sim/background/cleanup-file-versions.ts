@@ -12,6 +12,7 @@ import {
   DEFAULT_WORKSPACE_CHUNK_SIZE,
 } from '@/lib/cleanup/batch-delete'
 import { retentionCleanupQueue } from '@/lib/cleanup/queue'
+import { cleanupProjectFileVersions } from '@/lib/projects/files/retention'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { MAX_SUPERSEDED_FILE_VERSIONS } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 
@@ -145,6 +146,14 @@ function deleteVersions(rows: Array<{ id: string }>): Promise<number> {
 export async function runCleanupFileVersions(payload: CleanupJobPayload): Promise<void> {
   const startTime = Date.now()
   const { workspaceIds, retentionHours, label, plan } = payload
+  let projectDeleted = 0
+  for (const projectId of [...new Set(payload.projectIds ?? [])].sort()) {
+    if (projectDeleted >= MAX_VERSIONS_PER_RUN) break
+    projectDeleted += await cleanupProjectFileVersions(
+      projectId,
+      MAX_VERSIONS_PER_RUN - projectDeleted
+    )
+  }
   if (workspaceIds.length === 0) {
     logger.info(`[${label}] No workspaces to process`)
     return
@@ -157,8 +166,8 @@ export async function runCleanupFileVersions(payload: CleanupJobPayload): Promis
     `[${label}] Processing ${workspaceIds.length} workspaces, cutoff: ${cutoff.toISOString()}`
   )
 
-  let deleted = 0
-  let attempted = 0
+  let deleted = projectDeleted
+  let attempted = projectDeleted
   for (const group of chunkArray(workspaceIds, DEFAULT_WORKSPACE_CHUNK_SIZE)) {
     if (attempted >= MAX_VERSIONS_PER_RUN) break
     const candidates = await selectCandidateFileIds(group, cutoff, maxSuperseded)

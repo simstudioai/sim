@@ -10,6 +10,7 @@ import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 const logger = createLogger('CopilotDocCompiledStore')
 
@@ -21,15 +22,15 @@ export const COMPILED_ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
  *
  * The Python doc path keeps the SOURCE as the primary file (the agent reads and
  * edits it exactly like the JS path). The compiled binary is stored as its own
- * S3 object, content-addressed by (workspaceId, sha256(source + referenced-input identity), ext) —
+ * S3 object, content-addressed by (owner, sha256(source + referenced-input identity), ext) —
  * the hash is in the key, so source or referenced-file content changes invalidate the artifact. Every read path
  * (serve, preview, /compiled) loads the artifact for the current source hash and
  * recompiles only when it is absent. No fileId in the key means any site with
  * the source (e.g. the serve route) can find it. S3 is cheap; stale artifacts
  * are inert.
  */
-function compiledArtifactKey(
-  workspaceId: string,
+export function compiledArtifactKey(
+  owner: string | EditableFileOwner,
   source: string,
   ext: string,
   referencedInputIdentity?: string
@@ -38,20 +39,28 @@ function compiledArtifactKey(
     ? JSON.stringify({ version: 1, source, referencedInputIdentity })
     : source
   const hash = createHash('sha256').update(cacheInput, 'utf-8').digest('hex')
-  return `copilot-doc-compiled/${workspaceId}/${hash}.${ext}`
+  return typeof owner === 'string' || owner.entityType === 'workspace'
+    ? `copilot-doc-compiled/${typeof owner === 'string' ? owner : owner.entityId}/${hash}.${ext}`
+    : `project/${owner.entityId}/compiled/${hash}.${ext}`
 }
 
-function publishedArtifactPointerKey(workspaceId: string, source: string, ext: string): string {
+function publishedArtifactPointerKey(
+  owner: string | EditableFileOwner,
+  source: string,
+  ext: string
+): string {
   const sourceHash = createHash('sha256').update(source, 'utf-8').digest('hex')
-  return publishedArtifactPointerKeyFromHash(workspaceId, sourceHash, ext)
+  return publishedArtifactPointerKeyFromHash(owner, sourceHash, ext)
 }
 
 function publishedArtifactPointerKeyFromHash(
-  workspaceId: string,
+  owner: string | EditableFileOwner,
   sourceHash: string,
   ext: string
 ): string {
-  return `copilot-doc-compiled/${workspaceId}/${sourceHash}.${ext}.published.json`
+  return typeof owner === 'string' || owner.entityType === 'workspace'
+    ? `copilot-doc-compiled/${typeof owner === 'string' ? owner : owner.entityId}/${sourceHash}.${ext}.published.json`
+    : `project/${owner.entityId}/compiled/${sourceHash}.${ext}.published.json`
 }
 
 export interface CompiledDocReadOptions {
@@ -73,7 +82,7 @@ async function loadPublishedArtifactPointer(
   try {
     encoded = await downloadFile({
       key,
-      context: 'copilot',
+      context: key.startsWith('project/') ? 'project' : 'copilot',
       maxBytes: Math.min(
         options.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
         MAX_BUFFERED_TRANSFER_BYTES
@@ -122,17 +131,17 @@ async function loadPublishedArtifactPointer(
  * that is too large would retry forever behind that.
  */
 export async function loadCompiledDoc(
-  workspaceId: string,
+  owner: string | EditableFileOwner,
   source: string,
   ext: string,
   referencedInputIdentity?: string,
   options: CompiledDocReadOptions = {}
 ): Promise<Buffer | null> {
-  const key = compiledArtifactKey(workspaceId, source, ext, referencedInputIdentity)
+  const key = compiledArtifactKey(owner, source, ext, referencedInputIdentity)
   try {
     return await downloadFile({
       key,
-      context: 'copilot',
+      context: key.startsWith('project/') ? 'project' : 'copilot',
       maxBytes: Math.min(
         options.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
         MAX_BUFFERED_TRANSFER_BYTES
@@ -152,7 +161,7 @@ export async function loadCompiledDoc(
  * files or compile arbitrary source themselves.
  */
 export async function publishCompiledDocArtifact(
-  workspaceId: string,
+  owner: string | EditableFileOwner,
   source: string,
   ext: string,
   referencedInputIdentity: string
@@ -160,7 +169,7 @@ export async function publishCompiledDocArtifact(
   if (!referencedInputIdentity) {
     throw new Error('Published compiled document identity must not be empty')
   }
-  const key = publishedArtifactPointerKey(workspaceId, source, ext)
+  const key = publishedArtifactPointerKey(owner, source, ext)
   const existing = await loadPublishedArtifactPointer(key)
   if (existing?.referencedInputIdentity === referencedInputIdentity) return
   const pointer: PublishedArtifactPointer = { version: 1, referencedInputIdentity }
@@ -169,7 +178,7 @@ export async function publishCompiledDocArtifact(
       file: Buffer.from(JSON.stringify(pointer), 'utf-8'),
       fileName: `doc.${ext}.published.json`,
       contentType: 'application/json',
-      context: 'copilot',
+      context: key.startsWith('project/') ? 'project' : 'copilot',
       customKey: key,
       preserveKey: true,
     })
@@ -241,16 +250,16 @@ export async function loadPublishedCompiledDocInputs(
 
 /** Loads an artifact previously published by an authorized compile, or null before cutover. */
 export async function loadPublishedCompiledDoc(
-  workspaceId: string,
+  owner: string | EditableFileOwner,
   source: string,
   ext: string,
   options: CompiledDocReadOptions = {}
 ): Promise<Buffer | null> {
-  const key = publishedArtifactPointerKey(workspaceId, source, ext)
+  const key = publishedArtifactPointerKey(owner, source, ext)
   const pointer = await loadPublishedArtifactPointer(key, options)
   if (!pointer) return null
   const artifact = await loadCompiledDoc(
-    workspaceId,
+    owner,
     source,
     ext,
     pointer.referencedInputIdentity,
@@ -269,25 +278,25 @@ export async function loadPublishedCompiledDoc(
  * write fail honestly so the caller (and the agent) can retry.
  */
 export async function storeCompiledDoc(
-  workspaceId: string,
+  owner: string | EditableFileOwner,
   source: string,
   ext: string,
   contentType: string,
   binary: Buffer,
   referencedInputIdentity?: string
 ): Promise<void> {
-  const key = compiledArtifactKey(workspaceId, source, ext, referencedInputIdentity)
+  const key = compiledArtifactKey(owner, source, ext, referencedInputIdentity)
   try {
     await uploadFile({
       file: binary,
       fileName: `doc.${ext}`,
       contentType,
-      context: 'copilot',
+      context: key.startsWith('project/') ? 'project' : 'copilot',
       customKey: key,
       preserveKey: true,
     })
     if (referencedInputIdentity) {
-      await publishCompiledDocArtifact(workspaceId, source, ext, referencedInputIdentity)
+      await publishCompiledDocArtifact(owner, source, ext, referencedInputIdentity)
     }
   } catch (err) {
     logger.error('Failed to store compiled doc artifact', {

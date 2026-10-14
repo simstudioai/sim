@@ -2948,6 +2948,48 @@
       "when": 1791934984604,
       "tag": "0421_copilot_messages_display_content",
       "breakpoints": true
+    },
+    {
+      "idx": 422,
+      "version": "7",
+      "when": 1791934984605,
+      "tag": "0422_file_entity_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 423,
+      "version": "7",
+      "when": 1791934984606,
+      "tag": "0423_file_folder_version_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 424,
+      "version": "7",
+      "when": 1791934984608,
+      "tag": "0424_project_file_upload_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 425,
+      "version": "7",
+      "when": 1791934984609,
+      "tag": "0425_public_share_entity_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 426,
+      "version": "7",
+      "when": 1791934984610,
+      "tag": "0426_file_search_owner_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 427,
+      "version": "7",
+      "when": 1791934984611,
+      "tag": "0427_file_workspace_binding",
+      "breakpoints": true
     }
   ]
 }

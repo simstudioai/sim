@@ -18,6 +18,9 @@ vi.mock('@/lib/knowledge/connectors/connector-error', () => ({
   getConnectorFailureDiagnostic: () => undefined,
 }))
 vi.mock('@/lib/core/outbox/handlers', () => ({ OUTBOX_HANDLER_GROUPS: [] }))
+vi.mock('@/lib/projects/files/prefix-cleanup', () => ({
+  recoverProjectStorageReconciliation: vi.fn(),
+}))
 
 import { runOutboxProcessor } from '@/lib/core/outbox/processor'
 

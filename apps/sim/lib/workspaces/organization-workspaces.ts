@@ -10,7 +10,6 @@ import {
   ensureUserInOrganizationTx,
   reapplyPaidOrgJoinBillingForExistingMemberTx,
 } from '@/lib/billing/organizations/membership'
-import { changeWorkspaceStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
@@ -352,10 +351,12 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     }
   }
 
-  await transferWorkspaceProjects(tx, ownedWorkspaceIds, organizationId)
   const now = new Date()
-  await changeWorkspaceStoragePayersInTx(
+  await transferWorkspaceProjects(
     tx,
+    ownedWorkspaceIds,
+    organizationId,
+    undefined,
     ownedWorkspaces.map((ownedWorkspace) => ({
       workspaceId: ownedWorkspace.id,
       organizationId,
@@ -494,8 +495,6 @@ export async function detachOrganizationWorkspacesTx(
     const workspaceIds = organizationWorkspaces
       .map((organizationWorkspace) => organizationWorkspace.id)
       .sort()
-    await transferWorkspaceProjects(tx, workspaceIds, null, organizationOwnerId ?? undefined)
-    await lockWorkspaceRowsForPayerChanges(tx, workspaceIds)
     const payerChanges = organizationWorkspaces.map((organizationWorkspace) => ({
       workspaceId: organizationWorkspace.id,
       organizationId: null,
@@ -506,7 +505,13 @@ export async function detachOrganizationWorkspacesTx(
       },
     }))
 
-    await changeWorkspaceStoragePayersInTx(tx, payerChanges)
+    await transferWorkspaceProjects(
+      tx,
+      workspaceIds,
+      null,
+      organizationOwnerId ?? undefined,
+      payerChanges
+    )
 
     if (workspaceIds.length === 0) return []
 

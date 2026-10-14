@@ -11,6 +11,10 @@ import {
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import {
+  billingPayerTransferMock,
+  billingPayerTransferMockFns,
+} from '@sim/testing/mocks/billing-payer-transfer.mock'
+import {
   customBlockOperationsMock,
   customBlockOperationsMockFns,
 } from '@sim/testing/mocks/custom-block-operations.mock'
@@ -50,7 +54,6 @@ const {
   findUnpublishableCustomBlocks,
   findSourceOrgCustomBlocksForWorkspace,
   cleanupSourceOrganizationArtifactsTx,
-  changeWorkspaceStoragePayerInTx,
   acquireInvitationMutationLocks,
   countPendingSeatInvitations,
   resolveSeatCapacity,
@@ -70,13 +73,16 @@ const {
   cleanupSourceOrganizationArtifactsTx: vi.fn(() =>
     Promise.resolve({ detachedPermissionGroupIds: [] })
   ),
-  changeWorkspaceStoragePayerInTx: vi.fn(),
   acquireInvitationMutationLocks: vi.fn(),
   countPendingSeatInvitations: vi.fn(() => Promise.resolve(0)),
   resolveSeatCapacity: vi.fn(() => Promise.resolve(10)),
   collectWorkspaceCredentialSummary: vi.fn(),
   getSourceOrganization: vi.fn(),
 }))
+
+const {
+  mockChangeProjectAndWorkspaceStoragePayersInTx: changeProjectAndWorkspaceStoragePayersInTx,
+} = billingPayerTransferMockFns
 
 const { mockRecordAudit: recordAudit, mockRecordAuditOnce: recordAuditOnce } = auditMockFns
 const { mockAcquireOrganizationMutationLock: acquireOrganizationMutationLock } =
@@ -124,7 +130,7 @@ const POPULATED_CREDENTIALS = {
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
-vi.mock('@/lib/billing/storage/payer-transfer', () => ({ changeWorkspaceStoragePayerInTx }))
+vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 vi.mock('@/lib/billing/validation/seat-management', () => ({
   countPendingSeatInvitations,
   planHasFixedSeatCap: vi.fn((plan: string) => plan === 'enterprise'),
@@ -253,7 +259,7 @@ beforeEach(() => {
   })
   collectWorkspaceCredentialSummary.mockResolvedValue(EMPTY_CREDENTIALS)
   getSourceOrganization.mockResolvedValue(SOURCE_ORGANIZATION)
-  changeWorkspaceStoragePayerInTx.mockResolvedValue({
+  changeProjectAndWorkspaceStoragePayersInTx.mockResolvedValue({
     billableBytes: 128,
     newPayer: { type: 'organization', id: destination.id },
     oldPayer: { type: 'user', id: personalWorkspace.billedAccountUserId },
@@ -492,7 +498,7 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(invalidateWorkspaceTableLimitsCache).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
   })
 
   it('persists a standalone operation marker atomically with a new move', async () => {
@@ -567,7 +573,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       })
     ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({ code: 'seat-capacity-exceeded' })
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
   })
 
   it('does not let a new operation ID claim a workspace moved by another operation', async () => {
@@ -643,14 +649,18 @@ describe('moveWorkspaceToOrganization retries', () => {
       durableOperationId: 'operation-1',
     })
 
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledWith(
+    expect(changeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        organizationId: destination.id,
-        expectedCurrentPayer: {
-          organizationId: 'org-source',
-          billedAccountUserId: organizationWorkspace.billedAccountUserId,
-        },
+        workspaceChanges: [
+          expect.objectContaining({
+            organizationId: destination.id,
+            expectedCurrentPayer: {
+              organizationId: 'org-source',
+              billedAccountUserId: organizationWorkspace.billedAccountUserId,
+            },
+          }),
+        ],
       })
     )
   })
@@ -661,7 +671,7 @@ describe('moveWorkspaceToOrganization retries', () => {
      * organizations get locked. When the workspace moves between that read and
      * the locked read, the attempt must abort and retry — otherwise the payer
      * transfer is fenced on an organization the workspace has already left, and
-     * `changeWorkspaceStoragePayerInTx`'s optimistic check is the only thing
+     * `changeProjectAndWorkspaceStoragePayersInTx`'s optimistic check is the only thing
      * standing between that and a corrupted storage ledger.
      *
      * First locked read reports a different organization than the pre-read, so
@@ -684,11 +694,15 @@ describe('moveWorkspaceToOrganization retries', () => {
       durableOperationId: 'operation-1',
     })
 
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledTimes(1)
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledWith(
+    expect(changeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
+    expect(changeProjectAndWorkspaceStoragePayersInTx).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        expectedCurrentPayer: expect.objectContaining({ organizationId: 'org-moved' }),
+        workspaceChanges: [
+          expect.objectContaining({
+            expectedCurrentPayer: expect.objectContaining({ organizationId: 'org-moved' }),
+          }),
+        ],
       })
     )
   })
@@ -733,7 +747,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       })
     ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({ code: 'fork-lineage-conflict' })
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
     expect(deleteCustomBlock).not.toHaveBeenCalled()
   })
 
@@ -756,7 +770,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       })
     ).rejects.toThrow(/without a durable operation id/)
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
   })
 
   it('refuses an entitlement downgrade without mutating anything', async () => {
@@ -782,7 +796,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       code: 'destination-entitlement-downgrade',
     })
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
   })
 
   it('rejects a stale batch selection when workspace ownership changed', async () => {
@@ -799,7 +813,7 @@ describe('moveWorkspaceToOrganization retries', () => {
       code: 'workspace-owner-changed',
     })
 
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
+    expect(changeProjectAndWorkspaceStoragePayersInTx).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })

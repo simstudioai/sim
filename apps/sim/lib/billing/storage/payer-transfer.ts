@@ -3,6 +3,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
   organization,
+  project,
   userStats,
   workspace,
   workspaceFiles,
@@ -10,7 +11,9 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import type { DbOrTx } from '@/lib/db/types'
+import type { ProjectStorageOwnerSnapshot } from '@/lib/billing/storage/context'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { lockProject } from '@/lib/projects/membership'
 
 const logger = createLogger('WorkspaceStoragePayerTransfer')
 
@@ -40,6 +43,23 @@ export interface ChangeWorkspaceStoragePayerResult {
   newPayer: BillingEntity
   oldPayer: BillingEntity
   repairedWorkspaceLedger: boolean
+}
+
+export interface ChangeProjectStoragePayerParams extends ProjectStorageOwnerSnapshot {
+  expectedCurrentOwner: Pick<ProjectStorageOwnerSnapshot, 'ownerId' | 'organizationId'>
+}
+
+interface ChangeProjectStoragePayerResult {
+  projectId: string
+  billableBytes: number
+  oldPayer: BillingEntity
+  newPayer: BillingEntity
+}
+
+interface RemovedProjectStorageContribution {
+  projectId: string
+  billableBytes: number
+  payer: BillingEntity
 }
 
 interface PayerStorageDelta {
@@ -376,6 +396,14 @@ export async function changeWorkspaceStoragePayersInTx(
   tx: DbOrTx,
   changes: ChangeWorkspaceStoragePayerParams[]
 ): Promise<ChangeWorkspaceStoragePayerResult[]> {
+  return changeWorkspaceStoragePayers(tx, changes, false)
+}
+
+async function changeWorkspaceStoragePayers(
+  tx: DbOrTx,
+  changes: ChangeWorkspaceStoragePayerParams[],
+  deferPayerUpdates: boolean
+): Promise<ChangeWorkspaceStoragePayerResult[]> {
   if (changes.length === 0) return []
 
   const changesByWorkspaceId = new Map(
@@ -432,75 +460,80 @@ export async function changeWorkspaceStoragePayersInTx(
     tx,
     payerChangingWorkspaceIds
   )
-  const payerUsageByKey = await lockStoragePayers(tx, payerByKey)
-  const deltaByPayerKey = new Map<string, PayerStorageDelta>()
+  if (!deferPayerUpdates) {
+    const payerUsageByKey = await lockStoragePayers(tx, payerByKey)
+    const deltaByPayerKey = new Map<string, PayerStorageDelta>()
 
-  for (const workspaceId of payerChangingWorkspaceIds) {
-    const lockedWorkspace = workspaceById.get(workspaceId)
-    const change = changesByWorkspaceId.get(workspaceId)
-    if (!lockedWorkspace || !change) continue
-    const exactBytes = exactBytesByWorkspaceId.get(workspaceId) ?? 0
-    const oldPayer = getWorkspacePayer(lockedWorkspace)
-    const newPayer = getWorkspacePayer(change)
-    const oldPayerKey = getPayerKey(oldPayer)
-    const newPayerKey = getPayerKey(newPayer)
+    for (const workspaceId of payerChangingWorkspaceIds) {
+      const lockedWorkspace = workspaceById.get(workspaceId)
+      const change = changesByWorkspaceId.get(workspaceId)
+      if (!lockedWorkspace || !change) continue
+      const exactBytes = exactBytesByWorkspaceId.get(workspaceId) ?? 0
+      const oldPayer = getWorkspacePayer(lockedWorkspace)
+      const newPayer = getWorkspacePayer(change)
+      const oldPayerKey = getPayerKey(oldPayer)
+      const newPayerKey = getPayerKey(newPayer)
 
-    if (payerUsageByKey.get(newPayerKey) === null) {
-      throw new Error(`Storage destination payer ${newPayerKey} not found`)
+      if (payerUsageByKey.get(newPayerKey) === null) {
+        throw new Error(`Storage destination payer ${newPayerKey} not found`)
+      }
+
+      const sourceDelta = deltaByPayerKey.get(oldPayerKey) ?? {
+        incomingBytes: 0,
+        outgoingBytes: 0,
+      }
+      sourceDelta.outgoingBytes += exactBytes
+      if (!Number.isSafeInteger(sourceDelta.outgoingBytes)) {
+        throw new Error(`Storage source payer ${oldPayerKey} delta exceeds the safe integer range`)
+      }
+      deltaByPayerKey.set(oldPayerKey, sourceDelta)
+
+      const destinationDelta = deltaByPayerKey.get(newPayerKey) ?? {
+        incomingBytes: 0,
+        outgoingBytes: 0,
+      }
+      destinationDelta.incomingBytes += exactBytes
+      if (!Number.isSafeInteger(destinationDelta.incomingBytes)) {
+        throw new Error(
+          `Storage destination payer ${newPayerKey} delta exceeds the safe integer range`
+        )
+      }
+      deltaByPayerKey.set(newPayerKey, destinationDelta)
     }
 
-    const sourceDelta = deltaByPayerKey.get(oldPayerKey) ?? {
-      incomingBytes: 0,
-      outgoingBytes: 0,
-    }
-    sourceDelta.outgoingBytes += exactBytes
-    if (!Number.isSafeInteger(sourceDelta.outgoingBytes)) {
-      throw new Error(`Storage source payer ${oldPayerKey} delta exceeds the safe integer range`)
-    }
-    deltaByPayerKey.set(oldPayerKey, sourceDelta)
+    const nextUsageByKey = new Map<string, number>()
+    for (const [payerKey, delta] of [...deltaByPayerKey.entries()].sort(([left], [right]) =>
+      comparePayerKeys(left, right)
+    )) {
+      const currentUsage = payerUsageByKey.get(payerKey)
+      if (currentUsage === null || currentUsage === undefined) {
+        logger.warn('Storage source payer is missing during workspace payer batch change', {
+          sourcePayer: payerKey,
+          outgoingBytes: delta.outgoingBytes,
+        })
+        continue
+      }
 
-    const destinationDelta = deltaByPayerKey.get(newPayerKey) ?? {
-      incomingBytes: 0,
-      outgoingBytes: 0,
+      const usageAfterOutgoing = Math.max(0, currentUsage - delta.outgoingBytes)
+      if (currentUsage < delta.outgoingBytes) {
+        logger.warn(
+          'Clamping drifted source storage aggregate during workspace payer batch change',
+          {
+            sourcePayer: payerKey,
+            sourceUsage: currentUsage,
+            outgoingBytes: delta.outgoingBytes,
+          }
+        )
+      }
+      const nextUsage = usageAfterOutgoing + delta.incomingBytes
+      if (!Number.isSafeInteger(nextUsage)) {
+        throw new Error(`Storage payer ${payerKey} exceeds the safe integer range`)
+      }
+      nextUsageByKey.set(payerKey, nextUsage)
     }
-    destinationDelta.incomingBytes += exactBytes
-    if (!Number.isSafeInteger(destinationDelta.incomingBytes)) {
-      throw new Error(
-        `Storage destination payer ${newPayerKey} delta exceeds the safe integer range`
-      )
-    }
-    deltaByPayerKey.set(newPayerKey, destinationDelta)
+
+    await setStoragePayerUsagesBatch(tx, payerByKey, nextUsageByKey)
   }
-
-  const nextUsageByKey = new Map<string, number>()
-  for (const [payerKey, delta] of [...deltaByPayerKey.entries()].sort(([left], [right]) =>
-    comparePayerKeys(left, right)
-  )) {
-    const currentUsage = payerUsageByKey.get(payerKey)
-    if (currentUsage === null || currentUsage === undefined) {
-      logger.warn('Storage source payer is missing during workspace payer batch change', {
-        sourcePayer: payerKey,
-        outgoingBytes: delta.outgoingBytes,
-      })
-      continue
-    }
-
-    const usageAfterOutgoing = Math.max(0, currentUsage - delta.outgoingBytes)
-    if (currentUsage < delta.outgoingBytes) {
-      logger.warn('Clamping drifted source storage aggregate during workspace payer batch change', {
-        sourcePayer: payerKey,
-        sourceUsage: currentUsage,
-        outgoingBytes: delta.outgoingBytes,
-      })
-    }
-    const nextUsage = usageAfterOutgoing + delta.incomingBytes
-    if (!Number.isSafeInteger(nextUsage)) {
-      throw new Error(`Storage payer ${payerKey} exceeds the safe integer range`)
-    }
-    nextUsageByKey.set(payerKey, nextUsage)
-  }
-
-  await setStoragePayerUsagesBatch(tx, payerByKey, nextUsageByKey)
 
   const resultsByWorkspaceId = new Map<string, ChangeWorkspaceStoragePayerResult>()
   const workspaceUpdates = workspaceIds.map((workspaceId) => {
@@ -751,4 +784,274 @@ export async function changeWorkspaceStoragePayerInTx(
     oldPayer,
     repairedWorkspaceLedger,
   }
+}
+
+/**
+ * Transfers each Project's retained current heads once and changes its owner in the same
+ * transaction. Callers acquire all affected owner locks before any payer or file locks;
+ * environment ownership changes required by Project lifecycle checks share this transaction.
+ * History is retained without an additional charge, and ownership transfers do not enforce quota.
+ */
+export async function changeProjectStoragePayersInTx(
+  tx: DbTransaction,
+  changes: readonly ChangeProjectStoragePayerParams[]
+): Promise<ChangeProjectStoragePayerResult[]> {
+  return changeProjectStoragePayers(tx, changes, false)
+}
+
+async function changeProjectStoragePayers(
+  tx: DbTransaction,
+  changes: readonly ChangeProjectStoragePayerParams[],
+  deferPayerUpdates: boolean
+): Promise<ChangeProjectStoragePayerResult[]> {
+  if (!changes.length) return []
+  const changesById = new Map(changes.map((change) => [change.projectId, change]))
+  if (changesById.size !== changes.length)
+    throw new Error('Storage payer batch contains duplicate Project IDs')
+  const projectIds = [...changesById.keys()].sort()
+  for (const id of projectIds) await lockProject(tx, id)
+  const owners = await tx
+    .select({ id: project.id, ownerId: project.ownerId, organizationId: project.organizationId })
+    .from(project)
+    .where(inArray(project.id, projectIds))
+    .orderBy(asc(project.id))
+    .for('update')
+  const ownersById = new Map(owners.map((owner) => [owner.id, owner]))
+  const resultById = new Map<string, ChangeProjectStoragePayerResult>()
+  for (const id of projectIds) {
+    const owner = ownersById.get(id)
+    const change = changesById.get(id)
+    if (!owner || !change) throw new Error(`Project ${id} not found during storage payer change`)
+    if (
+      owner.ownerId !== change.expectedCurrentOwner.ownerId ||
+      owner.organizationId !== change.expectedCurrentOwner.organizationId
+    )
+      throw new Error(`Project ${id} owner changed before the transaction lock`)
+    const oldPayer: BillingEntity = owner.organizationId
+      ? { type: 'organization', id: owner.organizationId }
+      : { type: 'user', id: owner.ownerId }
+    const newPayer: BillingEntity = change.organizationId
+      ? { type: 'organization', id: change.organizationId }
+      : { type: 'user', id: change.ownerId }
+    resultById.set(id, { projectId: id, billableBytes: 0, oldPayer, newPayer })
+  }
+  const totals = await getExactProjectStorageBytes(tx, projectIds)
+  for (const [projectId, bytes] of totals) {
+    const result = resultById.get(projectId)
+    if (!result) throw new Error('Unexpected Project storage aggregate')
+    result.billableBytes = bytes
+  }
+  if (!deferPayerUpdates) {
+    await applyPayerContributionTransfers(tx, [...resultById.values()])
+  }
+
+  for (const id of projectIds) {
+    const change = changesById.get(id)
+    if (!change) throw new Error(`Project ${id} change is missing`)
+    await tx
+      .update(project)
+      .set({
+        ownerId: change.ownerId,
+        organizationId: change.organizationId,
+        updatedAt: new Date(),
+      })
+      .where(eq(project.id, id))
+  }
+  return changes.map((change) => {
+    const result = resultById.get(change.projectId)
+    if (!result) throw new Error(`Project ${change.projectId} result is missing`)
+    return result
+  })
+}
+
+async function getExactProjectStorageBytes(tx: DbTransaction, projectIds: string[]) {
+  const bytesById = new Map<string, number>(projectIds.map((id) => [id, 0]))
+  if (!projectIds.length) return bytesById
+  const totals = await tx
+    .select({
+      projectId: workspaceFiles.projectId,
+      bytes: sql<string>`coalesce(sum(${workspaceFiles.sizeBytes}), 0)::text`,
+      invalidCount: sql<number>`count(*) FILTER (WHERE ${workspaceFiles.sizeBytes} IS NULL OR ${workspaceFiles.sizeBytes} < 0)::integer`,
+    })
+    .from(workspaceFiles)
+    .where(
+      and(eq(workspaceFiles.context, 'project'), inArray(workspaceFiles.projectId, projectIds))
+    )
+    .groupBy(workspaceFiles.projectId)
+  for (const total of totals) {
+    if (!total.projectId || total.invalidCount > 0)
+      throw new Error('Project has invalid canonical size metadata')
+    if (!bytesById.has(total.projectId)) throw new Error('Unexpected Project storage aggregate')
+    bytesById.set(total.projectId, parseExactBytes(total.bytes, 'Project file'))
+  }
+  return bytesById
+}
+
+/** Source repair clamps the entire outgoing batch before any incoming contribution is added. */
+async function applyPayerContributionTransfers(
+  tx: DbTransaction,
+  contributions: readonly {
+    billableBytes: number
+    oldPayer: BillingEntity
+    newPayer: BillingEntity | null
+  }[]
+): Promise<void> {
+  const payerByKey = new Map<string, BillingEntity>()
+  for (const { oldPayer, newPayer } of contributions) {
+    if (newPayer && getPayerKey(oldPayer) === getPayerKey(newPayer)) continue
+    payerByKey.set(getPayerKey(oldPayer), oldPayer)
+    if (newPayer) payerByKey.set(getPayerKey(newPayer), newPayer)
+  }
+  const usageByKey = await lockStoragePayers(tx, payerByKey)
+  const deltas = new Map<string, PayerStorageDelta>()
+  for (const result of contributions) {
+    const sourceKey = getPayerKey(result.oldPayer)
+    const destinationKey = result.newPayer ? getPayerKey(result.newPayer) : null
+    if (sourceKey === destinationKey) continue
+    if (destinationKey && usageByKey.get(destinationKey) == null)
+      throw new Error(`Storage destination payer ${destinationKey} not found`)
+    const source = deltas.get(sourceKey) ?? { incomingBytes: 0, outgoingBytes: 0 }
+    source.outgoingBytes += result.billableBytes
+    deltas.set(sourceKey, source)
+    if (destinationKey) {
+      const destination = deltas.get(destinationKey) ?? { incomingBytes: 0, outgoingBytes: 0 }
+      destination.incomingBytes += result.billableBytes
+      deltas.set(destinationKey, destination)
+    }
+  }
+  const nextUsageByKey = new Map<string, number>()
+  for (const [key, delta] of deltas) {
+    if (!Number.isSafeInteger(delta.incomingBytes) || !Number.isSafeInteger(delta.outgoingBytes)) {
+      throw new Error(`Storage payer ${key} delta exceeds the safe integer range`)
+    }
+    const current = usageByKey.get(key)
+    if (current == null) {
+      logger.warn('Storage source payer is missing during Project ownership transfer', {
+        payer: key,
+        outgoingBytes: delta.outgoingBytes,
+      })
+      continue
+    }
+    if (current < delta.outgoingBytes) {
+      logger.warn('Clamping drifted resource source storage aggregate', {
+        payer: key,
+        currentBytes: current,
+        outgoingBytes: delta.outgoingBytes,
+      })
+    }
+    const next = Math.max(0, current - delta.outgoingBytes) + delta.incomingBytes
+    if (!Number.isSafeInteger(next))
+      throw new Error(`Storage payer ${key} total exceeds the safe integer range`)
+    nextUsageByKey.set(key, next)
+  }
+  await setStoragePayerUsagesBatch(tx, payerByKey, nextUsageByKey)
+}
+
+/** Locks every owner, then every payer, before folding lifecycle transfers and removals once. */
+export async function changeProjectAndWorkspaceStoragePayersInTx(
+  tx: DbTransaction,
+  changes: {
+    projectChanges: readonly ChangeProjectStoragePayerParams[]
+    workspaceChanges: ChangeWorkspaceStoragePayerParams[]
+    /** The caller retires these Projects and their objects in this same transaction. */
+    projectRemovals?: readonly ProjectStorageOwnerSnapshot[]
+  }
+): Promise<{
+  projects: ChangeProjectStoragePayerResult[]
+  workspaces: ChangeWorkspaceStoragePayerResult[]
+  removedProjects: RemovedProjectStorageContribution[]
+}> {
+  const removals = changes.projectRemovals ?? []
+  const projectIds = [...changes.projectChanges, ...removals]
+    .map((change) => change.projectId)
+    .sort()
+  if (new Set(projectIds).size !== projectIds.length)
+    throw new Error('Storage lifecycle batch contains duplicate Project IDs')
+  for (const id of projectIds) await lockProject(tx, id)
+  const projects = projectIds.length
+    ? await tx
+        .select({
+          id: project.id,
+          ownerId: project.ownerId,
+          organizationId: project.organizationId,
+        })
+        .from(project)
+        .where(inArray(project.id, projectIds))
+        .orderBy(asc(project.id))
+        .for('update')
+    : []
+  const projectById = new Map(projects.map((owner) => [owner.id, owner]))
+  const workspaceIds = [
+    ...new Set(changes.workspaceChanges.map((change) => change.workspaceId)),
+  ].sort()
+  const workspaces = workspaceIds.length
+    ? await tx
+        .select({
+          id: workspace.id,
+          billedAccountUserId: workspace.billedAccountUserId,
+          organizationId: workspace.organizationId,
+        })
+        .from(workspace)
+        .where(inArray(workspace.id, workspaceIds))
+        .orderBy(asc(workspace.id))
+        .for('no key update')
+    : []
+  const workspaceById = new Map(workspaces.map((owner) => [owner.id, owner]))
+  const payerByKey = new Map<string, BillingEntity>()
+  const removedProjects: RemovedProjectStorageContribution[] = []
+  for (const removal of removals) {
+    const owner = projectById.get(removal.projectId)
+    if (
+      !owner ||
+      owner.ownerId !== removal.ownerId ||
+      owner.organizationId !== removal.organizationId
+    )
+      throw new Error(`Project ${removal.projectId} owner changed before retirement`)
+    const payer: BillingEntity = owner.organizationId
+      ? { type: 'organization', id: owner.organizationId }
+      : { type: 'user', id: owner.ownerId }
+    payerByKey.set(getPayerKey(payer), payer)
+    removedProjects.push({ projectId: removal.projectId, billableBytes: 0, payer })
+  }
+  for (const change of changes.projectChanges) {
+    const owner = projectById.get(change.projectId)
+    if (!owner) throw new Error(`Project ${change.projectId} not found during storage payer change`)
+    for (const value of [owner, change]) {
+      const payer: BillingEntity = value.organizationId
+        ? { type: 'organization', id: value.organizationId }
+        : { type: 'user', id: value.ownerId }
+      payerByKey.set(getPayerKey(payer), payer)
+    }
+  }
+  for (const change of changes.workspaceChanges) {
+    const owner = workspaceById.get(change.workspaceId)
+    if (!owner)
+      throw new Error(`Workspace ${change.workspaceId} not found during storage payer change`)
+    for (const value of [owner, change]) {
+      const payer = getWorkspacePayer(value)
+      payerByKey.set(getPayerKey(payer), payer)
+    }
+  }
+  await lockStoragePayers(tx, payerByKey)
+  const removedBytes = await getExactProjectStorageBytes(
+    tx,
+    removals.map((removal) => removal.projectId)
+  )
+  for (const removal of removedProjects) {
+    const bytes = removedBytes.get(removal.projectId)
+    if (bytes === undefined) throw new Error('Project retirement storage total is missing')
+    removal.billableBytes = bytes
+  }
+  const projectResults = await changeProjectStoragePayers(tx, changes.projectChanges, true)
+  const workspaceResults = await changeWorkspaceStoragePayers(tx, changes.workspaceChanges, true)
+  await applyPayerContributionTransfers(tx, [
+    ...projectResults,
+    ...workspaceResults,
+    ...removedProjects.map((removal) => ({
+      billableBytes: removal.billableBytes,
+      oldPayer: removal.payer,
+      newPayer: null,
+    })),
+  ])
+  return { projects: projectResults, workspaces: workspaceResults, removedProjects }
 }

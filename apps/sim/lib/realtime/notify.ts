@@ -190,13 +190,14 @@ export async function applyEditToLiveFileDoc(
   fileId: string,
   markdown: string,
   order: LiveFileDocMergeOrder = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  owner?: { entityType: 'project'; entityId: string }
 ): Promise<LiveFileDocMergeResponse> {
   const timeoutSignal = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/apply-edit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify({ fileId, markdown, version: order.version }),
+    body: JSON.stringify({ fileId, markdown, version: order.version, ...(owner ? { owner } : {}) }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   if (!response.ok) {
@@ -227,17 +228,36 @@ export async function applyEditToLiveFileDoc(
 export async function invalidateLiveFileDoc(
   fileId: string,
   version: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  owner?: { entityType: 'project'; entityId: string }
 ): Promise<void> {
   const timeoutSignal = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
   const response = await fetch(`${getSocketServerUrl()}/api/file-doc/invalidate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
-    body: JSON.stringify({ fileId, version }),
+    body: JSON.stringify({ fileId, version, ...(owner ? { owner } : {}) }),
     signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
   })
   await response.body?.cancel().catch(() => {})
   if (!response.ok) {
     throw new Error(`Live document invalidation failed with status ${response.status}`)
   }
+}
+
+/** Retire only a named Project document history, so delayed delivery cannot erase a restored file. */
+export async function retireLiveProjectFileDoc(
+  target: { projectId: string; fileId: string; retiredDocId: string; replacementDocId: string },
+  signal?: AbortSignal
+): Promise<void> {
+  const timeout = AbortSignal.timeout(APPLY_EDIT_TIMEOUT_MS)
+  // boundary-raw-fetch: The realtime relay exposes a shared-secret internal HTTP protocol.
+  const response = await fetch(`${getSocketServerUrl()}/api/file-doc/retire`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+    body: JSON.stringify(target),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  })
+  await response.body?.cancel().catch(() => {})
+  if (!response.ok)
+    throw new Error(`Project document retirement failed with status ${response.status}`)
 }

@@ -1,4 +1,7 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
   workspaceFileSecretProvenanceMock,
@@ -16,8 +19,10 @@ const hoisted = vi.hoisted(() => ({
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
-vi.mock('@/lib/workspace-files/search/repository', () => ({
-  searchWorkspaceFileIndex: hoisted.search,
+vi.mock('@/lib/projects/membership', () => projectMembershipMock)
+vi.mock('@/lib/workspace-files/search/repository', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workspace-files/search/repository')>()),
+  searchFileIndex: hoisted.search,
 }))
 vi.mock(
   '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
@@ -71,6 +76,22 @@ describe('searchWorkspaceFileContent cancellation', () => {
     expect(mocks.folders).not.toHaveBeenCalled()
     expect(mocks.search).not.toHaveBeenCalled()
   })
+  it('maps a delivery-lock timeout to a retryable orchestration error', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(
+      new Error('query failed', {
+        cause: Object.assign(new Error('lock timeout'), { code: '55P03' }),
+      })
+    )
+    await expect(
+      observeContentDelivery(cleanOnlyGate, () =>
+        searchWorkspaceFileContent.execute({
+          principal: copilotPrincipal(),
+          input,
+          request: { headers: new Headers() },
+        })
+      )
+    ).rejects.toMatchObject({ code: 'locked' })
+  })
 })
 
 /** A clipped preview cannot reliably redact a value split by the index. */
@@ -91,8 +112,14 @@ function copilotPrincipal() {
   return copilot
 }
 
+const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
 function source(fileId: string) {
-  return { identity: { fileId, key: `key-${fileId}`, context: 'workspace' as const } }
+  return {
+    identity: { fileId, key: `key-${fileId}`, contentUpdatedAt },
+    owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+    buildId: `build-${fileId}`,
+    dependencies: [],
+  }
 }
 
 function hit(fileId: string, lineNumber: number) {
@@ -101,6 +128,34 @@ function hit(fileId: string, lineNumber: number) {
 
 describe('searchWorkspaceFileContent for Chat', () => {
   beforeEach(() => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      {
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'user-1',
+      },
+    ])
+    queueTableRows(
+      schemaMock.workspaceFiles,
+      ['clean', 'refused'].map((id) => ({
+        id,
+        key: `key-${id}`,
+        context: 'workspace',
+        contentUpdatedAt,
+        secretProvenanceVersion: 1,
+        folderId: null,
+      }))
+    )
+    queueTableRows(
+      schemaMock.workspaceFileSearchRevision,
+      ['clean', 'refused'].map((fileId) => ({
+        fileId,
+        buildId: `build-${fileId}`,
+        status: 'ready',
+      }))
+    )
     mocks.load.mockResolvedValue({
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,
@@ -108,14 +163,12 @@ describe('searchWorkspaceFileContent for Chat', () => {
       billedAccountUserId: 'user-1',
     })
     mocks.permission.mockResolvedValue('read')
-    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByIdentity.mockImplementation(
-      async (_workspaceId: string, identities: readonly { fileId: string }[]) =>
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockImplementation(
+      async (_tx: unknown, identities: readonly { id: string }[]) =>
         new Map(
           identities.map((identity) => [
-            identity.fileId,
-            identity.fileId === 'refused'
-              ? { status: 'unknown' }
-              : { status: 'exact', entries: [] },
+            identity.id,
+            identity.id === 'refused' ? { status: 'unknown' } : { status: 'exact', entries: [] },
           ])
         )
     )
@@ -164,7 +217,18 @@ describe('searchWorkspaceFileContent for Chat', () => {
     expect(found.results[0].text).toMatch(/preview withheld/i)
   })
 
-  it("leaves a person's search limit and result untouched", async () => {
+  it("preserves a person's point-in-time results after matching rows change", async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      {
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'user-1',
+      },
+    ])
+    queueTableRows(schemaMock.workspaceFiles, [])
+    queueTableRows(schemaMock.workspaceFileSearchRevision, [])
     const raw = {
       results: [hit('refused', 1)],
       count: 1,
@@ -176,6 +240,10 @@ describe('searchWorkspaceFileContent for Chat', () => {
     mocks.search.mockResolvedValue(raw)
     const found = await searchWorkspaceFileContent.execute({ principal, input })
     expect(mocks.search.mock.calls[0]?.[0].maxResults).toBe(input.maxResults)
-    expect(found).toBe(raw)
+    expect(found).toMatchObject({
+      results: raw.results,
+      count: raw.count,
+      truncated: raw.truncated,
+    })
   })
 })

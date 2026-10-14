@@ -4,6 +4,11 @@ import { generateId } from '@sim/utils/id'
 import { compareStrings, truncateAtCodePoint } from '@sim/utils/string'
 import { and, asc, eq, inArray, isNull, notInArray, type SQL, sql } from 'drizzle-orm'
 import {
+  type ChangeProjectStoragePayerParams,
+  type ChangeWorkspaceStoragePayerParams,
+  changeProjectAndWorkspaceStoragePayersInTx,
+} from '@/lib/billing/storage/payer-transfer'
+import {
   acquireAdvisoryXactLock,
   acquireAdvisoryXactLocks,
   tryAcquireAdvisoryXactLocks,
@@ -280,7 +285,8 @@ export async function transferWorkspaceProjects(
   tx: DbTransaction,
   workspaceIds: string[],
   organizationId: string | null,
-  ownerId?: string
+  ownerId?: string,
+  workspacePayerChanges: ChangeWorkspaceStoragePayerParams[] = []
 ): Promise<void> {
   if (!workspaceIds.length) return
   await lockProjectBackfillWrites(tx, workspaceIds)
@@ -293,6 +299,8 @@ export async function transferWorkspaceProjects(
   const projectIds = owners.map((row) => row.id)
   await tryLockProjects(tx, projectIds)
   const selected = new Set(workspaceIds)
+  if (workspacePayerChanges.some((change) => !selected.has(change.workspaceId)))
+    throw new Error('Workspace payer changes must belong to the selected Project environments')
   const members = await tx
     .select({ id: workspace.id })
     .from(workspace)
@@ -303,9 +311,11 @@ export async function transferWorkspaceProjects(
     )
   }
   const current = await tx
-    .select({ id: project.id, organizationId: project.organizationId })
+    .select({ id: project.id, organizationId: project.organizationId, ownerId: project.ownerId })
     .from(project)
     .where(inArray(project.id, projectIds))
+  if (current.length !== projectIds.length)
+    throw new ProjectConflictError('Project ownership changed; retry')
   const leavingByOrganization = new Map<string, string[]>()
   for (const row of current) {
     if (!row.organizationId || row.organizationId === organizationId) continue
@@ -323,10 +333,16 @@ export async function transferWorkspaceProjects(
         AND config->'deniedPartialAccessProjectIssues' ?| ${ids}
     `)
   }
-  await tx
-    .update(project)
-    .set({ organizationId, ownerId, updatedAt: new Date() })
-    .where(inArray(project.id, projectIds))
+  const projectChanges: ChangeProjectStoragePayerParams[] = current.map((row) => ({
+    projectId: row.id,
+    organizationId,
+    ownerId: ownerId ?? row.ownerId,
+    expectedCurrentOwner: { ownerId: row.ownerId, organizationId: row.organizationId },
+  }))
+  await changeProjectAndWorkspaceStoragePayersInTx(tx, {
+    projectChanges,
+    workspaceChanges: workspacePayerChanges,
+  })
 }
 
 /**
@@ -364,7 +380,7 @@ export async function reassignOrganizationProjects(
  * Existing ownership paths can hold workspace rows first; refuse contention instead
  * of inverting locks.
  */
-async function tryLockProjects(tx: DbTransaction, projectIds: string[]): Promise<void> {
+export async function tryLockProjects(tx: DbTransaction, projectIds: string[]): Promise<void> {
   const keys = projectIds.map(projectLockKey)
   if (!(await tryAcquireAdvisoryXactLocks(tx, 'project', keys)))
     throw new ProjectConflictError('Project is changing; retry the ownership change')

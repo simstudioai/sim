@@ -22,22 +22,19 @@ export async function handoffFileCreatorsInTx(
     .orderBy(asc(workspaceFiles.id))
     .for('update')
   for (const file of files) {
-    if (file.context !== 'workspace' || !file.workspaceId) continue
+    if (file.context !== 'workspace' && file.context !== 'project') continue
     const head = await loadWorkspaceFileVersionHead(file.id, tx)
     if (isVersionHeadCurrent(head, file)) continue
-    const provenance = await snapshotWorkspaceFileSecretProvenanceInTx(
-      tx,
-      file.id,
-      file.contentUpdatedAt,
-      file.secretProvenanceVersion
-    )
-    await materializeWorkspaceFileVersionInTx(
-      tx,
-      { ...file, workspaceId: file.workspaceId },
-      head,
-      provenance,
-      new Date()
-    )
+    const provenance =
+      file.projectId && file.secretProvenanceVersion === null
+        ? { status: 'unknown' as const, entries: [] }
+        : await snapshotWorkspaceFileSecretProvenanceInTx(
+            tx,
+            file.id,
+            file.contentUpdatedAt,
+            file.secretProvenanceVersion
+          )
+    await materializeWorkspaceFileVersionInTx(tx, file, head, provenance, new Date())
   }
   if (!files.length) return
   await tx

@@ -358,7 +358,7 @@ export function assertSingleQuickBooksFile(file: RawFileInput | undefined): RawF
   return file
 }
 
-export const QUICKBOOKS_TEMP_URL_MAX_BYTES = 64 * 1024
+export const QUICKBOOKS_URL_MAX_BYTES = 64 * 1024
 export const QUICKBOOKS_DOCUMENT_JSON_MAX_BYTES = QUICKBOOKS_MAX_RESPONSE_BYTES
 
 export async function getQuickBooksDocumentError(
@@ -368,7 +368,7 @@ export async function getQuickBooksDocumentError(
   let detail = ''
   try {
     const text = await readResponseTextWithLimit(response, {
-      maxBytes: QUICKBOOKS_TEMP_URL_MAX_BYTES,
+      maxBytes: QUICKBOOKS_URL_MAX_BYTES,
       label: 'QuickBooks document error response',
       signal,
     })

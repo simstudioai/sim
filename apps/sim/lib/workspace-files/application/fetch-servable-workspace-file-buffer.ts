@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -6,6 +7,7 @@ import {
   downloadServableFileFromStorage,
   type ServableFile,
 } from '@/lib/uploads/utils/file-utils.server'
+import { markFileSearchArtifactReadyInTx } from '@/lib/workspace-files/search/artifact-ready'
 
 const logger = createLogger('FetchServableWorkspaceFileBuffer')
 
@@ -19,7 +21,7 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
   filePrincipal: Principal,
   options: { maxBytes: number; signal?: AbortSignal; requestId?: string }
 ): Promise<ServableFile> {
-  return downloadServableFileFromStorage(
+  const result = await downloadServableFileFromStorage(
     {
       id: fileRecord.id,
       name: fileRecord.name,
@@ -36,4 +38,33 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
       filePrincipal,
     }
   )
+  const artifactKey = result.artifactKey
+  if (
+    artifactKey &&
+    result.contributingFiles?.every(
+      (file) => file.contentUpdatedAt && ['workspace', 'test', 'changelog'].includes(file.context)
+    ) !== false
+  ) {
+    await db.transaction((tx) =>
+      markFileSearchArtifactReadyInTx(tx, {
+        owner: { entityType: 'workspace', entityId: fileRecord.workspaceId },
+        file: {
+          fileId: fileRecord.id,
+          key: fileRecord.key,
+          contentUpdatedAt: fileRecord.contentUpdatedAt ?? fileRecord.updatedAt,
+        },
+        dependencies: (result.contributingFiles ?? []).map((file) => {
+          if (!file.contentUpdatedAt)
+            throw new Error('Artifact input has no canonical workspace revision')
+          return {
+            fileId: file.fileId,
+            key: file.key,
+            sourceContentUpdatedAt: file.contentUpdatedAt,
+          }
+        }),
+        artifactKey,
+      })
+    )
+  }
+  return result
 }

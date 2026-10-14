@@ -445,6 +445,7 @@ async function markWorkspaceFileSecretProvenanceTrackedInTx(
           'workspace',
           'mothership',
           'execution',
+          'project',
           ...OWNED_FILE_CONTEXTS,
         ]),
         or(
@@ -1121,7 +1122,12 @@ export async function getBoundWorkspaceFileSecretProvenanceByMetadata(
         continue
       }
       if (row.secretProvenanceVersion === null) {
-        result.set(row.id, EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE)
+        result.set(
+          row.id,
+          row.context === 'project'
+            ? { status: 'unknown' }
+            : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+        )
         continue
       }
       if (
@@ -1363,7 +1369,8 @@ export async function filterModelSafeWorkspaceFileAttachments<
     if (
       row.context !== 'workspace' &&
       row.context !== 'mothership' &&
-      row.context !== 'execution'
+      row.context !== 'execution' &&
+      row.context !== 'project'
     ) {
       return true
     }
@@ -1392,7 +1399,7 @@ function classifyModelSafeWorkspaceFileRow(
   workspaceId?: string
 ): ModelSafeWorkspaceFileClassification {
   if (workspaceId && row.workspaceId !== workspaceId) return 'unsafe'
-  if (row.secretProvenanceVersion === null) return 'safe'
+  if (row.secretProvenanceVersion === null) return row.context === 'project' ? 'unsafe' : 'safe'
   if (row.secretProvenanceVersion !== 1) return 'unsafe'
   const bindingIsCurrent =
     row.provenanceContentUpdatedAt?.getTime() === row.fileContentUpdatedAt.getTime()
@@ -1492,7 +1499,8 @@ export async function areModelSafeWorkspaceFileKeys(
     if (
       row.context !== 'workspace' &&
       row.context !== 'mothership' &&
-      row.context !== 'execution'
+      row.context !== 'execution' &&
+      row.context !== 'project'
     ) {
       continue
     }

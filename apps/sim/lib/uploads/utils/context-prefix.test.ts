@@ -3,7 +3,13 @@ import { inferContextFromKey, tryInferContextFromKey } from '@/lib/uploads/utils
 
 describe('tryInferContextFromKey', () => {
   it('classifies a known prefix the same way the throwing form does', () => {
-    for (const key of ['workspace/a/b.txt', 'execution/a/b/c/d.bin', 'kb/x', 'logs/y']) {
+    for (const key of [
+      'project/a/b.txt',
+      'workspace/a/b.txt',
+      'execution/a/b/c/d.bin',
+      'kb/x',
+      'logs/y',
+    ]) {
       expect(tryInferContextFromKey(key)).toBe(inferContextFromKey(key))
     }
   })

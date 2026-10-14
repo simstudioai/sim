@@ -39,6 +39,7 @@ export async function resolveStoredFileProvenanceSource(
   const metadata = await getFileMetadataByKey(file.key, undefined, { includeDeleted: true })
   if (!metadata) return undefined
   if (
+    !metadata.userId ||
     (metadata.context !== 'workspace' &&
       metadata.context !== 'mothership' &&
       metadata.context !== 'execution') ||

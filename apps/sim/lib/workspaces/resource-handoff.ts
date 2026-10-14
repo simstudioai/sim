@@ -15,6 +15,10 @@ import {
 import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import {
+  handoffProjectsForWorkspaceDepartureTx,
+  lockProjectsForResourceDepartureTx,
+} from '@/lib/projects/resource-handoff'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import {
   findWorkspaceBillingReplacement,
@@ -22,7 +26,13 @@ import {
 } from '@/lib/workspaces/utils'
 
 /** Private chat attachments keep their user's lifecycle even when stored under a workspace key. */
-const SHARED_FILE_CONTEXTS = ['workspace', 'knowledge-base', 'execution', 'chat'] as const
+const SHARED_FILE_CONTEXTS = [
+  'workspace',
+  'knowledge-base',
+  'execution',
+  'chat',
+  'workspace-logos',
+] as const
 
 /** Finds surviving containers from ownership references, including departures predating handoff. */
 export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, userId: string) {
@@ -33,7 +43,7 @@ export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, us
       UNION ALL SELECT ${userTableDefinitions.workspaceId} FROM ${userTableDefinitions} WHERE ${userTableDefinitions.createdBy} = ${userId}
       UNION ALL SELECT ${knowledgeBase.workspaceId} FROM ${knowledgeBase} WHERE ${knowledgeBase.userId} = ${userId}
       UNION ALL SELECT ${workspaceFiles.workspaceId} FROM ${workspaceFiles}
-        WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.context} IN ('workspace', 'knowledge-base', 'execution', 'chat') AND ${workspaceFiles.chatId} IS NULL
+        WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.context} IN ('workspace', 'knowledge-base', 'execution', 'chat', 'workspace-logos') AND ${workspaceFiles.chatId} IS NULL
       UNION ALL SELECT ${workspaceFile.workspaceId} FROM ${workspaceFile} WHERE ${workspaceFile.uploadedBy} = ${userId}
       UNION ALL SELECT ${workflowMcpServer.workspaceId} FROM ${workflowMcpServer}
         WHERE ${workflowMcpServer.createdBy} = ${userId} AND NOT ${workflowMcpServer.isPublic}
@@ -140,6 +150,7 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
 }): Promise<{ unresolved: string[] }> {
   const ids = [...new Set(workspaceIds)].sort()
   if (!ids.length) return { unresolved: [] }
+  await lockProjectsForResourceDepartureTx(tx, ids)
   const rows = await tx
     .select({
       id: workspace.id,
@@ -162,6 +173,7 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
       unresolved.push(row.id)
   }
   if (unresolved.length) return { unresolved }
+  await handoffProjectsForWorkspaceDepartureTx(tx, departingUserId, ids)
 
   for (const row of rows) {
     if (!owned.has(row.id)) continue
