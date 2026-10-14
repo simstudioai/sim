@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import {
+  LANDING_INTEGRATION_SLUGS,
+  LANDING_SLUG_BY_DOCS_SLUG,
+} from '@sim/deployment-config/integration-docs'
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -104,7 +108,10 @@ async function readSitemap(): Promise<Map<string, string | undefined>> {
 }
 
 async function run() {
-  const sitemap = await readSitemap()
+  let sitemap = new Map<string, string | undefined>()
+  await check('sitemap.xml is served', async () => {
+    sitemap = await readSitemap()
+  })
   const sitemapPaths = [...sitemap.keys()]
   const firstPath = (pattern: RegExp) => {
     const path = sitemapPaths.find((candidate) => pattern.test(candidate))
@@ -112,7 +119,7 @@ async function run() {
     return path
   }
 
-  await check('unknown slugs return 404 with a single noindex directive', async () => {
+  await check('unknown slugs return 404 and every robots directive is noindex', async () => {
     const unknown = [
       '/integrations/not-a-real-integration',
       '/library/not-a-real-post',
@@ -126,7 +133,8 @@ async function run() {
     for (const path of unknown) {
       const { status, body } = await get(path)
       const robots = robotsDirectives(body)
-      const indexable = robots.some((directive) => !directive.includes('noindex'))
+      const indexable =
+        robots.length === 0 || robots.some((directive) => !/\bnoindex\b/.test(directive))
       if (status !== 404 || indexable) {
         failures.push(`${path} → ${status}, robots ${JSON.stringify(robots)}`)
       }
@@ -154,10 +162,17 @@ async function run() {
     assert.deepEqual(failures, [])
   })
 
-  await check('underscore integration slugs redirect to the hyphenated page', async () => {
-    const { status, location } = await get('/integrations/google_drive')
-    assert.equal(status, 308)
-    assert.equal(location && new URL(location, baseUrl).pathname, '/integrations/google-drive')
+  await check('docs integration slugs redirect to their landing page', async () => {
+    const failures: string[] = []
+    for (const [docsSlug, landingSlug] of LANDING_SLUG_BY_DOCS_SLUG) {
+      if (docsSlug === landingSlug || LANDING_INTEGRATION_SLUGS.has(docsSlug)) continue
+      const { status, location } = await get(`/integrations/${docsSlug}`)
+      const target = location ? new URL(location, baseUrl).pathname : null
+      if (status !== 308 || target !== `/integrations/${landingSlug}`) {
+        failures.push(`${docsSlug} → ${status} ${target}`)
+      }
+    }
+    assert.deepEqual(failures, [])
   })
 
   await check('integration sitemap dates are per integration, not one catalog date', async () => {
@@ -235,7 +250,11 @@ async function run() {
     }
     assert.deepEqual(missing, [])
   })
+}
 
+try {
+  await run()
+} finally {
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(
     reportPath,
@@ -252,8 +271,6 @@ async function run() {
     )
   )
 }
-
-await run()
 const failures = checks.filter((result) => result.status === 'failed')
 logger.info('Landing SEO checks complete', {
   passed: checks.length - failures.length,

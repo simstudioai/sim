@@ -1,5 +1,6 @@
 import type React from 'react'
 import { Children, cloneElement, isValidElement } from 'react'
+import { LANDING_SLUG_BY_DOCS_SLUG } from '@sim/deployment-config/integration-docs'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
 import { highlight } from 'fumadocs-core/highlight'
 import { findNeighbour } from 'fumadocs-core/page-tree'
@@ -25,16 +26,20 @@ import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 
 const BASE_URL = DOCS_BASE_URL
 
-/**
- * Landing page for each docs integration page. Docs pages are keyed by block type without its
- * version suffix (`gmail_v2` → `/integrations/gmail`); landing slugs are hyphenated catalog slugs.
- */
-const INTEGRATION_LANDING_PAGES = new Map(
-  INTEGRATION_METADATA.map((integration) => [
-    integration.type.replace(/_v\d+$/, ''),
-    { name: integration.name, url: `${SIM_SITE_URL}/integrations/${integration.slug}` },
-  ])
+const INTEGRATION_NAME_BY_LANDING_SLUG = new Map(
+  INTEGRATION_METADATA.map((integration) => [integration.slug, integration.name])
 )
+
+/** The landing page a docs integration page (`/integrations/<docs slug>`) links to, if any. */
+function getIntegrationLandingPage(slug: string[] | undefined) {
+  if (slug?.length !== 2 || slug[0] !== 'integrations') return undefined
+  const landingSlug = LANDING_SLUG_BY_DOCS_SLUG.get(slug[1])
+  if (!landingSlug) return undefined
+  return {
+    name: INTEGRATION_NAME_BY_LANDING_SLUG.get(landingSlug) ?? landingSlug,
+    url: `${SIM_SITE_URL}/integrations/${landingSlug}`,
+  }
+}
 
 /**
  * Most pages close with a `## Next` / `## Next steps` grid of onward links.
@@ -134,10 +139,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
-  const integrationLandingPage =
-    slug?.length === 2 && slug[0] === 'integrations'
-      ? INTEGRATION_LANDING_PAGES.get(slug[1])
-      : undefined
+  const integrationLandingPage = getIntegrationLandingPage(slug)
   const isCli = slug?.[0] === 'cli'
   const isMcp = slug?.[0] === 'mcp'
 

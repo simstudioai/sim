@@ -13,14 +13,21 @@ import { getErrorMessage } from '@sim/utils/errors'
 
 const logger = createLogger('DocsGitHistory')
 
-function git(args: string[]): string {
-  return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+/** Bounds the fetch so a stalled remote costs at most this much of the deployment, never all of it. */
+const FETCH_TIMEOUT_MS = 120_000
+
+function git(args: string[], timeout?: number): string {
+  return execFileSync('git', args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout,
+  }).trim()
 }
 
 if (process.env.VERCEL) {
   try {
     if (git(['rev-parse', '--is-shallow-repository']) === 'true') {
-      git(['fetch', '--unshallow', '--filter=blob:none', '--no-tags', 'origin'])
+      git(['fetch', '--unshallow', '--filter=blob:none', '--no-tags', 'origin'], FETCH_TIMEOUT_MS)
       logger.info('Fetched full commit history for docs last-modified dates')
     }
   } catch (error) {

@@ -1,3 +1,7 @@
+import {
+  LANDING_INTEGRATION_SLUGS,
+  LANDING_SLUG_BY_DOCS_SLUG,
+} from '@sim/deployment-config/integration-docs'
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -328,15 +332,17 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
 }
 
 /**
- * Landing integration slugs are hyphenated (`google-drive`) while docs slugs use underscores
- * (`google_drive`), so underscore URLs reach the landing site through hand-written and
- * search-indexed links. Redirect them to the hyphenated page instead of serving a 404.
+ * Docs integration slugs (`google_drive`, `microsoft_ad`) are not landing slugs (`google-drive`,
+ * `azure-ad`), yet reach the landing site through hand-written and search-indexed links. Redirect a
+ * known docs slug to its landing page through the catalog mapping instead of serving a 404.
  */
 function handleIntegrationSlugRedirect(request: NextRequest): NextResponse | null {
-  const slug = /^\/integrations\/([^/]*_[^/]*)\/?$/.exec(request.nextUrl.pathname)?.[1]
-  if (!slug) return null
+  const slug = /^\/integrations\/([^/]+)\/?$/.exec(request.nextUrl.pathname)?.[1]
+  if (!slug || LANDING_INTEGRATION_SLUGS.has(slug)) return null
+  const landingSlug = LANDING_SLUG_BY_DOCS_SLUG.get(slug)
+  if (!landingSlug) return null
   const url = request.nextUrl.clone()
-  url.pathname = `/integrations/${slug.replace(/_/g, '-')}`
+  url.pathname = `/integrations/${landingSlug}`
   return NextResponse.redirect(url, 308)
 }
 
@@ -409,7 +415,7 @@ export function proxy(request: NextRequest) {
   }
 
   const integrationSlugRedirect = handleIntegrationSlugRedirect(request)
-  if (integrationSlugRedirect) return integrationSlugRedirect
+  if (integrationSlugRedirect) return applyIndexingPolicy(request, integrationSlugRedirect)
 
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
   if (invitationRedirect) return applyIndexingPolicy(request, invitationRedirect)

@@ -18,6 +18,10 @@
       "types": "./src/integration-availability.ts",
       "default": "./src/integration-availability.ts"
     },
+    "./integration-docs": {
+      "types": "./src/integration-docs.ts",
+      "default": "./src/integration-docs.ts"
+    },
     "./integration-metadata": {
       "types": "./src/integration-metadata.ts",
       "default": "./src/integration-metadata.ts"
