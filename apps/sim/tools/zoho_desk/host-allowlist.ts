@@ -104,14 +104,20 @@ const ZOHO_DESK_BASE_URL_MARKER = /__zoho_domain__:([^\s,]+)/
 
 /**
  * Read the persisted data-center Desk base out of an OAuth credential's scope
- * string, returning it only when it is a token-safe https Zoho host. Callers
- * that get `undefined` fall back to {@link DEFAULT_ZOHO_DESK_BASE} rather than
- * letting an unrecognized value receive the OAuth token.
+ * string, returning it only when {@link safeZohoDeskBase} accepts it.
  */
 export function extractZohoDeskBaseFromScope(scope: string | null | undefined): string | undefined {
   if (typeof scope !== 'string') return undefined
-  const candidate = scope.match(ZOHO_DESK_BASE_URL_MARKER)?.[1]
-  if (!candidate) return undefined
+  return safeZohoDeskBase(scope.match(ZOHO_DESK_BASE_URL_MARKER)?.[1])
+}
+
+/**
+ * Return a Desk base URL (trailing slashes stripped) only when it is an https
+ * Zoho host, so a stored or injected value can receive the OAuth token. Callers
+ * that get `undefined` fall back to {@link DEFAULT_ZOHO_DESK_BASE}.
+ */
+export function safeZohoDeskBase(candidate: unknown): string | undefined {
+  if (typeof candidate !== 'string' || !candidate) return undefined
   try {
     const url = new URL(candidate)
     if (url.protocol !== 'https:' || !isZohoHost(url.hostname)) return undefined

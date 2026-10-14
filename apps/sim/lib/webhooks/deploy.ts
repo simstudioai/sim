@@ -766,6 +766,20 @@ async function configurePollingIfNeeded(
   return null
 }
 
+/**
+ * 400 when the provider rejected the trigger's configuration, so the deploy
+ * fails terminally instead of retrying a create that cannot succeed. Stable
+ * registration reports candidate failures as an `AggregateError`, which is
+ * permanent only when every candidate failed that way.
+ */
+function webhookCreationFailureStatus(error: unknown): number {
+  const failures = error instanceof AggregateError ? error.errors : [error]
+  const permanent =
+    failures.length > 0 &&
+    failures.every((failure) => failure instanceof WebhookDeploymentConfigurationError)
+  return permanent ? 400 : 500
+}
+
 export interface PrepareStableTriggerWebhooksInput {
   request: NextRequest
   workflowId: string
@@ -850,10 +864,7 @@ export async function prepareStableTriggerWebhooksForDeploy({
       success: false,
       error: {
         message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
-        // Propagate a provider-attached status (e.g. Zoho's 4xx edition/validation
-        // failures) so the deploy outbox fails terminally instead of retrying,
-        // matching the legacy save path's status-aware mapping below.
-        status: (error as { status?: number })?.status ?? 500,
+        status: webhookCreationFailureStatus(error),
       },
     }
   }
@@ -1133,11 +1144,8 @@ export async function saveTriggerWebhooksForDeploy({
             (cleanupFailure as Error)?.message ||
             (error as Error)?.message ||
             'Failed to create external subscription',
-          // Propagate a 4xx from the provider handler (e.g. a permanent Zoho
-          // config/permission/invalid-data failure) so the outbox classifies it
-          // as non-retryable; anything else (network, provider 5xx) stays 500 and
-          // retryable. cleanupFailure never overrides the root cause's status.
-          status: (error as { status?: number })?.status ?? 500,
+          // cleanupFailure never overrides the root cause's status.
+          status: webhookCreationFailureStatus(error),
         },
       }
     }
