@@ -47,8 +47,12 @@ class ClaimFaultProxy {
   private pipe(client: Socket, upstream: URL): void {
     const server = tcpConnect(Number(upstream.port || 6379), upstream.hostname)
     let pendingFault: ClaimFault | undefined
+    // Keeps the stream's tail so a marker that TCP split across chunks still matches.
+    let tail = ''
     client.on('data', (chunk) => {
-      if (chunk.includes(CLAIM_SCRIPT_MARKER)) {
+      const seen = tail + chunk.toString('latin1')
+      tail = seen.slice(-(CLAIM_SCRIPT_MARKER.length - 1))
+      if (seen.includes(CLAIM_SCRIPT_MARKER)) {
         this.claimsForwarded++
         if (this.armed) {
           pendingFault = this.armed
@@ -86,8 +90,9 @@ describe.runIf(Boolean(redisUrl))('Redis idempotency claim with a lost or late r
   const proxy = new ClaimFaultProxy()
   let redis: Redis
   let direct: Redis
+  const namespace = `claim-faults-${generateId()}`
   const service = new IdempotencyService({
-    namespace: `claim-faults-${generateId()}`,
+    namespace,
     inProgressTtlSeconds: 60 * 60 * 2,
     storeResultBody: false,
     forceStorage: 'redis',
@@ -116,6 +121,8 @@ describe.runIf(Boolean(redisUrl))('Redis idempotency claim with a lost or late r
 
   afterAll(async () => {
     redis?.disconnect()
+    const keys = (await direct?.keys(`idempotency:${namespace}:*`)) ?? []
+    if (keys.length > 0) await direct.del(...keys)
     await direct?.quit()
     await proxy.stop()
   })
@@ -179,15 +186,25 @@ describe.runIf(Boolean(redisUrl))('Redis idempotency claim with a lost or late r
 
   it("still skips a delivery whose key is another holder's live claim", async () => {
     const identifier = generateId()
+    let holderStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      holderStarted = resolve
+    })
+    let releaseHolder!: () => void
+    const released = new Promise<void>((resolve) => {
+      releaseHolder = resolve
+    })
     const holder = vi.fn(async () => {
-      await sleep(COMMAND_TIMEOUT_MS)
+      holderStarted()
+      await released
       return 'holder'
     })
     const duplicate = vi.fn(async () => 'duplicate')
 
     const running = service.executeOrSkipInProgress('generic', identifier, holder)
-    await sleep(50)
+    await started
     const second = await service.executeOrSkipInProgress('generic', identifier, duplicate)
+    releaseHolder()
 
     expect(second).toEqual({ outcome: 'in-progress' })
     expect(duplicate).not.toHaveBeenCalled()
