@@ -826,7 +826,7 @@ Lists submitted interview feedback, optionally for one application, with paginat
 |   ↳ `submittedAt` | string | Submission timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
 | `nextCursor` | string | Next page cursor |
-| `nextSyncCursor` | string | Next incremental sync token |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Application History
 
@@ -882,7 +882,7 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | `applications` | array | List of applications |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Archive Reasons
 
@@ -929,7 +929,7 @@ Lists all candidate tags configured in Ashby.
 |   ↳ `isArchived` | boolean | Whether the tag is archived |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Sync token to use for incremental updates in future requests |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Candidates
 
@@ -953,7 +953,7 @@ Lists all candidates in an Ashby organization with cursor-based pagination.
 | `candidates` | array | List of candidates |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Custom Fields
 
@@ -987,7 +987,7 @@ Lists all custom field definitions configured in Ashby.
 |     ↳ `isArchived` | boolean | Whether archived |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Departments
 
@@ -1018,7 +1018,7 @@ Lists all departments in Ashby.
 |   ↳ `extraData` | json | Free-form key-value metadata |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Interview Schedules
 
@@ -1071,7 +1071,7 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 |     ↳ `hasSubmittedFeedback` | boolean | Whether any feedback has been submitted |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque token for the next incremental sync |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Interview Plans
 
@@ -1099,7 +1099,7 @@ Lists Ashby interview plans, including optional archived plans and incremental c
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
 | `nextCursor` | string | Next page cursor |
-| `nextSyncCursor` | string | Next incremental sync token |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Interview Stages
 
@@ -1192,7 +1192,7 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 | `jobs` | array | List of jobs |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Ashby's syncToken for the next incremental run, returned only once the last page is drained. Named as a cursor because that is what it is - an opaque resumption marker, not a credential - so it stays readable in block output alongside nextCursor. |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Locations
 
@@ -1231,7 +1231,7 @@ Lists all locations configured in Ashby.
 |   ↳ `extraData` | json | Free-form key-value metadata |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Notes
 
@@ -1288,7 +1288,7 @@ Lists all offers with their latest version in an Ashby organization.
 | `offers` | array | List of offers |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Openings
 
@@ -1310,7 +1310,7 @@ Lists all openings in Ashby with pagination.
 | --------- | ---- | ----------- |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque token for the next incremental sync |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby List Sources
 
@@ -1357,7 +1357,7 @@ Lists all users in Ashby with pagination.
 | `users` | array | List of users |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
-| `nextSyncCursor` | string | Opaque token for the next incremental sync |
+| `nextSyncCursor` | string | nextSyncCursor output from the tool |
 
 ### Ashby Remove Candidate Tag
 

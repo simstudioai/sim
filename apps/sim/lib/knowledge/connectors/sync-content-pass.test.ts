@@ -266,6 +266,7 @@ describe('completed listing removal counts', () => {
       docsUnchanged: 0,
       docsSkipped: 0,
       docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
     }
     const pass = await runConnectorContentPass({
       connectorId: 'connector',
