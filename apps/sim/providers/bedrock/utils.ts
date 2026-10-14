@@ -95,6 +95,7 @@ export function createReadableStreamFromBedrockStream(
   let fullContent = ''
   let inputTokens = 0
   let outputTokens = 0
+  let finishReason: string | undefined
   let cacheReadInputTokens: number | undefined
   let cacheWriteInputTokens: number | undefined
   let cacheDetails: TokenUsage['cacheDetails']
@@ -116,6 +117,9 @@ export function createReadableStreamFromBedrockStream(
           const event = next.value
           const streamError = getBedrockStreamError(event)
           if (streamError) throw streamError
+          if (event.messageStop?.stopReason) {
+            finishReason = event.messageStop.stopReason
+          }
           const delta = event.contentBlockDelta?.delta
           const index = event.contentBlockDelta?.contentBlockIndex ?? 0
           if (delta?.reasoningContent) {
@@ -182,6 +186,9 @@ export function createReadableStreamFromBedrockStream(
                 .map(([, block]) => block),
             }
           )
+        }
+        if (finishReason) {
+          controller.enqueue({ type: 'turn_end', turn: 'final', finishReason })
         }
 
         controller.close()

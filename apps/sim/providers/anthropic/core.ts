@@ -557,7 +557,7 @@ export async function executeAnthropicProviderRequest(
       createStream: ({ output, finalizeTiming }) =>
         createReadableStreamFromAnthropicStream(
           streamResponse as AsyncIterable<RawMessageStreamEvent>,
-          async ({ content, usage, thinking, nativeContent }) => {
+          async ({ content, usage, thinking, finishReason, nativeContent }) => {
             await captureProviderConversationStep(
               request,
               'anthropic',
@@ -581,6 +581,9 @@ export async function executeAnthropicProviderRequest(
               }
               if (thinking) {
                 segment.thinkingContent = thinking
+              }
+              if (finishReason) {
+                segment.finishReason = finishReason
               }
             }
 

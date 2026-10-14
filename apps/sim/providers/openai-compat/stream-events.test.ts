@@ -1,3 +1,4 @@
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import { describe, expect, it, vi } from 'vitest'
 import {
   openaiCompatReasoningAndTextChunks,
@@ -54,7 +55,9 @@ describe('createOpenAICompatibleAgentEventStream', () => {
       { providerName: 'Groq' }
     )
     const events = await collectEvents(stream)
-    expect(events.every((e) => e.type === 'text_delta')).toBe(true)
+    expect(events.filter((e) => e.type !== 'turn_end').every((e) => e.type === 'text_delta')).toBe(
+      true
+    )
     expect(events.some((e) => e.type === 'thinking_delta')).toBe(false)
   })
 
@@ -138,6 +141,13 @@ describe('createOpenAICompatibleAgentEventStream', () => {
     const stream = createOpenAICompatibleAgentEventStream(
       (async function* () {
         yield* openaiCompatTextOnlyChunks as any
+        yield {
+          id: 'chatcmpl-token-limit',
+          object: 'chat.completion.chunk',
+          created: 0,
+          model: 'deepseek-chat',
+          choices: [{ index: 0, delta: {}, finish_reason: 'length' }],
+        } satisfies ChatCompletionChunk
       })(),
       { providerName: 'DeepSeek', onComplete }
     )
@@ -149,6 +159,7 @@ describe('createOpenAICompatibleAgentEventStream', () => {
         .join('')
     ).toBe('Hello world')
     expect(onComplete.mock.calls[0][0].content).toBe('Hello world')
+    expect(events).toContainEqual({ type: 'turn_end', turn: 'final', finishReason: 'length' })
   })
 
   it('surfaces documented in-band provider errors', async () => {
