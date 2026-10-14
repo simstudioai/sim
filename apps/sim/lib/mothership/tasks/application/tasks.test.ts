@@ -1,6 +1,7 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
 import {
@@ -55,6 +56,7 @@ import { runEmbeddedCli } from 'sim/embed'
 import { v2GetWorkflowRunContract } from '@/lib/api/contracts/v2/workflows'
 import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { WorkflowWatchStatus } from '@/lib/mothership/generated/tasks'
+import { GET as taskStatusRoute } from '@/app/api/mothership/tasks/[taskId]/route'
 import { POST as watchRoute } from '@/app/api/mothership/tasks/workflow-status/route'
 import { POST as wakeRoute } from '@/app/api/mothership/wake/route'
 import { TASK_DELEGATION_AUDIENCE } from './context'
@@ -339,5 +341,48 @@ describe('task status access', () => {
         input: { taskId: TASK_ID },
       })
     ).rejects.toThrow('Task service is unavailable')
+  })
+
+  /**
+   * The status read is a live call to the task service. When that service is
+   * down or slow the caller should see a retryable gateway status, not a 500
+   * that reads as a Sim fault; a later poll recovers on its own.
+   */
+  describe('through the route', () => {
+    beforeEach(() => {
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'u' }, session: { id: 's' } })
+    })
+
+    function readStatus(): Promise<Response> {
+      return taskStatusRoute(
+        createMockRequest('GET', undefined, {}, `http://localhost/api/mothership/tasks/${TASK_ID}`),
+        createRouteContext({ taskId: TASK_ID })
+      )
+    }
+
+    it('answers 503 when the task service is unavailable', async () => {
+      mocks.worker.mockResolvedValue(new Response('{}', { status: 503 }))
+      const response = await readStatus()
+      expect(response.status).toBe(503)
+      expect(await response.json()).toEqual({ error: 'Task service is unavailable' })
+    })
+
+    it('answers 504 when the task service does not answer in time', async () => {
+      mocks.worker.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'))
+      const response = await readStatus()
+      expect(response.status).toBe(504)
+      expect(await response.json()).toEqual({ error: 'Task service timed out' })
+    })
+
+    it('still answers 200 with the task status', async () => {
+      mocks.worker.mockResolvedValue(statusResponse())
+      const response = await readStatus()
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({
+        taskId: TASK_ID,
+        status: 'stopped',
+        summary: 'Stopped by the agent',
+      })
+    })
   })
 })

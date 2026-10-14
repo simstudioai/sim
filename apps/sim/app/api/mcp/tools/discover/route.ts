@@ -10,6 +10,7 @@ import {
   readMcpJsonBodyWithLimit,
   withMcpAuth,
 } from '@/lib/mcp/middleware'
+import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
 import { McpOauthAuthorizationRequiredError, type McpToolDiscoveryResponse } from '@/lib/mcp/types'
 import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -98,6 +99,7 @@ export const GET = withRouteHandler(
     } catch (error) {
       if (
         error instanceof McpOauthAuthorizationRequiredError ||
+        error instanceof McpOauthRedirectRequired ||
         error instanceof UnauthorizedError
       ) {
         return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
@@ -165,6 +167,7 @@ export const POST = withRouteHandler(
       if (bodyErrorResponse) return bodyErrorResponse
       if (
         error instanceof McpOauthAuthorizationRequiredError ||
+        error instanceof McpOauthRedirectRequired ||
         error instanceof UnauthorizedError
       ) {
         return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
