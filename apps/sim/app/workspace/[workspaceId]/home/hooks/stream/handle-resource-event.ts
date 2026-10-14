@@ -203,11 +203,14 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     notifyWorkflowExternalUpdate(payload.resource.id)
   }
   if (payload.op === 'refresh') return
-  if (payload.op === 'remove' && payload.effectId) {
-    // The server applied this removal before publishing it, so a client add
-    // still queued for the resource must not restore it, live or on recovery.
+  if (payload.effectId && (payload.op === 'remove' || payload.op === 'upsert')) {
+    // The server applied this effect before publishing it, live or on
+    // recovery: a queued client add must not undo a removal, and a queued
+    // client delete must not undo a restore.
     const { type, id } = payload.resource
-    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: payload.resource.workspaceId })
+    const identity = { type, id, workspaceId: payload.resource.workspaceId }
+    if (payload.op === 'remove') ctx.deps.discardPendingResourceUpsert(identity)
+    else ctx.deps.cancelPendingResourceRemoval(identity)
   }
   if (payload.replay || ctx.deps.options.deferFlushes) {
     refreshRecoveredChatResources(ctx)

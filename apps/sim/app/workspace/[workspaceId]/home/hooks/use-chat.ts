@@ -1576,6 +1576,18 @@ export function useChat(
     [deleteStoredResource, resourcePersistenceQueue]
   )
 
+  const cancelPendingResourceRemoval = useCallback(
+    ({ type, id, workspaceId }: ResourceIdentity) => {
+      for (const scopeId of new Set([
+        chatIdRef.current ?? selectedChatIdRef.current,
+        pendingChatKeyRef.current,
+      ])) {
+        if (scopeId) resourcePersistenceQueue.cancelRemoval(type, id, scopeId, workspaceId)
+      }
+    },
+    [resourcePersistenceQueue]
+  )
+
   /**
    * Drops hydrated workflow tabs whose workflow no longer exists, so an old
    * chat cannot resurrect a deleted workflow. The workspace list is the fast
@@ -2407,6 +2419,7 @@ export function useChat(
         addResource,
         removeResource,
         discardPendingResourceUpsert,
+        cancelPendingResourceRemoval,
         startClientWorkflowTool,
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
           startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
@@ -2552,6 +2565,7 @@ export function useChat(
       addResource,
       removeResource,
       discardPendingResourceUpsert,
+      cancelPendingResourceRemoval,
       startClientWorkflowTool,
       startClientLocalFilesystemTool,
       startClientTerminalTool,

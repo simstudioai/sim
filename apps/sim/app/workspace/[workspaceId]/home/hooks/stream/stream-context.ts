@@ -125,6 +125,10 @@ export interface StreamLoopDeps {
   discardPendingResourceUpsert: (
     resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
   ) => void
+  /** Drops a queued client delete for a resource the server has stored again. */
+  cancelPendingResourceRemoval: (
+    resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
+  ) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientComputerTool: (id: string, args: Record<string, unknown>, ts?: string) => void

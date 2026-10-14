@@ -147,6 +147,24 @@ export class ResourcePersistenceQueue {
   }
 
   /**
+   * Cancels a delete still waiting to run for a resource the server has since
+   * stored again on its own, as a newer add would. The server already holds
+   * the resource, so nothing is written.
+   */
+  cancelRemoval(
+    type: MothershipResource['type'],
+    id: string,
+    scopeId: string,
+    workspaceId?: string
+  ): void {
+    const key = this.getKey(scopeId, type, id, workspaceId)
+    if (!this.removalTokens.delete(key)) return
+    this.pendingRemovals.delete(key)
+    this.failedKeys.delete(key)
+    if (!this.desiredUpdates.has(key)) this.pendingKeys.delete(key)
+  }
+
+  /**
    * Whether a pending write would change which resources the chat holds — an
    * add the server has not accepted yet, or a delete that has not landed.
    *
