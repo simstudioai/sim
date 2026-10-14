@@ -490,9 +490,6 @@
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/dirty-on-open.test.ts": {
     "TS2578": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-lifecycle.test.tsx": {
-    "TS2741": 1
-  },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/field-lifecycle.test.tsx": {
     "TS2550": 1
   },

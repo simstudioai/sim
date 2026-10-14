@@ -24,6 +24,7 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
+import * as storage from '@/lib/uploads/core/storage-service'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
@@ -179,6 +180,36 @@ function documentId(update: Uint8Array) {
 }
 
 describe('Project collaborative documents against current policy and durable storage', () => {
+  check('aborted seeds stop storage reads and do not retry', async () => {
+    const f = await fixture('read')
+    const controller = new AbortController()
+    const reason = new Error('Seed request retired')
+    const read = vi.spyOn(storage, 'downloadFile').mockImplementationOnce(async (options) => {
+      expect(options.signal).toBeDefined()
+      controller.abort(reason)
+      options.signal?.throwIfAborted()
+      throw new Error('Expected aborted storage read')
+    })
+    try {
+      await expect(
+        buildProjectFileDocSeed.execute({
+          principal: f.principal,
+          input: { ...f.target, signal: controller.signal },
+        })
+      ).rejects.toBe(reason)
+      expect(read).toHaveBeenCalledTimes(1)
+      await expect(
+        buildProjectFileDocSeed.execute({
+          principal: f.principal,
+          input: { ...f.target, signal: controller.signal },
+        })
+      ).rejects.toBe(reason)
+      expect(read).toHaveBeenCalledTimes(1)
+    } finally {
+      read.mockRestore()
+    }
+  })
+
   check('readers receive a stable seed but cannot publish durable document edits', async () => {
     const f = await fixture('read')
     expect(

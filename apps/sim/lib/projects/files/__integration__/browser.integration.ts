@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { db } from '@sim/db'
+import { db, runOutsideTransactionContext } from '@sim/db'
 import { folder, permissions, project, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
@@ -12,6 +12,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listProjectFileItems } from '@/lib/projects/files/application'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import type { FileBrowserQuery } from '@/lib/workspace-files/browser-query'
+import * as browserQuery from '@/lib/workspace-files/browser-query'
 
 interface BrowserFixture {
   workspaceId: string
@@ -195,6 +196,33 @@ afterAll(async () => {
 })
 
 describe('Project browser real mixed collection', () => {
+  check('file records preserve page order and snapshot through a concurrent archive', async () => {
+    const f = await fixture()
+    const small = await f.addFile('a-small.txt', 1)
+    const large = await f.addFile('z-large.txt', 20)
+    const original = browserQuery.queryFileBrowserItems
+    const query = vi
+      .spyOn(browserQuery, 'queryFileBrowserItems')
+      .mockImplementationOnce(async (...args) => {
+        const page = await original(...args)
+        await runOutsideTransactionContext(() =>
+          db
+            .update(workspaceFiles)
+            .set({ deletedAt: new Date() })
+            .where(eq(workspaceFiles.id, large))
+        )
+        return page
+      })
+    try {
+      const page = await f.list({ sortBy: 'size', sortOrder: 'desc' })
+      expect(page.items.map((item) => item.id)).toEqual([large, small])
+      expect(page.files.map((file) => file.id)).toEqual([large, small])
+      expect((await f.list()).files.map((file) => file.id)).toEqual([small])
+    } finally {
+      query.mockRestore()
+    }
+  })
+
   check(
     'type, size and creator predicates select the complete collection before pagination',
     async () => {

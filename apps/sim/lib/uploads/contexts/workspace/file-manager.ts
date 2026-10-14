@@ -2067,7 +2067,9 @@ export async function resolveFileReference<const O extends EditableFileOwner>(
   }
   let segments: string[]
   try {
-    segments = normalizeWorkspaceFileReferenceSegments(localReference)
+    segments = decodeVfsPathSegments(
+      isFileId ? localReference : localReference.slice('files/'.length)
+    )
   } catch {
     throw new OrchestrationError('validation', 'Invalid file reference path')
   }

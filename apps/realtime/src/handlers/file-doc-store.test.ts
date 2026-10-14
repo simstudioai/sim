@@ -423,10 +423,13 @@ describe('FileDocStore', () => {
       await store.publishAndWait(NAME, Y.encodeStateAsUpdate(source, vector), 'generation-1')
       const snapshot = await store.getStreamSnapshot(NAME, 'generation-1')
       expect(snapshot?.editor).toEqual(actor)
-      Y.applyUpdate(replica, snapshot!.docState)
+      if (!snapshot) throw new Error('Expected accepted snapshot')
+      Y.applyUpdate(replica, snapshot.docState)
       expect(replica.getText('body').toString()).toBe('base-durable-writer-external')
       await store.attachRoom(NAME, replica)
-      storeInternals(store).rooms.get(NAME)!.uncompactedDeltaBytes = 12 * 1024 * 1024
+      const room = storeInternals(store).rooms.get(NAME)
+      if (!room) throw new Error('Expected attached room')
+      room.uncompactedDeltaBytes = 12 * 1024 * 1024
       await storeInternals(store).maybeCompact(NAME)
       expect((await store.getStreamSnapshot(NAME, 'generation-1'))?.editor).toEqual(actor)
       store.detachRoom(NAME)

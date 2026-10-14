@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
+import { FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { and, eq, isNull } from 'drizzle-orm'
 import * as Y from 'yjs'
 import { yDocToFileMarkdown } from '@/lib/collab-doc/converter'
@@ -117,7 +118,7 @@ function isDocumentConflict(error: unknown) {
 /** The seed cache is a read projection, fenced against both durable bytes and cached CRDT history. */
 export const buildProjectFileDocSeed: AuthorizingUseCase<
   typeof projectFileOperations.readContent,
-  ProjectDocumentTarget,
+  ProjectDocumentTarget & { signal?: AbortSignal },
   FileDocSeed
 > = {
   operation: projectFileOperations.readContent,
@@ -126,13 +127,18 @@ export const buildProjectFileDocSeed: AuthorizingUseCase<
     await getProjectFileDocAccess.execute(args)
   },
   async execute(args) {
+    const timeout = AbortSignal.timeout(FILE_DOC_TIMEOUTS.seedRequestMs)
+    const signal = args.input.signal ? AbortSignal.any([args.input.signal, timeout]) : timeout
+    signal.throwIfAborted()
     await getProjectFileDocAccess.execute(args)
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      signal.throwIfAborted()
       try {
         const read = await readProjectFileContent.execute({
           ...args,
-          input: { ...args.input, maxBytes: MAX_SEED_BYTES },
+          input: { ...args.input, maxBytes: MAX_SEED_BYTES, signal },
         })
+        signal.throwIfAborted()
         if (!isMarkdownFile(read.file)) {
           throw new OrchestrationError(
             'validation',
@@ -140,7 +146,9 @@ export const buildProjectFileDocSeed: AuthorizingUseCase<
           )
         }
         const cached = await loadCollabDocState(args.input.fileId)
+        signal.throwIfAborted()
         const update = prepareFileDocSeed(args.input.fileId, read.content, cached)
+        signal.throwIfAborted()
         const accepted = await seedCache.execute({
           ...args,
           input: {
@@ -155,6 +163,7 @@ export const buildProjectFileDocSeed: AuthorizingUseCase<
             },
           },
         })
+        signal.throwIfAborted()
         return { update, version: accepted.version }
       } catch (error) {
         if (!isDocumentConflict(error)) throw error

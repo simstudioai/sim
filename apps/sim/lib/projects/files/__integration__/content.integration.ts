@@ -1602,7 +1602,7 @@ describe('Project Copilot content admission', () => {
           const execute = () =>
             operation.execute({
               principal,
-              input: { projectId: f.projectId, fileId: file.id, version: 1 },
+              input: { projectId: f.projectId, fileId: file.id },
             })
           await expect(
             gate === 'missing'

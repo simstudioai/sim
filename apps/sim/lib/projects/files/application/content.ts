@@ -80,6 +80,7 @@ export interface UpdateProjectFileContentInput extends ProjectFileTarget {
 export interface ReadProjectFileContentInput extends ProjectFileTarget {
   fileId: string
   maxBytes?: number
+  signal?: AbortSignal
   includeSecretProvenance?: boolean
 }
 
@@ -283,6 +284,7 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
       key: file.key,
       context: 'project',
       maxBytes: input.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
+      signal: input.signal,
     })
     return { key: file.key, revision: file.contentUpdatedAt, content }
   },

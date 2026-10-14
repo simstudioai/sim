@@ -56,7 +56,7 @@ export const projectFileUploadOpenApiRoutes = [
       summary: 'Get Project file upload',
       description: `Read the current state of a Project upload, including its file after completion. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
-      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Get Project File Upload result.', headers: RATE_LIMIT_HEADERS },
     },
     {
@@ -89,7 +89,7 @@ export const projectFileUploadOpenApiRoutes = [
       summary: 'Abort Project file upload',
       description: `Abort a pending Project upload and schedule its unregistered bytes for cleanup. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
-      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Abort Project File Upload result.', headers: RATE_LIMIT_HEADERS },
     },
     {
@@ -122,7 +122,7 @@ export const projectFileUploadOpenApiRoutes = [
       summary: 'Complete Project file upload',
       description: `Finalize verified bytes and atomically register one Project file. Retrying completion returns the same file without billing twice. Current edit access is checked again. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
-      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Complete Project File Upload result.', headers: RATE_LIMIT_HEADERS },
     },
     {

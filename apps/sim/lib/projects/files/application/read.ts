@@ -124,6 +124,7 @@ export const listProjectFileItems = defineAuthorizedProjectFileUseCase<
   Awaited<ReturnType<typeof queryFileBrowserItems>> & ListProjectFilesResult
 >({
   operation: projectFileOperations.list,
+  isolationLevel: 'repeatable read',
   async execute({ input, context, tx }) {
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 1000)
       throw new OrchestrationError('validation', 'File page limit must be between 1 and 1000')
@@ -144,6 +145,16 @@ export const listProjectFileItems = defineAuthorizedProjectFileUseCase<
           )
         ).files
       : []
-    return { ...page, files, capabilities: { canRead: true as const, canWrite: context.canWrite } }
+    const filesById = new Map(files.map((file) => [file.id, file]))
+    const orderedFiles = fileIds.map((id) => {
+      const file = filesById.get(id)
+      if (!file) throw new Error('Browser file is missing from its snapshot')
+      return file
+    })
+    return {
+      ...page,
+      files: orderedFiles,
+      capabilities: { canRead: true as const, canWrite: context.canWrite },
+    }
   },
 })

@@ -663,14 +663,13 @@ export function LoadedRichMarkdownEditor({
   /** The picker anchor maps through edits while the operating-system file dialog is open. */
   const imageInputRef = useRef<HTMLInputElement>(null)
   const pendingImageAnchorRef = useRef<string | null>(null)
-  const imageUploadBatchesRef = useRef(
-    new Set<{
-      editor: Editor
-      anchors: string[]
-      controller: AbortController
-      toastId?: ReturnType<typeof toast.info>
-    }>()
-  )
+  const imageUploadBatchesRef = useRef<Set<{
+    editor: Editor
+    anchors: string[]
+    controller: AbortController
+    toastId?: ReturnType<typeof toast.info>
+  }> | null>(null)
+  imageUploadBatchesRef.current ??= new Set()
 
   /**
    * Uploads are sequential; every position is anchored before awaiting so queued images also follow
@@ -697,7 +696,7 @@ export function LoadedRichMarkdownEditor({
       controller: new AbortController(),
       toastId: undefined as ReturnType<typeof toast.info> | undefined,
     }
-    imageUploadBatchesRef.current.add(batch)
+    imageUploadBatchesRef.current?.add(batch)
     try {
       for (const [index, image] of images.entries()) {
         if (editor.isDestroyed || !editor.isEditable || batch.controller.signal.aborted) break
@@ -733,7 +732,7 @@ export function LoadedRichMarkdownEditor({
     } finally {
       if (batch.toastId !== undefined) toast.dismiss(batch.toastId)
       for (const anchor of anchors) removeImageUpload(editor, anchor)
-      imageUploadBatchesRef.current.delete(batch)
+      imageUploadBatchesRef.current?.delete(batch)
     }
   }
 
@@ -1037,12 +1036,12 @@ export function LoadedRichMarkdownEditor({
   useEffect(() => {
     if (!editor || !effectiveCanEdit) return
     return () => {
-      for (const batch of imageUploadBatchesRef.current) {
+      for (const batch of imageUploadBatchesRef.current ?? []) {
         batch.controller.abort()
         for (const anchor of batch.anchors) removeImageUpload(batch.editor, anchor)
         if (batch.toastId !== undefined) toast.dismiss(batch.toastId)
       }
-      imageUploadBatchesRef.current.clear()
+      imageUploadBatchesRef.current?.clear()
       const anchor = pendingImageAnchorRef.current
       if (anchor) removeImageUpload(editor, anchor)
       pendingImageAnchorRef.current = null

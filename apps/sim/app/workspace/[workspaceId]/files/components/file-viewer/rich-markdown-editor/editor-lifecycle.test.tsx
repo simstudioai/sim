@@ -111,6 +111,7 @@ const FILE: WorkspaceFileRecord = {
   size: 30,
   uploadedBy: 'user-1',
   uploadedAt: new Date('2026-09-03T20:00:00Z'),
+  updatedAt: new Date('2026-09-03T20:00:00Z'),
 }
 let root: Root
 let container: HTMLDivElement
@@ -378,7 +379,9 @@ describe('loaded rich editor lifecycle', () => {
         )
       }
       await draw()
-      const firstBinding = vi.mocked(useFileDocCollaboration).mock.calls.at(-1)![0]
+      const call = vi.mocked(useFileDocCollaboration).mock.calls.at(-1)
+      if (!call) throw new Error('Expected collaboration binding')
+      const firstBinding = call[0]
       expect(firstBinding.enabled).toBe(true)
       await act(async () => firstBinding.onWriteAccessLost?.())
       editableFileContent.mockReturnValue({
@@ -457,8 +460,9 @@ describe('loaded rich editor lifecycle', () => {
       await act(async () => provider.setSynced(true))
       const editor = getEditor()
       await act(async () => editor.commands.setContent('<p>Original</p>'))
-      const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
-      await act(async () => editor.storage.slashCommand.insertImage(1))
+      const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+      if (!input) throw new Error('Image picker is missing')
+      await act(async () => editor.storage.slashCommand.insertImage?.(1))
       Object.defineProperty(input, 'files', {
         configurable: true,
         value: [
@@ -471,7 +475,7 @@ describe('loaded rich editor lifecycle', () => {
       const signal = uploadFile.mock.calls[0][0].signal as AbortSignal
       expect(signal.aborted).toBe(false)
       expect(container.querySelectorAll('[role="status"]')).toHaveLength(2)
-      await act(async () => editor.storage.slashCommand.insertImage(1))
+      await act(async () => editor.storage.slashCommand.insertImage?.(1))
       collaborationRef.current = { ...collaboration, canWrite: false }
       await render('Original', 'Original', true, { collaborative: true })
       expect(signal.aborted).toBe(true)

@@ -35,6 +35,7 @@ export function defineAuthorizedProjectFileUseCase<
   P = undefined,
 >(definition: {
   operation: O
+  isolationLevel?: 'repeatable read'
   prepare?(args: ProjectFileUseCaseContext<I>): Promise<P>
   execute(args: ProjectFileUseCaseContext<I> & { tx: DbTransaction; prepared?: P }): Promise<R>
   onCommitFailure?(
@@ -83,14 +84,17 @@ export function defineAuthorizedProjectFileUseCase<
           definition.operation,
           args.input
         )
-        committed = await db.transaction(async (tx) => {
-          const context = await authorize(tx)
-          const result = await runWithOutboundOrganization(context.organizationId, () =>
-            definition.execute({ ...args, context, tx, prepared })
-          )
-          callbackCompleted = true
-          return { context, result }
-        })
+        committed = await db.transaction(
+          async (tx) => {
+            const context = await authorize(tx)
+            const result = await runWithOutboundOrganization(context.organizationId, () =>
+              definition.execute({ ...args, context, tx, prepared })
+            )
+            callbackCompleted = true
+            return { context, result }
+          },
+          definition.isolationLevel ? { isolationLevel: definition.isolationLevel } : undefined
+        )
       } catch (error) {
         if (callbackCompleted && !isPostgresCommitRejection(error)) {
           logger.error('Project file commit outcome is uncertain; retaining prepared resources', {

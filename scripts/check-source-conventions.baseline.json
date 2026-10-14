@@ -283,7 +283,6 @@
     "apps/sim/lib/uploads/contexts/workspace/track-chat-upload.test.ts": 1,
     "apps/sim/lib/uploads/contexts/workspace/file-manager-errors.test.ts": 1,
     "apps/sim/lib/uploads/contexts/workspace/file-manager.test.ts": 1,
-    "apps/sim/lib/uploads/contexts/workspace/file-manager.ts": 1,
     "apps/sim/lib/uploads/core/storage-client.ts": 1,
     "apps/sim/lib/webhooks/providers/table.ts": 1,
     "apps/sim/lib/webhooks/providers/whatsapp.test.ts": 1,

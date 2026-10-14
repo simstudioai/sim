@@ -77,7 +77,9 @@ export const v2CreateProjectFileBodySchema = z
   .object({
     name: v2CreateFileBodySchema.shape.name,
     contentType: v2CreateFileBodySchema.shape.contentType,
-    content: v2CreateFileBodySchema.shape.content,
+    content: v2CreateFileBodySchema.shape.content.describe(
+      'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 70 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The decoded-file limit is 50 MiB. Use an upload session for larger payloads.'
+    ),
     encoding: v2CreateFileBodySchema.shape.encoding,
     folderPath: v2CreateFileBodySchema.shape.folderPath.describe(
       'Canonical containing-folder path. Omit for the Project root.'
@@ -89,7 +91,9 @@ export type V2CreateProjectFileBody = z.input<typeof v2CreateProjectFileBodySche
 
 export const v2UpdateProjectFileContentBodySchema = z
   .object({
-    content: v2UpdateFileContentBodySchema.shape.content,
+    content: v2UpdateFileContentBodySchema.shape.content.describe(
+      'Complete replacement content for the file. The complete JSON request is capped at 70 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The decoded-file limit is 50 MiB.'
+    ),
     encoding: v2UpdateFileContentBodySchema.shape.encoding,
     expectedRevision: v2UpdateFileContentBodySchema.shape.expectedRevision,
   })

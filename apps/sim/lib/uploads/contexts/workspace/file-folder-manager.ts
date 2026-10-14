@@ -26,11 +26,7 @@ import {
   requireWorkspaceFolder,
   requireWorkspaceFolderCreator,
 } from '@/lib/folders/scope'
-import {
-  collectDescendantFolderIds,
-  collectDescendantFolderIdsFrom,
-  indexFolderChildren,
-} from '@/lib/folders/subtree'
+import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 import { lockWorkspaceProject } from '@/lib/projects/membership'
 import {
   encodeWorkspaceFileFolderDisplaySegment,
@@ -1563,25 +1559,44 @@ export async function resolveArchivedFileFolderScope(
 ): Promise<string[] | null | undefined> {
   const segments = parseFolderPath(path)
   if (segments.length === 0) return recursive ? undefined : null
-  const rows = await client
-    .select({ id: folderTable.id, parentId: folderTable.parentId, name: folderTable.name })
-    .from(folderTable)
-    .where(fileFolderOwnerCondition(owner))
-    .limit(maxRows + 1)
-  if (rows.length > maxRows) throw new FolderCollectionLimitExceededError('path index', maxRows)
-  let parents = new Set<string | null>([null])
+  let parents: (string | null)[] = [null]
   for (const segment of segments) {
-    parents = new Set(
-      rows.filter((row) => row.name === segment && parents.has(row.parentId)).map((row) => row.id)
-    )
-    if (parents.size === 0) return []
+    const rows = await client
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          fileFolderOwnerCondition(owner),
+          eq(folderTable.name, segment),
+          parents[0] === null
+            ? isNull(folderTable.parentId)
+            : inArray(
+                folderTable.parentId,
+                parents.filter((id): id is string => id !== null)
+              )
+        )
+      )
+      .limit(maxRows + 1)
+    if (rows.length > maxRows) throw new FolderCollectionLimitExceededError('path index', maxRows)
+    parents = rows.map((row) => row.id)
+    if (parents.length === 0) return []
   }
-  const matchingIds = [...parents].filter((id): id is string => id !== null)
+  const matchingIds = parents.filter((id): id is string => id !== null)
   if (!recursive) return matchingIds
-  const children = indexFolderChildren(rows)
-  return [
-    ...new Set(matchingIds.flatMap((id) => [id, ...collectDescendantFolderIdsFrom(children, id)])),
-  ]
+  const found = new Set(matchingIds)
+  let frontier = matchingIds
+  while (frontier.length > 0) {
+    const rows = await client
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(and(fileFolderOwnerCondition(owner), inArray(folderTable.parentId, frontier)))
+      .limit(maxRows - found.size + 1)
+    const children = rows.map((row) => row.id).filter((id) => !found.has(id))
+    for (const id of children) found.add(id)
+    if (found.size > maxRows) throw new FolderCollectionLimitExceededError('cascade', maxRows)
+    frontier = children
+  }
+  return [...found]
 }
 
 export interface WorkspaceFileFolderPathMutation {

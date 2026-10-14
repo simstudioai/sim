@@ -41,6 +41,7 @@ import {
 import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/application/authorized-use-case'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace'
+import { resolveArchivedFileFolderScope } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -589,6 +590,15 @@ describe('Project file authority at the database boundary', () => {
         principal: f.reader,
         input: { ...base, scope: 'archived', folderPath, recursive },
       })
+    expect(
+      await resolveArchivedFileFolderScope(
+        { entityType: 'project', entityId: f.projectId },
+        '/Docs',
+        false,
+        2,
+        db
+      )
+    ).toEqual(expect.arrayContaining([docsId, archivedDocsId]))
     expect((await archivedPage('/Docs')).files.map((file) => file.id)).toEqual([
       fileIds[1],
       archivedIds[0],
@@ -673,6 +683,17 @@ describe('Project file authority at the database boundary', () => {
         expect(result.file.path).toBe(`/api/projects/${f.projectId}/files/${fileId}/content`)
         expect(result.vfsPath).toBe(vfsPath)
       }
+      for (const name of ['content', 'meta.json']) {
+        await db
+          .update(workspaceFiles)
+          .set({ originalName: name })
+          .where(eq(workspaceFiles.id, fileId))
+        expect((await resolve(`files/Q3%2FQ4/${name}`)).file.id).toBe(fileId)
+      }
+      await db
+        .update(workspaceFiles)
+        .set({ originalName: 'Architecture overview.md' })
+        .where(eq(workspaceFiles.id, fileId))
       for (const reference of [
         foreignId,
         archivedId,

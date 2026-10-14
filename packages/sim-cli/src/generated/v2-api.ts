@@ -16670,7 +16670,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         default: '',
         describe:
-          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads.',
+          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 70 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The decoded-file limit is 50 MiB. Use an upload session for larger payloads.',
       },
       encoding: {
         kind: 'enum',
@@ -23802,7 +23802,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe:
-          'Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content.',
+          'Complete replacement content for the file. The complete JSON request is capped at 70 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The decoded-file limit is 50 MiB.',
       },
       encoding: {
         kind: 'enum',

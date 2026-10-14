@@ -15,7 +15,7 @@ export const POST = defineInternalJsonRoute({
     reason: 'Authenticated realtime relay; socket frame admission bounds collaborative traffic',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: ({ params }) => params,
+  mapInput: ({ params }, { request }) => ({ ...params, signal: request.signal }),
   useCase: buildProjectFileDocSeed,
   present: (result) => ({
     update: Buffer.from(result.update).toString('base64'),
