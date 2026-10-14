@@ -19,10 +19,10 @@ const folders = [
 
 describe('resolveFolderIdsForPaths', () => {
   /*
-   * A per-user memory tree makes the scope an isolation boundary rather than a
-   * filter, so the sibling cases below are the ones that matter: `user-a` and
-   * `user-a-2` share a prefix, and a resolver comparing raw strings instead of
-   * decoded segments would hand one user the other's notes.
+   * In a per-user memory tree the scope is what picks one user's notes, so the
+   * sibling cases below are the ones that matter: `user-a` and `user-a-2` share
+   * a prefix, and a resolver comparing raw strings instead of decoded segments
+   * would read the other user's notes.
    */
   const memory = [
     { id: 'memory', parentId: null, path: 'memory' },
