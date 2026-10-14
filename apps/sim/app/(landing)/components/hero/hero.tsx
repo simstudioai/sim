@@ -1,5 +1,5 @@
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { cn } from '@sim/emcn'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import { HeroAnnouncementChip } from '@/app/(landing)/components/hero/components/hero-announcement-chip'
 import { LandingHeroHeader } from '@/app/(landing)/components/hero/components/hero-header'
 import { HeroPlatformStage } from '@/app/(landing)/components/hero/components/hero-platform-stage'

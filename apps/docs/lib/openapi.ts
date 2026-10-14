@@ -1,12 +1,35 @@
-import type { MethodInformation } from 'fumadocs-openapi'
+import { isRecordLike } from '@sim/utils/object'
+import type { Document, MethodInformation } from 'fumadocs-openapi'
 import type { InlineCodeUsageGenerator } from 'fumadocs-openapi/requests/generators'
 import { createOpenAPI } from 'fumadocs-openapi/server'
 import { buildAuthCodeSamples } from '@/lib/openapi-code-samples'
 import { OPENAPI_DOCUMENTS_BY_FILE } from '@/lib/openapi-documents'
 import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
 
+function isOpenAPIDocument(value: unknown): value is Document {
+  return isRecordLike(value) && typeof value.openapi === 'string' && isRecordLike(value.info)
+}
+
+/**
+ * Clones a bundled spec for the OpenAPI loader, which resolves references in place;
+ * the imports are shared with the code-sample helpers below.
+ */
+function loadSpec(file: (typeof OPENAPI_SPEC_FILES)[number]): Document {
+  const document: unknown = structuredClone(OPENAPI_DOCUMENTS_BY_FILE[file])
+  if (!isOpenAPIDocument(document)) {
+    throw new Error(`${file} is not an OpenAPI document`)
+  }
+  return document
+}
+
+/**
+ * Specs are passed as the statically imported documents, never as file paths: a path
+ * is read from disk at request time, and the serverless bundle does not include the
+ * spec files, so every non-prerendered route that loads the docs source would fail.
+ * The `./<file>` keys keep the schema ids pages are generated against.
+ */
 export const openapi = createOpenAPI({
-  input: OPENAPI_SPEC_FILES.map((file) => `./${file}`),
+  input: () => Object.fromEntries(OPENAPI_SPEC_FILES.map((file) => [`./${file}`, loadSpec(file)])),
 })
 
 interface OpenAPIOperation {

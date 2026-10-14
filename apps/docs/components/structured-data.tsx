@@ -1,3 +1,4 @@
+import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
@@ -74,8 +75,7 @@ export function StructuredData({
     applicationCategory: 'BusinessApplication',
     applicationSubCategory: 'AI Workspace',
     operatingSystem: 'Any',
-    description:
-      'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
+    description: `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_COUNT_LABEL} integrations and every major LLM to create agents that automate real work.`,
     url: baseUrl,
     author: {
       '@type': 'Organization',
@@ -89,7 +89,7 @@ export function StructuredData({
       'AI workspace for teams',
       'Chat — natural language agent creation',
       'Visual workflow builder',
-      '1,000+ integrations',
+      `${INTEGRATION_COUNT_LABEL} integrations`,
       'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
       'Knowledge base creation',
       'Table creation',
