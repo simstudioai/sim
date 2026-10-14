@@ -10,7 +10,7 @@ import {
  * Next.js truncates a proxied client body past `experimental.proxyClientMaxBodySize`
  * without signalling it, so this is the largest body a handler can actually receive.
  */
-const PROXY_CLIENT_MAX_BODY_BYTES = 17 * 1024 * 1024
+const PROXY_CLIENT_MAX_BODY_BYTES = 10 * 1024 * 1024
 
 /** Mirrors `MAX_WORKSPACE_FILE_INLINE_BODY_BYTES` — an explicit override above the ceiling. */
 const INLINE_FILE_BODY_BYTES = 70 * 1024 * 1024
@@ -40,9 +40,9 @@ describe('DEFAULT_MAX_JSON_BODY_BYTES', () => {
 })
 
 describe('parseJsonBody default size boundary', () => {
-  it('accepts a body at the default cap', async () => {
+  it('accepts a body at the proxy cap', async () => {
     const result = await parseJsonBody(
-      requestDeclaring(DEFAULT_MAX_JSON_BODY_BYTES, JSON.stringify({ value: 'ok' }))
+      requestDeclaring(PROXY_CLIENT_MAX_BODY_BYTES, JSON.stringify({ value: 'ok' }))
     )
 
     expect(result.success).toBe(true)
@@ -75,12 +75,13 @@ describe('parseJsonBody default size boundary', () => {
     })
   })
 
-  it('accepts a document snapshot above the default cap with its explicit limit', async () => {
+  it('keeps an over-ceiling override only for a route the proxy never buffers', async () => {
     const body = JSON.stringify({ update: 'a'.repeat(12 * 1024 * 1024) })
     const result = await parseJsonBody(
       requestDeclaring(Buffer.byteLength(body), body),
       'response',
-      17 * 1024 * 1024
+      17 * 1024 * 1024,
+      true
     )
     expect(result.success).toBe(true)
   })

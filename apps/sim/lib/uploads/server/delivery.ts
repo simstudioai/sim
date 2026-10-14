@@ -1,4 +1,5 @@
 import { ensureFileNameExtension } from '@/lib/uploads/utils/file'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 
 const SAFE_INLINE_TYPES = new Set([
   'image/png',
@@ -37,6 +38,37 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
   return {
     contentType: safeContentType,
     disposition,
+  }
+}
+
+const SVG_SANDBOX_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
+
+/** Stops a browser from sniffing a delivered file, and from running an SVG's scripts. */
+function contentSafetyHeaders(contentType: string): Record<string, string> {
+  return {
+    'X-Content-Type-Options': 'nosniff',
+    ...(normalizeMimeType(contentType) === 'image/svg+xml'
+      ? { 'Content-Security-Policy': SVG_SANDBOX_CSP }
+      : {}),
+  }
+}
+
+/**
+ * An attachment is saved, never rendered, so it keeps the stored type and name; the inline-safety
+ * rewrites in {@link presentFileDelivery} would only change what the caller downloads.
+ */
+export function presentFileAttachment(input: {
+  body: ReadableStream<Uint8Array>
+  filename: string
+  contentType: string
+  contentLength: number
+}) {
+  return {
+    body: input.body,
+    contentType: input.contentType,
+    contentDisposition: `attachment; ${encodeFilenameForHeader(input.filename)}`,
+    contentLength: input.contentLength,
+    headers: contentSafetyHeaders(input.contentType),
   }
 }
 
@@ -106,14 +138,9 @@ function fileDeliveryHeaders(input: {
     'Content-Type': secure.contentType,
     'Content-Disposition': `${input.attachment ? 'attachment' : secure.disposition}; ${encodeFilenameForHeader(filename)}`,
     'Cache-Control': input.cacheControl,
-    'X-Content-Type-Options': 'nosniff',
+    ...contentSafetyHeaders(secure.contentType),
   })
   if (input.contentLength !== undefined) headers.set('Content-Length', String(input.contentLength))
-  if (secure.contentType.split(';', 1)[0].trim().toLowerCase() === 'image/svg+xml')
-    headers.set(
-      'Content-Security-Policy',
-      "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
-    )
   return headers
 }
 

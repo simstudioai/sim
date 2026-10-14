@@ -9,7 +9,7 @@ import {
   v2ApiKeyAuth,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { FILE_CACHE_CONTROL, presentFileDelivery } from '@/lib/uploads/server/delivery'
+import { presentFileAttachment } from '@/lib/uploads/server/delivery'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
@@ -45,14 +45,7 @@ export const GET = defineV2BinaryRoute({
   }),
   useCase: downloadWorkspaceFileStream,
   present: ({ file, stream, contentType, contentLength }) =>
-    presentFileDelivery({
-      body: stream,
-      filename: file.name,
-      contentType,
-      contentLength,
-      attachment: true,
-      cacheControl: FILE_CACHE_CONTROL.noStore,
-    }),
+    presentFileAttachment({ body: stream, filename: file.name, contentType, contentLength }),
 })
 
 /**

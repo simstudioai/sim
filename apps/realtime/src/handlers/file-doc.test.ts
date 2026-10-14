@@ -642,6 +642,50 @@ describe('setupWorkspaceFileDocHandlers', () => {
     }
   })
 
+  it('publishes write access to a socket only when it changes, not on every frame', async () => {
+    // A distinct user/file: role decisions recorded under fake timers outlive this test.
+    vi.useFakeTimers()
+    try {
+      const { io } = createIo()
+      const { socket, handlers } = setup('socket-capability', io, { userId: 'user-capability' })
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-capability', clientId: 7 })
+      await vi.advanceTimersByTimeAsync(0)
+      const presence = awarenessFrame(7, 'Capability').frame
+      const sendFrames = async () => {
+        for (let sent = 0; sent < 3; sent++) {
+          void handlers[FILE_DOC_EVENTS.MESSAGE](presence)
+          await vi.advanceTimersByTimeAsync(0)
+        }
+      }
+      const published = () =>
+        socket.emit.mock.calls
+          .filter(([event]) => event === FILE_DOC_EVENTS.PERMISSION)
+          .map(([, payload]) => (payload as { canWrite: boolean }).canWrite)
+      const changeRole = async (workspacePermission: 'read' | 'write') => {
+        mockAuthorizeRoom.mockResolvedValue({
+          allowed: true,
+          status: 200,
+          workspaceId: 'ws-1',
+          workspacePermission,
+        })
+        await vi.advanceTimersByTimeAsync(ROLE_REVALIDATION_TTL_MS + 1_000)
+      }
+
+      await sendFrames()
+      expect(published()).toEqual([true])
+
+      await changeRole('read')
+      await sendFrames()
+      expect(published()).toEqual([true, false])
+
+      await changeRole('write')
+      await sendFrames()
+      expect(published()).toEqual([true, false, true])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('applies + fans out an agent-streamed frame (SYNC_NO_PERSIST) but never persists it', async () => {
     mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
     const { io, sent } = createIo()

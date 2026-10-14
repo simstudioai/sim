@@ -1293,8 +1293,7 @@ function build(): Map<string, string> {
   assertGuidesExist()
 
   const program = buildProgram({ version: false })
-  /** Projects is executable but unpublished until launch; do not change CLI help or admission. */
-  const top = subcommands(program).filter((command) => command.name() !== 'projects')
+  const top = subcommands(program)
   const groups = top.filter((command) => subcommands(command).length > 0)
   const globals = top
     .filter((command) => subcommands(command).length === 0)

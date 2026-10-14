@@ -349,6 +349,64 @@ describe('loaded rich editor lifecycle', () => {
     }
   )
 
+  it('reads locally when a writer-only relay rejects a read-only member', async () => {
+    authClientMockFns.mockUseSession.mockReturnValue({
+      data: { user: { id: 'user-1', name: 'User' } },
+      isPending: false,
+    })
+    editableFileContent.mockReturnValue({
+      content: 'Original',
+      acceptedBaselineContent: 'Original',
+      isStreamInteractionLocked: false,
+      isContentLoading: false,
+      hasContentError: false,
+      setDraftContent: onChange,
+      saveImmediately: onSaveShortcut,
+    })
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    const awareness = new Awareness(doc)
+    collaborationRef.current = {
+      canWrite: false,
+      doc,
+      awareness,
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    try {
+      await act(async () =>
+        root.render(
+          <RichMarkdownEditor
+            file={FILE}
+            workspaceId={FILE.workspaceId}
+            canEdit={false}
+            collaborative
+          />
+        )
+      )
+      expect(useFileDocCollaboration).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: true })
+      )
+      await act(async () =>
+        provider.fail({
+          fileId: FILE.id,
+          error: 'Access denied to file',
+          code: 'ACCESS_DENIED',
+          retryable: false,
+        })
+      )
+      expect(useFileDocCollaboration).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: false })
+      )
+      expect(getEditor().isEditable).toBe(false)
+      expect(getEditor().view.dom.closest('.hidden')).toBeNull()
+    } finally {
+      await act(async () => root.render(null))
+      awareness.destroy()
+      doc.destroy()
+    }
+  })
+
   it.each(['file', 'preview context'] as const)(
     'does not recover another %s after a write-loss remount',
     async (changedScope) => {

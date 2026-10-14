@@ -150,6 +150,8 @@ interface FileDocRoom {
   /** socketId → (clientId → its presence ownership). A socket owns one entry per collaborative provider
    * it mounted for this file (see {@link FileDocPresenceOwner}); an empty inner map is never kept. */
   owners: Map<string, Map<number, FileDocPresenceOwner>>
+  /** socketId → the write capability last sent to it, so per-frame checks publish only a change. */
+  publishedCanWrite: Map<string, boolean>
   /**
    * The in-flight server seed for this room, or `null`. Concurrent joins await THIS promise rather
    * than each starting a fetch — and, unlike a "started" boolean, awaiting it is what lets a second
@@ -1043,6 +1045,7 @@ function getOrCreateRoom(io: Server, target: FileDocTarget): FileDocRoom {
     doc,
     awareness,
     owners: new Map(),
+    publishedCanWrite: new Map(),
     seeding: null,
     lastEditorUserId: null,
     edited: false,
@@ -1161,11 +1164,15 @@ function resolveFileDocPermission(
   const room = fileDocRoom(document)
   const accept = (permission: string | null) => {
     if (socketToRoomName.get(socket.id) !== name || fileDocRooms.get(name) !== document) return null
-    socket.emit(FILE_DOC_EVENTS.PERMISSION, {
-      fileId: document.fileId,
-      ...fileDocOwnerWireFields(document.owner),
-      canWrite: permission === 'write' || permission === 'admin',
-    } satisfies FileDocPermission)
+    const canWrite = permission === 'write' || permission === 'admin'
+    if (document.publishedCanWrite.get(socket.id) !== canWrite) {
+      document.publishedCanWrite.set(socket.id, canWrite)
+      socket.emit(FILE_DOC_EVENTS.PERMISSION, {
+        fileId: document.fileId,
+        ...fileDocOwnerWireFields(document.owner),
+        canWrite,
+      } satisfies FileDocPermission)
+    }
     if (permission === null)
       evictSocketFromRoom(socket, room, 'Your access to this document has been revoked', io)
     return permission
@@ -1216,7 +1223,16 @@ async function handleMessage(socket: AuthenticatedSocket, io: Server, data: unkn
     }
     const decoder = decoding.createDecoder(bytes)
     const messageType = decoding.readVarUint(decoder)
-    const permission = await resolveFileDocPermission(socket, io, name)
+    let permission: string | null
+    try {
+      permission = await resolveFileDocPermission(socket, io, name)
+    } catch (error) {
+      logger.warn('Dropping file-doc frame while its authorization is unavailable', {
+        socketId: socket.id,
+        error,
+      })
+      return
+    }
     if (permission === null) return
     const canWrite = permission === 'write' || permission === 'admin'
     if (messageType === FILE_DOC_MESSAGE_TYPE.SYNC) {
@@ -1460,6 +1476,7 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
   // caret via its awareness removal.
   const clientMap = room.owners.get(socketId)
   room.owners.delete(socketId)
+  room.publishedCanWrite.delete(socketId)
   clearFileDocPresence(io, socketId, name)
   if (clientMap !== undefined && clientMap.size > 0) {
     // Fires the awareness `update` handler with a non-socket origin → the removals
@@ -1788,6 +1805,7 @@ export function setupWorkspaceFileDocHandlers(
           awarenessProtocol.removeAwarenessStates(entry.awareness, [clientId], null)
           if (clientMap.size === 0) {
             entry.owners.delete(otherSid)
+            entry.publishedCanWrite.delete(otherSid)
             socketToRoomName.delete(otherSid)
             clearFileDocPresence(io, otherSid, name)
             io.in(otherSid).socketsLeave(name)
@@ -1832,6 +1850,8 @@ export function setupWorkspaceFileDocHandlers(
           roomName: name,
           user: { socketId: socket.id, userId, userName, avatarUrl },
         }
+        /** Co-mounted providers learn from the next frame whether this admission changed access. */
+        entry.publishedCanWrite.delete(socket.id)
 
         // Name the document this room holds, so a client that still carries a DIFFERENT one (its room
         // outlived by a document rebuilt in its place) can refuse to merge instead of unioning two

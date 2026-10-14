@@ -1,6 +1,6 @@
 import { v2DownloadFileVersionContract } from '@/lib/api/contracts/v2/file-versions'
 import { defineV2BinaryRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { FILE_CACHE_CONTROL, presentFileDelivery } from '@/lib/uploads/server/delivery'
+import { presentFileAttachment } from '@/lib/uploads/server/delivery'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { downloadWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -30,12 +30,5 @@ export const GET = defineV2BinaryRoute({
   }),
   useCase: downloadWorkspaceFileVersion,
   present: ({ file, stream, contentType, contentLength }) =>
-    presentFileDelivery({
-      body: stream,
-      filename: file.name,
-      contentType,
-      contentLength,
-      attachment: true,
-      cacheControl: FILE_CACHE_CONTROL.noStore,
-    }),
+    presentFileAttachment({ body: stream, filename: file.name, contentType, contentLength }),
 })
