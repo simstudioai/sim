@@ -191,6 +191,7 @@ export async function searchAtlassian(
             .map((row) => issue(row, cloudId, origin)),
           excluded: false,
           next: string(data.nextPageToken) || undefined,
+          relevanceRanked: false,
         }
       }
       const searchPages = async (clause: string, cursor?: string) => {
