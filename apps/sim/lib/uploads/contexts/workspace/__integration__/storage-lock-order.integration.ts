@@ -175,20 +175,26 @@ describe.skipIf(!migrated)('workspace file storage lock order in PostgreSQL', ()
     '%s commits alongside a bulk archive queued first on the directory lock',
     async (_name, finalize) => {
       const fixture = await seedWorkspaceWithFile()
-      const ready = createDeferred<void>()
+      const ready = createDeferred<number>()
       const release = createDeferred<void>()
 
       const directoryHolder = db.transaction(async (tx) => {
         await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: fixture.workspaceId }])
-        ready.resolve()
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
         await release.promise
       })
-      await ready.promise
+      const holderPid = await ready.promise
 
+      // Waiters blocked by the holder, or by a backend the holder blocks: only this test's queue.
       const waitingOnLocks = async () =>
         (
           await db.execute(
-            sql`SELECT pid FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0`
+            sql`SELECT pid FROM pg_stat_activity
+              WHERE ${holderPid} = ANY(pg_blocking_pids(pid))
+                OR pg_blocking_pids(pid) && ARRAY(
+                  SELECT pid FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))
+                )`
           )
         ).length
       const archived = bulkArchiveWorkspaceFileItems({
