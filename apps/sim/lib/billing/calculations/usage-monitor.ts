@@ -173,8 +173,8 @@ export async function checkUsageStatus(
   } catch (error) {
     logger.error('Cannot determine usage status - blocking execution', {
       userId,
-      error: describeError(error),
-      stack: toError(error).stack,
+      error,
+      cause: describeError(error),
     })
 
     return {
