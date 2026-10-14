@@ -22,9 +22,16 @@ interface DeployProps {
   activeWorkflowId: string | null
   userPermissions: WorkspaceUserPermissions
   disabled?: boolean
+  /** Bordered in the panel; plain beside the primary Run in a resource header. */
+  variant?: 'border' | 'plain'
 }
 
-export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: DeployProps) {
+export function Deploy({
+  activeWorkflowId,
+  userPermissions,
+  disabled = false,
+  variant = 'border',
+}: DeployProps) {
   const queryClient = useQueryClient()
   const { workspaceId } = useWorkflowScope()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -174,7 +181,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
           <span className='inline-flex'>
             <Chip
               mobileCompact
-              variant='border'
+              variant={variant === 'border' ? 'border' : undefined}
               onClick={onDeployClick}
               onMouseEnter={prefetchDeployModal}
               onFocus={prefetchDeployModal}

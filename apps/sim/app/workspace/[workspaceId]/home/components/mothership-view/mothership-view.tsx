@@ -1,7 +1,17 @@
 'use client'
 
-import { type ComponentProps, forwardRef, memo, useCallback, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  forwardRef,
+  memo,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Chip, cn } from '@sim/emcn'
+import { useQueryClient } from '@tanstack/react-query'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
@@ -10,6 +20,7 @@ import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceNavigationProvider } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
@@ -34,9 +45,11 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
 
 /**
@@ -313,23 +326,25 @@ export const MothershipView = memo(
               <SourcesResourceContent resource={active} chatId={chatId} />
             )}
             {active && active.type !== 'sources' && !isPersistentPanel(active) && (
-              <ScopedResourceContent
-                showHeader={Boolean(navigation)}
-                onBrowse={navigation ? () => navigation.onBrowseResource(active) : undefined}
-                onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
-                workspaceId={activeWorkspaceId}
-                organizationId={organizationId}
-                desktopScopeId={desktopScopeId}
-                resource={active}
-                onSummarize={onSummarize}
-                downloadSourceRef={fileDownloadSourceRef}
-                onTableViewContextChange={onTableViewContextChange}
-                previewMode={isActivePreviewable ? previewMode : undefined}
-                previewSession={previewForActive}
-                isAgentResponding={isAgentResponding}
-                previewContextKey={chatId}
-                onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
-              />
+              <ActiveResourceFrame navigation={navigation} resource={active}>
+                <ScopedResourceContent
+                  showHeader={Boolean(navigation)}
+                  onBrowse={navigation ? () => navigation.onBrowseResource(active) : undefined}
+                  onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
+                  workspaceId={activeWorkspaceId}
+                  organizationId={organizationId}
+                  desktopScopeId={desktopScopeId}
+                  resource={active}
+                  onSummarize={onSummarize}
+                  downloadSourceRef={fileDownloadSourceRef}
+                  onTableViewContextChange={onTableViewContextChange}
+                  previewMode={isActivePreviewable ? previewMode : undefined}
+                  previewSession={previewForActive}
+                  isAgentResponding={isAgentResponding}
+                  previewContextKey={chatId}
+                  onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
+                />
+              </ActiveResourceFrame>
             )}
             {navigation?.active && navigation.content}
             {!active && !navigation?.active && (
@@ -345,6 +360,93 @@ export const MothershipView = memo(
     )
   })
 )
+
+interface PaneResourceNavigationProps {
+  navigation: ResourcePanelNavigation
+  resource: MothershipResource
+  children: ReactNode
+}
+
+/**
+ * Keeps a resource's own navigation inside the pane. A replace means this tab's view is gone
+ * (its workflow was deleted or never existed), so the tab closes; a workflow the editor pushes
+ * (a duplicate) opens as a tab; lists and other destinations go to the pane's navigation.
+ */
+function PaneResourceNavigation({ navigation, resource, children }: PaneResourceNavigationProps) {
+  const { addResource, removeResource } = useMothershipResources()
+  const queryClient = useQueryClient()
+  const navigate = useCallback(
+    (href: string, replace = false) => {
+      const url = new URL(href, window.location.origin)
+      const [, scope, workspaceId, section, workflowId] = url.pathname.split('/')
+      const workflowArea =
+        url.origin === window.location.origin &&
+        scope === 'workspace' &&
+        Boolean(workspaceId) &&
+        (!section || section === 'w')
+      if (!workflowArea) {
+        navigation.navigate(href)
+        return
+      }
+      if (replace) {
+        removeResource(resource.type, resource.id, resource.workspaceId)
+        return
+      }
+      if (!workflowId) {
+        navigation.navigate(href)
+        return
+      }
+      const workflow = queryClient
+        .getQueryData<WorkflowMetadata[]>(workflowKeys.list(workspaceId))
+        ?.find((candidate) => candidate.id === workflowId)
+      addResource({
+        type: 'workflow',
+        id: workflowId,
+        workspaceId,
+        title: workflow?.name ?? 'Workflow',
+      })
+    },
+    [navigation, resource, addResource, removeResource, queryClient]
+  )
+  return (
+    <ResourceNavigationProvider
+      navigate={navigate}
+      openResource={addResource}
+      onDirectory={() => navigation.onBrowseResource(resource)}
+    >
+      {children}
+    </ResourceNavigationProvider>
+  )
+}
+
+interface ActiveResourceFrameProps {
+  navigation?: ResourcePanelNavigation
+  resource: MothershipResource
+  children: ReactNode
+}
+
+function ActiveResourceFrame({ navigation, resource, children }: ActiveResourceFrameProps) {
+  if (!navigation) return children
+  return (
+    <PaneResourceNavigation navigation={navigation} resource={resource}>
+      {children}
+    </PaneResourceNavigation>
+  )
+}
+
+/** The full editor under the pane's tab strip, rendering its own header bar into the slot. */
+function PaneHostedWorkflow(props: ComponentProps<typeof ResourceContent>) {
+  const [header, setHeader] = useState<HTMLDivElement | null>(null)
+  const host = useMemo(() => ({ header }), [header])
+  return (
+    <div className='flex h-full min-h-0 flex-col'>
+      <div ref={setHeader} className='shrink-0' />
+      <div className='min-h-0 flex-1 overflow-hidden'>
+        <ResourceContent {...props} workflowHost={host} />
+      </div>
+    </div>
+  )
+}
 
 function ScopedResourceContent({
   workspaceId,
@@ -383,6 +485,18 @@ function ScopedResourceContent({
     )
   }
   if (!organizationId) return <ResourceContent workspaceId={workspaceId} {...props} />
+  if (showHeader && props.resource.type === 'workflow') {
+    return (
+      <ResourceWorkspaceHost
+        workspaceId={workspaceId}
+        organizationId={organizationId}
+        workflowId={props.resource.id}
+        isFileViewer={false}
+      >
+        <PaneHostedWorkflow workspaceId={workspaceId} {...props} />
+      </ResourceWorkspaceHost>
+    )
+  }
   return (
     <ResourceWorkspaceHost
       workspaceId={workspaceId}
@@ -400,12 +514,14 @@ function ScopedResourceContent({
             ]}
             aside={
               <>
-                <ResourceActions
-                  workspaceId={workspaceId}
-                  resource={props.resource}
-                  downloadSourceRef={props.downloadSourceRef}
-                  allowWorkspaceNavigation={false}
-                />
+                {props.resource.type !== 'workflow' && (
+                  <ResourceActions
+                    workspaceId={workspaceId}
+                    resource={props.resource}
+                    downloadSourceRef={props.downloadSourceRef}
+                    allowWorkspaceNavigation={false}
+                  />
+                )}
                 {onCyclePreviewMode && (
                   <Chip onClick={onCyclePreviewMode}>View: {props.previewMode}</Chip>
                 )}

@@ -21,11 +21,22 @@ import {
   Trash,
   toast,
 } from '@sim/emcn'
-import { BubbleChatDelay, Download, Lock, Plus, Unlock, X } from '@sim/emcn/icons'
+import {
+  BubbleChatDelay,
+  Download,
+  Lock,
+  MessageSquareText,
+  Pencil,
+  Plus,
+  Unlock,
+  Workflow as WorkflowIcon,
+  X,
+} from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePostHog } from 'posthog-js/react'
+import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { VariableIcon } from '@/components/icons'
 import { ThinkingLoader } from '@/components/ui'
@@ -45,6 +56,15 @@ import {
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
+import {
+  breadcrumbFolderChain,
+  folderBreadcrumbItems,
+} from '@/app/workspace/[workspaceId]/components/folders'
+import { folderListHref } from '@/app/workspace/[workspaceId]/components/folders/search-params'
+import {
+  type DropdownOption,
+  ResourceHeader,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
@@ -67,6 +87,7 @@ import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/componen
 import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import type { WorkflowPaneHost } from '@/app/workspace/[workspaceId]/w/[workflowId]/pane-host'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
@@ -80,8 +101,13 @@ import {
 } from '@/hooks/queries/copilot-chats'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
-import { useDuplicateWorkflowMutation, useWorkflowMap } from '@/hooks/queries/workflows'
+import {
+  useDuplicateWorkflowMutation,
+  useUpdateWorkflow,
+  useWorkflowMap,
+} from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
@@ -133,7 +159,12 @@ function copilotDraftKey(
  *
  * @returns Panel on the right side of the workflow
  */
-export const Panel = memo(function Panel() {
+interface PanelProps {
+  /** Set when a pane hosts the editor: its top row moves to the pane header and Chat is left out. */
+  host?: WorkflowPaneHost
+}
+
+export const Panel = memo(function Panel({ host }: PanelProps) {
   const router = useResourceRouter()
   const { workspaceId, workflowId: scopedWorkflowId } = useWorkflowScope()
 
@@ -179,15 +210,25 @@ export const Panel = memo(function Panel() {
   const { config: permissionConfig } = usePermissionConfig()
 
   /**
-   * The Chat tab is hidden when the deployment has Chat off, or when the user's
-   * permission group hides it. Tab bodies stay mounted and are toggled with
-   * `hidden`, so a persisted `activeTab: 'copilot'` would hide all three and
+   * The Chat tab is hidden when the deployment has Chat off, when the user's
+   * permission group hides it, or when a pane hosts the editor beside its own chat.
+   * Tab bodies stay mounted and are toggled with `hidden`, so a persisted `activeTab: 'copilot'` would hide all three and
    * paint an empty panel — resolve it to the toolbar instead.
    */
-  const isCopilotTabAvailable = chatEnabled && !permissionConfig.hideCopilot
+  const isCopilotTabAvailable = !host && chatEnabled && !permissionConfig.hideCopilot
   const activeTab: PanelTab =
     storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
+  const updateWorkflow = useUpdateWorkflow()
+  const rename = useInlineRename({
+    onSave: (workflowId, name) =>
+      updateWorkflow
+        .mutateAsync({ workspaceId, workflowId, metadata: { name } })
+        .catch((err: unknown) => {
+          toast.error(getErrorMessage(err, 'Failed to rename workflow'), { duration: 5000 })
+          throw err
+        }),
+  })
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
@@ -746,8 +787,142 @@ export const Panel = memo(function Panel() {
     ])
   )
 
+  /** In a hosting pane, everything the panel's top row offers moves to the name crumb's menu. */
+  const resourceActions: DropdownOption[] = [
+    {
+      label: 'Rename',
+      icon: Pencil,
+      onClick: () => {
+        if (currentWorkflow) rename.startRename(currentWorkflow.id, currentWorkflow.name)
+      },
+      disabled: !canMutateWorkflow || !currentWorkflow,
+    },
+    {
+      label: 'Auto layout',
+      icon: Layout,
+      onClick: handleAutoLayout,
+      disabled: isExecuting || !canMutateWorkflow || isAutoLayouting || hasLockedBlocks,
+    },
+    {
+      label: 'Variables',
+      icon: VariableIcon,
+      onClick: () => setVariablesOpen(!isVariablesOpen),
+    },
+    {
+      label: isChatOpen ? 'Close chat' : 'Open chat',
+      icon: MessageSquareText,
+      onClick: () => setIsChatOpen(!isChatOpen),
+    },
+    ...(userPermissions.canAdmin && !isSnapshotView
+      ? [
+          {
+            label: allBlocksLocked ? 'Unlock workflow' : 'Lock workflow',
+            icon: allBlocksLocked ? Unlock : Lock,
+            onClick: handleToggleWorkflowLock,
+            disabled: !hasBlocks || workflowLocked,
+          },
+        ]
+      : []),
+    {
+      label: 'Export',
+      icon: Download,
+      onClick: handleExportJson,
+      disabled: !userPermissions.canEdit || isExporting || !currentWorkflow,
+    },
+    {
+      label: 'Duplicate',
+      icon: Duplicate,
+      onClick: handleDuplicateWorkflow,
+      disabled: !userPermissions.canEdit || isDuplicating,
+    },
+    {
+      label: 'Delete',
+      icon: Trash,
+      onClick: () => setIsDeleteModalOpen(true),
+      disabled: !canMutateWorkflow || Object.keys(workflows).length <= 1,
+    },
+  ]
+  const renameEditing =
+    currentWorkflow && rename.editingId === currentWorkflow.id
+      ? {
+          isEditing: true,
+          value: rename.editValue,
+          onChange: rename.setEditValue,
+          onSubmit: rename.submitRename,
+          onCancel: rename.cancelRename,
+          disabled: rename.isSaving,
+        }
+      : undefined
+
+  const renderDeployAndRun = (deployVariant: 'border' | 'plain') => (
+    <>
+      <Deploy
+        activeWorkflowId={activeWorkflowId}
+        userPermissions={userPermissions}
+        disabled={workflowLocked}
+        variant={deployVariant}
+      />
+      <Chip
+        mobileCompact
+        variant={isExecuting ? undefined : 'primary'}
+        active={isExecuting}
+        onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
+        disabled={!isExecuting && isButtonDisabled}
+        aria-label={isExecuting ? 'Stop' : 'Run'}
+        leftAdornment={
+          <span
+            aria-hidden='true'
+            className='inline-flex size-5 shrink-0 items-center justify-center overflow-visible'
+          >
+            <ThinkingLoader
+              variant={isExecuting ? undefined : 'play'}
+              startVariant='play'
+              startHoldMs={140}
+              size={20}
+              morphDurationMs={isExecuting ? 650 : 180}
+              tone='inherit'
+            />
+          </span>
+        }
+      >
+        <span className='inline-grid'>
+          <span aria-hidden='true' className='invisible col-start-1 row-start-1'>
+            Stop
+          </span>
+          <span className='col-start-1 row-start-1'>{isExecuting ? 'Stop' : 'Run'}</span>
+        </span>
+      </Chip>
+    </>
+  )
+
   return (
     <>
+      {host?.header &&
+        createPortal(
+          <ResourceHeader
+            breadcrumbs={folderBreadcrumbItems({
+              rootLabel: 'Workflows',
+              rootIcon: WorkflowIcon,
+              breadcrumbs: breadcrumbFolderChain(
+                currentWorkflow?.folderId,
+                new Map(Object.values(folders).map((folder) => [folder.id, folder]))
+              ),
+              onNavigate: (folderId) =>
+                router.push(folderListHref(`/workspace/${workspaceId}/w`, folderId)),
+              trailing: [
+                currentWorkflow
+                  ? {
+                      label: currentWorkflow.name,
+                      dropdownItems: resourceActions,
+                      editing: renameEditing,
+                    }
+                  : { label: '…', terminal: true },
+              ],
+            })}
+            aside={renderDeployAndRun('plain')}
+          />,
+          host.header
+        )}
       <div
         className={cn(
           'absolute top-3 right-3 z-[var(--z-dropdown)] md:hidden',
@@ -805,11 +980,12 @@ export const Panel = memo(function Panel() {
               <X className='size-[14px]' />
             </Button>
           </div>
-          {/* Header */}
+          {/* Header (a hosting pane carries these in its own header bar) */}
           <div
             className={cn(
               'flex shrink-0 items-center justify-between px-2',
-              isSearchingEditor && 'max-md:hidden'
+              isSearchingEditor && 'max-md:hidden',
+              host && 'hidden'
             )}
           >
             {/* More and Chat */}
@@ -895,49 +1071,14 @@ export const Panel = memo(function Panel() {
             </div>
 
             {/* Deploy and Run */}
-            <div className='flex gap-1.5'>
-              <Deploy
-                activeWorkflowId={activeWorkflowId}
-                userPermissions={userPermissions}
-                disabled={workflowLocked}
-              />
-              <Chip
-                mobileCompact
-                variant={isExecuting ? undefined : 'primary'}
-                active={isExecuting}
-                onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
-                disabled={!isExecuting && isButtonDisabled}
-                aria-label={isExecuting ? 'Stop' : 'Run'}
-                leftAdornment={
-                  <span
-                    aria-hidden='true'
-                    className='inline-flex size-5 shrink-0 items-center justify-center overflow-visible'
-                  >
-                    <ThinkingLoader
-                      variant={isExecuting ? undefined : 'play'}
-                      startVariant='play'
-                      startHoldMs={140}
-                      size={20}
-                      morphDurationMs={isExecuting ? 650 : 180}
-                      tone='inherit'
-                    />
-                  </span>
-                }
-              >
-                <span className='inline-grid'>
-                  <span aria-hidden='true' className='invisible col-start-1 row-start-1'>
-                    Stop
-                  </span>
-                  <span className='col-start-1 row-start-1'>{isExecuting ? 'Stop' : 'Run'}</span>
-                </span>
-              </Chip>
-            </div>
+            <div className='flex gap-1.5'>{renderDeployAndRun('border')}</div>
           </div>
 
           {/* Tabs */}
           <div
             className={cn(
-              'flex shrink-0 items-center justify-between px-2 pt-3.5 max-md:pt-1.5',
+              'flex shrink-0 items-center justify-between px-2',
+              host ? 'pt-0' : 'pt-3.5 max-md:pt-1.5',
               isSearchingEditor && 'max-md:hidden'
             )}
           >

@@ -2,7 +2,9 @@ import { useEffect } from 'react'
 import type { TabStripItem } from '@sim/emcn'
 import { ArrowLeftRight } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
-import { useQueryStates } from 'nuqs'
+import { useRouter } from 'next/navigation'
+import { parseAsString, useQueryStates } from 'nuqs'
+import { createLoader } from 'nuqs/server'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { ProjectControl } from '@/app/o/[organizationId]/home/components/project-pane/project-control'
 import { ProjectPaneContent } from '@/app/o/[organizationId]/home/components/project-pane/project-pane-content'
@@ -14,6 +16,10 @@ import {
 import { EnvironmentSync } from '@/app/o/[organizationId]/p/components/environments/environment-sync'
 import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import {
+  logFilterParsers,
+  logFilterUrlKeys,
+} from '@/app/workspace/[workspaceId]/logs/search-params'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const RESOURCE_SECTIONS: Partial<Record<MothershipResource['type'], string>> = {
@@ -24,6 +30,18 @@ const RESOURCE_SECTIONS: Partial<Record<MothershipResource['type'], string>> = {
   log: 'logs',
 }
 
+const loadLogFilters = createLoader(logFilterParsers)
+
+/** Workspace route segments the project's Resources section can show. */
+const PATH_SECTIONS: Record<string, string> = {
+  w: 'workflows',
+  tables: 'tables',
+  knowledge: 'knowledge',
+  files: 'files',
+  logs: 'logs',
+  integrations: 'integrations',
+}
+
 /** UI tabs never enter the chat's persisted resource list or execution context. */
 export function useProjectPane(
   resources: MothershipResource[],
@@ -31,7 +49,10 @@ export function useProjectPane(
   desktopScopeId: string,
   onReveal: () => void
 ) {
+  const router = useRouter()
   const [params, setParams] = useQueryStates(projectPaneParsers, projectPaneOptions)
+  const [, setLogFilters] = useQueryStates(logFilterParsers, logFilterUrlKeys)
+  const [, setListLocation] = useQueryStates({ folderId: parseAsString, search: parseAsString })
   const { data: workspaces } = useWorkspacesQuery()
   const activeTab = params.tabs.find((tab) => tab.id === params.pane)
   const dashboard = resources.find(
@@ -107,6 +128,25 @@ export function useProjectPane(
         resourceDetail: '',
         pane: 'project',
       })
+      onReveal()
+    },
+    navigate: (href) => {
+      const url = new URL(href, window.location.origin)
+      const [, scope, workspaceId, path = '', ...rest] = url.pathname.split('/')
+      const kind = PATH_SECTIONS[path]
+      if (url.origin !== window.location.origin || scope !== 'workspace' || !kind) {
+        router.push(href)
+        return
+      }
+      void setParams({
+        project: workspaceId,
+        section: 'resources',
+        resourceKind: kind,
+        resourceDetail: rest.join('/'),
+        pane: 'project',
+      })
+      if (kind === 'logs') void setLogFilters(loadLogFilters(url.searchParams))
+      else void setListLocation({ folderId: url.searchParams.get('folderId'), search: null })
       onReveal()
     },
     content:

@@ -66,6 +66,7 @@ import {
 } from '@/app/workspace/[workspaceId]/tests/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import type { WorkflowPaneHost } from '@/app/workspace/[workspaceId]/w/[workflowId]/pane-host'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogByExecutionId, useLogDetail } from '@/hooks/queries/logs'
 import { exportTable } from '@/hooks/queries/tables'
@@ -138,6 +139,8 @@ interface ResourceContentProps {
   visible?: boolean
   /** Registers the active browser's targeted renderer-overlay handshake. */
   onBrowserOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
+  /** Set when a pane hosts the full editor in place of the reduced canvas. */
+  workflowHost?: WorkflowPaneHost
 }
 
 /**
@@ -204,6 +207,7 @@ export const ResourceContent = memo(function ResourceContent({
   onNotFound,
   visible = true,
   onBrowserOverlayControllerChange,
+  workflowHost,
 }: ResourceContentProps) {
   const observedTableViewRef = useRef<{ tableId: string; viewId?: string } | null>(null)
 
@@ -348,7 +352,12 @@ export const ResourceContent = memo(function ResourceContent({
 
     case 'workflow':
       return (
-        <EmbeddedWorkflow key={resource.id} workspaceId={workspaceId} workflowId={resource.id} />
+        <EmbeddedWorkflow
+          key={resource.id}
+          workspaceId={workspaceId}
+          workflowId={resource.id}
+          host={workflowHost}
+        />
       )
 
     case 'knowledgebase':
@@ -860,7 +869,11 @@ interface EmbeddedWorkflowProps {
   workflowId: string
 }
 
-function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
+function EmbeddedWorkflow({
+  workspaceId,
+  workflowId,
+  host,
+}: EmbeddedWorkflowProps & { host?: WorkflowPaneHost }) {
   const { data: workflowList } = useWorkflows(workspaceId)
   const workflowExists = (workflowList ?? []).some((workflow) => workflow.id === workflowId)
 
@@ -870,7 +883,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
 
   return (
     <Suspense fallback={WORKFLOW_LOADING}>
-      <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded />
+      <Workflow workspaceId={workspaceId} workflowId={workflowId} embedded={!host} host={host} />
     </Suspense>
   )
 }

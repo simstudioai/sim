@@ -12,4 +12,6 @@ export interface ResourcePanelNavigation {
   onClose: (id: string) => void
   onNew: () => void
   onBrowseResource: (resource: MothershipResource) => void
+  /** Shows a workspace destination a resource navigates to, such as a workflow's logs. */
+  navigate: (href: string) => void
 }

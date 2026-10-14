@@ -89,6 +89,7 @@ import {
   useShiftSelectionLock,
   useWorkflowExecution,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
+import type { WorkflowPaneHost } from '@/app/workspace/[workspaceId]/w/[workflowId]/pane-host'
 import {
   calculateContainerDimensions,
   clampPositionToContainer,
@@ -317,10 +318,11 @@ interface WorkflowContentProps {
   workspaceId: string
   workflowId: string
   embedded?: boolean
+  host?: WorkflowPaneHost
 }
 
 const WorkflowContent = React.memo(
-  ({ workspaceId, workflowId: workflowIdParam, embedded }: WorkflowContentProps) => {
+  ({ workspaceId, workflowId: workflowIdParam, embedded, host }: WorkflowContentProps) => {
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
     const [selectedEdges, setSelectedEdges] = useState<SelectedEdgesMap>(new Map())
@@ -5313,7 +5315,7 @@ const WorkflowContent = React.memo(
             <Terminal />
           </div>
 
-          {!embedded && <Panel />}
+          {!embedded && <Panel host={host} />}
         </div>
 
         {!embedded && oauthModal && oauthModalRequiresDraft && (
@@ -5363,14 +5365,21 @@ interface WorkflowProps {
   workspaceId: string
   workflowId: string
   embedded?: boolean
+  /** Set when a pane hosts the full editor; see {@link WorkflowPaneHost}. */
+  host?: WorkflowPaneHost
 }
 
-const Workflow = React.memo(({ workspaceId, workflowId, embedded }: WorkflowProps) => {
+const Workflow = React.memo(({ workspaceId, workflowId, embedded, host }: WorkflowProps) => {
   return (
     <WorkflowScopeProvider workspaceId={workspaceId} workflowId={workflowId}>
       <ReactFlowProvider>
         <ErrorBoundary>
-          <WorkflowContent workspaceId={workspaceId} workflowId={workflowId} embedded={embedded} />
+          <WorkflowContent
+            workspaceId={workspaceId}
+            workflowId={workflowId}
+            embedded={embedded}
+            host={host}
+          />
         </ErrorBoundary>
       </ReactFlowProvider>
     </WorkflowScopeProvider>
