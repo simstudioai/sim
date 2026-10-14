@@ -3,7 +3,7 @@ title: Connections
 description: Reference block outputs with normalized names, nested fields, and array indices.
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 import { Video } from '@/components/ui/video'
 
 Connections determine when blocks run. **Connection tags** read values from blocks that have already run. This page covers tag syntax and common output shapes; [data flow](/workflows/data-flow) explains how those values become available.
@@ -56,7 +56,7 @@ When a known source block did not run on the selected path, its reference resolv
 
 ## Common block outputs
 
-These examples use blocks named Agent, API, Function, Condition, Router, and Evaluator. Replace that name with your source block's normalized name.
+These abbreviated examples use blocks named Agent, API, Function, Condition, Router, and Evaluator. Replace that name with your source block's normalized name. Additional and optional fields depend on the block and runtime.
 
 <Tabs items={['Agent', 'API', 'Function', 'Condition', 'Router', 'Evaluator']}>
   <Tab>
@@ -69,7 +69,7 @@ These examples use blocks named Agent, API, Function, Condition, Router, and Eva
     }
     ```
 
-    Read text with `<agent.content>` and tool activity with `<agent.toolCalls.list>` or `<agent.toolCalls.count>`. A successful structured response exposes the requested fields at the top level; support and malformed-output behavior depend on the [Agent configuration](/workflows/blocks/agent).
+    Read text with `<agent.content>` and tool activity with `<agent.toolCalls.list>` or `<agent.toolCalls.count>`. A successful structured response exposes its fields at the top level, except names overwritten by standard metadata. See [Agent response format](/workflows/blocks/agent#response-format) for naming guidance, provider support, and malformed-output behavior.
   </Tab>
   <Tab>
     ```json
@@ -91,7 +91,7 @@ These examples use blocks named Agent, API, Function, Condition, Router, and Eva
     }
     ```
 
-    `result` can be any return-value type. `stdout` captures logged output, and `files` contains output-file metadata when files are produced.
+    `result` can be any return-value type. `stdout` contains bounded diagnostic output; see [Function output limits](/workflows/blocks/function#outputs). Remote execution includes `files` metadata; local JavaScript can omit that field.
   </Tab>
   <Tab>
     ```json
@@ -137,7 +137,7 @@ These examples use blocks named Agent, API, Function, Condition, Router, and Eva
     }
     ```
 
-    `content` is the evaluated input. Each configured metric appears as a numeric field.
+    `content` is the evaluated input. Metric names are lowercased. Missing scores or an unparseable response can produce `0`; see [Evaluator outputs](/workflows/blocks/evaluator#outputs) for numeric coercion and validation guidance.
   </Tab>
 </Tabs>
 

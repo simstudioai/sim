@@ -58,6 +58,7 @@ A link replaces repeated detail only after the owner contains it. Keep a concise
 - Fold useful FAQ answers into the section they explain. Keep a separate FAQ only for questions that cannot be organized coherently elsewhere.
 - Use a callout for a specific prerequisite or a non-obvious security, data-loss, or operational risk that deserves interruption. Use ordinary prose or a table for normal explanation. Keep important limits visible.
 - Use Markdown lists and tables for simple procedures and reference data. Use tabs for distinct configurations and Steps for substantial sequential procedures.
+- Import authored tabs from `@/components/ui/tabs`. Mixed panels retain a content inset; only a single code fence fills the frame. Keep long tab lists horizontally scrollable and long prose references wrapped.
 - Keep a screenshot when it locates a difficult control or shows a meaningful result. Keep a video when motion explains behavior that text or a static example cannot. Remove decorative, redundant, misleading, or non-rendering media.
 - Inspect media before describing it as stale. Uninspected remote media is unverified; it may still be removed when the written procedure fully covers its purpose. Do not fabricate replacement captures.
 - Remove imports, components, preview definitions, local styling, and assets made unused by an edit after checking all consumers, including integration pages.

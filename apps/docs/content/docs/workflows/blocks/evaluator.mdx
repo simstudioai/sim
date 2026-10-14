@@ -47,7 +47,7 @@ Hosted models use workspace BYOK or platform credentials where available. Same-p
 
 | Reference | Value |
 | --- | --- |
-| `<evaluator.accuracy>` | Numeric score for Accuracy; each metric exposes its lowercase name |
+| `<evaluator.accuracy>` | Score for Accuracy; each metric exposes its lowercase name, subject to the fallback behavior below |
 | `<evaluator.content>` | Original evaluated content |
 | `<evaluator.model>` | Model that answered |
 | `<evaluator.tokens>` | Model token usage |
@@ -56,6 +56,8 @@ Hosted models use workspace BYOK or platform credentials where available. Same-p
 The Logs UI and run-resource API use credits. See [Costs](/platform/costs) for units and billing behavior.
 
 The requested JSON Schema has numeric fields and no extra text. Its field types do not enforce the metric ranges. Keep the same metrics and rubric when comparing variations.
+
+A missing score or unparseable response can produce `0` without failing the block. Zero alone does not prove that the model assessed the content. Present scores are converted with `Number()` without a finite-number check, so malformed values can produce `NaN` before serialization. Validate that scores are finite and within the required bounds before using them to authorize an action, especially when a low score permits it.
 
 ## Related docs
 

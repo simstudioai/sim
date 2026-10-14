@@ -121,6 +121,8 @@ Set **Response Format** to a JSON Schema when later blocks need named fields. Na
 
 Malformed JSON can fall back to plain text with `_responseFormatWarning`. Sim does not perform a general post-parse schema check on every provider result, so validate fields downstream before consequential actions.
 
+Avoid schema fields named `model`, `tokens`, `toolCalls`, `providerTiming`, or `cost`. Sim's standard metadata overwrites those fields after parsing, even when a metadata value is absent.
+
 ```json
 {
   "name": "user_analysis",
@@ -164,7 +166,7 @@ After the agent runs, later blocks read its result by name:
 
 The cost object can include additional fields such as tool costs or pricing. The Logs UI and run-resource API use credits. See [Costs](/platform/costs) for units and billing behavior.
 
-When a response format is set, its fields are readable directly, like `<agent.sentiment>`.
+Response-format fields are readable directly, like `<agent.sentiment>`, subject to the [metadata naming guidance](#response-format).
 
 ## Streamed thinking and tool calls
 

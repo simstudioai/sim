@@ -105,7 +105,7 @@ const APIPage = createAPIPage(openapi, {
   content: {
     renderOperationLayout: (slots) => {
       return (
-        <div className='grid @4xl:grid-cols-[minmax(0,1fr)_400px] grid-cols-1 @4xl:items-start gap-x-6 gap-y-4 [--badge-amber-text:#854d0e] [--badge-blue-text:#1e40af] [--badge-error-text:#991b1b] [--badge-orange-text:#9a3412] [--badge-success-text:#166534] dark:[--badge-amber-text:#fcd34d] dark:[--badge-blue-text:#93c5fd] dark:[--badge-error-text:#fca5a5] dark:[--badge-orange-text:#fdba74] dark:[--badge-success-text:#86efac] [&_button[aria-haspopup=dialog]]:min-h-6'>
+        <div className='grid @4xl:grid-cols-[minmax(0,1fr)_400px] grid-cols-1 @4xl:items-start gap-x-6 gap-y-4 [--badge-amber-text:var(--text-primary)] [--badge-blue-text:var(--text-primary)] [--badge-error-text:var(--text-primary)] [--badge-orange-text:var(--text-primary)] [--badge-success-text:var(--text-primary)] [&_button[aria-haspopup=dialog]]:min-h-6'>
           <div className='@4xl:col-start-1 @4xl:row-start-1 min-w-0 flex-1'>
             {slots.header}
             {slots.description}

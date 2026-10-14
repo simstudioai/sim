@@ -4,7 +4,7 @@ description: Configure SAML or OpenID Connect sign-in for your organization
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 
 Single sign-on (SSO) lets members authenticate through your organization's identity provider. Sim supports OpenID Connect (OIDC) and SAML 2.0, with multiple providers per organization.
 
@@ -67,10 +67,8 @@ Sim Cloud uses `www.sim.ai`; self-hosted deployments use their public domain. Us
 
 ## Provider guides
 
-<Tabs items={['Okta (OIDC)', 'Microsoft Entra ID (OIDC)', 'Microsoft Entra ID (SAML)', 'Google Workspace (OIDC)', 'AD FS (SAML)']}>
-<Tab value="Okta (OIDC)">
-
-### Okta
+<Tabs updateAnchor items={['Okta (OIDC)', 'Microsoft Entra ID (OIDC)', 'Microsoft Entra ID (SAML)', 'Google Workspace (OIDC)', 'AD FS (SAML)']}>
+<Tab value="Okta (OIDC)" id="okta">
 
 1. In the Okta Admin Console, open **Applications and Resources → Applications → Create App Integration**. These steps use **Classic experience**; select **OIDC - OpenID Connect**, then **Web Application**.
 2. Set **Sign-in redirect URI** to your chosen Sim callback:
@@ -101,9 +99,7 @@ https://<your-sim-domain>/sso/launch/acme-okta
 See [Okta OIDC setup](https://help.okta.com/en-us/content/topics/apps/apps_app_integration_wizard_oidc.htm). For SCIM, the creation experience matters: Classic OIDC apps need a separate provisioning integration, while the newer Okta Integration Wizard can support SCIM on OIDC. See [Okta provisioning](/platform/enterprise/scim/okta).
 
 </Tab>
-<Tab value="Microsoft Entra ID (OIDC)">
-
-### Microsoft Entra ID with OIDC
+<Tab value="Microsoft Entra ID (OIDC)" id="microsoft-entra-id-with-oidc">
 
 1. Open **Microsoft Entra ID → App registrations → New registration**.
 2. Under **Redirect URI**, select **Web** and enter:
@@ -127,9 +123,7 @@ See [Okta OIDC setup](https://help.okta.com/en-us/content/topics/apps/apps_app_i
 See [Microsoft app registration](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) and [ID token claims](https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference).
 
 </Tab>
-<Tab value="Microsoft Entra ID (SAML)">
-
-### Microsoft Entra ID with SAML
+<Tab value="Microsoft Entra ID (SAML)" id="microsoft-entra-id-with-saml">
 
 1. Open **Enterprise applications → New application → Create your own application**. Choose **Integrate any other application you don't find in the gallery**.
 2. Open **Single sign-on** and select **SAML**.
@@ -155,9 +149,7 @@ See [Microsoft app registration](https://learn.microsoft.com/en-us/entra/identit
 See [Microsoft SAML setup](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/add-application-portal-setup-sso).
 
 </Tab>
-<Tab value="Google Workspace (OIDC)">
-
-### Google Workspace
+<Tab value="Google Workspace (OIDC)" id="google-workspace">
 
 1. In Google Cloud Console, configure **Google Auth platform → Audience** as **Internal** if sign-in should be restricted to your Google Workspace organization. Branding and consent settings live under **Google Auth platform → Branding**.
 2. Open **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID** and choose **Web application**.
@@ -179,9 +171,7 @@ See [Microsoft SAML setup](https://learn.microsoft.com/en-us/entra/identity/ente
 **Internal** restricts the OAuth app to your Workspace organization; Sim's verified **Domain** selects the email domain this SSO connection serves. See [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect) and [OAuth consent setup](https://developers.google.com/workspace/guides/configure-oauth-consent).
 
 </Tab>
-<Tab value="AD FS (SAML)">
-
-### AD FS
+<Tab value="AD FS (SAML)" id="ad-fs">
 
 1. Open **AD FS Management → Relying Party Trusts → Add Relying Party Trust**.
 2. Choose **Claims aware**, then **Enter data about the relying party manually**.

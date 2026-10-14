@@ -50,7 +50,7 @@ A [Table block](/tables/using-in-workflows) reads and writes rows within a workf
 
 ## Limits and behavior
 
-Row and table counts depend on the plan and deployment configuration. Defaults include 400 KiB of data per row and 1,000 columns per table. Query pages have a default 5 MiB row-data budget, which can be configured for bounded pages. A query requesting all matches has a fixed 5 MiB budget. Use pagination for large reads.
+Row and table counts depend on the plan and deployment configuration. The maximum row-data size defaults to 400 KiB and is configurable per deployment. Tables have a fixed ceiling of 1,000 columns. Query pages have a default 5 MiB row-data budget, which can be configured for bounded pages. A query requesting all matches has a fixed 5 MiB budget. Use pagination for large reads.
 
 Individual row writes are atomic, but a workflow's read → process → write sequence is not one transaction. Concurrent workflows can operate on the same table and affect the same records.
 

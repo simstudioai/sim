@@ -4,7 +4,7 @@ description: Run JavaScript, Python, or Shell code and return values or files.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 import { BlockPreview, WorkflowPreview, FUNCTION_RESHAPE_WORKFLOW, FUNCTION_VALIDATE_WORKFLOW } from '@/components/workflow-preview'
 
 The **Function block** runs your own JavaScript, Python, or Shell code as one step of a workflow. Use it to reshape a value, run a calculation, call a CLI, or add logic no other block covers.
@@ -151,8 +151,12 @@ Sim supplies the rendered heredoc privately while preserving the quoted delimite
 | Output | What it is |
 | --- | --- |
 | `<function.result>` | The value your code returns (object, array, string, number, …) |
-| `<function.stdout>` | Anything printed with `console.log()` or `print()` |
+| `<function.stdout>` | Captured `console.log()`, `print()`, or Shell output, subject to the diagnostic limits below |
 | `<function.files>` | Files your code wrote to `/tmp/sim/outputs`, ready to attach or upload |
+
+Local JavaScript stdout is truncated after 200,000 characters by default, with a `[stdout truncated]` marker. Operators can change that default with `IVM_MAX_STDOUT_CHARS`.
+
+Remote execution has a separate 10 MiB combined process-output budget for stdout, stderr, result text, and structured error text. Exceeding it fails the block. Export large remote results as files under `/tmp/sim/outputs`; the separate 20-file and 50 MiB export limits still apply.
 
 ## Files
 
@@ -431,7 +435,7 @@ The lazy `sim.files` and `sim.values` helpers are available only in JavaScript f
 
 An uncaught error follows the connected error port or fails the run. Catch an error only when your code can return a meaningful recovery result. `console.log()`, `print()`, and ordinary Shell output appear in `stdout` and the run logs.
 
-Function execution is bounded by the workflow's remaining execution time. An internal explicit timeout can lower that budget; there is no separate timeout field in the current block editor. Exceeding the budget terminates execution and reports a block error.
+Function uses the workflow's remaining execution time when a deadline exists. Without a workflow deadline, it still has a fallback timeout of 300,000 ms (5 minutes) by default, configurable through `EXECUTION_TIMEOUT_FREE`. An explicit internal timeout can replace that fallback or shorten the workflow budget; it cannot extend the workflow deadline. There is no separate timeout field in the current block editor. Exceeding the budget terminates execution and reports a block error.
 
 ## Related docs
 
