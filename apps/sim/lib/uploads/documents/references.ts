@@ -1,4 +1,4 @@
-import ts from '@typescript/typescript6'
+import type ts from '@typescript/typescript6'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 export type DocumentSourceLanguage = 'javascript' | 'python'
@@ -16,17 +16,32 @@ interface SourceToken {
 }
 
 const FILE_HELPERS = new Set(['getFileBase64', 'addImage', 'drawImage', 'input_path'])
+const INPUT_PATH_PREFIX = '/home/user/inputs/'
+/**
+ * Every reference is a token whose raw source text is a helper name or starts with the input
+ * path, so a source containing none of these substrings has no references and is never parsed.
+ */
+const REFERENCE_MARKERS = [...FILE_HELPERS, INPUT_PATH_PREFIX]
+
+let typescriptModule: typeof ts | undefined
+
+/** The compiler is large and most sources carry no reference, so it loads on first parse. */
+function loadTypeScript(): typeof ts {
+  typescriptModule ??= require('@typescript/typescript6') as typeof ts
+  return typescriptModule
+}
 
 function* javascriptTokens(source: string): Generator<SourceToken> {
+  const typescript = loadTypeScript()
   const fileName = 'document.js'
-  const sourceFile = ts.createSourceFile(
+  const sourceFile = typescript.createSourceFile(
     fileName,
     source,
-    ts.ScriptTarget.Latest,
+    typescript.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.JS
+    typescript.ScriptKind.JS
   )
-  const program = ts.createProgram(
+  const program = typescript.createProgram(
     [fileName],
     { allowJs: true, noLib: true, noResolve: true },
     {
@@ -44,14 +59,16 @@ function* javascriptTokens(source: string): Generator<SourceToken> {
   )
   const diagnostic = program.getSyntacticDiagnostics(sourceFile)[0]
   if (diagnostic) {
-    throw new DocCompileUserError(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
+    throw new DocCompileUserError(
+      typescript.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+    )
   }
 
   const pending: ts.Node[] = [sourceFile]
   while (pending.length > 0) {
     const node = pending.pop()
     if (!node) break
-    if (ts.isStringLiteralLike(node)) {
+    if (typescript.isStringLiteralLike(node)) {
       const start = node.getStart(sourceFile) + 1
       yield { kind: 'string', value: source.slice(start, node.end - 1), start }
       continue
@@ -62,7 +79,7 @@ function* javascriptTokens(source: string): Generator<SourceToken> {
     } else {
       const start = node.getStart(sourceFile)
       yield {
-        kind: ts.isIdentifier(node) ? 'word' : 'punctuation',
+        kind: typescript.isIdentifier(node) ? 'word' : 'punctuation',
         value: source.slice(start, node.end),
         start,
       }
@@ -165,6 +182,7 @@ export function* iterateDocumentFileReferences(
   source: string,
   language: DocumentSourceLanguage
 ): Generator<DocumentFileReference> {
+  if (!REFERENCE_MARKERS.some((marker) => source.includes(marker))) return
   const previous: SourceToken[] = []
   for (const token of language === 'javascript' ? javascriptTokens(source) : pythonTokens(source)) {
     if (token.kind === 'string') {
@@ -185,7 +203,7 @@ export function* iterateDocumentFileReferences(
           ? token.value
           : undefined)
       if (fileId) {
-        const start = token.start + (path ? '/home/user/inputs/'.length : 0)
+        const start = token.start + (path ? INPUT_PATH_PREFIX.length : 0)
         yield { fileId, start, end: start + fileId.length }
       }
     }

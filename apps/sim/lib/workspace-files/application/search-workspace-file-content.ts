@@ -4,8 +4,6 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import { admitEach, mustClassifyContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
-import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { listFileFolders, loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
@@ -102,8 +100,8 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           })
         return toWorkspaceFileSearchResult(result)
       }
-      const provenance = await db.transaction(async (tx) => {
-        await lockWorkspaceProject(tx, context.workspaceId)
+      /** Snapshot validation only: admission runs after commit, so row or advisory locks would fence nothing. */
+      const delivery = await db.transaction(async (tx) => {
         const [current] = await tx
           .select({
             workspaceId: workspace.id,
@@ -113,45 +111,48 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           })
           .from(workspace)
           .where(and(eq(workspace.id, context.workspaceId), isNull(workspace.archivedAt)))
-          .for('share')
         if (!current) throw new OrchestrationError('not_found', 'Workspace not found')
-        if (current.workspaceOrganizationId)
-          await acquirePermissionGroupOrgLock(tx, current.workspaceOrganizationId)
         await authorizeWorkspaceFileAccess(principal, fileOperations.searchContent, current, {
           executor: tx,
-          forUpdate: true,
         })
         const folders = input.folderPaths === undefined ? [] : await listFileFolders(owner, {}, tx)
-        const delivery = await loadFileSearchDelivery(tx, {
+        const loaded = await loadFileSearchDelivery(tx, {
           owner,
           prepared: result,
           scope: resolveFileSearchFolderScope(folders, input),
           signal,
           classify: classified,
         })
-        for (const dependency of delivery.inputs)
+        for (const dependency of loaded.inputs)
           await assertOwnedFileAccess(principal, { ...current, ...dependency }, tx)
-        return delivery.provenance
+        return loaded
       })
-      const admitted = await admitEach(principal, result.sources, async (sources) =>
+      const inScope = result.sources.filter(
+        (source) => !delivery.outOfScope.has(source.identity.fileId)
+      )
+      const admitted = await admitEach(principal, inScope, async (sources) =>
         sources.map((source) => ({
           kind: 'workspace-file' as const,
           id: source.identity.fileId,
-          provenance: provenance.get(source.identity.fileId) ?? { status: 'unknown' as const },
+          provenance: delivery.provenance.get(source.identity.fileId) ?? {
+            status: 'unknown' as const,
+          },
           view: 'excerpt' as const,
         }))
       )
       const admittedIds = new Set(admitted.map((source) => source.identity.fileId))
       return toWorkspaceFileSearchResult({
         ...result,
-        results: result.results.map((hit) =>
-          admittedIds.has(hit.fileId)
-            ? hit
-            : {
-                ...hit,
-                text: '[Preview withheld: read or grep this file to inspect protected text.]',
-              }
-        ),
+        results: result.results
+          .filter((hit) => !delivery.outOfScope.has(hit.fileId))
+          .map((hit) =>
+            admittedIds.has(hit.fileId)
+              ? hit
+              : {
+                  ...hit,
+                  text: '[Preview withheld: read or grep this file to inspect protected text.]',
+                }
+          ),
         sources: admitted,
       })
     } catch (error) {
