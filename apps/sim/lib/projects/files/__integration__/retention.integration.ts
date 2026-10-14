@@ -659,15 +659,17 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       )
     )
     try {
-      await runCleanupSoftDeletes(
-        {
-          workspaceIds: [f.workspaceId],
-          plan: 'free',
-          retentionHours: 30 * 24,
-          label: 'workspace-folder-rollback',
-        },
-        createCleanupBudgets({ folders: 1 })
-      ).catch(() => undefined)
+      await expect(
+        runCleanupSoftDeletes(
+          {
+            workspaceIds: [f.workspaceId],
+            plan: 'free',
+            retentionHours: 30 * 24,
+            label: 'workspace-folder-rollback',
+          },
+          createCleanupBudgets({ folders: 1 })
+        )
+      ).rejects.toMatchObject({ cause: { message: 'folder retention rollback fixture' } })
       const [child] = await db
         .select({ parentId: folder.parentId, name: folder.name })
         .from(folder)
