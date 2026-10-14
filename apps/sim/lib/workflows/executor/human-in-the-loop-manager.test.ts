@@ -18,6 +18,7 @@ import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { getExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -329,6 +330,31 @@ describe('what a failed resume did to its paused execution', () => {
       }
     }
   )
+
+  it('keeps the pause retryable when the cancellation subscription cannot be opened', async () => {
+    const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    const subscribeSpy = vi
+      .spyOn(getExecutionSignalHub(), 'subscribe')
+      .mockRejectedValueOnce(new Error('Redis subscriber connection ended'))
+    const markResumeAttemptFailedSpy = vi
+      .spyOn(PauseResumeManager, 'markResumeAttemptFailed')
+      .mockResolvedValueOnce(true)
+    const markResumeFailedSpy = vi.spyOn(managerInternals, 'markResumeFailed')
+    const { outcomes, args } = argsReportingOutcomes()
+
+    try {
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toThrow(
+        'Run buffer temporarily unavailable'
+      )
+      expect(markResumeAttemptFailedSpy).toHaveBeenCalledTimes(1)
+      expect(markResumeFailedSpy).not.toHaveBeenCalled()
+      expect(outcomes).toEqual(['pause_retained'])
+    } finally {
+      subscribeSpy.mockRestore()
+      markResumeAttemptFailedSpy.mockRestore()
+      markResumeFailedSpy.mockRestore()
+    }
+  })
 
   describe('when the resumed run pauses but its pause cannot be saved', () => {
     const spies: { mockRestore: () => void }[] = []
