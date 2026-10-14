@@ -103,6 +103,20 @@ export async function loadWorkspaceFileVersionHead(
   return head
 }
 
+/** Batched {@link loadWorkspaceFileVersionHead}: each file's highest version, keyed by file id. */
+export async function loadWorkspaceFileVersionHeads(
+  fileIds: string[],
+  executor: DbOrTx = db
+): Promise<Map<string, WorkspaceFileVersionSummaryRow>> {
+  if (!fileIds.length) return new Map()
+  const heads = await executor
+    .selectDistinctOn([workspaceFileVersion.fileId], versionSummaryColumns)
+    .from(workspaceFileVersion)
+    .where(inArray(workspaceFileVersion.fileId, fileIds))
+    .orderBy(workspaceFileVersion.fileId, desc(workspaceFileVersion.version))
+  return new Map(heads.map((head) => [head.fileId, head]))
+}
+
 /**
  * Whether the head row describes the file's current bytes. When it does not — no rows yet, or a
  * writer changed the key outside this module — the outgoing bytes must be materialized as their own
