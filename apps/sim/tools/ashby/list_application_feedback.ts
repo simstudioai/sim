@@ -1,4 +1,3 @@
-import { ASHBY_NEXT_SYNC_CURSOR_OUTPUT } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
@@ -131,6 +130,6 @@ export const listApplicationFeedbackTool: ToolConfig<Params, Response> = {
     },
     moreDataAvailable: { type: 'boolean', description: 'Whether more pages exist' },
     nextCursor: { type: 'string', description: 'Next page cursor', optional: true },
-    nextSyncCursor: ASHBY_NEXT_SYNC_CURSOR_OUTPUT,
+    nextSyncCursor: { type: 'string', description: 'Next incremental sync token', optional: true },
   },
 }

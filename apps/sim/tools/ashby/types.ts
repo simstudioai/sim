@@ -1,15 +1,4 @@
-import type { ToolOutputProperty, ToolResponse } from '@/tools/types'
-
-/**
- * Shared `nextSyncCursor` output on every Ashby list tool. Ashby returns the sync token
- * only once the last page is drained, so earlier pages carry null.
- */
-export const ASHBY_NEXT_SYNC_CURSOR_OUTPUT: ToolOutputProperty = {
-  type: 'string',
-  description:
-    'Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null',
-  optional: true,
-}
+import type { ToolResponse } from '@/tools/types'
 
 interface AshbyBaseParams {
   apiKey: string

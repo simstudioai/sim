@@ -1,5 +1,4 @@
 import type { AshbyUserSummary } from '@/tools/ashby/types'
-import { ASHBY_NEXT_SYNC_CURSOR_OUTPUT } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
@@ -294,6 +293,10 @@ export const listInterviewsTool: ToolConfig<
       description: 'Opaque cursor for fetching the next page',
       optional: true,
     },
-    nextSyncCursor: ASHBY_NEXT_SYNC_CURSOR_OUTPUT,
+    nextSyncCursor: {
+      type: 'string',
+      description: 'Opaque token for the next incremental sync',
+      optional: true,
+    },
   },
 }

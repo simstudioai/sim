@@ -814,7 +814,6 @@ Lists submitted interview feedback, optionally for one application, with paginat
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `feedback` | array | Submitted application feedback |
 |   ↳ `id` | string | Feedback UUID |
 |   ↳ `formDefinition` | json | Feedback form sections and documented field definitions |
@@ -827,6 +826,7 @@ Lists submitted interview feedback, optionally for one application, with paginat
 |   ↳ `submittedAt` | string | Submission timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
 | `nextCursor` | string | Next page cursor |
+| `nextSyncCursor` | string | Next incremental sync token |
 
 ### Ashby List Application History
 
@@ -879,10 +879,10 @@ Lists all applications in an Ashby organization with pagination and optional fil
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `applications` | array | List of applications |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
 
 ### Ashby List Archive Reasons
 
@@ -923,13 +923,13 @@ Lists all candidate tags configured in Ashby.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `tags` | array | List of candidate tags |
 |   ↳ `id` | string | Tag UUID |
 |   ↳ `title` | string | Tag title |
 |   ↳ `isArchived` | boolean | Whether the tag is archived |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Sync token to use for incremental updates in future requests |
 
 ### Ashby List Candidates
 
@@ -950,10 +950,10 @@ Lists all candidates in an Ashby organization with cursor-based pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `candidates` | array | List of candidates |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
 
 ### Ashby List Custom Fields
 
@@ -973,7 +973,6 @@ Lists all custom field definitions configured in Ashby.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `customFields` | array | List of custom field definitions |
 |   ↳ `id` | string | Custom field UUID |
 |   ↳ `title` | string | Custom field title |
@@ -988,6 +987,7 @@ Lists all custom field definitions configured in Ashby.
 |     ↳ `isArchived` | boolean | Whether archived |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
 
 ### Ashby List Departments
 
@@ -1007,7 +1007,6 @@ Lists all departments in Ashby.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `departments` | array | List of departments |
 |   ↳ `id` | string | Department UUID |
 |   ↳ `name` | string | Department name |
@@ -1019,6 +1018,7 @@ Lists all departments in Ashby.
 |   ↳ `extraData` | json | Free-form key-value metadata |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
 
 ### Ashby List Interview Schedules
 
@@ -1040,7 +1040,6 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `interviewSchedules` | array | List of interview schedules |
 |   ↳ `id` | string | Interview schedule UUID |
 |   ↳ `status` | string | Schedule status \(NeedsScheduling, WaitingOnCandidateBooking, Scheduled, Complete, Cancelled, OnHold, etc.\) |
@@ -1072,6 +1071,7 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 |     ↳ `hasSubmittedFeedback` | boolean | Whether any feedback has been submitted |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque token for the next incremental sync |
 
 ### Ashby List Interview Plans
 
@@ -1091,7 +1091,6 @@ Lists Ashby interview plans, including optional archived plans and incremental c
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `interviewPlans` | array | Interview plans |
 |   ↳ `id` | string | Interview plan UUID |
 |   ↳ `title` | string | Plan title |
@@ -1100,6 +1099,7 @@ Lists Ashby interview plans, including optional archived plans and incremental c
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `moreDataAvailable` | boolean | Whether more pages exist |
 | `nextCursor` | string | Next page cursor |
+| `nextSyncCursor` | string | Next incremental sync token |
 
 ### Ashby List Interview Stages
 
@@ -1189,10 +1189,10 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `jobs` | array | List of jobs |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Ashby's syncToken for the next incremental run, returned only once the last page is drained. Named as a cursor because that is what it is - an opaque resumption marker, not a credential - so it stays readable in block output alongside nextCursor. |
 
 ### Ashby List Locations
 
@@ -1213,7 +1213,6 @@ Lists all locations configured in Ashby.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `locations` | array | List of locations |
 |   ↳ `id` | string | Location UUID |
 |   ↳ `name` | string | Location name |
@@ -1232,6 +1231,7 @@ Lists all locations configured in Ashby.
 |   ↳ `extraData` | json | Free-form key-value metadata |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque sync token returned after the last page; pass on next sync |
 
 ### Ashby List Notes
 
@@ -1285,10 +1285,10 @@ Lists all offers with their latest version in an Ashby organization.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `offers` | array | List of offers |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque token for the next incremental sync, returned on the final page |
 
 ### Ashby List Openings
 
@@ -1308,9 +1308,9 @@ Lists all openings in Ashby with pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque token for the next incremental sync |
 
 ### Ashby List Sources
 
@@ -1354,10 +1354,10 @@ Lists all users in Ashby with pagination.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `nextSyncCursor` | string | Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null |
 | `users` | array | List of users |
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
+| `nextSyncCursor` | string | Opaque token for the next incremental sync |
 
 ### Ashby Remove Candidate Tag
 
