@@ -1,4 +1,5 @@
 import { getPostgresErrorCode } from '@sim/utils/errors'
+import { admitEach } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/application/authorized-use-case'
 import { listProjectFileFolders } from '@/lib/projects/files/application/folders'
@@ -33,6 +34,7 @@ export const searchProjectFileContent = defineAuthorizedProjectFileUseCase<
   FileSearchResult
 >({
   operation: projectFileOperations.searchContent,
+  isolationLevel: 'repeatable read',
   async prepare({ input, principal, context, request }) {
     const signal = input.signal ?? request?.signal
     signal?.throwIfAborted()
@@ -61,7 +63,7 @@ export const searchProjectFileContent = defineAuthorizedProjectFileUseCase<
       throw error
     }
   },
-  async execute({ tx, input, context, prepared, request }) {
+  async execute({ tx, input, context, prepared, request, principal }) {
     if (!prepared) throw new Error('Search snapshot is missing')
     try {
       const folders =
@@ -74,10 +76,39 @@ export const searchProjectFileContent = defineAuthorizedProjectFileUseCase<
         signal: input.signal ?? request?.signal,
       })
       let secretProvenance: WorkspaceFileSecretProvenance = { status: 'exact', entries: [] }
-      for (const source of delivery.provenance.values()) {
-        secretProvenance = mergeWorkspaceFileSecretProvenance(secretProvenance, source)
+      const current = prepared.sources.filter(
+        (source) =>
+          !delivery.outOfScope.has(source.identity.fileId) &&
+          delivery.provenance.has(source.identity.fileId)
+      )
+      const admitted = await admitEach(principal, current, async (sources) =>
+        sources.map((source) => ({
+          kind: 'workspace-file' as const,
+          id: source.identity.fileId,
+          provenance: delivery.provenance.get(source.identity.fileId) ?? {
+            status: 'unknown' as const,
+          },
+          view: 'excerpt' as const,
+        }))
+      )
+      const admittedIds = new Set(admitted.map((source) => source.identity.fileId))
+      const results = prepared.results
+        .filter((hit) => !delivery.outOfScope.has(hit.fileId))
+        .map((hit) =>
+          admittedIds.has(hit.fileId)
+            ? hit
+            : {
+                ...hit,
+                text: '[Preview withheld: read or grep this file to inspect protected text.]',
+              }
+        )
+      for (const source of admitted) {
+        secretProvenance = mergeWorkspaceFileSecretProvenance(
+          secretProvenance,
+          delivery.provenance.get(source.identity.fileId) ?? { status: 'unknown' }
+        )
       }
-      return { ...prepared, secretProvenance }
+      return { ...prepared, results, count: results.length, sources: admitted, secretProvenance }
     } catch (error) {
       if (['55P03', '25P04'].includes(getPostgresErrorCode(error) ?? '')) {
         throw new OrchestrationError(

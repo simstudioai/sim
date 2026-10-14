@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -35,6 +35,8 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
     {
       ...options,
       filePrincipal,
+      ownerKey:
+        resolvePrincipalSubjectUserId(filePrincipal) ?? `workspace:${fileRecord.workspaceId}`,
     }
   )
   const artifactKey = result.artifactKey

@@ -1,14 +1,15 @@
-import { db } from '@sim/db'
 import type { WorkspaceFileRow } from '@sim/db/schema'
 import { workspaceFiles } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { describeError } from '@sim/utils/errors'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import type { DbTransaction } from '@/lib/db/types'
-import type { ProjectFileTarget } from '@/lib/projects/files/application/authorization'
+import type {
+  ProjectFileAuthorizationContext,
+  ProjectFileTarget,
+} from '@/lib/projects/files/application/authorization'
 import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/application/authorized-use-case'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import {
@@ -23,11 +24,7 @@ import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import {
-  enqueueWorkspaceFileStorageCleanups,
-  processWorkspaceFileStorageCleanupsNow,
-} from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
-import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
   compileFileDocument,
@@ -50,8 +47,6 @@ import {
 import { createFileReadReceipt, type FileReadReceipt } from '@/lib/workspace-files/read-receipt'
 import { markFileSearchArtifactReadyInTx } from '@/lib/workspace-files/search/artifact-ready'
 
-const logger = createLogger('ProjectFileArtifacts')
-
 type ProjectOwner = { entityType: 'project'; entityId: string }
 interface ArtifactInput extends ProjectFileTarget {
   fileId: string
@@ -68,10 +63,10 @@ interface ArtifactManifest {
   dependencies: WorkspaceFileRow[]
   pageHtml?: string
   generatedDocument: boolean
+  secretProvenance: WorkspaceFileSecretProvenance
 }
 interface PreparedArtifact {
   artifactKey?: string
-  writtenArtifactKeys: readonly string[]
   manifest: ArtifactManifest
   buffer: Buffer
   contentType: string
@@ -84,45 +79,6 @@ interface ArtifactResult {
   dependsOnReferencedFiles: boolean
   secretProvenance: WorkspaceFileSecretProvenance
   receipt: FileReadReceipt
-}
-
-async function discardArtifactWrites(owner: ProjectOwner, keys: readonly string[]) {
-  if (keys.length === 0) return
-  const derivativePrefix = `project/${owner.entityId}/image-derivative/`
-  if (
-    keys.some(
-      (key) =>
-        !key.startsWith(`project/${owner.entityId}/compiled/`) &&
-        !(
-          key.startsWith(derivativePrefix) &&
-          /^[a-f0-9]{64}\.jpg$/.test(key.slice(derivativePrefix.length))
-        )
-    )
-  )
-    throw new Error('Artifact cleanup does not belong to this Project')
-  let events: string[]
-  try {
-    events = await enqueueWorkspaceFileStorageCleanups(db, keys, 'project')
-  } catch (error) {
-    logger.warn('Artifact cleanup could not be persisted; attempting direct deletion', {
-      owner,
-      keys,
-      error: describeError(error),
-    })
-    for (const key of keys) {
-      try {
-        await deleteFile({ key, context: 'project' })
-      } catch (cleanupError) {
-        logger.error('Uncommitted artifact could not be deleted or queued for cleanup', {
-          owner,
-          key,
-          error: describeError(cleanupError),
-        })
-      }
-    }
-    return
-  }
-  await processWorkspaceFileStorageCleanupsNow(events, { owner, reason: 'artifact read failed' })
 }
 
 function requireSameRevision(current: WorkspaceFileRow | undefined, expected: WorkspaceFileRow) {
@@ -153,6 +109,34 @@ async function loadDependencies(tx: DbTransaction, owner: ProjectOwner, ids: str
     throw new OrchestrationError('not_found', 'Document input not found')
   return rows
 }
+
+const snapshotSource = defineAuthorizedProjectFileUseCase<
+  typeof projectFileOperations.readArtifact,
+  ArtifactInput,
+  { file: WorkspaceFileRow; secretProvenance: WorkspaceFileSecretProvenance | undefined }
+>({
+  operation: projectFileOperations.readArtifact,
+  async execute({
+    context,
+    tx,
+  }: {
+    context: ProjectFileAuthorizationContext
+    tx: DbTransaction
+    input: ArtifactInput
+  }) {
+    const file = context.file
+    if (!file) throw new OrchestrationError('not_found', 'File not found')
+    const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
+    return { file, secretProvenance: evidence.get(file.id) }
+  },
+  afterSuccess: ({ principal, result }) =>
+    requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.file.id,
+      provenance: result.secretProvenance ?? { status: 'unknown' },
+      view: 'opaque',
+    }),
+})
 
 const snapshotArtifact = defineAuthorizedProjectFileUseCase<
   typeof projectFileOperations.readArtifact,
@@ -203,8 +187,25 @@ const snapshotArtifact = defineAuthorizedProjectFileUseCase<
         'Document exceeds the referenced input limit'
       )
     const dependencies = await loadDependencies(tx, context.owner, ids)
-    return { source: input.source.file, dependencies, pageHtml, generatedDocument }
+    const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [
+      input.source.file,
+      ...dependencies,
+    ])
+    return {
+      source: input.source.file,
+      dependencies,
+      pageHtml,
+      generatedDocument,
+      secretProvenance: mergeWorkspaceFileSecretProvenance(...evidence.values()),
+    }
   },
+  afterSuccess: ({ principal, result }) =>
+    requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.source.id,
+      provenance: result.secretProvenance,
+      view: 'opaque',
+    }),
 })
 
 /** Renders only source-owned dependencies, then rechecks the source, every input, and current authority. */
@@ -223,97 +224,84 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
     ) {
       throw new OrchestrationError('validation', 'Invalid document byte limit')
     }
-    const file = context.file
-    if (!file) throw new OrchestrationError('not_found', 'File not found')
-    const writtenArtifactKeys = new Set<string>()
-    try {
-      const artifact = await resolveDocumentRender(
-        file.originalName,
-        { maxBytes: input.maxBytes },
-        async () => {
-          const content = await downloadFile({
-            key: file.key,
+    const { file } = await snapshotSource.execute({ principal, input })
+    const artifact = await resolveDocumentRender(
+      file.originalName,
+      { maxBytes: input.maxBytes },
+      async () => {
+        const content = await downloadFile({
+          key: file.key,
+          context: 'project',
+          maxBytes: input.maxBytes,
+        })
+        const manifest = await snapshotArtifact.execute({
+          principal,
+          input: { ...input, source: { file, content } },
+        })
+        let remaining = manifest.pageHtml ? 32 * 1024 * 1024 : 50 * 1024 * 1024
+        const inputs = []
+        for (const dependency of manifest.dependencies) {
+          const bytes = await downloadFile({
+            key: dependency.key,
             context: 'project',
-            maxBytes: input.maxBytes,
+            maxBytes: Math.min(remaining, manifest.pageHtml ? 8 * 1024 * 1024 : 25 * 1024 * 1024),
           })
-          const manifest = await snapshotArtifact.execute({
-            principal,
-            input: { ...input, source: { file, content } },
+          remaining -= bytes.length
+          inputs.push({
+            fileId: dependency.id,
+            contentType: dependency.contentType,
+            content: bytes,
           })
-          let remaining = manifest.pageHtml ? 32 * 1024 * 1024 : 50 * 1024 * 1024
-          const inputs = []
-          for (const dependency of manifest.dependencies) {
-            const bytes = await downloadFile({
-              key: dependency.key,
-              context: 'project',
-              maxBytes: Math.min(remaining, manifest.pageHtml ? 8 * 1024 * 1024 : 25 * 1024 * 1024),
-            })
-            remaining -= bytes.length
-            inputs.push({
-              fileId: dependency.id,
-              contentType: dependency.contentType,
-              content: bytes,
-            })
-          }
-          if (manifest.pageHtml) {
-            const byId = new Map(inputs.map((input) => [input.fileId, input]))
-            const page = await inlineSimPageImages(
-              manifest.pageHtml,
-              async ({ fileId }) => {
-                const asset = byId.get(fileId)
-                if (!asset) throw new OrchestrationError('not_found', 'Document input not found')
-                return { bytes: asset.content, contentType: asset.contentType, identity: fileId }
-              },
-              { strict: true }
-            )
-            const buffer = Buffer.from(page.html, 'utf-8')
-            assertKnownSizeWithinLimit(buffer.length, input.maxBytes, 'rendered page')
-            return {
-              manifest,
-              buffer,
-              contentType: 'text/html',
-              dependsOnReferencedFiles: inputs.length > 0,
-            }
-          }
-          if (manifest.generatedDocument) {
-            const inputIdentity = fileDocumentInputIdentity(context.owner, manifest.dependencies)
-            const compiled = await compileFileDocument({
-              owner: context.owner,
-              source: content.toString('utf-8'),
-              fileName: file.originalName,
-              inputs,
-              onArtifactWrite: (key) => {
-                writtenArtifactKeys.add(key)
-              },
-              inputIdentity,
-              maxBytes: input.maxBytes,
-            })
-            return { manifest, ...compiled }
-          }
+        }
+        if (manifest.pageHtml) {
+          const byId = new Map(inputs.map((input) => [input.fileId, input]))
+          const page = await inlineSimPageImages(
+            manifest.pageHtml,
+            async ({ fileId }) => {
+              const asset = byId.get(fileId)
+              if (!asset) throw new OrchestrationError('not_found', 'Document input not found')
+              return { bytes: asset.content, contentType: asset.contentType, identity: fileId }
+            },
+            { strict: true }
+          )
+          const buffer = Buffer.from(page.html, 'utf-8')
+          assertKnownSizeWithinLimit(buffer.length, input.maxBytes, 'rendered page')
           return {
             manifest,
-            buffer: content,
-            contentType: file.contentType,
-            dependsOnReferencedFiles: false,
+            buffer,
+            contentType: 'text/html',
+            dependsOnReferencedFiles: inputs.length > 0,
           }
         }
-      )
-      const derivative = input.preview
-        ? await resolveServableImageBytes(artifact.buffer, artifact.manifest.source.key, {
+        if (manifest.generatedDocument) {
+          const inputIdentity = fileDocumentInputIdentity(context.owner, manifest.dependencies)
+          const compiled = await compileFileDocument({
             owner: context.owner,
-            onArtifactWrite: (key) => writtenArtifactKeys.add(key),
+            source: content.toString('utf-8'),
+            fileName: file.originalName,
+            inputs,
+            inputIdentity,
+            maxBytes: input.maxBytes,
           })
-        : null
-      if (derivative)
-        assertKnownSizeWithinLimit(derivative.buffer.length, input.maxBytes, 'image preview')
-      return { ...artifact, ...derivative, writtenArtifactKeys: [...writtenArtifactKeys] }
-    } catch (error) {
-      await discardArtifactWrites(context.owner, [...writtenArtifactKeys])
-      throw error
-    }
+          return { manifest, ...compiled }
+        }
+        return {
+          manifest,
+          buffer: content,
+          contentType: file.contentType,
+          dependsOnReferencedFiles: false,
+        }
+      }
+    )
+    const derivative = input.preview
+      ? await resolveServableImageBytes(artifact.buffer, artifact.manifest.source.key, {
+          owner: context.owner,
+        })
+      : null
+    if (derivative)
+      assertKnownSizeWithinLimit(derivative.buffer.length, input.maxBytes, 'image preview')
+    return { ...artifact, ...derivative }
   },
-  onCommitFailure: ({ context, prepared }) =>
-    discardArtifactWrites(context.owner, prepared.writtenArtifactKeys),
   async execute({ input, context, tx, prepared }) {
     if (!prepared) throw new Error('Prepared document is unavailable')
     requireSameRevision(context.file, prepared.manifest.source)
@@ -361,6 +349,13 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
       receipt: createFileReadReceipt(context.owner, [source, ...dependencies]),
     }
   },
-  afterSuccess: ({ result }) =>
-    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
+  async afterSuccess({ principal, result }) {
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.file.id,
+      provenance: result.secretProvenance,
+      view: 'opaque',
+    })
+    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+  },
 })

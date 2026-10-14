@@ -103,7 +103,7 @@ async function executeDownloadWorkspaceFileStream({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'complete')
+  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
   const result = await streamWorkspaceFileRecord(file, principal)
   const provenance = await finishFileDelivery({
     authorize: () => downloadWorkspaceFileStream.authorize({ principal, input }),
@@ -115,7 +115,7 @@ async function executeDownloadWorkspaceFileStream({
     stream: result.stream,
   })
   try {
-    await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'complete', provenance)
+    await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque', provenance)
     return result
   } catch (error) {
     await result.stream.cancel(error).catch(() => undefined)
@@ -145,7 +145,7 @@ export async function streamWorkspaceFileRecord(
       file,
       principal
     )
-    await requireAdmittedContributors(principal, file.workspaceId, contributingFiles, 'complete')
+    await requireAdmittedContributors(principal, file.workspaceId, contributingFiles, 'opaque')
     return {
       file,
       stream: new ReadableStream<Uint8Array>({

@@ -56,12 +56,13 @@ async function executeReadWorkspaceFileContentByKey({
   const file = await loadCurrentWorkspaceFileByKey(input, context)
   await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
   const content = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_BUFFERED_TRANSFER_BYTES })
-  await finishFileDelivery({
+  const provenance = await finishFileDelivery({
     authorize: () => readWorkspaceFileContentByKey.authorize({ principal, input }),
     receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
       { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
     ]),
   })
+  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque', provenance)
   return { file, content }
 }
 

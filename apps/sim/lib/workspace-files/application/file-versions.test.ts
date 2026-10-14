@@ -1,4 +1,7 @@
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
@@ -48,6 +51,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import {
   deleteWorkspaceFileVersion,
+  downloadWorkspaceFileVersion,
   revertWorkspaceFileVersion,
 } from '@/lib/workspace-files/application/file-versions'
 
@@ -131,6 +135,16 @@ describe('file version use cases', () => {
     mocks.getProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mocks.updateContent.mockResolvedValue({ ...file, key: 'new-key', currentVersion: 4 })
     mocks.notify.mockResolvedValue(undefined)
+  })
+
+  it('rejects Copilot version downloads before storage because the operation accepts direct principals only', async () => {
+    await expect(
+      downloadWorkspaceFileVersion.execute({
+        principal: createDelegatedPrincipal({ audience: 'sim:workspace-files' }),
+        input: { fileId: file.id, version: 2 },
+      })
+    ).rejects.toMatchObject({ name: 'PrincipalKindAuthorizationError' })
+    expect(mocks.streamRecord).not.toHaveBeenCalled()
   })
 
   describe('revertWorkspaceFileVersion', () => {

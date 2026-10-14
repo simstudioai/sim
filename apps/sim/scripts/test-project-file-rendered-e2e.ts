@@ -353,6 +353,7 @@ try {
         assert.ok(file)
         await readArtifact(file, 'docx')
         assert.equal((await request('GET', artifactPath(file), 'none')).status, 401)
+        assert.equal((await request('GET', artifactPath(file), 'workspace')).status, 401)
       }
     )
     await check(

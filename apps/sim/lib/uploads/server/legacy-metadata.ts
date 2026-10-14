@@ -17,6 +17,7 @@ export async function getFileMetadata(
     return {
       ...(metadataRecord.projectId == null &&
       metadataRecord.context !== 'project' &&
+      metadataRecord.context !== 'general' &&
       metadataRecord.userId
         ? { userId: metadataRecord.userId }
         : {}),

@@ -430,11 +430,14 @@ export const GET = withRouteHandler(
         return createFileErrorResponse(notFound)
       }
 
-      if (orchestrationError)
+      if (orchestrationError) {
+        if (orchestrationError.code === 'internal')
+          logServeFailure('Error serving file:', orchestrationError)
         return createFileErrorResponse(
           orchestrationError,
           statusForOrchestrationError(orchestrationError.code)
         )
+      }
 
       logServeFailure('Error serving file:', error)
 

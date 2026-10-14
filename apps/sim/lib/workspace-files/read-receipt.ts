@@ -50,7 +50,6 @@ export async function recheckFileReadReceipt(tx: DbTransaction, receipt: FileRea
       )
     )
     .orderBy(asc(workspaceFiles.id))
-    .for('share')
   const byId = new Map(rows.map((row) => [row.id, row]))
   for (const expected of receipt.files) {
     const actual = byId.get(expected.id)

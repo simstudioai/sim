@@ -9,7 +9,10 @@ export async function finishFileDelivery(input: {
 }) {
   try {
     await input.authorize()
-    return await db.transaction((tx) => recheckFileReadReceipt(tx, input.receipt))
+    return await db.transaction((tx) => recheckFileReadReceipt(tx, input.receipt), {
+      isolationLevel: 'repeatable read',
+      accessMode: 'read only',
+    })
   } catch (error) {
     await input.stream?.cancel(error).catch(() => undefined)
     throw error

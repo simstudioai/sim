@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   folder,
@@ -29,7 +30,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
-import { processOutboxEventById } from '@/lib/core/outbox/service'
+import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import * as sandboxTask from '@/lib/execution/sandbox/run-task'
 import { readProjectFileArtifact } from '@/lib/projects/files/application/artifacts'
 import {
@@ -37,14 +38,18 @@ import {
   readProjectFileContent,
   updateProjectFileContent,
 } from '@/lib/projects/files/application/content'
+import {
+  readProjectFileCsvPreview,
+  readProjectInlineFile,
+} from '@/lib/projects/files/application/previews'
 import { searchProjectFileContent } from '@/lib/projects/files/application/search'
 import { revertProjectFileVersion } from '@/lib/projects/files/application/versions'
 import * as storageCleanup from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
-import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import * as heic from '@/lib/uploads/server/heic'
 import * as searchDelivery from '@/lib/workspace-files/search/delivery'
+import * as searchRepository from '@/lib/workspace-files/search/repository'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
@@ -167,6 +172,119 @@ describe('Project file content against PostgreSQL and the local object store', (
   }
 })
 
+describe('Project delivery admission', () => {
+  for (const kind of ['inline', 'csv', 'artifact'] as const) {
+    for (const refusal of ['before storage', 'after storage'] as const) {
+      check(`${kind} gates content ${refusal}`, async () => {
+        const f = await fixture()
+        const created = await createProjectFile.execute({
+          principal: f.principal,
+          input: {
+            ...createInput(f.projectId, 'name,value\nrow,secret'),
+            name: 'rows.csv',
+            contentType: 'text/csv',
+          },
+        })
+        const issuedAt = new Date()
+        const principal: ResourceDelegatedPrincipal = {
+          kind: 'resource_delegated',
+          serviceId: 'copilot',
+          subjectUserId: f.editorId,
+          delegationId: generateId(),
+          audience: 'sim:project-files',
+          issuedAt,
+          expiresAt: new Date(issuedAt.getTime() + 60_000),
+          invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+          scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
+        }
+        const download = vi.spyOn(storage, 'downloadFile')
+        const stream = vi.spyOn(storage, 'downloadFileStream')
+        let calls = 0
+        const input = { projectId: f.projectId, fileId: created.file.id, key: created.file.key }
+        await expect(
+          observeContentDelivery(
+            {
+              async admit(sources) {
+                calls++
+                expect(
+                  sources.every((source) => source.view === (kind === 'csv' ? 'excerpt' : 'opaque'))
+                ).toBe(true)
+                return sources.map(() => refusal === 'after storage' && calls === 1)
+              },
+            },
+            () =>
+              kind === 'inline'
+                ? readProjectInlineFile.execute({
+                    principal,
+                    input: { projectId: f.projectId, referenceFileId: created.file.id },
+                  })
+                : kind === 'csv'
+                  ? readProjectFileCsvPreview.execute({ principal, input })
+                  : readProjectFileArtifact.execute({
+                      principal,
+                      input: { ...input, maxBytes: 1024 },
+                    })
+          )
+        ).rejects.toMatchObject({ code: 'forbidden' })
+        if (refusal === 'before storage') {
+          expect(download).not.toHaveBeenCalled()
+          expect(stream).not.toHaveBeenCalled()
+        } else expect(calls).toBeGreaterThan(1)
+      })
+    }
+  }
+  check('Project search withholds stale previews and removes moved-out results', async () => {
+    const f = await fixture()
+    const created = await createProjectFile.execute({
+      principal: f.principal,
+      input: createInput(f.projectId),
+    })
+    const identity = {
+      fileId: created.file.id,
+      key: created.file.key,
+      contentUpdatedAt: new Date(),
+    }
+    const prepared: searchRepository.FileSearchResult = {
+      results: [
+        { fileId: created.file.id, text: 'stale secret', lineNumber: 1 },
+        { fileId: 'moved', text: 'out of scope', lineNumber: 1 },
+      ],
+      count: 2,
+      truncated: false,
+      complete: true,
+      indexStatus: {
+        readyFiles: 0,
+        pendingFiles: 0,
+        failedFiles: 0,
+        skippedFiles: 0,
+        partialFiles: 0,
+      },
+      sources: [
+        {
+          owner: { entityType: 'project', entityId: f.projectId },
+          identity,
+          buildId: 'old-build',
+          dependencies: [],
+        },
+      ],
+    }
+    vi.spyOn(searchRepository, 'searchFileIndex').mockResolvedValue(prepared)
+    vi.spyOn(searchDelivery, 'loadFileSearchDelivery').mockResolvedValue({
+      provenance: new Map(),
+      outOfScope: new Set(['moved']),
+      inputs: [],
+    })
+    const result = await searchProjectFileContent.execute({
+      principal: f.principal,
+      input: { projectId: f.projectId, query: 'secret', mode: 'exact', maxResults: 10 },
+    })
+    expect(result.count).toBe(1)
+    expect(result.results[0].text).toContain('Preview withheld')
+    expect(result.sources).toEqual([])
+    expect(JSON.stringify(result)).not.toContain('stale secret')
+  })
+})
+
 describe('Project outer transaction cleanup', () => {
   for (const { operation, code } of [
     { operation: 'create', code: undefined },
@@ -271,46 +389,61 @@ describe('Project outer transaction cleanup', () => {
     )
   }
 
-  check(
-    'preserves preview size rejection when cleanup enqueue fails and deletes the derivative',
-    async () => {
-      const f = await fixture()
-      const bytes = Buffer.alloc(16)
-      bytes.writeUInt32BE(16, 0)
-      bytes.write('ftypheic', 4, 'ascii')
-      const source = await createProjectFile.execute({
-        principal: f.principal,
-        input: {
-          ...createInput(f.projectId),
-          name: 'preview.heic',
-          contentType: 'image/heic',
-          content: bytes.toString('base64'),
-          encoding: 'base64',
-        },
-      })
-      vi.spyOn(heic, 'transcodeHeicToJpeg').mockResolvedValue(Buffer.alloc(128, 255))
-      vi.spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups').mockRejectedValue(
-        new Error('Cleanup database unavailable')
-      )
-      await expect
-        .soft(
-          readProjectFileArtifact.execute({
+  check('preserves size rejection and a concurrently published image derivative', async () => {
+    const f = await fixture()
+    const bytes = Buffer.alloc(16)
+    bytes.writeUInt32BE(16, 0)
+    bytes.write('ftypheic', 4, 'ascii')
+    const source = await createProjectFile.execute({
+      principal: f.principal,
+      input: {
+        ...createInput(f.projectId),
+        name: 'preview.heic',
+        contentType: 'image/heic',
+        content: bytes.toString('base64'),
+        encoding: 'base64',
+      },
+    })
+    vi.spyOn(storageCleanup, 'enqueueWorkspaceFileStorageCleanups').mockRejectedValue(
+      new Error('Cleanup database unavailable')
+    )
+    const input = { projectId: f.projectId, fileId: source.file.id, preview: true }
+    let winner: Buffer | undefined
+    vi.spyOn(heic, 'transcodeHeicToJpeg')
+      .mockResolvedValue(Buffer.alloc(128, 255))
+      .mockImplementationOnce(async () => {
+        winner = (
+          await readProjectFileArtifact.execute({
             principal: f.principal,
-            input: { projectId: f.projectId, fileId: source.file.id, preview: true, maxBytes: 64 },
+            input: { ...input, maxBytes: 1024 },
           })
-        )
-        .rejects.toMatchObject({ name: 'PayloadSizeLimitError' })
-      expect(
-        await readdir(join(localStorageRoot, 'project', f.projectId, 'image-derivative'))
-      ).toEqual([])
-    }
-  )
+        ).buffer
+        return Buffer.alloc(128, 255)
+      })
+    await expect
+      .soft(
+        readProjectFileArtifact.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: source.file.id, preview: true, maxBytes: 64 },
+        })
+      )
+      .rejects.toMatchObject({ name: 'PayloadSizeLimitError' })
+    expect(
+      await readdir(join(localStorageRoot, 'project', f.projectId, 'image-derivative'))
+    ).toHaveLength(1)
+    const subsequent = await readProjectFileArtifact.execute({
+      principal: f.principal,
+      input: { ...input, maxBytes: 1024 },
+    })
+    expect(winner).toBeDefined()
+    expect(subsequent.buffer).toEqual(winner)
+  })
 })
 
 describe('Project rendered artifacts against PostgreSQL and private storage', () => {
   for (const failure of ['size rejection', 'revision change'] as const) {
     check(
-      `a preview with ${failure} removes its derivative and preserves the original error`,
+      `a preview with ${failure} retains the shared derivative and preserves the original error`,
       async () => {
         const f = await fixture()
         const sourceBytes = Buffer.alloc(16)
@@ -356,7 +489,7 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
           )
         expect
           .soft(await readdir(join(localStorageRoot, 'project', f.projectId, 'image-derivative')))
-          .toEqual([])
+          .toHaveLength(1)
         const current = await readProjectFileContent.execute({
           principal: f.principal,
           input: { projectId: f.projectId, fileId: source.file.id },
@@ -369,69 +502,70 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
   }
 
   for (const failure of ['revoked read', 'uncertain pointer upload'] as const) {
-    check(`a render with ${failure} durably removes its newly published objects`, async () => {
-      const { readProjectFileArtifact } = await import('@/lib/projects/files/application/artifacts')
-      const f = await fixture()
-      const asset = await createProjectFile.execute({
-        principal: f.principal,
-        input: { ...createInput(f.projectId, 'image'), name: 'logo.png', contentType: 'image/png' },
-      })
-      const source = await createProjectFile.execute({
-        principal: f.principal,
-        input: {
-          ...createInput(f.projectId, `getFileBase64('${asset.file.id}')`),
-          name: 'design.pptx',
-          contentType: 'text/x-pptxgenjs',
-        },
-      })
-      vi.spyOn(sandboxTask, 'runSandboxTask').mockResolvedValue(
-        Buffer.from('PK\u0003\u0004document')
-      )
-      const upload = storage.uploadFile
-      const writtenKeys: string[] = []
-      vi.spyOn(storage, 'uploadFile').mockImplementation(async (options) => {
-        const result = await upload(options)
-        if (result.key.startsWith(`project/${f.projectId}/compiled/`)) {
-          writtenKeys.push(result.key)
-          if (result.key.endsWith('.published.json')) {
-            if (failure === 'uncertain pointer upload') throw new Error('Lost upload response')
-            await db.delete(permissions).where(eq(permissions.userId, f.editorId))
-          }
-        }
-        return result
-      })
-      vi.spyOn(storage, 'deleteFile').mockRejectedValue(new Error('Cleanup unavailable'))
-      const rendering = readProjectFileArtifact.execute({
-        principal: f.principal,
-        input: { projectId: f.projectId, fileId: source.file.id, maxBytes: 1_000_000 },
-      })
-      if (failure === 'revoked read') {
-        await expect(rendering).rejects.toMatchObject({ code: 'not_found' })
-      } else {
-        await expect(rendering).rejects.toThrow('Lost upload response')
-      }
-      expect(writtenKeys).toHaveLength(2)
-      const events = await db
-        .select()
-        .from(outboxEvent)
-        .where(
-          sql`${outboxEvent.payload}::jsonb ->> 'key' LIKE ${`project/${f.projectId}/compiled/%`}`
+    check(
+      `a render with ${failure} preserves shared published objects without scheduling deletion`,
+      async () => {
+        const { readProjectFileArtifact } = await import(
+          '@/lib/projects/files/application/artifacts'
         )
-      expect(events).toHaveLength(2)
-      expect(events.map((event) => event.status)).toEqual(['pending', 'pending'])
-      vi.mocked(storage.deleteFile).mockRestore()
-      for (const event of events) {
-        await db
-          .update(outboxEvent)
-          .set({ availableAt: new Date(0) })
-          .where(eq(outboxEvent.id, event.id))
-        await processOutboxEventById(event.id, workspaceFileStorageCleanupOutboxHandlers)
+        const f = await fixture()
+        const asset = await createProjectFile.execute({
+          principal: f.principal,
+          input: {
+            ...createInput(f.projectId, 'image'),
+            name: 'logo.png',
+            contentType: 'image/png',
+          },
+        })
+        const source = await createProjectFile.execute({
+          principal: f.principal,
+          input: {
+            ...createInput(f.projectId, `getFileBase64('${asset.file.id}')`),
+            name: 'design.pptx',
+            contentType: 'text/x-pptxgenjs',
+          },
+        })
+        vi.spyOn(sandboxTask, 'runSandboxTask').mockResolvedValue(
+          Buffer.from('PK\u0003\u0004document')
+        )
+        const upload = storage.uploadFile
+        const writtenKeys: string[] = []
+        vi.spyOn(storage, 'uploadFile').mockImplementation(async (options) => {
+          const result = await upload(options)
+          if (result.key.startsWith(`project/${f.projectId}/compiled/`)) {
+            writtenKeys.push(result.key)
+            if (result.key.endsWith('.published.json')) {
+              if (failure === 'uncertain pointer upload') throw new Error('Lost upload response')
+              await db.delete(permissions).where(eq(permissions.userId, f.editorId))
+            }
+          }
+          return result
+        })
+        vi.spyOn(storage, 'deleteFile').mockRejectedValue(new Error('Cleanup unavailable'))
+        const rendering = readProjectFileArtifact.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: source.file.id, maxBytes: 1_000_000 },
+        })
+        if (failure === 'revoked read') {
+          await expect(rendering).rejects.toMatchObject({ code: 'not_found' })
+        } else {
+          await expect(rendering).rejects.toThrow('Lost upload response')
+        }
+        expect(writtenKeys).toHaveLength(2)
+        const events = await db
+          .select()
+          .from(outboxEvent)
+          .where(
+            sql`${outboxEvent.payload}::jsonb ->> 'key' LIKE ${`project/${f.projectId}/compiled/%`}`
+          )
+        expect(events).toEqual([])
+        for (const key of writtenKeys)
+          expect((await readFile(join(localStorageRoot, key))).length).toBeGreaterThan(0)
+        expect(await readFile(join(localStorageRoot, source.file.key))).toEqual(
+          Buffer.from(`getFileBase64('${asset.file.id}')`)
+        )
       }
-      expect(await readdir(join(localStorageRoot, 'project', f.projectId, 'compiled'))).toEqual([])
-      expect(await readFile(join(localStorageRoot, source.file.key))).toEqual(
-        Buffer.from(`getFileBase64('${asset.file.id}')`)
-      )
-    })
+    )
   }
 
   check(
@@ -638,6 +772,7 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
 })
 
 afterAll(async () => {
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
   for (const f of fixtures) {
     await db.delete(idempotencyKey).where(sql`${idempotencyKey.key} LIKE ${`%${f.projectId}%`}`)

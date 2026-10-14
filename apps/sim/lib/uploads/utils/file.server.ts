@@ -474,7 +474,7 @@ export async function downloadServableFileFromStorage(
         buffer: rendered,
         contentType: 'text/html',
         contributingFiles: page.contributingFiles,
-        dependsOnReferencedFiles: true,
+        dependsOnReferencedFiles: page.contributingFiles.length > 0,
       }
     }
   }

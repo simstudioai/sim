@@ -75,12 +75,21 @@ describe('compileSimPage', () => {
 
   it('retains an explicit workspace owner when a Project page contains a workspace file link', () => {
     const html = compileSimPage(
-      '---\ntitle: T\n---\n![diagram](sim:file/img9?workspace=source-workspace)\n[open](sim:file/img9?workspace=source-workspace)',
+      '---\ntitle: T\n---\n[open](sim:file/img9?workspace=source-workspace)',
       { projectId: 'ambient-project' }
     )
-    expect(html).toContain('src="/api/files/view/img9"')
     expect(html).toContain('href="/workspace/source-workspace/files/img9" data-sim-link=""')
     expect(html).not.toContain('/api/projects/ambient-project/files/img9')
+  })
+
+  it('rejects cross-owner images in a Project page before compiling byte URLs', () => {
+    for (const owner of ['workspace=source-workspace', 'project=other-project']) {
+      expect(() =>
+        compileSimPage(`---\ntitle: T\n---\n![diagram](sim:file/img9?${owner})`, {
+          projectId: 'ambient-project',
+        })
+      ).toThrow('Project pages can only embed files owned by the same Project')
+    }
   })
 
   it('leaves ambiguous and malformed file ownership inert instead of inventing a byte URL', () => {

@@ -252,6 +252,13 @@ function resolveSimFileLinks(html: string, owner: EditableFileOwner | undefined,
     (match, attribute: string, reference: string) => {
       const parsed = parseSimFileReference(reference, owner)
       if (!parsed || (!parsed.owner && attribute === 'href')) return match
+      if (
+        attribute === 'src' &&
+        owner?.entityType === 'project' &&
+        (parsed.owner?.entityType !== 'project' || parsed.owner.entityId !== owner.entityId)
+      ) {
+        throw new Error('Project pages can only embed files owned by the same Project')
+      }
       const path = parsed.owner
         ? FILE_RESOURCE_ROUTES[parsed.owner.entityType](
             parsed.owner.entityId,

@@ -55,13 +55,19 @@ async function executeReadWorkspaceInlineFile({
   const stream = nodeReadableToWebStream(
     await downloadFileStream({ key: file.key, context: 'workspace' })
   )
-  await finishFileDelivery({
+  const provenance = await finishFileDelivery({
     authorize: () => readWorkspaceInlineFile.authorize({ principal, input }),
     receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
       { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
     ]),
     stream,
   })
+  try {
+    await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque', provenance)
+  } catch (error) {
+    await stream.cancel(error).catch(() => undefined)
+    throw error
+  }
   return {
     file,
     stream,

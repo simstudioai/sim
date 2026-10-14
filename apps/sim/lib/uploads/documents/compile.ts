@@ -626,7 +626,6 @@ export async function compileFileDocument(args: {
   source: string
   fileName: string
   inputs: readonly { fileId: string; contentType: string; content: Buffer }[]
-  onArtifactWrite?: (key: string) => void
   inputIdentity?: string
   maxBytes: number
   signal?: AbortSignal
@@ -690,8 +689,7 @@ export async function compileFileDocument(args: {
     fmt.ext,
     fmt.contentType,
     buffer,
-    args.inputIdentity,
-    args.onArtifactWrite
+    args.inputIdentity
   )
   return {
     buffer,

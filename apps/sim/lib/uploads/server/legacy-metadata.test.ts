@@ -49,6 +49,20 @@ describe('getFileMetadata', () => {
     await expect(getFileMetadata('workspace/ws/key.md')).rejects.toThrow('AccessDenied')
   })
 
+  it.each(['general', 'project'])(
+    'does not grant a legacy uploader read for %s files',
+    async (context) => {
+      mockGetFileMetadataByKey.mockResolvedValue({
+        userId: 'uploader',
+        context,
+        workspaceId: null,
+        originalName: 'shared.md',
+        uploadedAt: new Date(),
+      })
+      expect(await getFileMetadata(`${context}/shared.md`)).not.toHaveProperty('userId')
+    }
+  )
+
   it('prefers the database record when one exists', async () => {
     mockGetFileMetadataByKey.mockResolvedValue({
       userId: 'user-1',

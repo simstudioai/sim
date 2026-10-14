@@ -10,7 +10,6 @@ const logger = createLogger('ImageDerivative')
 
 interface ImageDerivativeOptions {
   owner: EditableFileOwner
-  onArtifactWrite?: (key: string) => void
 }
 
 /**
@@ -65,7 +64,6 @@ async function storeDerivative(
 ): Promise<void> {
   const key = derivativeKey(storageKey, options?.owner)
   try {
-    options?.onArtifactWrite?.(key)
     await uploadFile({
       file: jpeg,
       fileName: 'derivative.jpg',

@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
-import { workspaceFiles } from '@sim/db/schema'
+import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { getCsvPreviewSlice } from '@/lib/file-parsers/csv-preview-slice'
@@ -15,7 +16,10 @@ import {
   listFileFolders,
   mapFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import { getBoundWorkspaceFileSecretProvenanceByMetadata } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import {
+  getBoundWorkspaceFileSecretProvenanceByMetadata,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
@@ -25,9 +29,14 @@ interface InlineInput {
   projectId: string
   key?: string
   referenceFileId?: string
+  view?: 'opaque' | 'excerpt'
 }
 
-const resolveInlineRecord = defineAuthorizedProjectFileUseCase({
+const resolveInlineRecord = defineAuthorizedProjectFileUseCase<
+  typeof projectFileOperations.readInline,
+  InlineInput,
+  { file: WorkspaceFileRow; secretProvenance: WorkspaceFileSecretProvenance | undefined }
+>({
   operation: projectFileOperations.readInline,
   async execute({
     input,
@@ -55,15 +64,23 @@ const resolveInlineRecord = defineAuthorizedProjectFileUseCase({
       .for('share')
       .limit(1)
     if (!file) throw new OrchestrationError('not_found', 'File not found')
-    return file
+    const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
+    return { file, secretProvenance: evidence.get(file.id) }
   },
+  afterSuccess: ({ principal, input, result }) =>
+    requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.file.id,
+      provenance: result.secretProvenance ?? { status: 'unknown' },
+      view: input.view ?? 'opaque',
+    }),
 })
 
 /** Resolves a private object under its Project before reading, then fences its current head again. */
 const readInlineFile = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readInline,
   async prepare({ principal, input }: { principal: Principal; input: InlineInput }) {
-    const file = await resolveInlineRecord.execute({ principal, input })
+    const { file } = await resolveInlineRecord.execute({ principal, input })
     const content = await downloadFile({
       key: file.key,
       context: 'project',
@@ -99,8 +116,15 @@ const readInlineFile = defineAuthorizedProjectFileUseCase({
       secretProvenance: evidence.get(file.id),
     }
   },
-  afterSuccess: ({ result, context }) =>
-    reportWorkspaceFileDelivery(result.secretProvenance, context.file?.id),
+  async afterSuccess({ principal, result }) {
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.file.id,
+      provenance: result.secretProvenance ?? { status: 'unknown' },
+      view: 'opaque',
+    })
+    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+  },
 })
 
 /** HEAD resolves the canonical image without fetching its bytes. */
@@ -123,12 +147,23 @@ export const readProjectFileCsvPreview = defineAuthorizedProjectFileUseCase({
   async prepare({
     input,
     context,
+    principal,
   }: {
+    principal: Principal
     input: CsvPreviewInput
     context: ProjectFileAuthorizationContext
   }) {
     const file = context.file
     if (!file || file.key !== input.key) throw new OrchestrationError('not_found', 'File not found')
+    const { file: admitted } = await resolveInlineRecord.execute({
+      principal,
+      input: { projectId: input.projectId, referenceFileId: file.id, view: 'excerpt' },
+    })
+    if (
+      admitted.key !== file.key ||
+      admitted.contentUpdatedAt.getTime() !== file.contentUpdatedAt.getTime()
+    )
+      throw new OrchestrationError('conflict', 'File changed while preparing its preview')
     return {
       file,
       slice: await getCsvPreviewSlice({ key: file.key, context: 'project', signal: input.signal }),
@@ -142,6 +177,13 @@ export const readProjectFileCsvPreview = defineAuthorizedProjectFileUseCase({
     const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
     return { success: true as const, ...prepared.slice, secretProvenance: evidence.get(file.id) }
   },
-  afterSuccess: ({ result, context }) =>
-    reportWorkspaceFileDelivery(result.secretProvenance, context.file?.id),
+  async afterSuccess({ principal, result, input }) {
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: input.fileId,
+      provenance: result.secretProvenance ?? { status: 'unknown' },
+      view: 'excerpt',
+    })
+    reportWorkspaceFileDelivery(result.secretProvenance, input.fileId)
+  },
 })
