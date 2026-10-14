@@ -194,9 +194,6 @@
   "apps/sim/app/api/knowledge/slack/oauth/callback/route.test.ts": {
     "TS2554": 8
   },
-  "apps/sim/app/api/knowledge/utils.test.ts": {
-    "TS2493": 1
-  },
   "apps/sim/app/api/link-preview/route.test.ts": {
     "TS2554": 1
   },
@@ -428,8 +425,6 @@
     "TS2322": 1
   },
   "apps/sim/app/api/webhooks/route.test.ts": {
-    "TS2352": 1,
-    "TS2493": 1,
     "TS2554": 15
   },
   "apps/sim/app/api/webhooks/slack/route.test.ts": {
@@ -750,9 +745,6 @@
     "TS2345": 1,
     "TS2740": 17
   },
-  "apps/sim/ee/access-requests/lib/notifications.test.ts": {
-    "TS2493": 2
-  },
   "apps/sim/ee/scim/lib/identity/resolve-user.test.ts": {
     "TS18046": 2
   },
@@ -760,9 +752,7 @@
     "TS2345": 2
   },
   "apps/sim/ee/scim/lib/projection/reconcile-user.test.ts": {
-    "TS2345": 15,
-    "TS2352": 1,
-    "TS2493": 1
+    "TS2345": 15
   },
   "apps/sim/ee/scim/lib/reconcile/job.test.ts": {
     "TS2345": 6
@@ -779,10 +769,6 @@
   "apps/sim/ee/workspace-forking/lib/copy/copy-files.test.ts": {
     "TS2345": 1,
     "TS2554": 1
-  },
-  "apps/sim/ee/workspace-forking/lib/copy/copy-resources.test.ts": {
-    "TS2352": 1,
-    "TS2493": 3
   },
   "apps/sim/ee/workspace-forking/lib/copy/copy-workflows.test.ts": {
     "TS2322": 1,
@@ -834,11 +820,9 @@
   },
   "apps/sim/executor/handlers/agent/agent-handler.test.ts": {
     "TS18046": 2,
-    "TS18048": 6,
-    "TS2339": 4,
+    "TS2339": 3,
     "TS2345": 1,
     "TS2352": 1,
-    "TS2493": 3,
     "TS7006": 1
   },
   "apps/sim/executor/handlers/agent/memory.test.ts": {
@@ -1027,9 +1011,6 @@
   "apps/sim/lib/auth/oauth-provider-metadata.test.ts": {
     "TS2345": 2
   },
-  "apps/sim/lib/auth/oauth-token-family.test.ts": {
-    "TS2493": 1
-  },
   "apps/sim/lib/auth/principal.test.ts": {
     "TS2345": 3
   },
@@ -1172,8 +1153,7 @@
     "TS2352": 1
   },
   "apps/sim/lib/core/rate-limiter/provider-admission.test.ts": {
-    "TS2345": 1,
-    "TS7006": 1
+    "TS2345": 1
   },
   "apps/sim/lib/core/rate-limiter/rate-limiter.test.ts": {
     "TS2307": 4,
@@ -1268,10 +1248,6 @@
     "TS18048": 2,
     "TS2493": 2
   },
-  "apps/sim/lib/credentials/environment.test.ts": {
-    "TS2339": 1,
-    "TS2493": 1
-  },
   "apps/sim/lib/credentials/orchestration/index.test.ts": {
     "TS2352": 2,
     "TS2493": 2
@@ -1335,7 +1311,7 @@
   },
   "apps/sim/lib/execution/payloads/large-value-metadata.test.ts": {
     "TS2339": 2,
-    "TS2493": 3
+    "TS2493": 1
   },
   "apps/sim/lib/execution/payloads/prune-metadata-sql.test.ts": {
     "TS2345": 1,
@@ -1458,10 +1434,6 @@
   "apps/sim/lib/internal/elevenlabs/operations.test.ts": {
     "TS2345": 1,
     "TS2741": 2
-  },
-  "apps/sim/lib/internal/file/operations.provenance.test.ts": {
-    "TS2352": 1,
-    "TS2493": 1
   },
   "apps/sim/lib/internal/file/operations.test.ts": {
     "TS2345": 1
@@ -1719,7 +1691,6 @@
   },
   "apps/sim/lib/knowledge/connectors/sync-persistence.test.ts": {
     "TS2345": 2,
-    "TS2352": 1,
     "TS2769": 1
   },
   "apps/sim/lib/knowledge/documents/document-indexing-usage.test.ts": {
@@ -1727,10 +1698,7 @@
     "TS2739": 2
   },
   "apps/sim/lib/knowledge/documents/document-processing-source.test.ts": {
-    "TS2345": 4,
-    "TS2352": 1,
-    "TS2493": 2,
-    "TS2532": 1
+    "TS2345": 4
   },
   "apps/sim/lib/knowledge/documents/processing-lane.test.ts": {
     "TS2322": 1
@@ -1760,14 +1728,11 @@
   },
   "apps/sim/lib/knowledge/documents/storage-cleanup.test.ts": {
     "TS18046": 1,
-    "TS18048": 1,
-    "TS2345": 1,
-    "TS2493": 1
+    "TS2345": 1
   },
   "apps/sim/lib/knowledge/documents/workspace-source-provenance.test.ts": {
     "TS2339": 1,
-    "TS2345": 4,
-    "TS2493": 1
+    "TS2345": 4
   },
   "apps/sim/lib/knowledge/mcp/route-handler.test.ts": {
     "TS2345": 1
@@ -1887,8 +1852,6 @@
     "TS2741": 4
   },
   "apps/sim/lib/memory/message-provenance.test.ts": {
-    "TS18048": 2,
-    "TS2493": 1,
     "TS4104": 1
   },
   "apps/sim/lib/memory/replay-provenance.test.ts": {
@@ -1922,9 +1885,7 @@
     "TS2339": 1
   },
   "apps/sim/lib/mothership/agent-cli/file-round-trip-provenance.test.ts": {
-    "TS18048": 4,
-    "TS2345": 1,
-    "TS2493": 1
+    "TS2345": 1
   },
   "apps/sim/lib/mothership/agent-cli/file-upload-origin.test.ts": {
     "TS2345": 1
@@ -1951,8 +1912,7 @@
   },
   "apps/sim/lib/mothership/chat/messages-store.test.ts": {
     "TS18048": 7,
-    "TS2352": 1,
-    "TS2493": 2
+    "TS2493": 1
   },
   "apps/sim/lib/mothership/chat/payload.test.ts": {
     "TS2322": 3,
@@ -2060,12 +2020,6 @@
   "apps/sim/lib/mothership/tools/handlers/workflow/withheld-run-result.test.ts": {
     "TS2322": 1
   },
-  "apps/sim/lib/mothership/tools/server/files/doc-compile.test.ts": {
-    "TS2322": 3
-  },
-  "apps/sim/lib/mothership/tools/server/files/doc-servable.test.ts": {
-    "TS2322": 2
-  },
   "apps/sim/lib/mothership/tools/server/knowledge/workspace-search.test.ts": {
     "TS18046": 1
   },
@@ -2114,10 +2068,8 @@
     "TS2341": 1
   },
   "apps/sim/lib/secrets/usage/record.test.ts": {
-    "TS18048": 2,
     "TS2339": 2,
-    "TS2493": 3,
-    "TS2532": 1
+    "TS2493": 1
   },
   "apps/sim/lib/selectors/manifest.test.ts": {
     "TS2339": 3
@@ -2188,10 +2140,6 @@
   "apps/sim/lib/table/delete-runner.test.ts": {
     "TS2502": 1
   },
-  "apps/sim/lib/table/dispatch-governed-subject.test.ts": {
-    "TS2352": 1,
-    "TS2493": 1
-  },
   "apps/sim/lib/table/dispatcher.test.ts": {
     "TS2322": 1
   },
@@ -2211,8 +2159,8 @@
     "TS2322": 10
   },
   "apps/sim/lib/table/rows/executions.test.ts": {
-    "TS2352": 2,
-    "TS2493": 4
+    "TS2352": 1,
+    "TS2493": 3
   },
   "apps/sim/lib/table/rows/secret-provenance.test.ts": {
     "TS2493": 4
@@ -2241,8 +2189,7 @@
     "TS2741": 2
   },
   "apps/sim/lib/table/views/service.test.ts": {
-    "TS2322": 5,
-    "TS2352": 1
+    "TS2322": 5
   },
   "apps/sim/lib/table/workflow-columns.test.ts": {
     "TS2741": 4
@@ -2268,11 +2215,6 @@
   "apps/sim/lib/uploads/client/upload-session.test.ts": {
     "TS2322": 7
   },
-  "apps/sim/lib/uploads/contexts/execution/execution-file-manager.test.ts": {
-    "TS2339": 4,
-    "TS2493": 3,
-    "TS2698": 3
-  },
   "apps/sim/lib/uploads/contexts/organization-logo/application.test.ts": {
     "TS2352": 1
   },
@@ -2295,11 +2237,8 @@
     "TS2322": 1
   },
   "apps/sim/lib/uploads/upload-session/service.test.ts": {
-    "TS18048": 4,
-    "TS2339": 2,
-    "TS2345": 1,
-    "TS2493": 3,
-    "TS2532": 1
+    "TS2339": 1,
+    "TS2345": 1
   },
   "apps/sim/lib/uploads/utils/fetch-external-url.server.test.ts": {
     "TS2345": 3
@@ -2451,7 +2390,6 @@
     "TS2352": 1
   },
   "apps/sim/lib/workflows/executor/human-in-the-loop-manager.test.ts": {
-    "TS2493": 2,
     "TS2554": 2
   },
   "apps/sim/lib/workflows/migrations/subblock-migrations.test.ts": {
@@ -2465,17 +2403,8 @@
     "TS2339": 1,
     "TS2352": 1
   },
-  "apps/sim/lib/workflows/persistence/deployment-operations.test.ts": {
-    "TS2493": 1
-  },
-  "apps/sim/lib/workflows/persistence/duplicate.test.ts": {
-    "TS2493": 1
-  },
   "apps/sim/lib/workflows/persistence/persist-block-access-gate.test.ts": {
     "TS2345": 2
-  },
-  "apps/sim/lib/workflows/persistence/utils.test.ts": {
-    "TS2493": 2
   },
   "apps/sim/lib/workflows/references/dependent-reconfigs.test.ts": {
     "TS2322": 1
@@ -2564,9 +2493,6 @@
   "apps/sim/lib/workspace-files/search/repository.test.ts": {
     "TS2493": 1,
     "TS2550": 1
-  },
-  "apps/sim/lib/workspaces/admin-move.test.ts": {
-    "TS2493": 1
   },
   "apps/sim/lib/workspaces/application/manage-permissions.test.ts": {
     "TS2345": 1

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { promisify } from 'node:util'
+import type { StoredWorkspaceFileSecretProvenanceEntry } from '@sim/db/schema'
 import { copilotChats, workspace, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
@@ -28,7 +29,8 @@ import {
   workspaceFileFoldersMock,
   workspaceFileFoldersMockFns,
 } from '@sim/testing/mocks/workspace-file-folders.mock'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { toArray, toRecord } from '@sim/utils/object'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   find: vi.fn(),
@@ -310,12 +312,16 @@ beforeEach(async () => {
     })
     expect(result.created).toBe(true)
     const sidecar = dbChainMockFns.values.mock.calls
-      .map(([value]) => value)
+      .map(([value]) => toRecord(value))
       .find((value) => value.fileId === PUBLISHED.id && 'entries' in value)
     expect(sidecar).toMatchObject({ contentUpdatedAt: REVISION })
+    assert.isDefined(sidecar)
     storedProvenance =
       sidecar.status === 'exact'
-        ? { status: 'exact', entries: sidecar.entries }
+        ? {
+            status: 'exact',
+            entries: toArray<StoredWorkspaceFileSecretProvenanceEntry>(sidecar.entries),
+          }
         : { status: 'unknown' }
     registered = true
     queueTableRows(workspaceFiles, [PUBLISHED])

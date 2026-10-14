@@ -22,6 +22,7 @@ import {
   workspaceFileSecretProvenanceMock,
   workspaceFileSecretProvenanceMockFns,
 } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { toRecord } from '@sim/utils/object'
 import { tasks } from '@trigger.dev/sdk'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1149,7 +1150,7 @@ describe('in-process quota continuation dispatch', () => {
       })
     )
 
-    const deferredUntil = dbChainMockFns.values.mock.calls[0][0].availableAt as Date
+    const deferredUntil = toRecord(dbChainMockFns.values.mock.calls[0][0]).availableAt as Date
     expect(deferredUntil.getTime()).toBeGreaterThanOrEqual(1_000 + 5 * 60 * 1000 * 0.8)
     expect(deferredUntil.getTime()).toBeLessThanOrEqual(1_000 + 5 * 60 * 1000 * 1.2)
 

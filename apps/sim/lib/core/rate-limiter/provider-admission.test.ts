@@ -1,3 +1,4 @@
+import type { rateLimitBucket } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -168,7 +169,7 @@ describe('provider admission', () => {
     }
     let stored: { key: string; tokens: string; lastRefillAt: Date } | undefined
     dbChainMockFns.values.mockImplementation((row) => {
-      stored ??= { ...row }
+      stored ??= { ...(row as typeof rateLimitBucket.$inferSelect) }
       return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) }
     })
     dbChainMockFns.limit.mockImplementation(async () => [stored])
