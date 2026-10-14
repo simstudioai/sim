@@ -271,7 +271,39 @@ describe('Confluence plain search ranking', () => {
     const page = await searchAtlassian(api, 'confluence', query)
     expect(page.documents.map((document) => document.id)).toEqual(['best', 'next'])
     expect(page.hasMore).toBe(true)
+    expect(page.partial).toBe(true)
     expect(page.nextCursor).toBeUndefined()
+  })
+
+  it('keeps the all-terms page and its cursor when relevance ranking fails', async () => {
+    const api = confluence({ ids: ['old-1', 'old-2'], more: true }, [])
+    const exact = api.json.getMockImplementation()
+    api.json.mockImplementation(
+      async (path: string, options?: { query?: Record<string, string> }) => {
+        if (options?.query?.cql?.includes('siteSearch ~'))
+          throw new NativeSearchError('rate_limited', 'Rate limited.', 30)
+        return exact?.(path, options)
+      }
+    )
+    const page = await searchAtlassian(api, 'confluence', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['old-1', 'old-2'])
+    expect(page.nextCursor).toBe('page-2')
+    expect(page.partial).toBe(true)
+  })
+
+  it('propagates cancellation during relevance ranking', async () => {
+    const api = confluence({ ids: ['old-1', 'old-2'], more: true }, [])
+    const exact = api.json.getMockImplementation()
+    api.json.mockImplementation(
+      async (path: string, options?: { query?: Record<string, string> }) => {
+        if (options?.query?.cql?.includes('siteSearch ~'))
+          throw new DOMException('Search cancelled', 'AbortError')
+        return exact?.(path, options)
+      }
+    )
+    await expect(searchAtlassian(api, 'confluence', query)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
   })
 
   it('keeps an all-terms match that fits on one page', async () => {
