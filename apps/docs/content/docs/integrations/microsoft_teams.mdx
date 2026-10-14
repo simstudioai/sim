@@ -13,7 +13,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Teams](https://teams.microsoft.com) to read, send, update, or delete chat and channel messages, reply to threads, and add reactions. List teams, chats, channels, and their members to resolve destinations.
 
-Switch to trigger mode to start a workflow from a new chat or channel message. To mention a user, wrap the name in `<at>` tags, such as `<at>userName</at>`, and supply the mention details required by the action.
+Switch to trigger mode to start a workflow from new or updated messages in a selected chat, or when the outgoing webhook is @mentioned in a channel. To mention a user, wrap the name in `<at>` tags, such as `<at>userName</at>`, and supply the mention details required by the action.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -51,7 +51,7 @@ Sim requests these scopes when someone connects a Microsoft Teams account. For a
 
 ## Use the block [#usage-instructions]
 
-Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Use trigger mode to start a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
+Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Use trigger mode to start a workflow from new or updated messages in a selected chat, or an @mention of the outgoing webhook in a channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`
 
 ## Actions
 
@@ -449,7 +449,7 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 ### Microsoft Teams Channel
 
-Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
+Trigger workflows when the outgoing webhook is @mentioned in a Microsoft Teams channel.
 
 #### Configuration
 
@@ -502,7 +502,7 @@ Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
 
 ### Microsoft Teams Chat
 
-Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions
+Trigger workflows from new or updated messages in a Microsoft Teams chat via Microsoft Graph subscriptions.
 
 #### Configuration
 

@@ -8,10 +8,10 @@ const PIPELINE_FIELD = ['pipelineSelector', 'pipeline_id'] as const
 export const PipedriveBlock: BlockConfig = {
   type: 'pipedrive',
   name: 'Pipedrive',
-  description: 'Manage Pipedrive deals, contacts, activities, and projects',
+  description: 'Manage Pipedrive deals, leads, activities, and projects',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Manage deals, contacts, sales pipeline, projects, activities, files, and communications through the connected account.',
+    'Create, read, and update deals and activities, and create, read, update, or delete leads. List, retrieve, or create projects, inspect pipelines, and retrieve files and mail threads through the connected account.',
   docsLink: 'https://docs.sim.ai/integrations/pipedrive',
   category: 'tools',
   integrationType: IntegrationType.Sales,

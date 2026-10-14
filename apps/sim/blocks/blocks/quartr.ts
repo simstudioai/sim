@@ -52,7 +52,7 @@ export const QuartrBlock: BlockConfig = {
   description: 'Access earnings calls, transcripts, filings, and slides',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Look up companies and corporate events, retrieve summaries, list and download reports, slide decks, and transcripts, and access archived audio or live event streams. Supply a Quartr API key.',
+    'Look up companies, corporate events, and event types, retrieve AI-generated event summaries, list and download reports, slide decks, and transcripts, and access archived audio or live event streams. Supply a Quartr API key.',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   docsLink: 'https://docs.sim.ai/integrations/quartr',

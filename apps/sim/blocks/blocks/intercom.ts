@@ -24,7 +24,7 @@ export const IntercomBlock: BlockConfig = {
   sunset: { status: 'legacy', replacedBy: 'intercom_v2' },
   description: 'Manage contacts, companies, conversations, tickets, and messages in Intercom',
   longDescription:
-    'Create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.',
+    'Create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create, get, and update tickets; and create messages.',
   docsLink: 'https://docs.sim.ai/integrations/intercom',
   authMode: AuthMode.ApiKey,
   category: 'tools',

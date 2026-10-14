@@ -308,7 +308,7 @@ export const AffinityBlock: BlockConfig = {
   name: 'Affinity',
   description: 'Read and write companies, people, lists, notes, and relationships in Affinity',
   longDescription:
-    'Read and search Affinity companies, people, opportunities, lists, and saved views. Read or update field values, notes, and reminders; retrieve interactions and transcripts; discover relationship paths; and follow field changes for incremental synchronization. Access depends on the API key holder’s permissions.',
+    'Read companies, people, opportunities, lists, and saved views; search companies, people, list entries, notes, and files. Read or update field values and notes; list or create reminders; retrieve interactions and transcripts; discover relationship paths; and follow field changes for incremental synchronization. Access depends on the API key holder’s permissions.',
   docsLink: 'https://docs.sim.ai/integrations/affinity',
   category: 'tools',
   integrationType: IntegrationType.Sales,

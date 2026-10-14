@@ -12,6 +12,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Airtable](https://airtable.com/) to list bases and table schemas, read or write records, and start workflows from record changes. For token setup, see [Personal Access Tokens](/integrations/airtable-service-account).
+
+Trigger mode handles record creation, updates, and deletion. Inspect `payloads` or `latestPayload` for Airtable's raw changes; deleted record IDs are under `changedTablesById[tableId].destroyedRecordIds`. The `airtableChanges` array currently consolidates created and updated records and returns changed cell values in `changedFields`.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -34,7 +36,7 @@ Sim requests these scopes when someone connects an Airtable account. For a self-
 
 ## Use the block [#usage-instructions]
 
-List bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Use trigger mode to start a workflow when an update is made to an Airtable table.
+List bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Use trigger mode to start a workflow when a record is created, updated, or deleted in an Airtable table.
 
 ## Actions
 
@@ -325,9 +327,9 @@ Trigger workflow from Airtable record changes like create, update, and delete ev
 |         ↳ `cellValuesByFieldId` | object | Cell values keyed by field ID |
 |     ↳ `createdRecordsById` | object | Created records by ID |
 |     ↳ `destroyedRecordIds` | array | Array of destroyed record IDs |
-| `airtableChanges` | array | Changes made to the Airtable table |
+| `airtableChanges` | array | Consolidated record creations and updates. Deleted record IDs remain in raw payloads. |
 |   ↳ `tableId` | string | Table ID |
 |   ↳ `recordId` | string | Record ID |
-|   ↳ `changeType` | string | Type of change \(created, changed, destroyed\) |
+|   ↳ `changeType` | string | Type of consolidated change: created or updated |
 |   ↳ `cellValuesByFieldId` | object | Cell values by field ID |
 

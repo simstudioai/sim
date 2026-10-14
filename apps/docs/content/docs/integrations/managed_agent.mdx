@@ -13,13 +13,13 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 Call a [Claude Managed Agent](https://www.anthropic.com/) hosted on the Claude Platform from a Sim workflow. Select a Claude Platform account, agent, and environment, then send the task message.
 
-Optional inputs attach credential vaults, a memory store with read or write access and usage instructions, files, and metadata tags. The block returns the agent's final text, session ID, and token usage for downstream processing and cost tracking. Session actions also create, inspect, interrupt, archive, update, or delete sessions; read events; and submit custom-tool results or confirmation responses. File attachments are supported for cloud environments.
+Optional inputs attach credential vaults, a memory store with read or write access and usage instructions, files, and metadata tags. The **Run session (create, send, wait for reply)** operation waits for the reply and returns final text and a session ID, with token usage when available, for downstream processing and cost tracking. Outputs from the other operations depend on the selected action. Session actions also create, inspect, interrupt, archive, update, or delete sessions; read events; and submit custom-tool results or confirmation responses. File attachments are supported for cloud environments.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Use the block [#usage-instructions]
 
-Select a Claude Platform account, agent, and environment, then send a task. Optionally attach vaults, a memory store, files, and metadata. Returns the agent’s final text, session ID, and token usage.
+Run or create a session with a Claude Platform account, agent, and environment. Optionally attach vaults, a memory store, files, and metadata. The Run session operation waits for the agent’s reply and returns final text and a session ID, with token usage when available. Outputs from other operations depend on the selected action.
 
 ## Actions
 

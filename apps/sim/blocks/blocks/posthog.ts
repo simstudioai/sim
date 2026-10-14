@@ -11,7 +11,7 @@ export const PostHogBlock: BlockConfig = {
   description: 'Product analytics and feature management',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Capture events, query analytics, and manage people, insights, feature flags, experiments, cohorts, surveys, recordings, dashboards, projects, and organizations.',
+    'Capture events, query analytics, and manage people, insights, feature flags, experiments, cohorts, surveys, and dashboards. List or retrieve recordings, projects, and organizations.',
   docsLink: 'https://docs.sim.ai/integrations/posthog',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

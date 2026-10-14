@@ -20,7 +20,7 @@ export const DropboxBlock = {
   description: 'Upload, download, share, and manage files in Dropbox',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Upload and download files, list and search folders, create folders, manage shared links, and move or delete items.',
+    'Upload and download files, list and search folders, create folders, manage shared links, and move items between folders or to the trash.',
   docsLink: 'https://docs.sim.ai/integrations/dropbox',
   category: 'tools',
   integrationType: IntegrationType.Documents,

@@ -168,7 +168,7 @@ export const ServiceNowBlock = {
   sunset: { status: 'legacy', replacedBy: 'servicenow_v2' },
   description: 'Create, read, update, and delete ServiceNow records',
   longDescription:
-    'Read or modify records in a selected ServiceNow table, using the instance and fields required by the operation.',
+    'Create or update incidents and change requests, order catalog items, and process approvals. Read configuration items, knowledge articles, users, and groups, and transfer attachments. Generic record, aggregate, and table-scoped attachment operations accept a table name. Connect with your ServiceNow instance URL, username, and password.',
   docsLink: 'https://docs.sim.ai/integrations/servicenow',
   category: 'tools',
   integrationType: IntegrationType.Support,

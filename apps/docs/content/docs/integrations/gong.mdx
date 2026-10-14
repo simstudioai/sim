@@ -1,6 +1,6 @@
 ---
 title: Gong
-description: Read Gong calls, transcripts, users, and coaching metrics
+description: Read Gong data, upload calls, assign or unassign flow prospects, and request data erasure
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -14,12 +14,14 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 Use [Gong](https://www.gong.io/) to list calls, read call details and transcripts, and retrieve topics, trackers, interaction statistics, and other extensive call data. The actions also read users, activity and coaching metrics, answered scorecards, scorecard definitions, tracker configuration, call-library folders and content, and Engage flows.
 
 Look up an email address or phone number to find related calls, emails, meetings, CRM records, and engagement events. Connect your Gong API credentials and inspect the returned data when preparing coaching reports or syncing conversations to another system.
+
+**Create Call** uploads metadata and asks Gong to fetch the recording from a media URL. **Assign Flow Prospects** and **Unassign Flow Prospects** change a prospect’s Engage flow assignments. **Purge Email Address** and **Purge Phone Number** request deletion of associated Gong data. [Gong processes these deletions in the background](https://help.gong.io/docs/delete-personal-data); a returned request ID does not confirm completion.
 {/* MANUAL-CONTENT-END */}
 
 
 ## Use the block [#usage-instructions]
 
-Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.
+Read calls, recording URLs, transcripts, user data, activity statistics, scorecards, trackers, library content, coaching metrics, and Engage flows. Upload call metadata and let Gong fetch the media URL, assign or unassign flow prospects, and request data erasure for an email address or phone number.
 
 ## Actions
 

@@ -16,7 +16,7 @@ export const DubBlock = {
   description: 'Link management with Dub',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Create, update, delete, or list short links with custom domains, slugs, metadata, and UTM parameters. Retrieve click, lead, and sales analytics.',
+    'Create, update, delete, or list short links with custom domains, slugs, link-preview titles and descriptions, and UTM parameters. Retrieve click, lead, and sales analytics.',
   docsLink: 'https://docs.sim.ai/integrations/dub',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
