@@ -16,6 +16,12 @@ import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-m
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
+import type { ExecutionResult } from '@/executor/types'
+import {
+  classifyExecutionError,
+  hasExecutionResult,
+  type StructuredExecutionError,
+} from '@/executor/utils/errors'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('WorkflowResumeExecution')
@@ -71,6 +77,8 @@ export type ResumeWorkflowExecutionResult =
       status: string
       output: unknown
       error: unknown
+      /** The run's failure classified the way a sync execute classifies it; null when it did not fail. */
+      structuredError: StructuredExecutionError | null
       metadata?: {
         duration?: number
         startTime?: string
@@ -298,14 +306,37 @@ export async function executeResumeWorkflow({
     }
 
     if (isApiCaller && executionMode === 'sync') {
-      const result = await PauseResumeManager.startResumeExecution(resumeArgs)
+      let result: ExecutionResult
+      let runFailure: unknown
+      try {
+        result = await PauseResumeManager.startResumeExecution(resumeArgs)
+      } catch (error) {
+        /**
+         * A run that started and then failed carries its partial result: that is the run's
+         * answer, not a failed request. Anything else produced no run and stays an exception.
+         */
+        if (!hasExecutionResult(error)) throw error
+        result = error.executionResult
+        runFailure = error
+      }
+      const status =
+        runFailure !== undefined
+          ? 'failed'
+          : (result.status ?? (result.success ? 'completed' : 'failed'))
       return {
         kind: 'sync',
         executionId: enqueueResult.resumeExecutionId,
-        success: result.success,
-        status: result.status ?? (result.success ? 'completed' : 'failed'),
+        success: runFailure === undefined && result.success,
+        status,
         output: result.output,
         error: result.error,
+        structuredError:
+          status === 'failed' || (status === 'cancelled' && result.error)
+            ? classifyExecutionError(
+                runFailure ?? (result.error ? new Error(result.error) : undefined),
+                result
+              )
+            : null,
         metadata: result.metadata
           ? {
               duration: result.metadata.duration,

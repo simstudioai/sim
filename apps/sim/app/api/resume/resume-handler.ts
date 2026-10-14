@@ -50,6 +50,13 @@ function presentResumeResult(
         },
       })
     case 'sync':
+      /** This surface has always answered a failed run with a 400 error body, never a run payload. */
+      if (result.status === 'failed') {
+        return NextResponse.json(
+          { error: typeof result.error === 'string' ? result.error : 'Resume execution failed' },
+          { status: 400 }
+        )
+      }
       return NextResponse.json({
         success: result.success,
         status: result.status,
