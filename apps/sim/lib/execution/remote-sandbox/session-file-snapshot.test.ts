@@ -178,6 +178,20 @@ describe('copy failures reach the model as their actionable cause', () => {
       `Error: ${path} resolves outside the permitted workbench directories.`
     )
   })
+  it.skipIf(process.getuid?.() === 0)(
+    'does not blame the source for a staging file it cannot create',
+    async () => {
+      const path = join(directory, 'readable.txt')
+      await writeFile(path, 'content')
+      const locked = join(directory, 'locked')
+      await mkdir(locked, { mode: 0o500 })
+      staged = join(locked, 'snapshot')
+      expect(await read(path)).toBe(
+        'Error: The file could not be read. Retry this read before making content claims.'
+      )
+      await chmod(locked, 0o700)
+    }
+  )
   it('names a full workbench disk', async () => {
     mocks.command.mockResolvedValueOnce({
       exitCode: 3,

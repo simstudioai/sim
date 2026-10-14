@@ -18,16 +18,19 @@ const FAILURE_MARKER = 'SIM_SNAPSHOT_FAILURE'
 /**
  * Copy once on the workbench; metadata and every upload part then refer to these exact bytes.
  * A failure prints one marker line naming a reason from a closed set (plus the exception class
- * when unclassified) and never raw stderr, which can echo workbench paths and contents.
+ * when unclassified) and never raw stderr, which can echo workbench paths and contents. Once
+ * staging begins, only a full disk is classified: an unwritable staging file says nothing about
+ * the requested source.
  */
 const COPY_FILE = `python3 - <<'SIM_UPLOAD_SNAPSHOT'
 import errno, json, os, stat, sys
 def fail(reason, detail=''):
     print('${FAILURE_MARKER} ' + reason + (' ' + detail if detail else ''))
     sys.exit(3)
-REASONS = {errno.ENOENT: 'not_found', errno.ENOTDIR: 'not_found', errno.EISDIR: 'not_regular',
-           errno.EACCES: 'permission', errno.EPERM: 'permission', errno.ENOSPC: 'no_space',
-           errno.EDQUOT: 'no_space'}
+SOURCE_REASONS = {errno.ENOENT: 'not_found', errno.ENOTDIR: 'not_found',
+                  errno.EISDIR: 'not_regular', errno.EACCES: 'permission', errno.EPERM: 'permission'}
+STAGING_REASONS = {errno.ENOSPC: 'no_space', errno.EDQUOT: 'no_space'}
+reasons = SOURCE_REASONS
 try:
     source = os.path.realpath(os.environ['SIM_UPLOAD_SOURCE'])
     roots = json.loads(os.environ.get('SIM_UPLOAD_ALLOWED_ROOTS', '[]'))
@@ -41,6 +44,7 @@ try:
         fail('not_regular')
     if info.st_size > limit:
         fail('too_large')
+    reasons = STAGING_REASONS
     with os.fdopen(fd, 'rb') as reader, os.fdopen(
         os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb'
     ) as writer:
@@ -54,7 +58,7 @@ try:
                 fail('too_large')
             writer.write(chunk)
 except Exception as error:
-    fail(REASONS.get(getattr(error, 'errno', None), 'unknown'), type(error).__name__)
+    fail(reasons.get(getattr(error, 'errno', None), 'unknown'), type(error).__name__)
 SIM_UPLOAD_SNAPSHOT`
 
 const FAILURE_LINE = new RegExp(`^${FAILURE_MARKER} ([a-z_]+)(?: ([A-Za-z][A-Za-z0-9_]*))?$`, 'm')
