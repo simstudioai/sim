@@ -9,10 +9,10 @@
  *   pre-loaded library bundles, and a host-side broker set. User code is
  *   trusted to the extent that our bootstrap + finalize wrap every execution.
  *   Invoked via `runSandboxTask(id, input, options?)`.
- *     - `pptx-generate`  → `apps/sim/sandbox-tasks/pptx-generate.ts`
- *     - `docx-generate`  → `apps/sim/sandbox-tasks/docx-generate.ts`
- *     - `pdf-generate`   → `apps/sim/sandbox-tasks/pdf-generate.ts`
- *     - `workflow-test-run`, `workflow-test-collect` → `apps/sim/sandbox-tasks/workflow-test.ts`
+ *     - `pptx-generate`  → `apps/sim/sandboxes/pptx-generate.ts`
+ *     - `docx-generate`  → `apps/sim/sandboxes/docx-generate.ts`
+ *     - `pdf-generate`   → `apps/sim/sandboxes/pdf-generate.ts`
+ *     - `workflow-test-run`, `workflow-test-collect` → `apps/sim/sandboxes/workflow-test.ts`
  *       (user code is an ES module importing only `vitest` and `sim:test`)
  *
  * Tier 2 — Raw isolated-vm consumers.
@@ -29,7 +29,7 @@
  * entirely and are not part of this registry.
  */
 
-export { docxGenerateTask } from '@/sandbox-tasks/docx-generate'
-export { pdfGenerateTask } from '@/sandbox-tasks/pdf-generate'
-export { pptxGenerateTask } from '@/sandbox-tasks/pptx-generate'
-export { getSandboxTask, SANDBOX_TASKS, type SandboxTaskId } from '@/sandbox-tasks/registry'
+export { docxGenerateTask } from '@/sandboxes/docx-generate'
+export { pdfGenerateTask } from '@/sandboxes/pdf-generate'
+export { pptxGenerateTask } from '@/sandboxes/pptx-generate'
+export { getSandboxTask, SANDBOX_TASKS, type SandboxTaskId } from '@/sandboxes/registry'

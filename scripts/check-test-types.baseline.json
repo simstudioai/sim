@@ -1331,7 +1331,7 @@
     "TS2345": 3,
     "TS2739": 8
   },
-  "apps/sim/lib/execution/remote-sandbox/sandbox-spec.test.ts": {
+  "apps/sim/lib/execution/remote-sandbox/spec.test.ts": {
     "TS2345": 2
   },
   "apps/sim/lib/execution/remote-sandbox/session-file-snapshot.test.ts": {

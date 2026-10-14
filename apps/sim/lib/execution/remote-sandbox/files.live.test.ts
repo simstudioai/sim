@@ -19,7 +19,7 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
-import { SANDBOX_INPUT_DIR, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { SANDBOX_INPUT_DIR, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 
 const smokeEnabled = process.env.SANDBOX_FILES_SMOKE === '1'
 const CASE_TIMEOUT_MS = 5 * 60_000

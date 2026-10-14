@@ -35,7 +35,7 @@ import {
 } from '@/lib/workspace-files/application/admit-file-content'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
+import type { SandboxTaskId } from '@/sandboxes/registry'
 
 const logger = createLogger('CopilotDocCompile')
 

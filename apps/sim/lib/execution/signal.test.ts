@@ -38,7 +38,7 @@ import {
   connectExecutionSignalHub,
   getExecutionSignalHub,
   publishLocalExecutionSignal,
-} from '@/lib/execution/execution-signal'
+} from '@/lib/execution/signal'
 
 redisConfigMockFns.mockGetConfiguredRedisUrl.mockImplementation(() => {
   if (mockRedisUrl.error) throw mockRedisUrl.error

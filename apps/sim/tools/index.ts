@@ -50,7 +50,7 @@ import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
   serializeExecutionDeadlineHeader,
-} from '@/lib/execution/execution-deadline-header'
+} from '@/lib/execution/deadline-header'
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,

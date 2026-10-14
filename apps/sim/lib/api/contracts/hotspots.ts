@@ -9,7 +9,7 @@ import {
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
-import { MAX_BLOCK_MOUNTED_FILES } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { MAX_BLOCK_MOUNTED_FILES } from '@/lib/execution/remote-sandbox/paths'
 import { MAX_FUNCTION_CODE_LENGTH } from '@/lib/function-execution/limits'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,

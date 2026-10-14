@@ -15,7 +15,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/execution-observer'
-import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import {

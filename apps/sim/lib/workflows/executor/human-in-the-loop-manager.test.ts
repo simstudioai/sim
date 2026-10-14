@@ -18,8 +18,8 @@ import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
-import { getExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import { getExecutionSignalHub } from '@/lib/execution/signal'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 

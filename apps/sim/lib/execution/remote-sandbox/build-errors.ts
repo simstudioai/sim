@@ -1,4 +1,4 @@
-import { registryFor, type SandboxLanguage } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import { registryFor, type SandboxLanguage } from '@/lib/execution/remote-sandbox/spec'
 
 /**
  * Classified reasons a dependency set failed to materialize. The code is what

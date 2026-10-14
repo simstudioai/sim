@@ -15,7 +15,7 @@ import {
   systemPackageInstallCommand,
   validateDependencies,
   validateSystemPackages,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+} from '@/lib/execution/remote-sandbox/spec'
 
 const PY = CodeLanguage.Python
 const JS = CodeLanguage.JavaScript

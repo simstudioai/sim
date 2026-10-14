@@ -14,7 +14,7 @@ import {
   readExecutionEventsState,
   readExecutionMetaState,
 } from '@/lib/execution/event-buffer'
-import { type ExecutionSignalReason, getExecutionSignalHub } from '@/lib/execution/execution-signal'
+import { type ExecutionSignalReason, getExecutionSignalHub } from '@/lib/execution/signal'
 import {
   type ExecutionEvent,
   formatSSEEvent,

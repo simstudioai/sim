@@ -1429,7 +1429,7 @@
     "apps/sim/lib/execution/files.test.ts": 1,
     "apps/sim/lib/execution/isolated-vm.ts": 9,
     "apps/sim/lib/execution/remote-sandbox/image-registry.ts": 2,
-    "apps/sim/lib/execution/remote-sandbox/sandbox-files.live.test.ts": 11,
+    "apps/sim/lib/execution/remote-sandbox/files.live.test.ts": 11,
     "apps/sim/lib/execution/remote-sandbox/session-file-provenance.integration.ts": 3,
     "apps/sim/lib/file-parsers/complete-text.test.ts": 1,
     "apps/sim/lib/file-parsers/data-uri.ts": 1,

@@ -29,7 +29,7 @@ import {
   SIM_REQUIREMENTS_PATH,
   systemPackageInstallCommand,
   validateSystemPackages,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+} from '@/lib/execution/remote-sandbox/spec'
 import {
   SANDBOX_BASE_RELEASE_REFRESH_CODE,
   type SandboxDependencyStrategy,

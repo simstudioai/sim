@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
 
 describe('isBinarySandboxPath', () => {
   it('treats image, document, and archive extensions as binary regardless of case', () => {

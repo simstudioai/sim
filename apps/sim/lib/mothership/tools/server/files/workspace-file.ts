@@ -37,7 +37,7 @@ import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import { parseOwnedFileReference } from '@/lib/workspace-files/owned-files'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
+import type { SandboxTaskId } from '@/sandboxes/registry'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { ensureCopilotFileFolderPath } from './file-folder-application'
 import { storeFileIntent } from './file-intent-store'

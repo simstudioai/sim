@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,
   parseExecutionDeadlineHeader,
-} from '@/lib/execution/execution-deadline-header'
+} from '@/lib/execution/deadline-header'
 
 describe('internal execution deadline header', () => {
   it('parses an absolute deadline', () => {

@@ -14,7 +14,7 @@ import {
   parseJsDependency,
   registryFor,
   type SandboxLanguage,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+} from '@/lib/execution/remote-sandbox/spec'
 
 const logger = createLogger('SandboxWandEnricher')
 

@@ -26,7 +26,7 @@ import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
+import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/deadline-header'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,

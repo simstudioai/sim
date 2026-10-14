@@ -4,7 +4,7 @@ paths:
   - "apps/sim/lib/execution/isolated-vm-worker.cjs"
   - "apps/sim/lib/execution/isolated-vm.ts"
   - "apps/sim/lib/execution/sandbox/**"
-  - "apps/sim/sandbox-tasks/**"
+  - "apps/sim/sandboxes/**"
 ---
 
 # Sim Sandbox — Worker Security Policy
@@ -40,7 +40,7 @@ about what must **never** live in that process.
    validation.
 
 4. **Nothing that runs in the isolate is trusted, even if we wrote it**. The
-   task `bootstrap` and `finalize` strings in `apps/sim/sandbox-tasks/` execute
+   task `bootstrap` and `finalize` strings in `apps/sim/sandboxes/` execute
    inside the isolate. They must treat `globalThis` as adversarial — no pulling
    values from it that might have been mutated by user code. The hardening
    script in `executeTask` undefines dangerous globals before user code runs.

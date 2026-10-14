@@ -27,13 +27,13 @@ import {
   type CompiledCodePlaceholders,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
+import { parseExecutionDeadlineHeader } from '@/lib/execution/deadline-header'
 import {
   type DurableSecretProvenance,
   durableSecretProvenanceFromEnvelope,
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import {
@@ -80,6 +80,7 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
 import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/execution-observer'
 import {
   isSandboxOutputFileError,
@@ -88,11 +89,7 @@ import {
   MAX_SANDBOX_OUTPUT_BYTES,
   readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
-import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
-import {
-  MAX_BLOCK_MOUNTED_FILES,
-  SANDBOX_OUTPUT_DIR,
-} from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { MAX_BLOCK_MOUNTED_FILES, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 import type {
   SandboxCollectedFile,
   SandboxFile,

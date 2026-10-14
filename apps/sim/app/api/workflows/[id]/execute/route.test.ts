@@ -52,7 +52,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthResult } from '@/lib/auth/hybrid'
 import { AsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
-import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
+import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/deadline-header'
 import {
   abortManualExecution,
   registerManualExecutionAborter,
