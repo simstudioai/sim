@@ -107,12 +107,21 @@ export function toInternalKnowledgeDocument<
 }
 
 export function toInternalKnowledgeChunk<
-  T extends { createdAt: Date | string; updatedAt: Date | string },
+  T extends {
+    createdAt: Date | string
+    updatedAt: Date | string
+    date1?: Date | string | null
+    date2?: Date | string | null
+  },
 >(chunk: T): ChunkData {
+  /** A date slot is serialized only when the row carries it, so a projected row keeps its keys. */
+  const { date1, date2 } = chunk
   return chunkDataSchema.parse({
     ...chunk,
     createdAt: serializeDate(chunk.createdAt),
     updatedAt: serializeDate(chunk.updatedAt),
+    ...(date1 === undefined ? {} : { date1: serializeNullableDate(date1) }),
+    ...(date2 === undefined ? {} : { date2: serializeNullableDate(date2) }),
   })
 }
 
