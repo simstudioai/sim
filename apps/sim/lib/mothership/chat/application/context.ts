@@ -53,6 +53,7 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
     ...owner,
     chatId,
     userId: chat.userId,
+    type: chat.type,
     mode: chat.mode,
     memorySpaceId: chat.memorySpaceId ?? null,
   }

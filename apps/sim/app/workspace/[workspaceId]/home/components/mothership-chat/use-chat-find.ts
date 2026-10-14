@@ -26,6 +26,16 @@ const EXCLUDED_CONTENT =
   'button, [aria-hidden="true"], [data-agent-group], [data-chat-activity], [data-interaction-card], [data-chat-find-ignore], [data-footnote-ref], [data-footnotes]'
 const TEXT_BLOCK = 'p, h1, h2, h3, h4, h5, h6, pre, li, td, th'
 
+/** A find match by the message it is in and its occurrence there. */
+interface ChatFindMatchIdentity {
+  messageId: string
+  occurrence: number
+}
+
+interface ChatFindMatch extends ChatFindMatchIdentity {
+  messageIndex: number
+}
+
 interface UseChatFindProps {
   chatId?: string
   messages: ChatMessage[]
@@ -124,20 +134,24 @@ export function useChatFind({
   const [scope, setScope] = useState(chatId)
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [index, setIndex] = useState(0)
+  /**
+   * The active match by message and occurrence rather than position, so older messages
+   * loading in ahead of it keep the same match active instead of shifting to another.
+   */
+  const [activeMatch, setActiveMatch] = useState<ChatFindMatchIdentity | null>(null)
   if (scope !== chatId) {
     setScope(chatId)
     // A pending chat adopting its id (undefined → id) is the same conversation.
     if (scope !== undefined) {
       setIsOpen(false)
       setQuery('')
-      setIndex(0)
+      setActiveMatch(null)
     }
   }
   const deferredQuery = useDeferredValue(query)
   const term = isOpen ? deferredQuery.trim() : ''
   const result = useMemo(() => {
-    const matches: { messageIndex: number; occurrence: number }[] = []
+    const matches: ChatFindMatch[] = []
     let truncated = false
     if (term) {
       for (const [messageIndex, message] of messages.entries()) {
@@ -145,7 +159,8 @@ export function useChatFind({
         const text = getMessageSearchText(message, textCache)
         let occurrence = 0
         forEachSearchOccurrence(text, term, () => {
-          if (matches.length < MATCH_LIMIT) matches.push({ messageIndex, occurrence: occurrence++ })
+          if (matches.length < MATCH_LIMIT)
+            matches.push({ messageIndex, messageId: message.id, occurrence: occurrence++ })
           else truncated = true
         })
         if (truncated) break
@@ -153,11 +168,25 @@ export function useChatFind({
     }
     return { matches, truncated }
   }, [messages, hiddenUserByIndex, term, textCache])
-  const currentIndex = Math.min(index, Math.max(0, result.matches.length - 1))
+  const pinnedIndex = activeMatch
+    ? result.matches.findIndex(
+        (match) =>
+          match.messageId === activeMatch.messageId && match.occurrence === activeMatch.occurrence
+      )
+    : -1
+  const currentIndex = Math.max(0, pinnedIndex)
   const active = result.matches[currentIndex]
   const messageIndex = active?.messageIndex
   const occurrence = active?.occurrence
   const isStale = query !== deferredQuery
+  if (!isStale && active && pinnedIndex < 0) {
+    setActiveMatch({ messageId: active.messageId, occurrence: active.occurrence })
+  }
+  /** Read by `step`, so stepping keeps one identity while a streaming reply rebuilds the matches. */
+  const matchesRef = useRef(result.matches)
+  useEffect(() => {
+    matchesRef.current = result.matches
+  }, [result.matches])
 
   const open = useCallback(() => {
     if (document.activeElement instanceof HTMLElement && !inputRef.current) {
@@ -176,7 +205,7 @@ export function useChatFind({
   const close = useCallback(() => {
     setIsOpen(false)
     setQuery('')
-    setIndex(0)
+    setActiveMatch(null)
     restoreFocus()
   }, [restoreFocus])
   useLayoutEffect(() => {
@@ -185,14 +214,17 @@ export function useChatFind({
   }, [chatId, restoreFocus])
   const onQueryChange = useCallback((value: string) => {
     setQuery(value)
-    setIndex(0)
+    setActiveMatch(null)
   }, [])
   const step = useCallback(
     (delta: number) => {
-      if (result.matches.length && !isStale)
-        setIndex((currentIndex + delta + result.matches.length) % result.matches.length)
+      const matches = matchesRef.current
+      const target = matches[(currentIndex + delta + matches.length) % matches.length]
+      if (target && !isStale) {
+        setActiveMatch({ messageId: target.messageId, occurrence: target.occurrence })
+      }
     },
-    [currentIndex, result.matches.length, isStale]
+    [currentIndex, isStale]
   )
   const next = useCallback(() => step(1), [step])
   const prev = useCallback(() => step(-1), [step])

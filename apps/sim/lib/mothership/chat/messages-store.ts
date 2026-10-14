@@ -3,6 +3,7 @@ import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import {
+  displayContentOf,
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
@@ -30,11 +31,13 @@ function toRow(
   options?: { chatModel?: string | null; streamId?: string | null }
 ): typeof copilotMessages.$inferInsert {
   const ts = new Date(message.timestamp)
+  const content = stripToolResultOutput(message)
   return {
     chatId,
     messageId: message.id,
     role: message.role,
-    content: stripToolResultOutput(message),
+    content,
+    displayContent: displayContentOf(content),
     seq,
     model: options?.chatModel ?? null,
     streamId: options?.streamId ?? null,
@@ -72,6 +75,7 @@ export async function appendCopilotChatMessages(
       target: [copilotMessages.chatId, copilotMessages.messageId],
       set: {
         content: sql`excluded.content`,
+        displayContent: sql`excluded.display_content`,
         role: sql`excluded.role`,
         model: sql`COALESCE(excluded.model, ${copilotMessages.model})`,
         streamId: sql`COALESCE(excluded.stream_id, ${copilotMessages.streamId})`,

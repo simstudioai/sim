@@ -1,7 +1,11 @@
+import { useEffect } from 'react'
 import { toast } from '@sim/emcn'
+import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { backoffWithJitter } from '@sim/utils/retry'
 import {
+  isCancelledError,
   keepPreviousData,
   MutationObserver,
   mutationOptions,
@@ -20,6 +24,7 @@ import {
   getMothershipChatContract,
   getMothershipChatResponseSchema,
   getMothershipChatStreamStatusContract,
+  listMothershipChatOlderMessagesContract,
   listMothershipChatsContract,
   type MothershipChat,
   type MothershipChatScope,
@@ -43,6 +48,8 @@ import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+
+const logger = createLogger('MothershipChatQueries')
 
 export interface MothershipChatMetadata {
   mode?: MothershipChat['mode']
@@ -70,6 +77,23 @@ export interface MothershipChatHistory {
     previewSessions: FilePreviewSession[]
     status: string
   } | null
+  /**
+   * Where the messages older than `messages` end, or null when `messages` starts the chat.
+   * Absent in a locally seeded entry, which holds a new chat's whole transcript.
+   */
+  olderCursor?: string | null
+  /**
+   * The first message of the window a reload extends; older messages come from
+   * `olderCursor` pages instead. Null when `messages` was read whole.
+   */
+  windowStartCursor?: string | null
+  /**
+   * How many of `messages` were loaded from `olderCursor` pages, ahead of the window the server
+   * last returned. Absent means none.
+   */
+  olderMessageCount?: number
+  /** Set when a page of older messages can never load, so `messages` stops short of the chat's start. */
+  olderMessagesFailed?: boolean
 }
 
 export type MothershipChatOwner = string | { organizationId: string }
@@ -107,6 +131,9 @@ export const mothershipChatKeys = {
       : mothershipChatKeys.list(owner),
   details: () => [...mothershipChatKeys.all, 'detail'] as const,
   detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
+  olderMessagePages: () => [...mothershipChatKeys.all, 'older-messages'] as const,
+  olderMessages: (chatId: string, cursor: string) =>
+    [...mothershipChatKeys.olderMessagePages(), chatId, cursor] as const,
 }
 
 /**
@@ -268,6 +295,8 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
     resources: parseResources(chat.resources, `${chatContext}.resources`),
     effort: getMothershipChatResponseSchema.shape.chat.shape.effort.parse(chat.effort ?? null),
     streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
+    olderCursor: typeof chat.olderCursor === 'string' ? chat.olderCursor : null,
+    windowStartCursor: typeof chat.windowStartCursor === 'string' ? chat.windowStartCursor : null,
   }
 }
 
@@ -340,11 +369,13 @@ export function useOrganizationMothershipChats(
 
 async function readMothershipChatHistory(
   chatId: string,
+  windowStartCursor: string | null | undefined,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
   try {
     const data = await requestJson(getMothershipChatContract, {
       params: { chatId },
+      query: windowStartCursor ? { from: windowStartCursor } : { window: 'latest' },
       signal,
     })
     return parseChatHistory(data)
@@ -367,19 +398,42 @@ async function readMothershipChatHistory(
 }
 
 /**
- * Reads a chat from the server. A chat this tab saw deleted that the server
- * returns again was restored, so it takes queued sends again. Only a read that
- * began after the delete counts: one already in flight can return the chat from
- * before it.
+ * A reloaded window joined to the older messages the cache already holds before it, so a
+ * reload never drops history the user can scroll back to. A window the cache does not reach
+ * replaces it, and its `olderCursor` loads the rest again.
+ */
+function joinCachedOlderMessages(
+  cached: MothershipChatHistory | undefined,
+  fetched: MothershipChatHistory
+): MothershipChatHistory {
+  const firstId = fetched.messages[0]?.id
+  if (!cached || !fetched.windowStartCursor || firstId === undefined) return fetched
+  const overlap = cached.messages.findIndex((message) => message.id === firstId)
+  if (overlap <= 0) return fetched
+  return {
+    ...fetched,
+    messages: [...cached.messages.slice(0, overlap), ...fetched.messages],
+    olderCursor: cached.olderCursor ?? null,
+    olderMessageCount: overlap,
+  }
+}
+
+/**
+ * Reads a chat from the server: the newest messages on first load, then everything from the
+ * cached window's first message, joined to the older messages `readCached` holds. A chat this
+ * tab saw deleted that the server returns again was restored, so it takes queued sends again.
+ * Only a read that began after the delete counts: one already in flight can return the chat
+ * from before it.
  */
 export async function fetchMothershipChatHistory(
   chatId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  readCached?: () => MothershipChatHistory | undefined
 ): Promise<MothershipChatHistory> {
   const deleteSeen = useMothershipQueueStore.getState().cleared[chatId]
-  const history = await readMothershipChatHistory(chatId, signal)
+  const history = await readMothershipChatHistory(chatId, readCached?.()?.windowStartCursor, signal)
   if (deleteSeen !== undefined) useMothershipQueueStore.getState().liftDelete(chatId, deleteSeen)
-  return history
+  return joinCachedOlderMessages(readCached?.(), history)
 }
 
 /**
@@ -398,11 +452,104 @@ export async function fetchMothershipChatActiveStreamId(
 }
 
 export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
+  const queryKey = mothershipChatKeys.detail(chatId)
   return queryOptions({
-    queryKey: mothershipChatKeys.detail(chatId),
-    queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
+    queryKey,
+    queryFn: chatId
+      ? ({ signal, client }) =>
+          fetchMothershipChatHistory(chatId, signal, () =>
+            client.getQueryData<MothershipChatHistory>(queryKey)
+          )
+      : skipToken,
     staleTime: MOTHERSHIP_CHAT_HISTORY_STALE_TIME,
   })
+}
+
+/** A failed page is tried again while the chat stays open, at most every 30 s. */
+const OLDER_MESSAGES_BACKOFF = { baseMs: 1000, maxMs: 30 * 1000 }
+
+/**
+ * Whether a failed page is worth another try: a network failure, a server error, or a 404 from
+ * a server that predates the route mid-deploy. Any other response — a refused cursor, lost
+ * access, or a body that fails its contract — fails the same way every time.
+ */
+function isTransientOlderMessagesError(error: unknown): boolean {
+  if (!isApiClientError(error)) return true
+  return error.status >= 500 || [404, 408, 429].includes(error.status)
+}
+
+/**
+ * Prepends the page of messages before `cursor` to a chat's cached transcript. A cache that
+ * has moved past `cursor` (a reload replaced the window) keeps its own state. The page lives
+ * only in the detail entry: its query is collected as soon as it settles.
+ */
+async function loadOlderMothershipChatMessages(
+  queryClient: QueryClient,
+  chatId: string,
+  cursor: string
+): Promise<void> {
+  const page = await queryClient.fetchQuery({
+    queryKey: mothershipChatKeys.olderMessages(chatId, cursor),
+    queryFn: ({ signal }) =>
+      requestJson(listMothershipChatOlderMessagesContract, {
+        params: { chatId },
+        query: { before: cursor },
+        signal,
+      }),
+    gcTime: 0,
+    retry: (_failureCount, error) => isTransientOlderMessagesError(error),
+    retryDelay: (failureCount) => backoffWithJitter(failureCount, null, OLDER_MESSAGES_BACKOFF),
+  })
+  queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), (current) => {
+    if (!current || current.olderCursor !== cursor) return current
+    const held = new Set(current.messages.map((message) => message.id))
+    const older = normalizeMessages(page.messages).filter((message) => !held.has(message.id))
+    return {
+      ...current,
+      messages: [...older, ...current.messages],
+      olderCursor: page.olderCursor,
+      olderMessageCount: (current.olderMessageCount ?? 0) + older.length,
+    }
+  })
+}
+
+/**
+ * Loads a chat's older messages behind its newest window, a page at a time, so the whole
+ * transcript is in place before the user scrolls back to it. Each page moves the cached
+ * `olderCursor`, which loads the next, until the chat's first message arrives.
+ *
+ * Writing pages into the detail entry, rather than a separate infinite query, keeps every
+ * reader of `detail.messages` (send, find, sources, fork) on one transcript.
+ */
+export function useMothershipChatOlderMessages(
+  chatId: string | undefined,
+  olderCursor: string | null | undefined
+) {
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!chatId || !olderCursor) return
+    const queryKey = mothershipChatKeys.olderMessages(chatId, olderCursor)
+    loadOlderMothershipChatMessages(queryClient, chatId, olderCursor).catch((error) => {
+      if (isCancelledError(error)) return
+      logger.warn('Failed to load older chat messages', {
+        chatId,
+        error: toError(error).message,
+      })
+      if (isTransientOlderMessagesError(error)) return
+      // Stop asking for a page that will never load, so readers waiting on older history
+      // (the Sources panel) settle on an error instead of loading forever.
+      queryClient.setQueryData<MothershipChatHistory>(
+        mothershipChatKeys.detail(chatId),
+        (current) =>
+          current?.olderCursor === olderCursor
+            ? { ...current, olderCursor: null, olderMessagesFailed: true }
+            : current
+      )
+    })
+    return () => {
+      void queryClient.cancelQueries({ queryKey, exact: true })
+    }
+  }, [queryClient, chatId, olderCursor])
 }
 
 /**

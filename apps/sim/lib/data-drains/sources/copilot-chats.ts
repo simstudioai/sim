@@ -98,9 +98,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
         const transcriptSizes = await tx
           .select({
             chatId: copilotMessages.chatId,
-            bytes: sql<number>`sum(octet_length(row_to_json(${copilotMessages})::text))`.mapWith(
-              Number
-            ),
+            bytes: sql<number>`sum(octet_length(${copilotMessages.content}::text))`.mapWith(Number),
           })
           .from(copilotMessages)
           .where(messageCondition)

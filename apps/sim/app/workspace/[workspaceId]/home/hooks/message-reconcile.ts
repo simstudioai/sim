@@ -192,9 +192,17 @@ export function markMessageStopped(message: PersistedMessage): PersistedMessage 
   })
 }
 
+/**
+ * Changes whenever a server read of the chat changes what hydration acts on. Older messages
+ * loaded in behind the window are left out: they are settled turns, and re-running hydration
+ * for each page would restart reconnects and resource restores the window already handled.
+ */
 export function buildChatHistoryHydrationKey(chatHistory: MothershipChatHistory): string {
   const resourceKey = JSON.stringify(chatHistory.resources)
-  const messageKey = chatHistory.messages.map((message) => message.id).join('|')
+  const messageKey = chatHistory.messages
+    .slice(chatHistory.olderMessageCount ?? 0)
+    .map((message) => message.id)
+    .join('|')
   const streamSnapshot = chatHistory.streamSnapshot
   const snapshotKey = streamSnapshot
     ? [

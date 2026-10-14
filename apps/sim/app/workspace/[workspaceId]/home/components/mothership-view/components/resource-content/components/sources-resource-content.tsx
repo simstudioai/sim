@@ -47,9 +47,9 @@ export function SourcesResourceContent({ resource, chatId }: SourcesResourceCont
           sources.map((source) => <SourceCard key={source.url} source={source} />)
         ) : (
           <p className='px-2 py-2 text-[var(--text-muted)] text-small'>
-            {history.isPending
+            {history.isPending || (!persisted && history.data?.olderCursor)
               ? 'Loading sources'
-              : history.isError
+              : history.isError || (!persisted && history.data?.olderMessagesFailed)
                 ? 'Unable to load sources. Try reopening this conversation.'
                 : 'No cited sources are available for this response.'}
           </p>
