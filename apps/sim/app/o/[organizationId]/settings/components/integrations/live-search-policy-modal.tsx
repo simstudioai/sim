@@ -26,7 +26,7 @@ import {
   type LiveSearchPolicy,
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
-import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/search-params'
+import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/params'
 import { SearchSourcePagination } from '@/app/o/[organizationId]/settings/components/integrations/search-source-pagination'
 import { useSearchSources } from '@/hooks/queries/kb/connectors'
 import { useUpdateSearchIntegration } from '@/hooks/queries/search-integrations'

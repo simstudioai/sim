@@ -8,7 +8,7 @@ import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 
 import { listWorkspaceInvitations } from '@/lib/invitations/application/list-workspace-invitations'

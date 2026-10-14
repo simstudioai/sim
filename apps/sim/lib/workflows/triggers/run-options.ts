@@ -1,7 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import { generateToolInputSchema } from '@/lib/mcp/workflow-tool-schema'
-import { parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { parseInternalFileUrl } from '@/lib/uploads/utils/file'
 import {
   isFileFieldType,
   normalizeInputFormatValue,
@@ -9,15 +9,12 @@ import {
 } from '@/lib/workflows/input-format'
 import { generateWorkflowInputShape } from '@/lib/workflows/input-schema'
 import {
-  extractTriggerMockPayload,
-  selectBestTrigger,
-} from '@/lib/workflows/triggers/trigger-utils'
-import {
   getLegacyStarterMode,
   resolveStartCandidates,
   type StartBlockCandidate,
   StartBlockPath,
 } from '@/lib/workflows/triggers/triggers'
+import { extractTriggerMockPayload, selectBestTrigger } from '@/lib/workflows/triggers/utils'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { getBlock } from '@/blocks'
 import { coerceValue } from '@/executor/utils/start-block'

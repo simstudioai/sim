@@ -16,8 +16,8 @@ import {
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 

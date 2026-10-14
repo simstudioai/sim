@@ -13,11 +13,11 @@ import {
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/file-versions'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FileAuthorization')

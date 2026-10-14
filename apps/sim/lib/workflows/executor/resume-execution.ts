@@ -5,7 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'

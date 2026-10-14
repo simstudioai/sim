@@ -49,7 +49,7 @@ import {
 import {
   observeSandboxExecution,
   observeSandboxSessionInputs,
-} from '@/lib/execution/remote-sandbox/execution-observer'
+} from '@/lib/execution/remote-sandbox/observer'
 import {
   initializeSessionFileProvenance,
   recordSessionFileInput,

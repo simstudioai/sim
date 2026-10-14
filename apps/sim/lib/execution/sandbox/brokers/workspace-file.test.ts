@@ -4,7 +4,7 @@ import {
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 import {
   MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS,

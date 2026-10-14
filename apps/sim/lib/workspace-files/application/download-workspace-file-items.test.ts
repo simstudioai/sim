@@ -37,14 +37,14 @@ vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
   fetchAuthorizedServableWorkspaceFileBuffer: mockFetchServable,
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   docNotReadyMessage: (names: string[]) => `Pending: ${names.join(', ')}`,
   isDocNotReadyError: mockIsDocNotReady,
 }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

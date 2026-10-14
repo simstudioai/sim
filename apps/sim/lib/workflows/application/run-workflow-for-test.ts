@@ -9,7 +9,7 @@ import {
   releaseExecutionSlot,
   reserveExecutionSlot,
 } from '@/lib/billing/calculations/usage-reservation'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { getExecutionTimeout, RESERVATION_TTL_BUFFER_MS } from '@/lib/core/execution-limits/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
-vi.mock('@/lib/workflows/triggers/trigger-utils.server', () => ({
+vi.mock('@/lib/workflows/triggers/utils.server', () => ({
   hasValidStartBlock: vi.fn(),
 }))
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
@@ -16,7 +16,7 @@ import {
   performCreateWorkflowMcpServer,
   performUpdateWorkflowMcpTool,
 } from '@/lib/mcp/orchestration/workflow-mcp-lifecycle'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { hasValidStartBlock } from '@/lib/workflows/triggers/utils.server'
 
 describe('workflow MCP lifecycle orchestration', () => {
   beforeEach(() => {

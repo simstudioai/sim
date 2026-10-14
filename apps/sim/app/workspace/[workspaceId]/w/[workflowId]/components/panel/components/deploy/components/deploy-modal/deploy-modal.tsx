@@ -28,9 +28,9 @@ import {
   releaseDeployAction,
   tryAcquireDeployAction,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-action-lock'
+import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/predeploy-checks'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import type { DeploymentViewState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deployment-view-state'
-import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {

@@ -13,8 +13,8 @@ import type { DbOrTx } from '@/lib/db/types'
 import {
   allocateUniqueWorkspaceFileName,
   generateWorkspaceFileKey,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   deleteFile,
   downloadFile,

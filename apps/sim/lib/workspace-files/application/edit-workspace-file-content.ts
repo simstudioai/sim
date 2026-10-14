@@ -15,14 +15,14 @@ import {
   updateWorkspaceFileContent as updateStoredWorkspaceFileContent,
   type VersionedWorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { prepareOwnedFileContentWrite } from '@/lib/workspace-files/application/owned-file-content'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import {
   applyWorkspaceFileContentEdit,
   countLines,

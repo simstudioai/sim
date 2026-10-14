@@ -16,7 +16,7 @@ vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
   reclaimStaleDocumentProcessingClaim: mocks.reclaimStaleDocumentProcessingClaim,
 }))
 
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-events'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'

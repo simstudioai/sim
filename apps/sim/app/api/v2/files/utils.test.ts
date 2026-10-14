@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
-import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/file-versions'
 import { toV2FileVersions } from '@/app/api/v2/files/utils'
 
 const { mockFindUserEmailsByIds } = usersQueriesMockFns

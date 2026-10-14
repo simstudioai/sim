@@ -90,7 +90,7 @@ function vfsPath(file: MockWorkspaceFilePathFields): string {
 
 /**
  * Controllable mock functions for
- * `@/lib/uploads/contexts/workspace/workspace-file-manager` (also spread into
+ * `@/lib/uploads/contexts/workspace/file-manager` (also spread into
  * `workspaceUploadsMock` for the `@/lib/uploads/contexts/workspace` barrel, so both import
  * paths share these `vi.fn()`s).
  *
@@ -178,11 +178,11 @@ export const workspaceFileManagerMockFns = {
 const fns = workspaceFileManagerMockFns
 
 /**
- * Static mock module for `@/lib/uploads/contexts/workspace/workspace-file-manager`.
+ * Static mock module for `@/lib/uploads/contexts/workspace/file-manager`.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+ * vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
  * ```
  */
 export const workspaceFileManagerMock = {

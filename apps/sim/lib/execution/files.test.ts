@@ -25,7 +25,7 @@ const { mockUploadExecutionFile } = uploadsExecutionMockFns
 vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock('@/lib/core/network/resource-scope.server', () => ({
   withResourceOutboundScope: (_: unknown, fn: () => unknown) => fn(),
 }))

@@ -34,7 +34,7 @@ import {
   pruneOverridesToSchema,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
-import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { hasValidStartBlock } from '@/lib/workflows/triggers/utils.server'
 
 const logger = createLogger('WorkflowMcpOrchestration')
 

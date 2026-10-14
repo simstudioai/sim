@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
-vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+vi.mock('@/lib/workspace-files/application/folders', () => ({
   listWorkspaceFileFoldersOperation: {
     operation: { id: 'files.folders.list', minimumRole: 'read', workspaceApiKey: 'allow' },
     execute: mocks.listFolders,
@@ -42,7 +42,7 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
 import {
   WorkspaceFileFolderConflictError,
   WorkspaceFileItemsNotFoundError,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { GET, PATCH, POST } from '@/app/api/v2/files/folders/route'
 
 const WORKSPACE_ID = 'workspace-1'

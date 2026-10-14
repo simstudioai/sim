@@ -19,7 +19,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import type { WorkflowState } from '@/lib/logs/types'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'

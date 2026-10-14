@@ -1,6 +1,6 @@
 import { omit } from '@sim/utils/object'
 import { FirefliesIcon } from '@/components/icons'
-import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
+import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'

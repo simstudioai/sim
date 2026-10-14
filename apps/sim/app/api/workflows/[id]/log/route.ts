@@ -8,7 +8,7 @@ import { parseRequest } from '@/lib/api/server'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'

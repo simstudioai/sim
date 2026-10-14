@@ -5,7 +5,7 @@ import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'

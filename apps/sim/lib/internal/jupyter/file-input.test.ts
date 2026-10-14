@@ -18,8 +18,8 @@ const fileMocks = vi.hoisted(() => ({
 vi.mock('@/lib/uploads/shared/types', () => ({
   MAX_BUFFERED_TRANSFER_BYTES: 50 * 1024 * 1024,
 }))
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
   docNotReadyResponse: fileMocks.docNotReadyResponse,
 }))

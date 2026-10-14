@@ -3,14 +3,14 @@ import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-do
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import * as Y from 'yjs'
+import { applyMarkdownToYDoc, markdownToYDoc } from '@/lib/collab-doc/converter'
 import {
   assertCollabDocStateSize,
   CollabDocStateConflictError,
   commitCollabDocState,
   hashMarkdown,
   loadCollabDocState,
-} from '@/lib/collab-doc/collab-state'
-import { applyMarkdownToYDoc, markdownToYDoc } from '@/lib/collab-doc/converter'
+} from '@/lib/collab-doc/state'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 

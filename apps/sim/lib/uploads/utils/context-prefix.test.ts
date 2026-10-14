@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inferContextFromKey, tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey, tryInferContextFromKey } from '@/lib/uploads/utils/file'
 
 describe('tryInferContextFromKey', () => {
   it('classifies a known prefix the same way the throwing form does', () => {

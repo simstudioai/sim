@@ -37,7 +37,7 @@ import {
 import {
   getWorkspaceFile,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import {
   assertUploadSessionAuthBinding,

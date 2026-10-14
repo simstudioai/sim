@@ -9,16 +9,16 @@ import {
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file'
 import {
   requireAdmittedContributors,
   requireAdmittedWorkspaceFile,
 } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileMountInput {
   fileId: string

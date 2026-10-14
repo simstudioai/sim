@@ -26,10 +26,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  foldDocsIndexPath,
-  UNMOUNTED_DOCS_SECTIONS,
-} from '../apps/sim/lib/mothership/docs/docs-path'
+import { foldDocsIndexPath, UNMOUNTED_DOCS_SECTIONS } from '../apps/sim/lib/mothership/docs/path'
 import { formatGeneratedSource } from './format-generated-source'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))

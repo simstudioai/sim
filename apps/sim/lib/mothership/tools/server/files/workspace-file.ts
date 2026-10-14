@@ -19,7 +19,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   compileDoc,
   DOCXJS_SOURCE_MIME,
@@ -39,8 +39,8 @@ import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-wo
 import { parseOwnedFileReference } from '@/lib/workspace-files/owned-files'
 import type { SandboxTaskId } from '@/sandboxes/registry'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { ensureCopilotFileFolderPath } from './file-folder-application'
-import { storeFileIntent } from './file-intent-store'
+import { ensureCopilotFileFolderPath } from './folder-application'
+import { storeFileIntent } from './intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
 

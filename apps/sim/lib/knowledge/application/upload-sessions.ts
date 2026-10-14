@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
+import { checkAttributedUsageLimits } from '@/lib/billing/core/attribution'
 import { authorizeWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'

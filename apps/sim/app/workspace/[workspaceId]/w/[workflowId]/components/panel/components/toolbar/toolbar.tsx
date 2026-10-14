@@ -24,7 +24,7 @@ import {
 import { ChevronDown, Lock, Search } from '@sim/emcn/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
-import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getTriggersForSidebar, hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import {
   type DragItemInfo,

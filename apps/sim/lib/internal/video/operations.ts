@@ -13,7 +13,7 @@ import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 

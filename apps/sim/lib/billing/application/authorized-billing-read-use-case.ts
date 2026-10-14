@@ -29,7 +29,7 @@ import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
 export type BillingReadScope =
   | { kind: 'account'; userId: string }

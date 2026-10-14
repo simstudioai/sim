@@ -1,15 +1,15 @@
 import type { Principal } from '@sim/auth/principal'
 import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { workspaceFileProvenanceIdentity } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileSecretProvenanceInput {
   fileId: string

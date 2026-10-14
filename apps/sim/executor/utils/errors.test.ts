@@ -88,7 +88,7 @@ describe('hosted-key status survives the ToolResponse flattening', () => {
   /**
    * `executeTool` catches a thrown error and returns a `ToolResponse`, so the
    * status has to ride `ToolResponse.statusCode` and be re-attached by
-   * `generic-handler`. This reproduces that hand-off end to end.
+   * `generic/handler`. This reproduces that hand-off end to end.
    */
   function errorFromFailedToolResponse(response: {
     error: string

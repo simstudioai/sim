@@ -1,5 +1,5 @@
 import { COVER_OG_SIZE, createCoverOgImage } from '@/lib/og/cover-image'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveShareByToken } from '@/lib/public-shares/manager'
 import { buildProvenance } from '@/app/f/[token]/utils'
 
 export const dynamic = 'force-dynamic'

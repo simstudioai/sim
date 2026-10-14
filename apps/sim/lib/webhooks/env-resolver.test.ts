@@ -7,7 +7,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetEffectiveDecryptedEnv, mockGetExecutionEnvironment } = environmentUtilsMockFns
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 afterAll(resetEnvironmentUtilsMock)
 

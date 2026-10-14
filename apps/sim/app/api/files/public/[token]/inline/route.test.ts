@@ -13,7 +13,7 @@ const { mockRateLimit, mockValidateAuth, mockResolveImage } = vi.hoisted(() => (
   mockResolveImage: vi.fn(),
 }))
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 vi.mock('@/lib/public-shares/rate-limit', () => ({ enforcePublicFileRateLimit: mockRateLimit }))
 vi.mock('@/lib/core/security/deployment-auth', () => ({ validateDeploymentAuth: mockValidateAuth }))
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)

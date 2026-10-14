@@ -13,7 +13,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 

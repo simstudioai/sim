@@ -2,7 +2,7 @@ import { folder, publicShare, workspaceFiles, workspaceFileVersion } from '@sim/
 import { and, asc, eq, gt, inArray } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import { retireProjectUploadsInTx } from '@/lib/projects/files/prefix-cleanup'
-import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
 
 const PURGE_BATCH_SIZE = 500

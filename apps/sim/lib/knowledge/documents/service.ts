@@ -36,7 +36,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { checkIngestionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
@@ -82,7 +82,7 @@ import {
   MAX_KNOWLEDGE_ACCESS_CANDIDATES,
   SYSTEM_ACCESS_SCOPE,
 } from '@/lib/knowledge/access/types'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import { imageExtractionPolicyFor } from '@/lib/knowledge/connectors/image-admission'
 import {
   connectorIndexingCondition,
@@ -90,6 +90,12 @@ import {
 } from '@/lib/knowledge/connectors/indexing-policy'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
 import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
+import { createEmbeddingCheckpoints } from '@/lib/knowledge/documents/embedding-checkpoints'
+import {
+  failStaleDocumentProcessingClaim,
+  recordUndispatchedDocumentFailure,
+} from '@/lib/knowledge/documents/processing-claim'
+import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import {
   assertDocumentChunkCountWithinLimit,
   getOcrRequestRejection,
@@ -99,17 +105,7 @@ import {
   PermanentDocumentProcessingError,
   toPermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
-import {
-  processDocument,
-  type SourceFileAccess,
-} from '@/lib/knowledge/documents/document-processor'
-import { createEmbeddingCheckpoints } from '@/lib/knowledge/documents/embedding-checkpoints'
-import {
-  failStaleDocumentProcessingClaim,
-  recordUndispatchedDocumentFailure,
-} from '@/lib/knowledge/documents/processing-claim'
-import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+} from '@/lib/knowledge/documents/processing-error'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import {
   enqueueDeferredRetryCheck,
@@ -144,6 +140,7 @@ import {
   skippedDocumentCondition,
 } from '@/lib/knowledge/documents/processing-status'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
+import { processDocument, type SourceFileAccess } from '@/lib/knowledge/documents/processor'
 import {
   enqueueKnowledgeStorageCleanup,
   getKnowledgeBaseStorageKey,
@@ -197,7 +194,7 @@ import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { type FileMetadataRecord, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import type { processDocument as processDocumentTask } from '@/background/knowledge-processing'

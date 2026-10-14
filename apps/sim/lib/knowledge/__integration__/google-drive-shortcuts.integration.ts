@@ -41,7 +41,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -54,7 +54,7 @@ import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
 import * as memberAccess from '@/lib/knowledge/connectors/member-access'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 
 const json = (body: unknown) => Response.json(body)
 const denied = () => Response.json({ error: { errors: [{ reason: 'notFound' }] } }, { status: 404 })

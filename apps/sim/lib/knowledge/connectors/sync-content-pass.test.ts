@@ -20,7 +20,7 @@ import {
   uploadsMetadataMockFns,
 } from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   beginListingCheckpoint,

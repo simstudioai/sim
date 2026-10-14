@@ -26,7 +26,7 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension } from '@/lib/uploads/utils/file'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { EditorContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/editor-context-menu'
 import { FileSaveConflict } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-save-conflict'

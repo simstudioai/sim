@@ -56,7 +56,7 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
 import type { NativeSearchQuery } from '@/lib/api/contracts/mothership-assistant-tools'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import {
   type ResourceScope,

@@ -115,7 +115,7 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
   '@/lib/workspace-files/application/resolve-workspace-file-reference',
@@ -132,7 +132,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
+vi.mock('@/lib/uploads/contexts/execution/file-manager', () => ({
   uploadExecutionFile: mockUploadExecutionFile,
 }))
 

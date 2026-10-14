@@ -59,11 +59,11 @@ vi.mock('@/lib/mothership/tools/client/local-filesystem', () => ({
 vi.mock('@/lib/mothership/tools/client/browser-tool-execution', () => ({
   executeBrowserToolOnClient: mockExecuteBrowserToolOnClient,
 }))
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.unmock('@/stores/execution/store')
 vi.unmock('@/stores/terminal')
 vi.unmock('@/stores/terminal/console/store')
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution', () => ({
   executeWorkflowWithFullLogging: mockExecuteWorkflow,
 }))
 

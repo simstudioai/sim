@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { document, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, gt, inArray, isNotNull, isNull, lt, type SQL, sql } from 'drizzle-orm'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   type ConnectorAccessMode,

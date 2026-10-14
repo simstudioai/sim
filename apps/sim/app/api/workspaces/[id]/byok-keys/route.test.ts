@@ -27,7 +27,7 @@ vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { GET, POST } from '@/app/api/workspaces/[id]/byok-keys/route'

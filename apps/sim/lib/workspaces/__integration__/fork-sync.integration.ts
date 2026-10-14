@@ -37,7 +37,7 @@ import {
   performActivateVersion,
   performFullDeploy,
 } from '@/lib/workflows/orchestration/deploy'
-import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/workflow-lifecycle'
+import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/lifecycle'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { admitWorkflowState, saveAdmittedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { getWorkspaceOperation } from '@/lib/workspaces/operations/application'

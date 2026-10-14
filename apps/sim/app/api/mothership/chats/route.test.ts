@@ -21,7 +21,7 @@ const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 
 vi.mock('@/lib/mothership/chat/stream-liveness', () => ({

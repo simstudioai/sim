@@ -32,8 +32,8 @@ import { compileDocForWrite } from '@/lib/mothership/tools/server/files/workspac
 import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getBoundWorkspaceFileSecretProvenanceByIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { getBoundWorkspaceFileSecretProvenanceByIdentity } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { compileDoc } from '@/lib/uploads/documents/compile'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'

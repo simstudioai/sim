@@ -5,7 +5,7 @@ import {
   listAuthorizedAppsContract,
   revokeAuthorizedAppContract,
 } from '@/lib/api/contracts/user'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 
 export const oauthProviderKeys = {
   all: ['oauth-provider'] as const,
@@ -88,7 +88,7 @@ export function useOAuthPublicClient(clientId?: string, authorizationRequestKey?
  * Records the user's decision and returns where the browser goes next: the
  * client's `redirect_uri` with an authorization code, or with
  * `error=access_denied` when declined. The signed authorize query travels in
- * the request body automatically (see `oauthProviderClient` in `auth-client`).
+ * the request body automatically (see `oauthProviderClient` in `lib/auth/client`).
  */
 export function useOAuthConsent() {
   return useMutation({

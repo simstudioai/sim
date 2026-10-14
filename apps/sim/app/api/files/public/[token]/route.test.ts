@@ -9,7 +9,7 @@ const { mockEnforceRateLimit, mockValidateDeploymentAuth, mockSetDeploymentAuthC
     mockSetDeploymentAuthCookie: vi.fn(),
   }))
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
 vi.mock('@/lib/public-shares/rate-limit', () => ({
   enforcePublicFileRateLimit: mockEnforceRateLimit,

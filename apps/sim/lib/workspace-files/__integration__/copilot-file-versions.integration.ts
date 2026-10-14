@@ -44,8 +44,8 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'

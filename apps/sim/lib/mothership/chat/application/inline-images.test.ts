@@ -26,11 +26,11 @@ const hoisted = vi.hoisted(() => ({
   artifact: vi.fn(),
 }))
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/mothership/chat/application/read-sandbox-file', () => ({
   readChatSandboxFile: { execute: hoisted.scratch },

@@ -14,7 +14,7 @@ import {
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
-import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/observer'
 import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
 import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
@@ -53,9 +53,10 @@ import {
   getSandboxWorkspaceFilePath,
   parseChatUploadReference,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/vfs/path'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/folders'
 import {
   findActiveWorkspaceFilesByReference,
   queryWorkspaceFilePage,
@@ -63,7 +64,6 @@ import {
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
-import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,

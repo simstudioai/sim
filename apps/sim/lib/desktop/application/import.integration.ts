@@ -40,7 +40,7 @@ import { DesktopDeviceUnrecognizedError } from '@/lib/desktop/executor/errors'
 import {
   createWorkspaceFileFolder,
   listWorkspaceFileFolders,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 
 describe('desktop imports', () => {
   const userIds: string[] = []

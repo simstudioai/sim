@@ -246,7 +246,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workflows/diff/diff-engine.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workflows/diff/engine.ts',
             label: 'Sim codebase: WorkflowDiffEngine',
             asOf: '2026-07-02',
           },
@@ -519,7 +519,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/handlers/agent/agent-handler.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/handlers/agent/handler.ts',
             label: 'Sim codebase: agent tool resolution (pre-wired only)',
             asOf: '2026-07-02',
           },

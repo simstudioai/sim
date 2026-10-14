@@ -12,7 +12,7 @@ import {
   getBoundWorkspaceFileSecretProvenanceByIdentity,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import type { OwnedFileContext, OwnedFileNamespace } from '@/lib/workspace-files/owned-files'
 
 /** What a classification is bound to; a workspace file record satisfies it. */

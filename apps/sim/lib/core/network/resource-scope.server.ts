@@ -2,7 +2,7 @@ import { isOutboundRoutingEnabled } from '@/lib/core/network/config.server'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OutboundRoutingError } from '@/lib/core/network/routing'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { loadWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** Establishes routing after resource authorization, reloading current workspace ownership when needed. */
 export async function withResourceOutboundScope<T>(

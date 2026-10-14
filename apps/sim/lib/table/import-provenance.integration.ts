@@ -38,7 +38,7 @@ import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
 import { TableRowProvenanceReader } from '@/lib/table/rows/secret-provenance'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

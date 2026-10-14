@@ -9,14 +9,11 @@ import {
 import { MAX_SANDBOX_URL_MOUNT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
 import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { generatePresignedDownloadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
-import {
-  isGeneratedDocumentSourceType,
-  resolveTrustedFileContext,
-} from '@/lib/uploads/utils/file-utils'
+import { isGeneratedDocumentSourceType, resolveTrustedFileContext } from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('SandboxMounts')

@@ -19,22 +19,23 @@ import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   workspaceFileSecretProvenanceFromSnapshot,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
   getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-versions'
 import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
 import {
   requireAdmittedWorkspaceFile,
   workspaceFileProvenanceIdentity,
 } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import {
   type DownloadWorkspaceFileStreamResult,
   streamWorkspaceFileRecord,
@@ -48,7 +49,6 @@ import {
   type ReadWorkspaceFileTextInput,
   type ReadWorkspaceFileTextResult,
 } from '@/lib/workspace-files/application/read-workspace-file-text'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 const logger = createLogger('WorkspaceFileVersions')
 

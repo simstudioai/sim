@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
-import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
+import { checkAttributedUsageLimits } from '@/lib/billing/core/attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -27,20 +27,20 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { createSingleDocument } from '@/lib/knowledge/documents/service'
 import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-upload'
-import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/file-manager'
 import {
   fetchServableWorkspaceFileBuffer,
   getWorkspaceFile,
   loadActiveWorkspaceFileContext,
   resolveWorkspaceFileReference,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,

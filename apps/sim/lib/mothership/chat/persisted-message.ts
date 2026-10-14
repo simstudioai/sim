@@ -28,8 +28,8 @@ import type {
   LocalToolCallStatus,
   OrchestratorResult,
 } from '@/lib/mothership/request/types'
+import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
-import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export interface PersistedFileAttachment {

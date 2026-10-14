@@ -5,7 +5,7 @@ import { loggingSessionMock, loggingSessionMockFns } from '@sim/testing/mocks/lo
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionCallbacks } from '@/executor/execution/types'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'

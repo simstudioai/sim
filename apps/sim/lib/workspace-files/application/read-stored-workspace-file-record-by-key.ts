@@ -6,7 +6,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { type FileMetadataRecord, getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
-import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { workspaceFileDelegationPolicy } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

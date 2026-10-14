@@ -1,4 +1,4 @@
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import {
   MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
   parseWorkflowExecutionTimeoutSeconds,

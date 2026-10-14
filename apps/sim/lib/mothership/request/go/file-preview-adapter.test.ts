@@ -12,7 +12,7 @@ const { peekFileIntentMock, executeCopilotFileUseCaseMock } = vi.hoisted(() => (
   executeCopilotFileUseCaseMock: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/tools/server/files/file-intent-store', () => ({
+vi.mock('@/lib/mothership/tools/server/files/intent-store', () => ({
   peekFileIntent: peekFileIntentMock,
 }))
 

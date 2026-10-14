@@ -4,7 +4,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import {
   type WorkspacePermissionUpdate,
   workspacePermissionUpdatesSchema,

@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getEffectiveBlockOutputPaths,
   getEffectiveBlockOutputType,
-} from '@/lib/workflows/blocks/block-outputs'
-import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
+} from '@/lib/workflows/blocks/outputs'
+import { getBlockReferenceTags } from '@/lib/workflows/blocks/reference-tags'
 import { AgentBlock } from '@/blocks/blocks/agent'
 
 const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))

@@ -28,14 +28,14 @@ import {
   createWorkspaceFileFolder,
   listFileFolders,
   listWorkspaceFileFolders,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { queryWorkspaceFileVersions } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { queryWorkspaceFileVersions } from '@/lib/uploads/contexts/workspace/file-versions'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'

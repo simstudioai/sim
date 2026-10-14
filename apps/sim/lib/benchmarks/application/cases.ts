@@ -26,7 +26,7 @@ import {
 import { authorizeWorkspaceOperation } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { workflowDelegationPolicy } from '@/lib/workflows/application/authorization'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 interface BenchmarkInput {
   organizationId: string

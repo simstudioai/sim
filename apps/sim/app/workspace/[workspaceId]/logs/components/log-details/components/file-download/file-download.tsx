@@ -4,7 +4,7 @@ import { Button } from '@sim/emcn'
 import { Download } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
-import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file-utils'
+import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('FileCards')
 

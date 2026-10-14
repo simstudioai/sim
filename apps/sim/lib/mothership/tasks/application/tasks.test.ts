@@ -40,7 +40,7 @@ vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
   ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
   authorizeWorkspaceOperation: hoisted.authorize,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/workflows/executor/execution-status', () => ({
   getWorkflowExecutionStatus: hoisted.status,

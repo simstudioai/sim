@@ -33,7 +33,7 @@ vi.mock(
   'next/navigation',
   async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
 )
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
 }))

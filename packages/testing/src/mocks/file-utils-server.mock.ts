@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 
 /**
- * Controllable mock functions for `@/lib/uploads/utils/file-utils.server`.
+ * Controllable mock functions for `@/lib/uploads/utils/file.server`.
  * Every export is I/O (storage reads, URL fetches, presigning), so all defaults are bare
  * `vi.fn()` — configure per test.
  *
@@ -24,11 +24,11 @@ export const fileUtilsServerMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/uploads/utils/file-utils.server`.
+ * Static mock module for `@/lib/uploads/utils/file.server`.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+ * vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
  * ```
  */
 export const fileUtilsServerMock = {

@@ -7,7 +7,7 @@ import { and, count, desc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { ADMIN_MEMBER_OPERATION_EVENT_TYPE } from '@/lib/admin/member-operation-event'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   acquireOrganizationMutationLock,

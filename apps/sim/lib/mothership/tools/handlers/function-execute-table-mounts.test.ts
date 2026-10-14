@@ -24,7 +24,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/folders/queries', () => folderQueriesMock)

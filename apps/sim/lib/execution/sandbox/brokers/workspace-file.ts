@@ -7,7 +7,7 @@ import type { SandboxBroker } from '@/lib/execution/sandbox/types'
 import {
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
 const logger = createLogger('SandboxWorkspaceFileBroker')

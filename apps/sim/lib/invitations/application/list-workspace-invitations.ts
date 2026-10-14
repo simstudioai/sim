@@ -1,7 +1,7 @@
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { listInvitationsForWorkspaces } from '@/lib/invitations/core'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** permission-group-exempt: administrators can inspect and revoke outstanding grants when sending is withheld. */
 export const listWorkspaceInvitationsOperation = defineWorkspaceOperation({

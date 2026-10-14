@@ -22,7 +22,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   getJobQueue,
   JOB_PENDING_RETENTION_HOURS,

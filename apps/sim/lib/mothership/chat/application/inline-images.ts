@@ -28,8 +28,8 @@ import {
   storeInlineChatImage,
 } from '@/lib/mothership/chat/inline-image-storage'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
-import { loadActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { loadActiveWorkspaceFileContext } from '@/lib/uploads/contexts/workspace/file-manager'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { prepareImageForVision } from '@/lib/workspace-files/prepare-image-for-vision'

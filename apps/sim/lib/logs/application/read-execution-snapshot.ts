@@ -21,7 +21,7 @@ import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
 const CHILD_SNAPSHOT_QUERY_CHUNK_SIZE = 1_000
 

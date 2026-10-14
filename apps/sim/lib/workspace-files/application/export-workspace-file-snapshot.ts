@@ -4,15 +4,15 @@ import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { admitContent } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
 import { createMarkdownExport, MarkdownExportSizeError } from '@/lib/uploads/server/markdown-export'
 import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ExportWorkspaceFileSnapshotInput {
   fileId: string

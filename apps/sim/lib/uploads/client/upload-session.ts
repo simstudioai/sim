@@ -9,7 +9,7 @@ import type {
 } from '@/lib/api/contracts/v2/uploads'
 import { runWithConcurrency } from '@/lib/uploads/client/concurrency'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
-import { isAbortError } from '@/lib/uploads/utils/file-utils'
+import { isAbortError } from '@/lib/uploads/utils/file'
 
 const BASE_TIMEOUT_MS = 2 * 60 * 1000
 const TIMEOUT_PER_MB_MS = 1500

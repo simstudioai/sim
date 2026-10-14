@@ -6,7 +6,7 @@ import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
 import { readBoundedHttpErrorPayload } from '@/lib/knowledge/documents/utils'
 import { getProviderModels } from '@/providers/models'
 import { isGemini3OrLaterModel } from '@/providers/utils'

@@ -1,2 +1,2 @@
-export type { DiffAnalysis, WorkflowDiff } from './diff-engine'
-export { stripWorkflowDiffMarkers, WorkflowDiffEngine } from './diff-engine'
+export type { DiffAnalysis, WorkflowDiff } from './engine'
+export { stripWorkflowDiffMarkers, WorkflowDiffEngine } from './engine'

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import type { EmbeddedFileSnapshot } from 'sim/embed'
-import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/execution-observer'
+import { prepareSandboxSessionAccess } from '@/lib/execution/remote-sandbox/observer'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { SESSION_SANDBOX_IDLE_MS } from '@/lib/execution/remote-sandbox/session'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'

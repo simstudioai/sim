@@ -30,15 +30,15 @@ import {
 } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import { processCodeFailure } from '@/lib/execution/remote-sandbox/code-failure'
 import {
-  recordSandboxProcess,
-  reportUnsettledSandboxProcess,
-  settleSandboxProcess,
-} from '@/lib/execution/remote-sandbox/execution-observer'
-import {
   FUNCTION_SANDBOX_CPU_COUNT,
   FUNCTION_SANDBOX_MATERIALIZER_REVISION,
   FUNCTION_SANDBOX_MEMORY_MB,
 } from '@/lib/execution/remote-sandbox/function-resources'
+import {
+  recordSandboxProcess,
+  reportUnsettledSandboxProcess,
+  settleSandboxProcess,
+} from '@/lib/execution/remote-sandbox/observer'
 import {
   assertSandboxProcessOutputWithinLimit,
   isSandboxOutputLimitError,

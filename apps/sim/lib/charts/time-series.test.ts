@@ -2,7 +2,7 @@
 import type { EChartsType } from 'echarts'
 import { describe, expect, it, vi } from 'vitest'
 import { bindTimeSeriesInteractions, readTimeSeriesTooltip } from '@/lib/charts/time-series'
-import { createDashboardCursorStore } from '@/stores/dashboards/cursor'
+import { createDashboardCursorStore } from '@/stores/dashboards/store'
 
 const range = { from: '2026-09-20T00:00:00.000Z', to: '2026-09-22T00:00:00.000Z' }
 const time = Date.parse('2026-09-21T00:00:00Z')

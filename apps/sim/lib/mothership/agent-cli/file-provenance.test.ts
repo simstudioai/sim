@@ -24,7 +24,7 @@ const hoisted = vi.hoisted(() => ({
   render: vi.fn(),
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/file-parsers', () => fileParsersMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)

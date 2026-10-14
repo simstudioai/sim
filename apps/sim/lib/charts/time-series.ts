@@ -8,7 +8,7 @@ import {
   dashboardTimeLabel,
   dashboardZoomRange,
 } from '@/lib/dashboards/time'
-import type { DashboardCursorStore } from '@/stores/dashboards/cursor'
+import type { DashboardCursorStore } from '@/stores/dashboards/store'
 
 export interface ChartReadoutValue {
   name: string

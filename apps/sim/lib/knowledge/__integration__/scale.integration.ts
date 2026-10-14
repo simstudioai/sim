@@ -8,7 +8,7 @@ import { toArray, toRecord } from '@sim/utils/object'
 import { and, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,

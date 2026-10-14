@@ -26,7 +26,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'

@@ -1,5 +1,5 @@
 import type { WorkflowExecutionAuthority, WorkflowExecutionPrincipal } from '@sim/auth/principal'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { BlockOutput } from '@/blocks/types'

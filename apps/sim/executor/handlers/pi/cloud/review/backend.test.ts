@@ -76,8 +76,8 @@ vi.mock('@/executor/handlers/pi/cloud/review/tools', () => ({
   createCloudReviewTools: mockCreateTools,
 }))
 // `toPiTool` stays real so the search tool's scrubbing boundary is the one shipped, not a stub.
-vi.mock('@/executor/handlers/pi/core/pi-sdk', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/executor/handlers/pi/core/pi-sdk')>()),
+vi.mock('@/executor/handlers/pi/core/sdk', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/executor/handlers/pi/core/sdk')>()),
   loadPiSdk: () => Promise.resolve(mockSdk),
   createPiModelRuntime: mockCreatePiModelRuntime,
   resolvePiSdkModel: () => ({ id: 'claude', provider: 'anthropic' }),

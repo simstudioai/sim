@@ -6,17 +6,17 @@ import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
-import { MAX_RENDERED_DOCUMENT_BYTES, needsRenderedArtifact } from '@/lib/uploads/utils/file-utils'
+import { MAX_RENDERED_DOCUMENT_BYTES, needsRenderedArtifact } from '@/lib/uploads/utils/file'
 import {
   requireAdmittedContributors,
   requireAdmittedWorkspaceFile,
 } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface DownloadWorkspaceFileInput {
   fileId: string

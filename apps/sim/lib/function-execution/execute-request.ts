@@ -81,7 +81,7 @@ import {
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
 import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
-import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/execution-observer'
+import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/observer'
 import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
@@ -112,7 +112,7 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
@@ -121,9 +121,9 @@ import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFiles } from '@/lib/uploads/core/storage-service'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

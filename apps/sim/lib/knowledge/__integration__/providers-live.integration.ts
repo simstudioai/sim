@@ -33,7 +33,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
@@ -53,7 +53,7 @@ import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { grantKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { processDocument } from '@/lib/knowledge/documents/processor'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'

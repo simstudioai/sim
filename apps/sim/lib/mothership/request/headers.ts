@@ -1,4 +1,4 @@
-import type { AttributedBillingRequestEnvelope } from '@/lib/billing/core/billing-attribution'
+import type { AttributedBillingRequestEnvelope } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { SIM_AGENT_VERSION } from '@/lib/mothership/constants'
 import { getMothershipSourceEnvHeaders } from '@/lib/mothership/server/agent-url'

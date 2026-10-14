@@ -38,17 +38,17 @@ import { buildPiPrompt } from '@/executor/handlers/pi/core/context'
 import { applyPiEvent, createPiTotals, normalizePiEvent } from '@/executor/handlers/pi/core/events'
 import { mapThinkingLevel } from '@/executor/handlers/pi/core/keys'
 import {
+  createScrubbedPiError,
+  getScrubbedPiErrorMessage,
+  scrubPiEvent,
+} from '@/executor/handlers/pi/core/redaction'
+import {
   createPiModelRuntime,
   createSealedPiResourceLoader,
   loadPiSdk,
   resolvePiSdkModel,
   toPiTool,
-} from '@/executor/handlers/pi/core/pi-sdk'
-import {
-  createScrubbedPiError,
-  getScrubbedPiErrorMessage,
-  scrubPiEvent,
-} from '@/executor/handlers/pi/core/redaction'
+} from '@/executor/handlers/pi/core/sdk'
 import {
   PI_SEARCH_TOOL_NAME,
   PI_SEARCH_UNTRUSTED_SENTENCE,

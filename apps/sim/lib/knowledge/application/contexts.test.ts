@@ -44,7 +44,7 @@ vi.mock('@/lib/knowledge/connectors/service', () => ({
   getActiveKnowledgeConnectorReference: hoisted.getConnector,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 

@@ -13,7 +13,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import {
   resolveActiveWorkflowApplicationContext,

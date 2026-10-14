@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { createCopilotWorkspaceApiKey } from '@/lib/api-key/application/create-api-key'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { executeCopilotApiKeyUseCase } from '@/lib/mothership/application/execute-api-key-use-case'
 import {
   executeCopilotWorkflowUseCase,

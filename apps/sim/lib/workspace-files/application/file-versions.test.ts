@@ -25,9 +25,9 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-versions', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-versions', () => ({
   getCurrentWorkspaceFileVersion: hoisted.getCurrentVersion,
   getWorkspaceFileVersion: hoisted.getVersion,
   getWorkspaceFileVersionProvenance: hoisted.getProvenance,

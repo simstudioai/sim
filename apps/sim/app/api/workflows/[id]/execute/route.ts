@@ -24,7 +24,7 @@ import {
   type BillingAttributionSnapshot,
   getWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {

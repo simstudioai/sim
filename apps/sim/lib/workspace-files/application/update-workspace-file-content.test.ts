@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Both specifiers are mocked: the context resolver imports the manager directly, not the barrel. */
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

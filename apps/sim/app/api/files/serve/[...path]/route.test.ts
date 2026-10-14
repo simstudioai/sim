@@ -84,7 +84,7 @@ vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
@@ -98,7 +98,7 @@ vi.mock('@/lib/execution/sandbox/run-task', () => ({
     ),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/api', () => ({
   internalWorkspaceFileServeAuth: { authenticate: mockAuthenticateWorkspaceFile },

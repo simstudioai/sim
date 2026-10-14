@@ -94,12 +94,12 @@ import { createSingleDocument } from '@/lib/knowledge/documents/service'
 import { loadKnowledgeDocumentSecretRegistry } from '@/lib/knowledge/secret-provenance'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
 import {
   deleteWorkspaceFile,
   getWorkspaceFile,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   filterModelSafeWorkspaceFileAttachments,
   getBoundWorkspaceFileSecretProvenance,
@@ -108,7 +108,7 @@ import {
   isOpaqueWorkspaceFileEgressSafe,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import type { UserFile } from '@/executor/types'

@@ -22,7 +22,7 @@ import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
+vi.mock('@/lib/workflows/blocks/outputs', () => ({
   getEffectiveBlockOutputs: () => ({ response: { type: 'string' } }),
 }))
 

@@ -43,7 +43,7 @@ import {
   isAudioFileType,
   isVideoFileType,
   resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import { isSupportedExtension } from '@/lib/uploads/utils/validation'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'

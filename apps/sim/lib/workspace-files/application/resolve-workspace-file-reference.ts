@@ -9,10 +9,10 @@ import {
   resolveWorkspaceFileReference as resolveStoredWorkspaceFileReference,
   type WorkspaceFileLookupOptions,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { assertOwnedFileAccess } from '@/lib/workspace-files/application/context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { assertOwnedFileAccess } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ResolveWorkspaceFileReferenceInput {
   principal: Principal

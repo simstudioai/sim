@@ -13,7 +13,7 @@ import { type BenchmarkCase, updateBenchmarkContract } from '@/lib/api/contracts
 import { BenchmarkConsole } from '@/app/benchmark/benchmark-console'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 
 let root: Root

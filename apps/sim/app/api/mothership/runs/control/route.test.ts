@@ -18,7 +18,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/lib/mothership/request/http')
 vi.mock('@/lib/auth/ban', () => authBanMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 

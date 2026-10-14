@@ -1,9 +1,9 @@
 import { listWorkspaceFilesContract } from '@/lib/api/contracts/workspace-files'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
+import { getWorkspaceShares } from '@/lib/public-shares/manager'
 import {
   listWorkspaceFiles,
   type WorkspaceFileScope,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 
 /**
  * Lists a workspace's files with each file's public share joined on, parsed through the

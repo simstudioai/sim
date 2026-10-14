@@ -17,7 +17,7 @@ import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
 export interface CompleteQuickBooksConnectionInput {
   draftId: string

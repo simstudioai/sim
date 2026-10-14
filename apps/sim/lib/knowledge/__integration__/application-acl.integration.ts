@@ -52,7 +52,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialGroupProviderAdapterByProviderId } from '@/lib/credential-groups/provider-registry'
@@ -80,7 +80,7 @@ import {
 import { createContentSyncLease, createMemberSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 
 describe('indexed source content through real application access', () => {
   const previousConfluenceClient = {

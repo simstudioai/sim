@@ -37,7 +37,7 @@ function buildWorkspaceFileFolderPathMapImpl(folders: MockFolderPathSource[]): M
 }
 
 /**
- * Controllable mock functions for `@/lib/uploads/contexts/workspace/workspace-file-folder-manager`.
+ * Controllable mock functions for `@/lib/uploads/contexts/workspace/file-folder-manager`.
  *
  * Bare `vi.fn()` except:
  * - `mockNormalizeWorkspaceFileItemName` → faithful port (trims; throws on empty names, path
@@ -104,13 +104,13 @@ export const workspaceFileFoldersMockFns = {
 const fns = workspaceFileFoldersMockFns
 
 /**
- * Static mock module for `@/lib/uploads/contexts/workspace/workspace-file-folder-manager`. Error
+ * Static mock module for `@/lib/uploads/contexts/workspace/file-folder-manager`. Error
  * classes are the `Mock*Error` mirrors shared with `workspace-uploads.mock` (one class per real error).
  *
  * @example
  * ```ts
  * vi.mock(
- *   '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
+ *   '@/lib/uploads/contexts/workspace/file-folder-manager',
  *   () => workspaceFileFoldersMock
  * )
  * ```

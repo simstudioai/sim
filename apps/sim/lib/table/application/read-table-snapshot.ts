@@ -15,7 +15,7 @@ import {
   resolveTableWorkspaceContext,
 } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
-import { resolveTableByVfsName } from '@/lib/table/application/table-vfs'
+import { resolveTableByVfsName } from '@/lib/table/application/vfs'
 import { getTableSnapshotModelMountSafety } from '@/lib/table/rows/secret-provenance'
 import {
   getOrCreateTableSnapshot,

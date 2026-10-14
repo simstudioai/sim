@@ -18,6 +18,8 @@ import type { BlockStateController, ContextExtensions } from '@/executor/executi
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import { createReferencePattern } from '@/executor/utils/reference-validation'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow'
+import { resolveArrayInputAsync } from '@/executor/utils/subflow.server'
 import {
   buildLoopSentinelEndId,
   buildLoopSentinelStartId,
@@ -28,8 +30,6 @@ import {
   extractParallelIdFromSentinel,
 } from '@/executor/utils/subflow-node-id-codec'
 import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
-import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow-utils'
-import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
 
 const logger = createLogger('LoopOrchestrator')

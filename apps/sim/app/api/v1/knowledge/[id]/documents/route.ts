@@ -8,7 +8,7 @@ import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   messageForOrchestrationError,
   statusForOrchestrationError,
@@ -24,7 +24,7 @@ import { getDocuments } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { performUploadKnowledgeDocument } from '@/lib/knowledge/orchestration'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import {
   handleError,

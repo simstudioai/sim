@@ -14,7 +14,7 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   type BillingAttributionSnapshot,
   serializeBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
@@ -93,8 +93,8 @@ import {
 } from '@/lib/mothership/billing/service-observer'
 import { CredentialRevokedError } from '@/lib/oauth/credential-revoked'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/file-manager'
+import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
@@ -2063,7 +2063,7 @@ async function executeToolImplementation(
     // the canvas workflow block.
     if (normalizedToolId === 'workflow_executor') {
       logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
-      const { runWorkflowTool } = await import('@/executor/handlers/workflow/workflow-tool-runner')
+      const { runWorkflowTool } = await import('@/executor/handlers/workflow/tool-runner')
       const result = await runWorkflowTool(
         {
           ...contextParams,

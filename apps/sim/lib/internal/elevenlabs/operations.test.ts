@@ -32,9 +32,9 @@ vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 vi.mock('@/lib/internal/elevenlabs/client', () => ({
   generateElevenLabsAudio: mocks.generateElevenLabsAudio,
 }))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 vi.mock('@/lib/uploads', () => uploadsMock)

@@ -35,7 +35,7 @@ function builtBody(build: () => unknown): Record<string, unknown> {
 }
 
 /**
- * Mirrors `generic-handler.ts`, which spreads the mapper's result over the raw
+ * Mirrors `generic/handler.ts`, which spreads the mapper's result over the raw
  * serialized inputs. A key the mapper omits keeps its raw subBlock value, so a
  * guard is only real if it survives this merge.
  */

@@ -20,7 +20,7 @@ import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
 import {
   requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type {

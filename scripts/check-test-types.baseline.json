@@ -602,7 +602,7 @@
     "TS2554": 1,
     "TS7006": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils.test.ts": {
+  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution.test.ts": {
     "TS2739": 1
   },
   "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/utils.test.ts": {
@@ -818,7 +818,7 @@
   "apps/sim/executor/execution/test-hooks.test.ts": {
     "TS2339": 3
   },
-  "apps/sim/executor/handlers/agent/agent-handler.test.ts": {
+  "apps/sim/executor/handlers/agent/handler.test.ts": {
     "TS18046": 2,
     "TS2339": 3,
     "TS2345": 1,
@@ -828,17 +828,17 @@
   "apps/sim/executor/handlers/agent/memory.test.ts": {
     "TS2739": 1
   },
-  "apps/sim/executor/handlers/condition/condition-handler.test.ts": {
+  "apps/sim/executor/handlers/condition/handler.test.ts": {
     "TS2322": 2,
     "TS2561": 1,
     "TS2739": 4,
     "TS2769": 3
   },
-  "apps/sim/executor/handlers/evaluator/evaluator-handler.test.ts": {
+  "apps/sim/executor/handlers/evaluator/handler.test.ts": {
     "TS18048": 1,
     "TS2345": 1
   },
-  "apps/sim/executor/handlers/mothership/mothership-handler.test.ts": {
+  "apps/sim/executor/handlers/mothership/handler.test.ts": {
     "TS2322": 1,
     "TS2345": 1,
     "TS2352": 1,
@@ -852,10 +852,10 @@
   "apps/sim/executor/handlers/pi/cloud/review/backend.test.ts": {
     "TS2345": 1
   },
-  "apps/sim/executor/handlers/variables/variables-handler.test.ts": {
+  "apps/sim/executor/handlers/variables/handler.test.ts": {
     "TS2339": 1
   },
-  "apps/sim/executor/handlers/workflow/workflow-handler.test.ts": {
+  "apps/sim/executor/handlers/workflow/handler.test.ts": {
     "TS2493": 1,
     "TS2571": 1
   },
@@ -1027,7 +1027,7 @@
   "apps/sim/lib/billing/authorization.test.ts": {
     "TS2554": 1
   },
-  "apps/sim/lib/billing/core/billing-attribution.test.ts": {
+  "apps/sim/lib/billing/core/attribution.test.ts": {
     "TS2345": 6
   },
   "apps/sim/lib/billing/core/subscription.test.ts": {
@@ -1072,10 +1072,10 @@
   "apps/sim/lib/browser-agent/transport.test.ts": {
     "TS2345": 1
   },
-  "apps/sim/lib/catalog/application/catalog-reads.test.ts": {
+  "apps/sim/lib/catalog/application/reads.test.ts": {
     "TS2345": 1
   },
-  "apps/sim/lib/catalog/projection/catalog-sweep.test.ts": {
+  "apps/sim/lib/catalog/projection/sweep.test.ts": {
     "TS2345": 1
   },
   "apps/sim/lib/charts/option.test.ts": {
@@ -1146,7 +1146,7 @@
     "TS2322": 1,
     "TS2739": 1
   },
-  "apps/sim/lib/core/rate-limiter/hosted-key/hosted-key-rate-limiter.test.ts": {
+  "apps/sim/lib/core/rate-limiter/hosted-key/rate-limiter.test.ts": {
     "TS2352": 1
   },
   "apps/sim/lib/core/rate-limiter/provider-admission.test.ts": {
@@ -1226,7 +1226,7 @@
     "TS2322": 1,
     "TS2345": 1
   },
-  "apps/sim/lib/credentials/application/credential-crud.test.ts": {
+  "apps/sim/lib/credentials/application/crud.test.ts": {
     "TS2345": 1
   },
   "apps/sim/lib/credentials/application/list-workspace-credentials.test.ts": {
@@ -1655,7 +1655,7 @@
   "apps/sim/lib/knowledge/chunks/keyset-sql.test.ts": {
     "TS2345": 2
   },
-  "apps/sim/lib/knowledge/connectors/connector-error.test.ts": {
+  "apps/sim/lib/knowledge/connectors/error.test.ts": {
     "TS2345": 1
   },
   "apps/sim/lib/knowledge/connectors/directory-queue.test.ts": {
@@ -1686,11 +1686,11 @@
     "TS2345": 2,
     "TS2769": 1
   },
-  "apps/sim/lib/knowledge/documents/document-indexing-usage.test.ts": {
+  "apps/sim/lib/knowledge/documents/indexing-usage.test.ts": {
     "TS2345": 2,
     "TS2739": 2
   },
-  "apps/sim/lib/knowledge/documents/document-processing-source.test.ts": {
+  "apps/sim/lib/knowledge/documents/processing-source.test.ts": {
     "TS2345": 4
   },
   "apps/sim/lib/knowledge/documents/processing-lane.test.ts": {

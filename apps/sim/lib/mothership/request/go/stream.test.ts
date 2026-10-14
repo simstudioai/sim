@@ -44,7 +44,7 @@ vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: changeStoredChatResourcesMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
@@ -65,10 +65,10 @@ vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
     }),
 }))
 
-vi.mock('@/lib/mothership/tools/server/files/file-preview', async () => {
+vi.mock('@/lib/mothership/tools/server/files/preview', async () => {
   const actual = await vi.importActual<
-    typeof import('@/lib/mothership/tools/server/files/file-preview')
-  >('@/lib/mothership/tools/server/files/file-preview')
+    typeof import('@/lib/mothership/tools/server/files/preview')
+  >('@/lib/mothership/tools/server/files/preview')
   return {
     ...actual,
     // Returns the file's preview base as a `WorkspaceFilePreviewBase` ({ text }), NOT a bare string —

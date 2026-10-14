@@ -4,7 +4,7 @@ import {
   type BillingAttributionSnapshot,
   checkAccountBillingBlocks,
   checkAttributedBillingBlocks,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { chatOperations } from '@/lib/mothership/application/operations'
@@ -18,7 +18,7 @@ import {
   COPILOT_VALIDATION_PURPOSE,
   type CopilotValidationPurpose,
 } from '@/lib/mothership/generated/billing-protocol-v1'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const CALLBACK_AUDIENCE = 'sim:copilot-callback'
 

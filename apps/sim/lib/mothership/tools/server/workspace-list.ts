@@ -1,5 +1,5 @@
 import { listWorkspacesInputSchema } from '@/lib/api/contracts/mothership-assistant-tools'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { executeOrganizationWorkspaceUseCase } from '@/lib/mothership/application/execute-organization-workspace-use-case'
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
 import { listOrganizationWorkspaces } from '@/lib/workspaces/application/list-organization-workspaces'

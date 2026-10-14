@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import type { DbTransaction } from '@/lib/db/types'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/

@@ -7,7 +7,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 import { workspaceOperations } from '@/lib/workspaces/operations/operations'
 import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 import { refreshWorkspaceOperation } from '@/lib/workspaces/operations/refresh'

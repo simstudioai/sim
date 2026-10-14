@@ -15,24 +15,24 @@ import {
   getWorkspaceSharesForResources,
   ShareValidationError,
   upsertFileShare,
-} from '@/lib/public-shares/share-manager'
+} from '@/lib/public-shares/manager'
 import {
   findListedWorkspaceFiles,
   getWorkspaceFile,
   loadActiveWorkspaceContext,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenanceByIdentity,
   getCurrentWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { loadPublishedCompiledDocInputs } from '@/lib/uploads/documents/compiled-store'
-import { getFileExtension, isRenderableDocumentName } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, isRenderableDocumentName } from '@/lib/uploads/utils/file'
 import { workspaceFileProvenanceIdentity } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { validatePublicFileSharing } from '@/ee/access-control/utils/permission-check'
 

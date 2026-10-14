@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   readWriteProvenance: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/memory/application/use-cases', () => ({
   appendMemoryUseCase: { execute: mocks.append },

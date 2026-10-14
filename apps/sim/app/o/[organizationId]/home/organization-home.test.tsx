@@ -62,7 +62,7 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
 vi.mock('@/app/workspace/[workspaceId]/home/components/chat-resource-panel', () => ({
   ChatResourcePanel: mocks.resourcePanel,
 }))
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/lib/core/utils/browser-storage', () => ({
   MothershipHandoffStorage: { consume: mocks.consume },

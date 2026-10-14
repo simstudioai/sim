@@ -9,7 +9,7 @@ import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import {
   OcrRequestRejectedError,
   PermanentDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
+} from '@/lib/knowledge/documents/processing-error'
 import { getProviderCapacityDeferral } from '@/lib/knowledge/documents/processing-provider-deferral'
 
 describe('provider capacity deferral classification', () => {

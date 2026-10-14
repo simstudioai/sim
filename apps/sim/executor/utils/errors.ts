@@ -183,7 +183,7 @@ const MAX_CAUSE_DEPTH = 8
  * set deep in a tool survives the block-level wrapping that rebuilds the error.
  *
  * Reads only SIM-OWNED carriers: `HttpError.statusCode` (canonical) and the
- * `statusCode` field `generic-handler` re-attaches from a failed `ToolResponse`.
+ * `statusCode` field `generic/handler` re-attaches from a failed `ToolResponse`.
  * Deliberately does NOT read the duck-typed `status` field: that carries an
  * UPSTREAM target's status (`api-handler` copies it off the remote response, and
  * transformed HTTP tool errors carry it too). Adopting it would turn a remote

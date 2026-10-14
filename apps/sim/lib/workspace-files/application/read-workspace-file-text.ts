@@ -10,13 +10,13 @@ import {
   fetchWorkspaceFileBuffer,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   formatFileSize,
   getFileExtension,
   MAX_TEXT_EXTRACTION_BYTES,
   needsRenderedArtifact,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import {
   requireAdmittedContributors,
   requireAdmittedWorkspaceFile,

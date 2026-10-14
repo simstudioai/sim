@@ -18,4 +18,4 @@ export {
   performDeleteWorkflow,
   performRestoreWorkflow,
   updateWorkflowRecord,
-} from './workflow-lifecycle'
+} from './lifecycle'

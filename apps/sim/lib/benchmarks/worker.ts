@@ -14,7 +14,7 @@ import type { BenchmarkCase } from '@/lib/benchmarks/types'
 import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import type {

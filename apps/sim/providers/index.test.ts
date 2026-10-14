@@ -29,7 +29,7 @@ vi.mock('@/providers/file-attachments.server', () => ({
 }))
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

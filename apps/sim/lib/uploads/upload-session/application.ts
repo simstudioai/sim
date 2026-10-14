@@ -12,7 +12,7 @@ import {
   createOrganizationLogoUpload,
 } from '@/lib/uploads/contexts/organization-logo/application'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,

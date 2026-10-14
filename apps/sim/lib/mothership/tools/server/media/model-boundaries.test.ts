@@ -26,7 +26,7 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 vi.mock('@/lib/media/falai-audio', () => ({ generateFalAudio: mockGenerateFalAudio }))
 vi.mock('@/lib/media/falai-video', () => ({ generateFalVideo: mockGenerateFalVideo }))
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

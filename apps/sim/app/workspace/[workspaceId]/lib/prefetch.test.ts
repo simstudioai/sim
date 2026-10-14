@@ -56,10 +56,7 @@ vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 vi.mock('@/lib/workspace-files/queries', () => ({
   listWorkspaceFilesWithShares: mockListWorkspaceFilesWithShares,
 }))
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 vi.mock('@/lib/pinned-items/queries', () => ({
   listPinnedItemsForUser: mockListPinnedItemsForUser,
 }))

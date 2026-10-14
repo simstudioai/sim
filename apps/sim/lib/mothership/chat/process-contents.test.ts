@@ -84,7 +84,7 @@ const {
   listWorkflowFolders: vi.fn<
     (
       request: Parameters<
-        typeof import('@/lib/workflows/application/workflow-folders').listWorkflowFolders.execute
+        typeof import('@/lib/workflows/application/folders').listWorkflowFolders.execute
       >[0]
     ) => Promise<{ folders: { id: string; name: string; parentId: string | null }[] }>
   >(async () => ({
@@ -119,7 +119,7 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   getSkillUseCase: { execute: getSkillUseCase },
 }))
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
 }))
@@ -133,7 +133,7 @@ vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 vi.mock('@/lib/workflows/application/read-workflow', () => ({
   readWorkflowMetadata: { execute: readWorkflowMetadata },
 }))
-vi.mock('@/lib/workflows/application/workflow-folders', () => ({
+vi.mock('@/lib/workflows/application/folders', () => ({
   listWorkflowFolders: { execute: listWorkflowFolders },
 }))
 vi.mock('@/lib/table/application/folders', () => ({
@@ -142,7 +142,7 @@ vi.mock('@/lib/table/application/folders', () => ({
 vi.mock('@/lib/knowledge/application/folders', () => ({
   listKnowledgeFolders: { execute: listKnowledgeFolders },
 }))
-vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+vi.mock('@/lib/workspace-files/application/folders', () => ({
   resolveWorkspaceFileFolderPathOperation: { execute: resolveFileFolderPath },
 }))
 vi.mock('@/lib/mothership/tools/server/docs/search-docs', () => ({

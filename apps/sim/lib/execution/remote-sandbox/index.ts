@@ -17,13 +17,13 @@ import {
   createSelectedSandbox,
 } from '@/lib/execution/remote-sandbox/create'
 import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
+import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
 import {
   prepareSandboxSessionAccess,
   reportUnsettledSandboxProcess,
   retainSandboxExecution,
   sandboxSessionInputProvenance,
-} from '@/lib/execution/remote-sandbox/execution-observer'
-import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
+} from '@/lib/execution/remote-sandbox/observer'
 import {
   attachTrustedSandboxOutputCost,
   isSandboxOutputFileError,

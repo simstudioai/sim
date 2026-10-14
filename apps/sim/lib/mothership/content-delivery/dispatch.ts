@@ -8,7 +8,7 @@ import {
 import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { parseWorkspaceFileSecretProvenance } from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { v2Error } from '@/app/api/v2/lib/response'
 

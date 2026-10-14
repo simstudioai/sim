@@ -90,7 +90,7 @@ const {
   mockReleaseExecutionIdClaim: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 

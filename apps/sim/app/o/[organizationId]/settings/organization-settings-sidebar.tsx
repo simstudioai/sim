@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { ORGANIZATION_SETTINGS_GROUPS } from '@/components/settings/navigation'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import {
   hasPaidSubscriptionStatus,

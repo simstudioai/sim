@@ -1,5 +1,5 @@
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { searchSetupReturnParam } from '@/lib/sim-search/search-params'
+import { searchSetupReturnParam } from '@/lib/sim-search/params'
 
 /** Where an organization admin sets up Sim Search sources. */
 export function organizationSearchSetupPath(organizationId: string): string {
