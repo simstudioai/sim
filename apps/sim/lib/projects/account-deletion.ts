@@ -27,7 +27,7 @@ async function loadRelatedProjects(executor: DbOrTx, userId: string, doomedWorks
         .from(workspace)
         .where(inArray(workspace.id, doomedWorkspaceIds))
     : []
-  const projectIds = doomedMemberships.flatMap((row) => (row.projectId ? [row.projectId] : []))
+  const projectIds = doomedMemberships.map((row) => row.projectId)
   return executor
     .select()
     .from(project)
@@ -65,7 +65,6 @@ async function loadProjectEnvironments(executor: DbOrTx, projectIds: string[]) {
     : []
   const byProject = new Map<string, ProjectEnvironment[]>()
   for (const { projectId, ...environment } of rows) {
-    if (!projectId) continue
     const environments = byProject.get(projectId)
     if (environments) environments.push(environment)
     else byProject.set(projectId, [environment])

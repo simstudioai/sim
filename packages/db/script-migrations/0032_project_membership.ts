@@ -80,6 +80,11 @@ export const projectMembershipMigration: ScriptMigration = {
             await assertSession()
             try {
               await archiveProjectRepairWorkflows(sql, repair)
+              // At most 1000 ids: archiveProjectRepairWorkflows refuses larger repairs.
+              logger.info('Archived workflows in archived workspace', {
+                workspaceId: repair.workspaceId,
+                workflowIds: repair.workflowIds,
+              })
               break
             } catch (error) {
               if (!(error instanceof ProjectBackfillBusy || retryable(error)) || attempt >= 2)
