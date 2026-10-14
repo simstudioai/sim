@@ -1713,7 +1713,10 @@ export async function deleteWorkspaceFileFolderByPath(params: {
   const now = new Date()
 
   return db.transaction(async (tx) => {
-    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+    await acquireFileItemsMutationLock(tx, {
+      entityType: 'workspace',
+      entityId: params.workspaceId,
+    })
     const index = await loadActiveFileFolderPathIndex(
       { entityType: 'workspace', entityId: params.workspaceId },
       tx
