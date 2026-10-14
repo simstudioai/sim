@@ -8804,60 +8804,6 @@
           "concurrently": true,
           "method": "btree",
           "with": {}
-        },
-        "folder_workspace_owner_type_unique": {
-          "name": "folder_workspace_owner_type_unique",
-          "columns": [
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
-        },
-        "folder_project_owner_type_unique": {
-          "name": "folder_project_owner_type_unique",
-          "columns": [
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resource_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": true,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -8917,7 +8863,18 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "folder_workspace_owner_type_unique": {
+          "name": "folder_workspace_owner_type_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "workspace_id", "resource_type"]
+        },
+        "folder_project_owner_type_unique": {
+          "name": "folder_project_owner_type_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "project_id", "resource_type"]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "folder_owner_check": {

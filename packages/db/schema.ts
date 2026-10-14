@@ -277,17 +277,21 @@ export const folder = pgTable(
       'folder_owner_check',
       sql`num_nonnulls(${table.workspaceId}, ${table.projectId}) = 1 AND (${table.projectId} IS NULL OR ${table.resourceType} = 'file')`
     ),
-    workspaceOwnerTypeUnique: uniqueIndex('folder_workspace_owner_type_unique')
-      .on(table.id, table.workspaceId, table.resourceType)
-      .concurrently(),
+    workspaceOwnerTypeUnique: unique('folder_workspace_owner_type_unique').on(
+      table.id,
+      table.workspaceId,
+      table.resourceType
+    ),
     workspaceParentOwnerFk: foreignKey({
       name: 'folder_workspace_parent_owner_fk',
       columns: [table.parentId, table.workspaceId, table.resourceType],
       foreignColumns: [table.id, table.workspaceId, table.resourceType],
     }),
-    projectOwnerTypeUnique: uniqueIndex('folder_project_owner_type_unique')
-      .on(table.id, table.projectId, table.resourceType)
-      .concurrently(),
+    projectOwnerTypeUnique: unique('folder_project_owner_type_unique').on(
+      table.id,
+      table.projectId,
+      table.resourceType
+    ),
     projectParentOwnerFk: foreignKey({
       name: 'folder_project_parent_owner_fk',
       columns: [table.parentId, table.projectId, table.resourceType],

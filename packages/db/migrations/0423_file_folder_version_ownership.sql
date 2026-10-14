@@ -172,6 +172,12 @@ ON folder (id, project_id, resource_type);--> statement-breakpoint
 SET lock_timeout = '5s';--> statement-breakpoint
 -- The exclusive owner check makes exactly one parent-owner FK applicable to every folder.
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'folder_workspace_owner_type_unique' AND conrelid = 'folder'::regclass) THEN
+    ALTER TABLE folder ADD CONSTRAINT folder_workspace_owner_type_unique UNIQUE USING INDEX folder_workspace_owner_type_unique;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'folder_project_owner_type_unique' AND conrelid = 'folder'::regclass) THEN
+    ALTER TABLE folder ADD CONSTRAINT folder_project_owner_type_unique UNIQUE USING INDEX folder_project_owner_type_unique;
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'folder_workspace_parent_owner_fk' AND conrelid = 'folder'::regclass) THEN
     ALTER TABLE folder ADD CONSTRAINT folder_workspace_parent_owner_fk
       FOREIGN KEY (parent_id, workspace_id, resource_type) REFERENCES folder(id, workspace_id, resource_type) NOT VALID;
