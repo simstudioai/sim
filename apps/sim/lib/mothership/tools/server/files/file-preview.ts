@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { observeContentOutsideModel } from '@/lib/core/application'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
-import { toAnchoredContentEdit } from '@/lib/mothership/tools/server/files/file-intent-store'
+import { toAnchoredContentEdit } from '@/lib/mothership/tools/server/files/anchored-edit'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { applyWorkspaceFileContentEdit, EditContentError } from '@/lib/workspace-files/edit-content'
 

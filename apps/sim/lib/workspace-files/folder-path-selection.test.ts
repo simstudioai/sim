@@ -44,8 +44,8 @@ describe('resolveFolderIdsForPaths', () => {
   it('does not let a shared name prefix widen the scope', () => {
     const result = resolveFolderIdsForPaths(memory, ['/memory/user-a'])
 
-    expect(result.scope?.folderIds?.has('a2')).toBe(false)
-    expect(result.scope?.folderIds?.has('a2-people')).toBe(false)
+    expect(result.scope?.folderIds.has('a2')).toBe(false)
+    expect(result.scope?.folderIds.has('a2-people')).toBe(false)
   })
 
   it('never climbs to a parent of the requested folder', () => {

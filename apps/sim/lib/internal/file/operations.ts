@@ -948,12 +948,33 @@ async function resolveScopedFileReference(args: {
   if (folderPaths.length === 0) return fileName
   const scopeLabel = folderPaths.join(', ')
 
-  const folderScope = await resolveWorkspaceFolderScope({
-    principal,
-    workspaceId,
-    folderPaths,
-    includeSubfolders: args.includeSubfolders,
-  })
+  /*
+   * A reference that is a real file id resolves to that file or to nothing,
+   * never to a name match: `wf_` is a legal filename prefix, so a file merely
+   * named like an id must not answer a caller who named a file exactly. Decided
+   * by looking the id up rather than by its shape.
+   */
+  const fileIdExists = async () => {
+    try {
+      await readWorkspaceFileMetadata.execute({
+        principal,
+        input: { fileId: fileName, assertedWorkspaceId: workspaceId },
+      })
+      return true
+    } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'not_found') return false
+      throw error
+    }
+  }
+  const [folderScope, exactIdExists] = await Promise.all([
+    resolveWorkspaceFolderScope({
+      principal,
+      workspaceId,
+      folderPaths,
+      includeSubfolders: args.includeSubfolders,
+    }),
+    fileIdExists(),
+  ])
   const findInScope = (match: { fileId: string } | { name: string }, limit: number) =>
     queryWorkspaceFilePage.execute({
       principal,
@@ -967,22 +988,6 @@ async function resolveScopedFileReference(args: {
       },
     })
 
-  /*
-   * A reference that is a real file id resolves to that file or to nothing,
-   * never to a name match: `wf_` is a legal filename prefix, so a file merely
-   * named like an id must not answer a caller who named a file exactly. Decided
-   * by looking the id up rather than by its shape.
-   */
-  let exactIdExists = false
-  try {
-    await readWorkspaceFileMetadata.execute({
-      principal,
-      input: { fileId: fileName, assertedWorkspaceId: workspaceId },
-    })
-    exactIdExists = true
-  } catch (error) {
-    if (!(error instanceof OrchestrationError) || error.code !== 'not_found') throw error
-  }
   if (exactIdExists) {
     const { files } = await findInScope({ fileId: fileName }, 1)
     if (files.length === 0) {
@@ -2196,7 +2201,7 @@ export async function executeFileManageOperation(
           if (selection.missingPath !== undefined) {
             throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
           }
-          rootId = [...(selection.scope?.folderIds ?? [])][0] ?? null
+          rootId = selection.scope?.folderIds.values().next().value ?? null
         }
 
         const maxDepth = body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1

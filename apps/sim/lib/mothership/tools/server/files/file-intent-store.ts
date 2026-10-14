@@ -3,7 +3,6 @@ import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { getRedisClient } from '@/lib/core/config/redis'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileContentEdit } from '@/lib/workspace-files/edit-content'
 
 export type PendingFileIntent = {
   operation: 'append' | 'update' | 'patch'
@@ -43,46 +42,6 @@ export type FileIntentScope = {
   // channel — the key to isolating concurrent file subagents. Omitted by callers
   // that intentionally span the whole message.
   channelId?: string
-}
-
-type AnchoredContentEdit = Exclude<WorkspaceFileContentEdit, { mode: 'search_replace' }>
-
-/**
- * Maps a staged `anchored` patch onto the shared workspace-file edit, so the
- * durable write and its streamed preview apply the same anchor semantics.
- */
-export function toAnchoredContentEdit(
-  edit: Record<string, unknown>,
-  content: string
-): { edit: AnchoredContentEdit } | { error: string } {
-  const read = (key: string) => (typeof edit[key] === 'string' ? (edit[key] as string) : '')
-  const occurrence = typeof edit.occurrence === 'number' ? edit.occurrence : undefined
-
-  switch (edit.mode) {
-    case 'replace_between': {
-      const beforeAnchor = read('before_anchor')
-      const afterAnchor = read('after_anchor')
-      if (!beforeAnchor || !afterAnchor) {
-        return { error: 'replace_between requires before_anchor and after_anchor' }
-      }
-      return { edit: { mode: 'replace_between', beforeAnchor, afterAnchor, content, occurrence } }
-    }
-    case 'insert_after': {
-      const anchor = read('anchor')
-      if (!anchor) return { error: 'insert_after requires anchor' }
-      return { edit: { mode: 'insert_after', anchor, content, occurrence } }
-    }
-    case 'delete_between': {
-      const startAnchor = read('start_anchor')
-      const endAnchor = read('end_anchor')
-      if (!startAnchor || !endAnchor) {
-        return { error: 'delete_between requires start_anchor and end_anchor' }
-      }
-      return { edit: { mode: 'delete_between', startAnchor, endAnchor, occurrence } }
-    }
-    default:
-      return { error: `Unknown anchored patch mode: "${String(edit.mode)}"` }
-  }
 }
 
 const logger = createLogger('FileIntentStore')

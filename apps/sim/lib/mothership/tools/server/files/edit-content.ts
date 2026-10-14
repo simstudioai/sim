@@ -12,6 +12,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import { toAnchoredContentEdit } from '@/lib/mothership/tools/server/files/anchored-edit'
 import { getE2BDocFormat } from '@/lib/uploads/documents/compile'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
 import { applyWorkspaceFileContentEdit, EditContentError } from '@/lib/workspace-files/edit-content'
@@ -23,7 +24,7 @@ import {
   SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { toAnchoredContentEdit, waitForLatestFileIntent } from './file-intent-store'
+import { waitForLatestFileIntent } from './file-intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
