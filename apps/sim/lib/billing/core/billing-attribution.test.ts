@@ -112,13 +112,31 @@ describe('resolveBillingAttribution', () => {
       },
       workspaceId: 'workspace-b',
     })
-    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith(
-      'org-b',
-      expect.objectContaining({ onError: 'throw' })
-    )
     expect(mockGetHighestPriorityPersonalSubscription).not.toHaveBeenCalled()
     expect(Object.isFrozen(attribution)).toBe(true)
     expect(Object.isFrozen(attribution.billingEntity)).toBe(true)
+  })
+
+  it('fails closed when the payer subscription lookup fails', async () => {
+    dbChainMockFns.limit.mockResolvedValue([
+      {
+        billedAccountUserId: 'owner-b',
+        organizationId: 'org-b',
+      },
+    ])
+    mockGetOrganizationSubscription.mockImplementationOnce(
+      async (_organizationId: string, options?: { onError?: 'return-null' | 'throw' }) => {
+        if (options?.onError === 'throw') throw new Error('subscription lookup failed')
+        return null
+      }
+    )
+
+    await expect(
+      resolveBillingAttribution({
+        actorUserId: 'actor-a',
+        workspaceId: 'workspace-b',
+      })
+    ).rejects.toThrow('subscription lookup failed')
   })
 
   it('rejects a subscription that does not belong to the exact workspace payer', async () => {
