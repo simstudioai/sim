@@ -241,6 +241,8 @@ export function ChipSelect({
     return (
       <DropdownMenuItem
         key={opt.value}
+        role='menuitemradio'
+        aria-checked={value === opt.value}
         disabled={opt.disabled}
         onSelect={() => onChange?.(opt.value)}
       >
