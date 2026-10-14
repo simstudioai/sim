@@ -338,7 +338,10 @@ describe('File Serve API Route', () => {
       },
     })
 
-    async function serveVersionedDoc(dependsOnReferencedFiles: boolean) {
+    async function serveVersionedDoc(
+      dependsOnReferencedFiles: boolean,
+      method: 'GET' | 'HEAD' = 'GET'
+    ) {
       mockResolveStoredFileContext.mockResolvedValue('workspace')
       mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
       mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
@@ -349,6 +352,7 @@ describe('File Serve API Route', () => {
       })
 
       const req = createMockRequest({
+        method,
         url: 'http://localhost:3000/api/files/serve/workspace/test-workspace-id/report.pdf?v=1756684800000',
       })
       const response = await GET(
@@ -358,6 +362,15 @@ describe('File Serve API Route', () => {
       expect(response.status).toBe(200)
       return response
     }
+
+    it('authorizes HEAD without compiling a representation or inventing its length', async () => {
+      const response = await serveVersionedDoc(true, 'HEAD')
+      expect(await response.text()).toBe('')
+      expect(response.headers.get('Content-Length')).toBeNull()
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+      expect(mockReadWorkspaceFileRecordByKey).toHaveBeenCalled()
+      expect(fileUtilsServerMockFns.mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+    })
 
     it('caches a versioned document immutably when its bytes derive from the stored source alone', async () => {
       const response = await serveVersionedDoc(false)

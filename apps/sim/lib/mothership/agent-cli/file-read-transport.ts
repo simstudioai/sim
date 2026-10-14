@@ -105,6 +105,7 @@ export function createFileReadTransport(context: {
           workspaceId: parsed.data.query.workspaceId,
           actorUserId: context.invocation.userId,
           unknown: 'taint',
+          destination: 'workbench',
         }),
         () =>
           downloadWorkspaceFileStream.execute({

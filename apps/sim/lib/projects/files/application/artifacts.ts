@@ -356,6 +356,6 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
       provenance: result.secretProvenance,
       view: 'opaque',
     })
-    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
   },
 })

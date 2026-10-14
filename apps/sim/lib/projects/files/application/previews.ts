@@ -123,7 +123,7 @@ const readInlineFile = defineAuthorizedProjectFileUseCase({
       provenance: result.secretProvenance ?? { status: 'unknown' },
       view: 'opaque',
     })
-    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
   },
 })
 
@@ -184,6 +184,6 @@ export const readProjectFileCsvPreview = defineAuthorizedProjectFileUseCase({
       provenance: result.secretProvenance ?? { status: 'unknown' },
       view: 'excerpt',
     })
-    reportWorkspaceFileDelivery(result.secretProvenance, input.fileId)
+    await reportWorkspaceFileDelivery(result.secretProvenance, input.fileId)
   },
 })

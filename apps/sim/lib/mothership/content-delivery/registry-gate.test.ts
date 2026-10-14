@@ -135,6 +135,23 @@ describe('createRegistryContentGate', () => {
     expect(await gate.admit([item('config', exact(SECRET))])).toEqual([false])
   })
 
+  it('tracks opaque workbench downloads without relaxing model or excerpt admission', async () => {
+    const registry = newRegistry()
+    const gate = createRegistryContentGate({
+      registry,
+      actorUserId: 'user-1',
+      destination: 'workbench',
+    })
+    expect(await gate.admit([item('download', exact(SECRET), 'opaque')])).toEqual([true])
+    expect(modelView(SECRET, registry)).not.toContain(SECRET)
+    expect(await gate.admit([item('snippet', exact(SECRET), 'excerpt')])).toEqual([false])
+    expect(
+      await createRegistryContentGate({ actorUserId: 'user-1', destination: 'workbench' }).admit([
+        item('download', exact(SECRET), 'opaque'),
+      ])
+    ).toEqual([false])
+  })
+
   it('refuses an unknown item without latching the registry', async () => {
     const registry = newRegistry()
     const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })

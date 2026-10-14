@@ -48,6 +48,7 @@ import * as storageCleanup from '@/lib/uploads/contexts/workspace/file-storage-c
 import * as storage from '@/lib/uploads/core/storage-service'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import * as heic from '@/lib/uploads/server/heic'
+import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import * as searchDelivery from '@/lib/workspace-files/search/delivery'
 import * as searchRepository from '@/lib/workspace-files/search/repository'
 
@@ -233,6 +234,41 @@ describe('Project delivery admission', () => {
       })
     }
   }
+  for (const kind of ['inline', 'csv', 'artifact'] as const) {
+    check(`${kind} awaits an asynchronous transport observer refusal`, async () => {
+      const f = await fixture()
+      const created = await createProjectFile.execute({
+        principal: f.principal,
+        input: {
+          ...createInput(f.projectId, 'name,value\nrow,secret'),
+          name: 'rows.csv',
+          contentType: 'text/csv',
+        },
+      })
+      const error = new Error('Transport observer refused delivery')
+      const input = { projectId: f.projectId, fileId: created.file.id, key: created.file.key }
+      await expect(
+        observeWorkspaceFileDelivery(
+          async () => {
+            throw error
+          },
+          () =>
+            kind === 'inline'
+              ? readProjectInlineFile.execute({
+                  principal: f.principal,
+                  input: { projectId: f.projectId, referenceFileId: created.file.id },
+                })
+              : kind === 'csv'
+                ? readProjectFileCsvPreview.execute({ principal: f.principal, input })
+                : readProjectFileArtifact.execute({
+                    principal: f.principal,
+                    input: { ...input, maxBytes: 1024 },
+                  })
+        )
+      ).rejects.toBe(error)
+    })
+  }
+
   check('Project search withholds stale previews and removes moved-out results', async () => {
     const f = await fixture()
     const created = await createProjectFile.execute({
