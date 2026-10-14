@@ -5,6 +5,7 @@ import { Avatar, cn, disclosureChevronClass, formatChartCompactNumber } from '@s
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import {
   AnthropicIcon,
+  AtlasCloudIcon,
   AzureIcon,
   BasetenIcon,
   BedrockIcon,
@@ -59,6 +60,7 @@ import { USAGE_TAB_EMPTY_COPY } from '@/ee/organization-usage/constants'
  */
 const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string }>>> = {
   anthropic: AnthropicIcon,
+  atlascloud: AtlasCloudIcon,
   baseten: BasetenIcon,
   bedrock: BedrockIcon,
   cerebras: CerebrasIcon,
