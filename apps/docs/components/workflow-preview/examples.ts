@@ -288,7 +288,7 @@ export const API_FETCH_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2FB3FF',
       position: { x: 0, y: 0 },
       hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'City' }],
+      rows: [{ title: 'Input', value: 'User ID' }],
     },
     {
       id: 'api',
@@ -500,7 +500,7 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
       bgColor: '#2FB3FF',
       position: { x: 0, y: 0 },
       hideTargetHandle: true,
-      rows: [{ title: 'Input', value: 'User ID' }],
+      rows: [{ title: 'Input', value: 'Team ID' }],
     },
     {
       id: 'api',
@@ -517,7 +517,7 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
       position: { x: 320, y: 0 },
       rows: [
         { title: 'Method', value: 'GET' },
-        { title: 'URL', value: 'https://api.example.com/users/<start.input>' },
+        { title: 'URL', value: 'https://api.example.com/teams/<start.input>/users' },
       ],
     },
     {
@@ -530,7 +530,11 @@ export const FUNCTION_RESHAPE_WORKFLOW: PreviewWorkflow = {
       position: { x: 640, y: 0 },
       rows: [
         { title: 'Language', value: 'JavaScript' },
-        { title: 'Code', value: 'return <api.data>.profile' },
+        {
+          title: 'Code',
+          value:
+            'const data = <api.data>;\nreturn data.items.filter((item) => item.active).map((item) => item.id);',
+        },
       ],
     },
   ],

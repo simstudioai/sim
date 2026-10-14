@@ -1,6 +1,6 @@
 ---
 title: Data drains
-description: Export retained logs and Chat data to storage, a warehouse, Datadog, or an HTTPS endpoint
+description: Export retained logs and Chat data to storage, a warehouse, Datadog, or a webhook endpoint.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -49,7 +49,7 @@ Writes one NDJSON object per chunk.
 | **Region** | AWS region, such as `us-east-1`. |
 | **Prefix** | Optional object prefix; trailing slash is optional. |
 | **Access key ID / Secret access key** | Credentials with `s3:PutObject`. `s3:DeleteObject` allows cleanup of the zero-byte connection-test probe; without it, the probe can remain. |
-| **Endpoint** | Optional HTTPS endpoint for a compatible store; leave blank for AWS. It must resolve to permitted public addresses. Private MinIO or Ceph endpoints are refused, including on self-hosted Sim. |
+| **Endpoint** | Optional HTTPS endpoint for a compatible store; leave blank for AWS. Sim Cloud requires public addresses. Self-hosted Sim can use private MinIO/Ceph or loopback endpoints permitted by its [outbound-network policy](/platform/self-hosting/security#the-ssrf-boundary). |
 | **Force path-style** | Enable if the provider requires it. Leave off for standard AWS virtual-hosted addressing. |
 
 Objects use `AES256` server-side encryption and this layout:
@@ -100,7 +100,7 @@ Expanded entries are split before compression. Requests are limited to **5,000,0
 
 ### HTTPS webhook
 
-Supply a public **URL**, **Signing secret**, optional **Bearer token**, and optional **Signature header name** (default `X-Sim-Signature`). The URL must use HTTPS. Sim refuses private, loopback, and cloud-metadata addresses and pins the resolved address for the run to prevent DNS rebinding.
+Supply **URL**, **Signing secret**, optional **Bearer token**, and optional **Signature header name** (default `X-Sim-Signature`). On Sim Cloud, the URL must use HTTPS and resolve to public addresses. Self-hosted deployments apply their [outbound-network policy](/platform/self-hosting/security#the-ssrf-boundary): approved private endpoints and loopback are available, with HTTP only where that policy permits it. Sim blocks cloud-metadata addresses and pins the resolved address for the run to prevent DNS rebinding.
 
 Each chunk includes:
 

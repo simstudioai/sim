@@ -568,7 +568,7 @@ API request and response schemas: [revertFileVersion](/api-reference/files/rever
 
 ### Permanently delete a previous version of a file
 
-This permanently deletes the version and its stored content.
+This permanently removes the version from history and schedules deletion of its stored content; storage cleanup may retry in the background.
 
 ```bash
 sim files versions delete <fileId> <version> [options]

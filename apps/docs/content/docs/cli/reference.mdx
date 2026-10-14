@@ -352,7 +352,7 @@ Read billing status, credit usage, and storage usage.
 
 ### sim billing status
 
-Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)
+Show billing status, credit usage, and storage used (credits and storage require an OAuth login or personal API key)
 
 ```bash
 sim billing status [options]
@@ -1172,7 +1172,7 @@ API request and response schemas: [deleteFile](/api-reference/files/deleteFile).
 
 Permanently delete a previous version of a file
 
-This permanently deletes the version and its stored content.
+This permanently removes the version from history and schedules deletion of its stored content; storage cleanup may retry in the background.
 
 ```bash
 sim files versions delete <fileId> <version> [options]
@@ -1830,7 +1830,7 @@ sim knowledge from-workspace-files create <knowledgeBaseId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file <value...>` | Yes | Workspace file ID or key (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file <value...>` | Yes | Workspace file ID or canonical files/&lt;folder&gt;/&lt;name&gt; path (repeatable) (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
 
@@ -3446,11 +3446,11 @@ API request and response schemas: [updateMcpServer](/api-reference/mcp-servers/u
 
 ## sim meta
 
-Inspect API capabilities, limits, and the calling credential’s type and expiry.
+Inspect API availability and the calling credential’s type and expiry.
 
 ### sim meta status
 
-Show what this API supports and which limits apply
+Show API availability and the calling credential’s type and expiry
 
 ```bash
 sim meta status
@@ -5737,7 +5737,7 @@ sim tables rows query <tableId> [options]
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--include-run-state` | No | Include per-workflow-group run outcomes on every row. Off by default. Incompatible with `limit: 0`; caps `limit` at 200. Run state above 2 MiB returns `413`; request fewer rows or omit run state. |
+| `--include-run-state` | No | Include per-workflow-group run outcomes on every row. Off by default. Each request above 2 MiB of run state returns 413; request fewer rows or omit run state. CLI --limit 0 still fetches bounded pages. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
 </CommandTable>
@@ -6664,7 +6664,7 @@ API request and response schemas: [updateTable](/api-reference/tables/updateTabl
 
 ### sim tables upsert
 
-Insert a row, or update the one that conflicts on a unique column
+Insert a row, or replace the one matching a unique column
 
 ```bash
 sim tables upsert <tableId> [options]
@@ -7177,7 +7177,7 @@ API request and response schemas: [applyWorkflowOperations](/api-reference/workf
 
 Update workflow variables
 
-This replaces the workflow’s variables and cannot be undone.
+This applies the listed variable changes; variables omitted from the operations remain unchanged.
 
 ```bash
 sim workflows variables update <workflowId> [options]
@@ -7691,7 +7691,7 @@ API request and response schemas: [getWorkflowChatDeployment](/api-reference/wor
 
 Deploy or replace a workflow chat (OAuth login or personal API key required)
 
-This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.
+This replaces visitor access settings for the chat deployment. Omitted authentication fields reset to defaults, including the password and allowed-email list; avatar and welcome-message behavior follows their option descriptions.
 
 Omitting `--auth-type` selects public access: anyone holding the URL can chat. Supply the complete password or allow-list settings again when replacing a restricted deployment.
 
@@ -7823,7 +7823,7 @@ sim workflows run <workflowId> [options]
 | `--async` | No | Queue the run and return immediately. Defaults to false. |
 | `--execution-timeout-seconds <value>` | No | Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`. |
 | `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
-| `--include-file-base64` | No | Inline eligible output files as base64 content (default: true; Sim’s in-app agent gets file references only unless this flag is passed). Rejected when `async` is true. |
+| `--include-file-base64` | No | Inline eligible output files as base64 content. Defaults to true for the installed CLI; Chat defaults to file references and admits requested bytes only for synchronous runs. Rejected when async is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |

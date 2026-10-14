@@ -303,7 +303,7 @@ sim tables rows query <tableId> [options]
 | `--sort <json\|@file>` | No | Ordered sort keys: [&#123;"field":"createdAt","direction":"desc"&#125;] (direction: asc or desc) (JSON, or @path / @- to read a file or stdin). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-| `--include-run-state` | No | Include per-workflow-group run outcomes on every row. Off by default. Incompatible with `limit: 0`; caps `limit` at 200. Run state above 2 MiB returns `413`; request fewer rows or omit run state. |
+| `--include-run-state` | No | Include per-workflow-group run outcomes on every row. Off by default. Each request above 2 MiB of run state returns 413; request fewer rows or omit run state. CLI --limit 0 still fetches bounded pages. |
 | `--no-include-run-state` | No | Send --include-run-state as false. |
 
 </CommandTable>
@@ -571,7 +571,7 @@ sim tables rows batch-delete <tableId> [options]
 
 API request and response schemas: [deleteTableRows](/api-reference/tables/deleteTableRows).
 
-### Insert a row, or update the one that conflicts on a unique column
+### Insert a row, or replace the one matching a unique column
 
 ```bash
 sim tables upsert <tableId> [options]

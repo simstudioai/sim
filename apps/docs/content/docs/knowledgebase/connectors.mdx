@@ -40,18 +40,18 @@ API-key and personal-access-token connections use the credential shown in their 
 | Connector | Credential or prerequisite |
 | --- | --- |
 | Obsidian | Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin and copy its API key from the plugin settings. |
-| Coda | Coda API token, saved as a Coda service account credential. |
-| Fireflies | Fireflies API key. |
-| Typeform | Typeform personal access token. |
+| Coda | Generate an [API token](https://help.coda.io/hc/en-us/articles/39763414725389-Manage-your-Coda-account-settings) under **Account settings → API settings**; save it as a Coda service account credential. |
+| Fireflies | Copy the API key from **Settings → Developer settings** ([setup guide](https://guide.fireflies.ai/articles/3737786777-learn-about-fireflies-api)). |
+| Typeform | Generate a [personal access token](https://help.typeform.com/hc/en-us/articles/13599952215572-Typeform-API-personal-access-token) under **Your settings → Personal tokens**. |
 | Azure DevOps | PAT with Project and Team Read, Wiki Read, Work Items Read, and Code Read. |
 | GitLab | PAT with `read_api` and access to the selected project; permission-aware methods have additional requirements. |
 | YouTube | YouTube Data API key from Google Cloud Console. |
 | Amazon S3 | Secret Access Key; enter Access Key ID, region, and bucket as configuration fields. |
 | Sentry | Auth token with `project:read` and `event:read`. |
-| PagerDuty | PagerDuty REST API key. |
+| PagerDuty | Create a [REST API key](https://support.pagerduty.com/main/docs/api-access-keys) under **Integrations → Developer Tools → API Access Keys**. |
 | SFTP | Password or unencrypted private key, plus a required SHA-256 host-key fingerprint; enter host, port, username, and root path as configuration fields. |
 | Mintlify | Access Token only when the documentation site needs a bearer token. Public sites can sync from `llms.txt` without one. |
-| Databricks | Personal access token; enter the workspace host as a configuration field. |
+| Databricks | Create a [personal access token](https://docs.databricks.com/aws/en/dev-tools/auth/pat) under **Settings → Developer → Access tokens → Manage**; enter the workspace host separately. |
 | Workday Help | Register an API client for integrations and enter `clientSecret:refreshToken`; configure client ID, tenant host, and tenant name separately. |
 
 Enter a key directly or type `{{` to select an accessible secret. A reference must be the whole value, such as `{{SOURCE_API_KEY}}`. Sim resolves it at setup and stores an encrypted token snapshot. Updating the secret later does not update that connection.

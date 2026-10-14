@@ -31,7 +31,9 @@ The group writes selected outputs automatically; unselected outputs are not adde
 
 ### Dependencies
 
-**Run after** offers upstream columns to the group's left. Dependencies must be nonempty: `null`, missing values, empty strings, and empty arrays are unmet. A Boolean dependency must be `true`; `false` leaves the group waiting.
+**Run after** offers upstream columns to the group's left. It governs automatic runs and manual runs when **Auto-run workflow** is enabled. With auto-run off, manual runs bypass dependency checks.
+
+When dependencies are enforced, values must be nonempty: `null`, missing values, empty strings, and empty arrays are unmet. A Boolean dependency must be `true`; `false` leaves the group waiting.
 
 Dependencies can be ordinary columns or another group's output. For example:
 
@@ -41,7 +43,7 @@ Company Info waits for domain → employee_count, description
 Lead Score waits for required company information → lead_score, priority, score_reasoning
 ```
 
-Each row becomes eligible independently. If an enrichment finds no match for a required column, its downstream group remains **Waiting** until the required values or dependencies change.
+Each row becomes eligible independently. When dependencies are enforced, an enrichment with no match for a required column leaves its downstream group **Waiting** until the required values or dependencies change.
 
 ## Run rows
 
@@ -52,7 +54,7 @@ For one row, use the row or cell's run control. The group header's run menu offe
 | Control | Scope |
 | --- | --- |
 | **Run N selected rows** | The explicitly selected rows. |
-| **Run empty rows** | Unrun or failed/incomplete work that satisfies dependencies. |
+| **Run empty rows** | Unrun or failed/incomplete work eligible for the selected run mode. |
 | **Run 10 empty rows** / **Run 1,000 empty rows** | A smaller batch of eligible incomplete rows. |
 | **Run all rows** | All rows in scope, including completed work. |
 
@@ -78,6 +80,8 @@ Normal table-run coordination avoids overlapping group work on the same row, but
 | **No output** | Workflow work completed without a value for this output. |
 
 A produced value replaces its status badge. Completed output cells can remain filled while other steps on the row are still running.
+
+The running-count control shows active work. Select **Stop all** to cancel active table runs, including work outside the current filter; completed values remain.
 
 ## Inspect and retry a run
 

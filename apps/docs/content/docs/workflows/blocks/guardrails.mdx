@@ -47,14 +47,27 @@ The scale runs from 0 (ungrounded) to 10 (fully supported according to the model
 
 ### PII detection
 
-Detect personally identifiable information with Microsoft Presidio. Choose the **PII Types to Detect**, **Action**, and **Language**.
+Detect personally identifiable information with [Microsoft Presidio](https://microsoft.github.io/presidio/). Choose the **PII Types to Detect**, **Action**, and **Language**.
 
 - **Common** includes names, email, phone, credit cards, IP addresses, and other identifiers.
-- Regional types include US SSN/driver's license/passport/bank account/ITIN, UK NHS/national insurance, and identifiers from Spain, Italy, Poland, Singapore, Australia, India, and Finland. The picker groups them by region.
 - **Language** defaults to English. English, Spanish, Italian, Polish, and Finnish have configured NLP models; choose the language matching the input. Entity availability can vary by language.
 - **Custom Patterns** adds Name, Pattern, and Replacement rows for identifiers not covered by the built-in selection. These PII recognizers use a different engine from Regex Match; do not assume their pattern support is identical.
 
 With no selected built-in types and no custom patterns, detection uses the analyzer's supported types.
+
+The picker groups these regional identifiers. Availability depends on the selected language.
+
+| Region | Identifiers |
+| --- | --- |
+| United States | Social Security Number (SSN), driver's license, passport, bank account, Individual Taxpayer Identification Number (ITIN) |
+| United Kingdom | NHS number, National Insurance Number |
+| Spain | NIF and NIE numbers |
+| Italy | Fiscal code, driver's license, VAT code, passport, identity card |
+| Poland | PESEL number |
+| Singapore | NRIC/FIN, Unique Entity Number (UEN) |
+| Australia | Business Number (ABN), Company Number (ACN), Tax File Number (TFN), Medicare number |
+| India | Permanent Account Number (PAN), Aadhaar number, vehicle registration, voter ID, passport |
+| Finland | Personal Identity Code |
 
 | Action | Result when PII is found |
 | --- | --- |

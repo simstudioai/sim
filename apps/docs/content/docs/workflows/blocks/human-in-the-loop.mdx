@@ -76,7 +76,7 @@ HITL blocks are excluded from the selected-output picker because pause data is i
 
 ## Resume with the v2 API
 
-A v2 execute call can return `status: "paused"` with `_resume` data in its output. Use that `contextId` and the paused run's ID:
+A v2 execute call can return `data.status: "paused"`. Read `contextId` from `data.output.data._resume` and the paused run's ID from `data.runId`:
 
 ```bash
 curl -X POST 'https://www.sim.ai/api/v2/workflows/WORKFLOW_ID/runs/RUN_ID/resume' \

@@ -150,8 +150,8 @@ const GROUP_DOCUMENTATION: Record<string, GroupDocumentation> = {
     related: [['MCP connections', '/agents/mcp']],
   },
   meta: {
-    title: 'API capabilities',
-    description: 'Inspect API capabilities, limits, and the calling credential’s type and expiry.',
+    title: 'API status',
+    description: 'Inspect API availability and the calling credential’s type and expiry.',
     related: [['Authentication', '/cli/authentication']],
   },
   organizations: {

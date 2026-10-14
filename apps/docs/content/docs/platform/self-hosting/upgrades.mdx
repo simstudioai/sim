@@ -67,6 +67,8 @@ One variable drives all three schema-coupled images, so they cannot drift apart.
 
 ## Upgrade procedure
 
+Before applying an upgrade, configure a direct, non-pooled `MIGRATION_DATABASE_URL` on the migrator if the app uses a pooler. Session advisory locks do not survive transaction pooling. Pass the URL through the migrator's database Secret on Helm or its explicit environment on Compose; `app.env` or `.env` alone does not reach it. See [Migration environment](#migration-environment) for the exact setup.
+
 <Steps>
 
 <Step>

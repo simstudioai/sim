@@ -153,7 +153,7 @@ export const CLI_CONTRACT: CliContract = {
     // fields otherwise render as an unexplained em-dash for exactly the key
     // most people run the CLI with.
     describe:
-      'Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)',
+      'Show billing status, credit usage, and storage used (credits and storage require an OAuth login or personal API key)',
     fields: [
       { header: 'plan' },
       { header: 'status' },
@@ -472,7 +472,7 @@ export const CLI_CONTRACT: CliContract = {
    */
   getMeta: {
     command: 'meta status',
-    describe: 'Show what this API supports and which limits apply',
+    describe: 'Show API availability and the calling credential’s type and expiry',
   },
   getWorkflowChatDeployment: {
     command: 'workflows chat status',
@@ -571,7 +571,8 @@ export const CLI_CONTRACT: CliContract = {
     },
   },
   applyWorkflowVariables: {
-    confirm: 'This replaces the workflow’s variables and cannot be undone.',
+    confirm:
+      'This applies the listed variable changes; variables omitted from the operations remain unchanged.',
     flags: {
       operations: { json: true, describe: WORKFLOW_VARIABLE_OPERATIONS_HELP },
     },
@@ -689,7 +690,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   upsertTableRow: {
-    describe: 'Insert a row, or update the one that conflicts on a unique column',
+    describe: 'Insert a row, or replace the one matching a unique column',
     flags: {
       data: { json: true },
       conflictTarget: { name: 'on', describe: 'Unique column to resolve the conflict against' },
@@ -700,6 +701,10 @@ export const CLI_CONTRACT: CliContract = {
     command: 'tables rows query',
     describe: 'Query rows with a filter and sort',
     flags: {
+      includeRunState: {
+        describe:
+          'Include per-workflow-group run outcomes on every row. Off by default. Each request above 2 MiB of run state returns 413; request fewer rows or omit run state. CLI --limit 0 still fetches bounded pages.',
+      },
       predicate: { name: 'filter', json: true, describe: TABLE_READ_FILTER_HELP },
       sort: { json: true, describe: TABLE_SORT_HELP },
     },
@@ -955,7 +960,7 @@ export const CLI_CONTRACT: CliContract = {
       fileReferences: {
         name: 'file',
         list: true,
-        describe: 'Workspace file ID or key (repeatable)',
+        describe: 'Workspace file ID or canonical files/<folder>/<name> path (repeatable)',
       },
     },
   },
@@ -1543,7 +1548,8 @@ export const CLI_CONTRACT: CliContract = {
   deleteFileVersion: {
     command: 'files versions delete',
     describe: 'Permanently delete a previous version of a file',
-    confirm: 'This permanently deletes the version and its stored content.',
+    confirm:
+      'This permanently removes the version from history and schedules deletion of its stored content; storage cleanup may retry in the background.',
   },
   // Left to derive, the folder restore lands under `files restore` and turns
   // that leaf back into a group holding a lone `create` — the exact shape the
@@ -1588,7 +1594,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows chat publish',
     describe: 'Deploy or replace a workflow chat',
     confirm:
-      'This replaces the chat deployment wholesale. Any field you omit returns to its default, including a stored password or allow-list.',
+      'This replaces visitor access settings for the chat deployment. Omitted authentication fields reset to defaults, including the password and allowed-email list; avatar and welcome-message behavior follows their option descriptions.',
   },
   deleteWorkflowChatDeployment: {
     command: 'workflows chat unpublish',
@@ -2029,7 +2035,7 @@ export const CLI_CONTRACT: CliContract = {
       // `workflow-run-follow.ts`, because an `--async` run rejects the field.
       includeFileBase64: {
         describe:
-          'Inline eligible output files as base64 content (default: true; Sim’s in-app agent gets file references only unless this flag is passed). Rejected when `async` is true.',
+          'Inline eligible output files as base64 content. Defaults to true for the installed CLI; Chat defaults to file references and admits requested bytes only for synchronous runs. Rejected when async is true.',
       },
       // Exposed under its domain name: every other flag in the CLI is one, and
       // `--x-run-id` would be the only place the raw HTTP header spelling

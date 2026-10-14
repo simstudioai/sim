@@ -448,7 +448,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         typeLabel: 'Table',
         sentence: [
           'Run on',
-          { subBlockId: 'Event type', noun: 'event' },
+          { subBlockId: 'Event', noun: 'event' },
           'in',
           { subBlockId: 'Table', noun: 'table' },
         ],
@@ -457,8 +457,8 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         hideTargetHandle: true,
         rows: [
           { title: 'Table', value: '-' },
-          { title: 'Event type', value: 'Row updated' },
-          { title: 'Watch columns', value: '-' },
+          { title: 'Event', value: 'Row Updated' },
+          { title: 'Watch Columns', value: '-' },
         ],
       },
     ],
