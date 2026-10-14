@@ -21,7 +21,10 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
-import { archiveProjectWithLastEnvironment, lockWorkspaceProject } from '@/lib/projects/membership'
+import {
+  archiveProjectWithLastEnvironment,
+  lockWorkspaceProjectExclusive,
+} from '@/lib/projects/membership'
 import { archiveWorkflowsInTransaction, finishWorkflowArchive } from '@/lib/workflows/lifecycle'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -65,7 +68,7 @@ export async function archiveWorkspace(
   const now = workspaceRecord.archivedAt ?? new Date()
 
   const outcome = await db.transaction(async (tx) => {
-    const owningProject = await lockWorkspaceProject(tx, workspaceId)
+    const owningProject = await lockWorkspaceProjectExclusive(tx, workspaceId)
     /** Waits out in-flight workflow creation and restore, so their rows are archived too. */
     const [current] = await tx
       .select({ ownerId: workspace.ownerId })
