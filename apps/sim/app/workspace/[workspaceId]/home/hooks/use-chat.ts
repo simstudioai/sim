@@ -117,6 +117,7 @@ import {
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
+import { useMothershipChatOlderMessages } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-chat-older-messages'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
@@ -1381,6 +1382,7 @@ export function useChat(
     isPending: isChatHistoryPending,
     error: chatHistoryError,
   } = useMothershipChatHistory(resolvedChatId)
+  useMothershipChatOlderMessages(resolvedChatId, chatHistory)
   const requestModeRef = useRef<ChatRequestMode>(
     options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
   )
@@ -2545,7 +2547,9 @@ export function useChat(
           signal,
           createTimeoutSignal(CHAT_HISTORY_RECOVERY_TIMEOUT_MS)
         )
-        const history = await fetchMothershipChatHistory(chatId, fetchSignal)
+        const history = await fetchMothershipChatHistory(chatId, fetchSignal, () =>
+          queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+        )
         if (signal?.aborted || fetchSignal?.aborted) return { loaded: false, streamId: null }
         queryClient.setQueryData(mothershipChatKeys.detail(chatId), history)
         return { loaded: true, streamId: history.activeStreamId ?? null }

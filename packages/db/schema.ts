@@ -4449,6 +4449,12 @@ export const copilotMessages = pgTable(
     messageId: text('message_id').notNull(),
     role: text('role').notNull(),
     content: jsonb('content').notNull(),
+    /**
+     * The chat UI's projection of `content` (tool-call params truncated), or null when it equals
+     * `content` or has not been backfilled. Transcript reads for the UI select
+     * `coalesce(display_content, content)` so they never detoast the full params.
+     */
+    displayContent: jsonb('display_content'),
     streamId: text('stream_id'),
     model: text('model'),
     seq: integer('seq'),
