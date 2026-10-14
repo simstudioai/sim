@@ -16,7 +16,7 @@ export function Tabs({ className, ...props }: TabsProps) {
     <FumadocsTabs
       {...props}
       className={cn(
-        'min-w-0 border-[var(--border)] [&>[role=tablist]>button]:font-normal! max-sm:[&>[role=tablist]>button]:min-h-11 [&>[role=tablist]]:min-w-0 [&>[role=tablist]]:[scrollbar-width:thin]! max-sm:[&>[role=tablist]]:min-h-14',
+        'min-w-0 scroll-mt-[calc(var(--fd-docs-row-3,0px)+1rem)] border-[var(--border)] [&>[role=tablist]>button]:font-normal! max-sm:[&>[role=tablist]>button]:min-h-11 [&>[role=tablist]]:min-w-0 [&>[role=tablist]]:[scrollbar-width:thin]! max-sm:[&>[role=tablist]]:min-h-14',
         className
       )}
     />
