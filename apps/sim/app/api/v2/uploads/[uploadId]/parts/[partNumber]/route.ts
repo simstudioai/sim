@@ -95,10 +95,10 @@ export const PUT = withRouteHandler(
       try {
         await queueRetiredProjectUploadCleanup(session)
       } catch (cleanupError) {
-        logger.error('Could not schedule retired upload cleanup', {
-          uploadId: session.id,
-          error: cleanupError,
-        })
+        logger.error(
+          'Could not schedule retired upload cleanup; retirement reconciliation will retry',
+          { uploadId: session.id, error: cleanupError }
+        )
       }
       if (error instanceof LocalUploadBodyError) {
         return v2Error('BAD_REQUEST', error.message)

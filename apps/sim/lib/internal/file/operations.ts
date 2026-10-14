@@ -515,7 +515,7 @@ async function bindSelectedContentFile(
       context: 'workspace',
       contentUpdatedAt: metadata.contentUpdatedAt ?? undefined,
     },
-    ownerUserId: metadata.uploadedBy ?? undefined,
+    ownerUserId: metadata.uploadedBy,
   }
 }
 
@@ -1195,7 +1195,7 @@ export async function executeFileManageOperation(
                 context: 'workspace',
                 contentUpdatedAt: file.contentUpdatedAt ?? undefined,
               },
-              ownerUserId: file.uploadedBy ?? undefined,
+              ownerUserId: file.uploadedBy,
             },
           ]
         })
@@ -1890,7 +1890,7 @@ export async function executeFileManageOperation(
                 context: 'workspace',
                 contentUpdatedAt: file.contentUpdatedAt ?? undefined,
               },
-              ownerUserId: file.uploadedBy ?? undefined,
+              ownerUserId: file.uploadedBy,
             },
           ]
         })
@@ -2080,7 +2080,7 @@ export async function executeFileManageOperation(
                 context: 'workspace',
                 contentUpdatedAt: file.contentUpdatedAt ?? undefined,
               },
-              ownerUserId: file.uploadedBy ?? undefined,
+              ownerUserId: file.uploadedBy,
             },
           ]
         })
