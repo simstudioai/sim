@@ -11,6 +11,7 @@
     "start": "next start",
     "postinstall": "fumadocs-mdx",
     "test": "vitest run",
+    "test:negotiation:e2e": "bun scripts/test-negotiation-e2e.ts",
     "type-check": "fumadocs-mdx && tsc --noEmit",
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
