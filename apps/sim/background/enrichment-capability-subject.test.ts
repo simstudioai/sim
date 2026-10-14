@@ -43,7 +43,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
@@ -62,7 +62,7 @@ vi.mock('@/enrichments/run', () => ({
   runEnrichment: hoisted.runEnrichment,
   skippedEnrichmentDetail: hoisted.skippedEnrichmentDetail,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 vi.mock('@/lib/table/rows/secret-provenance', () => tableRowsSecretProvenanceMock)

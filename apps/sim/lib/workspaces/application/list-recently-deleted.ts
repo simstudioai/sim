@@ -16,7 +16,7 @@ import type { StaticPermissionGroupCapability } from '@/lib/permission-groups/ca
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { tableOperations } from '@/lib/table/application/operations'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { listRecentlyDeletedItems } from '@/lib/workspaces/recently-deleted'
 
 type RecentlyDeletedType = RecentlyDeletedItem['type']

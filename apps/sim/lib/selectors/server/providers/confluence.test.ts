@@ -18,7 +18,7 @@ vi.mock('@/lib/selectors/server/providers/atlassian', () => ({
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
-import * as providerHttp from '@/lib/selectors/server/providers/provider-http'
+import * as providerHttp from '@/lib/selectors/server/providers/http'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
 const mockResolveCredentialBundle =

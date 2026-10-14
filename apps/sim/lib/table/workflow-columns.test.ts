@@ -52,7 +52,7 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/core/async-jobs/config', () => ({
   getJobQueue: mockGetJobQueue,

@@ -38,7 +38,7 @@ vi.mock('@/lib/credentials/application/provider-catalog', () => ({
   requireAvailableOAuthCredentialProvider: hoisted.requireOAuth,
   requireAvailableServiceAccountCredentialProvider: hoisted.requireService,
 }))
-vi.mock('@/lib/credentials/application/credential-crud', () => ({
+vi.mock('@/lib/credentials/application/crud', () => ({
   throwCredentialMutationFailure: (result: { error?: string }) => {
     throw new Error(result.error)
   },

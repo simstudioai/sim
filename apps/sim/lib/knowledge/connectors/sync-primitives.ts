@@ -10,7 +10,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { withDatabaseReadRetry } from '@/lib/db/read-retry'
@@ -18,7 +18,7 @@ import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-mode
 import {
   type ConnectorFailureDiagnostic,
   getConnectorFailureDiagnostic,
-} from '@/lib/knowledge/connectors/connector-error'
+} from '@/lib/knowledge/connectors/error'
 import {
   admitVisionImage,
   type ImageAdmissionState,

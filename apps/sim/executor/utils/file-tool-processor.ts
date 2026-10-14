@@ -9,7 +9,7 @@ import {
 } from '@/lib/internal/tool-operations/file-result'
 import { storeInternalToolFileResult } from '@/lib/internal/tool-operations/file-result.server'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { UserFile } from '@/executor/types'
 import type { ToolDefinition } from '@/tools/types'

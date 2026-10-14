@@ -8,7 +8,7 @@ import {
   type IsolatedVMExecutionRequest,
 } from '@/lib/execution/isolated-vm'
 import type { SandboxBrokerContext, SandboxTaskInput } from '@/lib/execution/sandbox/types'
-import { getSandboxTask, type SandboxTaskId } from '@/sandbox-tasks/registry'
+import { getSandboxTask, type SandboxTaskId } from '@/sandboxes/registry'
 
 const logger = createLogger('SandboxRunTask')
 

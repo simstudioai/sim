@@ -13,7 +13,7 @@ import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { SIM_TOOL_EXECUTION_LEASE_SECONDS } from '@/lib/mothership/async-runs/execution-lease'
@@ -89,7 +89,7 @@ import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'

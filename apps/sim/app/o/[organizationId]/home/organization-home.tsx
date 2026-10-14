@@ -8,7 +8,7 @@ import { useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,

@@ -5,11 +5,11 @@ import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileRecordInput {
   fileId: string

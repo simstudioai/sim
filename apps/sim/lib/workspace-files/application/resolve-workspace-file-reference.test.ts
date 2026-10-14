@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

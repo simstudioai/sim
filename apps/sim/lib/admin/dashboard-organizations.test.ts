@@ -52,7 +52,7 @@ vi.mock('@/lib/billing/enterprise-outbox', () => ({
   resolveEnterpriseMetadataIntent: hoistedMocks.resolveMetadataIntent,
 }))
 vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/billing/validation/seat-management', () => ({

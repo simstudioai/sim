@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 const { mockExecute } = vi.hoisted(() => ({ mockExecute: vi.fn() }))
 
-vi.mock('@/executor/handlers/workflow/workflow-handler', () => ({
+vi.mock('@/executor/handlers/workflow/handler', () => ({
   WorkflowBlockHandler: class {
     execute = mockExecute
   },

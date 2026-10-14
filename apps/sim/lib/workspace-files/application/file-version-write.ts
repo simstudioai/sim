@@ -1,6 +1,6 @@
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import type { WorkspaceFileVersionSource } from '@sim/db/schema'
-import type { WorkspaceFileVersionWrite } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import type { WorkspaceFileVersionWrite } from '@/lib/uploads/contexts/workspace/file-version-store'
 
 function versionSourceForPrincipal(principal: Principal): WorkspaceFileVersionSource {
   switch (principal.kind) {

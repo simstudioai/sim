@@ -14,7 +14,7 @@ import {
   CredentialGroupProviderConfigurationError,
 } from '@/lib/credential-groups/provider-adapter'
 import { CredentialAccessRequiredError } from '@/lib/credentials/application/authorized-credential-use-case'
-import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import { CredentialProviderOperationError } from '@/lib/credentials/application/crud'
 import {
   OAuthDisconnectConfigurationError,
   OAuthDisconnectLimitError,

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import * as Y from 'yjs'
+import { yDocToFileMarkdown } from '@/lib/collab-doc/converter'
 import {
   assertCollabDocStateSize,
   type CachedCollabDocState,
@@ -9,8 +10,7 @@ import {
   hashMarkdown,
   loadCollabDocState,
   type PreparedCollabDocState,
-} from '@/lib/collab-doc/collab-state'
-import { yDocToFileMarkdown } from '@/lib/collab-doc/converter'
+} from '@/lib/collab-doc/state'
 import {
   ContentVersionConflictError,
   fetchWorkspaceFileBuffer,

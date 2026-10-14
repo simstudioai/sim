@@ -1,6 +1,6 @@
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const settingsContextOperation = defineWorkspaceOperation({
   id: 'settings.context',

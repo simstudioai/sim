@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 const hoisted = vi.hoisted(() => ({ authorizeWorkspace: vi.fn() }))
 vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),

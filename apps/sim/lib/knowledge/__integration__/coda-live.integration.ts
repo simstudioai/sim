@@ -42,7 +42,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { assertCodaLiveFixture } from '@/lib/knowledge/__integration__/coda-live-fixture'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'

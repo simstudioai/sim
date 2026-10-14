@@ -48,7 +48,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/chat-deployments/queries', () => ({
   getChatDeploymentWithWorkspace: mocks.getChatDeploymentWithWorkspace,
   getChatDeploymentIdOwningIdentifier: mocks.getIdentifierOwner,

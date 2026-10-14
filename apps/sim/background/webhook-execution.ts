@@ -21,7 +21,7 @@ import {
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { env, envNumber } from '@/lib/core/config/env'

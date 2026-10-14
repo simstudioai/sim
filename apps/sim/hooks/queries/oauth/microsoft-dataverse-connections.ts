@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
 import {

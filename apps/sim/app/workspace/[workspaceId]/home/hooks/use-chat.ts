@@ -27,7 +27,7 @@ import {
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'

@@ -2618,7 +2618,7 @@ Return ONLY the JSON array - no explanations, no markdown fences.`,
         /**
          * The executor merges this mapper's output over the raw inputs
          * (`finalInputs = { ...inputs, ...transformedParams }` in
-         * `executor/handlers/generic/generic-handler.ts`), so a key this mapper
+         * `executor/handlers/generic/handler.ts`), so a key this mapper
          * merely omits survives as its raw subBlock string. Every alias id must
          * therefore be assigned `undefined` rather than destructured away.
          */

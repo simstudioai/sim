@@ -5,7 +5,7 @@ import {
   isOrganizationPermissionRegimeActive,
   resolveWorkspaceGroup,
 } from '@/lib/permission-groups/resolve.server'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
 export const readUserPermissionConfig = defineAuthorizedWorkspaceUseCase({

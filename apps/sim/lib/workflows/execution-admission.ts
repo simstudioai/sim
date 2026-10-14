@@ -5,7 +5,7 @@ import {
 import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import {
   getReservationDenialDescriptor,

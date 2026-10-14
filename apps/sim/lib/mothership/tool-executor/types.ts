@@ -1,4 +1,4 @@
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
 import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'

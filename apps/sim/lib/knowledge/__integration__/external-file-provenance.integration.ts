@@ -29,14 +29,14 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   importWorkspaceFileSecretProvenanceForModelView,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import type { UserFile } from '@/executor/types'

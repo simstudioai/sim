@@ -1,7 +1,7 @@
 import {
   checkAttributedUsageLimits,
   resolveBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { getPooledCreditsRemaining } from '@/lib/billing/on-demand'
 
 export interface WorkspaceUsageGateParams {

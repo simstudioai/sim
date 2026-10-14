@@ -25,7 +25,7 @@ vi.mock('@/lib/knowledge/documents/service', async (original) => ({
   })),
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,

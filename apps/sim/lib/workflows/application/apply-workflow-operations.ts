@@ -16,12 +16,12 @@ import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/block-scope'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import { requireMutableWorkflow } from '@/lib/workflows/application/mutability'
 import { workflowOperations } from '@/lib/workflows/application/operations'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
-import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
-import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
-import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,

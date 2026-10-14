@@ -19,7 +19,7 @@ import { getSession } from '@/lib/auth'
 import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'

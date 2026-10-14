@@ -35,15 +35,15 @@ import type {
 } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
-  extractTriggerMockPayload,
-  selectBestTrigger,
-  triggerNeedsMockPayload,
-} from '@/lib/workflows/triggers/trigger-utils'
-import {
   resolveStartCandidates,
   StartBlockPath,
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
+import {
+  extractTriggerMockPayload,
+  selectBestTrigger,
+  triggerNeedsMockPayload,
+} from '@/lib/workflows/triggers/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getRunFromBlockDependencyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block'
 import {
@@ -59,7 +59,7 @@ import {
   addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
   handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
   handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'

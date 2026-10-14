@@ -140,7 +140,7 @@ vi.mock('@/connectors/registry.server', async () => {
   }
 })
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import {
   createKnowledgeAclFixtureIds,

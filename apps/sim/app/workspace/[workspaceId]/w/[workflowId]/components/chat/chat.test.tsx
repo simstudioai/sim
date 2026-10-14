@@ -10,7 +10,7 @@ import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/ch
 import { useChatStore } from '@/stores/chat/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/utils', () => providersUtilsMock)
 vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution', () => ({

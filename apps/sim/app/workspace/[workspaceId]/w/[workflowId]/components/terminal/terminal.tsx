@@ -20,7 +20,7 @@ import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
   EntryBlockTile,
   LogRowContextMenu,

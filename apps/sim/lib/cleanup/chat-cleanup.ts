@@ -13,7 +13,7 @@ import { detoastedMessageContent, textMessageContent } from '@/lib/mothership/ch
 import { SIM_AGENT_API_URL } from '@/lib/mothership/constants'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
-import { tryInferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { tryInferContextFromKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('ChatCleanup')
 

@@ -26,7 +26,7 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import type {
   uploadWorkspaceFile,
   WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { GET as downloadFileRoute } from '@/app/api/v2/files/[fileId]/route'
 import { POST as createFileRoute } from '@/app/api/v2/files/route'
 import { POST as executeRoute } from '@/app/api/v2/workflows/[workflowId]/execute/route'
@@ -207,16 +207,16 @@ vi.mock('@/lib/execution/remote-sandbox', async (importOriginal) => ({
     throw new Error('Remote compute is outside this local proof')
   }),
 }))
-vi.mock('@/lib/public-shares/share-manager', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/public-shares/share-manager')>()),
+vi.mock('@/lib/public-shares/manager', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/public-shares/manager')>()),
   getShareForResource: async () => null,
 }))
 vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
   resolveEffectiveWorkspacePermission: vi.fn(async () => fixtures.permission),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/workspaces/application/workspace-context')>()),
+vi.mock('@/lib/workspaces/application/context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workspaces/application/context')>()),
   resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
     workspaceId,
     workspaceOrganizationId: null,
@@ -245,10 +245,8 @@ vi.mock('@/lib/internal/principals/executor', async (importOriginal) => ({
     }
   },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('@/lib/uploads/contexts/workspace/workspace-file-manager')
-  >()),
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/contexts/workspace/file-manager')>()),
   ...workspaceStorage,
 }))
 vi.mock('@/lib/uploads/contexts/workspace', async (importOriginal) => ({
@@ -274,8 +272,8 @@ vi.mock('@/lib/uploads/server/metadata', async (importOriginal) => ({
   getFileMetadataByKey: async (key: string) =>
     [...fixtures.files.values()].find((file) => file.record.key === key)?.record ?? null,
 }))
-vi.mock('@/lib/uploads/utils/file-utils.server', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/uploads/utils/file-utils.server')>()),
+vi.mock('@/lib/uploads/utils/file.server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/utils/file.server')>()),
   downloadServableFileFromStorage: async (file: { key: string }) => {
     const stored = [...fixtures.files.values()].find((entry) => entry.record.key === file.key)
     if (!stored) throw new Error('Missing local fixture bytes')

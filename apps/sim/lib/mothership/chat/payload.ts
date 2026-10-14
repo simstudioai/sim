@@ -42,7 +42,7 @@ import { listOrganizationSecretNames } from '@/lib/organization-secrets/applicat
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { SEARCH_CONNECTORS } from '@/lib/sim-search/connectors'
-import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { trackChatUpload } from '@/lib/uploads/contexts/workspace/file-manager'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
 

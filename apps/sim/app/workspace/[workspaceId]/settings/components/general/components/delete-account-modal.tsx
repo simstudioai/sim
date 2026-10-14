@@ -5,7 +5,7 @@ import { ChipConfirmModal, ChipModalError, ChipModalField } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
-import { signOut } from '@/lib/auth/auth-client'
+import { signOut } from '@/lib/auth/client'
 import { useAccountDeletionPlan, useDeleteAccount } from '@/hooks/queries/account-deletion'
 import { clearUserData } from '@/stores'
 

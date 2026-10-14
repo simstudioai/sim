@@ -21,7 +21,7 @@ const { session, consent, settings, start, stop } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/consent/tracking-consent', () => ({ useTrackingConsent: () => consent }))
 vi.mock('@/hooks/queries/general-settings', () => ({ useGeneralSettings: () => settings }))
 vi.mock('@/lib/telemetry/browser', () => ({ startBrowserTelemetry: start }))

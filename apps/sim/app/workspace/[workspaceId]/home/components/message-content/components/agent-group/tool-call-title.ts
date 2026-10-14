@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PrepareFileEdit, Wait as WaitTool } from '@/lib/mothership/generated/tool-catalog-v1'
-import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
   getToolInProgressTitle,
   getToolStatusDisplayTitle,
   getWaitCountdownTitle,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 /**

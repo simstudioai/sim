@@ -2,7 +2,7 @@ import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-clien
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ clearUserData: vi.fn() }))
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/stores', () => ({ clearUserData: mocks.clearUserData }))
 
 import { signOutAndRedirect } from '@/lib/auth/sign-out'

@@ -12,7 +12,7 @@ import {
 } from '@/lib/knowledge/secret-provenance'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 
 export interface ReadOriginalKnowledgeDocumentInput {
   knowledgeBaseId: string

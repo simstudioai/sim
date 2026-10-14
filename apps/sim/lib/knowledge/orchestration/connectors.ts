@@ -13,7 +13,7 @@ import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import {
   hasWorkspaceLiveSyncAccess,
   isOrganizationOnEnterprisePlan,

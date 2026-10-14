@@ -34,7 +34,7 @@ import {
   assertNoUnresolvedEnterpriseIssuance,
   resolveEnterpriseMetadataIntent,
 } from '@/lib/billing/enterprise-outbox'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { reassignOrganizationSharedResourcesTx } from '@/lib/billing/organizations/resource-handoff'
@@ -74,7 +74,7 @@ import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/li
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
 
-export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
 
 const logger = createLogger('OrganizationMembership')

@@ -4,7 +4,7 @@ import {
   type AttributedUsageLimitsResult,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 
 /**

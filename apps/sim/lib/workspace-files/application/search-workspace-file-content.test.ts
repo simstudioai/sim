@@ -23,7 +23,7 @@ vi.mock('@/lib/workspace-files/search/repository', async (importOriginal) => ({
   searchFileIndex: hoisted.search,
 }))
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({

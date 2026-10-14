@@ -1,7 +1,7 @@
 import {
   getFileExtension,
   getMimeTypeFromExtension as getUploadMimeType,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 
 const TEXT_COMPATIBLE_MIME_TYPES = new Set([
   'text/plain',

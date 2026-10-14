@@ -15,7 +15,7 @@ const hoisted = vi.hoisted(() => ({
   render: vi.fn(),
 }))
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)

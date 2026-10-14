@@ -7,7 +7,7 @@ import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export class WorkspaceApiKeyWorkspaceNotFoundError extends OrchestrationError {
   constructor() {

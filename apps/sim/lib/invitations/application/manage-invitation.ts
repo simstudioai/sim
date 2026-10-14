@@ -21,7 +21,7 @@ import {
 } from '@/lib/core/orchestration/types'
 import { getInvitationById } from '@/lib/invitations/core'
 import { resendInvitationRecord, revokeInvitationRecord } from '@/lib/invitations/mutation-manager'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const invitationManagementOperations = {
   /** permission-group-exempt: cancellation removes access and remains available when sends are withheld. */

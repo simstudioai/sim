@@ -45,7 +45,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', async (
   }
 })
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

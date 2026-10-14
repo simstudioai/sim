@@ -26,7 +26,7 @@ import { afterResponse } from '@/lib/core/utils/after-response'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveShareByToken } from '@/lib/public-shares/manager'
 
 export const dynamic = 'force-dynamic'
 

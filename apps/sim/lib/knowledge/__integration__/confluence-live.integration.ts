@@ -47,7 +47,7 @@ vi.mock('@/lib/embeddings', async () => ({
   }),
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application/workspace-authorization'
 import { env } from '@/lib/core/config/env'
 import { loadManagedCredentialGroupBinding } from '@/lib/credential-groups/credentials'
@@ -69,7 +69,7 @@ import {
 } from '@/lib/oauth/credential-service'
 import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import { getReadRestriction } from '@/connectors/confluence/permissions'
 

@@ -20,7 +20,7 @@ import {
   formatFileSize,
   MAX_RENDERED_DOCUMENT_BYTES,
   needsRenderedArtifact,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import {
   admitContributors,
   admitWorkspaceFiles,

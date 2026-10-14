@@ -24,7 +24,7 @@ vi.mock('@/lib/logs/fetch-log-detail', () => ({
   readLogDetail: hoisted.readLogDetail,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 

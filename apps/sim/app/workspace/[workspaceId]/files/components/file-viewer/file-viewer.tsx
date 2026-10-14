@@ -9,7 +9,7 @@ import {
   TEXT_PREVIEW_SIZE_MESSAGE,
 } from '@/lib/uploads/client/text-content'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveMediaMimeType } from '@/lib/uploads/utils/file'
 import {
   useWorkspaceFileBinary,
   useWorkspaceFileContent,

@@ -7,7 +7,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   admitContent,
   authorizeWorkspaceOperation,
@@ -69,7 +69,7 @@ import {
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { validateTagValue, validateTagValueLength } from '@/lib/knowledge/tags/utils'
 import { StorageService } from '@/lib/uploads'
-import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/file-manager'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import {
   EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,

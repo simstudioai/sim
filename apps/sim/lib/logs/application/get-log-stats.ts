@@ -8,7 +8,7 @@ import { folderScopeCondition, resolveLogFolderScope } from '@/lib/logs/folder-s
 import { buildLogFilters, type LogFilters } from '@/lib/logs/public-filters'
 import { buildDashboardStats, resolveLogStatsWindow } from '@/lib/logs/stats'
 import { readLogStatsBounds, readLogStatsSegments } from '@/lib/logs/stats-queries'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface GetLogStatsInput {
   workspaceId: string

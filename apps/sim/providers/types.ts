@@ -1,4 +1,4 @@
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { CustomBlockInputFieldType } from '@/blocks/custom/build-config'
 import type { ProviderTimingSegment, StreamingExecution, UserFile } from '@/executor/types'
 

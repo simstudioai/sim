@@ -7,7 +7,7 @@ import {
   isCopilotPrincipal,
 } from '@/lib/core/application'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
-import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import type { UserFile } from '@/executor/types'
 
 /** Admits each run file on its own; see {@link admitRunFiles}. Returns the admitted files. */

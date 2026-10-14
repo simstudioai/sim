@@ -24,7 +24,7 @@ import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
   getToolDisplayTitle,
   normalizeToolActivityDescription,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
 
 interface StreamSnapshotLike {
   events: StreamBatchEvent[]

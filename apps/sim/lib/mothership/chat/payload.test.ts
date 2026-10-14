@@ -188,7 +188,7 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 

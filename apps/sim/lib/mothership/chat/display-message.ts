@@ -14,7 +14,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
-import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
+import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
 import {
   type ChatContextKind,
   type ChatMessage,

@@ -27,8 +27,8 @@ import {
 } from '@/lib/changelog/version'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { createOwnedWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { createOwnedWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const authorizationOptions = {
   delegation: { audience: 'sim:workspaces', isWithinScope: () => true },

@@ -11,7 +11,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'

@@ -7,7 +7,7 @@ import {
   getEffectiveBlockOutputs,
   getEffectiveBlockOutputType,
   getResponseFormatOutputs,
-} from '@/lib/workflows/blocks/block-outputs'
+} from '@/lib/workflows/blocks/outputs'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,

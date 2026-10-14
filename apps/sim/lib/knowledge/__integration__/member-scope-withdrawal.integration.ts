@@ -77,7 +77,7 @@ vi.mock('@/connectors/registry.server', async () => {
   }
 })
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
   createKnowledgeAclFixtureIds,

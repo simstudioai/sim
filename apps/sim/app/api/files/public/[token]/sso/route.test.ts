@@ -9,7 +9,7 @@ const { mockIsEmailAllowed } = vi.hoisted(() => ({
   mockIsEmailAllowed: vi.fn(),
 }))
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 vi.mock('@/lib/core/security/deployment', () => ({ isEmailAllowed: mockIsEmailAllowed }))
 vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 

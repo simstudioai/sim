@@ -200,7 +200,7 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
     events: [WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT],
     load: async () => {
       const { workspaceFileLiveDocOutboxHandlers } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
+        '@/lib/uploads/contexts/workspace/file-live-doc-outbox'
       )
       return workspaceFileLiveDocOutboxHandlers
     },
@@ -209,7 +209,7 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
     events: [WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT],
     load: async () => {
       const { workspaceFileStorageCleanupOutboxHandlers } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+        '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
       )
       return workspaceFileStorageCleanupOutboxHandlers
     },

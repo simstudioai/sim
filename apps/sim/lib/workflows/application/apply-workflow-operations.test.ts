@@ -112,7 +112,7 @@ import {
   applyWorkflowOperations,
   DRY_RUN_PREVIEW_BLOCK_IDS_WARNING,
 } from '@/lib/workflows/application/apply-workflow-operations'
-import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 
 const mocks = {
   ...hoisted,

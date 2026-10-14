@@ -11,10 +11,10 @@ import {
   billingUsageReservationMockFns,
 } from '@sim/testing/mocks/billing-usage-reservation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 const resolveBillingAttributionMock = billingAttributionMockFns.mockResolveBillingAttribution
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 const checkAttributedUsageLimitsMock = billingUsageGateCacheMockFns.mockCheckExecutionUsageLimits

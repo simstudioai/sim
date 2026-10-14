@@ -35,7 +35,7 @@ import {
   deleteCopilotChatContract,
 } from '@/lib/api/contracts/copilot'
 import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -53,7 +53,7 @@ import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/provide
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
   Deploy,
   Editor,
@@ -85,10 +85,10 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useChatStore } from '@/stores/chat/store'
+import { useVariablesModalStore } from '@/stores/modals/variables/store'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext, PanelTab } from '@/stores/panel'
 import { usePanelStore } from '@/stores/panel'
-import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { captureBaselineSnapshot } from '@/stores/workflow-diff/utils'

@@ -1,5 +1,5 @@
 import type { DelegatedPrincipal } from '@sim/auth/principal'
-import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const FUNCTION_EXECUTION_DELEGATION_AUDIENCE = 'sim:function-executions'
 

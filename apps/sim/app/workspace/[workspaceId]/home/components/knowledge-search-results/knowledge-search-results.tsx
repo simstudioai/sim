@@ -5,7 +5,7 @@ import { Chip } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { SearchFilters } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-filters'
 import {

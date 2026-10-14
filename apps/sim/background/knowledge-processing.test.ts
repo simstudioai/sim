@@ -15,7 +15,7 @@ import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
@@ -26,7 +26,7 @@ import {
   OcrRequestRejectedError,
   PermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
+} from '@/lib/knowledge/documents/processing-error'
 import { MAX_PROVIDER_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/processing-provider-continuation'
 import { MAX_QUOTA_CONTINUATION_ATTEMPTS } from '@/lib/knowledge/documents/processing-quota-continuation'
 import type { DocumentProcessingAttemptContext } from '@/lib/knowledge/documents/service'

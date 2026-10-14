@@ -22,7 +22,7 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
   HelpModal,
   isNavItemActive,

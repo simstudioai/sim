@@ -69,7 +69,7 @@ function mergeWorkspaceFileSecretProvenance(
 
 /**
  * Controllable mock functions for
- * `@/lib/uploads/contexts/workspace/workspace-file-secret-provenance`.
+ * `@/lib/uploads/contexts/workspace/file-secret-provenance`.
  *
  * Every DB-backed function is a bare `vi.fn()` — including the safety predicates
  * (`isModelSafeWorkspaceFileKey`, `areModelSafeWorkspaceFileKeys`,
@@ -111,13 +111,13 @@ const fns = workspaceFileSecretProvenanceMockFns
 
 /**
  * Static mock module for
- * `@/lib/uploads/contexts/workspace/workspace-file-secret-provenance`. Constants carry the
+ * `@/lib/uploads/contexts/workspace/file-secret-provenance`. Constants carry the
  * real values.
  *
  * @example
  * ```ts
  * vi.mock(
- *   '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+ *   '@/lib/uploads/contexts/workspace/file-secret-provenance',
  *   () => workspaceFileSecretProvenanceMock
  * )
  * ```

@@ -6,7 +6,7 @@ import {
   createUnknownTableRowSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import type { RowData, TableRowSecretProvenanceWrite, TableSchema } from '@/lib/table/types'
-import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { getStoredFileSecretProvenanceByKey } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

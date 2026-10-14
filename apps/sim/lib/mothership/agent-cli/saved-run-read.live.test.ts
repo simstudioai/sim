@@ -372,8 +372,8 @@ vi.mock('@/lib/workflows/executor/execution-id-claim', () => ({
 vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
   PauseResumeManager: { processQueuedResumes: async () => {} },
 }))
-vi.mock('@/lib/public-shares/share-manager', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/public-shares/share-manager')>()),
+vi.mock('@/lib/public-shares/manager', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/public-shares/manager')>()),
   getShareForResource: async () => null,
 }))
 vi.mock('@/lib/execution/remote-sandbox', async (importOriginal) => ({
@@ -466,7 +466,7 @@ vi.mock('@/lib/realtime/notify', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/realtime/notify')>()),
   mergeEditIntoLiveFileDoc: async () => {},
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox', () => ({
   enqueueWorkspaceFileStorageCleanup: async () => {},
   processWorkspaceFileStorageCleanupNow: async () => {},
 }))

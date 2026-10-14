@@ -34,7 +34,7 @@ function seededDefaults(): Record<string, unknown> {
 /**
  * Returns what the tool actually receives. The executor merges the mapper's
  * output OVER the raw inputs (`finalInputs = { ...inputs, ...transformedParams }`
- * in `executor/handlers/generic/generic-handler.ts`), so a key the mapper merely
+ * in `executor/handlers/generic/handler.ts`), so a key the mapper merely
  * omits survives as its raw subBlock string. Asserting on the mapper's return
  * alone would let an alias or a stale filter through unnoticed.
  */

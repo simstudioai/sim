@@ -22,11 +22,11 @@ import {
   selectExpiredFileVersions,
 } from '@/lib/file-retention/versions'
 import { lockProject } from '@/lib/projects/membership'
-import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import {
   MAX_SUPERSEDED_FILE_VERSIONS,
   releaseWorkspaceFileVersionsForPurgeInTx,
-} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 

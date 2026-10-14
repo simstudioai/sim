@@ -27,7 +27,7 @@ const { mockExecuteInboxTask, mockSendInboxResponse } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/auth/ban', () => authBanMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/mothership/request/lifecycle/headless', () => mothershipHeadlessLifecycleMock)
 vi.mock('@/lib/mothership/request/lifecycle/start', () => ({

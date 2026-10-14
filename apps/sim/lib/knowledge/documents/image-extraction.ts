@@ -8,7 +8,6 @@ import {
   waitForProviderAdmission,
 } from '@/lib/core/rate-limiter/provider-admission'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import {
   classifyGeminiImageError,
   GEMINI_IMAGE_PROVIDER_ID,
@@ -24,6 +23,7 @@ import {
   SEMANTIC_IMAGE_MIN_BYTES,
 } from '@/lib/knowledge/documents/image-extraction-policy'
 import type { OcrCheckpointContext } from '@/lib/knowledge/documents/ocr-checkpoints'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import {
   createVisionCheckpoint,

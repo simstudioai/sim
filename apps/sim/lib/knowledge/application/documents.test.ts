@@ -43,7 +43,7 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
@@ -60,7 +60,7 @@ vi.mock('@/lib/knowledge/orchestration/documents', () => ({
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager', () => ({
+vi.mock('@/lib/uploads/contexts/knowledge-base/file-manager', () => ({
   generateKnowledgeBaseFileKey: hoisted.generateKnowledgeBaseFileKey,
 }))
 

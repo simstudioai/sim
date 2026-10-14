@@ -18,7 +18,7 @@ import {
   assertBillingAttributionOwner,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { EMPTY_ACL } from '@/lib/knowledge/access/tokens'
@@ -36,7 +36,7 @@ import {
   resolveConnectorTokenUserId,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import {
   type DirectoryRefreshResult,
   directorySyncNotice,

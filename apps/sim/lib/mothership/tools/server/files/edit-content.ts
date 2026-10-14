@@ -24,7 +24,7 @@ import {
   SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { waitForLatestFileIntent } from './file-intent-store'
+import { waitForLatestFileIntent } from './intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')

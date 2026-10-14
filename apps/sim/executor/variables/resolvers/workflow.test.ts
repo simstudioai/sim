@@ -23,7 +23,7 @@ uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockResolvedValue({
 uploadsMetadataMockFns.mockInsertFileMetadata.mockResolvedValue({ id: 'execution-payload-file' })
 uploadsMetadataMockFns.mockDeleteFileMetadata.mockResolvedValue(undefined)
 
-vi.mock('@/lib/workflows/variables/variable-manager', () => ({
+vi.mock('@/lib/workflows/variables/manager', () => ({
   VariableManager: {
     resolveForExecution: vi.fn((value) => value),
   },

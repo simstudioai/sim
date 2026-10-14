@@ -3,7 +3,6 @@ import { workflow } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ForkMappableResourceType, ForkMappingEntry } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
-import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
 import {
   type ForkReference,
   type ForkRemapKind,
@@ -19,6 +18,7 @@ import {
   listForkResourceCandidates,
   loadForkResourceLabels,
 } from '@/lib/workflows/references/resources'
+import { toScannerBlocks } from '@/lib/workflows/references/scan'
 import {
   listDeployedWorkflows,
   readDeployedState,

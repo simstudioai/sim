@@ -11,9 +11,9 @@ import {
   sailpointFetch,
 } from '@/lib/internal/sailpoint/client'
 import type { SailPointInput } from '@/lib/internal/sailpoint/schema'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { parseRawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { safeUrlPathSegment } from '@/tools/url-path'

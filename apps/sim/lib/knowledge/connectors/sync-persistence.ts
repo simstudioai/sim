@@ -14,7 +14,7 @@ import {
 } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
-import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import {
   pagesByProjectionRows,
   rewriteConnectorDocumentAcls,

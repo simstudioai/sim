@@ -18,7 +18,7 @@ import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ToolConfig, ToolDefinition } from '@/tools/types'
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)

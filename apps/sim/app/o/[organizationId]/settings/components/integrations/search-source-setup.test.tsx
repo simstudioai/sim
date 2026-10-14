@@ -80,7 +80,7 @@ const mocks = vi.hoisted(() => ({
   connectorsQuery: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useUpdateSearchIntegration: () => ({ mutate: mocks.updateSearchIntegration }),

@@ -16,9 +16,9 @@ import { ChevronLeft } from '@sim/emcn/icons'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
-} from '@/lib/workflows/blocks/block-outputs'
-import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+} from '@/lib/workflows/blocks/outputs'
+import { getBlockReferenceTags } from '@/lib/workflows/blocks/reference-tags'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { KeyboardNavigationHandler } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/components/keyboard-navigation-handler'
 import type {
   BlockTagGroup,

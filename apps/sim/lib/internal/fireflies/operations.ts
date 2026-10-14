@@ -3,8 +3,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
 import type { FirefliesUploadAudioInput } from '@/lib/internal/fireflies/schema'
-import type { RawFileInput } from '@/lib/uploads/utils/file-utils'
-import { resolveFileInputToUrl } from '@/lib/uploads/utils/file-utils.server'
+import type { RawFileInput } from '@/lib/uploads/utils/file'
+import { resolveFileInputToUrl } from '@/lib/uploads/utils/file.server'
 
 const logger = createLogger('FirefliesUploadAudio')
 const FIREFLIES_API_URL = 'https://api.fireflies.ai/graphql'

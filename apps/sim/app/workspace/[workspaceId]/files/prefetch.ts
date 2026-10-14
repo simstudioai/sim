@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { listWorkspaceFileFoldersContract } from '@/lib/api/contracts/workspace-file-folders'
-import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { authorizeResourcePrefetch } from '@/app/workspace/[workspaceId]/lib/authorize-resource-prefetch'

@@ -6,8 +6,8 @@ import {
   type KnowledgeOperation,
   knowledgeOperations,
 } from '@/lib/knowledge/application/operations'
-import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { createCopilotApplicationAdapter } from '@/lib/mothership/application/adapter'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type CopilotExecutionContext,

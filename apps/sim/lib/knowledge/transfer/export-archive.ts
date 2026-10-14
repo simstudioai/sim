@@ -8,7 +8,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decodeDataUriWithinLimit } from '@/lib/file-parsers/data-uri'
 import type { KnowledgeBaseExportBundle } from '@/lib/knowledge/application/exports'
 import { KNOWLEDGE_BUNDLE_VERSION } from '@/lib/knowledge/constants'
-import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
+import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/processing-error'
 import {
   bundleEntryPaths,
   encodeVectorBase64,

@@ -2,14 +2,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
-import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import {
   type AccountBillingDecision,
   type AttributedUsageLimitsResult,
   type BillingAttributionSnapshot,
   checkAccountBillingBlocks,
   refreshAttributionPeriod,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'

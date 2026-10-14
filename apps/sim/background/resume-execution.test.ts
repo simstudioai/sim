@@ -15,7 +15,7 @@ const { mockSnapshotFromJson, mockIsTimedOut } = vi.hoisted(() => ({
   mockIsTimedOut: vi.fn(() => false),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/table/cascade-lock', () => ({ withCascadeLock: vi.fn() }))
 vi.mock('@/lib/table/deps', () => ({ isExecCancelled: vi.fn(() => false) }))

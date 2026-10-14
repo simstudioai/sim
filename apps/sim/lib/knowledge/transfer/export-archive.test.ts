@@ -19,7 +19,7 @@ vi.mock('@/lib/knowledge/transfer/export-source', () => ({
 }))
 
 import type { KnowledgeBaseExportBundle } from '@/lib/knowledge/application/exports'
-import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
+import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/processing-error'
 import {
   buildKnowledgeBundleArchive,
   knowledgeBundleFileName,

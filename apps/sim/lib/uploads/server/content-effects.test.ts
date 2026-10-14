@@ -4,10 +4,10 @@ const mocks = vi.hoisted(() => ({
   cleanup: vi.fn(),
   reconcile: vi.fn(),
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox', () => ({
   processWorkspaceFileStorageCleanupsNow: mocks.cleanup,
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-live-doc-outbox', () => ({
   processWorkspaceFileLiveDocReconciliationNow: mocks.reconcile,
 }))
 

@@ -7,7 +7,7 @@ import {
   workspaceFileSecretProvenanceMockFns,
 } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const { runFfmpegOperationMock, writeWorkspaceFileByPathMock } = vi.hoisted(() => ({
@@ -39,10 +39,10 @@ vi.mock('@/lib/media/ffmpeg', () => ({
   runFfmpegOperation: runFfmpegOperationMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

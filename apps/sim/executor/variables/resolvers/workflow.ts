@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { assertNoLargeValueRefs, isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-import { VariableManager } from '@/lib/workflows/variables/variable-manager'
+import { VariableManager } from '@/lib/workflows/variables/manager'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import {
   type AsyncPathNavigator,

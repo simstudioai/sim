@@ -6,7 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import {
   getUpgradeCardCta,
   type PlanCardCta,
@@ -35,7 +35,7 @@ import {
   upgradeReasonParam,
   upgradeUrlKeys,
 } from '@/app/workspace/[workspaceId]/upgrade/search-params'
-import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
+import { useFullscreenOriginStore } from '@/stores/fullscreen-origin/store'
 
 /** Enterprise "Talk to sales" books time with the sales team on Cal.com. */
 const SALES_CAL_URL = 'https://cal.com/team/sim/demo' as const

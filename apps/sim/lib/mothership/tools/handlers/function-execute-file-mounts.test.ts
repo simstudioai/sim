@@ -24,7 +24,7 @@ vi.mock('@/lib/mothership/chat/application/read-attachment', () => ({
   readChatAttachment: { execute: hoisted.attachment },
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
@@ -43,7 +43,7 @@ import {
   executeFunctionExecute,
   resolveInputFiles,
 } from '@/lib/mothership/tools/handlers/function-execute'
-import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { readWorkspaceFileMount } from '@/lib/workspace-files/application/read-workspace-file-mount'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

@@ -16,16 +16,16 @@ import { isPlainRecord } from '@sim/utils/object'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { readToolActivity } from '@/lib/mothership/tools/activity'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
   humanizeToolName,
   normalizeToolActivityDescription,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   hasAgentGroupItemContent,

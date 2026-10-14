@@ -16,7 +16,7 @@ import { isServiceAccountProviderId } from '@/lib/credentials/service-account-pr
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
 import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
 import { credentialProviderMatchesService } from '@/lib/oauth/utils'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface PrepareCredentialConnectionInput {
   workspaceId: string

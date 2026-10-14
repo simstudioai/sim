@@ -1,7 +1,7 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
 
 /** Preserves retryable generation and output-size errors across authorized artifact readers. */
 export async function resolveDocumentRender<T>(

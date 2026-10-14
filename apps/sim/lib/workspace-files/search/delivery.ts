@@ -10,7 +10,7 @@ import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'

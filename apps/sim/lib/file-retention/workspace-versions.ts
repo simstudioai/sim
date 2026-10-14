@@ -15,7 +15,7 @@ import {
   releaseExpiredFileVersions,
   selectExpiredFileVersions,
 } from '@/lib/file-retention/versions'
-import { MAX_SUPERSEDED_FILE_VERSIONS } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { MAX_SUPERSEDED_FILE_VERSIONS } from '@/lib/uploads/contexts/workspace/file-version-store'
 
 const cleanupDb = dbFor('cleanup')
 

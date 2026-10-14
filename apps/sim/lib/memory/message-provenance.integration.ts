@@ -43,7 +43,7 @@ vi.mock('@/lib/logs/execution/pii-redaction', () => ({
 vi.mock('@/lib/tokenization/accurate', () => ({
   getAccurateTokenCount: (text: string) => text.length,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+vi.mock('@/lib/workspaces/application/context', () => ({
   resolveActiveWorkspaceApplicationContext: async () => ({
     workspaceId: 'workspace-1',
     workspaceOrganizationId: null,

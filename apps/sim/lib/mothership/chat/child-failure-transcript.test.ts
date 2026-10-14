@@ -24,7 +24,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 const failure = 'The model reached its output limit before finishing the response.'
 function event(

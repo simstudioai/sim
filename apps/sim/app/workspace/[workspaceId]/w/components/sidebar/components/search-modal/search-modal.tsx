@@ -47,7 +47,7 @@ import { getFolderPathNames } from '@/lib/folders/tree'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {

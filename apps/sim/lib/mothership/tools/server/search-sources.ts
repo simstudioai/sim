@@ -23,7 +23,7 @@ import { authorizeOrganizationChatDelegation } from '@/lib/mothership/chat/organ
 import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { canConnectPersonally, SEARCH_SOURCE_TYPES } from '@/lib/sim-search/connectors'
-import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/search-params'
+import { searchSetupAccessParam, searchSetupParam } from '@/lib/sim-search/params'
 
 /** Organization Search controls reuse the product operations and its credential collection UI. */
 export const organizationSearchSourcesServerTool: BaseServerTool<

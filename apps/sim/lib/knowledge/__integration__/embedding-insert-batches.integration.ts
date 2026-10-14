@@ -24,12 +24,12 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
     return fixtures.root
   },
 }))
-vi.mock('@/lib/knowledge/documents/document-processor', () => ({
+vi.mock('@/lib/knowledge/documents/processor', () => ({
   processDocument: fixtures.process,
 }))
 vi.mock('@/lib/knowledge/embeddings', () => ({ generateEmbeddings: fixtures.embeddings }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import * as embeddingClient from '@/lib/embeddings/client'
 import {
   createKnowledgeAclFixtureIds,

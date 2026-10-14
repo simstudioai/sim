@@ -9,7 +9,7 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isEmailAllowed } from '@/lib/core/security/deployment'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveShareByToken } from '@/lib/public-shares/manager'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'

@@ -4,7 +4,7 @@ import { ContentRefusedError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file'
 import { admitRunFiles } from '@/lib/workflows/application/admit-run-files'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import {

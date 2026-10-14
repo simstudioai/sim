@@ -34,7 +34,7 @@ import {
 } from '@/lib/internal/ssh/client'
 import { SshOperationError } from '@/lib/internal/ssh/errors'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 
 export interface SshOperationContext {
   signal?: AbortSignal

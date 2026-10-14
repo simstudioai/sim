@@ -28,7 +28,7 @@ import {
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
 import { recoverSandboxProcesses } from '@/lib/mothership/request/tools/sandbox-recovery'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('MothershipRunControls')
 const policy = {

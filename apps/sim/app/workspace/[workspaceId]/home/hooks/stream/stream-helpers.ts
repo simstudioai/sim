@@ -32,8 +32,8 @@ import {
   resolveResourceDisplayName,
   type ToolResourceContext,
 } from '@/lib/mothership/tools/client/resource-display'
+import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/mothership/tools/tool-display'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

@@ -66,7 +66,7 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
@@ -81,7 +81,7 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import {
   beginListingCheckpoint,
   listingFingerprint,
@@ -105,7 +105,7 @@ import {
 import { createContentSyncLease, createMemberSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import * as documentService from '@/lib/knowledge/documents/service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { ConnectorConfig, ExternalDocument, SyncResult } from '@/connectors/types'
 

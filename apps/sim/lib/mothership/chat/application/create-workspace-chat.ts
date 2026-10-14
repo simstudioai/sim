@@ -8,7 +8,7 @@ import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const createWorkspaceChat = defineAuthorizedWorkspaceUseCase({
   /** permission-group-exempt: creating an empty private chat preserves the existing workspace membership policy. */

@@ -5,7 +5,7 @@ import { generateId } from '@sim/utils/id'
 import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { isHosted } from '@/lib/core/config/env-flags'

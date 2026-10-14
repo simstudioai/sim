@@ -11,8 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 import { executeSailPointTool } from '@/lib/internal/sailpoint/execute-tool'
 import { MAX_SAILPOINT_CSV_BYTES } from '@/lib/internal/sailpoint/operations'

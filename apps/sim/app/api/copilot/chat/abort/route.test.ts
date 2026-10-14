@@ -65,7 +65,7 @@ vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
 const { mockChatContext } = vi.hoisted(() => ({
   mockChatContext: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mockChatContext,

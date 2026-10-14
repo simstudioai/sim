@@ -57,7 +57,7 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
@@ -165,10 +165,10 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -181,7 +181,7 @@ vi.mock('@/executor/utils/credential-token', () => ({
     mockResolveExecutorCredentialToken(...args),
 }))
 
-vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
+vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
 
@@ -423,7 +423,7 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 import type { QueryClient } from '@tanstack/react-query'
 import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
-import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
+import { ApiBlockHandler } from '@/executor/handlers/api/handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'

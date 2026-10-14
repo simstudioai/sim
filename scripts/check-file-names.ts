@@ -203,8 +203,7 @@ const HOW_TO_FIX: Record<Rule, string> = {
   'redundant-suffix':
     'The utils/ or helpers/ folder already names the role; drop the suffix from the file name.',
   stutter:
-    'The parent folder already names the domain; drop the repeated prefix (lib/logs/log-views.ts → lib/logs/views.ts). If the short name collides, pick a more specific one. ' +
-    'Existing `handlers/<x>/<x>-handler.ts` files are baselined debt, not a convention to copy.',
+    'The parent folder already names the domain; drop the repeated prefix (lib/logs/log-views.ts → lib/logs/views.ts). If the short name collides, pick a more specific one.',
 }
 
 function key(violation: Violation): string {

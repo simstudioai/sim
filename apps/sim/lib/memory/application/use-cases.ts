@@ -8,8 +8,8 @@ import { memory, memorySecretProvenance } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, like } from 'drizzle-orm'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { assertBillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -22,7 +22,7 @@ import { appendMemoryMessages, readPlainMemoryTail } from '@/lib/memory/conversa
 import { lockMemoryConversationInTx } from '@/lib/memory/locks'
 import { PlainMemoryReadBudget } from '@/lib/memory/read-budget'
 import { readBoundMemorySecretProvenance } from '@/lib/memory/secret-provenance'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const PRIVATE_MEMORY_QUERY_CHUNK_SIZE = 1_000
 const MAX_MEMORY_LIST_LIMIT = 1_000

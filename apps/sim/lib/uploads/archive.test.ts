@@ -36,7 +36,7 @@ const { store, mockUpload, mockEnsureFolder } = vi.hoisted(() => ({
   mockEnsureFolder: vi.fn(),
 }))
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
-vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+vi.mock('@/lib/workspace-files/application/folders', () => ({
   ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
 }))
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
@@ -44,11 +44,8 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
     execute: mockUpload,
   },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 
 import {
   buildFolderPath,

@@ -21,7 +21,7 @@ import {
   type WorkflowTestRunResult,
   type WorkflowTestVersion,
 } from '@/lib/workflows/application/run-workflow-for-test'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,

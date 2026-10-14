@@ -139,14 +139,14 @@ import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-ke
 import { generateImageServerTool } from '@/lib/mothership/tools/server/image/generate-image'
 import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
-import { getShareForResource } from '@/lib/public-shares/share-manager'
+import { getShareForResource } from '@/lib/public-shares/manager'
 import {
   createOwnedWorkspaceFile,
   getWorkspaceFile,
   updateWorkspaceFileContent as replaceFixtureFileContent,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { resolveServableDoc } from '@/lib/uploads/documents/compile'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'

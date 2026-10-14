@@ -12,7 +12,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
   principalUserId: () => 'user-1',

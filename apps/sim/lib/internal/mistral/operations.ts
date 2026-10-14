@@ -13,18 +13,18 @@ import { MISTRAL_OCR_REQUEST_POLICY } from '@/lib/knowledge/documents/ocr-reques
 import {
   isModelSafeWorkspaceFileKey,
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   extractStorageKey,
   isInternalFileUrl,
   processSingleFileToUserFile,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import {
   downloadFileFromUrl,
   downloadServableFileFromStorage,
   resolveInternalFileUrl,
   type ServableFile,
-} from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('MistralOperations')

@@ -62,8 +62,8 @@ import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-uploa
 import {
   deleteWorkspaceFile,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []

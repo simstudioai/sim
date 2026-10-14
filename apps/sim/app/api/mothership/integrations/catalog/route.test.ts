@@ -16,7 +16,7 @@ vi.unmock('@/lib/mothership/request/http')
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: vi.fn() }))
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock(
   '@/lib/mothership/chat/application/workspace-context',

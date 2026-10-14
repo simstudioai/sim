@@ -5,8 +5,8 @@ import {
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
 

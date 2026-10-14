@@ -8,7 +8,7 @@ import {
 import { appendSelectorOptions } from '@/lib/selectors/server/option-budget'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
 import { flatSelectorResult } from '@/lib/selectors/server/providers/flat-results'
-import { fetchProviderJson } from '@/lib/selectors/server/providers/provider-http'
+import { fetchProviderJson } from '@/lib/selectors/server/providers/http'
 import type { ServerSelectorAttachmentMap } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 import { getPipedriveAuthHeaders } from '@/tools/pipedrive/utils'

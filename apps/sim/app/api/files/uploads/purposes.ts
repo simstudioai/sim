@@ -12,7 +12,7 @@ import {
   UploadSessionError,
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { isImageFileType } from '@/lib/uploads/utils/file'
 import { validateAttachmentFileType } from '@/lib/uploads/utils/validation'
 import {
   authorizeWorkspaceFileAccess,
