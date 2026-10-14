@@ -726,7 +726,7 @@ export async function resolveWebhookConfigForBlock(input: {
         success: false,
         error: {
           message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
-          status: error instanceof WebhookDeploymentConfigurationError ? 400 : 500,
+          status: webhookConfigFailureStatus(error),
         },
       }
     }
@@ -772,7 +772,7 @@ async function configurePollingIfNeeded(
  * registration reports candidate failures as an `AggregateError`, which is
  * permanent only when every candidate failed that way.
  */
-function webhookCreationFailureStatus(error: unknown): number {
+function webhookConfigFailureStatus(error: unknown): number {
   const failures = error instanceof AggregateError ? error.errors : [error]
   const permanent =
     failures.length > 0 &&
@@ -864,7 +864,7 @@ export async function prepareStableTriggerWebhooksForDeploy({
       success: false,
       error: {
         message: getErrorMessage(error, 'Failed to prepare webhook registrations'),
-        status: webhookCreationFailureStatus(error),
+        status: webhookConfigFailureStatus(error),
       },
     }
   }
@@ -1145,7 +1145,7 @@ export async function saveTriggerWebhooksForDeploy({
             (error as Error)?.message ||
             'Failed to create external subscription',
           // cleanupFailure never overrides the root cause's status.
-          status: webhookCreationFailureStatus(error),
+          status: webhookConfigFailureStatus(error),
         },
       }
     }
