@@ -582,7 +582,10 @@ async function resolveFileFolderTarget<O extends EditableFileOwner>(
   if (target.folderPath !== undefined) {
     const path = buildFolderPath(folderPathSegments(target.folderPath))
     if (path === '/') return null
-    const rows = await selectFileFolderPathRows(owner, client)
+    const rows = await client
+      .select({ id: folderTable.id, name: folderTable.name, parentId: folderTable.parentId })
+      .from(folderTable)
+      .where(and(fileFolderOwnerCondition(owner), isNull(folderTable.deletedAt)))
     folderId = buildFolderPathIndex(rows).idByPath.get(path) ?? null
     if (!folderId) throw new OrchestrationError('not_found', 'Target folder not found')
   }
