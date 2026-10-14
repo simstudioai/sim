@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
+import {
+  backfillPublicShareEntities,
+  backfillPublicShareEntitiesMigration,
+} from '@sim/db/script-migrations/0034_backfill_public_share_entities'
+import { runScriptMigrations } from '@sim/db/script-migrations/index'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -19,22 +24,26 @@ const migrations = [
 ].map((name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8'))
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
-function check(name: string, run: () => Promise<void>) {
-  it(name, async () => {
-    const started = performance.now()
-    try {
-      await run()
-      checks.push({ name, status: 'passed', durationMs: performance.now() - started })
-    } catch (error) {
-      checks.push({
-        name,
-        status: 'failed',
-        durationMs: performance.now() - started,
-        error: getErrorMessage(error),
-      })
-      throw error
-    }
-  }, 10_000)
+function check(name: string, run: () => Promise<void>, timeout = 10_000) {
+  it(
+    name,
+    async () => {
+      const started = performance.now()
+      try {
+        await run()
+        checks.push({ name, status: 'passed', durationMs: performance.now() - started })
+      } catch (error) {
+        checks.push({
+          name,
+          status: 'failed',
+          durationMs: performance.now() - started,
+          error: getErrorMessage(error),
+        })
+        throw error
+      }
+    },
+    timeout
+  )
 }
 
 describe('Public share canonical ownership in PostgreSQL', () => {
@@ -108,6 +117,8 @@ describe('Public share canonical ownership in PostgreSQL', () => {
       workspace_id text NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
       created_by text REFERENCES "user"(id) ON DELETE SET NULL,
       token text NOT NULL UNIQUE, is_active boolean NOT NULL DEFAULT true,
+      auth_type text NOT NULL DEFAULT 'password', password text DEFAULT 'fixture-hash',
+      allowed_emails json DEFAULT '["reader@example.test"]',
       updated_at timestamp NOT NULL DEFAULT '2026-10-03 01:02:03.456',
       UNIQUE(resource_type, resource_id)
     )`
@@ -125,10 +136,11 @@ describe('Public share canonical ownership in PostgreSQL', () => {
     }
     await sql`CREATE TABLE workspace_file_secret_provenance (file_id text PRIMARY KEY, content_updated_at timestamp NOT NULL)`
     for (const migration of migrations) await applyMigration(migration)
+    await sql`CREATE TABLE script_migrations (name text PRIMARY KEY, applied_at timestamptz DEFAULT now())`
   })
 
   beforeEach(async () => {
-    await sql`TRUNCATE workspace_file_secret_provenance, public_share, workspace_file_version, workspace_files, folder, project, workspace, organization, "user"`
+    await sql`TRUNCATE script_migrations, workspace_file_secret_provenance, public_share, workspace_file_version, workspace_files, folder, project, workspace, organization, "user"`
     await sql`INSERT INTO "user" VALUES ('user-a'), ('user-b')`
     await sql`INSERT INTO workspace VALUES ('workspace-a'), ('workspace-b'), ('same-id')`
     await sql`INSERT INTO organization VALUES ('organization-a')`
@@ -304,9 +316,6 @@ describe('Public share canonical ownership in PostgreSQL', () => {
       }
       const before =
         await sql`SELECT id, resource_type, resource_id, workspace_id, token, is_active, updated_at FROM public_share ORDER BY id`
-      const { backfillPublicShareEntities } = await import(
-        './script-migrations/0034_backfill_public_share_entities'
-      )
       const first = await backfillPublicShareEntities(sql)
       expect(first).toMatchObject({ backfilled: 502, unresolved: 3 })
       expect(first.sampleShareIds.sort()).toEqual(['foreign', 'missing', 'unknown'])
@@ -319,6 +328,180 @@ describe('Public share canonical ownership in PostgreSQL', () => {
         await sql`SELECT id, resource_type, resource_id, workspace_id, token, is_active, updated_at FROM public_share ORDER BY id`
       ).toEqual(before)
       expect(await backfillPublicShareEntities(sql)).toMatchObject({ backfilled: 0, unresolved: 3 })
+    }
+  )
+
+  async function seedLegacyFileShares() {
+    await sql`INSERT INTO workspace_files (id, context, user_id, workspace_id, original_name, deleted_at)
+      SELECT 'file-' || lpad(n::text, 4, '0'), 'workspace', 'user-a', 'workspace-a',
+        'file-' || n, CASE WHEN n % 10 = 0 THEN NULL ELSE timestamp '2026-10-01 01:02:03.456' END
+      FROM generate_series(1, 1001) n`
+    await sql`ALTER TABLE public_share DISABLE TRIGGER public_share_entity_binding`
+    try {
+      await sql`INSERT INTO public_share (id, resource_type, resource_id, workspace_id, token, is_active)
+        SELECT 'share-' || lpad(n::text, 4, '0'), 'file', 'file-' || lpad(n::text, 4, '0'),
+          'workspace-a', 'token-' || n, n % 2 = 0 FROM generate_series(1, 1001) n`
+    } finally {
+      await sql`ALTER TABLE public_share ENABLE TRIGGER public_share_entity_binding`
+    }
+  }
+
+  async function retainedFileShareState() {
+    return sql`SELECT
+      (SELECT md5(string_agg((to_jsonb(s) - 'entity_type' - 'entity_id')::text, '' ORDER BY id))
+        FROM public_share s WHERE id LIKE 'share-%') AS shares,
+      (SELECT md5(string_agg(to_jsonb(f)::text, '' ORDER BY id))
+        FROM workspace_files f WHERE id LIKE 'file-%') AS files`
+  }
+
+  async function committedShareCount() {
+    const [row] = await sql<{ count: number }[]>`SELECT count(*)::integer AS count
+      FROM public_share WHERE entity_type = 'workspace' AND entity_id = workspace_id`
+    return row.count
+  }
+
+  for (const target of ['file', 'share'] as const) {
+    for (const persistent of [false, true]) {
+      check(
+        `backfill ${persistent ? 'stops after bounded retries under persistent' : 'recovers after temporary'} ${target} lock contention without losing committed batches`,
+        async () => {
+          await seedLegacyFileShares()
+          const before = await retainedFileShareState()
+          const firstRollback = createDeferred<void>()
+          let rollbacks = 0
+          const worker = postgres(databaseUrl, {
+            max: 1,
+            onnotice: () => undefined,
+            connection: { search_path: schemaName },
+            debug: (_connection, query) => {
+              if (query.toLowerCase() === 'rollback') {
+                rollbacks += 1
+                firstRollback.resolve()
+              }
+            },
+          })
+          const held = createDeferred<void>()
+          const release = createDeferred<void>()
+          const holding = sql.begin(async (tx) => {
+            if (target === 'file')
+              await tx`SELECT id FROM workspace_files WHERE id = 'file-0501' FOR UPDATE`
+            else await tx`SELECT id FROM public_share WHERE id = 'share-0501' FOR UPDATE`
+            held.resolve()
+            await release.promise
+          })
+          await Promise.race([held.promise, holding])
+          const running = runScriptMigrations(worker, [backfillPublicShareEntitiesMigration]).then(
+            () => null,
+            (error: unknown) => error
+          )
+          try {
+            if (!persistent) {
+              await Promise.race([firstRollback.promise, running])
+              expect(await committedShareCount()).toBe(500)
+              expect(await sql`SELECT name FROM script_migrations`).toEqual([])
+              release.resolve()
+              await holding
+            }
+            const error = await running
+            if (persistent) {
+              expect(error).toMatchObject({ code: '55P03' })
+              expect(rollbacks).toBe(3)
+              expect(await committedShareCount()).toBe(500)
+              expect(await sql`SELECT name FROM script_migrations`).toEqual([])
+              release.resolve()
+              await holding
+              await runScriptMigrations(worker, [backfillPublicShareEntitiesMigration])
+            } else {
+              expect(error).toBeNull()
+              expect(rollbacks).toBe(1)
+            }
+            expect(await committedShareCount()).toBe(1001)
+            expect(await retainedFileShareState()).toEqual(before)
+            const receipts = await sql`SELECT * FROM script_migrations`
+            expect(receipts).toHaveLength(1)
+            expect(receipts[0].name).toBe(backfillPublicShareEntitiesMigration.name)
+            await runScriptMigrations(worker, [backfillPublicShareEntitiesMigration])
+            expect(await sql`SELECT * FROM script_migrations`).toEqual(receipts)
+          } finally {
+            release.resolve()
+            await holding
+            await running
+            await worker.end({ timeout: 1 })
+          }
+        },
+        40_000
+      )
+    }
+  }
+
+  check(
+    'cancelled backfill rolls back its incomplete batch, preserves progress, and resumes without missing concurrent legacy inserts',
+    async () => {
+      await seedLegacyFileShares()
+      const before = await retainedFileShareState()
+      await sql`CREATE SEQUENCE backfill_write_attempts`
+      await sql`CREATE FUNCTION pause_backfill_batch() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM nextval('backfill_write_attempts');
+        IF NEW.id = 'share-0750' THEN PERFORM pg_advisory_xact_lock(86090034); END IF;
+        RETURN NEW;
+      END
+    $$`
+      await sql`CREATE TRIGGER pause_backfill_batch BEFORE UPDATE ON public_share
+      FOR EACH ROW EXECUTE FUNCTION pause_backfill_batch()`
+      const worker = postgres(databaseUrl, {
+        max: 1,
+        onnotice: () => undefined,
+        connection: { search_path: schemaName },
+      })
+      const [connection] = await worker<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+      const held = createDeferred<number>()
+      const release = createDeferred<void>()
+      const holding = sql.begin(async (tx) => {
+        await tx`SELECT pg_advisory_xact_lock(86090034)`
+        const [holder] = await tx<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`
+        held.resolve(holder.pid)
+        await release.promise
+      })
+      const holderPid = await Promise.race([held.promise, holding.then(() => 0)])
+      const running = runScriptMigrations(worker, [backfillPublicShareEntitiesMigration]).then(
+        () => null,
+        (error: unknown) => error
+      )
+      try {
+        expect(await waitForDatabaseLock(connection.pid, holderPid)).toBe(true)
+        expect(await committedShareCount()).toBe(500)
+        const [attempts] = await sql<
+          { count: number }[]
+        >`SELECT last_value::integer AS count FROM backfill_write_attempts`
+        expect(attempts.count).toBeGreaterThan(501)
+        await sql`INSERT INTO public_share (id, resource_type, resource_id, workspace_id, token)
+        VALUES ('before-cursor', 'folder', 'concurrent-folder', 'workspace-a', 'concurrent-token')`
+        expect(
+          await sql`SELECT entity_type, entity_id FROM public_share WHERE id = 'before-cursor'`
+        ).toEqual([{ entity_type: 'workspace', entity_id: 'workspace-a' }])
+        await sql`SELECT pg_cancel_backend(${connection.pid})`
+        expect(await running).toMatchObject({ code: '57014' })
+        expect(await committedShareCount()).toBe(501)
+        expect(await sql`SELECT name FROM script_migrations`).toEqual([])
+        expect(await retainedFileShareState()).toEqual(before)
+        release.resolve()
+        await holding
+        await runScriptMigrations(worker, [backfillPublicShareEntitiesMigration])
+        expect(await committedShareCount()).toBe(1002)
+        expect(await retainedFileShareState()).toEqual(before)
+        expect(await sql`SELECT name FROM script_migrations`).toEqual([
+          { name: backfillPublicShareEntitiesMigration.name },
+        ])
+      } finally {
+        release.resolve()
+        await holding
+        await running
+        await worker.end({ timeout: 1 })
+        await sql`DROP TRIGGER pause_backfill_batch ON public_share`
+        await sql`DROP FUNCTION pause_backfill_batch()`
+        await sql`DROP SEQUENCE backfill_write_attempts`
+      }
     }
   )
 
