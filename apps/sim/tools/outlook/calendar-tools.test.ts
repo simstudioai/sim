@@ -20,6 +20,18 @@ describe('outlook calendar tools', () => {
     expect(() => listUrl({ ...window, calendarId: '..' })).toThrow()
   })
 
+  it('encodes a Graph id containing a slash instead of rejecting it', () => {
+    const listUrl = outlookCalendarListEventsTool.request.url as (p: unknown) => string
+    expect(
+      listUrl({
+        accessToken: 't',
+        startDateTime: '2025-06-03T00:00:00Z',
+        endDateTime: '2025-06-10T00:00:00Z',
+        calendarId: 'AAMk/AB=',
+      })
+    ).toContain('/v1.0/me/calendars/AAMk%2FAB%3D/calendarView?')
+  })
+
   it('treats date-only bounds as an all-day event even without the flag', () => {
     const createBody = outlookCalendarCreateEventTool.request.body as (
       p: unknown

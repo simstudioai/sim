@@ -6,7 +6,6 @@ import type {
   GraphEvent,
 } from '@/tools/outlook/types'
 import type { ToolRetryConfig } from '@/tools/types'
-import { safeUrlPathSegment } from '@/tools/url-path'
 
 /**
  * Shared retry config for the Outlook calendar tools.
@@ -42,6 +41,20 @@ export const CALENDAR_RETRY: ToolRetryConfig = {
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 
 /**
+ * Encodes a Graph event or calendar id as one path segment. Graph ids can contain `/`, which is
+ * encoded as `%2F` rather than rejected; dot segments are still refused here and again by the
+ * tool request transport.
+ */
+function graphIdSegment(value: string, paramName: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) throw new Error(`${paramName} is required`)
+  if (trimmed === '.' || trimmed === '..') {
+    throw new Error(`${paramName} cannot be "${trimmed}" (path traversal is not allowed)`)
+  }
+  return encodeURIComponent(trimmed)
+}
+
+/**
  * Build the Graph URL for a calendar-scoped collection.
  *
  * Graph exposes the mailbox's default calendar at `/me/{collection}` and any other calendar
@@ -52,7 +65,7 @@ const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
  */
 export function buildCalendarScopedUrl(collection: 'events' | 'calendarView', calendarId?: string) {
   return calendarId?.trim()
-    ? `${GRAPH_BASE_URL}/me/calendars/${safeUrlPathSegment(calendarId, 'calendarId')}/${collection}`
+    ? `${GRAPH_BASE_URL}/me/calendars/${graphIdSegment(calendarId, 'calendarId')}/${collection}`
     : `${GRAPH_BASE_URL}/me/${collection}`
 }
 
@@ -63,7 +76,7 @@ export function buildCalendarScopedUrl(collection: 'events' | 'calendarView', ca
  * the user's calendars — no calendar scoping is needed for get / update / delete / respond.
  */
 export function buildEventUrl(eventId: string, suffix?: string) {
-  const base = `${GRAPH_BASE_URL}/me/events/${safeUrlPathSegment(eventId, 'eventId')}`
+  const base = `${GRAPH_BASE_URL}/me/events/${graphIdSegment(eventId, 'eventId')}`
   return suffix ? `${base}/${suffix}` : base
 }
 
