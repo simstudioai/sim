@@ -327,6 +327,19 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   return null
 }
 
+/**
+ * Landing integration slugs are hyphenated (`google-drive`) while docs slugs use underscores
+ * (`google_drive`), so underscore URLs reach the landing site through hand-written and
+ * search-indexed links. Redirect them to the hyphenated page instead of serving a 404.
+ */
+function handleIntegrationSlugRedirect(request: NextRequest): NextResponse | null {
+  const slug = /^\/integrations\/([^/]*_[^/]*)\/?$/.exec(request.nextUrl.pathname)?.[1]
+  if (!slug) return null
+  const url = request.nextUrl.clone()
+  url.pathname = `/integrations/${slug.replace(/_/g, '-')}`
+  return NextResponse.redirect(url, 308)
+}
+
 export function proxy(request: NextRequest) {
   const url = request.nextUrl
 
@@ -395,6 +408,9 @@ export function proxy(request: NextRequest) {
     return applyIndexingPolicy(request, response)
   }
 
+  const integrationSlugRedirect = handleIntegrationSlugRedirect(request)
+  if (integrationSlugRedirect) return integrationSlugRedirect
+
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
   if (invitationRedirect) return applyIndexingPolicy(request, invitationRedirect)
 
@@ -402,8 +418,6 @@ export function proxy(request: NextRequest) {
   if (securityBlock) return applyIndexingPolicy(request, securityBlock)
 
   const response = NextResponse.next()
-  response.headers.set('Vary', 'User-Agent')
-
   response.headers.set('Content-Security-Policy', generateRuntimeCSP())
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')

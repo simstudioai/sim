@@ -32,6 +32,7 @@ const structuredData = {
   url: DOCS_BASE_URL,
   publisher: {
     '@type': 'Organization',
+    '@id': `${SIM_SITE_URL}#organization`,
     name: 'Sim',
     url: SIM_SITE_URL,
     logo: {

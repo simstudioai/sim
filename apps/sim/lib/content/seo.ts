@@ -19,6 +19,8 @@ export interface ContentSection {
   description: string
   /** Visible article text available for spoken summaries; defaults to headline and description. */
   speakableSelectors?: readonly string[]
+  /** RSS feed path advertised by the index page's `<link rel="alternate">`, e.g. "/blog/rss.xml". */
+  feedPath?: string
 }
 
 export function buildPostMetadata(post: ContentMeta): Metadata {
@@ -116,6 +118,7 @@ export function buildArticleJsonLd(
     })),
     publisher: {
       '@type': 'Organization',
+      '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       url: SITE_URL,
       logo: {
@@ -209,7 +212,12 @@ export function buildIndexMetadata(
     {
       title,
       description,
-      alternates: { canonical },
+      alternates: {
+        canonical,
+        ...(section.feedPath
+          ? { types: { 'application/rss+xml': `${SITE_URL}${section.feedPath}` } }
+          : {}),
+      },
       openGraph: {
         title: `${title} | Sim`,
         description,
@@ -389,6 +397,7 @@ export function buildCollectionPageJsonLd(
     description: section.description,
     publisher: {
       '@type': 'Organization',
+      '@id': `${SITE_URL}#organization`,
       name: 'Sim',
       url: SITE_URL,
       logo: {

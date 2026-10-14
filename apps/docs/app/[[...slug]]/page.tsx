@@ -1,5 +1,6 @@
 import type React from 'react'
 import { Children, cloneElement, isValidElement } from 'react'
+import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
 import { highlight } from 'fumadocs-core/highlight'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
@@ -20,9 +21,20 @@ import { ResponseSection } from '@/components/ui/response-section'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
-import { DOCS_BASE_URL } from '@/lib/urls'
+import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 
 const BASE_URL = DOCS_BASE_URL
+
+/**
+ * Landing page for each docs integration page. Docs pages are keyed by block type without its
+ * version suffix (`gmail_v2` → `/integrations/gmail`); landing slugs are hyphenated catalog slugs.
+ */
+const INTEGRATION_LANDING_PAGES = new Map(
+  INTEGRATION_METADATA.map((integration) => [
+    integration.type.replace(/_v\d+$/, ''),
+    { name: integration.name, url: `${SIM_SITE_URL}/integrations/${integration.slug}` },
+  ])
+)
 
 /**
  * Most pages close with a `## Next` / `## Next steps` grid of onward links.
@@ -122,6 +134,10 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
+  const integrationLandingPage =
+    slug?.length === 2 && slug[0] === 'integrations'
+      ? INTEGRATION_LANDING_PAGES.get(slug[1])
+      : undefined
   const isCli = slug?.[0] === 'cli'
   const isMcp = slug?.[0] === 'mcp'
 
@@ -266,6 +282,14 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
         </PageHeader>
         <DocsBody>
+          {integrationLandingPage && (
+            <p>
+              Use cases and templates:{' '}
+              <a href={integrationLandingPage.url}>
+                {integrationLandingPage.name} integration for AI agents
+              </a>
+            </p>
+          )}
           <MDX
             components={{
               ...defaultMdxComponents,
@@ -367,6 +391,7 @@ export async function generateMetadata(props: { params: Promise<{ slug?: string[
     },
     alternates: {
       canonical: fullUrl,
+      types: { 'text/markdown': `${fullUrl}.md` },
     },
   }
 }

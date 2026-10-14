@@ -60,7 +60,7 @@ interface FooterProps {
 const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Overview', href: '/platform' },
   { label: 'Enterprise', href: '/enterprise' },
-  { label: 'Chat', href: 'https://docs.sim.ai/mothership', external: true },
+  { label: 'Chat', href: 'https://docs.sim.ai/chat', external: true },
   { label: 'Workflows', href: '/workflows' },
   { label: 'Knowledge Base', href: '/knowledge' },
   { label: 'Tables', href: '/tables' },
@@ -102,17 +102,18 @@ const COMPARE_LINKS: FooterItem[] = [
   })),
 ]
 
+/** Popular integrations link to their landing pages, which link onward to the docs reference. */
 const INTEGRATION_LINKS: FooterItem[] = [
   { label: 'All Integrations', href: '/integrations' },
-  { label: 'Slack', href: 'https://docs.sim.ai/integrations/slack', external: true },
-  { label: 'GitHub', href: 'https://docs.sim.ai/integrations/github', external: true },
-  { label: 'Gmail', href: 'https://docs.sim.ai/integrations/gmail', external: true },
-  { label: 'Notion', href: 'https://docs.sim.ai/integrations/notion', external: true },
-  { label: 'Salesforce', href: 'https://docs.sim.ai/integrations/salesforce', external: true },
+  { label: 'Slack', href: '/integrations/slack' },
+  { label: 'GitHub', href: '/integrations/github' },
+  { label: 'Gmail', href: '/integrations/gmail' },
+  { label: 'Notion', href: '/integrations/notion' },
+  { label: 'Salesforce', href: '/integrations/salesforce' },
   { label: 'Jira', href: '/integrations/jira' },
-  { label: 'Linear', href: 'https://docs.sim.ai/integrations/linear', external: true },
-  { label: 'Supabase', href: 'https://docs.sim.ai/integrations/supabase', external: true },
-  { label: 'Stripe', href: 'https://docs.sim.ai/integrations/stripe', external: true },
+  { label: 'Linear', href: '/integrations/linear' },
+  { label: 'Supabase', href: '/integrations/supabase' },
+  { label: 'Stripe', href: '/integrations/stripe' },
 ]
 
 const SOCIAL_LINKS: FooterItem[] = [

@@ -125,6 +125,7 @@ export default async function ComparisonProviderPage({
         position: 1,
         item: {
           '@type': 'SoftwareApplication',
+          '@id': `${SITE_URL}#software`,
           name: 'Sim',
           applicationCategory: 'BusinessApplication',
           url: SITE_URL,

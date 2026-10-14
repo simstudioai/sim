@@ -34,7 +34,7 @@ const PRODUCT_LINKS: FooterItem[] = [
 
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: `${SIM_SITE_URL}/blog`, external: true },
-  { label: 'Compare', href: `${SIM_SITE_URL}/comparison`, external: true },
+  { label: 'Compare', href: `${SIM_SITE_URL}/comparisons`, external: true },
   { label: 'Careers', href: `${SIM_SITE_URL}/careers`, external: true },
   { label: 'Changelog', href: `${SIM_SITE_URL}/changelog`, external: true },
   { label: 'Contact', href: `${SIM_SITE_URL}/contact`, external: true },

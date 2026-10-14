@@ -14,7 +14,7 @@ const logger = createLogger('DocsLlmsFullAsset')
 await plugin(createMdxPlugin({ disableMetaFile: true }))
 
 const { source } = await import('@/lib/source')
-const { getLLMText } = await import('@/lib/llms')
+const { getLLMText, isApiOperationPage } = await import('@/lib/llms')
 const publicDirectory = path.resolve('public')
 const temporaryDirectory = await mkdtemp(path.join(publicDirectory, '.llms-full-'))
 const temporaryFile = path.join(temporaryDirectory, 'llms-full.txt')
@@ -24,7 +24,7 @@ async function* generateText(): AsyncGenerator<string> {
   let bytes = 0
   const pages = [...source.getPages()].sort((left, right) => compareStrings(left.url, right.url))
   for (const page of pages) {
-    if (!page?.data || !page.url) continue
+    if (!page?.data || !page.url || isApiOperationPage(page)) continue
     const text = await getLLMText(page)
     if (!text) continue
     const chunk = `${hasContent ? '\n\n---\n\n' : ''}${text}`
