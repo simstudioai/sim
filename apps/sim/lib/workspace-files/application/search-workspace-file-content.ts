@@ -100,10 +100,8 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           })
         return toWorkspaceFileSearchResult(result)
       }
-      /**
-       * One repeatable-read snapshot keeps the folder scope and file rows consistent with each other.
-       * Admission runs after commit, so row or advisory locks would fence nothing.
-       */
+      // One repeatable-read snapshot keeps the folder scope and file rows consistent with each other.
+      // Admission runs after commit, so row or advisory locks would fence nothing.
       const delivery = await db.transaction(
         async (tx) => {
           const [current] = await tx

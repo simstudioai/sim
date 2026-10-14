@@ -406,11 +406,9 @@ export async function searchFileIndex({
         signal?.throwIfAborted()
         const resultRows = rows.slice(0, maxResults)
         const counts = coverageRows[0]
-        /**
-         * Every joined row is exactly one of ready, failed, skipped, or pending (no revision, a
-         * pending one, or a ready one whose build or inputs are stale), so pending is the remainder
-         * and the dependency check runs once per ready file.
-         */
+        // Every joined row is exactly one of ready, failed, skipped, or pending (no revision, a
+        // pending one, or a ready one whose build or inputs are stale), so pending is the remainder
+        // and the dependency check runs once per ready file.
         const indexStatus: WorkspaceFileSearchIndexStatus = counts
           ? {
               readyFiles: counts.readyFiles,

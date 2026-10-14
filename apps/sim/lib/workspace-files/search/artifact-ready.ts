@@ -1,11 +1,13 @@
+import { db } from '@sim/db'
 import {
   fileSearchDispatchQueue,
   workspaceFileSearchBuild,
   workspaceFileSearchRevision,
 } from '@sim/db/schema'
 import { and, eq, or, sql } from 'drizzle-orm'
-import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
+import { FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS } from '@/lib/workspace-files/search/constants'
 import { lockFileSearchInputs } from '@/lib/workspace-files/search/index-state'
 import {
   fileSearchOwnerCondition,
@@ -13,6 +15,7 @@ import {
   resolveFileSearchOwner,
 } from '@/lib/workspace-files/search/scope'
 import type { FileSearchDependencyIdentity } from '@/lib/workspace-files/search/source'
+import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
 /** A renderer's private receipt; surfaces cannot supply it through a file contract. */
 interface FileSearchArtifactCompletion {
@@ -49,12 +52,11 @@ function artifactRevisionCondition(input: FileSearchArtifactCompletion, owner: E
  * Lock-free form of {@link markFileSearchArtifactReadyInTx}'s no-op test: the file's current
  * revision is already built from this artifact, ready or still under a live build lease.
  */
-export async function isFileSearchArtifactCurrent(
-  executor: DbOrTx,
-  input: FileSearchArtifactCompletion
+async function isFileSearchArtifactCurrent(
+  input: FileSearchArtifactCompletion,
+  owner: EditableFileOwner
 ): Promise<boolean> {
-  const owner = assertFileSearchArtifactReceipt(input)
-  const [current] = await executor
+  const [current] = await db
     .select({ fileId: workspaceFileSearchRevision.fileId })
     .from(workspaceFileSearchRevision)
     .innerJoin(
@@ -76,6 +78,23 @@ export async function isFileSearchArtifactCurrent(
     )
     .limit(1)
   return current !== undefined
+}
+
+/**
+ * Requeues search for a freshly rendered artifact unless its revision already uses it. The common
+ * already-current case takes no locks; the locked requeue is bounded by a short lock timeout.
+ */
+export async function requeueFileSearchForRenderedArtifact(
+  input: FileSearchArtifactCompletion
+): Promise<void> {
+  const owner = assertFileSearchArtifactReceipt(input)
+  if (await isFileSearchArtifactCurrent(input, owner)) return
+  await db.transaction(async (tx) => {
+    await configureFileSearchTransaction(tx, {
+      lockTimeout: FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS,
+    })
+    await markFileSearchArtifactReadyInTx(tx, input)
+  })
 }
 
 /** Requeues only current stored inputs and fences workers that read before the artifact existed. */

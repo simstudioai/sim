@@ -78,7 +78,7 @@ export async function loadFileSearchSource(
       ),
     ]
   } catch (error) {
-    /** Unparseable source still has searchable text; it just names no inputs. */
+    // Unparseable source still has searchable text; it just names no inputs.
     if (error instanceof DocCompileUserError)
       return { file, bytes: { buffer: raw, kind: 'source' }, dependencies: [] }
     throw error

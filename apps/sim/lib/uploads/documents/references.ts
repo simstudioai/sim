@@ -23,16 +23,9 @@ const INPUT_PATH_PREFIX = '/home/user/inputs/'
  */
 const REFERENCE_MARKERS = [...FILE_HELPERS, INPUT_PATH_PREFIX]
 
-let typescriptModule: typeof ts | undefined
-
-/** The compiler is large and most sources carry no reference, so it loads on first parse. */
-function loadTypeScript(): typeof ts {
-  typescriptModule ??= require('@typescript/typescript6') as typeof ts
-  return typescriptModule
-}
-
 function* javascriptTokens(source: string): Generator<SourceToken> {
-  const typescript = loadTypeScript()
+  // The compiler is large and most sources carry no reference, so it loads on first parse.
+  const typescript = require('@typescript/typescript6') as typeof ts
   const fileName = 'document.js'
   const sourceFile = typescript.createSourceFile(
     fileName,
