@@ -20,7 +20,7 @@ export function ProjectIssueRestrictions({
   onChange,
 }: ProjectIssueRestrictionsProps) {
   const projects = useProjects(organizationId)
-  if (projects.isPending) return null
+  if (!projects.isEnabled || projects.isPending) return null
   const choices = projects.data?.pages.flatMap((page) => page.projects) ?? []
   if (!projects.error && choices.length === 0) return null
   const selected = new Set(value)

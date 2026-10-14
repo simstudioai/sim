@@ -49,7 +49,6 @@ afterEach(() => {
   act(() => root.unmount())
   client.clear()
   container.remove()
-  vi.unstubAllGlobals()
 })
 
 async function render(projects: boolean) {
@@ -85,5 +84,15 @@ describe('ProjectIssueRestrictions', () => {
     await render(true)
     expect(requests.some((url) => url.startsWith('/api/projects?'))).toBe(true)
     expect(container.querySelector('#project-issues-project-1')).not.toBeNull()
+  })
+
+  it('hides Projects loaded before the projects flag turned off', async () => {
+    await render(true)
+    act(() => root.unmount())
+    root = createRoot(container)
+    requests = []
+    await render(false)
+    expect(requests).toEqual([])
+    expect(container.querySelector('#project-issues-project-1')).toBeNull()
   })
 })
