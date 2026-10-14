@@ -149,6 +149,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import {
   getWorkspaceFileShares,
@@ -430,6 +431,59 @@ describe('content reaching Chat is admitted per item', () => {
       expect(read.body).toContain(fixture.files.unknown)
       expect(read.body).toContain(fixture.files.entries)
     })
+
+    it.each(['uncached', 'cached', 'recovered', 'user-error', 'subsequent-error'] as const)(
+      'keeps generated-document refusals per item (%s archive)',
+      async (kind) => {
+        const input = fixture.files.unknown
+        const read = `await getFileBase64('${input}');`
+        const code =
+          kind === 'recovered'
+            ? `try { ${read} } catch {} pdf.addPage().drawText('safe fallback');`
+            : kind === 'user-error'
+              ? `const error = new Error('File cannot be sent to a model because its secret provenance is unavailable'); error.name = 'ContentRefusedError'; throw error;`
+              : kind === 'subsequent-error'
+                ? `try { ${read} } catch {} throw new Error('fixture compiler failure');`
+                : `${read} pdf.addPage().drawText('fixture render');`
+        const document = await uploadWorkspaceFile(
+          ws(),
+          fixture.ids.aliceId,
+          Buffer.from(`const archiveFixture = '${generateId()}'; ${code}`),
+          `archive-refusal-${generateId()}.pdf`,
+          'text/x-python-pdf',
+          { notifyWorkspaceChange: false, secretProvenance: { status: 'exact', entries: [] } }
+        )
+        if (kind === 'cached') {
+          const warmed = await downloadWorkspaceFileItems.execute({
+            principal: createSessionPrincipal({ userId: fixture.ids.aliceId }),
+            input: { workspaceId: ws(), fileIds: [document.id], folderIds: [] },
+          })
+          expect(warmed.renderedDocuments.get(document.id)?.subarray(0, 4).toString()).toBe('%PDF')
+        }
+        const route = `/api/v2/files/bulk-download?workspaceId=${ws()}&fileIds=`
+        const mixed = await cli('GET', `${route}${fixture.files.clean},${document.id}`)
+        if (kind === 'user-error' || kind === 'subsequent-error') {
+          expect(mixed.status).toBe(500)
+          expect(mixed.body).toContain('INTERNAL_ERROR')
+          return
+        }
+        expect(mixed.status, mixed.body).toBe(200)
+        expect(mixed.body).toContain(CANARY.clean)
+        expect(mixed.body).not.toContain(CANARY.unknown)
+        expect(mixed.registry.isPermanentlyIncomplete()).toBe(false)
+        if (kind === 'recovered') {
+          expect(mixed.body).toContain('%PDF')
+          expect(mixed.body).not.toContain('sim-download-report.json')
+        } else {
+          expect(mixed.body).not.toContain('%PDF')
+          expect(mixed.body).toContain('sim-download-report.json')
+          expect(mixed.body).toContain(document.id)
+          const alone = await cli('GET', `${route}${document.id}`)
+          expect(alone.status, alone.body).toBe(403)
+          expect(alone.body).not.toContain(CANARY.unknown)
+        }
+      }
+    )
 
     it('answers files search with locations and withheld unreadable previews (#5, misroute)', async () => {
       const read = await cli(

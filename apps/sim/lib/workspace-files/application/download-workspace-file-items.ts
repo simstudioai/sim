@@ -219,6 +219,10 @@ async function executeDownloadWorkspaceFileItems({
       renderedBytes += buffer.length
       renderedDocuments.set(file.id, buffer)
     } catch (error) {
+      if (error instanceof ContentRefusedError) {
+        filesToZip = filesToZip.filter((admitted) => admitted.id !== file.id)
+        continue
+      }
       if (error instanceof PayloadSizeLimitError) {
         validationError(
           allowance === MAX_RENDERED_DOCUMENT_BYTES

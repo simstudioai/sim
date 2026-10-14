@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { ContentRefusedError } from '@/lib/core/application'
 import {
   executeInIsolatedVM,
   type IsolatedVMBrokerHandler,
@@ -65,8 +66,16 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}
   const runInCallerContext = AsyncLocalStorage.snapshot()
+  let brokerRefusal: ContentRefusedError | undefined
   for (const broker of task.brokers) {
-    brokers[broker.name] = (args) => runInCallerContext(() => broker.handle(brokerContext, args))
+    brokers[broker.name] = async (args) => {
+      try {
+        return await runInCallerContext(() => broker.handle(brokerContext, args))
+      } catch (error) {
+        if (error instanceof ContentRefusedError) brokerRefusal = error
+        throw error
+      }
+    }
   }
 
   const request: IsolatedVMExecutionRequest = {
@@ -124,6 +133,8 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
       if (result.error.stack) err.stack = result.error.stack
       throw err
     }
+    // IPC carries strings; retain a matching host refusal without reclassifying user-thrown errors.
+    if (brokerRefusal && result.error.message === brokerRefusal.message) throw brokerRefusal
     throw new SandboxUserCodeError(
       result.error.message,
       result.error.name || 'SandboxTaskError',
