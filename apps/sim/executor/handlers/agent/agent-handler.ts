@@ -92,6 +92,7 @@ import type {
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
 import {
+  assertFallbackFamilyCredentials,
   getModelFallbacks,
   PROVIDER_FAMILY_CREDENTIAL_FIELDS,
   recordModelFallbacks,
@@ -2640,6 +2641,7 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           candidateProviderId = getProviderFromModel(candidate.model)
           await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
+          assertFallbackFamilyCredentials(candidateProviderId, config.primaryProviderId)
         } catch (error) {
           this.warnFallbackSkipped(ctx, block, candidate.model, 'unusable', error)
           continue

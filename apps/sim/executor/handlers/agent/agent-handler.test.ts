@@ -695,6 +695,7 @@ describe('AgentBlockHandler', () => {
     const providerFor = (model: string) => {
       if (model.startsWith('gpt')) return 'openai'
       if (model.startsWith('claude')) return 'anthropic'
+      if (model.startsWith('vertex/')) return 'vertex'
       if (model === 'blacklisted-model') throw new Error('provider blacklisted')
       return 'openai'
     }
@@ -1079,6 +1080,26 @@ describe('AgentBlockHandler', () => {
       expect(mockAgentLogger.warn).toHaveBeenCalledWith(
         'Fallback model unusable; skipping',
         expect.objectContaining({ model: 'blacklisted-model' })
+      )
+    })
+
+    it('skips a fallback on another provider that needs its own family credentials', async () => {
+      mockExecuteProviderRequest
+        .mockRejectedValueOnce(new Error('down'))
+        .mockResolvedValueOnce(providerResponse('gpt-4o-mini'))
+
+      await handler.execute(mockContext, mockBlock, {
+        ...baseInputs,
+        fallbackModels: [{ model: 'vertex/gemini-3.1-pro' }, { model: 'gpt-4o-mini' }],
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls.map(([, request]) => request.model)).toEqual([
+        'gpt-4o',
+        'gpt-4o-mini',
+      ])
+      expect(mockAgentLogger.warn).toHaveBeenCalledWith(
+        'Fallback model unusable; skipping',
+        expect.objectContaining({ model: 'vertex/gemini-3.1-pro' })
       )
     })
 
