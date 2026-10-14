@@ -31,6 +31,7 @@ import {
   flushAllFileDocRooms,
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
+import { getFileDocStore, initFileDocStore } from '@/handlers/file-doc-store'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import {
   beginRoomPermissionRead,
@@ -42,6 +43,7 @@ import { MemoryRoomManager } from '@/rooms'
 const projectId = generateId()
 const fileId = generateId()
 let docId = generateId()
+let version = 1
 const document = new Y.Doc()
 document.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
 document.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, docId)
@@ -52,6 +54,13 @@ const actors = new Map<string, 'read' | 'write' | null>([
   ['writer', 'write'],
 ])
 const checks: { name: string; status: string; durationMs: number; error?: string }[] = []
+const delayedAccess = new Map<
+  string,
+  {
+    entered: ReturnType<typeof createDeferred<void>>
+    release: ReturnType<typeof createDeferred<void>>
+  }
+>()
 let app: HttpServer
 let http: HttpServer
 let io: Server
@@ -75,7 +84,7 @@ async function listen(server: HttpServer) {
 }
 
 beforeAll(async () => {
-  env.REDIS_URL = undefined
+  await initFileDocStore(env.REDIS_URL)
   app = createServer(async (request, response) => {
     const actor = request.headers['x-sim-subject-user-id']
     const connection = request.headers['x-sim-realtime-connection-id']
@@ -108,13 +117,26 @@ beforeAll(async () => {
       return
     }
     if (request.url.endsWith('/access')) {
+      const authorizedDocId = docId
+      const delayed = delayedAccess.get(actor)
+      if (delayed) {
+        delayedAccess.delete(actor)
+        delayed.entered.resolve()
+        await delayed.release.promise
+      }
       response.end(
-        JSON.stringify({ projectId, fileId, canRead: true, canWrite: role === 'write', docId })
+        JSON.stringify({
+          projectId,
+          fileId,
+          canRead: true,
+          canWrite: role === 'write',
+          docId: authorizedDocId,
+        })
       )
       return
     }
     if (request.url.endsWith('/seed')) {
-      response.end(JSON.stringify({ update: seed, version: 1 }))
+      response.end(JSON.stringify({ update: seed, version }))
       return
     }
     if (request.url.endsWith('/persist')) {
@@ -123,7 +145,8 @@ beforeAll(async () => {
         return
       }
       capturedActors.push(actor)
-      response.end(JSON.stringify({ status: 'persisted', version: 2 }))
+      version += 1
+      response.end(JSON.stringify({ status: 'persisted', version }))
       return
     }
     response.writeHead(404).end('{}')
@@ -677,6 +700,63 @@ describe('Project documents across the Socket.IO and internal HTTP boundary', ()
       expect(restored.joined.docId).toBe(docId)
     }
   )
+  check('a delayed authorization cannot retire a replacement with acknowledged edits', async () => {
+    await join('reader')
+    const actor = `delayed-${generateId()}`
+    actors.set(actor, 'read')
+    const gate = { entered: createDeferred<void>(), release: createDeferred<void>() }
+    delayedAccess.set(actor, gate)
+    const delayed = await startJoin(actor)
+    const outcome = delayed.joined.then(
+      () => null,
+      (error: unknown) => error
+    )
+    const replacement = new Y.Doc()
+    try {
+      await gate.entered.promise
+      docId = generateId()
+      replacement.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+      replacement.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, docId)
+      seed = Buffer.from(Y.encodeStateAsUpdate(replacement)).toString('base64')
+      const writerActor = `replacement-${generateId()}`
+      actors.set(writerActor, 'write')
+      const writer = await join(writerActor)
+      expect(writer.joined.docId).toBe(docId)
+      replacement.getText('body').insert(0, 'acknowledged replacement edit')
+      expect(
+        await writer.socket.timeout(1500).emitWithAck(FILE_DOC_EVENTS.UPDATE, {
+          fileId,
+          projectId,
+          docId,
+          updateId: generateId(),
+          update: Y.encodeStateAsUpdate(replacement),
+        })
+      ).toMatchObject({ status: 'accepted' })
+      gate.release.resolve()
+      await outcome
+      const name = `project-file-doc:${projectId}/${fileId}`
+      const store = getFileDocStore()
+      expect(await store.getDocumentGeneration(name)).toBe(docId)
+      const snapshot = await store.getStreamSnapshot(name, docId)
+      expect(snapshot).not.toBeNull()
+      const recovered = new Y.Doc()
+      try {
+        if (!snapshot) throw new Error('Acknowledged replacement history disappeared')
+        Y.applyUpdate(recovered, snapshot.docState)
+        expect(recovered.getText('body').toString()).toBe('acknowledged replacement edit')
+      } finally {
+        recovered.destroy()
+      }
+      expect((await join('reader')).joined.docId).toBe(docId)
+      await flushAllFileDocRooms()
+      expect(capturedActors.at(-1)).toBe(writerActor)
+    } finally {
+      gate.release.resolve()
+      await outcome
+      delayedAccess.delete(actor)
+      replacement.destroy()
+    }
+  })
 })
 
 afterAll(async () => {
@@ -684,6 +764,7 @@ afterAll(async () => {
   await flushAllFileDocRooms()
   await new Promise<void>((resolve) => io.close(() => resolve()))
   await new Promise<void>((resolve) => app.close(() => resolve()))
+  await getFileDocStore().shutdown()
   document.destroy()
   const reportPath =
     process.env.PROJECT_FILE_SOCKET_REPORT_PATH ?? resolve('test-results/project-file-socket.json')

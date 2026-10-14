@@ -1621,6 +1621,9 @@ export function setupWorkspaceFileDocHandlers(
           emitError: ({ error, code, retryable }) =>
             emitJoinError(socket, fileId, clientId, error, code, retryable),
         })
+      const store = getFileDocStore()
+      // A delayed authorization may retire only the generation observed before that lookup.
+      const observedGeneration = projectId ? await store.getDocumentGeneration(name) : ''
       const authorized = await authorizeJoin()
       if (!authorized) return
 
@@ -1628,23 +1631,30 @@ export function setupWorkspaceFileDocHandlers(
       // awareness). Resolved here so the generation guard below also covers this await.
       const avatarUrl = await resolveAvatarUrl(socket, userId)
 
-      const store = getFileDocStore()
       if (projectId && authorized.docId) {
-        const shared = await store.getDocumentGeneration(name)
-        if (shared && shared !== authorized.docId) {
+        if (observedGeneration && observedGeneration !== authorized.docId) {
           await retireLiveProjectFileDocument(
             {
               projectId,
               fileId,
-              retiredDocId: shared,
+              retiredDocId: observedGeneration,
               replacementDocId: authorized.docId,
             },
             io
           )
         }
-        const local = fileDocRooms.get(name)
-        if (local && docIdOf(local.doc) && docIdOf(local.doc) !== authorized.docId)
-          discardInvalidatedRoom(name, io)
+        const currentGeneration = await store.getDocumentGeneration(name)
+        if (currentGeneration && currentGeneration !== authorized.docId) {
+          emitJoinError(
+            socket,
+            fileId,
+            clientId,
+            'Document changed while joining',
+            'JOIN_FAILED',
+            true
+          )
+          return
+        }
       }
       const existing = fileDocRooms.get(name)
       if (
