@@ -3,6 +3,7 @@ import {
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
 import {
   permissionGroupsResolveMock,
@@ -29,6 +30,8 @@ const {
   mockListWorkspaceFiles: mockListFiles,
   mockListWorkspaceFileFolders: mockListFolders,
 } = workspaceUploadsMockFns
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
@@ -144,7 +147,7 @@ describe('downloadWorkspaceFileItems', () => {
     )
 
     expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
-    expect(mockResolvePermission).toHaveBeenCalledOnce()
+    expect(mockResolvePermission).toHaveBeenCalledTimes(2)
     expect(mockProvenance).toHaveBeenCalledWith('ws-1', [
       expect.objectContaining({ fileId: 'f1', key: 'key-f1' }),
     ])

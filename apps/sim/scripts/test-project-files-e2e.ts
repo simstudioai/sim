@@ -303,6 +303,7 @@ const suites = [
   ['browser', 'PROJECT_FILE_BROWSER', 'test-project-file-browser-e2e.ts'],
   ['history', 'PROJECT_FILE_HISTORY', 'test-project-file-history-e2e.ts'],
   ['rendered', 'PROJECT_FILE_RENDERED', 'test-project-file-rendered-e2e.ts'],
+  ['copy', 'FILE_COPY', 'test-file-copy-e2e.ts'],
   ['realtime', 'FILE_LIST_REALTIME', 'test-file-list-realtime-e2e.ts'],
 ] as const
 

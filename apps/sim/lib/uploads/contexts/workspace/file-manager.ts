@@ -506,7 +506,7 @@ export interface PlannedFileIdentity {
 const plannedFileOwners = new WeakMap<PlannedFileIdentity, Readonly<EditableFileOwner>>()
 
 /** Reserves an in-process destination identity so a compound copy can rewrite selected references. */
-function planFileIdentity(owner: EditableFileOwner): PlannedFileIdentity {
+export function planFileIdentity(owner: EditableFileOwner): PlannedFileIdentity {
   const identity = Object.freeze({ id: `wf_${generateShortId()}` })
   plannedFileOwners.set(identity, Object.freeze({ ...owner }))
   return identity

@@ -55,6 +55,8 @@
         "lib/api/contracts/project-file-folders.ts": ["types"],
         "lib/api/contracts/project-file-lifecycle.ts": ["types"],
         "sandboxes/index.ts": ["files"],
+        "lib/api/contracts/file-copy.ts": ["exports", "types"],
+        "lib/api/contracts/file-copy-input.ts": ["exports", "types"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],
         "lib/api/contracts/selectors/index.ts": ["files"],

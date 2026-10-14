@@ -3,6 +3,8 @@ import { attachChat } from './chat'
 import {
   attachFileGet,
   attachFileVersionDownload,
+  attachProjectFileDownload,
+  attachProjectFileSnapshotExport,
   attachProjectFileSource,
   attachProjectFileVersionSource,
 } from './files-get'
@@ -30,6 +32,8 @@ export function attachProtocolCommands(program: Command): void {
   const projectFiles = group(group(program, 'projects'), 'files')
   attachProjectFileUpload(projectFiles)
   attachProjectFileSource(projectFiles)
+  attachProjectFileDownload(projectFiles)
+  attachProjectFileSnapshotExport(projectFiles)
   attachProjectFileVersionSource(group(projectFiles, 'versions'))
   const files = group(program, 'files')
   attachFileUpload(files)

@@ -16,6 +16,7 @@ import {
 } from '../../http/client'
 import { describeOperation } from '../../runtime/build'
 import { apiCommand, type Connection } from '../../runtime/called-operations'
+import { buildRequest, readArgumentSource } from '../../runtime/request'
 import { printProtocolResult } from './result'
 
 function writeFailure(path: WriteStream['path'], error: unknown): SimApiError {
@@ -291,6 +292,8 @@ interface DownloadOutputOptions {
 type DownloadOperation =
   | 'downloadFile'
   | 'downloadFileVersion'
+  | 'downloadProjectFileItems'
+  | 'exportProjectFileSnapshot'
   | 'readProjectFileContent'
   | 'readProjectFileVersionContent'
 
@@ -345,6 +348,73 @@ async function downloadToOutput<Operation extends DownloadOperation>(
     path: savedTarget,
     status: 'saved',
   })
+}
+
+interface ProjectFileDownloadOptions extends DownloadOutputOptions {
+  fileIds?: string[]
+  folderIds?: string[]
+}
+
+/** Owner-specific selection uses the same bounded transfer and atomic output path as file reads. */
+export function attachProjectFileDownload(files: Command): void {
+  const [command, connect] = apiCommand(files, 'bulk-download', ['downloadProjectFileItems'])
+  command
+    .argument('<projectId>', 'Project that owns the files')
+    .allowExcessArguments(false)
+    .description(
+      describeOperation(
+        V2_OPERATIONS.downloadProjectFileItems,
+        'Download Project files and recursive folder contents as a zip archive'
+      )
+    )
+    .option('--file-ids <id...>', 'File identifiers to include')
+    .option('--folder-ids <id...>', 'Folder identifiers to include recursively')
+    .option('-o, --output-file <path>', 'Write the archive to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action(async (projectId: string, options: ProjectFileDownloadOptions) => {
+      const input = await buildRequest(
+        'downloadProjectFileItems',
+        [projectId],
+        { ...options },
+        null
+      )
+      await downloadToOutput(connect, 'downloadProjectFileItems', { projectId }, options, 'owner', {
+        query: input.query,
+      })
+    })
+}
+
+interface ProjectFileSnapshotOptions extends DownloadOutputOptions {
+  content: string
+}
+
+/** Snapshot text comes from the caller's file reader, including the embedded workbench boundary. */
+export function attachProjectFileSnapshotExport(files: Command): void {
+  const [command, connect] = apiCommand(files, 'export', ['exportProjectFileSnapshot'])
+  command
+    .argument('<projectId>', 'Project that owns the file')
+    .argument('<fileId>', 'Markdown file whose visible snapshot to export')
+    .allowExcessArguments(false)
+    .description(
+      describeOperation(
+        V2_OPERATIONS.exportProjectFileSnapshot,
+        'Export a visible Project Markdown snapshot with its embedded assets'
+      )
+    )
+    .requiredOption('--content <text|@file|@->', 'Visible Markdown content or a file to read')
+    .option('-o, --output-file <path>', 'Write the export to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action(async (projectId: string, fileId: string, options: ProjectFileSnapshotOptions) => {
+      const source = await readArgumentSource(options.content, 'content')
+      await downloadToOutput(
+        connect,
+        'exportProjectFileSnapshot',
+        { projectId, fileId },
+        options,
+        'owner',
+        { body: { content: source.text } }
+      )
+    })
 }
 
 export function attachFileGet(files: Command): void {

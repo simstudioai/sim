@@ -416,6 +416,38 @@ try {
       })
     }
   )
+  await check('copy emits only to the canonical destination owner', async () => {
+    const workspaceFile = toRecord(
+      json(
+        await request(`/api/workspaces/${fixture.workspaceId}/files`, 'POST', {
+          name: 'copy-source.txt',
+          content: 'copy bytes',
+          contentType: 'text/plain',
+          encoding: 'utf-8',
+        }),
+        201
+      ).file
+    )
+    await sleep(200)
+    const before = workspaceEvents.length
+    await changed(async () => {
+      json(
+        await request('/api/files/copy', 'POST', {
+          source: {
+            owner: { entityType: 'workspace', entityId: fixture.workspaceId },
+            fileIds: [required(workspaceFile.id)],
+            folderIds: [],
+          },
+          destination: {
+            owner: { entityType: 'project', entityId: fixture.projectId },
+            folderId: null,
+          },
+        }),
+        201
+      )
+    })
+    assert.equal(workspaceEvents.length, before)
+  })
   await check(
     'upload allocation stays silent and only completed registration invalidates',
     async () => {
