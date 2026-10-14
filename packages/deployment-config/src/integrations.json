@@ -66,7 +66,7 @@
       "slug": "affinity",
       "name": "Affinity",
       "description": "Read and write companies, people, lists, notes, and relationships in Affinity",
-      "longDescription": "Read companies, people, opportunities, lists, and saved views; search companies, people, list entries, notes, and files. Read or update field values and notes; list or create reminders; retrieve interactions and transcripts; discover relationship paths; and follow field changes for incremental synchronization. Access depends on the API key holder’s permissions.",
+      "longDescription": "Read companies, people, opportunities, lists, and saved views; search companies, people, and list entries. Page through the rows of a list or saved view. Read field values and update them individually or in batches of up to 100 on one company, person, or list entry. Read, create, update, delete, and reply to notes; list or create reminders; retrieve logged calls, emails, chat messages, meetings, and transcripts. Search notes and files by keyword, find companies from a plain-language description with Semantic Search, discover possible introduction paths through shared work and investment history, and follow the field-value change feed for incremental synchronization. Access depends on the API key holder’s permissions.",
       "bgColor": "#1B1C1E",
       "iconName": "AffinityIcon",
       "docsUrl": "https://docs.sim.ai/integrations/affinity",
@@ -7871,7 +7871,7 @@
       "slug": "dropbox",
       "name": "Dropbox",
       "description": "Upload, download, share, and manage files in Dropbox",
-      "longDescription": "Upload and download files, list and search folders, create folders, manage shared links, and move items between folders or to the trash.",
+      "longDescription": "Upload and download files, list folder contents, search files and folders, create folders, manage shared links, and move items between folders or to the trash.",
       "bgColor": "#0061FF",
       "iconName": "DropboxIcon",
       "docsUrl": "https://docs.sim.ai/integrations/dropbox",
@@ -16689,7 +16689,7 @@
       "slug": "microsoft-teams",
       "name": "Microsoft Teams",
       "description": "Manage messages, reactions, and members in Teams",
-      "longDescription": "Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Use trigger mode to start a workflow from new or updated messages in a selected chat, or an @mention of the outgoing webhook in a channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
+      "longDescription": "Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Use trigger mode for message notifications in a selected chat, or an @mention of the outgoing webhook in a channel. Chat subscriptions request creation and update notifications, but Sim deduplicates them by subscription and message ID within a seven-day window. Later edits may not start a separate run. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftTeamsIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_teams",
@@ -16777,7 +16777,7 @@
         {
           "id": "microsoftteams_chat_subscription",
           "name": "Microsoft Teams Chat",
-          "description": "Trigger workflows from new or updated messages in a Microsoft Teams chat via Microsoft Graph subscriptions."
+          "description": "Trigger workflows from Microsoft Teams chat message notifications via Microsoft Graph subscriptions. Notifications share a seven-day deduplication window keyed by subscription and message ID, so later edits may not start a separate run."
         }
       ],
       "triggerCount": 2,
