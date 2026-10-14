@@ -36,10 +36,6 @@ import {
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
-import { projectFileFolderOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-file-folders'
-import { projectFileUploadOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-file-uploads'
-import { projectFileVersionOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-file-versions'
-import { projectFileOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-files'
 import {
   documentedSchema,
   type ErrorResponseId,
@@ -158,10 +154,6 @@ function auditOperation(
 }
 
 const declaredRoutes = [
-  ...projectFileOpenApiRoutes,
-  ...projectFileVersionOpenApiRoutes,
-  ...projectFileFolderOpenApiRoutes,
-  ...projectFileUploadOpenApiRoutes,
   defineOpenApiRoute(
     v2ListFilesContract,
     filesOperation({

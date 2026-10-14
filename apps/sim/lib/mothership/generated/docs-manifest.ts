@@ -43,7 +43,6 @@ export const DOCS_MANIFEST: readonly string[] = [
   'cli/output.mdx',
   'cli/permission-groups.mdx',
   'cli/profiles.mdx',
-  'cli/projects.mdx',
   'cli/reference.mdx',
   'cli/sandboxes.mdx',
   'cli/scripting.mdx',
