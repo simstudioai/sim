@@ -1,11 +1,8 @@
-import { useEffect } from 'react'
 import { toast } from '@sim/emcn'
-import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
 import {
-  isCancelledError,
   keepPreviousData,
   MutationObserver,
   mutationOptions,
@@ -49,8 +46,6 @@ import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
-const logger = createLogger('MothershipChatQueries')
-
 export interface MothershipChatMetadata {
   mode?: MothershipChat['mode']
   id: string
@@ -92,7 +87,10 @@ export interface MothershipChatHistory {
    * last returned. Absent means none.
    */
   olderMessageCount?: number
-  /** Set when a page of older messages can never load, so `messages` stops short of the chat's start. */
+  /**
+   * Set when the page at `olderCursor` failed for good, so `messages` stops short of the chat's
+   * start and nothing loads it again until a reload replaces the window.
+   */
   olderMessagesFailed?: boolean
 }
 
@@ -415,6 +413,7 @@ function joinCachedOlderMessages(
     messages: [...cached.messages.slice(0, overlap), ...fetched.messages],
     olderCursor: cached.olderCursor ?? null,
     olderMessageCount: overlap,
+    olderMessagesFailed: cached.olderMessagesFailed,
   }
 }
 
@@ -468,14 +467,19 @@ export function mothershipChatHistoryQueryOptions(chatId: string | undefined) {
 /** A failed page is tried again while the chat stays open, at most every 30 s. */
 const OLDER_MESSAGES_BACKOFF = { baseMs: 1000, maxMs: 30 * 1000 }
 
+/** Tries a 404 gets: enough to outlast a deploy whose old servers lack the route (~2 min). */
+const OLDER_MESSAGES_NOT_FOUND_RETRIES = 8
+
 /**
- * Whether a failed page is worth another try: a network failure, a server error, or a 404 from
- * a server that predates the route mid-deploy. Any other response — a refused cursor, lost
- * access, or a body that fails its contract — fails the same way every time.
+ * Whether a failed page is worth another try: a network failure or server error always, and a
+ * 404 a bounded number of times, since mid-deploy it can come from a server that predates the
+ * route while a deleted chat returns it for good. A refused cursor, lost access, or a body that
+ * fails its contract fails the same way every time.
  */
-function isTransientOlderMessagesError(error: unknown): boolean {
+function shouldRetryOlderMessages(failureCount: number, error: unknown): boolean {
   if (!isApiClientError(error)) return true
-  return error.status >= 500 || [404, 408, 429].includes(error.status)
+  if (error.status === 404) return failureCount < OLDER_MESSAGES_NOT_FOUND_RETRIES
+  return error.status >= 500 || error.status === 408 || error.status === 429
 }
 
 /**
@@ -483,7 +487,7 @@ function isTransientOlderMessagesError(error: unknown): boolean {
  * has moved past `cursor` (a reload replaced the window) keeps its own state. The page lives
  * only in the detail entry: its query is collected as soon as it settles.
  */
-async function loadOlderMothershipChatMessages(
+export async function loadOlderMothershipChatMessages(
   queryClient: QueryClient,
   chatId: string,
   cursor: string
@@ -497,7 +501,7 @@ async function loadOlderMothershipChatMessages(
         signal,
       }),
     gcTime: 0,
-    retry: (_failureCount, error) => isTransientOlderMessagesError(error),
+    retry: shouldRetryOlderMessages,
     retryDelay: (failureCount) => backoffWithJitter(failureCount, null, OLDER_MESSAGES_BACKOFF),
   })
   queryClient.setQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId), (current) => {
@@ -511,45 +515,6 @@ async function loadOlderMothershipChatMessages(
       olderMessageCount: (current.olderMessageCount ?? 0) + older.length,
     }
   })
-}
-
-/**
- * Loads a chat's older messages behind its newest window, a page at a time, so the whole
- * transcript is in place before the user scrolls back to it. Each page moves the cached
- * `olderCursor`, which loads the next, until the chat's first message arrives.
- *
- * Writing pages into the detail entry, rather than a separate infinite query, keeps every
- * reader of `detail.messages` (send, find, sources, fork) on one transcript.
- */
-export function useMothershipChatOlderMessages(
-  chatId: string | undefined,
-  olderCursor: string | null | undefined
-) {
-  const queryClient = useQueryClient()
-  useEffect(() => {
-    if (!chatId || !olderCursor) return
-    const queryKey = mothershipChatKeys.olderMessages(chatId, olderCursor)
-    loadOlderMothershipChatMessages(queryClient, chatId, olderCursor).catch((error) => {
-      if (isCancelledError(error)) return
-      logger.warn('Failed to load older chat messages', {
-        chatId,
-        error: toError(error).message,
-      })
-      if (isTransientOlderMessagesError(error)) return
-      // Stop asking for a page that will never load, so readers waiting on older history
-      // (the Sources panel) settle on an error instead of loading forever.
-      queryClient.setQueryData<MothershipChatHistory>(
-        mothershipChatKeys.detail(chatId),
-        (current) =>
-          current?.olderCursor === olderCursor
-            ? { ...current, olderCursor: null, olderMessagesFailed: true }
-            : current
-      )
-    })
-    return () => {
-      void queryClient.cancelQueries({ queryKey, exact: true })
-    }
-  }, [queryClient, chatId, olderCursor])
 }
 
 /**

@@ -161,6 +161,13 @@ afterAll(async () => {
   await db.$client.end()
 })
 
+/** `db:push` never installs the migration-only trigger that clears a stale projection. */
+const [{ migrated }] = await db.execute<{ migrated: boolean }>(sql`SELECT EXISTS (
+  SELECT 1 FROM pg_trigger
+  WHERE tgrelid = 'copilot_messages'::regclass
+    AND tgname = 'copilot_messages_clear_stale_display_content'
+) AS migrated`)
+
 describe('chat transcript pages in PostgreSQL', () => {
   it('serves the UI the same messages as before while storing the bulk params only in content', async () => {
     const chatId = await createChat()
@@ -201,25 +208,28 @@ describe('chat transcript pages in PostgreSQL', () => {
     )
   })
 
-  it('drops the projection when a writer that predates it replaces the content', async () => {
-    const chatId = await createChat()
-    const reply = assistantTurn('first draft', true)
-    await appendCopilotChatMessages(chatId, [userTurn('run it'), reply])
-    await db
-      .update(copilotMessages)
-      .set({ content: { ...reply, content: 'final', contentBlocks: [] } })
-      .where(eq(copilotMessages.messageId, reply.id))
+  it.skipIf(!migrated)(
+    'drops the projection when a writer that predates it replaces the content',
+    async () => {
+      const chatId = await createChat()
+      const reply = assistantTurn('first draft', true)
+      await appendCopilotChatMessages(chatId, [userTurn('run it'), reply])
+      await db
+        .update(copilotMessages)
+        .set({ content: { ...reply, content: 'final', contentBlocks: [] } })
+        .where(eq(copilotMessages.messageId, reply.id))
 
-    const [stored] = await db
-      .select({ display: copilotMessages.displayContent })
-      .from(copilotMessages)
-      .where(eq(copilotMessages.messageId, reply.id))
-    expect(stored.display).toBeNull()
-    const latest = await latestWindow(chatId)
-    expect(uiProjection(latest?.messages ?? [])).toEqual(
-      previousUiProjection(await loadCopilotChatMessages(chatId))
-    )
-  })
+      const [stored] = await db
+        .select({ display: copilotMessages.displayContent })
+        .from(copilotMessages)
+        .where(eq(copilotMessages.messageId, reply.id))
+      expect(stored.display).toBeNull()
+      const latest = await latestWindow(chatId)
+      expect(uiProjection(latest?.messages ?? [])).toEqual(
+        previousUiProjection(await loadCopilotChatMessages(chatId))
+      )
+    }
+  )
 
   it('reads the full content of a message whose projection was never stored', async () => {
     const chatId = await createChat()

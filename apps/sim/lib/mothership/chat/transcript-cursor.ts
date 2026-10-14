@@ -15,7 +15,7 @@ export interface TranscriptPosition {
 }
 
 const transcriptPositionSchema = z.object({
-  seq: z.number().int().nullable(),
+  seq: z.number().int().min(-2147483648).max(2147483647).nullable(),
   createdAt: z.string().refine((value) => classifyTimestampCursor(value) === 'precise'),
   id: z.string().uuid(),
 })

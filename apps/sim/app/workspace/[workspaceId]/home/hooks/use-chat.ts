@@ -117,6 +117,7 @@ import {
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
+import { useMothershipChatOlderMessages } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-chat-older-messages'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
@@ -127,7 +128,6 @@ import {
   mothershipChatKeys,
   saveMothershipChatEffort,
   useMothershipChatHistory,
-  useMothershipChatOlderMessages,
 } from '@/hooks/queries/mothership-chats'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
@@ -1382,7 +1382,7 @@ export function useChat(
     isPending: isChatHistoryPending,
     error: chatHistoryError,
   } = useMothershipChatHistory(resolvedChatId)
-  useMothershipChatOlderMessages(resolvedChatId, chatHistory?.olderCursor)
+  useMothershipChatOlderMessages(resolvedChatId, chatHistory)
   const requestModeRef = useRef<ChatRequestMode>(
     options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
   )

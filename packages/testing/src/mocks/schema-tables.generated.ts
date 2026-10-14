@@ -1088,6 +1088,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'messageId',
     'role',
     'content',
+    'displayContent',
     'streamId',
     'model',
     'seq',

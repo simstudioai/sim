@@ -4,16 +4,18 @@
  * Backfill `copilot_messages.display_content` for messages written before it existed, so the
  * chat UI's transcript reads stop detoasting their full tool-call params.
  *
- * Walks the table in primary-key order. Each step reads a batch of ids with their stored
- * `content` size (`pg_column_size` reads the TOAST pointer, not the value), then loads and
- * rewrites only the assistant messages over `--min-bytes`. A row is updated only while it is
- * unchanged since it was read, so a message rewritten concurrently keeps its fresh projection.
+ * Walks the table in primary-key order, reading assistant messages in paced batches and storing
+ * a projection for each one whose tool-call params the UI truncates. A row is updated only while
+ * it is unchanged since it was read, so a message rewritten concurrently keeps the projection
+ * its writer stored. `--min-bytes` skips messages whose stored (compressed) `content` is smaller,
+ * read from the TOAST pointer without loading the value; it defaults to 0 because repetitive
+ * params compress far below the size the UI pays to receive them.
  * Idempotent and resumable: re-running skips rows that already have one, and `--after=<id>`
  * resumes from the last id logged.
  *
  * Usage:
  *   cd apps/sim && DATABASE_URL=... bun scripts/copilot-messages-backfill-display-content.ts \
- *     [--dry-run] [--after=<uuid>] [--min-bytes=16384] [--pause-ms=200]
+ *     [--dry-run] [--after=<uuid>] [--min-bytes=0] [--pause-ms=200]
  */
 
 import { parseArgs } from 'node:util'
@@ -59,7 +61,7 @@ async function main(): Promise<void> {
     },
   })
   const dryRun = values['dry-run']
-  const minBytes = wholeNumber('min-bytes', values['min-bytes'], 16 * 1024)
+  const minBytes = wholeNumber('min-bytes', values['min-bytes'], 0)
   const pauseMs = wholeNumber('pause-ms', values['pause-ms'], 200)
   let after = values.after ?? null
 
@@ -99,9 +101,11 @@ async function main(): Promise<void> {
       for (const row of rows) {
         const display = displayProjection(row.content)
         if (!display) continue
-        updated++
-        if (dryRun) continue
-        await db
+        if (dryRun) {
+          updated++
+          continue
+        }
+        const written = await db
           .update(copilotMessages)
           .set({ displayContent: display })
           .where(
@@ -111,6 +115,8 @@ async function main(): Promise<void> {
               isNull(copilotMessages.displayContent)
             )
           )
+          .returning({ id: copilotMessages.id })
+        updated += written.length
       }
       await sleep(pauseMs)
     }

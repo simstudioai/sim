@@ -21,6 +21,11 @@ import { getChatFindText } from '@/app/workspace/[workspaceId]/home/components/m
 import { getUserMessageText } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
 import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 
+/**
+ * Most matches a search keeps, counted back from the newest message: older history loads in
+ * ahead of what is on screen, and a limit counted from the oldest would push the matches the
+ * user is reading out of the list as it arrives.
+ */
 const MATCH_LIMIT = 500
 const EXCLUDED_CONTENT =
   'button, [aria-hidden="true"], [data-agent-group], [data-chat-activity], [data-interaction-card], [data-chat-find-ignore], [data-footnote-ref], [data-footnotes]'
@@ -151,22 +156,28 @@ export function useChatFind({
   const deferredQuery = useDeferredValue(query)
   const term = isOpen ? deferredQuery.trim() : ''
   const result = useMemo(() => {
-    const matches: ChatFindMatch[] = []
+    const newestFirst: ChatFindMatch[][] = []
+    let count = 0
     let truncated = false
     if (term) {
-      for (const [messageIndex, message] of messages.entries()) {
-        if (hiddenUserByIndex[messageIndex] || message.origin === 'task') continue
+      for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
+        const message = messages[messageIndex]
+        if (!message || hiddenUserByIndex[messageIndex] || message.origin === 'task') continue
         const text = getMessageSearchText(message, textCache)
-        let occurrence = 0
+        const occurrences: ChatFindMatch[] = []
         forEachSearchOccurrence(text, term, () => {
-          if (matches.length < MATCH_LIMIT)
-            matches.push({ messageIndex, messageId: message.id, occurrence: occurrence++ })
-          else truncated = true
+          occurrences.push({ messageIndex, messageId: message.id, occurrence: occurrences.length })
         })
-        if (truncated) break
+        if (count + occurrences.length > MATCH_LIMIT) {
+          newestFirst.push(occurrences.slice(occurrences.length - (MATCH_LIMIT - count)))
+          truncated = true
+          break
+        }
+        count += occurrences.length
+        newestFirst.push(occurrences)
       }
     }
-    return { matches, truncated }
+    return { matches: newestFirst.reverse().flat(), truncated }
   }, [messages, hiddenUserByIndex, term, textCache])
   const pinnedIndex = activeMatch
     ? result.matches.findIndex(
@@ -184,7 +195,7 @@ export function useChatFind({
   }
   /** Read by `step`, so stepping keeps one identity while a streaming reply rebuilds the matches. */
   const matchesRef = useRef(result.matches)
-  useEffect(() => {
+  useLayoutEffect(() => {
     matchesRef.current = result.matches
   }, [result.matches])
 
