@@ -20,6 +20,7 @@
  */
 
 import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
@@ -832,7 +833,7 @@ describe('useChat remount send recovery', () => {
       addSent: Promise<void>
     } {
       const writes: string[] = []
-      const addSent = Promise.withResolvers<void>()
+      const addSent = createDeferred<void>()
       mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
         if (contract.path !== '/api/mothership/chat/resources') return { chats: [] }
         const { body } = input as { body: { resource?: { id: string }; resourceId?: string } }
@@ -870,7 +871,7 @@ describe('useChat remount send recovery', () => {
     })
 
     it('deletes an add still in flight once it lands, after the server removal', async () => {
-      const add = Promise.withResolvers<unknown>()
+      const add = createDeferred<unknown>()
       const { writes, addSent } = recordResourceWrites(() => add.promise)
       streamAddThenServerRemoval(addSent)
       const { getResult } = renderUseChatInChat(chat.id, chat)
