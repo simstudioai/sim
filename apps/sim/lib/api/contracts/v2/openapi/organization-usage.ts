@@ -41,7 +41,7 @@ export const organizationUsageOpenApiRoutes = [
         v2GetOrganizationMemberUsageLimitContract.query,
         'GetOrganizationMemberUsageLimitQuery',
         'Get organization member credit limit query',
-        'Reporting window and applicable usage filters or pagination.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2GetOrganizationMemberUsageLimitContract.response.schema,
@@ -77,7 +77,7 @@ export const organizationUsageOpenApiRoutes = [
         v2UpdateOrganizationMemberUsageLimitContract.query,
         'UpdateOrganizationMemberUsageLimitQuery',
         'Update organization member credit limit query',
-        'Reporting window and applicable usage filters or pagination.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2UpdateOrganizationMemberUsageLimitContract.body,
@@ -114,13 +114,13 @@ export const organizationUsageOpenApiRoutes = [
         v2GetOrganizationUsageSummaryContract.params,
         'GetOrganizationUsageSummaryParams',
         'Get organization usage summary parameters',
-        'Organization and target user IDs.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2GetOrganizationUsageSummaryContract.query,
         'GetOrganizationUsageSummaryQuery',
         'Get organization usage summary query',
-        'Reporting window and applicable usage filters or pagination.'
+        'Reporting window and optional workspace filter.'
       ),
       response: documentedSchema(
         v2GetOrganizationUsageSummaryContract.response.schema,
@@ -164,13 +164,13 @@ export const organizationUsageOpenApiRoutes = [
         v2GetOrganizationUsageBreakdownContract.params,
         'GetOrganizationUsageBreakdownParams',
         'Get organization usage breakdown parameters',
-        'Organization and target user IDs.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2GetOrganizationUsageBreakdownContract.query,
         'GetOrganizationUsageBreakdownQuery',
         'Get organization usage breakdown query',
-        'Reporting window and applicable usage filters or pagination.'
+        'Reporting window, optional workspace filter, grouping dimension, and result limit.'
       ),
       response: documentedSchema(
         v2GetOrganizationUsageBreakdownContract.response.schema,
@@ -211,13 +211,13 @@ export const organizationUsageOpenApiRoutes = [
         v2ListOrganizationUsageEventsContract.params,
         'ListOrganizationUsageEventsParams',
         'List organization usage events parameters',
-        'Organization and target user IDs.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationUsageEventsContract.query,
         'ListOrganizationUsageEventsQuery',
         'List organization usage events query',
-        'Reporting window and applicable usage filters or pagination.'
+        'Reporting window, source filter, sorting, and pagination.'
       ),
       response: documentedSchema(
         v2ListOrganizationUsageEventsContract.response.schema,

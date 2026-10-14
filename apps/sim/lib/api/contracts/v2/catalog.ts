@@ -394,7 +394,7 @@ export type V2ToolOutput = z.output<typeof v2ToolOutputSchema>
 const v2HostedApiKeySchema = z
   .enum(['always', 'conditional', 'none'])
   .describe(
-    'API-key hosting on this deployment: `always`, `conditional` for some parameter combinations, or `none` when the caller must supply a key. Self-hosted deployments report `none` for every tool.'
+    'API-key hosting on this deployment: `always`, `conditional` for some parameter combinations, or `none` when Sim does not supply a key. Supply your own key only if the tool requires one. Self-hosted deployments report `none` for every tool.'
   )
 
 const v2ToolOAuthSchema = z.object({

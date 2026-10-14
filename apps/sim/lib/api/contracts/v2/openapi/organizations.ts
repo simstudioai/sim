@@ -89,7 +89,7 @@ export const organizationOpenApiRoutes = [
         v2GetOrganizationContract.params,
         'GetOrganizationParams',
         'Get organization parameters',
-        'Organization and resource identifiers.'
+        'Organization identifier.'
       ),
       query: v2GetOrganizationContract.query,
       response: documentedSchema(
@@ -131,7 +131,7 @@ export const organizationOpenApiRoutes = [
         v2ListOrganizationWorkspacesContract.params,
         'ListOrganizationWorkspacesParams',
         'List organization workspaces parameters',
-        'Organization and resource identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationWorkspacesContract.query,
@@ -167,7 +167,7 @@ export const organizationOpenApiRoutes = [
         v2ListOrganizationMembersContract.params,
         'ListOrganizationMembersParams',
         'List organization members parameters',
-        'Organization and resource identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationMembersContract.query,
@@ -295,7 +295,7 @@ export const organizationOpenApiRoutes = [
         v2ListOrganizationInvitationsContract.params,
         'ListOrganizationInvitationsParams',
         'List organization invitations parameters',
-        'Organization and resource identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationInvitationsContract.query,
@@ -348,7 +348,7 @@ export const organizationOpenApiRoutes = [
         v2CreateOrganizationInvitationContract.params,
         'CreateOrganizationInvitationParams',
         'Create organization invitation parameters',
-        'Organization and resource identifiers.'
+        'Organization identifier.'
       ),
       query: v2CreateOrganizationInvitationContract.query,
       body: documentedSchema(

@@ -57,7 +57,7 @@ export const accessRequestOpenApiRoutes = [
         v2DiscoverWorkspaceAccessRequestsContract.params,
         'DiscoverWorkspaceAccessRequestsParams',
         'Discover workspace access requests parameters',
-        'Scope and request identifiers.'
+        'Workspace identifier.'
       ),
       query: documentedSchema(
         v2DiscoverWorkspaceAccessRequestsContract.query,
@@ -106,7 +106,7 @@ export const accessRequestOpenApiRoutes = [
         v2ListMyWorkspaceAccessRequestsContract.params,
         'ListMyWorkspaceAccessRequestsParams',
         'List my workspace access requests parameters',
-        'Scope and request identifiers.'
+        'Workspace identifier.'
       ),
       query: documentedSchema(
         v2ListMyWorkspaceAccessRequestsContract.query,
@@ -143,13 +143,13 @@ export const accessRequestOpenApiRoutes = [
         v2CreateWorkspaceAccessRequestContract.params,
         'CreateWorkspaceAccessRequestParams',
         'Create workspace access request parameters',
-        'Scope and request identifiers.'
+        'Workspace identifier.'
       ),
       query: documentedSchema(
         v2CreateWorkspaceAccessRequestContract.query,
         'CreateWorkspaceAccessRequestQuery',
         'Create workspace access request query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2CreateWorkspaceAccessRequestContract.body,
@@ -192,7 +192,7 @@ export const accessRequestOpenApiRoutes = [
         v2CancelWorkspaceAccessRequestContract.query,
         'CancelWorkspaceAccessRequestQuery',
         'Cancel workspace access request query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2CancelWorkspaceAccessRequestContract.response.schema,
@@ -226,7 +226,7 @@ export const accessRequestOpenApiRoutes = [
         v2DiscoverOrganizationAccessRequestsContract.params,
         'DiscoverOrganizationAccessRequestsParams',
         'Discover organization access requests parameters',
-        'Scope and request identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2DiscoverOrganizationAccessRequestsContract.query,
@@ -275,7 +275,7 @@ export const accessRequestOpenApiRoutes = [
         v2ListMyOrganizationAccessRequestsContract.params,
         'ListMyOrganizationAccessRequestsParams',
         'List my organization access requests parameters',
-        'Scope and request identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListMyOrganizationAccessRequestsContract.query,
@@ -312,13 +312,13 @@ export const accessRequestOpenApiRoutes = [
         v2CreateOrganizationAccessRequestContract.params,
         'CreateOrganizationAccessRequestParams',
         'Create organization access request parameters',
-        'Scope and request identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2CreateOrganizationAccessRequestContract.query,
         'CreateOrganizationAccessRequestQuery',
         'Create organization access request query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2CreateOrganizationAccessRequestContract.body,
@@ -361,7 +361,7 @@ export const accessRequestOpenApiRoutes = [
         v2CancelOrganizationAccessRequestContract.query,
         'CancelOrganizationAccessRequestQuery',
         'Cancel organization access request query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2CancelOrganizationAccessRequestContract.response.schema,
@@ -400,7 +400,7 @@ export const accessRequestOpenApiRoutes = [
         v2ListOrganizationAccessRequestsContract.params,
         'ListOrganizationAccessRequestsParams',
         'List organization access requests parameters',
-        'Scope and request identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2ListOrganizationAccessRequestsContract.query,
@@ -442,7 +442,7 @@ export const accessRequestOpenApiRoutes = [
         v2PreviewOrganizationAccessRequestContract.query,
         'PreviewOrganizationAccessRequestQuery',
         'Preview organization access request query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2PreviewOrganizationAccessRequestContract.response.schema,
@@ -500,7 +500,7 @@ export const accessRequestOpenApiRoutes = [
         v2ResolveOrganizationAccessRequestContract.query,
         'ResolveOrganizationAccessRequestQuery',
         'Resolve organization access request query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2ResolveOrganizationAccessRequestContract.body,
@@ -541,13 +541,13 @@ export const accessRequestOpenApiRoutes = [
         v2GetOrganizationAccessRequestSettingsContract.params,
         'GetOrganizationAccessRequestSettingsParams',
         'Get organization access request settings parameters',
-        'Scope and request identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2GetOrganizationAccessRequestSettingsContract.query,
         'GetOrganizationAccessRequestSettingsQuery',
         'Get organization access request settings query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2GetOrganizationAccessRequestSettingsContract.response.schema,
@@ -577,13 +577,13 @@ export const accessRequestOpenApiRoutes = [
         v2UpdateOrganizationAccessRequestSettingsContract.params,
         'UpdateOrganizationAccessRequestSettingsParams',
         'Update organization access request settings parameters',
-        'Scope and request identifiers.'
+        'Organization identifier.'
       ),
       query: documentedSchema(
         v2UpdateOrganizationAccessRequestSettingsContract.query,
         'UpdateOrganizationAccessRequestSettingsQuery',
         'Update organization access request settings query',
-        'Query parameters for this operation.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2UpdateOrganizationAccessRequestSettingsContract.body,

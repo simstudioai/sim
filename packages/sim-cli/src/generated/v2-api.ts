@@ -15327,7 +15327,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         default: '',
         describe:
-          'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.',
+          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads.',
       },
       encoding: {
         kind: 'enum',
@@ -15656,7 +15656,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['none', 'headers', 'oauth'] as const,
         describe:
-          'Authentication method. If omitted without `headers`, registration probes once for OAuth protected-resource metadata (RFC 9728), otherwise falling back to `headers`. Set this field explicitly to choose header authentication for a server advertising OAuth; adding headers later does not change the saved method.',
+          'Authentication method. On creation, omission without `headers` probes once: an OAuth challenge selects `oauth`, an unauthenticated success selects `none`, and other outcomes fall back to `headers`. An OAuth client ID selects `oauth` when the method is omitted. Set explicitly to use headers with a server advertising OAuth; adding headers later does not change the saved method.',
       },
       headers: {
         kind: 'object',
@@ -22147,7 +22147,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe:
-          'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.',
+          'Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content.',
       },
       encoding: {
         kind: 'enum',
@@ -22374,7 +22374,7 @@ export const V2_OPERATIONS = {
         kind: 'enum',
         values: ['none', 'headers', 'oauth'] as const,
         describe:
-          'Authentication method. If omitted without `headers`, registration probes once for OAuth protected-resource metadata (RFC 9728), otherwise falling back to `headers`. Set this field explicitly to choose header authentication for a server advertising OAuth; adding headers later does not change the saved method.',
+          'Authentication method. On creation, omission without `headers` probes once: an OAuth challenge selects `oauth`, an unauthenticated success selects `none`, and other outcomes fall back to `headers`. An OAuth client ID selects `oauth` when the method is omitted. Set explicitly to use headers with a server advertising OAuth; adding headers later does not change the saved method.',
       },
       headers: {
         kind: 'object',

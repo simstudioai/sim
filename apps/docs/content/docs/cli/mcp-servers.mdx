@@ -70,7 +70,7 @@ sim mcp-servers create [options]
 | `--description <value>` | No | Optional server description. |
 | `--transport <value>` | No | Transport protocol. Defaults to `streamable-http` on creation. Accepted values: `streamable-http`. |
 | `--url <value>` | Yes | Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references. It determines server identity and is immutable: delete and recreate the server to change endpoints. |
-| `--auth-type <value>` | No | Authentication method. If omitted without `headers`, registration probes once for OAuth protected-resource metadata (RFC 9728), otherwise falling back to `headers`. Set this field explicitly to choose header authentication for a server advertising OAuth; adding headers later does not change the saved method. Accepted values: `none`, `headers`, `oauth`. |
+| `--auth-type <value>` | No | Authentication method. On creation, omission without `headers` probes once: an OAuth challenge selects `oauth`, an unauthenticated success selects `none`, and other outcomes fall back to `headers`. An OAuth client ID selects `oauth` when the method is omitted. Set explicitly to use headers with a server advertising OAuth; adding headers later does not change the saved method. Accepted values: `none`, `headers`, `oauth`. |
 | `--headers <json\|@file>` | No | Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat. (JSON, or @path / @- to read a file or stdin). |
 | `--timeout <value>` | No | Per-request timeout in milliseconds. Defaults to 30000 on creation. |
 | `--retries <value>` | No | Number of retries per request. Defaults to 3 on creation. |
@@ -109,7 +109,7 @@ sim mcp-servers update <mcpServerId> [options]
 | `--description <value>` | No | Optional server description. |
 | `--transport <value>` | No | Transport protocol. Defaults to `streamable-http` on creation. Accepted values: `streamable-http`. |
 | `--url <value>` | No | Immutable server URL. When provided, it must equal the current URL; use delete and create to change endpoints. |
-| `--auth-type <value>` | No | Authentication method. If omitted without `headers`, registration probes once for OAuth protected-resource metadata (RFC 9728), otherwise falling back to `headers`. Set this field explicitly to choose header authentication for a server advertising OAuth; adding headers later does not change the saved method. Accepted values: `none`, `headers`, `oauth`. |
+| `--auth-type <value>` | No | Authentication method. On creation, omission without `headers` probes once: an OAuth challenge selects `oauth`, an unauthenticated success selects `none`, and other outcomes fall back to `headers`. An OAuth client ID selects `oauth` when the method is omitted. Set explicitly to use headers with a server advertising OAuth; adding headers later does not change the saved method. Accepted values: `none`, `headers`, `oauth`. |
 | `--headers <json\|@file>` | No | Write-only request headers sent to the server. Replaced wholesale rather than merged on update: sending this field drops every stored header it does not repeat. (JSON, or @path / @- to read a file or stdin). |
 | `--timeout <value>` | No | Per-request timeout in milliseconds. Defaults to 30000 on creation. |
 | `--retries <value>` | No | Number of retries per request. Defaults to 3 on creation. |

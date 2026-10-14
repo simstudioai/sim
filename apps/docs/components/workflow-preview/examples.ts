@@ -2349,7 +2349,7 @@ export const BUILD_AGENT_WORKFLOW: PreviewWorkflow = {
       sentence: ['Return', { subBlockId: 'Data', noun: 'response' }],
       bgColor: '#2F55FF',
       position: { x: 680, y: 0 },
-      rows: [{ title: 'Data', value: '{ "score": "<agent.score>" }' }],
+      rows: [{ title: 'Data', value: '{ "score": <agent.score> }' }],
     },
   ],
   edges: [

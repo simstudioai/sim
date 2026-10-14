@@ -44,7 +44,9 @@ YAML frontmatter is kept separately and restored when the document is saved. Foo
 
 If a document cannot safely round-trip through rich editing, it opens with a read-only rich preview and an **Edit source** action for members with edit access. Examples include hard line breaks inside headings, non-canonical HTML entities such as `&copy;`, and some reference or image constructs.
 
-Rich editing supports up to 262,144 characters. Larger Markdown documents can use **Edit source**, within the text editor's 50 MiB limit. Files above the text editor limit must be downloaded or processed elsewhere. A file may also be temporarily read-only while Sim is writing it or the collaborative editor is connecting.
+Rich editing supports up to 262,144 characters. **Edit source** can open text files up to 50 MiB, but saving sends the entire content in a JSON request capped at 10 MiB, including encoding and escaping. Download or process files elsewhere when these limits prevent editing.
+
+A file may also be temporarily read-only while Sim is writing it or the collaborative editor is connecting.
 
 ## Download a document
 

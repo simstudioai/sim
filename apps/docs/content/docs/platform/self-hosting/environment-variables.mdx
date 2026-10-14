@@ -232,8 +232,8 @@ Configure at least one. Every configured provider stays active and is tried in o
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `API_MAX_JSON_BODY_BYTES` | 50 MiB | Max JSON body on contract-validated API routes |
-| `CHAT_MAX_REQUEST_BYTES` | 220 MiB | Max body on the public deployed-chat endpoint |
+| `API_MAX_JSON_BODY_BYTES` | 50 MiB | Configured JSON body cap; contract-validated routes clamp it to 10 MiB, or a lower route cap |
+| `CHAT_MAX_REQUEST_BYTES` | 220 MiB | Configured body cap on the public deployed-chat endpoint; the Next.js proxy buffer also applies |
 | `WEBHOOK_MAX_REQUEST_BYTES` | 10 MiB | Max body on public webhook receiver endpoints |
 | `WORKFLOW_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev workflow task concurrency |
 | `WEBHOOK_EXECUTION_CONCURRENCY_LIMIT` | `75` | Trigger.dev webhook task concurrency |
@@ -245,7 +245,7 @@ Configure at least one. Every configured provider stays active and is tried in o
 
 A malformed entry in either allowlist stops the app at startup with a message naming the setting. See [the SSRF boundary](/platform/self-hosting/security#the-ssrf-boundary) for the accepted syntax and for what the allowlist does and does not reach.
 
-Your reverse proxy's body-size limit must be at least as large as the app limits above. See [Networking](/platform/self-hosting/networking).
+Most `/api` routes also pass through Next.js Proxy, which buffers only the first 10 MiB with the current app configuration. Raising these variables or an external proxy limit does not raise that buffer. See [Request size limits](/platform/self-hosting/networking#request-size-limits) for the layers to configure.
 
 ## Limits
 

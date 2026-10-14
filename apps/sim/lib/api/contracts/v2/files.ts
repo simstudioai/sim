@@ -323,7 +323,7 @@ export const v2CreateFileBodySchema = z
       .max(70_000_000, 'content is too large')
       .default('')
       .describe(
-        'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.'
+        'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads.'
       ),
     encoding: z
       .enum(['utf-8', 'base64'])
@@ -726,7 +726,7 @@ export const v2UpdateFileContentBodySchema = z
       .string()
       .max(70_000_000, 'content is too large')
       .describe(
-        'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.'
+        'Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content.'
       ),
     encoding: z
       .enum(['utf-8', 'base64'])

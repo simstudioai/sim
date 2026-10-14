@@ -750,7 +750,7 @@ export const CLI_CONTRACT: CliContract = {
       folderPath: FOLDER_PATH_FLAG,
       content: {
         describe:
-          'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; decoded content must be at most 50 MiB, and longer base64 content is rejected with 413. For larger files, use `sim files upload <path>`',
+          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including encoding and the envelope; the separate decoded-file limit is 50 MiB. For larger payloads, use `sim files upload <path>`',
       },
     },
   },

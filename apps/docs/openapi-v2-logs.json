@@ -463,7 +463,15 @@
                         "startedAt": "2026-01-15T10:30:00.000Z",
                         "endedAt": "2026-01-15T10:30:01.250Z",
                         "totalDurationMs": 1250,
-                        "files": null,
+                        "files": [
+                          {
+                            "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
+                            "name": "summary.pdf",
+                            "size": 18422,
+                            "type": "application/pdf",
+                            "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04"
+                          }
+                        ],
                         "executedByEmail": "billing@example.com",
                         "workflow": {
                           "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
@@ -1898,7 +1906,15 @@
               "startedAt": "2026-01-15T10:30:00.000Z",
               "endedAt": "2026-01-15T10:30:01.250Z",
               "totalDurationMs": 1250,
-              "files": null,
+              "files": [
+                {
+                  "id": "f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04",
+                  "name": "summary.pdf",
+                  "size": 18422,
+                  "type": "application/pdf",
+                  "downloadPath": "/api/v2/workflows/3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36/runs/e4f8d2b6-9a1c-4e3d-8b7f-5c0a2d9e6f13/files/f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04"
+                }
+              ],
               "executedByEmail": "billing@example.com",
               "workflow": {
                 "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",

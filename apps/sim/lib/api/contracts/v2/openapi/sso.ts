@@ -46,7 +46,7 @@ export const ssoOpenApiRoutes = [
         v2ListSsoProvidersContract.query,
         'ListSsoProvidersQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'Sorting and pagination controls.'
       ),
       response: documentedSchema(
         v2ListSsoProvidersContract.response.schema,
@@ -81,7 +81,7 @@ export const ssoOpenApiRoutes = [
         v2GetSsoProviderContract.query,
         'GetSsoProviderQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2GetSsoProviderContract.response.schema,
@@ -101,7 +101,7 @@ export const ssoOpenApiRoutes = [
       tags: ['Organizations'],
       errors: RESOURCE_CONFLICT_ERRORS,
       success: {
-        description: 'The saved identity provider and whether it was created.',
+        description: 'The saved provider ID, protocol, and whether it was created.',
         headers: RATE_LIMIT_HEADERS,
       },
     },
@@ -116,7 +116,7 @@ export const ssoOpenApiRoutes = [
         v2SaveSsoProviderContract.query,
         'SaveSsoProviderQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2SaveSsoProviderContract.body,
@@ -128,7 +128,7 @@ export const ssoOpenApiRoutes = [
         v2SaveSsoProviderContract.response.schema,
         'SaveSsoProviderResponse',
         'Save SSO provider response',
-        'The saved identity provider and whether it was created.'
+        'The saved provider ID, protocol, and whether it was created.'
       ),
     }
   ),
@@ -157,7 +157,7 @@ export const ssoOpenApiRoutes = [
         v2DeleteSsoProviderContract.query,
         'DeleteSsoProviderQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2DeleteSsoProviderContract.response.schema,
@@ -192,7 +192,7 @@ export const ssoOpenApiRoutes = [
         v2SetPrimarySsoProviderContract.query,
         'SetPrimarySsoProviderQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2SetPrimarySsoProviderContract.body,
@@ -233,7 +233,7 @@ export const ssoOpenApiRoutes = [
         v2GetSsoPolicyContract.query,
         'GetSsoPolicyQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2GetSsoPolicyContract.response.schema,
@@ -268,7 +268,7 @@ export const ssoOpenApiRoutes = [
         v2UpdateSsoPolicyContract.query,
         'UpdateSsoPolicyQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2UpdateSsoPolicyContract.body,
@@ -309,7 +309,7 @@ export const ssoOpenApiRoutes = [
         v2ListOrganizationDomainsContract.query,
         'ListOrganizationDomainsQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'Sorting and pagination controls.'
       ),
       response: documentedSchema(
         v2ListOrganizationDomainsContract.response.schema,
@@ -344,7 +344,7 @@ export const ssoOpenApiRoutes = [
         v2AddOrganizationDomainContract.query,
         'AddOrganizationDomainQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2AddOrganizationDomainContract.body,
@@ -385,7 +385,7 @@ export const ssoOpenApiRoutes = [
         v2VerifyOrganizationDomainContract.query,
         'VerifyOrganizationDomainQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       body: documentedSchema(
         v2VerifyOrganizationDomainContract.body,
@@ -426,7 +426,7 @@ export const ssoOpenApiRoutes = [
         v2RemoveOrganizationDomainContract.query,
         'RemoveOrganizationDomainQuery',
         'Query parameters',
-        'Filters and pagination controls.'
+        'No query parameters.'
       ),
       response: documentedSchema(
         v2RemoveOrganizationDomainContract.response.schema,

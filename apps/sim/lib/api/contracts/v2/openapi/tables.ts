@@ -106,11 +106,8 @@ const TABLE_MUTATION_ERRORS = [
 ] as const satisfies readonly ErrorResponseId[]
 
 /**
- * The two table query reads declare their own `maxBodyBytes` — 1 MiB, far below
- * the 50 MiB default every JSON body is held to — so their `413` is a routine
- * answer to an oversized predicate rather than an abuse ceiling, and it is named
- * here and in their descriptions. Every other table read carries its input in
- * the query string and has no body ceiling to exceed.
+ * Table query reads reject JSON predicates over 1 MiB and document that 413.
+ * Other table reads use query parameters and cannot exceed a JSON body cap.
  */
 const TABLE_QUERY_ERRORS = [
   ...RESOURCE_ERRORS,

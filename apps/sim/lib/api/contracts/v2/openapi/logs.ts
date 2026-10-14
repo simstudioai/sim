@@ -64,7 +64,7 @@ const LOG_DETAIL_EXAMPLE = {
     startedAt: '2026-01-15T10:30:00.000Z',
     endedAt: '2026-01-15T10:30:01.250Z',
     totalDurationMs: 1250,
-    files: null,
+    files: LOG_LIST_EXAMPLE.data[0].files,
     /**
      * Deliberately a different address from `workflow.ownerEmail` below. This is
      * an `api` run, so it executed as the workspace billing account while the

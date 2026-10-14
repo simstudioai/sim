@@ -434,10 +434,18 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2UpdateKnowledgeConnectorContract.response.schema,
-        'V2KnowledgeConnectorResponse',
-        'Knowledge connector response',
+        'UpdateKnowledgeConnectorResponse',
+        'Update knowledge connector response',
         'A single connector without secret material.',
-        [{ data: KNOWLEDGE_CONNECTOR_EXAMPLE }]
+        [
+          {
+            data: {
+              ...KNOWLEDGE_CONNECTOR_EXAMPLE,
+              status: 'paused',
+              updatedAt: '2026-06-20T14:03:00.000Z',
+            },
+          },
+        ]
       ),
     }
   ),

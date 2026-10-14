@@ -755,7 +755,7 @@
               "voice-output",
               "api-tool"
             ],
-            "description": "Product surface that consumed credits. The legacy `mothership_block` value identifies the Sim Chat workflow block; the UI labels that source “Agent block.”"
+            "description": "Product surface that consumed credits. The legacy `mothership_block` value identifies the Agent block; `sim-chat` identifies Sim Chat."
           },
           "workspaceId": {
             "anyOf": [

@@ -90,7 +90,7 @@ server {
     listen 443 ssl http2;
     server_name sim.yourdomain.com;
 
-    # Large file uploads (chat attachments can reach ~220 MiB)
+    # Clear the configured deployed-chat cap at this proxy layer.
     client_max_body_size 250M;
 
     location / {
@@ -247,15 +247,17 @@ Application Gateway's backend request timeout defaults to **20 seconds**; raise 
 
 ## Request size limits
 
-Sim enforces its own limits in addition to whatever your proxy allows. The proxy limit must be **at least** as large as the app limit, or the proxy rejects the request before Sim ever sees it.
+Requests must fit every layer: your reverse proxy, Next.js Proxy, and the route's body cap. Raising one layer does not raise the others.
 
 | Variable | Default | Applies to |
 |---|---|---|
-| `API_MAX_JSON_BODY_BYTES` | 50 MiB | Contract-validated API routes |
-| `CHAT_MAX_REQUEST_BYTES` | 220 MiB | The public deployed-chat endpoint (covers ~15 base64 file attachments) |
+| `API_MAX_JSON_BODY_BYTES` | 50 MiB | Configured cap; contract-validated API routes clamp it to 10 MiB, or a lower route cap |
+| `CHAT_MAX_REQUEST_BYTES` | 220 MiB | Configured cap for the public deployed-chat endpoint |
 | `WEBHOOK_MAX_REQUEST_BYTES` | 10 MiB | Public webhook receiver endpoints |
 
-A proxy body limit of at least 250 MB accommodates all three defaults; use the syntax and units your proxy accepts. If you lower the app limits, you can lower the proxy limit to match.
+A reverse-proxy limit of at least 250 MB clears these configured defaults; use the syntax and units your proxy accepts. You can lower it to match smaller app limits.
+
+Most `/api` requests also pass through Next.js Proxy. The current app configuration leaves its `proxyClientMaxBodySize` at 10 MiB. Larger bodies are truncated to that buffer rather than automatically rejected by Next.js; the route may then fail to parse them. Receiving larger custom-route bodies requires changing `experimental.proxyClientMaxBodySize` in the app build, which increases per-request memory use. The shared JSON parser separately clamps contract-validated bodies to 10 MiB, so raising the Next.js buffer alone does not increase their limit. See [Next.js proxy body buffering](https://nextjs.org/docs/app/api-reference/config/next-config-js/proxyClientMaxBodySize).
 
 **With object storage configured**, regular file uploads do not flow through the proxy — the browser `PUT`s them directly to the bucket using a presigned URL, so the proxy limits matter only for chat attachments, API payloads, and webhook bodies. On the default local-disk storage there is no presigned path and every upload goes through the proxy, so its body limit applies to all of them.
 

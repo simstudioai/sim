@@ -345,7 +345,7 @@ export const BLOCK_DISPLAY_WORKFLOWS: Record<string, PreviewWorkflow> = {
         name: 'Pi coding agent',
         type: 'pi',
         typeLabel: 'Pi Coding Agent',
-        bgColor: '#F97316',
+        bgColor: '#000000',
         position: {
           x: 0,
           y: 0,

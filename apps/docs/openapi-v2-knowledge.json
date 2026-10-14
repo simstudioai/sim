@@ -1085,7 +1085,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2KnowledgeConnectorResponse"
+                  "$ref": "#/components/schemas/UpdateKnowledgeConnectorResponse"
                 },
                 "examples": {
                   "example1": {
@@ -1101,14 +1101,14 @@
                         },
                         "syncMode": "full",
                         "syncIntervalMinutes": 1440,
-                        "status": "active",
+                        "status": "paused",
                         "lastSyncAt": "2026-06-20T14:02:11.000Z",
                         "lastSyncError": null,
                         "lastSyncDocCount": 42,
                         "nextSyncAt": "2026-06-21T14:02:11.000Z",
                         "consecutiveFailures": 0,
                         "createdAt": "2026-06-01T09:14:00.000Z",
-                        "updatedAt": "2026-06-20T14:02:11.000Z"
+                        "updatedAt": "2026-06-20T14:03:00.000Z"
                       }
                     }
                   }
@@ -6159,6 +6159,42 @@
               "createdAt": "2026-06-01T09:14:00.000Z",
               "updatedAt": "2026-06-20T14:02:11.000Z",
               "syncLogs": []
+            }
+          }
+        ]
+      },
+      "UpdateKnowledgeConnectorResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2KnowledgeConnector"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update knowledge connector response",
+        "description": "A single connector without secret material.",
+        "examples": [
+          {
+            "data": {
+              "id": "kc-9f8e7d6c",
+              "knowledgeBaseId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+              "connectorType": "notion",
+              "credentialId": "cred-4b3a2c1d",
+              "sourceConfig": {
+                "pageIds": ["page-123"]
+              },
+              "syncMode": "full",
+              "syncIntervalMinutes": 1440,
+              "status": "paused",
+              "lastSyncAt": "2026-06-20T14:02:11.000Z",
+              "lastSyncError": null,
+              "lastSyncDocCount": 42,
+              "nextSyncAt": "2026-06-21T14:02:11.000Z",
+              "consecutiveFailures": 0,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:03:00.000Z"
             }
           }
         ]

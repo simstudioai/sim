@@ -18,7 +18,7 @@ export const credentialMemberOpenApiRoutes = [
       applicationOperation: credentialOperations.listMembers,
       operationId: 'listCredentialMembers',
       summary: 'List credential members',
-      description: `List explicit credential grants, including revoked grants, and inherited workspace Admin access. This endpoint supports OAuth and service-account credentials. Requires workspace read access and permission to manage integration connections. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List explicit credential grants, including revoked grants, and inherited workspace Admin access. Personal API keys and OAuth access tokens can list grants for OAuth or service-account credentials. Requires workspace read access and the \`integrations.manage\` capability. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
       success: {
@@ -53,7 +53,7 @@ export const credentialMemberOpenApiRoutes = [
       applicationOperation: credentialOperations.upsertMember,
       operationId: 'upsertCredentialMember',
       summary: 'Upsert credential member',
-      description: `Grant or change a current workspace member’s credential role. Requires credential Admin access and permission to manage integration connections. Revoked grants become active again; inherited workspace Admins cannot be demoted. A new grant returns \`201\`; an existing grant returns \`200\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Grant or change a current workspace member’s credential role. Requires credential Admin access and the \`integrations.manage\` capability. Revoked grants become active again; inherited workspace Admins cannot be demoted. A new grant returns \`201\`; an existing grant returns \`200\`. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
       success: {
@@ -94,7 +94,7 @@ export const credentialMemberOpenApiRoutes = [
       applicationOperation: credentialOperations.removeMember,
       operationId: 'removeCredentialMember',
       summary: 'Remove credential member',
-      description: `Revoke an active explicit credential grant. Requires credential Admin access and permission to manage integration connections. Inherited workspace Admins cannot be removed; an absent or already-revoked grant returns \`404\`. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Revoke an active explicit credential grant. Requires credential Admin access and the \`integrations.manage\` capability. Inherited workspace Admins cannot be removed; an absent or already-revoked grant returns \`404\`. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Credentials'],
       errors: RESOURCE_ERRORS,
       success: {

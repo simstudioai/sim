@@ -121,7 +121,7 @@ sim.yourdomain.com {
 }
 ```
 
-Route `/socket.io` to realtime on 3002 and other requests to the app on 3000. The 250 MB decimal body limit clears the app's default 220 MiB deployed-chat request limit. `flush_interval -1` explicitly disables response buffering; Caddy already flushes SSE immediately. It also keeps the upstream request running if the client disconnects. See [Caddy streaming behavior](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming).
+Route `/socket.io` to realtime on 3002 and other requests to the app on 3000. The 250 MB decimal Caddy limit clears the configured 220 MiB deployed-chat cap, but the app's current Next.js proxy buffer still limits matching requests to 10 MiB. See [Request size limits](/platform/self-hosting/networking#request-size-limits) before increasing payload sizes. `flush_interval -1` explicitly disables response buffering; Caddy already flushes SSE immediately. It also keeps the upstream request running if the client disconnects. See [Caddy streaming behavior](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming).
 
 This example assumes Caddy runs on the Docker host. A containerized proxy needs reachable Compose service addresses instead of its own `localhost`. For Nginx, Traefik, cloud load balancers, or separate socket hosts, see [Networking](/platform/self-hosting/networking).
 
