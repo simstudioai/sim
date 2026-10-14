@@ -155,7 +155,7 @@ const BANNED_PATTERNS: Array<{
   },
   {
     pattern: new RegExp(
-      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*null${FALLBACK_END}`,
+      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*null\b${FALLBACK_END}`,
       'g'
     ),
     description: 'isRecordLike(v) ? v : null',

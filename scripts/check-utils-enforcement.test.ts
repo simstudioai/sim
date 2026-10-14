@@ -65,6 +65,7 @@ describe('record coercion', () => {
       'const j = isRecordLike(value) ? value : null // first',
       '  ?? fallback',
       'const k = isRecordLike(value) ? value : null as Shape',
+      'const l = isRecordLike(value) ? value : nullableDefault',
     ].join('\n')
     expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([])
   })
