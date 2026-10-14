@@ -953,6 +953,18 @@ describe('Project file content against PostgreSQL and the local object store', (
             })
         )
       ).rejects.toThrow('Private delivery refuses unknown provenance')
+      for (const includeSecretProvenance of [false, true]) {
+        const observed = vi.fn()
+        const result = await observeWorkspaceFileDelivery(observed, () =>
+          readProjectFileContent.execute({
+            principal: f.principal,
+            input: { projectId: f.projectId, fileId: created.file.id, includeSecretProvenance },
+          })
+        )
+        expect(observed).toHaveBeenCalledWith({ status: 'unknown' }, created.file.id)
+        expect('secretProvenance' in result).toBe(includeSecretProvenance)
+        if (includeSecretProvenance) expect(result.secretProvenance).toEqual({ status: 'unknown' })
+      }
     }
   )
 

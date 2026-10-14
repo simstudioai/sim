@@ -851,7 +851,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2CreateProjectFileUploadContract,
     summary: 'Create Project file upload',
     description:
-      'Create a resumable Project file upload. The file is registered only after the signed transfer and completion succeed. The original API credential and upload-token are required on every control request. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Create a resumable Project file upload. The file is registered only after the signed transfer and completion succeed. Creation returns an upload-token. Send that token with the original API credential on subsequent control requests. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/projects/[projectId]/files/uploads/route').then((route) => route.POST),

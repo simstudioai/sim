@@ -21,7 +21,7 @@ export const projectFileUploadOpenApiRoutes = [
       applicationOperation: projectFileOperations.uploadCreate,
       operationId: 'createProjectFileUpload',
       summary: 'Create Project file upload',
-      description: `Create a resumable Project file upload. The file is registered only after the signed transfer and completion succeed. The original API credential and upload-token are required on every control request. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Create a resumable Project file upload. The file is registered only after the signed transfer and completion succeed. Creation returns an upload-token. Send that token with the original API credential on subsequent control requests. ${WORKSPACE_API_KEY_DENIED}`,
       tags: ['Files'],
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
       success: { description: 'Create Project File Upload result.', headers: RATE_LIMIT_HEADERS },

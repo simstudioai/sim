@@ -266,6 +266,8 @@ interface PreparedFileRead {
   content: Buffer
 }
 
+const readDeliveryProvenance = new WeakMap<object, WorkspaceFileSecretProvenance>()
+
 export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readContent,
   async prepare({
@@ -310,20 +312,24 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
             status: 'unknown' as const,
           })
         : undefined
-    return {
+    const result = {
       ...(await mapProjectFileResult(tx, context, file)),
       content: prepared.content,
-      ...(provenance ? { secretProvenance: provenance } : {}),
+      ...(input.includeSecretProvenance && provenance ? { secretProvenance: provenance } : {}),
     }
+    if (provenance) readDeliveryProvenance.set(result, provenance)
+    return result
   },
   afterSuccess: async ({ principal, result }) => {
+    const provenance = readDeliveryProvenance.get(result)
+    readDeliveryProvenance.delete(result)
     await requireAdmittedContent(principal, {
       kind: 'workspace-file',
       id: result.file.id,
-      provenance: result.secretProvenance ?? { status: 'unknown' },
+      provenance: provenance ?? { status: 'unknown' },
       view: 'complete',
     })
-    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+    await reportWorkspaceFileDelivery(provenance, result.file.id)
   },
 })
 
