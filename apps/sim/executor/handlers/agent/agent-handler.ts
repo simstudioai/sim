@@ -9,6 +9,7 @@ import {
   projectResolvedModelInput,
   selectModelSchemaInputPaths,
 } from '@/lib/execution/model-input-provenance'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { readAvailableCustomToolByIdOrTitleAsExecutor } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
 import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
@@ -591,7 +592,7 @@ export class AgentBlockHandler implements BlockHandler {
         logger
       )
       if (configuredFallbacks.some((candidate) => isEvaluationModel(candidate.model))) {
-        throw new Error('Evaluation models cannot serve as chat fallbacks')
+        throw new NonRetryableExecutionError('Evaluation models cannot serve as chat fallbacks')
       }
       const retry = nodeMetadata?.retry
       const fallbacksHeld = retry !== undefined && !retry.isFinalTry

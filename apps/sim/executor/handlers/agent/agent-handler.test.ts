@@ -366,14 +366,17 @@ describe('AgentBlockHandler', () => {
       }
     )
 
-    it('refuses an evaluation model as a conversational fallback before executing the primary', async () => {
+    it('refuses an evaluation model as a conversational fallback, without retry, before executing the primary', async () => {
       await expect(
         handler.execute(mockContext, mockBlock, {
           model: 'gpt-4o',
           messages: [{ role: 'user', content: 'Hello' }],
           fallbackModels: [{ model: 'jev-latest' }],
         })
-      ).rejects.toThrow('Evaluation models cannot serve as chat fallbacks')
+      ).rejects.toMatchObject({
+        message: 'Evaluation models cannot serve as chat fallbacks',
+        retryable: false,
+      })
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
   })
