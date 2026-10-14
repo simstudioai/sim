@@ -11,6 +11,8 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 import { defineWorkspaceOperation } from '@/lib/core/application'
+import { fileReadFailure } from '@/lib/mothership/agent-cli/engines/file-view'
+import { decodeVfsPathSegments } from '@/lib/vfs/path'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
@@ -45,6 +47,25 @@ describe('workspace file reference application service', () => {
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('source'))
+  })
+
+  it('rejects a reference that is not a VFS path, such as a URL, as a validation error the model sees', async () => {
+    const reference = 'https://example.com/report.pdf'
+    mocks.resolveStoredReference.mockImplementation(async (_workspaceId, value: string) => {
+      decodeVfsPathSegments(value)
+      return file
+    })
+    const failure = await resolveWorkspaceFileReference({
+      principal,
+      operation: fileOperations.readContent,
+      workspaceId: file.workspaceId,
+      reference,
+    }).catch((error: unknown) => error)
+    expect(failure).toMatchObject({ name: 'OrchestrationError', code: 'validation' })
+    expect(fileReadFailure(failure).stderr).toBe(
+      `Error: "${reference}" is not a valid workspace file path or ID: VFS path segment cannot be empty or a dot segment`
+    )
+    expect(mocks.loadContext).not.toHaveBeenCalled()
   })
 
   it('carries trusted chat scope into an authorized upload lookup', async () => {

@@ -10,6 +10,7 @@ import {
   type WorkspaceFileLookupOptions,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/file-manager'
+import { VfsPathError } from '@/lib/vfs/path'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { assertOwnedFileAccess } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -73,7 +74,15 @@ export async function resolveReferencedWorkspaceFileContext(
   const lookup = chatId === undefined ? options : { ...options, chatId }
   const file =
     input.folderId === undefined
-      ? await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference, lookup)
+      ? await resolveStoredWorkspaceFileReference(input.workspaceId, input.reference, lookup).catch(
+          (error: unknown) => {
+            if (!(error instanceof VfsPathError)) throw error
+            throw new OrchestrationError(
+              'validation',
+              `"${input.reference}" is not a valid workspace file path or ID: ${error.message}`
+            )
+          }
+        )
       : await getWorkspaceFileByName(input.workspaceId, input.reference, {
           folderId: input.folderId,
         })

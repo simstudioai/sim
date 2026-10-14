@@ -7,6 +7,8 @@ import {
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContentRefusedError, observeContentDelivery } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { fileReadFailure } from '@/lib/mothership/agent-cli/engines/file-view'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 
@@ -130,6 +132,13 @@ describe('owned scratch snapshot reads', () => {
       name: 'image.png',
       hasRecordedSecrets: true,
     })
+  })
+  it('passes a classified workbench failure through to the model unchanged', async () => {
+    const missing = new OrchestrationError('not_found', 'No file exists at /tmp/image.png')
+    mocks.snapshot.mockRejectedValue(missing)
+    const failure = await readAsChat().catch((error: unknown) => error)
+    expect(failure).toBe(missing)
+    expect(fileReadFailure(failure).stderr).toBe('Error: No file exists at /tmp/image.png')
   })
   it('enforces size before streaming and still disposes the snapshot', async () => {
     await expect(
