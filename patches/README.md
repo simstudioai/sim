@@ -113,7 +113,11 @@ then runs `apps/docs/scripts/test-negotiation-e2e.ts`. Its HTTP checks verify
 HTML → Markdown → HTML at one URL, `Vary: Accept` on both representations, and
 preservation of Next's router dimensions. It uploads a JSON report and server
 log. The HTML checks fail with the unpatched dependency even when the proxy
-already sets `Vary: Accept`.
+already sets `Vary: Accept`. `test:headers:e2e` exercises the actual CommonJS and
+ESM mergers over loopback HTTP for string/array fields, mixed casing, wildcards,
+invalid values, other-header replacement, and middleware cookies. Its checks
+fail independently when the merge or validation guard is removed. CI uploads
+both reports.
 
 To repeat against a running production docs server:
 

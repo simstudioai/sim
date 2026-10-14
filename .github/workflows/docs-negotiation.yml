@@ -34,6 +34,7 @@ jobs:
       DATABASE_URL: postgresql://docs_test:docs_test@127.0.0.1:1/docs_test
       DOCS_E2E_BASE_URL: http://127.0.0.1:3001
       DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/test-results/docs-negotiation.json
+      DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/test-results/docs-headers.json
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -43,6 +44,8 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
       - name: Build production docs
         run: bun run --cwd apps/docs build
+      - name: Verify native header edge cases
+        run: bun run --cwd apps/docs test:headers:e2e
       - name: Verify HTTP content negotiation
         run: |
           mkdir -p test-results
