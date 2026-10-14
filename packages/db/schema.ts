@@ -2866,7 +2866,7 @@ export const workspaceFiles = pgTable(
      * Served the pre-project backfill walk, which paged live workspace files by
      * `(workspace_id, id)` and compared its cursor row-wise to seek with this index.
      *
-     * contract-pending(after owner-aware search dispatchers are fully deployed): drop workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, so its last designed reader is gone once older dispatchers drain; confirm no other plan still picks it.
+     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, so its last designed reader is gone once older dispatchers drain; confirm no other plan still picks it.
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
