@@ -1,9 +1,9 @@
 'use client'
 
 import { lazy, Suspense, useState } from 'react'
-import { Chip, ChipSwitch, Skeleton, Tooltip } from '@sim/emcn'
+import { Chip, Skeleton, Tooltip } from '@sim/emcn'
 import { ArrowRight, Columns2 } from '@sim/emcn/icons'
-import type { ForkWorkflowChange } from '@/lib/api/contracts/workspace-fork'
+import type { ForkWorkflowChange, ForkWorkflowComparison } from '@/lib/api/contracts/workspace-fork'
 import type { EnvironmentColumn } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
 import { ForkSyncConfirmModal } from '@/ee/workspace-forking/components/fork-sync/fork-sync-confirm-modal'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
@@ -16,6 +16,18 @@ const ForkComparisonModal = lazy(() =>
   }))
 )
 
+type ComparisonUnavailableReason = Extract<
+  ForkWorkflowComparison,
+  { status: 'unavailable' }
+>['reason']
+
+/** Why a workflow's changes can't be compared; a new workflow's badge already says so. */
+const COMPARISON_UNAVAILABLE: Record<ComparisonUnavailableReason, string | null> = {
+  new_workflow: null,
+  no_baseline: 'Comparable after the first sync',
+  missing_baseline: 'Last synced version unavailable',
+}
+
 const ACTION_LABEL: Record<ForkWorkflowChange['action'], string> = {
   update: 'Updated',
   create: 'New',
@@ -25,11 +37,9 @@ const ACTION_LABEL: Record<ForkWorkflowChange['action'], string> = {
 interface SyncReviewProps {
   mappingChangesPending?: boolean
   controller: ForkSyncController
-  onResolveMapping: (kind: ForkSyncController['groups'][number]['kind'], sourceId?: string) => void
   child: EnvironmentColumn
   parent: EnvironmentColumn
   direction: ForkDirection
-  onDirectionChange: (direction: ForkDirection) => void
 }
 
 /**
@@ -41,10 +51,8 @@ export function SyncReview({
   child,
   parent,
   direction,
-  onDirectionChange,
   controller,
   mappingChangesPending = false,
-  onResolveMapping,
 }: SyncReviewProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const promote = direction === 'push'
@@ -52,26 +60,11 @@ export function SyncReview({
   const target = promote ? parent : child
   const changes = controller.workflowChanges
   const changedCount = changes.length
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  /** Workflows marked not synced on either side; the sync leaves them alone. */
+  const skipped = [...controller.excludedSourceWorkflows, ...controller.excludedTargetWorkflows]
 
   return (
     <section className='flex flex-col gap-3'>
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <h2 className='text-[var(--text-body)] text-small'>This sync</h2>
-        <ChipSwitch
-          value={direction}
-          onChange={(next: ForkDirection) => {
-            setConfirmOpen(false)
-            onDirectionChange(next)
-          }}
-          aria-label='Sync direction'
-          disabled={controller.submitting}
-          options={[
-            { value: 'push', label: 'Push' },
-            { value: 'pull', label: 'Pull' },
-          ]}
-        />
-      </div>
       <article className='overflow-hidden rounded-xl border border-[var(--border)]'>
         <header className='flex flex-wrap items-center gap-3 border-[var(--border)] border-b px-4 py-3'>
           <div className='flex min-w-0 flex-1 flex-col gap-1'>
@@ -92,13 +85,6 @@ export function SyncReview({
           </div>
           <div className='flex flex-col items-end gap-1'>
             <div className='flex items-center gap-3'>
-              <Chip
-                active={settingsOpen}
-                aria-expanded={settingsOpen}
-                onClick={() => setSettingsOpen((open) => !open)}
-              >
-                Sync settings
-              </Chip>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <span className='inline-flex'>
@@ -141,7 +127,7 @@ export function SyncReview({
             <Skeleton className='h-[18px] w-[260px]' />
             <Skeleton className='h-[18px] w-[200px]' />
           </div>
-        ) : changes.length === 0 ? (
+        ) : changes.length + skipped.length === 0 ? (
           <p className='px-4 py-3 text-[var(--text-muted)] text-small'>
             No deployed workflows to sync.
           </p>
@@ -155,6 +141,12 @@ export function SyncReview({
                 !controller.diffIsStale
                   ? change
                   : null
+              const unavailable =
+                change.action !== 'archive' &&
+                controller.comparisonReady &&
+                change.comparison.status === 'unavailable'
+                  ? COMPARISON_UNAVAILABLE[change.comparison.reason]
+                  : undefined
               const renamed = change.currentName !== change.otherName
               const row = (
                 <>
@@ -176,6 +168,10 @@ export function SyncReview({
                     <span className='ml-auto flex shrink-0 items-center gap-1.5 text-[var(--text-muted)] text-caption'>
                       <Columns2 className='size-[14px]' />
                       View changes
+                    </span>
+                  ) : unavailable ? (
+                    <span className='ml-auto shrink-0 text-[var(--text-muted)] text-caption'>
+                      {unavailable}
                     </span>
                   ) : null}
                 </>
@@ -199,36 +195,24 @@ export function SyncReview({
                 </li>
               )
             })}
+            {skipped.map((name, index) => (
+              <li
+                key={`skipped:${name}:${index}`}
+                className='flex min-w-0 items-center gap-2 border-[var(--border)] border-b px-4 py-2.5 last:border-b-0'
+              >
+                <span className='min-w-0 truncate text-[var(--text-muted)] text-small'>{name}</span>
+                <span className='ml-auto shrink-0 text-[var(--text-muted)] text-caption'>
+                  Not synced
+                </span>
+              </li>
+            ))}
           </ul>
         )}
       </article>
 
-      {controller.kindSummaries
-        .filter((summary) => summary.requiredPending || summary.reconfigPending)
-        .map((summary) => {
-          const group = controller.groups.find((candidate) => candidate.kind === summary.kind)
-          return (
-            <div key={summary.kind} className='flex items-center justify-between gap-2 text-small'>
-              <span className='text-[var(--text-muted)]'>{group?.label} need configuration</span>
-              <Chip
-                onClick={() =>
-                  onResolveMapping(
-                    summary.kind,
-                    group?.items.find((entry) => !controller.targetFor(entry))?.sourceId ??
-                      group?.items[0]?.sourceId
-                  )
-                }
-              >
-                Resolve mapping
-              </Chip>
-            </div>
-          )
-        })}
+      <ForkSyncView key={direction} controller={controller} externalMappings externalWorkflows />
 
-      {settingsOpen && <ForkSyncView key={direction} controller={controller} externalMappings />}
-
-      {/* With the settings open, the embedded sync view renders the comparison itself. */}
-      {!settingsOpen && controller.comparisonSelection ? (
+      {controller.comparisonSelection ? (
         <Suspense fallback={null}>
           <ForkComparisonModal
             {...controller.comparisonSelection}

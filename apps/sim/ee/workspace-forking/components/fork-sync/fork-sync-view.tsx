@@ -21,6 +21,7 @@ import {
   FieldDivider,
   Label,
   OverflowText,
+  Plus,
   Tooltip,
 } from '@sim/emcn'
 import type {
@@ -115,7 +116,8 @@ const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
  * General). Wide enough to hold a full-length secret key - these are the longest labels the
  * picker shows, and clipping them is what makes two same-prefixed keys indistinguishable.
  */
-const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] shrink-0'
+/** The target picker's column, shared by tables that align a header or value over it. */
+export const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] max-w-[55%] shrink-0'
 
 interface DependentBlock {
   targetBlockId: string
@@ -513,8 +515,9 @@ export function MappingEntry({ controller, group, entry }: MappingEntryProps) {
                 ...(entry.kind === 'env-var'
                   ? [
                       {
-                        label: `Create secret in ${controller.targetWorkspaceName}…`,
+                        label: 'Create secret',
                         value: '__create_secret__',
+                        icon: Plus,
                         onSelect: () => setCreatingSecret(true),
                       },
                     ]
@@ -565,15 +568,13 @@ export function MappingEntry({ controller, group, entry }: MappingEntryProps) {
           </p>
         ) : null}
       </div>
-      {creatingSecret && (
+      {entry.kind === 'env-var' && (
         <CreateMappedSecret
+          open={creatingSecret}
+          onOpenChange={setCreatingSecret}
           controller={controller}
           sourceId={entry.sourceId}
-          onCreated={(name) => {
-            controller.setTarget(entry, name)
-            setCreatingSecret(false)
-          }}
-          onCancel={() => setCreatingSecret(false)}
+          onCreated={(name) => controller.setTarget(entry, name)}
         />
       )}
       {canEditConfigured ? (
@@ -838,6 +839,8 @@ interface ForkSyncViewProps {
   controller: ForkSyncController
   /** Resource mappings are edited by the parent surface. */
   externalMappings?: boolean
+  /** The parent surface lists the deployed-workflow changes, opens their comparison, and shows load errors. */
+  externalWorkflows?: boolean
   /** Omit when the parent owns the direction control. */
   onDirectionChange?: (direction: ForkDirection) => void
 }
@@ -852,6 +855,7 @@ export function ForkSyncView({
   controller,
   onDirectionChange,
   externalMappings = false,
+  externalWorkflows = false,
 }: ForkSyncViewProps) {
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
   const headsUp =
@@ -878,7 +882,7 @@ export function ForkSyncView({
 
   return (
     <div className='flex flex-col gap-7'>
-      {controller.comparisonSelection ? (
+      {controller.comparisonSelection && !externalWorkflows ? (
         <Suspense fallback={null}>
           <ForkComparisonModal
             {...controller.comparisonSelection}
@@ -909,7 +913,7 @@ export function ForkSyncView({
       )}
 
       {/* Surface a failed/pending fetch so the page never renders blank below the direction. */}
-      {detailsError ? (
+      {externalWorkflows ? null : detailsError ? (
         <SettingsSection label='Sync details'>
           <div className='text-[var(--text-muted)] text-small'>{detailsError}</div>
         </SettingsSection>
@@ -922,7 +926,7 @@ export function ForkSyncView({
           deployed workflow appears here, changed or not), so the muted state nudges a deploy.
           Unsynced workflows list greyed at the end, with a tooltip naming which workspace
           they are unsynced in - the sync will not touch them. */}
-      {controller.hasDiff ? (
+      {controller.hasDiff && !externalWorkflows ? (
         <SettingsSection label='Deployed workflows'>
           {controller.workflowChanges.length + excludedRows.length > 0 ? (
             <Tooltip.Provider delayDuration={150}>

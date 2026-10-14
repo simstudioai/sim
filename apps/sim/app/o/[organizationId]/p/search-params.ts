@@ -1,4 +1,4 @@
-import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 import { RESOURCE_TAB_IDS } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
 
 export const projectParsers = {
@@ -8,6 +8,8 @@ export const projectParsers = {
   edge: parseAsString.withDefault(''),
   /** That sync's direction: `push` promotes the fork into its parent, `pull` refreshes it. */
   sync: parseAsStringLiteral(['push', 'pull'] as const).withDefault('push'),
-  /** Resource type shown in the Environments tab: workflows, then the mapping kinds. */
-  resource: parseAsStringLiteral(RESOURCE_TAB_IDS).withDefault('workflow'),
+  /** Narrows the Environments tab's mappings table by resource name. */
+  mappingSearch: parseAsString.withDefault(''),
+  /** Resource types the Environments tab's mappings table shows; empty shows every type. */
+  resource: parseAsArrayOf(parseAsStringLiteral(RESOURCE_TAB_IDS)).withDefault([]),
 }

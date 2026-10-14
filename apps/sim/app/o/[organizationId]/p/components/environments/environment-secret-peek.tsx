@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, toast } from '@sim/emcn'
+import { Chip, cn, toast } from '@sim/emcn'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field/secret-value-field'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useUpsertWorkspaceEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
@@ -11,6 +11,8 @@ interface EnvironmentSecretPeekProps {
   workspaceId: string
   environmentName: string
   secretKey: string
+  /** Column sizing from the mappings table. */
+  className?: string
 }
 
 /** Shares the workspace settings field's reveal behavior and per-secret edit permissions. */
@@ -18,6 +20,7 @@ export function EnvironmentSecretPeek({
   workspaceId,
   environmentName,
   secretKey,
+  className,
 }: EnvironmentSecretPeekProps) {
   const [draft, setDraft] = useState<string | null>(null)
   const permissions = useWorkspacePermissionsQuery(workspaceId)
@@ -34,10 +37,12 @@ export function EnvironmentSecretPeek({
   const storedValue = environment.data?.workspace[secretKey]
   const value = draft ?? storedValue ?? ''
   const changed = draft !== null && draft !== storedValue
+  /** Absent here, the value has nothing to show; the mapping row already says what to do. */
+  if (canReveal && environment.isSuccess && storedValue === undefined) return null
 
   return (
     <form
-      className='flex min-w-0 flex-1 flex-col gap-2'
+      className={cn('flex flex-col gap-2', className)}
       onSubmit={(event) => {
         event.preventDefault()
         if (!canEdit || !changed || save.isPending || storedValue === undefined) return
@@ -52,7 +57,6 @@ export function EnvironmentSecretPeek({
         )
       }}
     >
-      <span className='text-[var(--text-muted)] text-caption'>{environmentName}</span>
       <SecretValueField
         value={value}
         canEdit={canEdit && storedValue !== undefined}
@@ -65,9 +69,6 @@ export function EnvironmentSecretPeek({
         <p role='alert' className='text-[var(--text-error)] text-caption'>
           Could not load this secret.
         </p>
-      )}
-      {canReveal && environment.isSuccess && storedValue === undefined && (
-        <p className='text-[var(--text-muted)] text-caption'>Not available in this environment.</p>
       )}
       {save.error && (
         <p role='alert' className='text-[var(--text-error)] text-caption'>

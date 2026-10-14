@@ -89,9 +89,8 @@ it('does not substitute a personal value for a missing workspace value', () => {
     isSuccess: true,
   })
   render()
-  act(() => field().focus())
-  expect(field().value).toBe('•'.repeat(10))
-  expect(container.textContent).toContain('Not available in this environment.')
+  expect(container.querySelector('input')).toBeNull()
+  expect(container.textContent).not.toContain('personal-value')
 })
 
 it('saves only the edited key to its own environment', () => {

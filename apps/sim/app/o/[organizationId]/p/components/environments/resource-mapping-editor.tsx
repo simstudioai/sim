@@ -1,38 +1,49 @@
 'use client'
 
-import { useCallback } from 'react'
+import { cn, Skeleton } from '@sim/emcn'
 import { EnvironmentSecretPeek } from '@/app/o/[organizationId]/p/components/environments/environment-secret-peek'
-import { MappingEntry } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
+import {
+  MAPPING_TARGET_TRIGGER_CLASS,
+  MappingEntry,
+} from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import type {
   ForkSyncController,
   MappableMappingKind,
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 
+const TYPE_COLUMN_CLASS = 'w-[96px] shrink-0'
+/** The canonical resource table's cell inset. */
+const ROW_INSET_CLASS = 'px-3 md:px-6'
+
 interface ResourceMappingEditorProps {
   controller: ForkSyncController
-  kind: MappableMappingKind
-  focusSourceId?: string
+  /** Resource types to show; empty shows every type. */
+  kinds: readonly MappableMappingKind[]
+  /** Narrows the rows by resource name. */
+  search: string
   sourceName: string
   targetName: string
 }
 
-/** The selected pair's canonical mapping editor, including dependent field configuration. */
+/**
+ * Every mapping between the selected pair as one table, filtered by resource type, including
+ * dependent field configuration.
+ */
 export function ResourceMappingEditor({
   controller,
-  kind,
+  kinds,
+  search,
   sourceName,
-  focusSourceId,
   targetName,
 }: ResourceMappingEditorProps) {
-  const focusMapping = useCallback((element: HTMLDivElement | null) => {
-    if (!element) return
-    element.scrollIntoView({ block: 'nearest' })
-    element.focus({ preventScroll: true })
-  }, [])
-  const group = controller.groups.find((candidate) => candidate.kind === kind)
+  const query = search.trim().toLowerCase()
+  const rows = controller.groups
+    .filter((group) => kinds.length === 0 || kinds.includes(group.kind))
+    .flatMap((group) => group.items.map((entry) => ({ group, entry })))
+    .filter(({ entry }) => entry.sourceLabel.toLowerCase().includes(query))
   if (controller.isError || controller.diffErrorMessage) {
     return (
-      <p role='alert' className='text-[var(--text-error)] text-small'>
+      <p role='alert' className={cn('py-6 text-[var(--text-error)] text-small', ROW_INSET_CLASS)}>
         {controller.errorMessage ?? controller.diffErrorMessage}
       </p>
     )
@@ -43,46 +54,65 @@ export function ResourceMappingEditor({
     !controller.hasDiff ||
     !controller.hasMapping
   ) {
-    return <p className='text-[var(--text-muted)] text-small'>Loading mappings…</p>
+    return <Skeleton className='m-6 h-24' />
   }
   return (
-    <div className='overflow-hidden rounded-lg border border-[var(--border)]'>
-      <div className='flex items-center justify-between gap-4 border-[var(--border)] border-b px-4 py-3 text-[var(--text-muted)] text-small'>
-        <span>{sourceName}</span>
-        <span>{targetName}</span>
+    <div role='table' aria-label='Resource mappings' className='text-small'>
+      <div
+        role='row'
+        className={cn(
+          'flex h-10 items-center gap-4 border-[var(--border)] border-b text-[var(--text-muted)] max-md:h-11',
+          ROW_INSET_CLASS
+        )}
+      >
+        <span role='columnheader' className={TYPE_COLUMN_CLASS}>
+          Type
+        </span>
+        <div className='flex min-w-0 flex-1 items-center justify-between gap-4'>
+          <span role='columnheader' className='min-w-0 truncate'>
+            {sourceName}
+          </span>
+          <span role='columnheader' className={MAPPING_TARGET_TRIGGER_CLASS}>
+            {targetName}
+          </span>
+        </div>
       </div>
-      {group?.items.length ? (
-        group.items.map((entry) => (
+      {rows.length ? (
+        rows.map(({ group, entry }) => (
           <div
             key={`${entry.resourceType}:${entry.sourceId}`}
-            tabIndex={-1}
+            role='row'
             aria-label={`Mapping for ${entry.sourceLabel}`}
-            ref={entry.sourceId === focusSourceId ? focusMapping : undefined}
-            className='border-[var(--border)] border-b p-4 last:border-b-0'
+            className={cn('flex gap-4 border-[var(--border)] border-b py-2.5', ROW_INSET_CLASS)}
           >
-            <MappingEntry controller={controller} group={group} entry={entry} />
-            {kind === 'env-var' && (
-              <div className='mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                <EnvironmentSecretPeek
-                  key={`${controller.sourceWorkspaceId}:${entry.sourceId}`}
-                  workspaceId={controller.sourceWorkspaceId}
-                  environmentName={sourceName}
-                  secretKey={entry.sourceId}
-                />
-                <EnvironmentSecretPeek
-                  key={`${controller.targetWorkspaceId}:${controller.targetFor(entry) || entry.sourceId}`}
-                  workspaceId={controller.targetWorkspaceId}
-                  environmentName={targetName}
-                  secretKey={controller.targetFor(entry) || entry.sourceId}
-                />
-              </div>
-            )}
+            <span role='cell' className={cn(TYPE_COLUMN_CLASS, 'pt-1.5 text-[var(--text-body)]')}>
+              {group.label}
+            </span>
+            <div role='cell' className='min-w-0 flex-1'>
+              <MappingEntry controller={controller} group={group} entry={entry} />
+              {group.kind === 'env-var' && (
+                <div className='mt-2 flex items-start justify-between gap-4'>
+                  <EnvironmentSecretPeek
+                    key={`${controller.sourceWorkspaceId}:${entry.sourceId}`}
+                    workspaceId={controller.sourceWorkspaceId}
+                    environmentName={sourceName}
+                    secretKey={entry.sourceId}
+                    className='min-w-0 flex-1'
+                  />
+                  <EnvironmentSecretPeek
+                    key={`${controller.targetWorkspaceId}:${controller.targetFor(entry) || entry.sourceId}`}
+                    workspaceId={controller.targetWorkspaceId}
+                    environmentName={targetName}
+                    secretKey={controller.targetFor(entry) || entry.sourceId}
+                    className={MAPPING_TARGET_TRIGGER_CLASS}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         ))
       ) : (
-        <p className='px-4 py-6 text-[var(--text-muted)] text-small'>
-          No mappings for this resource type in the selected sync.
-        </p>
+        <p className={cn('py-6 text-[var(--text-muted)]', ROW_INSET_CLASS)}>No mappings.</p>
       )}
     </div>
   )

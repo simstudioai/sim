@@ -1,10 +1,13 @@
 import { Suspense } from 'react'
 import { Chip, ChipConfirmModal, ChipDropdown, Skeleton } from '@sim/emcn'
+import { Settings } from '@sim/emcn/icons'
 import { parseAsString, useQueryState, useQueryStates } from 'nuqs'
 import {
   getSettingsPermissionConfigKey,
+  type SettingsNavigationItem,
   toSettingsHeaderMeta,
   WORKSPACE_SETTINGS_ITEMS,
+  type WorkspaceSettingsSection,
 } from '@/components/settings/navigation'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { ProjectGeneralSettings } from '@/app/o/[organizationId]/p/components/project-general-settings'
@@ -85,8 +88,11 @@ export function ProjectSettings({ project, onBrowse }: ProjectSettingsProps) {
       void setSection(next)
     })
   return (
-    <div className='flex h-full min-h-0 flex-col'>
-      <nav aria-label='Project settings' className='flex shrink-0 items-center gap-2 px-6 py-3'>
+    <div className='@container/project-settings flex h-full min-h-0 flex-col'>
+      <nav
+        aria-label='Project settings'
+        className='flex @min-[640px]/project-settings:hidden shrink-0 items-center gap-2 px-6 py-3'
+      >
         <span className='text-[var(--text-muted)] text-small'>Settings</span>
         <ChipDropdown
           aria-label='Settings section'
@@ -99,41 +105,44 @@ export function ProjectSettings({ project, onBrowse }: ProjectSettingsProps) {
           ]}
         />
       </nav>
-      <div className='min-h-0 flex-1'>
-        <Suspense fallback={<Skeleton className='m-6 h-32' />}>
-          {section === 'general' ? (
-            <ProjectGeneralSettings project={project} />
-          ) : access.isPending ? (
-            <Skeleton className='m-6 h-32' />
-          ) : access.error ? (
-            <div role='alert' className='p-6 text-small'>
-              <p>{access.error.message}</p>
-              <Chip onClick={() => void access.refetch()}>Try again</Chip>
-            </div>
-          ) : !selected || !unifiedSection ? (
-            <p className='p-6 text-[var(--text-muted)] text-small'>
-              These settings are unavailable for this environment.
-            </p>
-          ) : (
-            <SettingsHeaderProvider key={`${project.id}:${section}`}>
-              {entry?.access === 'allowed' && selected.id === 'secrets' && credentialId ? (
-                <SecretDetail workspaceId={project.id} credentialId={credentialId} />
-              ) : (
-                <SettingsHeaderShell meta={toSettingsHeaderMeta(selected)}>
-                  {entry?.access === 'allowed' ? (
-                    <SettingsPage
-                      section={unifiedSection}
-                      resourceChats={false}
-                      onViewResource={openResource}
-                    />
-                  ) : configKey ? (
-                    <PermissionAccessBoundary configKey={configKey} />
-                  ) : null}
-                </SettingsHeaderShell>
-              )}
-            </SettingsHeaderProvider>
-          )}
-        </Suspense>
+      <div className='flex min-h-0 flex-1'>
+        <div className='min-h-0 min-w-0 flex-1'>
+          <Suspense fallback={<Skeleton className='m-6 h-32' />}>
+            {section === 'general' ? (
+              <ProjectGeneralSettings project={project} />
+            ) : access.isPending ? (
+              <Skeleton className='m-6 h-32' />
+            ) : access.error ? (
+              <div role='alert' className='p-6 text-small'>
+                <p>{access.error.message}</p>
+                <Chip onClick={() => void access.refetch()}>Try again</Chip>
+              </div>
+            ) : !selected || !unifiedSection ? (
+              <p className='p-6 text-[var(--text-muted)] text-small'>
+                These settings are unavailable for this environment.
+              </p>
+            ) : (
+              <SettingsHeaderProvider key={`${project.id}:${section}`}>
+                {entry?.access === 'allowed' && selected.id === 'secrets' && credentialId ? (
+                  <SecretDetail workspaceId={project.id} credentialId={credentialId} />
+                ) : (
+                  <SettingsHeaderShell meta={toSettingsHeaderMeta(selected)}>
+                    {entry?.access === 'allowed' ? (
+                      <SettingsPage
+                        section={unifiedSection}
+                        resourceChats={false}
+                        onViewResource={openResource}
+                      />
+                    ) : configKey ? (
+                      <PermissionAccessBoundary configKey={configKey} />
+                    ) : null}
+                  </SettingsHeaderShell>
+                )}
+              </SettingsHeaderProvider>
+            )}
+          </Suspense>
+        </div>
+        <SettingsRail section={section} items={items} onSelect={navigate} />
       </div>
       <ChipConfirmModal
         open={pendingLeave !== null}
@@ -145,5 +154,46 @@ export function ProjectSettings({ project, onBrowse }: ProjectSettingsProps) {
         confirm={{ label: 'Discard changes', onClick: confirmLeave }}
       />
     </div>
+  )
+}
+
+interface SettingsRailProps {
+  section: string
+  items: readonly SettingsNavigationItem<WorkspaceSettingsSection>[]
+  onSelect: (section: string) => void
+}
+
+/** Section navigation on the pane's right edge; the dropdown above replaces it when the pane is narrow. */
+function SettingsRail({ section, items, onSelect }: SettingsRailProps) {
+  return (
+    <nav
+      aria-label='Project settings sections'
+      className='flex @max-[639px]/project-settings:hidden w-[200px] shrink-0 flex-col gap-0.5 overflow-y-auto border-[var(--border)] border-l px-2 py-3'
+    >
+      <Chip
+        fullWidth
+        leftIcon={Settings}
+        active={section === 'general'}
+        aria-current={section === 'general' ? 'page' : undefined}
+        onClick={() => onSelect('general')}
+      >
+        General
+      </Chip>
+      {items.length > 0 && (
+        <p className='px-2 pt-3 pb-1 text-[var(--text-muted)] text-caption'>Environment</p>
+      )}
+      {items.map((item) => (
+        <Chip
+          key={item.id}
+          fullWidth
+          leftIcon={item.icon}
+          active={section === item.id}
+          aria-current={section === item.id ? 'page' : undefined}
+          onClick={() => onSelect(item.id)}
+        >
+          {item.label}
+        </Chip>
+      ))}
+    </nav>
   )
 }

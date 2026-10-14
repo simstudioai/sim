@@ -17,7 +17,6 @@ export {
   getEdgeZIndexForTarget,
 } from './canvas-layers'
 export * from './dimensions'
-export { ExecutionPulse } from './edge/execution-pulse'
 export {
   type WorkflowEdge,
   WorkflowEdgeView,
