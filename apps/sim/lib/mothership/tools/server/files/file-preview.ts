@@ -3,7 +3,9 @@ import { toError } from '@sim/utils/errors'
 import { observeContentOutsideModel } from '@/lib/core/application'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
+import { toAnchoredContentEdit } from '@/lib/mothership/tools/server/files/anchored-edit'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { applyWorkspaceFileContentEdit, EditContentError } from '@/lib/workspace-files/edit-content'
 
 const logger = createLogger('CopilotFilePreview')
 const MAX_PREVIEW_SOURCE_BYTES = 5 * 1024 * 1024
@@ -15,27 +17,12 @@ interface BuildFilePreviewTextOptions {
   edit?: Record<string, unknown>
 }
 
-function findAnchorIndex(lines: string[], anchor: string, occurrence = 1, afterIndex = -1): number {
-  const trimmed = anchor.trim()
-  let count = 0
-  for (let i = afterIndex + 1; i < lines.length; i++) {
-    if (lines[i].trim() === trimmed) {
-      count++
-      if (count === occurrence) return i
-    }
-  }
-  return -1
-}
-
 function extractPatchPreview(
   streamedContent: string,
   existingContent: string,
   edit?: Record<string, unknown>
 ): string | undefined {
   const strategy = typeof edit?.strategy === 'string' ? edit.strategy : undefined
-  const lines = existingContent.split('\n')
-  const occurrence =
-    typeof edit?.occurrence === 'number' && Number.isFinite(edit.occurrence) ? edit.occurrence : 1
 
   if (strategy === 'search_replace') {
     const search = typeof edit?.search === 'string' ? edit.search : ''
@@ -52,55 +39,15 @@ function extractPatchPreview(
     )
   }
 
-  const mode = typeof edit?.mode === 'string' ? edit.mode : undefined
-  if (!mode) return undefined
-
-  if (mode === 'replace_between') {
-    const beforeAnchor = typeof edit?.before_anchor === 'string' ? edit.before_anchor : undefined
-    const afterAnchor = typeof edit?.after_anchor === 'string' ? edit.after_anchor : undefined
-    if (!beforeAnchor || !afterAnchor) return undefined
-
-    const beforeIdx = findAnchorIndex(lines, beforeAnchor, occurrence)
-    const afterIdx = findAnchorIndex(lines, afterAnchor, occurrence, beforeIdx)
-    if (beforeIdx === -1 || afterIdx === -1 || afterIdx <= beforeIdx) return undefined
-
-    const spliced = [
-      ...lines.slice(0, beforeIdx + 1),
-      ...(streamedContent.length > 0 ? streamedContent.split('\n') : []),
-      ...lines.slice(afterIdx),
-    ]
-    return spliced.join('\n')
+  if (strategy !== 'anchored' || !edit) return undefined
+  const anchored = toAnchoredContentEdit(edit, streamedContent)
+  if ('error' in anchored) return undefined
+  try {
+    return applyWorkspaceFileContentEdit(existingContent, anchored.edit)
+  } catch (error) {
+    if (error instanceof EditContentError) return undefined
+    throw error
   }
-
-  if (mode === 'insert_after') {
-    const anchor = typeof edit?.anchor === 'string' ? edit.anchor : undefined
-    if (!anchor) return undefined
-
-    const anchorIdx = findAnchorIndex(lines, anchor, occurrence)
-    if (anchorIdx === -1) return undefined
-
-    const spliced = [
-      ...lines.slice(0, anchorIdx + 1),
-      ...(streamedContent.length > 0 ? streamedContent.split('\n') : []),
-      ...lines.slice(anchorIdx + 1),
-    ]
-    return spliced.join('\n')
-  }
-
-  if (mode === 'delete_between') {
-    const startAnchor = typeof edit?.start_anchor === 'string' ? edit.start_anchor : undefined
-    const endAnchor = typeof edit?.end_anchor === 'string' ? edit.end_anchor : undefined
-    if (!startAnchor || !endAnchor) return undefined
-
-    const startIdx = findAnchorIndex(lines, startAnchor, occurrence)
-    const endIdx = findAnchorIndex(lines, endAnchor, occurrence, startIdx)
-    if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return undefined
-
-    const spliced = [...lines.slice(0, startIdx), ...lines.slice(endIdx)]
-    return spliced.join('\n')
-  }
-
-  return undefined
 }
 
 function shouldApplyPatchPreview(streamedContent: string, edit?: Record<string, unknown>): boolean {

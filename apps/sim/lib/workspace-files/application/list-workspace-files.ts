@@ -31,6 +31,10 @@ export interface QueryWorkspaceFilePageInput {
    * default — see the v2 route, where a `search` implies a recursive look.
    */
   recursive?: boolean
+  /** Exact file id. */
+  fileId?: string
+  /** Exact file name. */
+  name?: string
   search?: string
   sortBy: 'name' | 'size' | 'uploadedAt' | 'updatedAt'
   sortOrder: 'asc' | 'desc'
@@ -118,6 +122,8 @@ export const queryWorkspaceFilePage = defineAuthorizedWorkspaceFileUseCase({
       scope: input.scope,
       folderId,
       folderScope: input.folderScope,
+      fileIds: input.fileId === undefined ? undefined : [input.fileId],
+      name: input.name,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,

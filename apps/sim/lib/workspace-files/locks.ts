@@ -2,7 +2,7 @@ import type { DbTransaction } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
-/** Locks owner directories in a stable order after lifecycle and billing locks are held. */
+/** Locks owner directories in a stable order after lifecycle and owner storage locks are held. */
 export async function lockFileDirectories(
   tx: DbTransaction,
   owners: readonly EditableFileOwner[]

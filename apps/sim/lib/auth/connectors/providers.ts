@@ -1284,7 +1284,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
 
           const zuid = profile.ZUID?.toString()
           if (!zuid) {
-            logger.error('Invalid Zoho Desk profile response:', profile)
+            logger.error('Invalid Zoho Desk profile response', { keys: Object.keys(profile) })
             return null
           }
 
@@ -1418,7 +1418,9 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
 
           const zuid = profile.ZUID?.toString()
           if (!zuid) {
-            logger.error('Invalid ManageEngine ServiceDesk Plus profile response:', profile)
+            logger.error('Invalid ManageEngine ServiceDesk Plus profile response', {
+              keys: Object.keys(profile),
+            })
             return null
           }
 
@@ -1475,7 +1477,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           const profile = await response.json()
 
           if (!profile.data) {
-            logger.error('Invalid X profile response:', profile)
+            logger.error('Invalid X profile response', { keys: Object.keys(profile) })
             return null
           }
 
@@ -1578,7 +1580,7 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
           const user = profile.data?.user
 
           if (!user?.open_id) {
-            logger.error('Invalid TikTok profile response:', profile)
+            logger.error('Invalid TikTok profile response', { keys: Object.keys(profile) })
             return null
           }
 

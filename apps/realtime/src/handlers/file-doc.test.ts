@@ -61,7 +61,10 @@ interface SentMessage {
 }
 
 /** An `io` mock that records every server-originated emit with its target/except. */
-function createIo(deliver?: (message: SentMessage) => void) {
+function createIo(
+  deliver?: (message: SentMessage) => void,
+  fetchSockets = async () => [...testSockets.values()]
+) {
   const sent: SentMessage[] = []
   const emit = (message: SentMessage) => {
     sent.push(message)
@@ -72,7 +75,7 @@ function createIo(deliver?: (message: SentMessage) => void) {
   const channel = (target: string, excluded: string[] = []) => ({
     except: (exclude: string) => channel(target, [...excluded, exclude]),
     emit: (event: string, payload: unknown) => emit({ target, except: excluded, event, payload }),
-    fetchSockets: async () => [...testSockets.values()],
+    fetchSockets,
   })
   const to = vi.fn((target: string) => channel(target))
   const inFn = vi.fn((socketId: string) => ({
@@ -87,7 +90,6 @@ function createIo(deliver?: (message: SentMessage) => void) {
       in: inFn,
       local: { to },
       sockets: { sockets: testSockets },
-      on: vi.fn(),
       serverSideEmit: vi.fn(),
     } as unknown as IRoomManager['io'],
     sent,
@@ -1105,6 +1107,71 @@ describe('setupWorkspaceFileDocHandlers', () => {
     )
     a.handlers[FILE_DOC_EVENTS.MESSAGE](updateFrame)
     expect(sent.some((m) => m.event === FILE_DOC_EVENTS.MESSAGE)).toBe(false)
+  })
+
+  it('delivers a roster change that arrived while the last presence read was failing', async () => {
+    vi.useFakeTimers()
+    try {
+      let reads = 0
+      const { io, sent } = createIo(undefined, async () => {
+        reads += 1
+        if (reads === 3) await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+        if (reads <= 3) throw new Error('Redis publish failed')
+        return [...testSockets.values()]
+      })
+      const a = setup('socket-a', io, { userId: 'user-a' })
+      const b = setup('socket-b', io, { userId: 'user-b' })
+
+      await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as
+        | { users: Array<{ socketId: string }> }
+        | undefined
+      expect(roster?.users.map((user) => user.socketId).sort()).toEqual(['socket-a', 'socket-b'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('re-reads the roster when membership changes during a successful presence read', async () => {
+    let reads = 0
+    const { io, sent } = createIo(undefined, async () => {
+      reads += 1
+      const snapshot = [...testSockets.values()]
+      if (reads === 1) await b.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 2 })
+      return snapshot
+    })
+    const a = setup('socket-a', io, { userId: 'user-a' })
+    const b = setup('socket-b', io, { userId: 'user-b' })
+
+    await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+    await vi.waitFor(() => expect(reads).toBe(2))
+
+    const roster = sent.filter((m) => m.event === FILE_DOC_EVENTS.PRESENCE).at(-1)?.payload as
+      | { users: Array<{ socketId: string }> }
+      | undefined
+    expect(roster?.users.map((user) => user.socketId).sort()).toEqual(['socket-a', 'socket-b'])
+  })
+
+  it('does not retry a presence read the adapter timed out', async () => {
+    vi.useFakeTimers()
+    try {
+      let reads = 0
+      const { io, sent } = createIo(undefined, async () => {
+        reads += 1
+        throw new Error('timeout reached while waiting for fetchSockets response')
+      })
+      const a = setup('socket-a', io, { userId: 'user-a' })
+
+      await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(reads).toBe(1)
+      expect(sent.some((m) => m.event === FILE_DOC_EVENTS.PRESENCE)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('broadcasts a server-authenticated presence roster on join, one entry per session', async () => {

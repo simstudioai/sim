@@ -109,6 +109,7 @@ import {
   MAX_ZIP_DOWNLOAD_FILES,
 } from '@/lib/workspace-files/limits'
 import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
+import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
 import { type FileTextLineRange, sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 import { isWorkspaceAccessDeniedError } from '@/lib/workspaces/permissions/utils'
@@ -918,6 +919,9 @@ async function expandFolderPathsToFileIds(args: {
   return (await expandFolderPathsToFiles(args)).map((file) => file.id)
 }
 
+/** How many same-named candidates an ambiguous scoped reference names. */
+const MAX_LISTED_NAME_MATCHES = 10
+
 /**
  * Resolves a typed file name inside a chosen folder to a canonical id.
  *
@@ -926,11 +930,10 @@ async function expandFolderPathsToFileIds(args: {
  * lookup takes the oldest match anywhere. When a folder was chosen it is the
  * only thing disambiguating the target, so the name is resolved inside it, by
  * id, so the slash-in-a-folder-name hazard of a path-shaped reference never
- * arises.
+ * arises. Shared by every operation that writes to a named file.
  *
- * Shared by every operation that writes to a named file, because each of them
- * has the same way to go wrong and this logic has already been rewritten twice
- * under review.
+ * The lookups filter by exact id or name in SQL, so the size of the folder
+ * never bounds whether one file in it can be named.
  */
 async function resolveScopedFileReference(args: {
   principal: Principal
@@ -940,64 +943,76 @@ async function resolveScopedFileReference(args: {
   folderPaths: string[] | undefined
   includeSubfolders: boolean | undefined
 }): Promise<string> {
-  const { fileName } = args
+  const { fileName, principal, workspaceId } = args
   const folderPaths = args.folderPaths ?? (args.folderPath ? [args.folderPath] : [])
   if (folderPaths.length === 0) return fileName
   const scopeLabel = folderPaths.join(', ')
 
-  const scoped = await expandFolderPathsToFiles({
-    principal: args.principal,
-    workspaceId: args.workspaceId,
-    folderPaths,
-    includeSubfolders: args.includeSubfolders,
-  })
   /*
-   * An exact id inside the scope wins outright. Matching id and name together
-   * let a file NAMED like an id outproduce the file that actually carries it:
-   * `wf_` is a legal filename prefix, so a caller passing a real id could be
-   * answered with a different file that merely happens to be called that.
+   * A reference that is a real file id resolves to that file or to nothing,
+   * never to a name match: `wf_` is a legal filename prefix, so a file merely
+   * named like an id must not answer a caller who named a file exactly. Decided
+   * by looking the id up rather than by its shape.
    */
-  const byId = scoped.find((file) => file.id === fileName)
-  if (byId) return byId.id
-
-  /*
-   * A reference that IS a real file id, but for a file outside this folder, is
-   * out of scope — never a name match. Falling through would answer a caller
-   * who named one file exactly with a different file that happens to be called
-   * like that id, which is the same lookalike hazard pointed the other way.
-   *
-   * Decided by looking the id up rather than by its shape, because `wf_` is a
-   * legal filename prefix and inferring from it is what this resolution has
-   * twice been wrong about.
-   */
-  let exactIdExists = false
-  try {
-    await readWorkspaceFileMetadata.execute({
-      principal: args.principal,
-      input: { fileId: fileName, assertedWorkspaceId: args.workspaceId },
+  const fileIdExists = async () => {
+    try {
+      await readWorkspaceFileMetadata.execute({
+        principal,
+        input: { fileId: fileName, assertedWorkspaceId: workspaceId },
+      })
+      return true
+    } catch (error) {
+      if (error instanceof OrchestrationError && error.code === 'not_found') return false
+      throw error
+    }
+  }
+  const [folderScope, exactIdExists] = await Promise.all([
+    resolveWorkspaceFolderScope({
+      principal,
+      workspaceId,
+      folderPaths,
+      includeSubfolders: args.includeSubfolders,
+    }),
+    fileIdExists(),
+  ])
+  const findInScope = (match: { fileId: string } | { name: string }, limit: number) =>
+    queryWorkspaceFilePage.execute({
+      principal,
+      input: {
+        workspaceId,
+        folderScope,
+        ...match,
+        sortBy: 'uploadedAt',
+        sortOrder: 'asc',
+        limit,
+      },
     })
-    exactIdExists = true
-  } catch (error) {
-    if (!(error instanceof OrchestrationError) || error.code !== 'not_found') throw error
-  }
+
   if (exactIdExists) {
-    throw new OrchestrationError('not_found', `File ${fileName} is not in ${scopeLabel}`)
+    const { files } = await findInScope({ fileId: fileName }, 1)
+    if (files.length === 0) {
+      throw new OrchestrationError('not_found', `File ${fileName} is not in ${scopeLabel}`)
+    }
+    return files[0].id
   }
 
-  const matches = scoped.filter((file) => file.name === fileName)
+  const { files: matches, nextKeys } = await findInScope(
+    { name: fileName },
+    MAX_LISTED_NAME_MATCHES
+  )
   if (matches.length === 0) {
     throw new OrchestrationError('not_found', `No file named ${fileName} in ${scopeLabel}`)
   }
   /*
    * A recursive scope can hold the same name at several depths, and writing to
-   * whichever the walk happened to reach first is a silent write to an
-   * arbitrary file. Refusing names the candidates so the caller can pick one,
-   * which is the whole reason the scope exists.
+   * whichever comes first is a silent write to an arbitrary file. Refusing
+   * names the candidates so the caller can pick one.
    */
   if (matches.length > 1) {
+    const count = nextKeys ? `More than ${matches.length}` : `${matches.length}`
     throw new OrchestrationError(
       'validation',
-      `${matches.length} files named ${fileName} under ${scopeLabel}: ${matches
+      `${count} files named ${fileName} under ${scopeLabel}: ${matches
         .map((file) => file.id)
         .join(', ')}. Give the file ID, name a deeper folder, or set includeSubfolders to false.`
     )
@@ -2186,7 +2201,7 @@ export async function executeFileManageOperation(
           if (selection.missingPath !== undefined) {
             throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
           }
-          rootId = [...selection.folderIds][0] ?? null
+          rootId = selection.scope?.folderIds.values().next().value ?? null
         }
 
         const maxDepth = body.recursive ? (body.depth ?? Number.POSITIVE_INFINITY) : 1

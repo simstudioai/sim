@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZohoDeskGetContactParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_CONTACT_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
@@ -6,7 +7,6 @@ import {
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
   normalizeZohoDeskCommaList,
-  requireZohoDeskId,
 } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskGetContactTool: ToolConfig<ZohoDeskGetContactParams, ZohoDeskResponse> = {
@@ -56,7 +56,7 @@ export const zohoDeskGetContactTool: ToolConfig<ZohoDeskGetContactParams, ZohoDe
       const include = normalizeZohoDeskCommaList(params.include)
       if (include) query.set('include', include)
       const qs = query.toString()
-      return `${getZohoDeskApiBase(params)}/contacts/${encodeURIComponent(requireZohoDeskId(params.contactId, 'Contact ID'))}${qs ? `?${qs}` : ''}`
+      return `${getZohoDeskApiBase(params)}/contacts/${safeUrlPathSegment(params.contactId, 'Contact ID')}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),

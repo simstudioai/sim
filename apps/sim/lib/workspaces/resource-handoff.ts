@@ -43,7 +43,7 @@ export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, us
       UNION ALL SELECT ${userTableDefinitions.workspaceId} FROM ${userTableDefinitions} WHERE ${userTableDefinitions.createdBy} = ${userId}
       UNION ALL SELECT ${knowledgeBase.workspaceId} FROM ${knowledgeBase} WHERE ${knowledgeBase.userId} = ${userId}
       UNION ALL SELECT ${workspaceFiles.workspaceId} FROM ${workspaceFiles}
-        WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.context} IN ('workspace', 'knowledge-base', 'execution', 'chat', 'workspace-logos') AND ${workspaceFiles.chatId} IS NULL
+        WHERE ${workspaceFiles.userId} = ${userId} AND ${inArray(workspaceFiles.context, SHARED_FILE_CONTEXTS)} AND ${workspaceFiles.chatId} IS NULL
       UNION ALL SELECT ${workspaceFile.workspaceId} FROM ${workspaceFile} WHERE ${workspaceFile.uploadedBy} = ${userId}
       UNION ALL SELECT ${workflowMcpServer.workspaceId} FROM ${workflowMcpServer}
         WHERE ${workflowMcpServer.createdBy} = ${userId} AND NOT ${workflowMcpServer.isPublic}

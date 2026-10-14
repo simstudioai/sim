@@ -15,11 +15,14 @@ import {
   user,
   userStats,
   workflow,
+  workflowBlocks,
+  workflowDeploymentVersion,
   workspace,
   workspaceBYOKKeys,
   workspaceEnvironment,
 } from '@sim/db/schema'
-import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
+import { escapeLikePattern } from '@sim/utils/string'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { OrganizationSettingsSection } from '@/components/settings/navigation'
 import { isSubscriptionBackedEntitlement } from '@/lib/billing/core/subscription'
@@ -27,6 +30,7 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx } from '@/lib/db/types'
 import { getCustomBlockUsageCounts } from '@/lib/workflows/custom-blocks/operations'
+import { CUSTOM_BLOCK_TYPE_PREFIX } from '@/blocks/custom/build-config'
 
 /**
  * Everything the source organization loses when a workspace leaves it, plus the
@@ -303,6 +307,98 @@ export async function findUnpublishableCustomBlocks(
   }
   /** `total` is the untruncated row count so the caller can disclose the gap. */
   return { items, total: rows.length }
+}
+
+export interface InboundSourceOrgCustomBlock {
+  id: string
+  type: string
+  name: string
+  /** Same meaning as {@link UnpublishableCustomBlock.movingWorkspaceUsage}. */
+  movingWorkspaceUsage: { live: number; deployed: number }
+}
+
+/**
+ * Source-org custom blocks published from a workflow elsewhere in the source org but placed in
+ * the moving workspace's workflows. They stay published, yet `getCustomBlockAuthority` resolves
+ * a placement through the consumer's organization, so after the move these placements fail at
+ * run time. Blocks bound inside the moving workspace are excluded: those are unpublished and
+ * reported by {@link findUnpublishableCustomBlocks}.
+ *
+ * Placement predicates mirror `getCustomBlockUsageCounts` (live editor rows and active
+ * deployment snapshots of non-archived workflows, prefiltered with an escaped LIKE), batched
+ * across every block so preflight pays two queries instead of two per block. Preflight only.
+ */
+export async function findInboundSourceOrgCustomBlockUsage(
+  workspaceId: string,
+  sourceOrganizationId: string
+): Promise<InboundSourceOrgCustomBlock[]> {
+  const boundWorkflow = alias(workflow, 'bound_workflow')
+  const placedBlock = {
+    id: customBlock.id,
+    type: customBlock.type,
+    name: customBlock.name,
+    workflowId: workflow.id,
+  }
+  const movingWorkflow = and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))
+  const boundElsewhereInSourceOrg = and(
+    eq(customBlock.organizationId, sourceOrganizationId),
+    ne(boundWorkflow.workspaceId, workspaceId)
+  )
+  const prefixPattern = `%${escapeLikePattern(CUSTOM_BLOCK_TYPE_PREFIX)}%`
+
+  const [liveRows, deployedRows] = await Promise.all([
+    db
+      .selectDistinct(placedBlock)
+      .from(workflowBlocks)
+      .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
+      .innerJoin(customBlock, eq(customBlock.type, workflowBlocks.type))
+      .innerJoin(boundWorkflow, eq(boundWorkflow.id, customBlock.workflowId))
+      .where(and(movingWorkflow, boundElsewhereInSourceOrg)),
+    db
+      .selectDistinct(placedBlock)
+      .from(workflowDeploymentVersion)
+      .innerJoin(workflow, eq(workflow.id, workflowDeploymentVersion.workflowId))
+      .crossJoinLateral(
+        sql`jsonb_each((${workflowDeploymentVersion.state})::jsonb -> 'blocks') AS placed_block`
+      )
+      .innerJoin(customBlock, sql`${customBlock.type} = placed_block.value ->> 'type'`)
+      .innerJoin(boundWorkflow, eq(boundWorkflow.id, customBlock.workflowId))
+      .where(
+        and(
+          eq(workflowDeploymentVersion.isActive, true),
+          eq(workflow.isDeployed, true),
+          movingWorkflow,
+          boundElsewhereInSourceOrg,
+          sql`${workflowDeploymentVersion.state}::text LIKE ${prefixPattern} ESCAPE '\\'`
+        )
+      ),
+  ])
+
+  const byBlock = new Map<
+    string,
+    { id: string; type: string; name: string; using: Set<string>; deployed: number }
+  >()
+  for (const [rows, deployed] of [
+    [liveRows, false],
+    [deployedRows, true],
+  ] as const) {
+    for (const row of rows) {
+      const entry = byBlock.get(row.id) ?? {
+        id: row.id,
+        type: row.type,
+        name: row.name,
+        using: new Set<string>(),
+        deployed: 0,
+      }
+      entry.using.add(row.workflowId)
+      if (deployed) entry.deployed += 1
+      byBlock.set(row.id, entry)
+    }
+  }
+  return [...byBlock.values()].map(({ using, deployed, ...block }) => ({
+    ...block,
+    movingWorkspaceUsage: { live: using.size, deployed },
+  }))
 }
 
 export interface WorkspaceMoveCredentialSummaryRow {

@@ -429,7 +429,7 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
         expect(await sql`SELECT id FROM workspace_files`).toEqual([])
         await sql`UPDATE organization SET storage_used_bytes = 100 WHERE id = 'organization-a'`
         for (const [delta, expected] of [
-          [0, 100],
+          [0, entityType === 'workspace' ? undefined : 100],
           [-20, 80],
         ] as const) {
           await database.transaction(async (tx) => {

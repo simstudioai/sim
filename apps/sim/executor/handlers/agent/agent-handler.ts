@@ -9,6 +9,7 @@ import {
   projectResolvedModelInput,
   selectModelSchemaInputPaths,
 } from '@/lib/execution/model-input-provenance'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { readAvailableCustomToolByIdOrTitleAsExecutor } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
 import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
@@ -91,6 +92,7 @@ import type {
 import { collectBlockData } from '@/executor/utils/block-data'
 import { stringifyJSON } from '@/executor/utils/json'
 import {
+  assertFallbackFamilyCredentials,
   getModelFallbacks,
   PROVIDER_FAMILY_CREDENTIAL_FIELDS,
   recordModelFallbacks,
@@ -591,7 +593,7 @@ export class AgentBlockHandler implements BlockHandler {
         logger
       )
       if (configuredFallbacks.some((candidate) => isEvaluationModel(candidate.model))) {
-        throw new Error('Evaluation models cannot serve as chat fallbacks')
+        throw new NonRetryableExecutionError('Evaluation models cannot serve as chat fallbacks')
       }
       const retry = nodeMetadata?.retry
       const fallbacksHeld = retry !== undefined && !retry.isFinalTry
@@ -2639,6 +2641,7 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           candidateProviderId = getProviderFromModel(candidate.model)
           await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
+          assertFallbackFamilyCredentials(candidateProviderId, config.primaryProviderId)
         } catch (error) {
           this.warnFallbackSkipped(ctx, block, candidate.model, 'unusable', error)
           continue

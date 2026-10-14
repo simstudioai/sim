@@ -1674,8 +1674,7 @@
     "TS2741": 1
   },
   "apps/sim/lib/knowledge/connectors/sync-content-pass.test.ts": {
-    "TS2345": 1,
-    "TS2741": 1
+    "TS2345": 1
   },
   "apps/sim/lib/knowledge/connectors/sync-engine.test.ts": {
     "TS2322": 2,
@@ -2648,8 +2647,8 @@
     "TS2345": 25
   },
   "apps/sim/tools/ashby/ashby.test.ts": {
-    "TS2339": 5,
-    "TS2345": 57
+    "TS2339": 3,
+    "TS2345": 50
   },
   "apps/sim/tools/assistant-execution.test.ts": {
     "TS2554": 2

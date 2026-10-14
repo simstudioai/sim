@@ -43,7 +43,8 @@ function buildWorkspaceFileFolderPathMapImpl(folders: MockFolderPathSource[]): M
  * - `mockNormalizeWorkspaceFileItemName` → faithful port (trims; throws on empty names, path
  *   separators and dot segments).
  * - `mockBuildWorkspaceFileFolderPathMap` → faithful port (folder id → encoded display path).
- * - `mockAssertWorkspaceFileFolderTarget` / `mockResolveWorkspaceFileFolderTarget` resolve `null`
+ * - `mockAssertFileFolderTarget` / `mockAssertWorkspaceFileFolderTarget` /
+ *   `mockResolveWorkspaceFileFolderTarget` resolve `null`
  *   (the root folder).
  * - `mockFileNameExistsInWorkspaceFolder` resolves `false`.
  * - `mockListWorkspaceFileFolders` resolves `[]`.
@@ -80,6 +81,7 @@ export const workspaceFileFoldersMockFns = {
   mockResolveWorkspaceFileFolderTarget: vi.fn(
     async (..._args: unknown[]): Promise<string | null> => null
   ),
+  mockAssertFileFolderTarget: vi.fn(async (..._args: unknown[]): Promise<string | null> => null),
   mockAssertWorkspaceFileFolderTarget: vi.fn(
     async (..._args: unknown[]): Promise<string | null> => null
   ),
@@ -128,6 +130,7 @@ export const workspaceFileFoldersMock = {
   getWorkspaceFileFolder: fns.mockGetWorkspaceFileFolder,
   resolveFileFolderTarget: fns.mockResolveFileFolderTarget,
   resolveWorkspaceFileFolderTarget: fns.mockResolveWorkspaceFileFolderTarget,
+  assertFileFolderTarget: fns.mockAssertFileFolderTarget,
   assertWorkspaceFileFolderTarget: fns.mockAssertWorkspaceFileFolderTarget,
   createWorkspaceFileFolder: fns.mockCreateWorkspaceFileFolder,
   ensureWorkspaceFileFolderPath: fns.mockEnsureWorkspaceFileFolderPath,

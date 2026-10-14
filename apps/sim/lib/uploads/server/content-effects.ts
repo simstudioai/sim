@@ -24,7 +24,7 @@ export async function finishFileContentEffects(
       logger.warn('Live document reconciliation remains pending', { ...context, result })
     }
   } catch (error) {
-    logger.error('Committed file live-document reconciliation failed inline', {
+    logger.warn('Live document reconciliation deferred after inline processing error', {
       ...context,
       error: describeError(error),
     })

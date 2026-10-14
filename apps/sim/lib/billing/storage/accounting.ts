@@ -11,9 +11,12 @@ import type { DbTransaction } from '@/lib/db/types'
 import { lockProject, lockWorkspaceProject } from '@/lib/projects/membership'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
-interface PreparedFileAccounting<Billing = StorageBillingContext | ProjectStorageBillingContext> {
+interface PreparedFileAccounting<
+  Billing = StorageBillingContext | ProjectStorageBillingContext,
+  Usage = number | undefined,
+> {
   billing: Billing
-  mutation: { applyDelta(deltaBytes: number): Promise<number> }
+  mutation: { applyDelta(deltaBytes: number): Promise<Usage> }
 }
 
 export function prepareFileAccountingInTx(
@@ -23,16 +26,18 @@ export function prepareFileAccountingInTx(
 export function prepareFileAccountingInTx(
   tx: DbTransaction,
   owner: { entityType: 'project'; entityId: string }
-): Promise<PreparedFileAccounting<ProjectStorageBillingContext>>
+): Promise<PreparedFileAccounting<ProjectStorageBillingContext, number>>
 export function prepareFileAccountingInTx(
   tx: DbTransaction,
   owner: EditableFileOwner
 ): Promise<PreparedFileAccounting>
 /**
  * Prepares retained-head accounting in the caller's transaction, after authorization and before
- * directory, file, history or cleanup locks. Locks lifecycle, owner row, then payer; multi-owner
- * callers must acquire all lifecycle locks first. Resolve from the canonical owner, never actor
- * or creator. Apply one signed delta at finalization and notify only after the caller commits.
+ * directory, file, history or cleanup locks. Locks lifecycle then the owner row; a Project also
+ * locks its payer here, a workspace only when its non-zero delta is applied. A Project's lifecycle
+ * lock is exclusive, so its caller must not already hold that Project shared. Multi-owner callers
+ * must acquire all lifecycle locks first. Resolve from the canonical owner, never actor or
+ * creator. Apply one signed delta at finalization and notify only after the caller commits.
  */
 export async function prepareFileAccountingInTx(
   tx: DbTransaction,

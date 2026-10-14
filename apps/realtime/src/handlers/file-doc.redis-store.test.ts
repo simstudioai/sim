@@ -160,7 +160,6 @@ function createIo(sockets: FakeSocket[]) {
     in: vi.fn(() => ({ socketsLeave: () => {} })),
     local: { to },
     sockets: { sockets: { get: (id: string) => sockets.find((socket) => socket.id === id) } },
-    on: vi.fn(),
     serverSideEmit: vi.fn(),
   } as unknown as IRoomManager['io']
 }

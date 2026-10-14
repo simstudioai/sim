@@ -1664,6 +1664,7 @@ export const chat = pgTable(
         table.workflowId,
         table.archivedAt
       ),
+      userIdIdx: index('chat_user_id_idx').on(table.userId).concurrently(),
     }
   }
 )
@@ -2528,6 +2529,7 @@ export const workspaceFile = pgTable(
     workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    uploadedByIdx: index('workspace_file_uploaded_by_idx').on(table.uploadedBy).concurrently(),
   })
 )
 

@@ -200,7 +200,7 @@ Images smaller than **2 KiB**, SVG, HEIC, and AVIF files are not indexed through
 
 New knowledge-base Confluence connections enable image reading by default. Connections created before image support keep it off until you choose **Read with AI**; their next sync then indexes images.
 
-The default admission limit is **500 new or changed images per sync**. Remaining images wait for another sync. Self-hosted operators can configure `KB_IMAGE_EXTRACTIONS_PER_SYNC`. Unchanged images reuse their extraction, including during a full resync; transient or malformed responses can cause additional model requests.
+The default admission limit is **500 new or changed images per sync**. Remaining images wait for another sync. With **Member accounts**, each run that continues a sync can read up to 500. Self-hosted operators can configure `KB_IMAGE_EXTRACTIONS_PER_SYNC`. Unchanged images reuse their extraction, including during a full resync; transient or malformed responses can cause additional model requests.
 
 Image extraction follows [model billing](/platform/costs): BYOK usage is billed by the provider, while platform-key usage follows the deployment's Sim billing policy. Choose **Don't index** to stop image indexing; the next sync removes indexed images. Switching back processes them again and incurs the applicable model usage.
 

@@ -142,7 +142,7 @@ export const fileEditTool: InternalToolConfig<FileEditParams, ToolResponse> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'For anchored edits, which matching anchor occurrence to use, starting at 1. Defaults to 1.',
+        'For anchored edits, which start or insert anchor match to use, starting at 1. Defaults to 1. The end anchor is the first match after it.',
     },
     expectedRevision: {
       type: 'string',

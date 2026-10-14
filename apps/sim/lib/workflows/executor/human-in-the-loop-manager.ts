@@ -15,6 +15,7 @@ import {
   getTimeoutErrorMessage,
   type TimeoutAbortController,
 } from '@/lib/core/execution-limits'
+import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
@@ -904,6 +905,7 @@ export class PauseResumeManager {
     )
 
     let attemptTimeoutController: TimeoutAbortController | undefined
+    let unsubscribeCancellation: (() => void) | undefined
     try {
       attemptTimeoutController = createResumeAttemptTimeoutController(
         pausedExecution.executionSnapshot as SerializedSnapshot,
@@ -911,6 +913,13 @@ export class PauseResumeManager {
         pausedExecution.metadata
       )
       registerManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
+      /** Stop signals the attempt id, while the engine subscribes under the durable run id. */
+      unsubscribeCancellation = await subscribeToExecutionCancellation(
+        resumeExecutionId,
+        attemptTimeoutController.abort
+      ).catch((cause: unknown) => {
+        throw new Error(RUN_BUFFER_UNAVAILABLE_ERROR, { cause })
+      })
       const result = await PauseResumeManager.runResumeExecution({
         reservationId: resumeEntryId,
         resumeExecutionId,
@@ -1070,6 +1079,7 @@ export class PauseResumeManager {
       }
       throw error
     } finally {
+      unsubscribeCancellation?.()
       if (attemptTimeoutController) {
         unregisterManualExecutionAborter(resumeExecutionId, attemptTimeoutController.abort)
       }

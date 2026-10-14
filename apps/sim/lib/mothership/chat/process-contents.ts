@@ -429,7 +429,7 @@ export async function processContextsServer(
         ? { ...resolved, content: `Workspace ${workspaceId}:\n${resolved.content}` }
         : resolved
     } catch (error) {
-      logger.error('Failed processing context (server)', { ctx, error })
+      logger.error('Failed processing context (server)', { kind: ctx.kind, error })
       return null
     }
   }

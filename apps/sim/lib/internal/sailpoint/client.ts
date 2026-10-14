@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
+import { LRUCache } from 'lru-cache'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
   consumeOrCancelBody,
@@ -28,19 +29,45 @@ export interface SailPointFetchResult {
   status: number
 }
 
-interface CachedToken {
-  expiresAt: number
-  token: string
-}
-
 const MAX_FETCH_RETRIES = 4
-const MAX_TOKEN_CACHE_ENTRIES = 100
 const MAX_TOKEN_EXCHANGES = 100
 const MAX_TOKEN_RESPONSE_BYTES = 1024 * 1024
 const TOKEN_EXCHANGE_TIMEOUT_MS = 30_000
 const TOKEN_EXPIRY_BUFFER_MS = 60_000
-const tokenCache = new Map<string, CachedToken>()
-const tokenExchanges = new Map<string, Promise<string>>()
+
+/**
+ * Access tokens keyed by tenant, client, and secret hash. `fetchMethod`
+ * coalesces concurrent exchanges per key and sets each entry's TTL from the
+ * provider's `expires_in`. The exchange owns its timeout and ignores
+ * cache-driven aborts, so an eviction never fails callers already waiting on
+ * it; a caller's own signal only detaches that caller. Because an evicted exchange keeps
+ * running, `max` does not bound in-flight exchanges, so `activeTokenExchanges` caps them
+ * separately. TTLs run on the wall clock at exact resolution, the same clock as the
+ * provider's `expires_in`.
+ */
+let activeTokenExchanges = 0
+const tokenCache = new LRUCache<string, string, SailPointCredentials>({
+  max: 100,
+  ttlResolution: 0,
+  ignoreFetchAbort: true,
+  perf: { now: () => Date.now() },
+  fetchMethod: async (_key, _stale, { context, options }) => {
+    if (activeTokenExchanges >= MAX_TOKEN_EXCHANGES) {
+      throw new Error('Too many concurrent SailPoint token exchanges')
+    }
+    activeTokenExchanges += 1
+    try {
+      const { token, ttlMs } = await exchangeAccessToken(
+        context,
+        AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
+      )
+      options.ttl = ttlMs
+      return token
+    } finally {
+      activeTokenExchanges -= 1
+    }
+  },
+})
 
 async function waitForPromiseWithSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise
@@ -111,23 +138,6 @@ function credentialsCacheKey(credentials: SailPointCredentials): string {
   return `${host}:${credentials.clientId}:${secretHash}`
 }
 
-function pruneTokenCache(now: number): void {
-  for (const [key, value] of tokenCache) {
-    if (value.expiresAt <= now) tokenCache.delete(key)
-  }
-  while (tokenCache.size >= MAX_TOKEN_CACHE_ENTRIES) {
-    const oldest = tokenCache.keys().next().value
-    if (typeof oldest !== 'string') break
-    tokenCache.delete(oldest)
-  }
-}
-
-function cacheToken(key: string, token: CachedToken): void {
-  pruneTokenCache(Date.now())
-  tokenCache.delete(key)
-  tokenCache.set(key, token)
-}
-
 async function readBoundedBody(
   response: Response,
   maxBytes: number,
@@ -149,8 +159,8 @@ async function readBoundedBody(
 
 async function exchangeAccessToken(
   credentials: SailPointCredentials,
-  signal?: AbortSignal
-): Promise<string> {
+  signal: AbortSignal
+): Promise<{ token: string; ttlMs: number }> {
   const { tokenUrl } = resolveSailPointHosts(credentials.tenant)
   let attempt = 0
 
@@ -196,12 +206,11 @@ async function exchangeAccessToken(
     const parsedExpiry = Number(data.expires_in)
     const expiresInSeconds = Number.isFinite(parsedExpiry) && parsedExpiry > 0 ? parsedExpiry : 3600
     const bufferMs = Math.min(TOKEN_EXPIRY_BUFFER_MS, expiresInSeconds * 100)
-    const key = credentialsCacheKey(credentials)
-    cacheToken(key, {
+    // lru-cache reads a TTL of 0 as "never expires", so keep at least 1ms.
+    return {
       token: data.access_token,
-      expiresAt: Date.now() + Math.max(expiresInSeconds * 1000 - bufferMs, 0),
-    })
-    return data.access_token
+      ttlMs: Math.max(Math.floor(expiresInSeconds * 1000 - bufferMs), 1),
+    }
   }
 }
 
@@ -214,30 +223,13 @@ export async function getSailPointAccessToken(
   signal?: AbortSignal
 ): Promise<string> {
   signal?.throwIfAborted()
-  const key = credentialsCacheKey(credentials)
-  const now = Date.now()
-  const cached = tokenCache.get(key)
-  if (cached && cached.expiresAt > now) {
-    tokenCache.delete(key)
-    tokenCache.set(key, cached)
-    return cached.token
-  }
-  if (cached) tokenCache.delete(key)
-
-  const existing = tokenExchanges.get(key)
-  if (existing) return waitForPromiseWithSignal(existing, signal)
-  if (tokenExchanges.size >= MAX_TOKEN_EXCHANGES) {
-    throw new Error('Too many concurrent SailPoint token exchanges')
-  }
-
-  const exchange = exchangeAccessToken(
-    credentials,
-    AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS)
-  ).finally(() => {
-    tokenExchanges.delete(key)
-  })
-  tokenExchanges.set(key, exchange)
-  return waitForPromiseWithSignal(exchange, signal)
+  const token = await waitForPromiseWithSignal(
+    tokenCache.fetch(credentialsCacheKey(credentials), { context: credentials }),
+    signal
+  )
+  if (token === undefined)
+    throw new Error('SailPoint authentication did not return an access token')
+  return token
 }
 
 export async function sailpointFetch(
@@ -300,15 +292,4 @@ export function readTotalCount(headers: Headers): number | null {
   if (!raw) return null
   const parsed = Number(raw)
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null
-}
-
-/** Clears process-local authentication state for deterministic tests. */
-export function clearSailPointTokenStateForTests(): void {
-  tokenCache.clear()
-  tokenExchanges.clear()
-}
-
-/** Returns cache sizes for deterministic boundary tests. */
-export function getSailPointTokenStateForTests(): { cacheSize: number; exchangeSize: number } {
-  return { cacheSize: tokenCache.size, exchangeSize: tokenExchanges.size }
 }

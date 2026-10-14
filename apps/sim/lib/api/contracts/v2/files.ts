@@ -1214,7 +1214,9 @@ export const v2EditFileContentBodySchema = z
               .int('occurrence must be a whole number')
               .min(1, 'occurrence must be at least 1')
               .optional()
-              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+              .describe(
+                'Which beforeAnchor match to use, starting at 1. Defaults to 1. afterAnchor is the first match after it.'
+              ),
           })
           .strict(),
         z
@@ -1233,7 +1235,7 @@ export const v2EditFileContentBodySchema = z
               .int('occurrence must be a whole number')
               .min(1, 'occurrence must be at least 1')
               .optional()
-              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+              .describe('Which anchor match to insert after, starting at 1. Defaults to 1.'),
           })
           .strict(),
         z
@@ -1256,7 +1258,9 @@ export const v2EditFileContentBodySchema = z
               .int('occurrence must be a whole number')
               .min(1, 'occurrence must be at least 1')
               .optional()
-              .describe('Matching anchor occurrence, starting at 1. Defaults to 1.'),
+              .describe(
+                'Which startAnchor match to use, starting at 1. Defaults to 1. endAnchor is the first match after it.'
+              ),
           })
           .strict(),
       ])
