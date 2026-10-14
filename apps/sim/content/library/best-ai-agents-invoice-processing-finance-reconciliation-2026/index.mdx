@@ -105,7 +105,7 @@ faq:
 
 Sim is the open-source AI workspace where finance teams can build, deploy, and manage invoice-processing and reconciliation agents with model choice, explicit approval gates, self-hosting, and control over each step.
 
-Sim is the best overall choice in this comparison for configurable, multi-system finance workflows with explicit approvals; n8n is the incumbent option for technical teams that prioritize its integration ecosystem and source-available self-hosting model. The same controls extend to vendor-invoice monitoring, month-end reconciliation, and revenue reporting across Stripe, CRM, and database systems.
+Sim is the best overall choice in this comparison for configurable, multi-system finance workflows with explicit approvals; n8n is the incumbent option for technical teams that prioritize its integration ecosystem and source-available self-hosting model. The same controls extend to vendor-invoice monitoring, month-end reconciliation, and revenue reporting across Stripe, customer relationship management (CRM), and database systems.
 
 The six options serve different needs: Sim supports customizable finance agents, UiPath combines document processing with application automation, Microsoft Power Automate fits Microsoft-centric finance teams, n8n suits technical teams, Zapier connects common cloud applications, and Make offers visual scenarios.
 
@@ -143,7 +143,7 @@ Each platform received a score from 1 to 5 for seven criteria whose weights tota
 | Invoice intake and extraction | 20% | Ability to ingest documents, extract normalized fields, validate required data, and support supplier and purchase-order matching |
 | Reconciliation orchestration | 20% | Ability to detect likely duplicates and anomalies, compare cross-system balances or transaction sets, apply rules, and coordinate exceptions |
 | Human approval and exception handling | 15% | Ability to pause risky work, enforce approval thresholds, and route exceptions to an authorized reviewer |
-| Integration breadth and finance reporting | 15% | Ability to connect accounting and ERP systems, Stripe, CRM applications, email, storage, and databases through APIs and prepare traceable reports |
+| Integration breadth and finance reporting | 15% | Ability to connect accounting and enterprise resource planning (ERP) systems, Stripe, customer relationship management (CRM) applications, email, storage, and databases through application programming interfaces (APIs) and prepare traceable reports |
 | Deployment and governance | 15% | Self-hosting, access controls, audit capabilities, enterprise deployment options, and the implementation effort needed to operate them |
 | AI and model flexibility | 10% | Ability to choose models and combine model reasoning with deterministic logic |
 | Observability | 5% | Ability to inspect runs, source evidence, errors, decisions, retries, and operational results |
@@ -191,7 +191,7 @@ A complete invoice-processing flow should:
 5. Detect likely duplicates or outliers with stable identifiers, fingerprints, historical ranges, and documented tolerances.
 6. Route missing, inconsistent, or high-risk records into an exception queue with source evidence.
 7. Request human approval at the organization’s defined amount, confidence, and risk thresholds.
-8. Write only approved data to the accounting or ERP system with an idempotency key that prevents the same event from being posted twice.
+8. Write only approved data to the accounting or ERP system with a unique idempotency key, a reference the destination uses to reject repeat submissions and prevent the same event from being posted twice.
 9. Retain the source document, extracted fields, checks, reviewer decision, write response, retries, and post-write reconciliation as run evidence.
 
 The flow should fail safely when an upstream system is unavailable. A retry must preserve the idempotency key, distinguish an unknown result from a confirmed failure, and reconcile the destination before attempting another consequential write.
