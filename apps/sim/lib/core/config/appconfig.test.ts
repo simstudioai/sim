@@ -1,3 +1,4 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { toRecord } from '@sim/utils/object'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -263,8 +264,6 @@ describe('shared snapshot in Trigger.dev runs', () => {
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
     return redis
   }
-  /** Lets a fire-and-forget publish settle before asserting it never wrote. */
-  const settle = () => new Promise((resolve) => setImmediate(resolve))
 
   beforeEach(() => {
     mockSend.mockImplementation(sessionResponses)
@@ -306,7 +305,7 @@ describe('shared snapshot in Trigger.dev runs', () => {
     })
     resetInsideTriggerRunForTests()
     await fetchAppConfigProfile(uniqueIds(), (json) => json)
-    await settle()
+    await flushMacrotask()
     expect(redis.eval).not.toHaveBeenCalled()
   })
 
@@ -341,7 +340,7 @@ describe('shared snapshot in Trigger.dev runs', () => {
     expect(await fetchAppConfigProfile(uniqueIds(), (json) => json, shared)).toEqual({
       revision: 'appconfig',
     })
-    await settle()
+    await flushMacrotask()
     expect(redis.eval).not.toHaveBeenCalled()
 
     resetInsideTriggerRunForTests()
@@ -356,7 +355,7 @@ describe('shared snapshot in Trigger.dev runs', () => {
     })
     resetInsideTriggerRunForTests()
     await fetchAppConfigSnapshot(uniqueIds(), (json) => json)
-    await settle()
+    await flushMacrotask()
     expect(redis.eval).not.toHaveBeenCalled()
   })
 })

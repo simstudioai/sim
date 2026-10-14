@@ -65,7 +65,8 @@ describe.runIf(Boolean(redisUrl))('shared AppConfig snapshot with Redis', () => 
   }
 
   beforeAll(async () => {
-    redis = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
+    if (!redisUrl) throw new Error('TEST_REDIS_URL is required for this suite')
+    redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
     await redis.connect()
   })
 
@@ -105,11 +106,13 @@ describe.runIf(Boolean(redisUrl))('shared AppConfig snapshot with Redis', () => 
     await redis.set(key(), JSON.stringify(newer))
 
     respondWith('older')
+    const publish = vi.spyOn(redis, 'eval')
     const app = await freshProcess()
     expect(
       await app.fetchAppConfigProfile(ids, (json) => json, { shareWithTriggerRuns: true })
     ).toEqual({ revision: 'older' })
-    await sleep(200)
+    await vi.waitFor(() => expect(publish).toHaveBeenCalledTimes(1))
+    expect(await publish.mock.results[0]?.value).toBe(0)
 
     expect(JSON.parse((await redis.get(key())) ?? 'null')).toEqual(newer)
   })
