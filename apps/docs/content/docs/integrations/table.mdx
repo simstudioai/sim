@@ -33,7 +33,7 @@ See [Table column types](/tables#column-types) for the supported types and their
 
 ## Use the block [#usage-instructions]
 
-Create and manage custom data tables. Store, query, and update structured data within workflows. Query Rows accepts a plain predicate — `{"field":"wins","op":"gte","value":10}` — for one condition. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted (fails if the result exceeds the default 5 MiB response budget — add a filter or a Limit). With a Limit, responses page: a non-null nextCursor means more rows exist — pass it back as the cursor. Columns to Return narrows each row to the selected columns (by stable id or name; one that no longer exists is skipped); leave it empty for every column.
+Create and manage custom data tables. Store, query, and update structured data within workflows. Query Rows accepts a plain predicate — `{"field":"wins","op":"gte","value":10}` — for one condition. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted (fails if the result exceeds the fixed 5 MiB row-data budget — add a filter or a Limit). With a Limit, responses page: a non-null nextCursor means more rows exist — pass it back as the cursor. Columns to Return narrows each row to the selected columns (by stable id or name; one that no longer exists is skipped); leave it empty for every column.
 
 ## Actions
 
@@ -181,7 +181,7 @@ Delete multiple rows that match filter criteria. Use with caution - supports opt
 
 ### Query Rows
 
-Query rows with a typed predicate filter and cursor pagination. A single filter can be a plain condition: `\{"field":"wins","op":"gte","value":10\}`. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec, e.g. `[\{"field":"wins","direction":"desc"\}]`. Omit limit to return the entire result — the query fails if it exceeds the default 5 MiB response budget (narrow with a filter or set a limit). With a limit, a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back as cursor to continue; never infer completion from page size.
+Query rows with a typed predicate filter and cursor pagination. A single filter can be a plain condition: `\{"field":"wins","op":"gte","value":10\}`. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec, e.g. `[\{"field":"wins","direction":"desc"\}]`. Omit limit to return the entire result — the query fails if it exceeds the fixed 5 MiB row-data budget (narrow with a filter or set a limit). With a limit, a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back as cursor to continue; never infer completion from page size.
 
 #### Input
 
@@ -191,7 +191,7 @@ Query rows with a typed predicate filter and cursor pagination. A single filter 
 | `filter` | json | No | Predicate condition, e.g. `\{"field":"wins","op":"gte","value":10\}`. Use `all` or `any` for multiple conditions; omit to match all rows. |
 | `columns` | array | No | Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored. |
 | `order` | json | No | Sort spec, e.g. `\[\{"field":"wins","direction":"desc"\}\]`. |
-| `limit` | number | No | Maximum rows per page. Omit to return the entire matching result — fails if it exceeds the default 5 MiB response budget. With a limit, pages may byte-cut early and set nextCursor when more remain. |
+| `limit` | number | No | Maximum rows per page. Omit to return the entire matching result — fails if it exceeds the fixed 5 MiB row-data budget. With a limit, pages may byte-cut early and set nextCursor when more remain. |
 | `cursor` | string | No | Opaque pagination cursor returned by a prior query. Omit for the first page. |
 
 #### Output
@@ -343,9 +343,9 @@ Multi-column sorting:
 
 ## Pagination
 
-Omit **Limit** to return every matching row in one response; the query fails if the result exceeds the response byte budget (5 MiB by default), so narrow with a filter, select fewer columns, or set a limit. Self-hosted operators can configure `TABLE_MAX_PAGE_BYTES`.
+Omit **Limit** to return every matching row in one response; queries exceeding the fixed 5 MiB row-data budget fail. Narrow with a filter, select fewer columns, or set a limit.
 
-With a **Limit**, results page. A page can end at the limit *or* at the response byte budget (5 MiB by default), whichever comes first, so a short page does not mean the end. Pass the returned `nextCursor` back as **Cursor** to fetch the next page and stop only when `nextCursor` is null — never infer completion from the row count.
+With a **Limit**, results page. A page can end at the limit or early at the row-data budget (5 MiB by default; self-hosted operators can configure `TABLE_MAX_PAGE_BYTES`), so a short page does not mean the end. Pass the returned `nextCursor` back as **Cursor** to fetch the next page and stop only when `nextCursor` is null — never infer completion from the row count.
 
 ## Built-in columns [#built-in-columns]
 
