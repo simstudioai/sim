@@ -1,6 +1,5 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
-import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -19,7 +18,6 @@ const hoisted = vi.hoisted(() => ({
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
-vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 vi.mock('@/lib/workspace-files/search/repository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/workspace-files/search/repository')>()),
   searchFileIndex: hoisted.search,

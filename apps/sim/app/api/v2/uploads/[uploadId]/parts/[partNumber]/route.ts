@@ -1,3 +1,4 @@
+import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { localUploadPartContract } from '@/lib/api/contracts/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
@@ -19,6 +20,8 @@ import {
   v2HttpError,
   v2UploadDataPlaneError,
 } from '@/app/api/v2/lib/response'
+
+const logger = createLogger('LocalUploadPart')
 
 interface LocalPartRouteParams {
   params: Promise<{ uploadId: string; partNumber: string }>
@@ -89,7 +92,14 @@ export const PUT = withRouteHandler(
     try {
       await writeLocalMultipartPart({ uploadId, partNumber, body: request.body, expectedSize })
     } catch (error) {
-      await queueRetiredProjectUploadCleanup(session)
+      try {
+        await queueRetiredProjectUploadCleanup(session)
+      } catch (cleanupError) {
+        logger.error('Could not schedule retired upload cleanup', {
+          uploadId: session.id,
+          error: cleanupError,
+        })
+      }
       if (error instanceof LocalUploadBodyError) {
         return v2Error('BAD_REQUEST', error.message)
       }

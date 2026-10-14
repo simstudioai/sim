@@ -134,8 +134,11 @@ export async function createProjectRecord(
   return id
 }
 
-/** Locks and rechecks the workspace’s Project; null means the workspace no longer exists. */
-export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: string) {
+/**
+ * Locks and rechecks the workspace’s Project; null means the workspace no longer exists.
+ * `shared` lets writers of one Project run together while excluding exclusive holders.
+ */
+async function lockWorkspaceProjectInMode(tx: DbTransaction, workspaceId: string, shared: boolean) {
   return withProjectLockTimeout(tx, PROJECT_CHANGING, async () => {
     await acquireBackfillWriteLocks(tx, [workspaceId])
     const [membership] = await tx
@@ -146,7 +149,9 @@ export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: strin
     if (!membership) return null
     if (!membership.projectId)
       throw new ProjectConflictError('Project membership needs reconciliation')
-    await acquireAdvisoryXactLock(tx, 'project', projectLockKey(membership.projectId))
+    await acquireAdvisoryXactLocks(tx, 'project', [
+      { key: projectLockKey(membership.projectId), shared },
+    ])
     const [current] = await tx
       .select({
         project: {
@@ -168,9 +173,33 @@ export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: strin
   })
 }
 
+/**
+ * Takes the workspace’s Project lock SHARED and rechecks membership; null means the
+ * workspace no longer exists. For writers inside one environment (workspace files,
+ * shares): it fences them against exclusive Project holders (fork, split, archive,
+ * payer transfer, departure handoff, account deletion, retention) without serializing
+ * writers against each other. A transaction holding it must never later take the same
+ * Project exclusively ({@link lockProject}, {@link lockProjects}, {@link tryLockProjects},
+ * {@link lockWorkspaceProjectExclusive}): two such holders would each wait on the other's
+ * shared hold. Take {@link lockWorkspaceProjectExclusive} up front instead.
+ */
+export async function lockWorkspaceProject(tx: DbTransaction, workspaceId: string) {
+  return lockWorkspaceProjectInMode(tx, workspaceId, true)
+}
+
+/**
+ * Takes the workspace’s Project lock EXCLUSIVELY and rechecks membership; null means the
+ * workspace no longer exists. For callers that change Project membership or lifecycle
+ * (fork, split, environment archive), which must exclude every writer and each other.
+ * Take it before any shared hold on the same Project in the transaction, never after.
+ */
+export async function lockWorkspaceProjectExclusive(tx: DbTransaction, workspaceId: string) {
+  return lockWorkspaceProjectInMode(tx, workspaceId, false)
+}
+
 /** Locks the parent's Project for a new fork and refuses an archived Project. */
 export async function requireForkProject(tx: DbTransaction, parentWorkspaceId: string) {
-  const parent = await lockWorkspaceProject(tx, parentWorkspaceId)
+  const parent = await lockWorkspaceProjectExclusive(tx, parentWorkspaceId)
   if (!parent) throw new ProjectConflictError('Source workspace no longer exists')
   if (parent.archivedAt) throw new ProjectConflictError('Cannot fork an archived Project')
   return parent
@@ -214,7 +243,7 @@ export async function splitForkProject(
   workspaceId: string,
   newProjectId = generateId()
 ): Promise<string> {
-  const owner = await lockWorkspaceProject(tx, workspaceId)
+  const owner = await lockWorkspaceProjectExclusive(tx, workspaceId)
   if (!owner) throw new ProjectConflictError('Workspace no longer exists')
   if (owner.archivedAt) throw new ProjectConflictError('Cannot disconnect an archived Project')
   const rows = await tx.execute<{

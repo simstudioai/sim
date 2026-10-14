@@ -47,6 +47,14 @@
         "x-sim-operation": "files.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -220,6 +228,14 @@
         "x-sim-operation": "files.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Inline content and placement for a new workspace file.",
@@ -294,6 +310,14 @@
         "x-sim-operation": "files.upload.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "File metadata required to create an upload session.",
@@ -365,6 +389,14 @@
         "x-sim-operation": "files.upload.read",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -453,6 +485,14 @@
         "x-sim-operation": "files.upload.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -546,6 +586,14 @@
         "x-sim-operation": "files.upload.parts",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -656,6 +704,14 @@
         "x-sim-operation": "files.upload.complete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "uploadId",
@@ -749,6 +805,14 @@
         "x-sim-operation": "files.read_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -871,6 +935,14 @@
         "x-sim-operation": "files.versions.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1000,6 +1072,14 @@
         "x-sim-operation": "files.versions.read",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1091,6 +1171,14 @@
         "x-sim-operation": "files.versions.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1187,6 +1275,14 @@
         "x-sim-operation": "files.versions.read_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1322,6 +1418,14 @@
         "x-sim-operation": "files.versions.download",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1431,6 +1535,14 @@
         "x-sim-operation": "files.versions.revert",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1532,6 +1644,14 @@
         "x-sim-operation": "files.download",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -1630,6 +1750,14 @@
         "x-sim-operation": "files.extract_archive",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1719,6 +1847,14 @@
         "x-sim-operation": "files.download",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1814,6 +1950,14 @@
         "x-sim-operation": "files.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1893,6 +2037,14 @@
         "x-sim-operation": "files.rename",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -1982,6 +2134,14 @@
         "x-sim-operation": "files.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2071,6 +2231,14 @@
         "x-sim-operation": "files.read_metadata",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2164,6 +2332,14 @@
         "x-sim-operation": "audit_logs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Audit Logs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "action",
@@ -2340,6 +2516,14 @@
         "x-sim-operation": "audit_logs.read_detail",
         "x-oauth-scope": "api:read",
         "tags": ["Audit Logs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "auditLogId",
@@ -2418,6 +2602,14 @@
         "x-sim-operation": "files.move",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Files and destination selected for a bulk move.",
@@ -2492,6 +2684,14 @@
         "x-sim-operation": "files.share.read",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2571,6 +2771,14 @@
         "x-sim-operation": "files.share.update",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2657,6 +2865,14 @@
         "x-sim-operation": "files.update_content",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2747,6 +2963,14 @@
         "x-sim-operation": "files.update_content",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -2836,6 +3060,14 @@
         "x-sim-operation": "files.search_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -2978,6 +3210,14 @@
         "x-sim-operation": "files.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace and files selected for deletion.",
@@ -3049,6 +3289,14 @@
         "x-sim-operation": "files.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3209,6 +3457,14 @@
         "x-sim-operation": "files.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace and canonical path for a new folder.",
@@ -3281,6 +3537,14 @@
         "x-sim-operation": "files.folders.update",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Current and destination canonical paths for a folder.",
@@ -3353,6 +3617,14 @@
         "x-sim-operation": "files.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3459,6 +3731,14 @@
         "x-sim-operation": "files.folders.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope and archived folder path.",
@@ -3535,10 +3815,20 @@
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {

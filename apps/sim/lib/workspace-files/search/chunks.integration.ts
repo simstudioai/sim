@@ -174,6 +174,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
       ginWriteMigration,
       '0382_workspace_file_search_dispatch_handoff.sql',
       '0426_file_search_owner_scope.sql',
+      '0428_file_search_dependency_owner.sql',
     ]) {
       await applyMigration(migration)
     }

@@ -173,7 +173,7 @@ function resolveAuthHeaders(
       headers[scheme.name] = AUTH_SAMPLE_VALUE
       continue
     }
-    if (scheme.type === 'http' && scheme.scheme === 'bearer') {
+    if (scheme.type === 'oauth2' || (scheme.type === 'http' && scheme.scheme === 'bearer')) {
       headers.Authorization = `Bearer ${AUTH_SAMPLE_VALUE}`
       continue
     }

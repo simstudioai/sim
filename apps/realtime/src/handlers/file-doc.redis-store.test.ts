@@ -147,12 +147,21 @@ function createIo(sockets: FakeSocket[]) {
   const channel = (target: string, excluded: string[] = []) => ({
     except: (exclude: string) => channel(target, [...excluded, exclude]),
     emit: (event: string, payload: unknown) => emitTo(target, excluded, event, payload),
+    fetchSockets: async () =>
+      sockets.filter(
+        (socket) =>
+          socket.rooms.has(target) &&
+          !excluded.some((room) => room === socket.id || socket.rooms.has(room))
+      ),
   })
   const to = vi.fn((target: string) => channel(target))
   return {
     to,
     in: vi.fn(() => ({ socketsLeave: () => {} })),
     local: { to },
+    sockets: { sockets: { get: (id: string) => sockets.find((socket) => socket.id === id) } },
+    on: vi.fn(),
+    serverSideEmit: vi.fn(),
   } as unknown as IRoomManager['io']
 }
 
@@ -161,6 +170,7 @@ function setup(id: string, sockets: FakeSocket[]) {
   const rooms = new Set<string>()
   const socket = {
     id,
+    data: {},
     userId: 'user-1',
     userName: 'Test User',
     userImage: 'avatar.png',

@@ -277,7 +277,7 @@ export async function upsertFileShare({
  */
 export interface ResolvedShare {
   share: PublicShareRow & { workspaceId: string }
-  file: WorkspaceFileRow & { workspaceId: string; userId: string }
+  file: WorkspaceFileRow & { workspaceId: string }
   /** Owning workspace name, for provenance on the public page. */
   workspaceName: string | null
   /** Display name of the file's uploader. */
@@ -306,7 +306,7 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
     )
     .limit(1)
 
-  if (!row || !row.file.workspaceId || !row.file.userId) return null
+  if (!row || !row.file.workspaceId) return null
   const owner = resolveFileOwner(row.file)
   if (
     owner?.entityType !== 'workspace' ||
@@ -321,7 +321,7 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
 
   return {
     share: { ...row.share, workspaceId: owner.entityId },
-    file: { ...row.file, workspaceId: owner.entityId, userId: row.file.userId },
+    file: { ...row.file, workspaceId: owner.entityId },
     workspaceName: row.workspaceName,
     ownerName: row.ownerName,
   }

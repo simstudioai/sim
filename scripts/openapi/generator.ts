@@ -6,6 +6,7 @@ import type {
   OpenApiDocumentDefinition,
   OpenApiOperationMetadata,
   OpenApiRouteDefinition,
+  OpenApiSecurityRequirement,
   OpenApiStatusSuccessMetadata,
 } from '@/lib/api/openapi/types'
 
@@ -500,6 +501,31 @@ function publicApiOAuthScope(
   return scope === 'search:read' ? 'api:read' : scope
 }
 
+function isOAuthScheme(definition: OpenApiDocumentDefinition, scheme: string): boolean {
+  return definition.securitySchemes[scheme]?.type === 'oauth2'
+}
+
+/** Fills the operation's OAuth scope into every OAuth 2.0 requirement, so `security` states least privilege. */
+function operationSecurity(
+  operation: OpenApiOperationMetadata,
+  definition: OpenApiDocumentDefinition,
+  oauthScope: string | undefined
+): readonly OpenApiSecurityRequirement[] | undefined {
+  const requirements = operation.security ?? definition.security
+  const usesOAuth = requirements.some((requirement) =>
+    Object.keys(requirement).some((scheme) => isOAuthScheme(definition, scheme))
+  )
+  if (!oauthScope || !usesOAuth) return operation.security
+  return requirements.map((requirement) =>
+    Object.fromEntries(
+      Object.entries(requirement).map(([scheme, scopes]) => [
+        scheme,
+        isOAuthScheme(definition, scheme) ? [oauthScope] : scopes,
+      ])
+    )
+  )
+}
+
 function operationFor(
   route: OpenApiRouteDefinition,
   definition: OpenApiDocumentDefinition,
@@ -656,6 +682,7 @@ function operationFor(
 
   const requestBody = requestBodyFor(route, components, label)
   const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
+  const security = operationSecurity(operation, definition, oauthScope)
   return {
     operationId: operation.operationId,
     summary: operation.summary,
@@ -666,7 +693,7 @@ function operationFor(
     ...(oauthScope ? { 'x-oauth-scope': oauthScope } : {}),
     tags: [...operation.tags],
     ...(operation.deprecated === undefined ? {} : { deprecated: operation.deprecated }),
-    ...(operation.security === undefined ? {} : { security: operation.security }),
+    ...(security === undefined ? {} : { security }),
     ...(parameters.length === 0 ? {} : { parameters }),
     ...(requestBody ? { requestBody } : {}),
     responses,
@@ -680,11 +707,14 @@ function validateOperationMetadata(
 ): void {
   nonEmpty(operation.applicationOperation.id, `${label} application operation id`)
   const security = operation.security ?? definition.security
-  if (security.some((requirement) => 'oauthBearer' in requirement)) {
+  for (const scheme of new Set(security.flatMap((requirement) => Object.keys(requirement)))) {
+    const declared = definition.securitySchemes[scheme]
+    if (declared?.type !== 'oauth2') continue
     const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
+    invariant(oauthScope, `${label} must declare its canonical application's OAuth scope`)
     invariant(
-      oauthScope === 'api:read' || oauthScope === 'api:write',
-      `${label} must declare its canonical application's OAuth scope`
+      oauthScope in declared.flows.authorizationCode.scopes,
+      `${label} OAuth scope ${oauthScope} is not declared by security scheme ${scheme}`
     )
   }
   nonEmpty(operation.operationId, `${label} operationId`)
@@ -752,7 +782,7 @@ function validateSecurity(
       )
       invariant(
         Array.isArray(scopes) && scopes.length === 0,
-        `${label} ${scheme} security requirement must use an empty scope array`
+        `${label} ${scheme} security requirement must use an empty scope array; OAuth scopes are derived from the application operation`
       )
     }
   }

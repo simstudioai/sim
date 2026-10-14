@@ -7,6 +7,11 @@ import type {
   OpenApiRouteDefinition,
   OpenApiSecurityScheme,
 } from '@/lib/api/openapi/types'
+import {
+  OAUTH_API_READ_SCOPE,
+  OAUTH_API_WRITE_SCOPE,
+  OAUTH_SCOPE_DESCRIPTIONS,
+} from '@/lib/auth/oauth-provider'
 
 interface ErrorResponseOptions {
   /**
@@ -317,6 +322,9 @@ export function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRou
   return { ...route, operation: { ...route.operation, errors: derived } }
 }
 
+/** The production authorization server, as its RFC 8414 metadata names it (`issuer`). */
+const SIM_OAUTH_ISSUER = 'https://www.sim.ai/api/auth'
+
 export const V2_AUTH_SECURITY = [{ apiKey: [] }, { oauthBearer: [] }] as const
 
 export const V2_AUTH_SECURITY_SCHEMES = {
@@ -328,11 +336,21 @@ export const V2_AUTH_SECURITY_SCHEMES = {
       'Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description.',
   },
   oauthBearer: {
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'OAuth 2.0 access token',
+    type: 'oauth2',
     description:
-      'A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.',
+      'A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.',
+    flows: {
+      authorizationCode: {
+        authorizationUrl: `${SIM_OAUTH_ISSUER}/oauth2/authorize`,
+        tokenUrl: `${SIM_OAUTH_ISSUER}/oauth2/token`,
+        refreshUrl: `${SIM_OAUTH_ISSUER}/oauth2/token`,
+        scopes: {
+          [OAUTH_API_READ_SCOPE]: OAUTH_SCOPE_DESCRIPTIONS[OAUTH_API_READ_SCOPE],
+          [OAUTH_API_WRITE_SCOPE]: OAUTH_SCOPE_DESCRIPTIONS[OAUTH_API_WRITE_SCOPE],
+          offline_access: OAUTH_SCOPE_DESCRIPTIONS.offline_access,
+        },
+      },
+    },
   },
 } as const satisfies Readonly<Record<string, OpenApiSecurityScheme>>
 

@@ -350,7 +350,7 @@ export async function searchFileIndex({
             const coverage = await tx
               .select({
                 readyFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'ready' AND ${workspaceFileSearchRevision.buildId} IS NOT NULL AND ${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)})::int`,
-                pendingFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} is null or ${workspaceFileSearchRevision.status} = 'pending' or (${workspaceFileSearchRevision.status} = 'ready' AND (${workspaceFileSearchRevision.buildId} IS NULL OR NOT (${currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner)}))))::int`,
+                totalFiles: sql<number>`count(*)::int`,
                 failedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'failed')::int`,
                 skippedFiles: sql<number>`count(*) filter (where ${workspaceFileSearchRevision.status} = 'skipped')::int`,
                 partialFiles: sql<number>`0::int`,
@@ -405,13 +405,20 @@ export async function searchFileIndex({
 
         signal?.throwIfAborted()
         const resultRows = rows.slice(0, maxResults)
-        const indexStatus = coverageRows[0] ?? {
-          readyFiles: 0,
-          pendingFiles: 0,
-          failedFiles: 0,
-          skippedFiles: 0,
-          partialFiles: 0,
-        }
+        const counts = coverageRows[0]
+        // Every joined row is exactly one of ready, failed, skipped, or pending (no revision, a
+        // pending one, or a ready one whose build or inputs are stale), so pending is the remainder
+        // and the dependency check runs once per ready file.
+        const indexStatus: WorkspaceFileSearchIndexStatus = counts
+          ? {
+              readyFiles: counts.readyFiles,
+              pendingFiles:
+                counts.totalFiles - counts.readyFiles - counts.failedFiles - counts.skippedFiles,
+              failedFiles: counts.failedFiles,
+              skippedFiles: counts.skippedFiles,
+              partialFiles: counts.partialFiles,
+            }
+          : { readyFiles: 0, pendingFiles: 0, failedFiles: 0, skippedFiles: 0, partialFiles: 0 }
         const sourcesByFileId = new Map<string, FileSearchSource>()
         for (const row of resultRows) {
           sourcesByFileId.set(row.fileId, {

@@ -51,6 +51,14 @@
         "x-sim-operation": "workflows.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -212,6 +220,14 @@
         "x-sim-operation": "workflows.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Name, description, workspace, and optional folder for a new workflow.",
@@ -289,6 +305,14 @@
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -355,6 +379,14 @@
         "x-sim-operation": "workflows.state.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -456,6 +488,14 @@
         "x-sim-operation": "workflows.operations.apply",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -557,6 +597,14 @@
         "x-sim-operation": "workflows.variables.apply_operations",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -648,6 +696,14 @@
         "x-sim-operation": "workflows.duplicate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -739,6 +795,14 @@
         "x-sim-operation": "workflows.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -816,6 +880,14 @@
         "x-sim-operation": "workflows.bulk.move",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workflows to relocate and the folder to relocate them into.",
@@ -887,6 +959,14 @@
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -956,6 +1036,14 @@
         "x-sim-operation": "workflows.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -1045,6 +1133,14 @@
         "x-sim-operation": "workflows.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -1116,6 +1212,14 @@
         "x-sim-operation": "workflows.versions.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -1208,6 +1312,14 @@
         "x-sim-operation": "workflows.versions.compare",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -1303,6 +1415,14 @@
         "x-sim-operation": "workflows.versions.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "version",
@@ -1381,6 +1501,14 @@
         "x-sim-operation": "workflows.versions.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "version",
@@ -1478,6 +1606,14 @@
         "x-sim-operation": "workflows.versions.activate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "version",
@@ -1581,6 +1717,14 @@
         "x-sim-operation": "workflows.versions.revert",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "version",
@@ -1692,6 +1836,14 @@
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -1758,6 +1910,14 @@
         "x-sim-operation": "workflows.public_api.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -1846,6 +2006,14 @@
         "x-sim-operation": "workflows.deploy",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -1935,6 +2103,14 @@
         "x-sim-operation": "workflows.undeploy",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -2006,6 +2182,14 @@
         "x-sim-operation": "workflows.versions.activate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -2097,6 +2281,14 @@
         "x-sim-operation": "workflows.export",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -2188,6 +2380,14 @@
         "x-sim-operation": "workflows.import",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workflow document, destination, and optional reviewed mappings.",
@@ -2265,6 +2465,14 @@
         "x-sim-operation": "chat_deployments.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -2402,6 +2610,14 @@
         "x-sim-operation": "chat_deployments.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -2468,6 +2684,14 @@
         "x-sim-operation": "chat_deployments.replace",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -2557,6 +2781,14 @@
         "x-sim-operation": "chat_deployments.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -2630,7 +2862,7 @@
             "apiKey": []
           },
           {
-            "oauthBearer": []
+            "oauthBearer": ["api:write"]
           },
           {}
         ],
@@ -2789,6 +3021,14 @@
         "x-sim-operation": "workflows.runs.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -2939,6 +3179,14 @@
         "x-sim-operation": "workflows.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -3068,6 +3316,14 @@
         "x-sim-operation": "workflows.download_run_file",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -3174,6 +3430,14 @@
         "x-sim-operation": "workflows.runs.resume",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -3305,6 +3569,14 @@
         "x-sim-operation": "workflows.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workflowId",
@@ -3389,6 +3661,14 @@
         "x-sim-operation": "workflows.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3504,6 +3784,14 @@
         "x-sim-operation": "workflows.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace and canonical path for a new workflow folder.",
@@ -3579,6 +3867,14 @@
         "x-sim-operation": "workflows.folders.relocate",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Current and destination paths for a workflow folder.",
@@ -3654,6 +3950,14 @@
         "x-sim-operation": "workflows.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3766,6 +4070,14 @@
         "x-sim-operation": "workspaces.fork.preview",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3840,6 +4152,14 @@
         "x-sim-operation": "workspaces.fork.create",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3914,6 +4234,14 @@
         "x-sim-operation": "workspaces.fork.sync.preview",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3988,6 +4316,14 @@
         "x-sim-operation": "workspaces.fork.sync",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4062,6 +4398,14 @@
         "x-sim-operation": "workspaces.fork.sync.preview",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4136,6 +4480,14 @@
         "x-sim-operation": "workspaces.fork.sync",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4210,6 +4562,14 @@
         "x-sim-operation": "workspaces.fork.discover",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4273,6 +4633,14 @@
         "x-sim-operation": "workspaces.fork.discover",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4336,6 +4704,14 @@
         "x-sim-operation": "workspaces.fork.discover",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4447,6 +4823,14 @@
         "x-sim-operation": "workspaces.fork.discover",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4577,6 +4961,14 @@
         "x-sim-operation": "workspaces.fork.mappings.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4709,6 +5101,14 @@
         "x-sim-operation": "workspaces.fork.mappings.update",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4783,6 +5183,14 @@
         "x-sim-operation": "workspaces.fork.rollback",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4857,6 +5265,14 @@
         "x-sim-operation": "workspaces.fork.unlink",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4931,6 +5347,14 @@
         "x-sim-operation": "workspaces.fork.exclusions",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -5005,6 +5429,14 @@
         "x-sim-operation": "workflows.import.preview",
         "x-oauth-scope": "api:write",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Portable workflow data and destination metadata for an import.",
@@ -5065,6 +5497,14 @@
         "x-sim-operation": "selectors.execute",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "The body for this operation.",
@@ -5125,6 +5565,14 @@
         "x-sim-operation": "selectors.execute",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "The body for this operation.",
@@ -5185,6 +5633,14 @@
         "x-sim-operation": "workspaces.operations.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -5260,6 +5716,14 @@
         "x-sim-operation": "workspaces.operations.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workspace Sync"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -5361,10 +5825,20 @@
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {

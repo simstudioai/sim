@@ -2838,16 +2838,19 @@ export const workspaceFiles = pgTable(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
     /**
-     * Serves the search backfill's hourly keyset walk over every live workspace file, which pages
-     * by `(workspace_id, id)`.
+     * Serves the search backfill's hourly keyset walk over every live workspace and project file,
+     * which pages by `(owner type, owner id, id)` — the owner expressions below, where a project
+     * file's owner is its project and every other file's is its workspace.
      *
      * Without this index nothing supplies that order under that filter, so each page sorts the
      * whole remaining set and the dispatcher's statement timeout aborts the transaction before any
-     * page commits. The column order must match the walk's `ORDER BY`, and the predicate must match
-     * its filter exactly, or the planner cannot prove the partial index covers the query.
+     * page commits. The expressions and their order must match the walk's `ORDER BY`, and the
+     * predicate must match its filter exactly, or the planner cannot prove the partial index
+     * covers the query.
      *
-     * The walk must also compare its cursor row-wise (`(workspace_id, id) > (:ws, :id)`) to seek
-     * with this index; `a > x OR (a = x AND b > y)` is only ever a filter. See `seedBackfillPage`.
+     * The walk must also compare its cursor row-wise (`(type, owner, id) > (:type, :owner, :id)`)
+     * to seek with this index; an `OR` of per-column comparisons is only ever a filter. See
+     * `seedBackfillPage`.
      */
     ownerSearchKeysetIdx: index('workspace_files_search_owner_keyset_idx')
       .on(
@@ -2859,6 +2862,12 @@ export const workspaceFiles = pgTable(
         sql`${table.deletedAt} IS NULL AND ((${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL) OR (${table.context} = 'project' AND ${table.projectId} IS NOT NULL))`
       )
       .concurrently(),
+    /**
+     * Served the pre-project backfill walk, which paged live workspace files by
+     * `(workspace_id, id)` and compared its cursor row-wise to seek with this index.
+     *
+     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, so its last designed reader is gone once older dispatchers drain; confirm no other plan still picks it.
+     */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
       .concurrently()
@@ -3072,6 +3081,7 @@ export const workspaceFileSearchBuild = pgTable(
     expiresAt: timestamp('expires_at'),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_build_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_build scan. */
     ownerCheck: check(
       'file_search_build_owner_check',
       sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
@@ -3114,6 +3124,7 @@ export const workspaceFileSearchRevision = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_revision_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_revision scan. */
     ownerCheck: check(
       'file_search_revision_owner_check',
       sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
@@ -3167,6 +3178,7 @@ export const workspaceFileSearchChunk = pgTable(
     content: text('content').notNull(),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_chunk_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_chunk scan. */
     ownerCheck: check(
       'file_search_chunk_owner_check',
       sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
@@ -3216,10 +3228,20 @@ export const fileSearchDependency = pgTable(
     fileId: text('file_id').notNull(),
     key: text('key').notNull(),
     sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    /**
+     * The build's canonical owner, always derived from the build by the
+     * `file_search_dependency_owner` trigger, so the dispatcher can find an owner's stale
+     * dependencies without testing every ready revision.
+     */
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.buildId, table.fileId] }),
     fileIdx: index('file_search_dependency_file_idx').on(table.fileId, table.buildId),
+    ownerIdx: index('file_search_dependency_owner_idx')
+      .on(table.entityType, table.entityId, table.buildId)
+      .concurrently(),
   })
 )
 
@@ -3480,6 +3502,7 @@ export const publicShare = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    /** contract-pending(after 0034_backfill_public_share_entities has run in every environment): validate public_share_entity_binding_check separately — 0425 added it NOT VALID so rollout avoids a public_share scan. */
     entityBinding: check(
       'public_share_entity_binding_check',
       sql`

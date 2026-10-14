@@ -13,7 +13,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import type { ProjectStorageOwnerSnapshot } from '@/lib/billing/storage/context'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { lockProject } from '@/lib/projects/membership'
+import { lockProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('WorkspaceStoragePayerTransfer')
 
@@ -385,25 +385,13 @@ async function setStoragePayerUsagesBatch(
 }
 
 /**
- * Changes multiple workspace payers in one short caller-owned transaction.
- *
- * Workspace rows are locked in ascending ID order, exact live byte totals are
- * grouped into one query, and distinct payer rows are locked with all users
- * before all organizations and ascending IDs within each type. Source and
- * destination deltas are aggregated separately so an underfunded source is
- * clamped before incoming bytes are added. No destination quota is enforced.
+ * Locks workspace rows in ascending ID order and changes their payer metadata and exact
+ * live byte totals. The caller already holds every affected payer row and applies the
+ * returned contributions once, so no payer ledger is written here.
  */
-export async function changeWorkspaceStoragePayersInTx(
-  tx: DbOrTx,
-  changes: ChangeWorkspaceStoragePayerParams[]
-): Promise<ChangeWorkspaceStoragePayerResult[]> {
-  return changeWorkspaceStoragePayers(tx, changes, false)
-}
-
 async function changeWorkspaceStoragePayers(
   tx: DbOrTx,
-  changes: ChangeWorkspaceStoragePayerParams[],
-  deferPayerUpdates: boolean
+  changes: ChangeWorkspaceStoragePayerParams[]
 ): Promise<ChangeWorkspaceStoragePayerResult[]> {
   if (changes.length === 0) return []
 
@@ -443,98 +431,19 @@ async function changeWorkspaceStoragePayers(
     }
   }
 
-  const payerByKey = new Map<string, BillingEntity>()
-  const payerChangingWorkspaceIds: string[] = []
-  for (const workspaceId of workspaceIds) {
+  const payerChangingWorkspaceIds = workspaceIds.filter((workspaceId) => {
     const lockedWorkspace = workspaceById.get(workspaceId)
     const change = changesByWorkspaceId.get(workspaceId)
-    if (!lockedWorkspace || !change) continue
-    const oldPayer = getWorkspacePayer(lockedWorkspace)
-    const newPayer = getWorkspacePayer(change)
-    if (getPayerKey(oldPayer) === getPayerKey(newPayer)) continue
-    payerChangingWorkspaceIds.push(workspaceId)
-    payerByKey.set(getPayerKey(oldPayer), oldPayer)
-    payerByKey.set(getPayerKey(newPayer), newPayer)
-  }
+    if (!lockedWorkspace || !change) return false
+    return (
+      getPayerKey(getWorkspacePayer(lockedWorkspace)) !== getPayerKey(getWorkspacePayer(change))
+    )
+  })
 
   const exactBytesByWorkspaceId = await getExactWorkspaceStorageBytesBatch(
     tx,
     payerChangingWorkspaceIds
   )
-  if (!deferPayerUpdates) {
-    const payerUsageByKey = await lockStoragePayers(tx, payerByKey)
-    const deltaByPayerKey = new Map<string, PayerStorageDelta>()
-
-    for (const workspaceId of payerChangingWorkspaceIds) {
-      const lockedWorkspace = workspaceById.get(workspaceId)
-      const change = changesByWorkspaceId.get(workspaceId)
-      if (!lockedWorkspace || !change) continue
-      const exactBytes = exactBytesByWorkspaceId.get(workspaceId) ?? 0
-      const oldPayer = getWorkspacePayer(lockedWorkspace)
-      const newPayer = getWorkspacePayer(change)
-      const oldPayerKey = getPayerKey(oldPayer)
-      const newPayerKey = getPayerKey(newPayer)
-
-      if (payerUsageByKey.get(newPayerKey) === null) {
-        throw new Error(`Storage destination payer ${newPayerKey} not found`)
-      }
-
-      const sourceDelta = deltaByPayerKey.get(oldPayerKey) ?? {
-        incomingBytes: 0,
-        outgoingBytes: 0,
-      }
-      sourceDelta.outgoingBytes += exactBytes
-      if (!Number.isSafeInteger(sourceDelta.outgoingBytes)) {
-        throw new Error(`Storage source payer ${oldPayerKey} delta exceeds the safe integer range`)
-      }
-      deltaByPayerKey.set(oldPayerKey, sourceDelta)
-
-      const destinationDelta = deltaByPayerKey.get(newPayerKey) ?? {
-        incomingBytes: 0,
-        outgoingBytes: 0,
-      }
-      destinationDelta.incomingBytes += exactBytes
-      if (!Number.isSafeInteger(destinationDelta.incomingBytes)) {
-        throw new Error(
-          `Storage destination payer ${newPayerKey} delta exceeds the safe integer range`
-        )
-      }
-      deltaByPayerKey.set(newPayerKey, destinationDelta)
-    }
-
-    const nextUsageByKey = new Map<string, number>()
-    for (const [payerKey, delta] of [...deltaByPayerKey.entries()].sort(([left], [right]) =>
-      comparePayerKeys(left, right)
-    )) {
-      const currentUsage = payerUsageByKey.get(payerKey)
-      if (currentUsage === null || currentUsage === undefined) {
-        logger.warn('Storage source payer is missing during workspace payer batch change', {
-          sourcePayer: payerKey,
-          outgoingBytes: delta.outgoingBytes,
-        })
-        continue
-      }
-
-      const usageAfterOutgoing = Math.max(0, currentUsage - delta.outgoingBytes)
-      if (currentUsage < delta.outgoingBytes) {
-        logger.warn(
-          'Clamping drifted source storage aggregate during workspace payer batch change',
-          {
-            sourcePayer: payerKey,
-            sourceUsage: currentUsage,
-            outgoingBytes: delta.outgoingBytes,
-          }
-        )
-      }
-      const nextUsage = usageAfterOutgoing + delta.incomingBytes
-      if (!Number.isSafeInteger(nextUsage)) {
-        throw new Error(`Storage payer ${payerKey} exceeds the safe integer range`)
-      }
-      nextUsageByKey.set(payerKey, nextUsage)
-    }
-
-    await setStoragePayerUsagesBatch(tx, payerByKey, nextUsageByKey)
-  }
 
   const resultsByWorkspaceId = new Map<string, ChangeWorkspaceStoragePayerResult>()
   const workspaceUpdates = workspaceIds.map((workspaceId) => {
@@ -797,9 +706,14 @@ export async function changeProjectStoragePayersInTx(
   tx: DbTransaction,
   changes: readonly ChangeProjectStoragePayerParams[]
 ): Promise<ChangeProjectStoragePayerResult[]> {
+  await lockProjects(
+    tx,
+    changes.map((change) => change.projectId)
+  )
   return changeProjectStoragePayers(tx, changes, false)
 }
 
+/** The caller holds every changed Project's lock. */
 async function changeProjectStoragePayers(
   tx: DbTransaction,
   changes: readonly ChangeProjectStoragePayerParams[],
@@ -810,7 +724,6 @@ async function changeProjectStoragePayers(
   if (changesById.size !== changes.length)
     throw new Error('Storage payer batch contains duplicate Project IDs')
   const projectIds = [...changesById.keys()].sort()
-  for (const id of projectIds) await lockProject(tx, id)
   const owners = await tx
     .select({ id: project.id, ownerId: project.ownerId, organizationId: project.organizationId })
     .from(project)
@@ -906,6 +819,7 @@ async function applyPayerContributionTransfers(
   const usageByKey = await lockStoragePayers(tx, payerByKey)
   const deltas = new Map<string, PayerStorageDelta>()
   for (const result of contributions) {
+    if (result.billableBytes === 0) continue
     const sourceKey = getPayerKey(result.oldPayer)
     const destinationKey = result.newPayer ? getPayerKey(result.newPayer) : null
     if (sourceKey === destinationKey) continue
@@ -968,7 +882,7 @@ export async function changeProjectAndWorkspaceStoragePayersInTx(
     .sort()
   if (new Set(projectIds).size !== projectIds.length)
     throw new Error('Storage lifecycle batch contains duplicate Project IDs')
-  for (const id of projectIds) await lockProject(tx, id)
+  await lockProjects(tx, projectIds)
   const projects = projectIds.length
     ? await tx
         .select({
@@ -1044,7 +958,7 @@ export async function changeProjectAndWorkspaceStoragePayersInTx(
     removal.billableBytes = bytes
   }
   const projectResults = await changeProjectStoragePayers(tx, changes.projectChanges, true)
-  const workspaceResults = await changeWorkspaceStoragePayers(tx, changes.workspaceChanges, true)
+  const workspaceResults = await changeWorkspaceStoragePayers(tx, changes.workspaceChanges)
   await applyPayerContributionTransfers(tx, [
     ...projectResults,
     ...workspaceResults,
