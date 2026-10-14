@@ -103,7 +103,7 @@ const TEXT_SIZE_TOKENS: Record<string, string> = {
   '18': 'text-lg',
 }
 /** Imports that mean the file renders without the app stylesheet, so inline style is the only option. */
-const NO_TAILWIND_RENDERERS = /from\s+['"](?:@react-email\/[^'"]+|next\/og)['"]/
+const NO_TAILWIND_RENDERERS = /^(?:@react-email\/|next\/og$)/
 /** Wrappers that leave the wrapped expression's value unchanged. */
 const TRANSPARENT_WRAPPERS = new Set([
   'ParenthesizedExpression',
@@ -317,8 +317,13 @@ function isFullyStaticStyle(object: Node): boolean {
   })
 }
 
-function findStaticInlineStyles(file: string, source: string, program: Node): Violation[] {
-  if (NO_TAILWIND_RENDERERS.test(source)) return []
+function findStaticInlineStyles(file: string, program: Node): Violation[] {
+  const rendersWithoutTailwind = (program.body as Node[]).some(
+    (statement) =>
+      statement.type === 'ImportDeclaration' &&
+      NO_TAILWIND_RENDERERS.test(stringValue(statement.source) ?? '')
+  )
+  if (rendersWithoutTailwind) return []
   const violations: Violation[] = []
   walk(program, (node) => {
     if (node.type !== 'JSXAttribute') return
@@ -415,7 +420,7 @@ function classifyHandler(
     case 'MemberExpression': {
       const member = objectLiteralMember(node, bindings)
       if (member === undefined) return classifyHandler(node.object as Node, bindings, seen)
-      if (member.type === 'ObjectMethod') return 'bare'
+      if (member === 'unknown' || member.type === 'ObjectMethod') return 'bare'
       return classifyHandler(member.value as Node, bindings, seen)
     }
     case 'Identifier': {
@@ -433,9 +438,14 @@ function classifyHandler(
 
 /**
  * The property `handlers.GET` selects when `handlers` is a local object literal, so the selected
- * value is classified rather than the object. Undefined when the object is anything else.
+ * value is classified rather than the object. Later entries win, as they do at runtime; a spread
+ * or computed key after the last match (or with no match) could supply the value, so the member is
+ * `unknown` and cannot be shown to be wrapped. Undefined when the object is not a local literal.
  */
-function objectLiteralMember(member: Node, bindings: Map<string, Node>): Node | undefined {
+function objectLiteralMember(
+  member: Node,
+  bindings: Map<string, Node>
+): Node | 'unknown' | undefined {
   const object = unwrap(member.object as Node)
   const property = member.property as Node
   if (object?.type !== 'Identifier' || member.computed || property.type !== 'Identifier') {
@@ -444,11 +454,13 @@ function objectLiteralMember(member: Node, bindings: Map<string, Node>): Node | 
   const binding = bindings.get(object.name as string)
   const literal = binding?.type === 'VariableDeclarator' ? unwrap(binding.init as Node) : undefined
   if (literal?.type !== 'ObjectExpression') return undefined
-  return (literal.properties as Node[]).find(
-    (entry) =>
-      (entry.type === 'ObjectProperty' || entry.type === 'ObjectMethod') &&
-      propertyKeyName(entry) === property.name
-  )
+  let selected: Node | 'unknown' = 'unknown'
+  for (const entry of literal.properties as Node[]) {
+    const name = entry.type === 'SpreadElement' ? undefined : propertyKeyName(entry)
+    if (name === undefined) selected = 'unknown'
+    else if (name === property.name) selected = entry
+  }
+  return selected
 }
 
 /** Whether an arrow's expression body calls through a local binding that is a wrapped handler. */
@@ -523,7 +535,7 @@ export function findViolations(file: string, source: string): Violation[] {
   return [
     ...(wantsRelative ? findRelativeImports(file, program) : []),
     ...(wantsTextSize ? findTextSizeLiterals(file, program) : []),
-    ...(wantsStyle ? findStaticInlineStyles(file, source, program) : []),
+    ...(wantsStyle ? findStaticInlineStyles(file, program) : []),
     ...(wantsDb ? findApiDbImports(file, program) : []),
     ...(wantsRoute ? findBareRouteHandlers(file, program) : []),
   ]

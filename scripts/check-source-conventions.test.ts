@@ -170,6 +170,12 @@ describe('static-inline-style', () => {
     expect(hits(FILE, source, 'static-inline-style')).toEqual([])
   })
 
+  it('does not exempt a file that only mentions a renderer in a comment', () => {
+    const source =
+      "// rendered like `from 'next/og'`\nconst a = <div style={{ display: 'none' }} />"
+    expect(hits(FILE, source, 'static-inline-style')).toHaveLength(1)
+  })
+
   it('skips files rendered without the Tailwind stylesheet', () => {
     const email =
       "import { Text } from '@react-email/components'\nconst a = <Text style={{ margin: 0 }} />"
@@ -264,6 +270,21 @@ describe('bare-route-handler', () => {
       'HEAD',
       'POST',
     ])
+  })
+
+  it('reads a local object member as the entry that wins at runtime', () => {
+    const source = [
+      'const handler = defineInternalJsonRoute({ useCase })',
+      'const spread = { GET: handler, ...overrides }',
+      'const computed = { POST: handler, [verb]: async () => new Response() }',
+      'const repeated = { PUT: handler, PUT: async () => new Response() }',
+      'const restored = { ...overrides, DELETE: handler }',
+      'export const GET = spread.GET',
+      'export const POST = computed.POST',
+      'export const PUT = repeated.PUT',
+      'export const DELETE = restored.DELETE',
+    ].join('\n')
+    expect(hits(ROUTE, source, 'bare-route-handler')).toEqual(['GET', 'POST', 'PUT'])
   })
 
   it('allows wrapped results, their aliases and members, imports, and delegates to them', () => {
