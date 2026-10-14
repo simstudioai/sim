@@ -917,7 +917,9 @@ export class PauseResumeManager {
       unsubscribeCancellation = await subscribeToExecutionCancellation(
         resumeExecutionId,
         attemptTimeoutController.abort
-      )
+      ).catch((cause: unknown) => {
+        throw new Error(RUN_BUFFER_UNAVAILABLE_ERROR, { cause })
+      })
       const result = await PauseResumeManager.runResumeExecution({
         reservationId: resumeEntryId,
         resumeExecutionId,

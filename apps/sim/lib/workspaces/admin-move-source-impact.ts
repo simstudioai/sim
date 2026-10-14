@@ -330,8 +330,7 @@ export interface InboundSourceOrgCustomBlock {
  */
 export async function findInboundSourceOrgCustomBlockUsage(
   workspaceId: string,
-  sourceOrganizationId: string,
-  executor: DbOrTx = db
+  sourceOrganizationId: string
 ): Promise<InboundSourceOrgCustomBlock[]> {
   const boundWorkflow = alias(workflow, 'bound_workflow')
   const placedBlock = {
@@ -348,14 +347,14 @@ export async function findInboundSourceOrgCustomBlockUsage(
   const prefixPattern = `%${escapeLikePattern(CUSTOM_BLOCK_TYPE_PREFIX)}%`
 
   const [liveRows, deployedRows] = await Promise.all([
-    executor
+    db
       .selectDistinct(placedBlock)
       .from(workflowBlocks)
       .innerJoin(workflow, eq(workflow.id, workflowBlocks.workflowId))
       .innerJoin(customBlock, eq(customBlock.type, workflowBlocks.type))
       .innerJoin(boundWorkflow, eq(boundWorkflow.id, customBlock.workflowId))
       .where(and(movingWorkflow, boundElsewhereInSourceOrg)),
-    executor
+    db
       .selectDistinct(placedBlock)
       .from(workflowDeploymentVersion)
       .innerJoin(workflow, eq(workflow.id, workflowDeploymentVersion.workflowId))
