@@ -2181,12 +2181,30 @@ export const INTEGRATION_TOTALS = ${JSON.stringify(totals)} as const
         }
       )
 
-    // `updatedAt` is re-stamped only when the integrations content actually
-    // changes, so sitemap/JSON-LD freshness never churns on no-op regens.
+    // Each entry keeps its own `updatedAt` until that entry's content changes, so one
+    // integration's edit never re-dates every other page's sitemap/JSON-LD freshness.
+    // The catalog-wide `updatedAt` is re-stamped on any real change (it dates the hub).
     const previous = fs.existsSync(jsonPath)
-      ? (JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as { integrations?: unknown })
+      ? (JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as {
+          integrations?: Array<Record<string, unknown>>
+        })
       : null
-    if (previous?.integrations && serialize(previous.integrations) === serialize(integrations)) {
+    const today = new Date().toISOString().slice(0, 10)
+    const previousBySlug = new Map(
+      (previous?.integrations ?? []).map((entry) => [entry.slug, entry] as const)
+    )
+    const datedIntegrations = integrations.map((integration) => {
+      const prior = previousBySlug.get(integration.slug)
+      if (!prior) return { ...integration, updatedAt: today }
+      const { updatedAt: priorUpdatedAt, ...priorContent } = prior
+      const unchanged =
+        typeof priorUpdatedAt === 'string' && serialize(priorContent) === serialize(integration)
+      return { ...integration, updatedAt: unchanged ? priorUpdatedAt : today }
+    })
+    if (
+      previous?.integrations &&
+      serialize(previous.integrations) === serialize(datedIntegrations)
+    ) {
       console.log(`✓ Integration data unchanged: ${integrations.length} integrations → ${jsonPath}`)
       return
     }
@@ -2196,8 +2214,10 @@ export const INTEGRATION_TOTALS = ${JSON.stringify(totals)} as const
       return
     }
 
-    const updatedAt = new Date().toISOString().slice(0, 10)
-    fs.writeFileSync(jsonPath, `${serialize({ updatedAt, integrations })}\n`)
+    fs.writeFileSync(
+      jsonPath,
+      `${serialize({ updatedAt: today, integrations: datedIntegrations })}\n`
+    )
     console.log(`✓ Integration data written: ${integrations.length} integrations → ${jsonPath}`)
   } catch (error) {
     // Surface taxonomy violations (missing/invalid `integrationType`) loudly —

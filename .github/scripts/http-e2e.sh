@@ -236,6 +236,10 @@ case "$group" in
     MOBILE_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     MOBILE_E2E_REPORT_PATH="$report_dir/mobile-e2e-report.json" \
       bun run test:mobile:e2e
+    # The same production build answers as a crawler sees it: statuses, robots, sitemap, JSON-LD.
+    LANDING_SEO_E2E_BASE_URL="$NEXT_PUBLIC_APP_URL" \
+    LANDING_SEO_E2E_REPORT_PATH="$report_dir/landing-seo-e2e-report.json" \
+      bun run test:landing-seo:e2e
     ;;
 
   *)
