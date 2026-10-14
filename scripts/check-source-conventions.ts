@@ -241,12 +241,19 @@ function isBarrelReExport(node: Node, specifier: string, reExported: Set<string>
   )
 }
 
+/** The specifier of a type-position `import('./x').T`. */
+function importTypeSpecifier(node: Node): string | undefined {
+  if (node.type !== 'TSImportType') return undefined
+  const argument = node.argument as Node
+  return stringValue(argument.type === 'TSLiteralType' ? argument.literal : argument)
+}
+
 function findRelativeImports(file: string, program: Node): Violation[] {
   const violations: Violation[] = []
   const reExported = isBarrel(file) ? exportedLocals(program) : undefined
   walk(program, (node) => {
     const declared = declarationSpecifier(node)
-    const specifier = declared ?? dynamicSpecifier(node)
+    const specifier = declared ?? dynamicSpecifier(node) ?? importTypeSpecifier(node)
     if (!isRelative(specifier)) return
     if (reExported && isBarrelReExport(node, specifier, reExported)) return
     violations.push({ rule: 'relative-import', file, line: lineOf(node), detail: specifier })
@@ -271,7 +278,8 @@ function findTextSizeLiterals(file: string, program: Node): Violation[] {
   const violations: Violation[] = []
   for (const { text, line } of stringChunks(program)) {
     for (const match of text.matchAll(TEXT_SIZE_LITERAL)) {
-      const token = TEXT_SIZE_TOKENS[match[1]]
+      const size = String(Number(match[1]))
+      const token = TEXT_SIZE_TOKENS[size]
       if (!token) continue
       const linesBefore = text.slice(0, match.index).split('\n').length - 1
       violations.push({
@@ -313,7 +321,8 @@ function isFullyStaticStyle(object: Node): boolean {
     if (property.type !== 'ObjectProperty') return false
     const name = propertyKeyName(property)
     if (name === undefined || name.startsWith('--')) return false
-    return isStaticNonVariableValue(property.value as Node)
+    const value = unwrap(property.value as Node)
+    return value !== undefined && isStaticNonVariableValue(value)
   })
 }
 

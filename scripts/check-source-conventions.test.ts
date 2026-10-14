@@ -35,6 +35,7 @@ describe('relative-import', () => {
       "const f = require('../f')",
       "import g = require('./g')",
       "const h = await import(/* webpackChunkName: 'h' */ './h')",
+      "type I = import('./i').I",
     ].join('\n')
     expect(hits(MODULE, source, 'relative-import')).toEqual([
       './a',
@@ -46,6 +47,7 @@ describe('relative-import', () => {
       '../f',
       './g',
       './h',
+      './i',
     ])
   })
 
@@ -111,12 +113,14 @@ describe('text-size-literal', () => {
       "const a = <p className='text-[13px] text-[var(--text-muted)]' />",
       "const b = <p className='md:text-[14px] !text-[10px]' />",
       "const c = cn('font-medium', 'text-[12px]')",
+      "const d = cn('text-[13.0px]')",
     ].join('\n')
     expect(hits(FILE, source, 'text-size-literal')).toEqual([
       'text-[13px] → text-small',
       'text-[14px] → text-sm',
       'text-[10px] → text-micro',
       'text-[12px] → text-caption',
+      'text-[13.0px] → text-small',
     ])
   })
 
@@ -145,9 +149,10 @@ describe('static-inline-style', () => {
       '<col style={{ width: 140, marginTop: -1 }} />',
       '<div style={{ position: `absolute` }} />',
       "<div style={ { display: 'none' } } />",
-      "<div style = {{ display: 'none' } as CSSProperties} />"
+      "<div style = {{ display: 'none' } as CSSProperties} />",
+      "<div style={{ display: 'none' as const, opacity: 0 satisfies number }} />"
     )
-    expect(hits(FILE, source, 'static-inline-style')).toHaveLength(5)
+    expect(hits(FILE, source, 'static-inline-style')).toHaveLength(6)
   })
 
   it('finds a static style whose braces are spaced apart', () => {

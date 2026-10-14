@@ -31,12 +31,14 @@ describe('record coercion', () => {
   it('rejects the inline forms of toRecord and toRecordOrNull, including wrapped ones', () => {
     const source = [
       'const a = isRecordLike(value) ? value : {}',
+      'render(isRecordLike(props) ? props : null)',
       'const b = isRecordLike(input.payload)',
       '  ? input.payload',
       '  : null',
     ].join('\n')
     expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([
       'isRecordLike(v) ? v : {}',
+      'isRecordLike(v) ? v : null',
       'isRecordLike(v) ? v : null',
     ])
   })
@@ -52,6 +54,8 @@ describe('record coercion', () => {
       'const b = isRecordLike(value) ? other : {}',
       'const c = isRecordLike(value) ? { ...value } : {}',
       'const d = isRecordLike(item?.data) ? item.meta : null',
+      'const e = isRecordLike(value) ? value : null === other',
+      'const f = isRecordLike(value) ? value : {}.constructor',
     ].join('\n')
     expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([])
   })

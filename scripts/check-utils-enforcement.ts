@@ -57,6 +57,12 @@ const TRUNCATE_PREFILTER = /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/
 const MEMBER_PATH = String.raw`[\w$]+(?:\??\.[\w$]+)*`
 
 /**
+ * The fallback ends the expression: what follows is a separator, a closing bracket or the end of
+ * the line, so `: null === value` (a boolean fallback) is not read as `: null`.
+ */
+const FALLBACK_END = String.raw`(?=[ \t]*(?:[,;)\]}]|\r?\n|$))`
+
+/**
  * Whether the guarded path and the returned path are the same property. Optional chaining is
  * spelling, not meaning, once the guard has passed: `isRecordLike(a?.b) ? a.b : {}` is `toRecord(a?.b)`.
  */
@@ -136,7 +142,7 @@ const BANNED_PATTERNS: Array<{
   },
   {
     pattern: new RegExp(
-      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*\{\s*\}`,
+      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*\{\s*\}${FALLBACK_END}`,
       'g'
     ),
     description: 'isRecordLike(v) ? v : {}',
@@ -147,7 +153,7 @@ const BANNED_PATTERNS: Array<{
   },
   {
     pattern: new RegExp(
-      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*null\b`,
+      String.raw`\bisRecordLike\(\s*(${MEMBER_PATH})\s*\)\s*\?\s*(${MEMBER_PATH})\s*:\s*null${FALLBACK_END}`,
       'g'
     ),
     description: 'isRecordLike(v) ? v : null',
