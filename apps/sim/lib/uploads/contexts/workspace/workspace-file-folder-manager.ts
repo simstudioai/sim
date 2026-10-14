@@ -582,7 +582,7 @@ async function getFileFolder<O extends EditableFileOwner>(
 }
 
 /** Resolves one active folder by ID or path within the authorized owner. */
-async function resolveFileFolderTarget<O extends EditableFileOwner>(
+export async function resolveFileFolderTarget<O extends EditableFileOwner>(
   owner: O,
   target: { folderId?: string | null; folderPath?: string },
   client: DbOrTx = db

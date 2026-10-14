@@ -49,7 +49,8 @@ export interface ChangeProjectStoragePayerParams extends ProjectStorageOwnerSnap
   expectedCurrentOwner: Pick<ProjectStorageOwnerSnapshot, 'ownerId' | 'organizationId'>
 }
 
-interface ChangeProjectStoragePayerResult {
+/** Payer transfer contribution: current file heads, including archived files, excluding historical versions. */
+export interface ChangeProjectStoragePayerResult {
   projectId: string
   billableBytes: number
   oldPayer: BillingEntity

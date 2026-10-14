@@ -1,10 +1,10 @@
 import { dbFor } from '@sim/db'
-import { folder, organization, project, workspaceFiles, workspaceFileVersion } from '@sim/db/schema'
-import { and, asc, count, eq, gt, inArray, isNotNull, isNull, lt, min, or, sql } from 'drizzle-orm'
+import { organization, project, workspaceFiles, workspaceFileVersion } from '@sim/db/schema'
+import { and, asc, count, eq, gt, inArray, isNotNull, lt, min, or, sql } from 'drizzle-orm'
 import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { getPlanType } from '@/lib/billing/plan-helpers'
 import { resolveProjectStorageBillingContext } from '@/lib/billing/storage/context'
-import { prepareProjectStorageMutationInTx } from '@/lib/billing/storage/tracking'
+import { prepareFileStorageMutationInTx } from '@/lib/billing/storage/tracking'
 import {
   consumeRowBudget,
   DEFAULT_DELETE_CHUNK_SIZE,
@@ -12,22 +12,24 @@ import {
   type RowBudget,
 } from '@/lib/cleanup/batch-delete'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbTransaction } from '@/lib/db/types'
-import { acquireFolderMutationLock } from '@/lib/folders/locks'
-import { deduplicateFolderNameInScope } from '@/lib/folders/naming'
+import { cleanupExpiredFileFolderInTx } from '@/lib/file-retention/folders'
+import {
+  FILES_PER_QUERY,
+  KEEP_SUPERSEDED,
+  releaseExpiredFileVersions,
+  selectExpiredFileVersions,
+} from '@/lib/file-retention/versions'
 import { lockProject } from '@/lib/projects/membership'
-import { workspaceFileNameFolderCondition } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   MAX_SUPERSEDED_FILE_VERSIONS,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { fileFolderOwnerCondition, fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
+import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
 const cleanupDb = dbFor('cleanup')
-const KEEP_SUPERSEDED = 9
-const FILES_PER_QUERY = 500
 
 type FileRetentionJob = 'cleanup-file-versions' | 'cleanup-soft-deletes'
 
@@ -41,7 +43,7 @@ async function prepareRetention(tx: DbTransaction, projectId: string, job: FileR
     tx
   )
   if (isBillingEnabled && owner.organizationId && billing.plan === null) return null
-  const mutation = await prepareProjectStorageMutationInTx(tx, billing)
+  const mutation = await prepareFileStorageMutationInTx(tx, billing)
   const plan = isBillingEnabled ? getPlanType(billing.plan) : 'enterprise'
   const config = CLEANUP_CONFIG[job]
   let hours: number | null = config.defaults[plan]
@@ -112,58 +114,18 @@ export async function cleanupProjectFileVersions(
         )
         .orderBy(asc(workspaceFiles.id))
         .for('update')
-      const ranked = tx
-        .select({
-          id: workspaceFileVersion.id,
-          supersededAt: workspaceFileVersion.supersededAt,
-          rank: sql<number>`row_number() over (partition by ${workspaceFileVersion.fileId} order by ${workspaceFileVersion.version} desc)`.as(
-            'rank'
-          ),
-        })
-        .from(workspaceFileVersion)
-        .where(
-          and(
-            inArray(
-              workspaceFileVersion.fileId,
-              candidates.map((row) => row.id)
-            ),
-            isNotNull(workspaceFileVersion.supersededAt)
-          )
-        )
-        .as('ranked')
       const versionLimit = Math.min(DEFAULT_DELETE_CHUNK_SIZE, limit - released)
-      const expired = await tx
-        .select({ id: ranked.id })
-        .from(ranked)
-        .where(
-          and(
-            gt(ranked.rank, KEEP_SUPERSEDED),
-            or(lt(ranked.supersededAt, policy.cutoff), gt(ranked.rank, maximum))
-          )
-        )
-        .limit(versionLimit)
-      const removed = expired.length
-        ? await tx
-            .delete(workspaceFileVersion)
-            .where(
-              and(
-                inArray(
-                  workspaceFileVersion.id,
-                  expired.map((row) => row.id)
-                ),
-                isNotNull(workspaceFileVersion.supersededAt)
-              )
-            )
-            .returning({ key: workspaceFileVersion.key })
-        : []
-      await enqueueWorkspaceFileStorageCleanups(
+      const expired = await selectExpiredFileVersions(
         tx,
-        removed.map((row) => row.key),
-        'project'
+        candidates.map(({ id }) => id),
+        policy.cutoff,
+        maximum,
+        versionLimit
       )
+      const removed = await releaseExpiredFileVersions(tx, expired, 'project')
       return {
-        lastId: removed.length === versionLimit ? afterId : candidates[candidates.length - 1].id,
-        removed: removed.length,
+        lastId: removed === versionLimit ? afterId : candidates[candidates.length - 1].id,
+        removed,
       }
     })
     if (!batch) break
@@ -183,7 +145,7 @@ export async function cleanupArchivedProjectFiles(
     const removed = await cleanupDb.transaction(async (tx) => {
       const policy = await prepareRetention(tx, projectId, 'cleanup-soft-deletes')
       if (!policy) return 0
-      await acquireFolderMutationLock(tx, `project:${projectId}`, 'file')
+      await lockFileDirectories(tx, [{ entityType: 'project', entityId: projectId }])
       const rows = await tx
         .select({
           id: workspaceFiles.id,
@@ -235,88 +197,22 @@ export async function cleanupArchivedProjectFiles(
   return total
 }
 
-/** Surviving children are re-rooted under the directory lock before an expired folder is removed. */
+/** Surviving children are re-rooted atomically under current Project retention policy. */
 export async function cleanupArchivedProjectFileFolders(
   projectId: string,
   budget?: RowBudget
 ): Promise<number> {
   let total = 0
-  const owner = { entityType: 'project' as const, entityId: projectId }
-  const folderScope = fileFolderOwnerCondition(owner)
   for (let batch = 0; batch < DEFAULT_MAX_BATCHES_PER_TABLE && budget?.remaining !== 0; batch++) {
     const removed = await cleanupDb.transaction(async (tx) => {
       const policy = await prepareRetention(tx, projectId, 'cleanup-soft-deletes')
       if (!policy) return 0
-      await acquireFolderMutationLock(tx, `project:${projectId}`, 'file')
-      const [expired] = await tx
-        .select({ id: folder.id })
-        .from(folder)
-        .where(and(folderScope, isNotNull(folder.deletedAt), lt(folder.deletedAt, policy.cutoff)))
-        .orderBy(asc(folder.id))
-        .limit(1)
-        .for('update')
-      if (!expired) return 0
-      consumeRowBudget(budget, 1)
-      for (;;) {
-        const children = await tx
-          .select({ id: folder.id, name: folder.name })
-          .from(folder)
-          .where(and(folderScope, eq(folder.parentId, expired.id), isNull(folder.deletedAt)))
-          .orderBy(asc(folder.id))
-          .limit(FILES_PER_QUERY)
-          .for('update')
-        if (!children.length) break
-        for (const child of children) {
-          const name = await deduplicateFolderNameInScope(tx, folderScope, null, child.name)
-          await tx
-            .update(folder)
-            .set({ parentId: null, name, updatedAt: new Date() })
-            .where(and(folderScope, eq(folder.id, child.id)))
-        }
-      }
-      for (;;) {
-        const children = await tx
-          .select({ id: workspaceFiles.id, name: workspaceFiles.originalName })
-          .from(workspaceFiles)
-          .where(
-            and(
-              projectFiles(projectId),
-              eq(workspaceFiles.folderId, expired.id),
-              isNull(workspaceFiles.deletedAt)
-            )
-          )
-          .orderBy(asc(workspaceFiles.id))
-          .limit(FILES_PER_QUERY)
-          .for('update')
-        if (!children.length) break
-        for (const child of children) {
-          const originalName = await generateRestoreName(
-            child.name,
-            async (name) => {
-              const [existing] = await tx
-                .select({ id: workspaceFiles.id })
-                .from(workspaceFiles)
-                .where(
-                  and(
-                    projectFiles(projectId),
-                    eq(workspaceFiles.originalName, name),
-                    workspaceFileNameFolderCondition(null),
-                    isNull(workspaceFiles.deletedAt)
-                  )
-                )
-                .limit(1)
-              return Boolean(existing)
-            },
-            { hasExtension: true }
-          )
-          await tx
-            .update(workspaceFiles)
-            .set({ folderId: null, originalName, updatedAt: new Date() })
-            .where(and(projectFiles(projectId), eq(workspaceFiles.id, child.id)))
-        }
-      }
-      await tx.delete(folder).where(and(folderScope, eq(folder.id, expired.id)))
-      return 1
+      return cleanupExpiredFileFolderInTx(
+        tx,
+        { entityType: 'project', entityId: projectId },
+        policy.cutoff,
+        budget
+      )
     })
     total += removed
     if (!removed) break
