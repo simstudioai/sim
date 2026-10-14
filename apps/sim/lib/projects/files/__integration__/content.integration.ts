@@ -1579,7 +1579,7 @@ describe('Project streaming source delivery', () => {
 })
 
 describe('Project Copilot content admission', () => {
-  for (const gate of ['missing', 'deny'] as const) {
+  for (const gate of ['missing', 'deny', 'opaque-before-read', 'opaque-before-delivery'] as const) {
     check(
       `${gate} gate blocks current reads and unsupported Copilot history reads fail authorization`,
       async () => {
@@ -1611,6 +1611,7 @@ describe('Project Copilot content admission', () => {
         const buffered = vi.spyOn(storage, 'downloadFile')
         const streamed = vi.spyOn(storage, 'downloadFileStream')
         for (const operation of [readProjectFileContent, downloadProjectFileContent]) {
+          let admissions = 0
           const execute = () =>
             operation.execute({
               principal,
@@ -1620,7 +1621,16 @@ describe('Project Copilot content admission', () => {
             gate === 'missing'
               ? execute()
               : observeContentDelivery(
-                  { admit: async (sources) => sources.map(() => false) },
+                  {
+                    admit: async (sources) => {
+                      admissions++
+                      return sources.map((source) => {
+                        if (gate === 'deny') return false
+                        if (gate === 'opaque-before-delivery' && admissions === 1) return true
+                        return source.view !== 'opaque'
+                      })
+                    },
+                  },
                   execute
                 )
           ).rejects.toBeInstanceOf(
@@ -1638,8 +1648,13 @@ describe('Project Copilot content admission', () => {
             })
           ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)
         }
-        expect(buffered).not.toHaveBeenCalled()
-        expect(streamed).not.toHaveBeenCalled()
+        if (gate === 'opaque-before-delivery') {
+          expect(buffered).toHaveBeenCalledTimes(1)
+          expect(streamed).toHaveBeenCalledTimes(1)
+        } else {
+          expect(buffered).not.toHaveBeenCalled()
+          expect(streamed).not.toHaveBeenCalled()
+        }
       }
     )
   }

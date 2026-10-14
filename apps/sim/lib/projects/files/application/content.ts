@@ -280,7 +280,7 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
       kind: 'workspace-file',
       id: file.id,
       provenance: snapshot.secretProvenance,
-      view: 'complete',
+      view: 'opaque',
     })
     const content = await downloadFile({
       key: file.key,
@@ -327,7 +327,7 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
       kind: 'workspace-file',
       id: result.file.id,
       provenance: provenance ?? { status: 'unknown' },
-      view: 'complete',
+      view: 'opaque',
     })
     await reportWorkspaceFileDelivery(provenance, result.file.id)
   },
@@ -359,7 +359,7 @@ export const downloadProjectFileContent = {
       kind: 'workspace-file',
       id: snapshot.file.id,
       provenance: snapshot.secretProvenance,
-      view: 'complete',
+      view: 'opaque',
     })
     const stream = nodeReadableToWebStream(
       await runWithOutboundOrganization(snapshot.organizationId, () =>
@@ -377,7 +377,7 @@ export const downloadProjectFileContent = {
         kind: 'workspace-file',
         id: current.file.id,
         provenance: current.secretProvenance,
-        view: 'complete',
+        view: 'opaque',
       })
       await reportWorkspaceFileDelivery(current.secretProvenance, current.file.id)
       return { file: current.file, stream, contentLength: current.file.size }
