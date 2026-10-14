@@ -1,13 +1,13 @@
 import type { Principal } from '@sim/auth/principal'
-import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
   downloadServableFileFromStorage,
   type ServableFile,
 } from '@/lib/uploads/utils/file-utils.server'
-import { markFileSearchArtifactReadyInTx } from '@/lib/workspace-files/search/artifact-ready'
+import { requeueFileSearchForRenderedArtifact } from '@/lib/workspace-files/search/artifact-ready'
 
 const logger = createLogger('FetchServableWorkspaceFileBuffer')
 
@@ -45,8 +45,8 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
       (file) => file.contentUpdatedAt && ['workspace', 'test', 'changelog'].includes(file.context)
     ) !== false
   ) {
-    await db.transaction((tx) =>
-      markFileSearchArtifactReadyInTx(tx, {
+    try {
+      await requeueFileSearchForRenderedArtifact({
         owner: { entityType: 'workspace', entityId: fileRecord.workspaceId },
         file: {
           fileId: fileRecord.id,
@@ -64,7 +64,12 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
         }),
         artifactKey,
       })
-    )
+    } catch (error) {
+      logger.warn('Could not requeue file search for a rendered artifact', {
+        fileId: fileRecord.id,
+        error: getErrorMessage(error),
+      })
+    }
   }
   return result
 }

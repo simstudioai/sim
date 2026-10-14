@@ -78,8 +78,9 @@ export async function loadFileSearchSource(
       ),
     ]
   } catch (error) {
+    // Unparseable source still has searchable text; it just names no inputs.
     if (error instanceof DocCompileUserError)
-      throw new FileSearchExclusionError('incomplete_extraction')
+      return { file, bytes: { buffer: raw, kind: 'source' }, dependencies: [] }
     throw error
   }
   if (ids.length > FILE_SEARCH_MAX_DEPENDENCIES)
@@ -100,24 +101,17 @@ export async function loadFileSearchSource(
           .orderBy(asc(workspaceFiles.id))
   if (inputs.length !== ids.length) throw new FileSearchExclusionError('incomplete_extraction')
   signal.throwIfAborted()
-  const artifact = await loadCompiledDoc(
-    owner,
-    source,
-    format.ext,
-    fileDocumentInputIdentity(owner, inputs),
-    { maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES, signal }
-  )
+  const inputIdentity = fileDocumentInputIdentity(owner, inputs)
+  const artifact = await loadCompiledDoc(owner, source, format.ext, inputIdentity, {
+    maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
+    signal,
+  })
   return {
     file,
     bytes: artifact ? { buffer: artifact, kind: 'artifact' } : { buffer: raw, kind: 'source' },
     ...(artifact
       ? {
-          artifactKey: compiledArtifactKey(
-            owner,
-            source,
-            format.ext,
-            fileDocumentInputIdentity(owner, inputs)
-          ),
+          artifactKey: compiledArtifactKey(owner, source, format.ext, inputIdentity),
         }
       : {}),
     dependencies: inputs.map((input) => ({
