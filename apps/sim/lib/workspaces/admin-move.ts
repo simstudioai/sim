@@ -1675,7 +1675,7 @@ async function recordSourceOrganizationMoveAudit(params: {
   workspaceId: string
   sourceOrganizationId: string
   destinationOrganizationId: string
-  adminEmail?: string
+  adminEmail: string
   auditActor?: { id: string | null; name: string; email: string | null }
   auditOperationId?: string
   unpublishedCustomBlocks: Array<{ id: string; type: string; name: string }>
@@ -1909,6 +1909,7 @@ export async function getWorkspaceMoveOperation(
       workspaceId,
       sourceOrganizationId: recordedSource.id,
       destinationOrganizationId,
+      adminEmail: operationPayload.audit.actor.email ?? 'admin-api@sim.ai',
       auditActor: operationPayload.audit.actor,
       auditOperationId: operationId,
       unpublishedCustomBlocks: operationPayload.audit.unpublishedCustomBlocks ?? [],
