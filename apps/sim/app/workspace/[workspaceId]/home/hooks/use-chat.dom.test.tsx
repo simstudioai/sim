@@ -750,66 +750,192 @@ describe('useChat remount send recovery', () => {
     }
   )
 
-  it('does not re-add a tab whose queued add the server removal outran', async () => {
-    const history: MothershipChatHistory = {
+  describe('a tab the server removed while the client was still adding it', () => {
+    const chat: MothershipChatHistory = {
       id: 'chat-removed-file',
       title: 'Files',
       messages: [],
       activeStreamId: null,
       resources: [],
     }
-    const persistedIds: string[] = []
-    mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
-      if (contract.path === '/api/mothership/chat/resources' && contract.method === 'POST') {
-        const { body } = input as { body: { resource: { id: string } } }
-        persistedIds.push(body.resource.id)
-        throw new Error('Persist failed')
-      }
-      return { chats: [] }
-    })
-    const sentAttachments: unknown[] = []
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
-        return fetchStub(input, init)
-      }
-      const sent = JSON.parse(String(init.body))
-      sentAttachments.push(sent.resourceAttachments)
-      const turn = sentAttachments.length
-      const envelope = { v: 1 as const, ts: '', stream: { streamId: sent.userMessageId } }
-      const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
-      const events: PersistedStreamEventEnvelope[] =
-        turn === 1
-          ? [
-              { ...envelope, seq: 1, type: 'resource', payload: { op: 'upsert', resource: file } },
-              {
-                ...envelope,
-                seq: 2,
-                type: 'resource',
-                payload: { op: 'remove', resource: file, effectId: 'remove-deleted-file' },
-              },
-              { ...envelope, seq: 3, type: 'complete', payload: { status: 'complete' } },
-            ]
-          : [{ ...envelope, seq: 1, type: 'complete', payload: { status: 'complete' } }]
-      return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
-        headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': history.id },
+
+    /**
+     * Streams a turn that opens a file tab without an effect (the client
+     * persists it), then the server's own removal of that file as an effect.
+     * Later turns only complete. Returns each send's resource attachments.
+     */
+    function streamAddThenServerRemoval(): unknown[] {
+      const sentAttachments: unknown[] = []
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        const sent = JSON.parse(String(init.body))
+        sentAttachments.push(sent.resourceAttachments)
+        const envelope = { v: 1 as const, ts: '', stream: { streamId: sent.userMessageId } }
+        const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
+        const complete: PersistedStreamEventEnvelope = {
+          ...envelope,
+          seq: 3,
+          type: 'complete',
+          payload: { status: 'complete' },
+        }
+        const events: PersistedStreamEventEnvelope[] =
+          sentAttachments.length === 1
+            ? [
+                {
+                  ...envelope,
+                  seq: 1,
+                  type: 'resource',
+                  payload: { op: 'upsert', resource: file },
+                },
+                {
+                  ...envelope,
+                  seq: 2,
+                  type: 'resource',
+                  payload: { op: 'remove', resource: file, effectId: 'remove-deleted-file' },
+                },
+                complete,
+              ]
+            : [complete]
+        const encoder = new TextEncoder()
+        const body = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            for (const event of events) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+              // Lets the client's own write for the add settle before the next event.
+              await sleep(10)
+            }
+            controller.close()
+          },
+        })
+        return new Response(body, {
+          headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chat.id },
+        })
       })
-    })
-    const { getResult } = renderUseChatInChat(history.id, history)
+      return sentAttachments
+    }
 
-    await act(async () => {
-      await getResult().sendMessage('Export the report, then delete it')
-    })
-    await act(async () => {
-      queryClient.setQueryData(mothershipChatKeys.detail(history.id), { ...history })
-      await sleep(0)
-    })
-    await act(async () => {
-      await getResult().sendMessage('What is open?')
+    /** Resource writes the hook sent, as `METHOD id`. */
+    function recordResourceWrites(persist: () => Promise<unknown>): string[] {
+      const writes: string[] = []
+      mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
+        if (contract.path !== '/api/mothership/chat/resources') return { chats: [] }
+        const { body } = input as { body: { resource?: { id: string }; resourceId?: string } }
+        writes.push(`${contract.method} ${body.resource?.id ?? body.resourceId}`)
+        return contract.method === 'POST' ? persist() : { resources: [] }
+      })
+      return writes
+    }
+
+    it('drops a failed add without re-posting it or deleting server-side', async () => {
+      const writes = recordResourceWrites(async () => {
+        throw new Error('Persist failed')
+      })
+      const sentAttachments = streamAddThenServerRemoval()
+      const { getResult } = renderUseChatInChat(chat.id, chat)
+
+      await act(async () => {
+        await getResult().sendMessage('Export the report, then delete it')
+      })
+      const writesBeforeRemoval = [...writes]
+      await act(async () => {
+        queryClient.setQueryData(mothershipChatKeys.detail(chat.id), { ...chat })
+        await sleep(0)
+      })
+      await act(async () => {
+        await getResult().sendMessage('What is open?')
+      })
+
+      expect(writesBeforeRemoval).not.toContain('DELETE deleted-file')
+      expect(writes).toEqual(writesBeforeRemoval)
+      expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
+      expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
     })
 
-    expect(persistedIds).toEqual(['deleted-file'])
-    expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
-    expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
+    it('deletes an add still in flight once it lands, after the server removal', async () => {
+      const add = Promise.withResolvers<unknown>()
+      const writes = recordResourceWrites(() => add.promise)
+      streamAddThenServerRemoval()
+      const { getResult } = renderUseChatInChat(chat.id, chat)
+
+      await act(async () => {
+        await getResult().sendMessage('Export the report, then delete it')
+      })
+      expect(writes).toEqual(['POST deleted-file'])
+
+      await act(async () => {
+        add.resolve({ resources: [] })
+        await sleep(0)
+      })
+
+      expect(writes).toEqual(['POST deleted-file', 'DELETE deleted-file'])
+      expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
+    })
+
+    it('drops a failed add when the removal arrives in a reconnect replay', async () => {
+      const writes = recordResourceWrites(async () => {
+        throw new Error('Persist failed')
+      })
+      const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
+      const sentAttachments: unknown[] = []
+      let streamId = ''
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/api/mothership/chat/stream')) {
+          const removal: PersistedStreamEventEnvelope = {
+            v: 1,
+            ts: '',
+            stream: { streamId },
+            seq: 2,
+            type: 'resource',
+            payload: { op: 'remove', resource: file, effectId: 'remove-deleted-file' },
+          }
+          const opened: PersistedStreamEventEnvelope = {
+            ...removal,
+            seq: 1,
+            payload: { op: 'upsert', resource: file },
+          }
+          return Response.json({
+            success: true,
+            events: [opened, removal].map((event) => ({ eventId: event.seq, streamId, event })),
+            status: 'complete',
+          })
+        }
+        if (url !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        const sent = JSON.parse(String(init.body))
+        sentAttachments.push(sent.resourceAttachments)
+        streamId = sent.userMessageId
+        const envelope = { v: 1 as const, ts: '', stream: { streamId } }
+        const events: PersistedStreamEventEnvelope[] =
+          sentAttachments.length === 1
+            ? [{ ...envelope, seq: 1, type: 'resource', payload: { op: 'upsert', resource: file } }]
+            : [{ ...envelope, seq: 1, type: 'complete', payload: { status: 'complete' } }]
+        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+          headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chat.id },
+        })
+      })
+      const { getResult } = renderUseChatInChat(chat.id, chat)
+
+      await act(async () => {
+        await getResult().sendMessage('Export the report, then delete it')
+      })
+      await waitFor(() => !getResult().isSending)
+      const writesBeforeRemoval = [...writes]
+      await act(async () => {
+        queryClient.setQueryData(mothershipChatKeys.detail(chat.id), { ...chat })
+        await sleep(0)
+      })
+      await act(async () => {
+        await getResult().sendMessage('What is open?')
+      })
+
+      expect(writes).toEqual(writesBeforeRemoval)
+      expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
+      expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
+    })
   })
 
   it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {

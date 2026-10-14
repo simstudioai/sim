@@ -263,6 +263,9 @@ interface WithdrawnSendResult {
  */
 type StartSendMessageResult = boolean | WithdrawnSendResult
 
+/** The fields that address a stored chat resource. */
+type ResourceIdentity = Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
+
 interface StartSendMessageOptions {
   /** Awaited before dispatch. Defaults to the hook's in-flight stop, if any. */
   pendingStop?: Promise<void> | null
@@ -1479,6 +1482,18 @@ export function useChat(
     [queryClient, resourcePersistenceQueue]
   )
 
+  const deleteStoredResource = useCallback(
+    (chatId: string, { type, id, workspaceId }: ResourceIdentity) =>
+      async () => {
+        const result = await requestJson(removeMothershipChatResourceContract, {
+          body: { chatId, resourceType: type, resourceId: id, workspaceId },
+        })
+        await refreshResourceHistory(chatId)
+        return result
+      },
+    [refreshResourceHistory]
+  )
+
   const removeResource = useCallback(
     (resourceType: MothershipResourceType, resourceId: string, resourceWorkspaceId?: string) => {
       const matches = (resource: MothershipResource) =>
@@ -1527,35 +1542,38 @@ export function useChat(
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
       if (!persistChatId) return
-      scheduleDelete(persistChatId, async () => {
-        const result = await requestJson(removeMothershipChatResourceContract, {
-          body: {
-            chatId: persistChatId,
-            resourceType,
-            resourceId,
-            workspaceId: resourceWorkspaceId,
-          },
+      scheduleDelete(
+        persistChatId,
+        deleteStoredResource(persistChatId, {
+          type: resourceType,
+          id: resourceId,
+          workspaceId: resourceWorkspaceId,
         })
-        await refreshResourceHistory(persistChatId)
-        return result
-      })
+      )
     },
-    [queryClient, refreshResourceHistory, resourcePersistenceQueue]
+    [queryClient, deleteStoredResource, resourcePersistenceQueue]
   )
 
   const discardPendingResourceUpsert = useCallback(
-    ({ type, id, workspaceId }: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>) => {
+    (resource: ResourceIdentity) => {
+      const { type, id, workspaceId } = resource
+      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       // An add queued before the chat id resolved stays in the provisional
       // bucket until a flush adopts it, so both scopes may hold it.
-      const scopes = new Set([
-        chatIdRef.current ?? selectedChatIdRef.current,
-        pendingChatKeyRef.current,
-      ])
-      for (const scopeId of scopes) {
-        if (scopeId) resourcePersistenceQueue.discardUpsert(type, id, scopeId, workspaceId)
+      for (const scopeId of new Set([persistChatId, pendingChatKeyRef.current])) {
+        if (!scopeId) continue
+        const scheduleDelete = resourcePersistenceQueue.discardUpsert(
+          type,
+          id,
+          scopeId,
+          workspaceId
+        )
+        if (scheduleDelete && persistChatId) {
+          scheduleDelete(persistChatId, deleteStoredResource(persistChatId, resource))
+        }
       }
     },
-    [resourcePersistenceQueue]
+    [deleteStoredResource, resourcePersistenceQueue]
   )
 
   /**
