@@ -28,6 +28,7 @@ const FLAKE_LABEL = 'ci-flake'
 /** The aggregate gate fails whenever any job does, so it never names a flake of its own. */
 const GATE_JOB_NAME = 'checks / ci'
 const CI_WORKFLOW_FILE = 'ci.yml'
+const MAX_RUN_SEARCH_RESULTS = 1_000
 const MAX_LISTED_OCCURRENCES = 30
 const MAX_TITLE_LENGTH = 200
 /** The key is URI-encoded so a test name can never close the HTML comment that carries it. */
@@ -283,11 +284,19 @@ class GitHubClient {
     }
   }
 
-  successfulRunsSince(since: string): Promise<WorkflowRun[]> {
-    return this.list(
-      `/actions/workflows/${CI_WORKFLOW_FILE}/runs?status=success&created=>=${since}`,
+  /**
+   * A filtered run search returns at most 1,000 runs, silently, so the lookback is read one UTC
+   * day at a time and a day that reaches the cap fails rather than dropping runs.
+   */
+  async successfulRunsOn(day: string): Promise<WorkflowRun[]> {
+    const runs = await this.list(
+      `/actions/workflows/${CI_WORKFLOW_FILE}/runs?status=success&created=${day}`,
       (page) => (page as { workflow_runs: WorkflowRun[] }).workflow_runs
     )
+    if (runs.length >= MAX_RUN_SEARCH_RESULTS) {
+      throw new Error(`${day} has ${MAX_RUN_SEARCH_RESULTS}+ successful runs, past the search cap`)
+    }
+    return runs
   }
 
   /** Every attempt's jobs, in one list. */
@@ -357,10 +366,18 @@ class GitHubClient {
 
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out'])
 
+/** The UTC calendar days a `days`-day lookback from `now` touches, today first. */
+export function lookbackDays(now: Date, days: number): string[] {
+  return Array.from({ length: days + 1 }, (_, offset) =>
+    new Date(now.getTime() - offset * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  )
+}
+
 /** Collects the failed earlier-attempt jobs of every run that finally succeeded. */
-async function collectFlakes(client: GitHubClient, since: string): Promise<Flake[]> {
+async function collectFlakes(client: GitHubClient, days: string[]): Promise<Flake[]> {
   const failures: Array<{ occurrence: Occurrence; tests: string[] }> = []
-  for (const run of await client.successfulRunsSince(since)) {
+  const runs = (await Promise.all(days.map((day) => client.successfulRunsOn(day)))).flat()
+  for (const run of runs) {
     if (run.run_attempt < 2) continue
     for (const job of await client.runJobs(run.id)) {
       if (
@@ -399,8 +416,7 @@ async function main(): Promise<void> {
   if (!token || !repository) throw new Error('GITHUB_TOKEN and GITHUB_REPOSITORY are required')
 
   const client = new GitHubClient(token, repository)
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const flakes = await collectFlakes(client, since)
+  const flakes = await collectFlakes(client, lookbackDays(new Date(), days))
   const actions = planIssueActions(flakes, await client.trackedIssues())
 
   for (const action of actions) {

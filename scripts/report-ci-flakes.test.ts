@@ -4,6 +4,7 @@ import {
   failedTestsInLog,
   groupFlakes,
   type IssueSnapshot,
+  lookbackDays,
   normalizeJobName,
   type Occurrence,
   planIssueActions,
@@ -106,6 +107,16 @@ describe('groupFlakes', () => {
     const [entry] = groupFlakes([{ occurrence: occurrence(1), tests: [name] }])
     expect(entry.title.length).toBeLessThanOrEqual(200)
     expect(entry.key).toBe(`test:${name}`)
+  })
+})
+
+describe('lookbackDays', () => {
+  it('covers every UTC day the window touches, one query each', () => {
+    expect(lookbackDays(new Date('2026-10-14T05:00:00Z'), 2)).toEqual([
+      '2026-10-14',
+      '2026-10-13',
+      '2026-10-12',
+    ])
   })
 })
 
