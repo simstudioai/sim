@@ -1,5 +1,3 @@
-import { assertGraphNextPageUrl } from '@/tools/sharepoint/utils'
-
 /**
  * Splits a comma or newline separated list of identifiers into a trimmed, de-duplicated array.
  * Used for Microsoft Graph parameters that take GUID collections (SKU IDs, service plan IDs).
@@ -120,30 +118,6 @@ export function graphCollectionHeaders(params: {
     Authorization: `Bearer ${params.accessToken}`,
     ...(usesGraphAdvancedQuery(params) ? { ConsistencyLevel: 'eventual' } : {}),
   }
-}
-
-/**
- * Validates an `@odata.nextLink` and asserts it continues the collection the caller is querying.
- *
- * Every paged operation reads the one shared Next Page field, and a subBlock keeps its value
- * after the operation changes. Without this check, paging `/users` and then switching the block
- * to `/devices` would short-circuit back to the user page, silently returning the previous
- * collection. Comparing the final path segment also rejects a continuation URL pasted from an
- * unrelated response.
- */
-export function assertGraphNextPageUrlForCollection(
-  nextPageUrl: string,
-  expectedSegments: string[]
-): string {
-  const url = new URL(assertGraphNextPageUrl(nextPageUrl))
-  const segments = url.pathname.split('/').filter(Boolean)
-  const collection = segments[segments.length - 1]
-  if (!collection || !expectedSegments.includes(collection)) {
-    throw new Error(
-      `Next Page URL continues "${collection ?? 'an unknown collection'}", but this operation reads "${expectedSegments.join('" or "')}". Clear the Next Page field when switching operations.`
-    )
-  }
-  return url.toString()
 }
 
 /**
