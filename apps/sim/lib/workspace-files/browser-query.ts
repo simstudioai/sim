@@ -21,7 +21,7 @@ import {
   EXTENSION_TO_MIME,
   MIME_TYPE_MAPPING,
   resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import { SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
 import {
   FILE_BROWSER_MIME_LABELS,

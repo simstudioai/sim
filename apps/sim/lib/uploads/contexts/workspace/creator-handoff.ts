@@ -1,12 +1,12 @@
 import { workspaceFiles } from '@sim/db/schema'
 import { asc, inArray, type SQL } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
-import { snapshotWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { snapshotWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   isVersionHeadCurrent,
   loadWorkspaceFileVersionHeads,
   materializeWorkspaceFileVersionInTx,
-} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 
 /** Freezes implicit history under the writer lock before replacing a shared file's live creator. */
 export async function handoffFileCreatorsInTx(

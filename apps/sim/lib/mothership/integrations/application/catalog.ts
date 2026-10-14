@@ -31,7 +31,7 @@ import type {
   IntegrationCatalogResponse,
 } from '@/lib/mothership/generated/integration-catalog'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const INTEGRATION_CATALOG_AUDIENCE = 'sim:integration-catalog'
 export const readIntegrationCatalogOperation = defineWorkspaceOperation({

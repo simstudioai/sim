@@ -33,7 +33,7 @@ import { buildFolderPath, parseFolderPath, ROOT_FOLDER_PATH } from '@/lib/folder
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { collectFolderDepths } from '@/lib/folders/subtree'
 import { splitWorkspaceFilePath } from '@/lib/mothership/tools/server/files/workspace-file'
-import { ShareValidationError } from '@/lib/public-shares/share-manager'
+import { ShareValidationError } from '@/lib/public-shares/manager'
 import {
   ArchiveError,
   type DecompressResult,
@@ -41,29 +41,29 @@ import {
   MAX_ARCHIVE_BYTES,
   statusForArchiveError,
 } from '@/lib/uploads/archive'
-import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import type {
   getWorkspaceFile,
   getWorkspaceFileWithCurrentVersion,
   WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getWorkspaceFileVersionsByKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { getWorkspaceFileVersionsByKey } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { INITIAL_WORKSPACE_FILE_VERSION } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { INITIAL_WORKSPACE_FILE_VERSION } from '@/lib/uploads/contexts/workspace/file-version-store'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
   tryInferContextFromKey,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import {
   downloadFileFromStorage,
   downloadServableFileFromStorage,
-} from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { buildZipEntryPaths } from '@/lib/uploads/zip-entry-path'
 import {
@@ -73,6 +73,14 @@ import {
 } from '@/lib/workspace-files/application/create-workspace-file'
 import { editWorkspaceFileContent } from '@/lib/workspace-files/application/edit-workspace-file-content'
 import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
+import {
+  createWorkspaceFileFolderOperation,
+  deleteWorkspaceFileFolderOperation,
+  ensureWorkspaceFileFolderPathOperation,
+  listWorkspaceFileFoldersOperation,
+  restoreWorkspaceFileFolderOperation,
+  updateWorkspaceFileFolderOperation,
+} from '@/lib/workspace-files/application/folders'
 import {
   listWorkspaceFilesInFolderScope,
   queryWorkspaceFilePage,
@@ -92,14 +100,6 @@ import {
   updateWorkspaceFileShare,
 } from '@/lib/workspace-files/application/share-workspace-file'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
-import {
-  createWorkspaceFileFolderOperation,
-  deleteWorkspaceFileFolderOperation,
-  ensureWorkspaceFileFolderPathOperation,
-  listWorkspaceFileFoldersOperation,
-  restoreWorkspaceFileFolderOperation,
-  updateWorkspaceFileFolderOperation,
-} from '@/lib/workspace-files/application/workspace-file-folders'
 import { selectDirectoryEntries } from '@/lib/workspace-files/directory-listing'
 import type { WorkspaceFileContentEdit } from '@/lib/workspace-files/edit-content'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'

@@ -11,7 +11,7 @@ import {
   createAttributedBillingRequestEnvelope,
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { createRunSegment, recordRunBillingAdmission } from '@/lib/mothership/async-runs/repository'
 import { buildChatTitleContext } from '@/lib/mothership/chat/title-context'

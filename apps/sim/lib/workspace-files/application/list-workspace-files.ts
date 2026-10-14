@@ -4,7 +4,7 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { resolveFolderScope } from '@/lib/folders/subtree'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
+import { getWorkspaceShares } from '@/lib/public-shares/manager'
 import {
   findListedWorkspaceFiles,
   listWorkspaceFiles,

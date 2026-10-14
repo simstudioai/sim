@@ -1,5 +1,5 @@
 import { isSupportedFileType } from '@/lib/file-parsers'
-import { getFileExtension, resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 
 /** Agent reads reuse the parser registry, including plain source files identified by MIME. */
 export function workspaceFileTextFormat(file: { name: string; type: string }) {

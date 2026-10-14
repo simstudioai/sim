@@ -5,7 +5,7 @@ vi.mock('@/lib/uploads/utils/validation', () => ({
   SUPPORTED_CODE_EXTENSIONS: ['js', 'ts', 'py', 'go', 'rs', 'sh', 'sql'],
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
 import { resolveFileCategory } from './file-category'
 

@@ -83,7 +83,7 @@ vi.mock('@/lib/mothership/request/session/controller-lease', async (original) =>
   holdsChatStreamLease: vi.fn().mockResolvedValue(true),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/mothership/chat/title-context', () => ({ buildChatTitleContext }))
 

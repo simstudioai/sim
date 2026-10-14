@@ -1,6 +1,6 @@
 import { chunkArray } from '@sim/utils/helpers'
 import type { DbOrTx } from '@/lib/db/types'
-import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/file-version-store'
 import { findUserEmailsByIds } from '@/lib/users/queries'
 
 export type AuthoredFileVersion = WorkspaceFileVersionRecord & {

@@ -1,6 +1,6 @@
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { defineAuthorizedWorkspaceUseCase, defineWorkspaceOperation } from '@/lib/core/application'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 /** permission-group-exempt: reports rollout availability only; changelog operations enforce files.use. */
 const availabilityOperation = defineWorkspaceOperation({

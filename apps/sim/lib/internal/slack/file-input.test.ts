@@ -12,7 +12,7 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 import type { SlackOperationError } from '@/lib/internal/slack/errors'
 import { forEachSlackAttachmentFile } from '@/lib/internal/slack/file-input'

@@ -34,12 +34,12 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { bulkArchiveWorkspaceFileItems } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { bulkArchiveWorkspaceFileItems } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   generateWorkspaceFileKey,
   registerUploadedWorkspaceFile,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
 

@@ -47,7 +47,7 @@ import {
   LIBRARY_MERGED_SLUGS,
   LIBRARY_MOVED_BLOG_SLUGS,
 } from '../apps/sim/lib/library/retired-slugs'
-import { foldDocsIndexPath } from '../apps/sim/lib/mothership/docs/docs-path'
+import { foldDocsIndexPath } from '../apps/sim/lib/mothership/docs/path'
 
 export const SECTIONS = ['blog', 'library', 'customers', 'changelog'] as const
 export type Section = (typeof SECTIONS)[number]

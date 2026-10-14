@@ -29,9 +29,9 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
 
 export const ORIGIN = 'http://localhost:3000'

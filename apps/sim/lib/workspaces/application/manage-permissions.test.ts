@@ -19,7 +19,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/permissions/management-store', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/workspaces/permissions/management-store')>()),
@@ -30,7 +30,7 @@ vi.mock('@/lib/workspaces/permissions/management-store', async (importOriginal) 
 import {
   COPILOT_APPLICATION_SYSTEM_ERROR_MESSAGE,
   messageForCopilotApplicationError,
-} from '@/lib/mothership/application/error'
+} from '@/lib/mothership/application/errors'
 import { updateWorkspacePermissions } from '@/lib/workspaces/application/manage-permissions'
 import { WorkspacePermissionError } from '@/lib/workspaces/permissions/management-store'
 

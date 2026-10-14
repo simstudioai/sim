@@ -83,7 +83,7 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
 vi.mock('@/lib/mothership/request/context/restore', () => ({ restoreStreamingContext: vi.fn() }))
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -175,8 +175,8 @@ vi.mock('@/lib/mothership/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', async (original) => ({
-  ...(await original<typeof import('@/lib/billing/core/billing-attribution')>()),
+vi.mock('@/lib/billing/core/attribution', async (original) => ({
+  ...(await original<typeof import('@/lib/billing/core/attribution')>()),
   /**
    * Faithful envelope replica: real protocol constant, real UUID request id, real
    * URI-encoded serialization — the hosted-header tests below assert all three.

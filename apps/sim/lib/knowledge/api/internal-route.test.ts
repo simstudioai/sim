@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   internalKnowledgeProvenanceUserId,
   resolveInternalKnowledgeBillingAttribution,

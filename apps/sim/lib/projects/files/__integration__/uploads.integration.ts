@@ -40,7 +40,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import * as application from '@/lib/projects/files/application'
 import * as prefixCleanup from '@/lib/projects/files/prefix-cleanup'
-import * as manager from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import * as manager from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   UPLOAD_URL_TTL_MS,
   writeLocalMultipartPart,

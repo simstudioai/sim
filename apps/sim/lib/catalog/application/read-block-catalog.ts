@@ -1,11 +1,11 @@
 import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
+import { sortCatalogEntries } from '@/lib/catalog/application/catalog-page'
 import {
   isBlockVisibleToCaller,
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
   withCatalogBlockScope,
-} from '@/lib/catalog/application/catalog-context'
-import { sortCatalogEntries } from '@/lib/catalog/application/catalog-page'
+} from '@/lib/catalog/application/context'
 import { catalogOperations } from '@/lib/catalog/application/operations'
 import { projectBlockDetail } from '@/lib/catalog/projection/block-detail'
 import { CONTAINER_BLOCK_DETAILS } from '@/lib/catalog/projection/container-blocks'

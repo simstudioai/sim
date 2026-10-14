@@ -38,7 +38,7 @@ import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
 import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'
 import {
@@ -53,7 +53,7 @@ import {
   getViewerUrl,
   inferContextFromKey,
   isInternalFileUrl,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import { readWorkspaceFileNameByKey } from '@/lib/workspace-files/application/read-workspace-file-name-by-key'
 import type { UserFile } from '@/executor/types'
 import '@/lib/uploads/core/setup.server'

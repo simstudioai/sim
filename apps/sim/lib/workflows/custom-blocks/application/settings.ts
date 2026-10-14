@@ -20,7 +20,7 @@ import {
   type UpdateCustomBlockBody,
   updateCustomBlockBodySchema,
 } from '@/lib/workflows/custom-blocks/settings-input'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 // permission-group-exempt: custom block settings retain source-workspace administration and deployment entitlement policy.
 const base = {

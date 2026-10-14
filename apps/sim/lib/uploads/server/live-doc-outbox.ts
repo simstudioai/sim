@@ -14,7 +14,7 @@ import {
 import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
 import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 

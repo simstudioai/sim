@@ -1,14 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   isBlockTypeAllowed,
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
-} from '@/lib/catalog/application/catalog-context'
+} from '@/lib/catalog/application/context'
 import {
   resolveVisibleToolId,
   resolveVisibleToolOwners,

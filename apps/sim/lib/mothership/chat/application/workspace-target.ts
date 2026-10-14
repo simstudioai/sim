@@ -6,7 +6,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const WORKSPACE_TARGET_AUDIENCE = 'sim:workspaces'
 const targetOperation = defineWorkspaceOperation({

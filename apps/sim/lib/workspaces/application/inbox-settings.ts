@@ -9,7 +9,7 @@ import {
   readInboxSettingsRecord,
   updateInboxSettingsRecord,
 } from '@/lib/mothership/inbox/settings-store'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const inboxSettingsOperations = {
   read: defineWorkspaceOperation({

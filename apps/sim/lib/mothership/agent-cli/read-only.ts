@@ -3,7 +3,7 @@ import type { BlockState } from '@sim/workflow-types/workflow'
 import { v2ListSecretsContract, v2SecretSchema } from '@/lib/api/contracts/v2/secrets'
 import { v2WorkflowGraphSchema } from '@/lib/api/contracts/v2/workflows'
 import type { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
-import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
+import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/extractor'
 
 const READ_ENGINES = new Set([
   'files read',

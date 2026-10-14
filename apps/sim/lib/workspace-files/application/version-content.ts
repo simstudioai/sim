@@ -1,5 +1,5 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
 import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 

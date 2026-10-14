@@ -41,11 +41,11 @@ vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { getFileContentProvenance } from '@/lib/internal/file/operations'
 import { lockProject } from '@/lib/projects/membership'
-import { listFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { listFileFolders } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   createOwnedWorkspaceFile,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { compiledArtifactKey, storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'

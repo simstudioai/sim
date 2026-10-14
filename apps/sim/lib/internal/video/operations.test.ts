@@ -30,7 +30,7 @@ vi.mock('@/lib/internal/video/client', () => ({
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 

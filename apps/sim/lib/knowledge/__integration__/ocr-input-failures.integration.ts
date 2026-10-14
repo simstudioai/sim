@@ -28,7 +28,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import * as egress from '@/lib/core/security/input-validation.server'
 import { getMistralCapacityScope } from '@/lib/internal/mistral/capacity'

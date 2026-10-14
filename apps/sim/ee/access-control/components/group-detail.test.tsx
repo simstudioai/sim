@@ -21,7 +21,7 @@ import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { permissionGroupKeys } from '@/hooks/queries/utils/permission-group-keys'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/utils', () => providersUtilsMock)

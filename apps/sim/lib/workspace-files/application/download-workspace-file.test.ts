@@ -33,7 +33,7 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
   fetchAuthorizedServableWorkspaceFileBuffer: hoisted.fetchServable,
@@ -46,7 +46,7 @@ vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   docNotReadyMessage: () => 'A document is still being generated.',
 }))
 
-import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 
 const mocks = {
@@ -249,6 +249,6 @@ describe('workspace file downloads', () => {
 })
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )

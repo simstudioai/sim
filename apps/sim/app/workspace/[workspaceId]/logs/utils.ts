@@ -3,7 +3,7 @@ import { Badge, formatChartLatency } from '@sim/emcn'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 

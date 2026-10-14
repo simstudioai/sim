@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
-import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import { processFileLiveDocReconciliationNow } from '@/lib/uploads/server/live-doc-outbox'
 
 const logger = createLogger('FileContentEffects')

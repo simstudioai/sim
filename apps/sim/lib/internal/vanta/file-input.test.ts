@@ -11,9 +11,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { resolveVantaUploadFile } from '@/lib/internal/vanta/file-input'

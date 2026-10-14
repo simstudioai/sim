@@ -41,7 +41,7 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { ensureWorkspaceAccounts } from '@/lib/credential-groups/application/manage-groups'
 import {
   compileCredentialGroupWorkflowAccessPolicy,

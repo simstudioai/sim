@@ -3,7 +3,7 @@ import { requestRaw } from '@/lib/api/client/request'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 
 /** Action-time content from the mounted viewer, scoped so another file cannot consume it. */

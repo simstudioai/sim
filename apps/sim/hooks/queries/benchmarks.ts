@@ -23,7 +23,7 @@ import {
   type UpdateBenchmarkBody,
   updateBenchmarkContract,
 } from '@/lib/api/contracts/benchmarks'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { readBenchmarkRunResponse } from '@/lib/benchmarks/run-stream'
 
 function useBenchmarkKeys() {

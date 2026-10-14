@@ -595,7 +595,7 @@ export const ZohoDeskBlock: BlockConfig = {
         // IMPORTANT: destructuring a key out of `rest` does NOT keep it from the
         // tool. Both call sites merge this function's return value on top of the
         // original inputs (`{ ...inputs, ...transformedParams }` in
-        // executor/handlers/generic/generic-handler.ts, and the same shape in
+        // executor/handlers/generic/handler.ts, and the same shape in
         // providers/utils.ts), so a key left out of `result` is simply restored
         // from `inputs`. The only way to scope a param to an operation is to
         // OVERWRITE it with `undefined`, which every tool then treats as unset.

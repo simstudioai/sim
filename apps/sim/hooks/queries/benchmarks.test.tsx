@@ -22,7 +22,7 @@ import {
 } from '@/hooks/queries/benchmarks'
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 let root: Root
 let client: QueryClient
 let container: HTMLDivElement

@@ -6,7 +6,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   billingAttributionsEqual,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   capExecutionTimeoutMs,
   createTimeoutAbortController,

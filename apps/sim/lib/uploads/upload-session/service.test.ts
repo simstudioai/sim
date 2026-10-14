@@ -42,7 +42,7 @@ vi.mock('@/lib/billing/storage', () => billingStorageMock)
 /**
  * Stands in for the workspace-files barrel, which pulls the whole file manager.
  * The real `generateWorkspaceFileKey` and its name budget are measured in
- * `contexts/workspace/workspace-file-manager.test.ts`, so the purposes that key
+ * `contexts/workspace/file-manager.test.ts`, so the purposes that key
  * through it are deliberately absent from the sidecar-bounds sweep below.
  */
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)

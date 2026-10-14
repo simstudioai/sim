@@ -7,8 +7,8 @@ import { ServiceNowOperationError } from '@/lib/internal/servicenow/errors'
 import type { ServiceNowUploadAttachmentInput } from '@/lib/internal/servicenow/schema'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
-import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { processSingleFileToUserFile } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('ServiceNowOperations')

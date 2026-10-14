@@ -7,7 +7,7 @@ import {
   cliFlagValue,
   cliFlagValues,
   getToolDisplayTitle,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { getBlock } from '@/blocks/registry'
 import { skillsKeys } from '@/hooks/queries/skills'

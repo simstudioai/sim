@@ -6,7 +6,7 @@ import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export type ChatOwnerContext =
   | (WorkspaceAuthorizationContext & { organizationId?: undefined })

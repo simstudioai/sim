@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 import { urlsMockFns } from './urls.mock'
 
 /**
- * Mirrors `ShareValidationError` from `@/lib/public-shares/share-manager` (a plain `Error`
+ * Mirrors `ShareValidationError` from `@/lib/public-shares/manager` (a plain `Error`
  * subclass in production too): same `name` and `(message)` constructor.
  */
 export class MockShareValidationError extends Error {
@@ -13,7 +13,7 @@ export class MockShareValidationError extends Error {
 }
 
 /**
- * Controllable mock functions for `@/lib/public-shares/share-manager`.
+ * Controllable mock functions for `@/lib/public-shares/manager`.
  *
  * Bare `vi.fn()` except:
  * - `mockBuildShareUrl(token)` → `${getBaseUrl()}/f/${token}` (faithful port; reads the shared
@@ -46,12 +46,12 @@ export const publicSharesMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/public-shares/share-manager`. `ShareValidationError` is
+ * Static mock module for `@/lib/public-shares/manager`. `ShareValidationError` is
  * {@link MockShareValidationError}.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+ * vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
  * ```
  */
 export const publicSharesMock = {

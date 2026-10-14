@@ -4,7 +4,7 @@ import type { PersistedToolState } from '@/lib/api/contracts/copilot-messages'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
-import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import {
   buildPersistedAssistantMessage,

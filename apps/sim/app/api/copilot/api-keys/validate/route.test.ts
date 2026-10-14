@@ -95,8 +95,8 @@ const SELF_HOSTED_OPAQUE_WORKSPACE_VALIDATE_BODY = {
   workspaceId: 'local-self-hosted-workspace',
 } as const
 
-vi.mock('@/lib/billing/core/billing-attribution', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/billing/core/billing-attribution')>()),
+vi.mock('@/lib/billing/core/attribution', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/billing/core/attribution')>()),
   BILLING_ACCOUNT_DECISION_HEADER: 'x-sim-billing-account-decision',
   BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
   BILLING_REQUEST_ID_HEADER: 'x-sim-billing-request-id',

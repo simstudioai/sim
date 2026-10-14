@@ -21,7 +21,7 @@ import {
   v2InvalidBodyResponse,
   v2RateLimits,
 } from '@/lib/api/server/routes'
-import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/billing-attribution'
+import { getWorkspaceBilledAccountUserId } from '@/lib/billing/core/attribution'
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failure'
 import type { ForbiddenDetailCode } from '@/lib/core/application'

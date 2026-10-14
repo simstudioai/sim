@@ -70,8 +70,8 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import * as billingAttribution from '@/lib/billing/core/billing-attribution'
-import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import * as billingAttribution from '@/lib/billing/core/attribution'
+import { resolveSystemBillingAttribution } from '@/lib/billing/core/attribution'
 import * as outbox from '@/lib/core/outbox/service'
 import {
   createKnowledgeAclFixtureIds,

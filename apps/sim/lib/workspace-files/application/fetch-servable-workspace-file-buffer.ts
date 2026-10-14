@@ -3,10 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import {
-  downloadServableFileFromStorage,
-  type ServableFile,
-} from '@/lib/uploads/utils/file-utils.server'
+import { downloadServableFileFromStorage, type ServableFile } from '@/lib/uploads/utils/file.server'
 import { requeueFileSearchForRenderedArtifact } from '@/lib/workspace-files/search/artifact-ready'
 
 const logger = createLogger('FetchServableWorkspaceFileBuffer')

@@ -657,8 +657,8 @@ File Downloads and Generated Files.
 | Helper | Location | Purpose |
 |--------|----------|---------|
 | `normalizeFileInput` | `@/blocks/utils` | Normalize file params in block config |
-| `processFilesToUserFiles` | `@/lib/uploads/utils/file-utils` | Convert raw inputs to UserFile[] |
-| `downloadFileFromStorage` | `@/lib/uploads/utils/file-utils.server` | Get file Buffer from UserFile |
+| `processFilesToUserFiles` | `@/lib/uploads/utils/file` | Convert raw inputs to UserFile[] |
+| `downloadFileFromStorage` | `@/lib/uploads/utils/file.server` | Get file Buffer from UserFile |
 | `FileToolProcessor` | `@/executor/utils/file-tool-processor` | Executor-side; stores declared file outputs (not called by tools) |
 | `isUserFile` | `@/lib/core/utils/user-file` | Type guard for UserFile objects |
 | `FileInputSchema` | `@/lib/uploads/utils/file-schemas` | Zod schema for file validation |

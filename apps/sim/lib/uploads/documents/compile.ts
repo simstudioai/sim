@@ -11,7 +11,7 @@ import {
   type SandboxFile,
 } from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 import {
   type CompiledDocReadOptions,
@@ -28,14 +28,14 @@ import {
   type DocumentSourceLanguage,
   iterateDocumentFileReferences,
 } from '@/lib/uploads/documents/references'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import {
   admitWorkspaceFiles,
   workspaceFileProvenanceIdentity,
 } from '@/lib/workspace-files/application/admit-file-content'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
+import type { SandboxTaskId } from '@/sandboxes/registry'
 
 const logger = createLogger('CopilotDocCompile')
 

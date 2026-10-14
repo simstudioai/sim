@@ -53,14 +53,11 @@ vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 vi.mock('@/lib/billing/storage', () => billingStorageMock)
 vi.mock('@/lib/uploads', () => uploadsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox', () => ({
   enqueueWorkspaceFileStorageCleanup: vi.fn(),
   processWorkspaceFileStorageCleanupNow: vi.fn(),
 }))
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 vi.mock('@/lib/folders/locks', () => ({ acquireFolderMutationLock: vi.fn() }))
 vi.mock('@/lib/users/queries', () => usersQueriesMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
@@ -79,8 +76,8 @@ import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import {
   getWorkspaceFile,
   registerUploadedWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = {

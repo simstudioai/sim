@@ -7,6 +7,7 @@ import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider, KnowledgeAccessScope } from '@/lib/knowledge/access/types'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/active-base-reference'
 import type {
   KnowledgeAuthorizationContext,
   KnowledgeOrganizationAuthorizationContext,
@@ -18,7 +19,6 @@ import {
 } from '@/lib/knowledge/connectors/service'
 import type { ActiveKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { getKnowledgeDocument, getKnowledgeDocumentById } from '@/lib/knowledge/documents/service'
-import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import {
   getRestorableKnowledgeBase,
   type RestorableKnowledgeBase,
@@ -29,7 +29,7 @@ import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import {
   loadActiveWorkspaceApplicationContext,
   loadWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
 export interface KnowledgeWorkspaceContext extends KnowledgeAuthorizationContext {
   billedAccountUserId: string

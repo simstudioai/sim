@@ -30,16 +30,16 @@ import {
   mapFileRecord,
   type StagedFileContent,
   stageFileContent,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   snapshotWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenanceSnapshot,
   workspaceFileSecretProvenanceFromSnapshot,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   enqueueWorkspaceFileStorageCleanups,
   processWorkspaceFileStorageCleanupsNow,
-} from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+} from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import {
   deleteWorkspaceFileVersionInTx,
   getCurrentWorkspaceFileVersion,
@@ -47,11 +47,11 @@ import {
   getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import { downloadFile, downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'

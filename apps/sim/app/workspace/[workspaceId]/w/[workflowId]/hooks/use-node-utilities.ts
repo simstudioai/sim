@@ -7,7 +7,7 @@ import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import {
   calculateContainerDimensions,
   clampPositionToContainer,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position'
 import { getNodeDataDimension } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 

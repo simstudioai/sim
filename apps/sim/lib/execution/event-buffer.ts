@@ -5,10 +5,6 @@ import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.s
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getRedisBudgetKeys, getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'
-import {
-  getExecutionSignalChannel,
-  publishLocalExecutionSignal,
-} from '@/lib/execution/execution-signal'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import type { LargeValueStoreContext } from '@/lib/execution/payloads/store'
@@ -16,6 +12,7 @@ import {
   ExecutionResourceLimitError,
   isExecutionResourceLimitError,
 } from '@/lib/execution/resource-errors'
+import { getExecutionSignalChannel, publishLocalExecutionSignal } from '@/lib/execution/signal'
 import type { BlockStartedData, ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')

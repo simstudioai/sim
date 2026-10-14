@@ -21,8 +21,8 @@ import {
 } from '@/lib/execution/payloads/materialization.server'
 import { materializeLargeValueRef } from '@/lib/execution/payloads/store'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file-utils'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { isGeneratedDocumentSourceType } from '@/lib/uploads/utils/file'
 import type { UserFile } from '@/executor/types'
 
 const INLINE_BASE64_JSON_OVERHEAD_BYTES = 512 * 1024

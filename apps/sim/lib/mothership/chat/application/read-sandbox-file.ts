@@ -9,7 +9,7 @@ import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbe
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { workspaceFileDelegationPolicy } from '@/lib/workspace-files/application/authorization'
 
 /** Absolute scratch paths are explicit; failed workspace reads never select a workbench. */

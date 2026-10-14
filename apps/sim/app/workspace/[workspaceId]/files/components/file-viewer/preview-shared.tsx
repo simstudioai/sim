@@ -4,7 +4,7 @@ import { Component, type ErrorInfo, memo, type ReactNode } from 'react'
 import { cn } from '@sim/emcn'
 import { Loader } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('FilePreview')
 

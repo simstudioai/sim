@@ -6,13 +6,13 @@ import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-p
 import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
-import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   getFileExtension,
   getMimeTypeFromExtension,
   needsRenderedArtifact,
   resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file-utils'
+} from '@/lib/uploads/utils/file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'

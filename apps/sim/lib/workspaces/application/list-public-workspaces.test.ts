@@ -26,7 +26,7 @@ vi.mock('@/lib/workspaces/public-queries', () => ({
   getPublicWorkspaceDetail: hoisted.getDetail,
   getPublicWorkspaceDetails: hoisted.getDetails,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'

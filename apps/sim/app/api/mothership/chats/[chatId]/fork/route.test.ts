@@ -58,7 +58,7 @@ const {
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 

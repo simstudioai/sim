@@ -21,7 +21,7 @@ import {
   requireBillingCallbackAttribution,
   resolveLegacyV0BillingAttribution,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   type MidRunUsageVerdict,
   readMidRunAccountUsageVerdict,

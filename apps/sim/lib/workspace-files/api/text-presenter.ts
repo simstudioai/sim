@@ -1,4 +1,4 @@
-import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
 import type { ReadWorkspaceFileTextResult } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 /** The CLI and HTTP surface expose text metadata, never the private provenance sidecar. */

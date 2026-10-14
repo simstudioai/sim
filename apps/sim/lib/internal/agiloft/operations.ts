@@ -69,7 +69,7 @@ import {
   createInternalToolFileResult,
   type InternalToolFileResult,
 } from '@/lib/internal/tool-operations/file-result'
-import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import type {
   AgiloftAsyncStatusResponse,
   AgiloftAttachmentInfoResponse,

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateRandomString } from '@sim/utils/random'
-import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl } from '@/lib/uploads/utils/file'
 import {
   selectModelBoundFileInputPaths,
   selectPreferredModelBoundFileInputPaths,

@@ -20,7 +20,7 @@ import {
   type PublicLogSortField,
   readPublicLogPage,
 } from '@/lib/logs/public-queries'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface ListPublicLogsInput {
   workspaceId: string

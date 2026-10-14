@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
-import type { PreparedCollabDocState } from '@/lib/collab-doc/collab-state'
+import type { PreparedCollabDocState } from '@/lib/collab-doc/state'
 import { isCopilotPrincipal, requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -25,16 +25,16 @@ import {
   discardStagedFileContent,
   type StagedFileContent,
   stageFileContent,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { downloadFile, downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import {
   hasWorkspaceFileDeliveryObserver,
   reportWorkspaceFileDelivery,

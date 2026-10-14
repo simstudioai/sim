@@ -9,7 +9,7 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeResourceContext } from '@/lib/knowledge/application/contexts'
 

@@ -11,15 +11,15 @@ import type {
   DownloadWorkspaceFileItemsInput,
   DownloadWorkspaceFileItemsResult,
 } from '@/lib/workspace-files/application/download-workspace-file-items'
-import type { MoveWorkspaceFileItemsInput } from '@/lib/workspace-files/application/move-workspace-file-items'
-import type { RenameWorkspaceFileResult } from '@/lib/workspace-files/application/rename-workspace-file'
 import type {
   CreateWorkspaceFileFolderInput,
   DeleteWorkspaceFileFolderInput,
   RestoreWorkspaceFileFolderInput,
   RestoreWorkspaceFileFolderResult,
   UpdateWorkspaceFileFolderInput,
-} from '@/lib/workspace-files/application/workspace-file-folders'
+} from '@/lib/workspace-files/application/folders'
+import type { MoveWorkspaceFileItemsInput } from '@/lib/workspace-files/application/move-workspace-file-items'
+import type { RenameWorkspaceFileResult } from '@/lib/workspace-files/application/rename-workspace-file'
 
 interface InternalSuccessArgs<I = unknown, R = unknown> {
   principal: SessionPrincipal

@@ -2,6 +2,9 @@ import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import * as Y from 'yjs'
+import { yDocToFileMarkdown } from '@/lib/collab-doc/converter'
+import { type PersistFileDocResult, preparePersistedState } from '@/lib/collab-doc/persist'
+import { type FileDocSeed, prepareFileDocSeed } from '@/lib/collab-doc/seed'
 import {
   assertCollabDocStateSize,
   CollabDocStateConflictError,
@@ -9,10 +12,7 @@ import {
   loadCollabDocState,
   type PreparedCollabDocState,
   saveCollabDocStateInTx,
-} from '@/lib/collab-doc/collab-state'
-import { yDocToFileMarkdown } from '@/lib/collab-doc/converter'
-import { type PersistFileDocResult, preparePersistedState } from '@/lib/collab-doc/persist'
-import { type FileDocSeed, prepareFileDocSeed } from '@/lib/collab-doc/seed'
+} from '@/lib/collab-doc/state'
 import type { AuthorizingUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -26,7 +26,7 @@ import {
 } from '@/lib/projects/files/application/content'
 import { readProjectFileDocIdInTx } from '@/lib/projects/files/application/document-lifecycle'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
-import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { isMarkdownFile } from '@/lib/uploads/utils/file'
 
 interface ProjectDocumentTarget {
   projectId: string

@@ -26,7 +26,7 @@ import {
   updateOrganizationMemberUsageLimitContract,
   updateOrganizationUsageLimitContract,
 } from '@/lib/api/contracts/organization'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'

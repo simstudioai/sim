@@ -4,7 +4,7 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   createResolvedSecretMatcher,
   scanResolvedSecretString,

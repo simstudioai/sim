@@ -6,7 +6,7 @@ import {
   getWorkspaceFile,
   loadActiveWorkspaceFileContext,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'

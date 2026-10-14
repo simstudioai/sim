@@ -119,7 +119,7 @@ const fns = workspaceUploadsMockFns
 
 /**
  * Static mock module for the `@/lib/uploads/contexts/workspace` barrel
- * (`workspace-file-manager` + `workspace-file-folder-manager`).
+ * (`file-manager` + `file-folder-manager`).
  *
  * The error classes extend `Error`, not `OrchestrationError`: their `name`, `code` and
  * message match production, but `instanceof OrchestrationError` is false.

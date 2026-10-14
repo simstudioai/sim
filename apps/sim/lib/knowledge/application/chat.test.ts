@@ -35,7 +35,7 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
 }))
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   runCopilotLifecycle: mocks.lifecycle,
 }))

@@ -1,5 +1,5 @@
-export type { CopilotStoredFile } from './copilot-file-manager'
+export type { CopilotStoredFile } from './file-manager'
 export {
   downloadCopilotFile,
   uploadCopilotFile,
-} from './copilot-file-manager'
+} from './file-manager'

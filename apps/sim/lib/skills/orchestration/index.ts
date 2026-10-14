@@ -6,4 +6,4 @@ export {
   type SkillWriteSource,
   updateSkill,
   upsertSkillBatch,
-} from './skill-lifecycle'
+} from './lifecycle'

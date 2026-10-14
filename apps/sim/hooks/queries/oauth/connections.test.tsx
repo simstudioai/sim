@@ -11,7 +11,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/lib/oauth', () => ({ OAUTH_PROVIDERS: {} }))
 

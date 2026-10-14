@@ -20,9 +20,9 @@ vi.mock('@/lib/internal/jira/client', () => ({
 
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 const { mockAssertToolFileAccess } = filesAuthorizationMockFns
 const { mockProcessFilesToUserFiles } = fileUtilsMockFns

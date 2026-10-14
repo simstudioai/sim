@@ -6,7 +6,7 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamEvent } from '@/lib/mothership/request/session/types'
 import { isClientExecutedToolCall } from '@/lib/mothership/tools/client-executed-tools'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
 
 /**
  * Payloads whose strings could serialize past this are compacted before they are

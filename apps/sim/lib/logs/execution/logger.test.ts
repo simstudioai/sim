@@ -86,7 +86,7 @@ afterAll(resetDbChainMock)
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 

@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { InternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'

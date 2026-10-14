@@ -1,10 +1,7 @@
 import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  type BillingAttributionSnapshot,
-  toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
 import { checkSearchUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
@@ -18,6 +15,7 @@ import { reportDurableSecretProvenanceRefusal } from '@/lib/execution/durable-se
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/active-base-reference'
 import { admitKnowledgeChunks } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -35,7 +33,6 @@ import { instrumentSearchUseCase } from '@/lib/knowledge/application/search-diag
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import { generateSearchEmbedding, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
-import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 import { hasRerankerCredential, rerank } from '@/lib/knowledge/reranker'
 import type { RerankerStatus } from '@/lib/knowledge/reranker-models'

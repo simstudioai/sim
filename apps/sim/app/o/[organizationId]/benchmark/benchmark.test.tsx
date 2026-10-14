@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { Benchmark } from '@/app/o/[organizationId]/benchmark/benchmark'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/app/o/[organizationId]/benchmark/components', () => ({
   BenchmarkDetail: () => null,

@@ -33,16 +33,16 @@ import {
   projectUploadCleanupAvailableAt,
   queueRetiredProjectUploadCleanup,
 } from '@/lib/projects/files/prefix-cleanup'
-import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   adoptVerifiedUploadSession,
   commitFileCreateInTx,
   discardStagedFileContent,
   type StagedFileContent,
   stageFileContent,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import { assertProjectFileUploadBinding } from '@/lib/uploads/upload-session/project-file-binding'

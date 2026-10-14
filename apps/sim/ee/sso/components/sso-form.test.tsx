@@ -30,7 +30,7 @@ vi.mock('@sim/emcn', () => ({
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/app/(auth)/components', () => ({
   AuthFormMessage: ({ children }: { children?: ReactNode }) => <div>{children}</div>,

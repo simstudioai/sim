@@ -26,7 +26,7 @@ vi.mock('@/hooks/use-mothership-chat-events', () => ({
   useMothershipChatEvents: mockUseMothershipChatEvents,
 }))
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/queries/admin-users', () => ({
   useStopImpersonating: () => ({ mutate: vi.fn(), isPending: false }),
 }))

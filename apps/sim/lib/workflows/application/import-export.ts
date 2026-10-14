@@ -9,13 +9,13 @@ import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
-import { applyMappedWorkflowImport } from '@/lib/workflows/application/mapped-import'
-import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   resolveWorkflowFolderPath,
   workflowFolderPathForId,
-} from '@/lib/workflows/application/workflow-folders'
-import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
+} from '@/lib/workflows/application/folders'
+import { WorkflowImportError } from '@/lib/workflows/application/import-error'
+import { applyMappedWorkflowImport } from '@/lib/workflows/application/mapped-import'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   buildWorkflowExportPayload,
   type WorkflowExportPayload,
@@ -25,7 +25,7 @@ import {
   importWorkflowIntoWorkspaceTransition,
 } from '@/lib/workflows/operations/import-workflow'
 import type { MappedImportOptions } from '@/lib/workflows/references/import-plan'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 
 export interface ImportWorkflowInput extends MappedImportOptions {

@@ -24,7 +24,7 @@ import {
   exchangeAndConfigureSlackManagedUsers,
   loadSlackManagedUsersAttempt,
 } from '@/lib/credential-groups/slack-managed-users'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 async function authorizeSlackConfiguration(
   principal: Principal,

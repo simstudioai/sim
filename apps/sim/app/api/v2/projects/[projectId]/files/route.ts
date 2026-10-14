@@ -14,7 +14,7 @@ import {
 import { toV2ProjectFile } from '@/lib/projects/files/api/presenters'
 import { createProjectFile, listProjectFiles } from '@/lib/projects/files/application'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 

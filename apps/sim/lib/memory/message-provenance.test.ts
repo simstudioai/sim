@@ -16,7 +16,7 @@ import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
 vi.mock('@/lib/tokenization/accurate', () => tokenizationAccurateMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import {
   hashDurableSecretProvenanceValue,

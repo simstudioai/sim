@@ -53,7 +53,7 @@
         "lib/api/contracts/project-file*.ts": ["exports", "types"],
         "lib/api/contracts/v2/project-file*.ts": ["exports", "types"],
         "lib/api/contracts/v2/uploads.ts": ["types"],
-        "sandbox-tasks/index.ts": ["files"],
+        "sandboxes/index.ts": ["files"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],
         "lib/api/contracts/selectors/index.ts": ["files"],

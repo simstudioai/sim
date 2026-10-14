@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import { BlockPathCalculator } from '@/lib/workflows/blocks/path-calculator'
 import { SYSTEM_REFERENCE_PREFIXES } from '@/lib/workflows/sanitization/references'
 import { useWorkflowReferenceGraph } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/workflow-reference-scope'
 import { normalizeName } from '@/executor/constants'

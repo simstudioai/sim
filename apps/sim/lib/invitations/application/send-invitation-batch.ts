@@ -42,7 +42,7 @@ import {
 } from '@/lib/invitations/workspace-invitations'
 import { createOrganizationInvitation } from '@/lib/organizations/application/invitations'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import { InvitationsNotAllowedError } from '@/ee/access-control/utils/permission-check'
 

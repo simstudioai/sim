@@ -15,7 +15,7 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { getWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import type { WorkflowExecutionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import type { WorkflowExecutionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import { useExecutionStore } from '@/stores/execution/store'
 
 const {
@@ -69,7 +69,7 @@ vi.mock('@sim/utils/retry', () => ({
 }))
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution', () => ({
   executeWorkflowWithFullLogging,
 }))
 

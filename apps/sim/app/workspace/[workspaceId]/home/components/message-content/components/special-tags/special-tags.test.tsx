@@ -68,7 +68,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/app/workspace/[workspaceId]/home/components/chat-surface-context', () => ({
   useChatSurface: () => ({
     SearchConnectionComponent: ({ onConnected }: { onConnected?: () => void }) => (

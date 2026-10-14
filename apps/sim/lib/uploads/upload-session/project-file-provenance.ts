@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   parseWorkspaceFileSecretProvenance,
   type WorkspaceFileUploadSource,

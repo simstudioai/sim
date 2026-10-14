@@ -1,4 +1,4 @@
-import { ensureFileNameExtension } from '@/lib/uploads/utils/file-utils'
+import { ensureFileNameExtension } from '@/lib/uploads/utils/file'
 
 const SAFE_INLINE_TYPES = new Set([
   'image/png',

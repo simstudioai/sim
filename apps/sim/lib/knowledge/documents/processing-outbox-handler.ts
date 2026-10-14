@@ -1,5 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
-import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { assertBillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {
@@ -21,16 +21,16 @@ import {
   VISION_CHECKPOINT_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/checkpoint-events'
 import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
-import {
-  getOcrRequestRejection,
-  isPermanentDocumentProcessingError,
-  isUsageLimitDocumentProcessingError,
-} from '@/lib/knowledge/documents/document-processing-error'
 import { cleanupEmbeddingCheckpoint } from '@/lib/knowledge/documents/embedding-checkpoints'
 import { cleanupOcrCheckpoint } from '@/lib/knowledge/documents/ocr-checkpoints'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
 import { dispatchDocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-event'
+import {
+  getOcrRequestRejection,
+  isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/processing-error'
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,

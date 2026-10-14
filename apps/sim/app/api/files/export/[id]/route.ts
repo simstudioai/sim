@@ -25,7 +25,7 @@ import {
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
 

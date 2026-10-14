@@ -9,9 +9,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockGenerateWorkspaceFileKey: mockGenerateKey } = workspaceFileManagerMockFns
 const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)

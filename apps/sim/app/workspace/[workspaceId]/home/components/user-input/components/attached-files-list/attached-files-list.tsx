@@ -11,7 +11,7 @@ import {
 } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension } from '@/lib/uploads/utils/file'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
 /**

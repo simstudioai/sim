@@ -4,7 +4,7 @@ import {
 } from '@sim/testing/mocks/billing-attribution.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
 

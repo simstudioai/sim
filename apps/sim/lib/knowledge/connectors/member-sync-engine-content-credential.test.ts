@@ -47,7 +47,7 @@ const hoisted = vi.hoisted(() => ({
   renew: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({

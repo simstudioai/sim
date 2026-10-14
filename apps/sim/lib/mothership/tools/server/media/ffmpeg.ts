@@ -20,7 +20,7 @@ import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'

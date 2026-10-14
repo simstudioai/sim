@@ -4,7 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import * as Y from 'yjs'
-import { loadCollabDocState, saveCollabDocStateInTx } from '@/lib/collab-doc/collab-state'
+import { loadCollabDocState, saveCollabDocStateInTx } from '@/lib/collab-doc/state'
 import {
   enqueueOutboxEvent,
   type OutboxHandlerRegistry,

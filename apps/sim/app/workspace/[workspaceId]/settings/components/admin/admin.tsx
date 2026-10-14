@@ -21,7 +21,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
 import {

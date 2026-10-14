@@ -10,8 +10,8 @@ import { type CleanupOwnerScope, cleanupOwnerCondition } from '@/lib/cleanup/res
 import { cleanupArchivedWorkspaceFileFolders } from '@/lib/file-retention/folders'
 import type { FileArchiveCleanup, FileRetentionOptions } from '@/lib/file-retention/types'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
-import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
-import { releaseWorkspaceFileVersionsForPurgeInTx } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
+import { releaseWorkspaceFileVersionsForPurgeInTx } from '@/lib/uploads/contexts/workspace/file-version-store'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('FileArchiveCleanup')

@@ -12,7 +12,7 @@ import {
 import {
   type ActiveWorkspaceApplicationContext,
   loadActiveWorkspaceApplicationContext,
-} from '@/lib/workspaces/application/workspace-context'
+} from '@/lib/workspaces/application/context'
 
 export const CHAT_DEPLOYMENT_NOT_FOUND_MESSAGE = 'Chat deployment not found'
 

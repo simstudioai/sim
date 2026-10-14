@@ -16,7 +16,7 @@ import {
   resolveFileReference,
   workspaceFileVfsPath,
 } from '@/lib/uploads/contexts/workspace'
-import { resolveArchivedFileFolderScope } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { resolveArchivedFileFolderScope } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { type FileBrowserQuery, queryFileBrowserItems } from '@/lib/workspace-files/browser-query'
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 

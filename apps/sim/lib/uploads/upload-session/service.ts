@@ -20,11 +20,11 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
-import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
+import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/file-manager'
 import { assertOrganizationAttachmentControlBinding } from '@/lib/uploads/contexts/organization-assistant/binding'
 import { assertOrganizationLogoControlBinding } from '@/lib/uploads/contexts/organization-logo/binding'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   ASSISTANT_IMAGE_MAX_BYTES,
@@ -70,7 +70,7 @@ import {
   WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
   type WorkspaceFileUploadSource,
 } from '@/lib/uploads/upload-session/workspace-file-provenance'
-import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { isImageFileType } from '@/lib/uploads/utils/file'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024

@@ -3,7 +3,7 @@ import {
   SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
-import { fetchProviderJsonWithStatus } from '@/lib/selectors/server/providers/provider-http'
+import { fetchProviderJsonWithStatus } from '@/lib/selectors/server/providers/http'
 import { detailSelectorResult, listSelectorResult } from '@/lib/selectors/server/types'
 import type { SafeSelectorOption, SelectorRequest } from '@/lib/selectors/types'
 import type { PlanetScaleScope } from '@/tools/planetscale/types'

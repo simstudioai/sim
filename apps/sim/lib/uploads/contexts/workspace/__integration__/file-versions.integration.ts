@@ -42,7 +42,6 @@ import {
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
-import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
   createOwnedWorkspaceFile,
   deleteWorkspaceFileVersion,
@@ -52,19 +51,20 @@ import {
   purgeCreatedWorkspaceFile,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
   replaceWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import * as storageCleanup from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
   getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
-} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import * as storageService from '@/lib/uploads/core/storage-service'
 import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'

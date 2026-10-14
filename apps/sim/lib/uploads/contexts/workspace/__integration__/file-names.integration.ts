@@ -43,7 +43,7 @@ import {
   moveWorkspaceFileItems,
   updateWorkspaceFileFolder,
   workspaceFileNameFolderCondition,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   deleteWorkspaceFile,
   fetchWorkspaceFileBuffer,
@@ -56,7 +56,7 @@ import {
   trackChatUpload,
   uploadWorkspaceFile,
   workspaceFileVfsPath,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { normalizeDisplaySegment } from '@/lib/vfs/path'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { restoreWorkspaceFileOperation } from '@/lib/workspace-files/application/restore-workspace-file'

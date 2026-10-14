@@ -7,7 +7,7 @@ import {
   ROOT_FOLDER_PATH,
 } from '@/lib/folders/paths'
 import { readFolderPaths } from '@/lib/folders/selection'
-import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { inferContextFromKey } from '@/lib/uploads/utils/file'
 import type { BlockConfig, SubBlockType } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import {

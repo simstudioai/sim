@@ -54,8 +54,8 @@ import {
   downloadProjectFileVersionContent,
   readProjectFileVersionContent,
 } from '@/lib/projects/files/application/versions'
-import * as storageCleanup from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
-import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+import * as storageCleanup from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
+import { workspaceFileStorageCleanupOutboxHandlers } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
@@ -181,7 +181,7 @@ describe('Project file content against PostgreSQL and the local object store', (
       `workspace ${mutation} waits for Project authority before locking shared file resources`,
       async () => {
         const { uploadWorkspaceFile, updateWorkspaceFileContent } = await import(
-          '@/lib/uploads/contexts/workspace/workspace-file-manager'
+          '@/lib/uploads/contexts/workspace/file-manager'
         )
         const { defineAuthorizedProjectFileUseCase } = await import(
           '@/lib/projects/files/application/authorized-use-case'
@@ -523,7 +523,7 @@ describe('Project file content against PostgreSQL and the local object store', (
     'archived Project history releases bytes with canonical storage context in the purge transaction',
     async () => {
       const { releaseWorkspaceFileVersionsForPurgeInTx } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-versions'
+        '@/lib/uploads/contexts/workspace/file-version-store'
       )
       const { archiveProjectFileItems } = await import('@/lib/projects/files/application/lifecycle')
       const f = await fixture()
@@ -585,7 +585,7 @@ describe('Project file content against PostgreSQL and the local object store', (
         '@/lib/workspace-files/application/restore-workspace-file'
       )
       const { createWorkspaceFileFolderOperation, updateWorkspaceFileFolderOperation } =
-        await import('@/lib/workspace-files/application/workspace-file-folders')
+        await import('@/lib/workspace-files/application/folders')
       const originalFolder = await createWorkspaceFileFolderOperation.execute({
         principal: f.principal,
         input: { workspaceId: f.workspaceId, name: 'Design' },

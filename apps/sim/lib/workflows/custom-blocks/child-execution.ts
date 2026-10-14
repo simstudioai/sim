@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'

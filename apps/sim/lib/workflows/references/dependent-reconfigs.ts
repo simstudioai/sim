@@ -1,12 +1,12 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { ForkDependentReconfig, ForkResourceUsage } from '@/lib/api/contracts/workspace-fork'
 import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
-import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
 import {
   createCanonicalModeGates,
   reconfigurableDependentIds,
   scanWorkflowReferences,
 } from '@/lib/workflows/references/remap-references'
+import { toScannerBlocks } from '@/lib/workflows/references/scan'
 import type { WorkflowBlockIdResolver } from '@/lib/workflows/references/types'
 import { getToolInputParamConfigs } from '@/lib/workflows/search-replace/indexer'
 import {

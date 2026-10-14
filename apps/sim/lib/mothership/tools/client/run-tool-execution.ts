@@ -35,7 +35,7 @@ import {
   WORKFLOW_EXECUTION_BUSY,
   type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
-import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import {
   isExecutionStreamHttpError,
   isReconnectStreamOpen,

@@ -7,8 +7,8 @@ import type { ProjectFileAuthorizationContext } from '@/lib/projects/files/appli
 import {
   buildWorkspaceFileFolderPathMap,
   listFileFolders,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { mapFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
+import { mapFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
 import { finishFileContentEffects } from '@/lib/uploads/server/content-effects'
 
 interface CommittedWriteEffects {
