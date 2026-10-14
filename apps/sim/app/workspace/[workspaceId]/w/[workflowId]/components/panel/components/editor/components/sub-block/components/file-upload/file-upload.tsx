@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Button, Combobox, cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -429,33 +429,27 @@ export function FileUpload({
     [filesArray, workspaceFiles]
   )
 
-  useEffect(() => {
-    if (
-      !folderScope ||
-      !hasConcreteFolderScope ||
-      loadingWorkspaceFiles ||
-      workspaceFilesArePlaceholderData ||
-      isPreview
-    ) {
-      return
+  /*
+   * Selections the folder scope no longer covers — the folder changed, or
+   * someone moved the file. The run refuses them, so they are flagged for the
+   * user to remove rather than pruned here: pruning would write to the shared
+   * workflow from every open editor at once.
+   */
+  const outOfScopeFilePaths = useMemo(() => {
+    if (!hasConcreteFolderScope || loadingWorkspaceFiles || workspaceFilesArePlaceholderData) {
+      return new Set<string>()
     }
-
     const scopedIds = new Set(scopedWorkspaceFiles.map((file) => file.id))
-    const nextFiles = filesArray.filter((file) => {
-      const workspaceFile = findSelectedWorkspaceFile(file, workspaceFiles)
-      return !workspaceFile || scopedIds.has(workspaceFile.id)
-    })
-    if (nextFiles.length === filesArray.length) return
-
-    commitValue(multiple ? (nextFiles.length > 0 ? nextFiles : null) : (nextFiles[0] ?? null))
+    return new Set(
+      filesArray.flatMap((file) => {
+        const match = findSelectedWorkspaceFile(file, workspaceFiles)
+        return match && !scopedIds.has(match.id) ? [file.path] : []
+      })
+    )
   }, [
-    commitValue,
     filesArray,
-    folderScope,
     hasConcreteFolderScope,
-    isPreview,
     loadingWorkspaceFiles,
-    multiple,
     scopedWorkspaceFiles,
     workspaceFiles,
     workspaceFilesArePlaceholderData,
@@ -756,6 +750,9 @@ export function FileUpload({
           <span className='ml-2 text-[var(--text-muted)]'>
             ({workspaceFileSizeLabel(file.size)})
           </span>
+          {outOfScopeFilePaths.has(file.path) && (
+            <span className='ml-2 text-[var(--text-error)]'>Outside folder</span>
+          )}
         </div>
         <Button
           aria-label='Remove file'
@@ -901,6 +898,12 @@ export function FileUpload({
       {folderScopeUploadBlocked && !loadingFolderScope && (
         <div className='mb-2 text-muted-foreground text-xs'>
           Choose one available folder to upload a new file. Existing files can still be selected.
+        </div>
+      )}
+
+      {outOfScopeFilePaths.size > 0 && (
+        <div className='mb-2 text-[var(--text-error)] text-caption'>
+          Remove selected files outside the chosen folder, or the run will fail.
         </div>
       )}
 

@@ -4251,20 +4251,18 @@ export function TableGrid({
    * count label and the multi-row "Run workflows" action.
    */
   const contextMenuRowIds = useMemo<string[]>(() => {
-    if (!contextMenu.isOpen || !contextMenu.row) return []
-    if (
-      !rowSelectionIsEmpty(rowSelection) &&
-      rowSelectionIncludes(rowSelection, contextMenu.row.id)
-    ) {
+    const contextRow = contextMenu.row
+    if (!contextMenu.isOpen || !contextRow) return []
+    if (!rowSelectionIsEmpty(rowSelection) && rowSelectionIncludes(rowSelection, contextRow.id)) {
       const ids: string[] = []
       for (const row of rows) {
         if (rowSelectionIncludes(rowSelection, row.id)) ids.push(row.id)
       }
-      return ids.length > 0 ? ids : [contextMenu.row.id]
+      return ids.length > 0 ? ids : [contextRow.id]
     }
     const sel = normalizedSelection
     if (sel) {
-      const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
+      const contextRowArrayIndex = rows.findIndex((r) => r.id === contextRow.id)
       const isInSelection =
         contextRowArrayIndex >= sel.startRow && contextRowArrayIndex <= sel.endRow
       if (isInSelection) {
@@ -4275,10 +4273,10 @@ export function TableGrid({
           const row = rows[r]
           if (row) ids.push(row.id)
         }
-        return ids.length > 0 ? ids : [contextMenu.row.id]
+        return ids.length > 0 ? ids : [contextRow.id]
       }
     }
-    return [contextMenu.row.id]
+    return [contextRow.id]
   }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows])
 
   /**
@@ -4328,16 +4326,14 @@ export function TableGrid({
    * send every column (undefined).
    */
   const contextMenuColumnIds = useMemo<string[] | undefined>(() => {
-    if (!contextMenu.isOpen || !contextMenu.row) return undefined
-    if (
-      !rowSelectionIsEmpty(rowSelection) &&
-      rowSelectionIncludes(rowSelection, contextMenu.row.id)
-    ) {
+    const contextRow = contextMenu.row
+    if (!contextMenu.isOpen || !contextRow) return undefined
+    if (!rowSelectionIsEmpty(rowSelection) && rowSelectionIncludes(rowSelection, contextRow.id)) {
       return undefined
     }
     const sel = normalizedSelection
     if (!sel) return undefined
-    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextMenu.row!.id)
+    const contextRowArrayIndex = rows.findIndex((r) => r.id === contextRow.id)
     if (contextRowArrayIndex < sel.startRow || contextRowArrayIndex > sel.endRow) return undefined
     // Collapsed here too (not only in buildTableSelectionContext) because this
     // also decides whether the menu item reads "cell range" or "rows".

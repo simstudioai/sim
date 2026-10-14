@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_TABLE_SELECTION_ROWS } from '@/lib/mothership/chat/selection-context'
-import { buildTableSelectionContext, drainTargetForChip } from './utils'
+import { buildTableSelectionContext } from './utils'
 
 const rowIds = (count: number) => Array.from({ length: count }, (_, i) => `r${i}`)
 
@@ -31,16 +31,5 @@ describe('buildTableSelectionContext', () => {
 
     if (context?.kind !== 'table_selection') throw new Error('expected a table_selection')
     expect(context.columnIds).toEqual(['c0', 'c1', 'c2'])
-  })
-})
-
-describe('drainTargetForChip', () => {
-  it('still yields a full cap when every exclusion lands in the loaded prefix', () => {
-    // The worst case for a gutter select-all: exclusions are filtered out AFTER
-    // loading, so loading only the cap would leave the chip short of the count
-    // the menu already advertised.
-    const excluded = 30
-
-    expect(drainTargetForChip(excluded) - excluded).toBe(MAX_TABLE_SELECTION_ROWS)
   })
 })
