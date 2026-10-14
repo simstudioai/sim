@@ -5,7 +5,6 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger, setRequestAuth } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import {
   APIError,
@@ -100,7 +99,11 @@ import {
 } from '@/lib/billing/organization'
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isLegacyPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import {
+  didSubscriptionPriceChange,
+  getPlans,
+  resolvePlanFromStripeSubscription,
+} from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -1676,8 +1679,7 @@ export const auth = betterAuth({
                   logUnresolvedStripePlan(
                     'onSubscriptionUpdate',
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId },
-                    isRecordLike(event.data.previous_attributes) &&
-                      'items' in event.data.previous_attributes
+                    didSubscriptionPriceChange(stripeSubscription, event.data.previous_attributes)
                   )
                 }
 
