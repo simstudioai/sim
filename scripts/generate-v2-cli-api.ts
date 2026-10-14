@@ -717,6 +717,7 @@ export function render(operations: Operation[], docs: Map<string, OperationDoc>)
         const discriminator = renderBodyDiscriminator(op.contract.body, '    ')
         if (discriminator) out.push(`    bodyDiscriminator: ${discriminator},`)
         else if (isUnionSlot(op.contract.body)) out.push(`    opaqueBody: true,`)
+        else if (!map && op.contract.body instanceof z.ZodObject) out.push(`    body: {},`)
       }
     }
     // Contract headers are request input like any other slot: `upload-token`

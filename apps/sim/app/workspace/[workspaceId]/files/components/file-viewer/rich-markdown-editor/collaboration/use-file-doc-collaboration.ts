@@ -105,7 +105,7 @@ export function useFileDocCollaboration({
     const doc = docRef.current as Y.Doc
     const awareness = awarenessRef.current as Awareness
     const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, {
-      workspaceId,
+      owner: { entityType: 'workspace', entityId: workspaceId },
       userId,
     })
     setProvider(fileProvider)

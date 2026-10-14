@@ -238,7 +238,7 @@ export interface InternalJsonResponseFinalization {
 
 type InternalJsonParseOptions = Pick<
   ParseRequestOptions,
-  'maxBodyBytes' | 'validationErrorResponse'
+  'maxBodyBytes' | 'validationErrorResponse' | 'optionalJsonBody'
 >
 
 /**

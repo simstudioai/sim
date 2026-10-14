@@ -9,12 +9,12 @@ import {
   v2ApiKeyAuth,
   v2RateLimits,
 } from '@/lib/api/server/routes'
+import { FILE_CACHE_CONTROL, presentFileDelivery } from '@/lib/uploads/server/delivery'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { toV2File } from '@/app/api/v2/files/utils'
 
 export const dynamic = 'force-dynamic'
@@ -44,12 +44,15 @@ export const GET = defineV2BinaryRoute({
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: downloadWorkspaceFileStream,
-  present: ({ file, stream, contentType, contentLength }) => ({
-    body: stream,
-    contentType,
-    contentDisposition: `attachment; ${encodeFilenameForHeader(file.name)}`,
-    contentLength,
-  }),
+  present: ({ file, stream, contentType, contentLength }) =>
+    presentFileDelivery({
+      body: stream,
+      filename: file.name,
+      contentType,
+      contentLength,
+      attachment: true,
+      cacheControl: FILE_CACHE_CONTROL.noStore,
+    }),
 })
 
 /**

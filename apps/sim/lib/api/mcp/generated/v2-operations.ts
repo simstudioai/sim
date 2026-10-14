@@ -186,6 +186,37 @@ import {
   v2UpdatePermissionGroupContract,
 } from '@/lib/api/contracts/v2/permission-groups'
 import {
+  v2CreateProjectFileFolderContract,
+  v2ListProjectFileFoldersContract,
+  v2RestoreProjectFileFolderContract,
+  v2UpdateProjectFileFolderContract,
+} from '@/lib/api/contracts/v2/project-file-folders'
+import {
+  v2ArchiveProjectFileItemsContract,
+  v2MoveProjectFileItemsContract,
+  v2RenameProjectFileContract,
+  v2RestoreProjectFileContract,
+} from '@/lib/api/contracts/v2/project-file-lifecycle'
+import {
+  v2AbortProjectFileUploadContract,
+  v2CompleteProjectFileUploadContract,
+  v2CreateProjectFileUploadContract,
+  v2GetProjectFileUploadContract,
+  v2GetProjectFileUploadPartUrlsContract,
+} from '@/lib/api/contracts/v2/project-file-uploads'
+import {
+  v2DeleteProjectFileVersionContract,
+  v2GetProjectFileVersionContract,
+  v2ListProjectFileVersionsContract,
+  v2RevertProjectFileVersionContract,
+} from '@/lib/api/contracts/v2/project-file-versions'
+import {
+  v2CreateProjectFileContract,
+  v2GetProjectFileMetadataContract,
+  v2ListProjectFilesContract,
+  v2UpdateProjectFileContentContract,
+} from '@/lib/api/contracts/v2/project-files'
+import {
   v2CreateSandboxContract,
   v2DeleteSandboxContract,
   v2GetSandboxContract,
@@ -372,6 +403,17 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.DELETE
       ),
   },
+  abortProjectFileUpload: {
+    contract: v2AbortProjectFileUploadContract,
+    summary: 'Abort Project File Upload',
+    description:
+      'Abort a pending Project upload and schedule its unregistered bytes for cleanup. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/uploads/[uploadId]/route').then(
+        (route) => route.DELETE
+      ),
+  },
   activateWorkflowVersion: {
     contract: v2ActivateWorkflowVersionContract,
     summary: 'Activate Workflow Version',
@@ -447,6 +489,15 @@ export const V2_MCP_OPERATIONS = {
       'Add, edit, or delete variables by name, applying operations in order. Values are coerced to their declared type when possible; otherwise they are stored as supplied. A batch with no changes returns `200` with `changed: false`. Read current variables with Get Workflow.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/variables/route').then((route) => route.PATCH),
+  },
+  archiveProjectFileItems: {
+    contract: v2ArchiveProjectFileItemsContract,
+    summary: 'Archive Project File Items',
+    description:
+      'Archive selected files and folders. Folder contents are archived recursively and remain recoverable until retention removes them. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/archive/route').then((route) => route.POST),
   },
   bulkAddPermissionGroupMembers: {
     contract: v2BulkAddPermissionGroupMembersContract,
@@ -611,6 +662,17 @@ export const V2_MCP_OPERATIONS = {
         '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route'
       ).then((route) => route.POST),
   },
+  completeProjectFileUpload: {
+    contract: v2CompleteProjectFileUploadContract,
+    summary: 'Complete Project File Upload',
+    description:
+      'Finalize verified bytes and atomically register one Project file. Retrying completion returns the same file without billing twice. Current edit access is checked again. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/uploads/[uploadId]/complete/route').then(
+        (route) => route.POST
+      ),
+  },
   completeTableImport: {
     contract: v2CompleteTableImportContract,
     summary: 'Complete Table Import Upload',
@@ -766,6 +828,33 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/organizations/[organizationId]/permission-groups/route').then(
         (route) => route.POST
       ),
+  },
+  createProjectFile: {
+    contract: v2CreateProjectFileContract,
+    summary: 'Create Project File',
+    description:
+      'Create a shared Project file from inline text or base64 bytes. Names are exact; an existing sibling name returns a conflict. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/route').then((route) => route.POST),
+  },
+  createProjectFileFolder: {
+    contract: v2CreateProjectFileFolderContract,
+    summary: 'Create Project File Folder',
+    description:
+      'Create a folder under an existing parent, or at the Project root when parentId is omitted. Sibling names must be unique. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/folders/route').then((route) => route.POST),
+  },
+  createProjectFileUpload: {
+    contract: v2CreateProjectFileUploadContract,
+    summary: 'Create Project File Upload',
+    description:
+      'Create a resumable Project file upload. The file is registered only after the signed transfer and completion succeed. The original API credential and upload-token are required on every control request. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/uploads/route').then((route) => route.POST),
   },
   createSandbox: {
     contract: v2CreateSandboxContract,
@@ -1014,6 +1103,17 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route').then(
+        (route) => route.DELETE
+      ),
+  },
+  deleteProjectFileVersion: {
+    contract: v2DeleteProjectFileVersionContract,
+    summary: 'Delete Project File Version',
+    description:
+      'Permanently remove one superseded Project file version from history. Deleting the current version returns `409`; other versions and the current file remain available. Stored-object cleanup is retried asynchronously when needed. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/[fileId]/versions/[version]/route').then(
         (route) => route.DELETE
       ),
   },
@@ -1440,6 +1540,50 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route').then(
+        (route) => route.GET
+      ),
+  },
+  getProjectFileMetadata: {
+    contract: v2GetProjectFileMetadataContract,
+    summary: 'Get Project File Metadata',
+    description:
+      "Get an active file's metadata and Project ownership. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/[fileId]/metadata/route').then(
+        (route) => route.GET
+      ),
+  },
+  getProjectFileUpload: {
+    contract: v2GetProjectFileUploadContract,
+    summary: 'Get Project File Upload',
+    description:
+      'Read the current state of a Project upload, including its file after completion. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/uploads/[uploadId]/route').then(
+        (route) => route.GET
+      ),
+  },
+  getProjectFileUploadPartUrls: {
+    contract: v2GetProjectFileUploadPartUrlsContract,
+    summary: 'Get Project File Upload Part URLs',
+    description:
+      'Request signed multipart transfer URLs for an active Project upload. Send exactly the returned transfer headers when uploading each part. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/uploads/[uploadId]/parts/route').then(
+        (route) => route.POST
+      ),
+  },
+  getProjectFileVersion: {
+    contract: v2GetProjectFileVersionContract,
+    summary: 'Get Project File Version',
+    description:
+      'Get metadata and author attribution for a recorded Project file version. Missing or permanently removed versions return `404`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/[fileId]/versions/[version]/route').then(
         (route) => route.GET
       ),
   },
@@ -1999,6 +2143,35 @@ export const V2_MCP_OPERATIONS = {
         (route) => route.GET
       ),
   },
+  listProjectFileFolders: {
+    contract: v2ListProjectFileFoldersContract,
+    summary: 'List Project File Folders',
+    description:
+      'List the Project folder tree with stable identifiers. Use scope=archived to find folders eligible for restore. Returns the complete set in one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/folders/route').then((route) => route.GET),
+  },
+  listProjectFiles: {
+    contract: v2ListProjectFilesContract,
+    summary: 'List Project Files',
+    description:
+      'List shared Project files with cursor pagination. Use scope=archived to find archived files. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/route').then((route) => route.GET),
+  },
+  listProjectFileVersions: {
+    contract: v2ListProjectFileVersionsContract,
+    summary: 'List Project File Versions',
+    description:
+      'List recorded versions of a shared Project file, newest first by default. Retention follows the Project payer and preserves the newest ten versions; removed versions leave gaps in numbering. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/[fileId]/versions/route').then(
+        (route) => route.GET
+      ),
+  },
   listSandboxes: {
     contract: v2ListSandboxesContract,
     summary: 'List Sandboxes',
@@ -2196,6 +2369,15 @@ export const V2_MCP_OPERATIONS = {
       'Move up to 1,000 files to a folder path or the workspace root.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/move/route').then((route) => route.POST),
   },
+  moveProjectFileItems: {
+    contract: v2MoveProjectFileItemsContract,
+    summary: 'Move Project File Items',
+    description:
+      'Move selected files and folders into an existing folder within the same Project. Folder contents move with their parent. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/move/route').then((route) => route.POST),
+  },
   moveTables: {
     contract: v2MoveTablesContract,
     summary: 'Move Tables and Folders',
@@ -2391,6 +2573,15 @@ export const V2_MCP_OPERATIONS = {
       'Rename a workspace file without changing its containing folder.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/files/[fileId]/route').then((route) => route.PATCH),
   },
+  renameProjectFile: {
+    contract: v2RenameProjectFileContract,
+    summary: 'Rename Project File',
+    description:
+      'Rename a shared Project file while retaining its identity and history. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/[fileId]/route').then((route) => route.PATCH),
+  },
   replaceWorkflowChatDeployment: {
     contract: v2ReplaceWorkflowChatDeploymentContract,
     summary: 'Create or Replace Workflow Chat Deployment',
@@ -2455,6 +2646,28 @@ export const V2_MCP_OPERATIONS = {
     handler: () =>
       import('@/app/api/v2/knowledge/[knowledgeBaseId]/restore/route').then((route) => route.POST),
   },
+  restoreProjectFile: {
+    contract: v2RestoreProjectFileContract,
+    summary: 'Restore Project File',
+    description:
+      'Restore an archived Project file. If its former folder is unavailable, restore it to the Project root with an available name. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/[fileId]/restore/route').then(
+        (route) => route.POST
+      ),
+  },
+  restoreProjectFileFolder: {
+    contract: v2RestoreProjectFileFolderContract,
+    summary: 'Restore Project File Folder',
+    description:
+      'Restore an archived folder and the files and subfolders archived with it. Find identifiers with List Project File Folders using scope=archived. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/folders/[folderId]/restore/route').then(
+        (route) => route.POST
+      ),
+  },
   restoreTable: {
     contract: v2RestoreTableContract,
     summary: 'Restore Table',
@@ -2497,6 +2710,17 @@ export const V2_MCP_OPERATIONS = {
       import('@/app/api/v2/files/[fileId]/versions/[version]/revert/route').then(
         (route) => route.POST
       ),
+  },
+  revertProjectFileVersion: {
+    contract: v2RevertProjectFileVersionContract,
+    summary: 'Revert Project File Version',
+    description:
+      'Make an earlier version current by recording its source bytes as a new revert version. Reverting to the current version is a no-op. Use expectedRevision to reject changes made since the last read; a stale revision or concurrent edit returns `409`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import(
+        '@/app/api/v2/projects/[projectId]/files/[fileId]/versions/[version]/revert/route'
+      ).then((route) => route.POST),
   },
   revertWorkflowVersion: {
     contract: v2RevertWorkflowVersionContract,
@@ -2804,6 +3028,28 @@ export const V2_MCP_OPERATIONS = {
     workspaceKeyUnsupported: true,
     handler: () =>
       import('@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route').then(
+        (route) => route.PATCH
+      ),
+  },
+  updateProjectFileContent: {
+    contract: v2UpdateProjectFileContentContract,
+    summary: 'Replace Project File Content',
+    description:
+      'Replace the complete content of a Project file. Supply expectedRevision to reject a stale edit with 409. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/[fileId]/content/route').then(
+        (route) => route.PUT
+      ),
+  },
+  updateProjectFileFolder: {
+    contract: v2UpdateProjectFileFolderContract,
+    summary: 'Update Project File Folder',
+    description:
+      'Rename, move, or reorder a folder while retaining its identity and descendants. Omitted fields stay unchanged; parentId=null moves the folder to the root. Cross-owner parents and cycles are rejected. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/projects/[projectId]/files/folders/[folderId]/route').then(
         (route) => route.PATCH
       ),
   },

@@ -36,6 +36,10 @@ import {
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
+import { projectFileFolderOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-file-folders'
+import { projectFileUploadOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-file-uploads'
+import { projectFileVersionOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-file-versions'
+import { projectFileOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/project-files'
 import {
   documentedSchema,
   type ErrorResponseId,
@@ -154,6 +158,10 @@ function auditOperation(
 }
 
 const declaredRoutes = [
+  ...projectFileOpenApiRoutes,
+  ...projectFileVersionOpenApiRoutes,
+  ...projectFileFolderOpenApiRoutes,
+  ...projectFileUploadOpenApiRoutes,
   defineOpenApiRoute(
     v2ListFilesContract,
     filesOperation({
@@ -1396,7 +1404,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Files & Audit Logs',
     description:
-      'Version 2 of the Sim REST API for workspace files, resumable uploads, public shares, and organization audit logs.',
+      'Version 2 of the Sim REST API for workspace and Project files, resumable uploads, public shares, and organization audit logs.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',
@@ -1413,7 +1421,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Files',
       description:
-        'Create, upload, download, organize, share, version, and delete workspace files.',
+        'Create, upload, download, organize, share, version, and delete workspace and Project files.',
     },
     {
       name: 'Audit Logs',

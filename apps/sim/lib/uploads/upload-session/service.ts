@@ -11,12 +11,14 @@ import { sha256Hex } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import {
   checkStorageQuotaForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { assertOrganizationAttachmentControlBinding } from '@/lib/uploads/contexts/organization-assistant/binding'
@@ -36,6 +38,14 @@ import {
 } from '@/lib/uploads/shared/types'
 import { maybeCleanupLocalUploadArtifacts } from '@/lib/uploads/upload-session/cleanup'
 import {
+  assertProjectFileUploadBinding,
+  createProjectFileUploadBinding,
+} from '@/lib/uploads/upload-session/project-file-binding'
+import {
+  bindProjectFileUploadProvenance,
+  PROJECT_FILE_UPLOAD_PROVENANCE_KEY,
+} from '@/lib/uploads/upload-session/project-file-provenance'
+import {
   abortProviderUpload,
   type CompletedUploadPart,
   completeMultipartProviderUpload,
@@ -48,11 +58,12 @@ import {
   type UploadPartUrl,
   uploadStorageProvider,
 } from '@/lib/uploads/upload-session/provider'
-import type {
-  UploadSessionPurpose,
-  UploadSessionStatus,
-  UploadStorageProvider,
-  UploadTransferMethod,
+import {
+  PROJECT_FILE_UPLOAD_BINDING_KEY,
+  type UploadSessionPurpose,
+  type UploadSessionStatus,
+  type UploadStorageProvider,
+  type UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
 import {
   bindWorkspaceFileUploadProvenance,
@@ -79,7 +90,6 @@ export const UPLOAD_SESSION_ASSET_MAX_BYTES = 5 * 1024 * 1024
 const PROCESSING_LEASE_MS = 5 * 60 * 1000
 const CLEANUP_BATCH_SIZE = 100
 const TERMINAL_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
-const cleanupDb = dbFor('cleanup')
 
 export type { UploadSessionPurpose, UploadSessionStatus, UploadTransferMethod }
 
@@ -202,6 +212,13 @@ interface CreateUploadSessionBaseParams {
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
   (
     | {
+        purpose: 'project_file'
+        projectId: string
+        workspaceId?: never
+        principal: Principal
+        secretProvenance?: WorkspaceFileUploadSource
+      }
+    | {
         purpose: 'workspace_file'
         workspaceId: string
         principal: Principal
@@ -241,6 +258,101 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
 
 type UploadSessionRow = typeof uploadSession.$inferSelect
 
+function verifiedCompletionObject(session: UploadSessionRecord, leaseId: string) {
+  const binding = session.metadata[PROJECT_FILE_UPLOAD_BINDING_KEY]
+  return Object.freeze({
+    leaseId,
+    metadata: JSON.stringify(session.metadata),
+    object: Object.freeze({
+      id: session.id,
+      purpose: session.purpose,
+      workspaceId: session.workspaceId,
+      userId: session.userId,
+      finalKey: session.finalKey,
+      storageContext: session.storageContext,
+      storageProvider: session.storageProvider,
+      providerUploadId: session.providerUploadId,
+      providerObjectVersion: session.providerObjectVersion,
+      fileName: session.fileName,
+      contentType: session.contentType,
+      fileSize: session.fileSize,
+    }),
+    projectId:
+      isRecordLike(binding) && typeof binding.entityId === 'string' ? binding.entityId : null,
+  })
+}
+
+const verifiedUploadObjects = new WeakMap<
+  UploadSessionRecord,
+  ReturnType<typeof verifiedCompletionObject>
+>()
+
+/** Only the live finalizer receives proof of provider-verified bytes; serialization drops it. */
+export function getVerifiedUploadSessionObject(session: UploadSessionRecord) {
+  const proof = verifiedUploadObjects.get(session)
+  if (!proof)
+    throw new UploadSessionError('conflict', 'Upload object has no active verification proof')
+  return { ...proof.object, projectId: proof.projectId }
+}
+
+/** Locks the exact completion lease before its metadata, billing, and receipt commit together. */
+export async function lockUploadSessionRegistrationInTx(
+  tx: DbTransaction,
+  session: UploadSessionRecord
+) {
+  const proof = verifiedUploadObjects.get(session)
+  if (!proof)
+    throw new UploadSessionError('conflict', 'Upload object has no active verification proof')
+  const [row] = await tx
+    .select()
+    .from(uploadSession)
+    .where(eq(uploadSession.id, proof.object.id))
+    .for('update')
+  if (
+    !row ||
+    row.status !== 'finalizing' ||
+    row.completedFileId !== null ||
+    row.processingLeaseId !== proof.leaseId ||
+    !row.processingLeaseExpiresAt ||
+    row.processingLeaseExpiresAt.getTime() <= Date.now() ||
+    JSON.stringify(row.metadata) !== proof.metadata ||
+    !Object.entries(proof.object).every(
+      ([key, value]) => row[key as keyof UploadSessionRow] === value
+    )
+  )
+    throw new UploadSessionError('conflict', 'Upload registration lease was lost')
+  let registered = false
+  return {
+    async registerFile(fileId: string) {
+      if (registered) throw new Error('Upload session registration was already recorded')
+      const rows = await tx
+        .update(uploadSession)
+        .set({ completedFileId: fileId, updatedAt: new Date() })
+        .where(
+          and(
+            eq(uploadSession.id, row.id),
+            eq(uploadSession.status, 'finalizing'),
+            eq(uploadSession.processingLeaseId, proof.leaseId),
+            isNull(uploadSession.completedFileId)
+          )
+        )
+        .returning({ id: uploadSession.id })
+      if (rows.length !== 1)
+        throw new UploadSessionError('conflict', 'Upload registration lease was lost')
+      registered = true
+    },
+  }
+}
+
+function projectCompletionProvenance(
+  session: UploadSessionRecord,
+  source?: WorkspaceFileSecretProvenance
+) {
+  const binding = session.metadata[PROJECT_FILE_UPLOAD_BINDING_KEY]
+  if (!isRecordLike(binding) || typeof binding.entityId !== 'string') throw uploadNotFound()
+  return bindProjectFileUploadProvenance(binding.entityId, source ?? { status: 'unknown' })
+}
+
 export async function createUploadSession(
   params: CreateUploadSessionParams
 ): Promise<CreatedUploadSession> {
@@ -249,6 +361,19 @@ export async function createUploadSession(
   const uploadToken = generateSecureToken(32)
   const workspaceId = params.purpose === 'profile_picture' ? null : (params.workspaceId ?? null)
   const metadata = { ...(params.metadata ?? {}) }
+  if (params.purpose === 'project_file') {
+    const binding = createProjectFileUploadBinding(params.principal, params.projectId)
+    if (binding.userId !== params.userId)
+      throw new UploadSessionError('forbidden', 'Project uploads require the actual uploading user')
+    metadata[PROJECT_FILE_UPLOAD_BINDING_KEY] = binding
+    metadata[PROJECT_FILE_UPLOAD_PROVENANCE_KEY] = bindProjectFileUploadProvenance(
+      params.projectId,
+      params.secretProvenance ??
+        (params.principal.kind === 'resource_delegated'
+          ? { status: 'unknown' }
+          : { status: 'exact', entries: [] })
+    )
+  }
   if (params.purpose === 'organization_logo') {
     if (params.principal.kind !== 'session' || params.principal.userId !== params.userId) {
       throw new UploadSessionError('forbidden', 'Organization logos require the uploading session')
@@ -429,8 +554,9 @@ export async function getOwnedUploadSession(params: {
   workflowId?: string
   executionId?: string
   principal?: Principal
+  executor?: Pick<DbOrTx, 'select'>
 }): Promise<UploadSessionRecord> {
-  const [row] = await db
+  const [row] = await (params.executor ?? db)
     .select()
     .from(uploadSession)
     .where(eq(uploadSession.id, params.uploadId))
@@ -501,6 +627,11 @@ export function createUploadSessionAuthBinding(
   options: { executorDelegationAudience?: string; copilotDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
+    case 'resource_delegated':
+      throw new UploadSessionError(
+        'forbidden',
+        'Resource delegation cannot create workspace uploads'
+      )
     case 'slack_app':
     case 'slack_installation':
       throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
@@ -604,8 +735,10 @@ export function assertUploadSessionAuthBinding(
   session: UploadSessionRecord,
   principal: Principal
 ): void {
-  if (session.purpose === 'project_file')
-    throw new UploadSessionError('forbidden', 'Project upload control is unavailable')
+  if (session.purpose === 'project_file') {
+    assertProjectFileUploadBinding(session, principal)
+    return
+  }
   if (session.purpose === 'organization_logo') {
     assertOrganizationLogoControlBinding(session, principal)
     return
@@ -764,12 +897,14 @@ export async function completeUploadSession<T>(params: {
       recoveringFinalization ? ['finalizing'] : ['uploading', 'completing'],
       recoveringFinalization ? 'finalizing' : 'completing',
       db,
-      params.session.purpose === 'workspace_file' && params.session.workspaceId
-        ? bindWorkspaceFileUploadProvenance(
-            params.session.workspaceId,
-            params.secretProvenance ?? { status: 'unknown' }
-          )
-        : undefined
+      params.session.purpose === 'project_file'
+        ? projectCompletionProvenance(params.session, params.secretProvenance)
+        : params.session.purpose === 'workspace_file' && params.session.workspaceId
+          ? bindWorkspaceFileUploadProvenance(
+              params.session.workspaceId,
+              params.secretProvenance ?? { status: 'unknown' }
+            )
+          : undefined
     )),
     uploadToken: params.session.uploadToken,
   }
@@ -848,7 +983,13 @@ export async function completeUploadSession<T>(params: {
       requireRow(finalizingRow, 'Upload completion lease was lost'),
       claimed.uploadToken
     )
-    const finalized = await params.finalize(finalizing)
+    verifiedUploadObjects.set(finalizing, verifiedCompletionObject(finalizing, leaseId))
+    let finalized: Awaited<ReturnType<typeof params.finalize>>
+    try {
+      finalized = await params.finalize(finalizing)
+    } finally {
+      verifiedUploadObjects.delete(finalizing)
+    }
     const completed = await markUploadSessionCompleted(
       claimed,
       leaseId,
@@ -973,6 +1114,7 @@ export async function cleanupExpiredUploadSessions(): Promise<{
   failed: number
   purged: number
 }> {
+  const cleanupDb = dbFor('cleanup')
   const now = new Date()
   const candidates = await cleanupDb
     .select()
@@ -1203,9 +1345,15 @@ async function claimSession(
   statuses: UploadSessionStatus[],
   nextStatus: UploadSessionStatus = 'completing',
   database: typeof db = db,
-  fileProvenance?: ReturnType<typeof bindWorkspaceFileUploadProvenance>
+  fileProvenance?:
+    | ReturnType<typeof bindWorkspaceFileUploadProvenance>
+    | ReturnType<typeof bindProjectFileUploadProvenance>
 ): Promise<UploadSessionRecord> {
   const now = new Date()
+  const provenanceKey =
+    fileProvenance && 'projectId' in fileProvenance
+      ? PROJECT_FILE_UPLOAD_PROVENANCE_KEY
+      : WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY
   const [row] = await database
     .update(uploadSession)
     .set({
@@ -1217,8 +1365,8 @@ async function claimSession(
       /** Seal once with the completion lease; recovery must retain the first claim's evidence. */
       ...(fileProvenance
         ? {
-            metadata: sql`CASE WHEN ${uploadSession.metadata}->${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}->>'pending' = 'true'
-              THEN jsonb_set(${uploadSession.metadata}, ARRAY[${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}]::text[], ${JSON.stringify(fileProvenance)}::jsonb)
+            metadata: sql`CASE WHEN ${uploadSession.metadata}->${provenanceKey}->>'pending' = 'true'
+              THEN jsonb_set(${uploadSession.metadata}, ARRAY[${provenanceKey}]::text[], ${JSON.stringify(fileProvenance)}::jsonb)
               ELSE ${uploadSession.metadata} END`,
           }
         : {}),
@@ -1361,7 +1509,7 @@ function validateFile(params: CreateUploadSessionParams): void {
   if (!params.contentType.trim()) {
     throw new UploadSessionError('validation', 'contentType must not be empty')
   }
-  const minimum = params.purpose === 'workspace_file' ? 0 : 1
+  const minimum = params.purpose === 'workspace_file' || params.purpose === 'project_file' ? 0 : 1
   if (!Number.isSafeInteger(params.fileSize) || params.fileSize < minimum) {
     const range = minimum === 0 ? 'a non-negative integer' : 'a positive integer'
     throw new UploadSessionError('validation', `fileSize must be ${range}`)
@@ -1395,12 +1543,15 @@ function validateFile(params: CreateUploadSessionParams): void {
   }
   if (
     params.purpose !== 'profile_picture' &&
+    params.purpose !== 'project_file' &&
     params.purpose !== 'organization_logo' &&
     !organizationAttachment &&
     !params.workspaceId?.trim()
   ) {
     throw new UploadSessionError('validation', 'workspaceId must not be empty')
   }
+  if (params.purpose === 'project_file' && !params.projectId.trim())
+    throw new UploadSessionError('validation', 'projectId must not be empty')
   if (params.purpose === 'knowledge_document' && !params.knowledgeBaseId.trim()) {
     throw new UploadSessionError('validation', 'knowledgeBaseId must not be empty')
   }
@@ -1452,6 +1603,11 @@ function resolveUploadStorage(
   id: string
 ): { storageContext: StorageContext; finalKey: string } {
   switch (params.purpose) {
+    case 'project_file':
+      return {
+        storageContext: 'project',
+        finalKey: `project/${params.projectId}/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
+      }
     case 'workspace_file':
       return {
         storageContext: 'workspace',

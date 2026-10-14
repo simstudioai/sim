@@ -319,9 +319,6 @@
     "TS2345": 2,
     "TS2554": 1
   },
-  "apps/sim/app/api/users/me/settings/route.test.ts": {
-    "TS2554": 2
-  },
   "apps/sim/app/api/users/me/subscription/[id]/transfer/route.test.ts": {
     "TS2554": 1
   },
@@ -981,15 +978,8 @@
   "apps/sim/lib/api/server/routes/definition.test.ts": {
     "TS2741": 1
   },
-  "apps/sim/lib/api/server/routes/internal-json-route.test.ts": {
-    "TS2741": 16
-  },
   "apps/sim/lib/api/server/routes/scim-route.test.ts": {
     "TS2322": 2
-  },
-  "apps/sim/lib/api/server/routes/v2-binary-route.test.ts": {
-    "TS2322": 1,
-    "TS2741": 3
   },
   "apps/sim/lib/api/server/routes/v2-body-lifecycle-route.test.ts": {
     "TS18046": 3,

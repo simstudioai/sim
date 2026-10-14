@@ -62,9 +62,11 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
 
   it('drops a stale durable write against the SHARED synced version', async () => {
     // A durable write (e.g. a concurrent human save on another process) records the shared synced version.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable', { version: 100 })).toBe(
-      'applied'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# durable', {
+        version: 100,
+      })
+    ).toBe('applied')
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 100, 'shared-generation')
     expect(fakeStore.getStreamState).toHaveBeenCalledWith(ROOM_NAME, 'shared-generation')
     expect(fakeStore.publishAndWait).toHaveBeenCalledWith(
@@ -76,15 +78,23 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
 
     // A durable write with an OLDER version than the SHARED synced version is stale — rejected under the
     // lock before any diff is built, so it can't regress the doc across replicas.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# older durable', { version: 50 })).toBe(
-      'stale'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# older durable',
+        { version: 50 }
+      )
+    ).toBe('stale')
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
 
     // A newer durable write applies and advances the shared synced version.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# durable again', { version: 150 })).toBe(
-      'applied'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# durable again',
+        { version: 150 }
+      )
+    ).toBe('applied')
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledWith(ROOM_NAME, 150, 'shared-generation')
     // setSyncedVersion fired only for the two applied durable writes, never for the stale one.
     expect(fakeStore.setSyncedVersion).toHaveBeenCalledTimes(2)
@@ -98,7 +108,11 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
     fakeStore.isAgentStreaming.mockResolvedValue(true)
 
     expect(
-      await applyMarkdownToLiveFileDoc('file-1', '# streamed by a client', { version: 100 })
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# streamed by a client',
+        { version: 100 }
+      )
     ).toBe('applied')
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled() // content deferred to the client
     expect(fakeStore.publishAndWait).not.toHaveBeenCalled()
@@ -106,9 +120,13 @@ describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering'
 
     // Once streaming stops the flag clears and the (now near-noop) durable merge resumes normally.
     fakeStore.isAgentStreaming.mockResolvedValue(false)
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# final durable', { version: 150 })).toBe(
-      'applied'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# final durable',
+        { version: 150 }
+      )
+    ).toBe('applied')
     expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(1)
   })
 })

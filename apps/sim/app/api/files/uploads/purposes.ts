@@ -250,6 +250,11 @@ function requireSessionScope(value: string | null, label = 'scope'): string {
 
 async function principalUserId(principal: Principal, workspaceId?: string): Promise<string> {
   switch (principal.kind) {
+    case 'resource_delegated':
+      throw new UploadSessionError(
+        'forbidden',
+        'Resource delegation cannot create workspace uploads'
+      )
     case 'slack_app':
     case 'slack_installation':
       throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')

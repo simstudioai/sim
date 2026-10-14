@@ -22,8 +22,11 @@ beforeAll(async () => {
   await store.init()
 })
 
-async function fixture() {
-  const name = `project-file-doc:${generateId()}/${generateId()}`
+async function fixture(scope: 'project' | 'workspace' = 'project') {
+  const name =
+    scope === 'project'
+      ? `project-file-doc:${generateId()}/${generateId()}`
+      : `workspace-file-doc:${generateId()}`
   const doc = new Y.Doc()
   const generation = generateId()
   doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
@@ -75,16 +78,15 @@ describe('Project document editor attribution over real Redis', () => {
     }
   )
 
-  check(
-    'Project updates without an authenticated editor are rejected before acceptance',
-    async () => {
-      const f = await fixture()
+  for (const scope of ['workspace', 'project'] as const) {
+    check(`${scope} acknowledged updates require an authenticated editor`, async () => {
+      const f = await fixture(scope)
       await expect(
         store.publishClientUpdateAndWait(f.name, 'unknown', update(f.doc, 'X'), f.generation)
-      ).rejects.toThrow('Project document updates require an authenticated editor')
+      ).rejects.toThrow('Document updates require an authenticated editor')
       expect(await redis.xLen(`filedoc:stream:${f.name}`)).toBe(1)
-    }
-  )
+    })
+  }
 
   check(
     'real compaction preserves the editor for a headless replica reconstructing accepted bytes',

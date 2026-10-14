@@ -13,14 +13,9 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
-import {
-  projectFileDocTarget,
-  ROOM_TYPES,
-  type RoomRef,
-  roomName,
-} from '@sim/realtime-protocol/rooms'
+import { isProjectRoom, ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import { and, eq, isNull } from 'drizzle-orm'
-import { fetchProjectFileDocAccess } from '@/handlers/file-doc-app'
+import { fetchProjectRoomAccess } from '@/handlers/file-list-app'
 
 const logger = createLogger('SocketPermissions')
 
@@ -228,10 +223,9 @@ async function readAuthoritativeRoomPermission(
   room: RoomRef,
   connectionId?: string
 ): Promise<PermissionType | null> {
-  if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) {
-    const target = projectFileDocTarget(room)
-    if (!target || !connectionId) throw new Error('Project document requires a socket identity')
-    const authorization = await fetchProjectFileDocAccess({ ...target, userId, connectionId })
+  if (isProjectRoom(room)) {
+    if (!connectionId) throw new Error('Project room requires a socket identity')
+    const authorization = await fetchProjectRoomAccess(room, { userId, connectionId })
     return authorization.allowed ? authorization.workspacePermission : null
   }
   if (room.type === ROOM_TYPES.WORKFLOW) {
@@ -270,7 +264,7 @@ async function resolveRoleUncached(
     // already-revoked user — so a recorded revocation survives a transient DB failure
     // instead of reverting to the stale join-time role. Only trust `fallbackRole` when
     // nothing has been recorded for this (user, workflow) yet.
-    if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) throw error
+    if (isProjectRoom(room)) throw error
     const lastKnown = roleCache.get(key)
     return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }

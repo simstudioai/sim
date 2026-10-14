@@ -666,7 +666,7 @@ export async function createWorkspaceFileFolder(
 }
 
 /** Creates one folder under the caller's owner transaction and the shared hierarchy lock. */
-async function createFileFolder<O extends EditableFileOwner>(
+export async function createFileFolder<O extends EditableFileOwner>(
   params: CreateFileFolderParams<O>,
   tx: DbTransaction
 ): Promise<FileFolderRecord<O>> {
@@ -910,7 +910,7 @@ export async function updateWorkspaceFileFolder(
 }
 
 /** Renames or moves one folder while preserving its canonical owner and subtree identity. */
-async function updateFileFolder<O extends EditableFileOwner>(
+export async function updateFileFolder<O extends EditableFileOwner>(
   params: UpdateFileFolderParams<O>,
   tx: DbTransaction
 ): Promise<FileFolderRecord<O>> {
@@ -1018,7 +1018,7 @@ export async function moveWorkspaceFileItems(params: {
   )
 }
 
-async function moveFileItems(
+export async function moveFileItems(
   params: {
     owner: EditableFileOwner
     fileIds?: string[]
@@ -1255,7 +1255,7 @@ export async function restoreWorkspaceFileFolder(
 }
 
 /** Restores the folder's archive batch, keeping independently archived descendants unchanged. */
-async function restoreFileFolder<O extends EditableFileOwner>(
+export async function restoreFileFolder<O extends EditableFileOwner>(
   owner: O,
   folderId: string,
   tx: DbTransaction
@@ -1421,7 +1421,7 @@ export async function bulkArchiveWorkspaceFileItems(params: {
   )
 }
 
-async function archiveFileItems(
+export async function archiveFileItems(
   params: {
     owner: EditableFileOwner
     fileIds?: string[]
@@ -1519,7 +1519,7 @@ async function archiveFileItems(
 }
 
 /** Loads a complete canonical owner tree, refusing a partial index when a bound is supplied. */
-async function loadActiveFileFolderPathIndex(
+export async function loadActiveFileFolderPathIndex(
   owner: EditableFileOwner,
   client: DbOrTx = db,
   options?: { maxRows?: number }
