@@ -143,9 +143,9 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
         if (folderResourceSupportsLocking(resourceType)) {
           for (const update of validUpdates) {
-            await assertFolderMutable(update.id)
+            await assertFolderMutable(update.id, tx)
             if (update.parentId !== undefined) {
-              await assertFolderMutable(update.parentId)
+              await assertFolderMutable(update.parentId, tx)
             }
           }
         }
