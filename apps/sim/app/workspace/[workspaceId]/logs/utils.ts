@@ -44,7 +44,7 @@ export function getLogWorkflowLabel(log: {
   trigger?: string | null
   workflowId?: string | null
   jobTitle?: string | null
-  workflow?: { id?: string; name?: string | null } | null
+  workflow?: { id?: string; name?: string | null; archivedAt?: string | null } | null
 }): string {
   if (log.trigger === 'mothership') return log.jobTitle || 'Untitled Job'
   return log.workflow?.id || log.workflowId
