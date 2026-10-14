@@ -48,6 +48,8 @@ PR review checked the capability boundaries again against each operation. Correc
 
 ## Validation
 
+Search citation extraction now honors explicit heading IDs without including alias syntax in result titles. Retained parser regressions fail before the fix and when either ID preservation or label cleanup is removed; ordinary heading links remain unchanged.
+
 Completed local validation:
 
 - All three independent before/after reviews reached a qualified pass after their findings were corrected and reread.
