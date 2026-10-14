@@ -18,7 +18,7 @@ Read [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) before editing documentation. It d
 ## Layout and components
 
 - Use existing Sim tokens and EMCN chrome. Keep styling local to the component; do not add global CSS overrides or custom colors for one page.
-- Import authored tabs from `@/components/ui/tabs`. Mixed prose/code panels retain padding; a single code fence can fill its frame. Preserve native selection, keyboard behavior, and intentional code/table scrolling.
+- Use [the authored tab components](components/ui/tabs.tsx). Mixed prose/code panels retain padding; a single code fence can fill its frame. Preserve native selection, keyboard behavior, and intentional code/table scrolling.
 - Page spacing belongs to the page container. The navbar, TOC, and sidebar must agree on breakpoints and reserved row heights. Use the shared section order and route matching in `lib/navigation.ts`.
 - Inspect mobile, tablet, desktop, and breakpoint boundaries. Check 320px and 390px widths, both sides of 640px, 768px, 1024px, and 1280px, plus a wide desktop. Verify headings clear sticky chrome, drawers remain reachable, touch targets are usable, and prose does not overflow. Restore temporary viewport and theme changes after QA.
 
