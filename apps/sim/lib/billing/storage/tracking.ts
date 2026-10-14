@@ -556,7 +556,8 @@ export async function applyStorageUsageDeltasInTx(
 /**
  * Locks the canonical workspace row before a file mutation that changes its storage ledger.
  *
- * Every workspace file writer takes its locks in one order: the Project lock, this workspace row,
+ * Every workspace file writer takes its locks in one order: the Project lock (workspace writers
+ * only; Project-owner directory operations take none), this workspace row,
  * the directory lock (only for operations that take one), the file rows and their writes (whose
  * search-index trigger upserts the one-per-workspace dispatch queue row), then the payer row when
  * a non-zero delta is applied. Call this before the directory lock and the first file write: a
