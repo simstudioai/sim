@@ -4,8 +4,9 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
 
 /**
  * Home-page JSON-LD - the entities specific to `/`: the `WebPage`, its
- * `BreadcrumbList`, the product `WebApplication` (`#software`, with offers /
- * featureList), and the `SoftwareSourceCode`.
+ * `BreadcrumbList`, the product `WebApplication` (`#software`, with its
+ * featureList), and the `SoftwareSourceCode`. Plan offers live on `/pricing`, which
+ * declares the same `#software` node, because this page shows no prices.
  *
  * Rendered only by the landing root (`landing.tsx`), server-side before visible
  * content. The site-wide `Organization` / `WebSite` entities live in
@@ -13,7 +14,6 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
  * nodes here reference them by `@id` (`${SITE_URL}#website` / `#organization`).
  *
  * Maintenance:
- * - Offer prices must match the Pricing component exactly.
  * - All claims must also appear as visible text on the page.
  * - Do not add `review` or `aggregateRating` without real, rated, verifiable
  *   review data; curated testimonials do not qualify for review snippets.
@@ -42,7 +42,6 @@ const HOME_JSON_LD = {
       name: HOME_PAGE_TITLE,
       isPartOf: { '@id': `${SITE_URL}#website` },
       about: { '@id': `${SITE_URL}#software` },
-      datePublished: '2024-01-01T00:00:00+00:00',
       description: HOME_PAGE_DESCRIPTION,
       breadcrumb: { '@id': `${SITE_URL}#breadcrumb` },
       inLanguage: 'en-US',
@@ -68,43 +67,7 @@ const HOME_JSON_LD = {
       operatingSystem: 'Web',
       browserRequirements: 'Requires a modern browser with JavaScript enabled',
       installUrl: `${SITE_URL}/signup`,
-      offers: [
-        {
-          '@type': 'Offer',
-          name: 'Community Plan: 1,000 credits included',
-          price: '0',
-          priceCurrency: 'USD',
-          availability: 'https://schema.org/InStock',
-        },
-        {
-          '@type': 'Offer',
-          name: 'Pro Plan: 6,000 credits/month',
-          price: '25',
-          priceCurrency: 'USD',
-          priceSpecification: {
-            '@type': 'UnitPriceSpecification',
-            price: '25',
-            priceCurrency: 'USD',
-            unitText: 'MONTH',
-            billingIncrement: 1,
-          },
-          availability: 'https://schema.org/InStock',
-        },
-        {
-          '@type': 'Offer',
-          name: 'Max Plan: 25,000 credits/month',
-          price: '100',
-          priceCurrency: 'USD',
-          priceSpecification: {
-            '@type': 'UnitPriceSpecification',
-            price: '100',
-            priceCurrency: 'USD',
-            unitText: 'MONTH',
-            billingIncrement: 1,
-          },
-          availability: 'https://schema.org/InStock',
-        },
-      ],
+      publisher: { '@id': `${SITE_URL}#organization` },
       featureList: [
         'AI workspace for teams',
         'Chat: build and manage agents in natural language',

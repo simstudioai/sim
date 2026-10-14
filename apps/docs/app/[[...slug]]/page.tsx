@@ -17,6 +17,7 @@ import { APIExampleSelector } from '@/components/ui/api-example-selector'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
+import { getIntegrationLandingPage, INTEGRATION_LANDING_LABEL } from '@/lib/integration-landing'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
@@ -122,6 +123,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
+  const integrationLandingPage = getIntegrationLandingPage(slug)
   const isCli = slug?.[0] === 'cli'
   const isMcp = slug?.[0] === 'mcp'
 
@@ -266,6 +268,12 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
         </PageHeader>
         <DocsBody>
+          {integrationLandingPage && (
+            <p>
+              {INTEGRATION_LANDING_LABEL}{' '}
+              <a href={integrationLandingPage.url}>{integrationLandingPage.title}</a>
+            </p>
+          )}
           <MDX
             components={{
               ...defaultMdxComponents,
@@ -367,6 +375,7 @@ export async function generateMetadata(props: { params: Promise<{ slug?: string[
     },
     alternates: {
       canonical: fullUrl,
+      types: { 'text/markdown': `${fullUrl}.md` },
     },
   }
 }

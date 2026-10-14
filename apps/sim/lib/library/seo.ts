@@ -16,6 +16,7 @@ import {
 export const LIBRARY_SECTION: ContentSection = {
   name: 'Library',
   basePath: '/library',
+  feedPath: '/library/rss.xml',
   description:
     'Comparisons, how-tos, and roundups for teams evaluating and building AI agents with Sim.',
 }
