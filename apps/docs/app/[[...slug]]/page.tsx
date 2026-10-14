@@ -1,7 +1,5 @@
 import type React from 'react'
 import { Children, cloneElement, isValidElement } from 'react'
-import { LANDING_SLUG_BY_DOCS_SLUG } from '@sim/deployment-config/integration-docs'
-import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
 import { highlight } from 'fumadocs-core/highlight'
 import { findNeighbour } from 'fumadocs-core/page-tree'
 import type { ApiPageProps } from 'fumadocs-openapi/ui'
@@ -19,27 +17,13 @@ import { APIExampleSelector } from '@/components/ui/api-example-selector'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
+import { getIntegrationLandingPage, INTEGRATION_LANDING_LABEL } from '@/lib/integration-landing'
 import { getApiSpecContent, getAuthenticatedCodeSamples, openapi } from '@/lib/openapi'
 import { simShikiOptions } from '@/lib/shiki-theme'
 import { type PageData, source } from '@/lib/source'
-import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 const BASE_URL = DOCS_BASE_URL
-
-const INTEGRATION_NAME_BY_LANDING_SLUG = new Map(
-  INTEGRATION_METADATA.map((integration) => [integration.slug, integration.name])
-)
-
-/** The landing page a docs integration page (`/integrations/<docs slug>`) links to, if any. */
-function getIntegrationLandingPage(slug: string[] | undefined) {
-  if (slug?.length !== 2 || slug[0] !== 'integrations') return undefined
-  const landingSlug = LANDING_SLUG_BY_DOCS_SLUG.get(slug[1])
-  if (!landingSlug) return undefined
-  return {
-    name: INTEGRATION_NAME_BY_LANDING_SLUG.get(landingSlug) ?? landingSlug,
-    url: `${SIM_SITE_URL}/integrations/${landingSlug}`,
-  }
-}
 
 /**
  * Most pages close with a `## Next` / `## Next steps` grid of onward links.
@@ -286,10 +270,8 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         <DocsBody>
           {integrationLandingPage && (
             <p>
-              Use cases and templates:{' '}
-              <a href={integrationLandingPage.url}>
-                {integrationLandingPage.name} integration for AI agents
-              </a>
+              {INTEGRATION_LANDING_LABEL}{' '}
+              <a href={integrationLandingPage.url}>{integrationLandingPage.title}</a>
             </p>
           )}
           <MDX
