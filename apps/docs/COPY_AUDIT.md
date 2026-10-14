@@ -1,6 +1,6 @@
 # Documentation copy audit
 
-Audited from staging snapshot `4d2fa26f5de0532048487a94bbe1afc744500dfe`, beginning 2026-10-13. Rebased onto `origin/staging` at `7bbce17f8004def37f88c26f856700a5b2a3023e` and reviewed the 18 intervening commits before final validation. The [editorial guide](EDITORIAL_GUIDE.md) defines the final voice, terminology, organization, media, and generated-source rules.
+Audited from staging snapshot `4d2fa26f5de0532048487a94bbe1afc744500dfe`, beginning 2026-10-13. Rebased onto `origin/staging` at `21c37d2a07` and reviewed the 19 intervening commits before final validation. The [editorial guide](EDITORIAL_GUIDE.md) defines the final voice, terminology, organization, media, and generated-source rules.
 
 ## Scope and method
 
@@ -686,12 +686,12 @@ Every row below represents a fully reviewed inventory entry. “Rewritten” inc
 ## Validation
 
 - **Coverage**: 484/484 entries independently compared across 22 sections, with no missing or duplicate assignments and zero remaining identified copy issues. Scope: 153 authored entries, 28 CLI references, and 303 API operations; 306 integration MDX pages excluded from edits.
-- **Rebase**: Rebased onto origin/staging at 7bbce17f8004def37f88c26f856700a5b2a3023e. All 18 intervening commits reviewed, including Chat content delivery, crawler/Markdown, and file ownership. Final fetch confirmed the same tip.
+- **Rebase**: Rebased onto origin/staging at 21c37d2a07 after reviewing all 19 intervening commits. The latest audit/utility normalization changes preserve documented behavior.
 - **Generation**: Seven OpenAPI documents, 28 CLI reference pages, CLI API, MCP catalog, v2 route table, and Agent streaming region are current. All 303 API operation identities and 318 CLI command/option shapes preserved.
 - **API inputs and examples**: 22 canonical contract files reviewed: 19 editorial-stripped ASTs match staging; three differences are documented description-only helpers. All 135 rendered JSON request bodies validate, and all 135 curl samples pass bash syntax. The baseline’s 17 invalid bodies were reproduced and corrected.
 - **Generator boundary**: The actual 1,057,209-byte resources input reproduced the old successful empty-format result. The formatter now has explicit 16 MiB bounds, preserves complete parsed JSON (1,027,061 formatted bytes), and rejects oversized input; independently inspected.
 - **MDX and links**: All 790 runtime entries compiled/exported. All 1,988 internal links and 97 preserved inbound anchors pass, including excluded integrations and application references.
-- **Repository gates**: Root lint (26 tasks), type-check (26 tasks), check:audits (59 audits), test (20 workspace tasks plus script tests), and applicable block-registry checks against origin/staging passed. Full app run: 3,378 files, 37,636 passed, and 12 skipped. Existing warnings in two unchanged tests remain. No tests were added, edited, or removed.
+- **Repository gates**: Root lint (26 tasks), type-check (26 tasks), check:audits (60 audits), test (20 workspace tasks plus script tests), and applicable block-registry checks against origin/staging passed. Full app run: 3,378 files, 37,636 passed, and 12 skipped. Existing warnings in two unchanged tests remain. No tests were added, edited, or removed.
 - **CLI discovery**: Existing tests reproduced a real search regression when the word spent was removed. Help now retains credits spent without the inaccurate this-period claim; all 17 search tests and the complete CLI suite pass.
 - **Production build**: Final apps/docs build passed after the source and layout corrections, generating 1,588 static outputs and full Markdown. A dummy loopback DATABASE_URL was used; no database or authenticated product request was exercised.
 - **HTTP checks**: 1,631/1,631 pass: 789 HTML routes, 789 per-page Markdown routes, 37 local assets, root/missing-route/noindex checks, full Markdown byte equality and API-operation exclusion, CLI.mdx, OpenAPI JSON, negotiated Markdown/Vary Accept, and integration landing backlinks.
@@ -701,3 +701,4 @@ Every row below represents a fully reviewed inventory entry. “Rewritten” inc
 - **Colors and preview**: All five HTTP method badges checked in light and dark themes; minimum computed contrast is 8.43:1. Dark appearance restored, temporary viewport override reset, and a verified production MCP preview left available at localhost:3006.
 - **Cleanup**: 111 newly unused original assets removed (15,187,771 bytes), with repository consumer proof. Unused ActionMedia and three workflow previews removed. Authored callouts 234→117, FAQ 58→0 with useful answers moved, media 178→23, and placeholders 36→0. Shared integration assets retained.
 - **Evidence**: Detailed local evidence in /tmp/sim-docs-copy-audit includes exact final-comparison/rewrite ledgers, source qualifications, rebase reviews, parity proofs, formatter reproduction, HTTP/render reports and screenshots. The committed audit retains every page’s final comparison and preservation findings.
+- **Ship cleanup**: Eight read-only cleanup passes found no React state/effect/memo/callback/query/URL/design issue. Three comment improvements place conditional-write documentation on its owner and shorten redundant reranking/retention notes. No tests changed. Public hygiene review cleared all 335 regex hits as synthetic examples, documented limits, public references, or repository measurements.

@@ -440,13 +440,7 @@ export const v2KnowledgeSearchDataSchema = z
       .nonnegative()
       .describe('Number of results returned.')
       .meta({ examples: [4] }),
-    /**
-     * Required, not optional. Reranking keeps retrieval ordering on a provider
-     * failure or an unconfigured credential, and that fallback was previously
-     * indistinguishable from a reranker that ran — same 200, same order, no
-     * `rerankerScore` on any result. A field a caller has to remember to look for
-     * would reproduce the same gap for anyone who does not.
-     */
+    /** Required so callers can distinguish a successful rerank from fallback retrieval ordering after provider or credential failures. */
     rerankerStatus: rerankerStatusSchema
       .describe(
         'Reranking outcome. `applied` means results carry `rerankerScore` and follow that score. `unavailable` means reranking could not produce a usable order; the search succeeded in retrieval order without `rerankerScore`. Retry if reranking is needed. `skipped` means there was nothing to rank. `not_requested` means `rerankerEnabled` was absent or false.'

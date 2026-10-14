@@ -67,12 +67,6 @@ import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
  * multipart part state; completion atomically registers the workspace file.
  */
 
-/** A workspace file as exposed by the v2 surface. */
-/**
- * Makes a content write conditional on the file still holding the content the caller read, named
- * by the `revision` Get file metadata returns. A version number cannot express this: collaborative
- * and workflow writes fold into the current version rather than adding one.
- */
 /** The token naming the content a write produced, for the caller's next conditional write. */
 export const writtenFileRevisionSchema = z
   .string()
@@ -81,6 +75,11 @@ export const writtenFileRevisionSchema = z
     'Opaque token for the content this write produced. Send it back as `expectedRevision` on the next write. Absent for a file with no recorded content version.'
   )
 
+/**
+ * Makes a content write conditional on the file still holding the content the caller read, named
+ * by the `revision` Get file metadata returns. A version number cannot express this: collaborative
+ * and workflow writes fold into the current version rather than adding one.
+ */
 const expectedFileRevisionSchema = z
   .string()
   .min(1)
