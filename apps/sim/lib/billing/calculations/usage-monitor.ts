@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -171,14 +171,9 @@ export async function checkUsageStatus(
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
-    logger.error('Error checking usage status', {
-      error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
-      userId,
-    })
-
     logger.error('Cannot determine usage status - blocking execution', {
       userId,
-      error: toError(error).message,
+      error: describeError(error),
     })
 
     return {
