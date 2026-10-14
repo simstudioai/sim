@@ -242,10 +242,9 @@ export async function searchAtlassian(
       try {
         const ranked = await searchPages(confluenceTextClause(text, 'any'))
         return { ...ranked, next: undefined, ranking: 'relevance' }
-      } catch (error) {
-        // Cancellation arrives as an AbortSignal reason; any other failure keeps the all-terms page.
+      } catch {
+        // A cancelled search stops here; any other failure keeps the all-terms page.
         input.signal?.throwIfAborted()
-        if (error instanceof DOMException) throw error
         return { ...exact, ranking: 'unavailable' }
       }
     })

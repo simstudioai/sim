@@ -292,24 +292,19 @@ describe('Confluence plain search ranking', () => {
     }
   )
 
-  it('propagates a caller cancellation whatever its reason', async () => {
+  it.each([
+    ['an Error', new Error('Caller stopped')],
+    ['a string', 'AbortReason.UserStop'],
+    ['a DOMException', new DOMException('Search cancelled', 'AbortError')],
+  ])('propagates a cancellation whose reason is %s', async (_, reason) => {
     const caller = new AbortController()
     const api = confluence(overflowing, () => {
-      caller.abort(new Error('Caller stopped'))
-      throw new Error('Request aborted')
+      caller.abort(reason)
+      throw reason
     })
     await expect(
       searchAtlassian(api, 'confluence', { ...query, signal: caller.signal })
-    ).rejects.toThrow('Caller stopped')
-  })
-
-  it('propagates cancellation during relevance ranking', async () => {
-    const api = confluence(overflowing, () => {
-      throw new DOMException('Search cancelled', 'AbortError')
-    })
-    await expect(searchAtlassian(api, 'confluence', query)).rejects.toMatchObject({
-      name: 'AbortError',
-    })
+    ).rejects.toBe(reason)
   })
 
   it('keeps an all-terms match that fits on one page', async () => {

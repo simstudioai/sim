@@ -205,9 +205,11 @@ export async function openLiveAccountSession(
           client ? searchNativeProvider(provider, client, native) : searchMcp(native)
         )
       }
+      /** Providers see the session's cancellation, whatever its reason, on every request. */
+      const request = search.signal ? search : { ...search, signal }
       return client && requiresEveryTerm(provider)
-        ? searchWithAnyTermFallback(searchOnce, search, signal)
-        : searchOnce(search)
+        ? searchWithAnyTermFallback(searchOnce, request, signal)
+        : searchOnce(request)
     },
     async verify(document) {
       if (!(await boundary.verify(document))) return false
