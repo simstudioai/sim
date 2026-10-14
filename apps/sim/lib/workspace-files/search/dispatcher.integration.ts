@@ -261,9 +261,9 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
 
       const first = await prepareWorkspaceFileSearchDispatch()
       const second = await prepareWorkspaceFileSearchDispatch()
-      expect([...first.payloads, ...second.payloads].map((payload) => payload.owner)).toEqual([
-        { entityType: 'workspace', entityId: 'later-workspace' },
-      ])
+      const claimed = [...first.payloads, ...second.payloads]
+      expect(claimed.map((payload) => payload.workspaceId)).toEqual(['later-workspace'])
+      expect(claimed[0]).not.toHaveProperty('owner')
       const [queued] =
         await connection`SELECT count(*)::int AS count FROM file_search_dispatch_queue
         WHERE entity_type = 'project'`
@@ -272,9 +272,10 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       await holder`COMMIT`
       const resumed = await prepareWorkspaceFileSearchDispatch()
       expect(resumed.payloads.length).toBeGreaterThan(0)
-      expect(resumed.payloads.every((payload) => payload.owner?.entityType === 'project')).toBe(
-        true
-      )
+      for (const payload of resumed.payloads) {
+        expect(payload.owner?.entityType).toBe('project')
+        expect(payload).not.toHaveProperty('workspaceId')
+      }
     } finally {
       await holder`ROLLBACK`
       holder.release()
@@ -290,10 +291,8 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       await holder`SELECT pg_advisory_xact_lock(hashtextextended('project:busy-project', 0))`
       const result = await prepareWorkspaceFileSearchDispatch()
       expect(result.payloads).toHaveLength(1)
-      expect(result.payloads[0].owner).toEqual({
-        entityType: 'workspace',
-        entityId: 'free-workspace',
-      })
+      expect(result.payloads[0].workspaceId).toBe('free-workspace')
+      expect(result.payloads[0]).not.toHaveProperty('owner')
       const [waiting] = await connection`SELECT count(*)::int AS count
         FROM file_search_dispatch_queue WHERE entity_type = 'project' AND entity_id = 'busy-project'`
       expect(waiting.count).toBe(1)
@@ -301,6 +300,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
       const resumed = await prepareWorkspaceFileSearchDispatch()
       expect(resumed.payloads).toHaveLength(1)
       expect(resumed.payloads[0].owner).toEqual({ entityType: 'project', entityId: 'busy-project' })
+      expect(resumed.payloads[0]).not.toHaveProperty('workspaceId')
     } finally {
       await holder`ROLLBACK`
       holder.release()
@@ -311,13 +311,16 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await seedQueue('shared-id', 2, 1)
     await seedQueue('shared-id', 2, 0, 'project')
     const result = await prepareWorkspaceFileSearchDispatch()
-    expect(
-      result.payloads.filter((payload) => payload.owner?.entityType === 'workspace')
-    ).toHaveLength(1)
-    expect(
-      result.payloads.filter((payload) => payload.owner?.entityType === 'project')
-    ).toHaveLength(2)
-    expect(result.payloads.every((payload) => payload.owner?.entityId === 'shared-id')).toBe(true)
+    const scopes = result.payloads.map((payload) =>
+      'workspaceId' in payload
+        ? `legacy:${payload.workspaceId}`
+        : `${payload.owner?.entityType}:${payload.owner?.entityId}`
+    )
+    expect([...scopes].sort()).toEqual([
+      'legacy:shared-id',
+      'project:shared-id',
+      'project:shared-id',
+    ])
     const [invalid] =
       await connection`SELECT count(*)::int AS count FROM workspace_file_search_revision
       WHERE entity_type = 'project' AND workspace_id IS NOT NULL`
@@ -775,7 +778,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
         payload: {
           dispatchToken: expect.any(String),
           fileId,
-          owner: { entityType: 'workspace', entityId: workspaceId },
+          workspaceId,
           sourceContentUpdatedAt: '2026-09-16T00:00:00.000Z',
         },
       }),
