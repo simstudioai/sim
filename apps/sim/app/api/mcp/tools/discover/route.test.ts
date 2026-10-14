@@ -1,3 +1,4 @@
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -35,7 +36,8 @@ describe('GET /api/mcp/tools/discover', () => {
     const response = await GET(
       new NextRequest(
         'http://localhost:3000/api/mcp/tools/discover?workspaceId=workspace-1&serverId=mcp-1'
-      )
+      ),
+      createRouteContext({})
     )
 
     expect(response.status).toBe(401)

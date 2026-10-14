@@ -167,7 +167,6 @@ export const POST = withRouteHandler(
       if (bodyErrorResponse) return bodyErrorResponse
       if (
         error instanceof McpOauthAuthorizationRequiredError ||
-        error instanceof McpOauthRedirectRequired ||
         error instanceof UnauthorizedError
       ) {
         return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
