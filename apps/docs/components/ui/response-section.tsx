@@ -92,7 +92,7 @@ export function ResponseSection({ children }: ResponseSectionProps) {
           <h2 className='response-section-title m-0!'>Response</h2>
           <div className='response-section-meta flex-wrap gap-y-3'>
             <ChipSelect
-              aria-label='Response status code'
+              aria-label={`Response status code: ${selectedCode}`}
               value={selectedCode}
               onChange={handleSelectCode}
               options={statusCodes.map((code) => ({ label: code, value: code }))}

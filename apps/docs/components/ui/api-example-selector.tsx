@@ -19,7 +19,7 @@ export function APIExampleSelector({ items, value, onValueChange }: APIExampleSe
   return (
     <div className='not-prose mb-2 flex flex-col gap-1.5'>
       <ChipSelect
-        aria-label='Request example'
+        aria-label={`Request example: ${selectedItem?.name ?? selectedValue}`}
         value={selectedValue}
         onChange={onValueChange}
         options={items.map((item) => ({ value: item.id, label: item.name }))}
