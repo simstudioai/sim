@@ -57,10 +57,12 @@ const TRUNCATE_PREFILTER = /\.(?:slice|substring)\(\s*0\s*,[^)]*\)\s*(?:\}|\+)/
 const MEMBER_PATH = String.raw`[\w$]+(?:\??\.[\w$]+)*`
 
 /**
- * The fallback ends the expression: what follows is a separator, a closing bracket or the end of
- * the line, so `: null === value` (a boolean fallback) is not read as `: null`.
+ * The fallback is the whole operand: past whitespace and comments, the next token does not continue
+ * the expression, so `: null === value` or `: null` then `?? other` on the next line (a different
+ * fallback) is not read as `: null`. A newline does not end an expression that the next line
+ * continues; this mirrors JavaScript, which inserts no semicolon there either.
  */
-const FALLBACK_END = String.raw`(?=[ \t]*(?:[,;)\]}]|\r?\n|$))`
+const FALLBACK_END = String.raw`(?!(?:\s|\/\/[^\n]*|\/\*[\s\S]*?\*\/)*(?:[=!<>+\-*%&|^?.[(\x60]|\/(?![/*])|\b(?:instanceof|in|as|satisfies)\b))`
 
 /**
  * Whether the guarded path and the returned path are the same property. Optional chaining is

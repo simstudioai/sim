@@ -32,12 +32,16 @@ describe('record coercion', () => {
     const source = [
       'const a = isRecordLike(value) ? value : {}',
       'render(isRecordLike(props) ? props : null)',
+      'const g = isRecordLike(value) ? value : null // keep metadata',
+      'const h = isRecordLike(value) ? value : {} /* default */',
       'const b = isRecordLike(input.payload)',
       '  ? input.payload',
       '  : null',
     ].join('\n')
     expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([
       'isRecordLike(v) ? v : {}',
+      'isRecordLike(v) ? v : {}',
+      'isRecordLike(v) ? v : null',
       'isRecordLike(v) ? v : null',
       'isRecordLike(v) ? v : null',
     ])
@@ -56,6 +60,11 @@ describe('record coercion', () => {
       'const d = isRecordLike(item?.data) ? item.meta : null',
       'const e = isRecordLike(value) ? value : null === other',
       'const f = isRecordLike(value) ? value : {}.constructor',
+      'const i = isRecordLike(value) ? value : null',
+      '  === other',
+      'const j = isRecordLike(value) ? value : null // first',
+      '  ?? fallback',
+      'const k = isRecordLike(value) ? value : null as Shape',
     ].join('\n')
     expect(descriptions('apps/sim/lib/example.ts', source)).toEqual([])
   })
