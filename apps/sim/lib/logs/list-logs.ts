@@ -227,6 +227,7 @@ async function readLogsWithDatabase(
           workflowWorkspaceId: workflow.workspaceId,
           workflowCreatedAt: workflow.createdAt,
           workflowUpdatedAt: workflow.updatedAt,
+          workflowArchivedAt: workflow.archivedAt,
           pausedStatus: pausedExecutions.status,
           pausedTotalPauseCount: pausedExecutions.totalPauseCount,
           pausedResumedCount: pausedExecutions.resumedCount,
@@ -394,6 +395,7 @@ async function readLogsWithDatabase(
             workspaceId: log.workflowWorkspaceId,
             createdAt: log.workflowCreatedAt?.toISOString() ?? null,
             updatedAt: log.workflowUpdatedAt?.toISOString() ?? null,
+            archivedAt: log.workflowArchivedAt?.toISOString() ?? null,
           }
         : null,
       jobTitle: null,

@@ -158,7 +158,7 @@ describe('workspace member removal', () => {
     mocks.revoke.mockResolvedValue({
       revoked: false,
       reason: 'unresolved-workflows',
-      unresolvedWorkflows: ['workflow'],
+      unresolvedWorkspaceIds: ['workflow'],
     })
     let committed = false
     dbChainMockFns.transaction.mockImplementationOnce(async (callback) => {

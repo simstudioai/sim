@@ -11,9 +11,11 @@
  * each applied update is published to the file's stream and every task's tailer applies it to its own
  * doc and fans it out to its own clients, so two tasks can never split-brain. Consequently doc-sync
  * messages are broadcast LOCALLY ({@link io.local}) and cross-task delivery rides the stream — NOT the
- * Socket.IO adapter (that would double-deliver). Awareness/presence stay on the adapter: they are
- * ephemeral and need neither convergence nor replay. When `REDIS_URL` is unset the store is disabled
- * and this falls back to the original single-replica behavior (local doc, local seed, local fan-out).
+ * Socket.IO adapter (that would double-deliver). Awareness stays on the adapter: it is ephemeral and
+ * needs neither convergence nor replay. The presence roster is read across replicas with `fetchSockets`,
+ * and each replica (nudged by `serverSideEmit`) emits it to its own clients locally. When `REDIS_URL`
+ * is unset the store is disabled and this falls back to the original single-replica behavior (local
+ * doc, local seed, local fan-out).
  *
  * Durability: the live doc is projected back to the file's markdown server-side — debounced while it is
  * edited and flushed when the last collaborator leaves — via the app's `/persist` endpoint (the app
@@ -136,10 +138,6 @@ interface FileDocPresenceOwner {
   /** The owning user — used to tell a reconnect (same user reusing its Yjs client
    * id) from a spoof (a different user binding a peer's id). */
   userId: string
-  /** Server-authenticated display identity for the presence roster (from the socket's
-   *  session, never the client-set awareness — so a peer cannot spoof it). */
-  userName: string
-  avatarUrl: string | null
 }
 
 interface FileDocRoom {
@@ -507,17 +505,27 @@ const FILE_DOC_PRESENCE_RETRIES = 2
 const FILE_DOC_PRESENCE_RETRY_MS = 100
 const presenceRefreshes = new WeakMap<Server, Map<string, { revision: number }>>()
 
-function setupFileDocPresence(io: Server) {
-  if (presenceRefreshes.has(io)) return
-  presenceRefreshes.set(io, new Map())
+/**
+ * Refreshes this replica's file-editor rosters when another replica's membership changes. Register
+ * once per server, at startup.
+ */
+export function registerFileDocPresenceRelay(io: Server) {
   io.on(FILE_DOC_PRESENCE_CHANGED, (name: string, fileId: string) => {
     if (fileDocRooms.has(name)) void refreshFileDocPresence(io, name, fileId)
   })
 }
 
+/**
+ * The adapter rejects a `fetchSockets` that misses a replica's reply after its fixed `requestsTimeout`
+ * (5 s); a per-call timeout is ignored, so retrying one only stalls the roster further.
+ */
+function isAdapterTimeout(error: unknown): boolean {
+  return getErrorMessage(error).startsWith('timeout reached')
+}
+
 async function refreshFileDocPresence(io: Server, name: string, fileId: string) {
-  const refreshes = presenceRefreshes.get(io)
-  if (!refreshes) return
+  const refreshes = presenceRefreshes.get(io) ?? new Map<string, { revision: number }>()
+  presenceRefreshes.set(io, refreshes)
   const pending = refreshes.get(name)
   if (pending) {
     pending.revision += 1
@@ -533,12 +541,18 @@ async function refreshFileDocPresence(io: Server, name: string, fileId: string) 
       try {
         sockets = await io.to(name).except(`${name}:pending`).fetchSockets()
       } catch (error) {
-        if (failures >= FILE_DOC_PRESENCE_RETRIES) throw error
-        failures += 1
-        await sleep(FILE_DOC_PRESENCE_RETRY_MS)
+        const retryable = !isAdapterTimeout(error) && failures < FILE_DOC_PRESENCE_RETRIES
+        if (retryable) {
+          failures += 1
+          await sleep(FILE_DOC_PRESENCE_RETRY_MS)
+          continue
+        }
+        // A membership change that arrived during the failed read still needs its own snapshot.
+        if (refresh.revision === revision) throw error
+        failures = 0
         continue
       }
-      if (revision !== refresh.revision) continue
+      failures = 0
       const users: FileDocPresenceUser[] = []
       for (const socket of sockets) {
         const { fileDocPresence } = socket.data as AuthenticatedSocket['data']
@@ -546,7 +560,8 @@ async function refreshFileDocPresence(io: Server, name: string, fileId: string) 
       }
       // Each replica refreshes its own clients, so a delayed remote snapshot cannot overwrite theirs.
       io.local.to(name).except(`${name}:pending`).emit(FILE_DOC_EVENTS.PRESENCE, { fileId, users })
-      return
+      // Emitting before re-reading keeps clients updated under sustained churn.
+      if (refresh.revision === revision) return
     }
   } catch (error) {
     logger.warn('Skipping file document presence refresh', { error: getErrorMessage(error) })
@@ -561,12 +576,18 @@ async function refreshFileDocPresence(io: Server, name: string, fileId: string) 
  * for display, so a second tab of the same account still registers as present (mirroring the
  * canvas presence model). Deduping here instead would drop the current user's other sessions
  * asymmetrically (only one socket survives), so each client could never reliably self-exclude.
- * Identity comes from each owner's server-authenticated session — never the client-set awareness
- * — so a peer cannot spoof or suppress an entry.
+ * Identity comes from each admitted socket's server-authenticated session (`socket.data`) — never
+ * the client-set awareness — so a peer cannot spoof or suppress an entry.
  */
 function broadcastFileDocPresence(io: Server, name: string, room: FileDocRoom) {
   if (getFileDocStore().enabled) io.serverSideEmit(FILE_DOC_PRESENCE_CHANGED, name, room.fileId)
   void refreshFileDocPresence(io, name, room.fileId)
+}
+
+/** Drops a local socket's roster identity for `name`, so later `fetchSockets` reads omit it. */
+function clearFileDocPresence(io: Server, socketId: string, name: string) {
+  const socket = io.sockets.sockets.get(socketId) as AuthenticatedSocket | undefined
+  if (socket?.data.fileDocPresence?.roomName === name) socket.data.fileDocPresence = undefined
 }
 
 /** Whether the client has recorded that it seeded the document's initial content. */
@@ -1439,8 +1460,7 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
   // caret via its awareness removal.
   const clientMap = room.owners.get(socketId)
   room.owners.delete(socketId)
-  const socket = io.sockets.sockets.get(socketId) as AuthenticatedSocket | undefined
-  if (socket?.data.fileDocPresence?.roomName === name) socket.data.fileDocPresence = undefined
+  clearFileDocPresence(io, socketId, name)
   if (clientMap !== undefined && clientMap.size > 0) {
     // Fires the awareness `update` handler with a non-socket origin → the removals
     // are broadcast to every remaining client, so the departed carets vanish.
@@ -1466,7 +1486,6 @@ export function setupWorkspaceFileDocHandlers(
   roomManager: IRoomManager
 ) {
   const io = roomManager.io
-  setupFileDocPresence(io)
   // Owner-qualified intent fences delayed admissions and leaves across document switches.
   let currentFileRoom: string | null = null
   /** Co-mounted providers share invalidation membership until their last admission settles. */
@@ -1770,10 +1789,7 @@ export function setupWorkspaceFileDocHandlers(
           if (clientMap.size === 0) {
             entry.owners.delete(otherSid)
             socketToRoomName.delete(otherSid)
-            const previousSocket = io.sockets.sockets.get(otherSid) as
-              | AuthenticatedSocket
-              | undefined
-            if (previousSocket) previousSocket.data.fileDocPresence = undefined
+            clearFileDocPresence(io, otherSid, name)
             io.in(otherSid).socketsLeave(name)
             broadcastFileDocPresence(io, name, entry)
           }
@@ -1800,7 +1816,7 @@ export function setupWorkspaceFileDocHandlers(
           clientMap = new Map<number, FileDocPresenceOwner>()
           entry.owners.set(socket.id, clientMap)
         }
-        clientMap.set(clientId, { clientId, userId, userName, avatarUrl })
+        clientMap.set(clientId, { clientId, userId })
         socketToRoomName.set(socket.id, name)
         registered = true
         await changeMembership(() => socket.leave(`${name}:pending`))

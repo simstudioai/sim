@@ -49,6 +49,7 @@ import {
   createProjectRecord,
   lockProject,
   lockWorkspaceProject,
+  requireForkProject,
   splitForkProject,
   transferWorkspaceProjects,
 } from '@/lib/projects/membership'
@@ -1299,32 +1300,39 @@ describe('Project foundation at the database and application boundary', () => {
     }
   )
 
-  check(
-    'file writers in sibling environments share the Project lock that still fences a lifecycle holder',
-    async () => {
-      const f = await fixture(false)
-      const held = createDeferred<number>()
-      const release = createDeferred<void>()
-      const writer = db.transaction(async (tx) => {
-        await lockWorkspaceProject(tx, f.ids[0])
-        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
-        held.resolve(connection.pid)
-        await release.promise
-      })
-      const blocker = await held.promise
-      let lifecycle: Promise<void> | undefined
-      try {
-        const sibling = await db.transaction((tx) => lockWorkspaceProject(tx, f.ids[1]))
-        expect(sibling?.id).toBe(f.projectId)
-        lifecycle = db.transaction((tx) => lockProject(tx, f.projectId))
-        await waitUntilBlockedBy(blocker, "lock='project'")
-      } finally {
-        release.resolve()
-        await writer
+  for (const [holder, holdProject] of [
+    ['file writers', lockWorkspaceProject],
+    ['fork creation', requireForkProject],
+  ] as const) {
+    check(
+      `${holder} share the Project lock with sibling environments and still fence a lifecycle holder`,
+      async () => {
+        const f = await fixture(false)
+        const held = createDeferred<number>()
+        const release = createDeferred<void>()
+        const writer = db.transaction(async (tx) => {
+          await holdProject(tx, f.ids[0])
+          const [connection] = await tx.execute<{ pid: number }>(
+            sql`SELECT pg_backend_pid() AS pid`
+          )
+          held.resolve(connection.pid)
+          await release.promise
+        })
+        const blocker = await held.promise
+        let lifecycle: Promise<void> | undefined
+        try {
+          const sibling = await db.transaction((tx) => lockWorkspaceProject(tx, f.ids[1]))
+          expect(sibling?.id).toBe(f.projectId)
+          lifecycle = db.transaction((tx) => lockProject(tx, f.projectId))
+          await waitUntilBlockedBy(blocker, "lock='project'")
+        } finally {
+          release.resolve()
+          await writer
+        }
+        await lifecycle
       }
-      await lifecycle
-    }
-  )
+    )
+  }
 
   check(
     'account teardown transfers surviving Projects and atomically removes wholly private Projects',

@@ -159,6 +159,8 @@ class FakeFileDocProvider {
 }
 
 interface RenderOptions {
+  file?: WorkspaceFileRecord
+  onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   collaborative?: boolean
   downloadSourceRef?: { current: FileDownloadSource | null }
   isStreaming?: boolean
@@ -179,7 +181,7 @@ async function render(
       root.render(
         <Suspense fallback='Loading editor'>
           <LoadedRichMarkdownEditor
-            file={FILE}
+            file={options.file ?? FILE}
             workspaceId={FILE.workspaceId}
             content={content}
             acceptedBaselineContent={acceptedBaselineContent}
@@ -195,6 +197,7 @@ async function render(
             onClientAutosaveChange={onClientAutosaveChange}
             onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
             downloadSourceRef={options.downloadSourceRef}
+            onDeriveTitleFromHeading={options.onDeriveTitleFromHeading}
           />
           <SuspendAfterEditor active={options.suspend ?? false} />
         </Suspense>
@@ -549,5 +552,43 @@ describe('loaded rich editor lifecycle', () => {
     expect(onSaveShortcut).toHaveBeenCalledOnce()
     expect(abandonedOnChange).not.toHaveBeenCalled()
     expect(abandonedSave).not.toHaveBeenCalled()
+  })
+
+  it('names an untitled file after its heading only once the cursor leaves the heading', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const onDeriveTitleFromHeading = vi.fn()
+      await render('# My Pro', '# My Pro', true, {
+        file: { ...FILE, name: 'untitled.md' },
+        onDeriveTitleFromHeading,
+      })
+      const editor = getEditor()
+      await act(async () => {
+        editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+        editor.commands.insertContent('ject')
+      })
+      await act(async () => vi.advanceTimersByTime(5_000))
+      expect(onDeriveTitleFromHeading).not.toHaveBeenCalled()
+
+      await act(async () => editor.commands.splitBlock())
+      await act(async () => editor.commands.insertContent('Body'))
+      expect(onDeriveTitleFromHeading).toHaveBeenCalledOnce()
+      expect(onDeriveTitleFromHeading).toHaveBeenCalledWith(FILE.id, 'My Project')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never renames an untitled file that was opened and left without edits', async () => {
+    const onDeriveTitleFromHeading = vi.fn()
+    await render('# Existing Heading\n\nBody', '# Existing Heading\n\nBody', true, {
+      file: { ...FILE, name: 'untitled.md' },
+      onDeriveTitleFromHeading,
+    })
+    const editor = getEditor()
+    await act(async () => editor.commands.blur())
+    await act(async () => root.render(null))
+
+    expect(onDeriveTitleFromHeading).not.toHaveBeenCalled()
   })
 })

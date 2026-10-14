@@ -1,11 +1,12 @@
 import { dbFor } from '@sim/db'
 import { fileSearchDependency, workspaceFileSearchRevision, workspaceFiles } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq, inArray, isNull, or, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, type SQLWrapper, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
+import { workspaceFileFolderScopeCondition } from '@/lib/workspace-files/query-scope'
 import { fileSearchAdmission } from '@/lib/workspace-files/search/admission'
 import {
   probeFileSearchCandidates,
@@ -150,22 +151,6 @@ function toPreviewRange(
   return alignToCodePoints(content, { start, end: units })
 }
 
-/**
- * The `workspaceFiles` predicate for a resolved folder scope.
- *
- * A root scope selects the files that carry no folder id, so the two halves are
- * OR-ed rather than folded into one list. An empty scope selects nothing: it
- * means every path resolved to a folder holding no subtree, and answering it
- * with an unrestricted search would leak the whole workspace.
- */
-function buildFolderPredicate(scope: FolderIdScope): SQL | undefined {
-  const ids = [...scope.folderIds]
-  const inScope = ids.length > 0 ? inArray(workspaceFiles.folderId, ids) : undefined
-  const atRoot = scope.includeRootItems ? isNull(workspaceFiles.folderId) : undefined
-  if (inScope && atRoot) return or(inScope, atRoot)
-  return inScope ?? atRoot ?? sql`false`
-}
-
 type SearchLine = {
   lineNumber: number
   content: string
@@ -238,14 +223,8 @@ export async function searchFileIndex({
     )
   }
 
-  /**
-   * The chunk table carries no folder id, so a scope has to travel through
-   * the `workspaceFiles` join both queries already make. A scope that resolved
-   * to nothing must match nothing: `inArray` with an empty list would be a
-   * SQL error, and omitting the predicate would silently search everything,
-   * which for a per-user folder tree is a cross-user read.
-   */
-  const folderPredicate = folderScope ? buildFolderPredicate(folderScope) : undefined
+  /** The chunk table carries no folder id, so a scope travels through the `workspaceFiles` join. */
+  const folderPredicate = workspaceFileFolderScopeCondition(folderScope)
 
   return fileSearchAdmission.run(
     `${owner.entityType}:${owner.entityId}`,

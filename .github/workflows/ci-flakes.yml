@@ -1,0 +1,55 @@
+name: ci-flakes
+
+# Files one `ci-flake` issue per CI check that failed and then passed on a re-run of the same
+# commit, and reopens a closed one when its flake recurs (scripts/report-ci-flakes.ts). The
+# three-day lookback overlaps the daily schedule on purpose: the script skips occurrences an issue
+# already lists, so a missed or repeated run neither drops nor double-counts one.
+
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Look back this many days of CI runs (the script's default is 3).
+        required: false
+      dry_run:
+        description: Print the issues it would file or update without changing them.
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+concurrency:
+  group: ci-flakes
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: report
+    # GitHub-hosted: a pure API client with no dependencies, so it needs no install or cache.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+      - name: Report flaky checks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DAYS: ${{ inputs.days }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=()
+          if [ -n "$DAYS" ]; then args+=(--days "$DAYS"); fi
+          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
+          bun scripts/report-ci-flakes.ts "${args[@]}"

@@ -1,4 +1,5 @@
 import { columnTypeById, MULTI_SELECT_OPS, SINGLE_SELECT_OPS } from '@/lib/table/column-types'
+import { FILTER_OPS } from '@/lib/table/constants'
 import type { TableSummary } from '@/lib/table/types'
 
 /**
@@ -148,9 +149,9 @@ INSTRUCTIONS:
 1. Build the filter yourself from the user's question - do NOT ask for confirmation. If the question names no condition at all ("the 5 most recent rows"), omit filter entirely and use order and limit instead of inventing one
 2. A single condition is a plain object: {"field":"<column>","op":"<operator>","value":<value>}; use an array value for in/nin and omit value for isNull, isNotNull, isEmpty, and isNotEmpty
 3. For multiple conditions wrap them in {"all":[...]} for AND or {"any":[...]} for OR; groups nest
-4. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty
+4. Operators: ${FILTER_OPS.join(', ')}
 ${wildcardRule}
-6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. JSON columns reject eq, ne, gt, gte, lt, lte, in, and nin; a multi-select cell holds a list, so match it by option name with contains, never ilike
+6. Any column listed below with a restricted operator set accepts ONLY those operators - the query is rejected outright otherwise. JSON columns reject eq, ne, gt, gte, lt, lte, in, and nin; boolean columns reject gt, gte, lt, and lte; a multi-select cell holds a list, so match it by option name with contains, never ilike
 7. For substring matching on a text column use ilike with *x*
 8. For ranking queries (highest, lowest, Nth, top N) set order and a small limit, e.g. limit 1 for the highest, 2 for the second highest
 9. Omit limit to return every matching row; the query fails if the result exceeds 5MB, so narrow with a filter instead of guessing a limit
@@ -265,7 +266,7 @@ export function enrichTableToolParameters(
     if (enrichedProperties.filter) {
       enrichedProperties.filter = {
         ...enrichedProperties.filter,
-        description: `Predicate built from the user's question using columns: ${columnNames}. One condition is {"field":"<column>","op":"<operator>","value":<value>}; combine with {"all":[...]} for AND or {"any":[...]} for OR. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty.${hasSelectColumn(table) ? selectRestrictionNote(table) : ''} Omit only to match every row.`,
+        description: `Predicate built from the user's question using columns: ${columnNames}. One condition is {"field":"<column>","op":"<operator>","value":<value>}; combine with {"all":[...]} for AND or {"any":[...]} for OR. Operators: ${FILTER_OPS.join(', ')}.${hasSelectColumn(table) ? selectRestrictionNote(table) : ''} Omit only to match every row.`,
       }
     }
 

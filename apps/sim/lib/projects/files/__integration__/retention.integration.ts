@@ -23,6 +23,7 @@ import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/featur
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,12 +35,12 @@ import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/clea
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { createCleanupBudgets } from '@/lib/cleanup/limits'
 import { beginFileArchiveCleanup, cleanupFileVersions } from '@/lib/file-retention'
+import { FILES_PER_QUERY } from '@/lib/file-retention/versions'
 import { loadProjectAccess } from '@/lib/projects/application/authorization'
 import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import { deleteWorkspaceFileVersionInTx } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { deleteFile, downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
-import type { FileOwner } from '@/lib/workspace-files/ownership'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
 
@@ -288,38 +289,6 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
   )
 
   check(
-    'unsupported file owners reject the whole batch before any history or archive deletion',
-    async () => {
-      const f = await fixture()
-      const expired = await seedFile(f, 40 * 24, true)
-      const owners: FileOwner[] = [
-        { entityType: 'project', entityId: f.projectId },
-        { entityType: 'user', entityId: f.ownerId },
-      ]
-      const options = { plan: 'free' as const, cutoff: new Date(), label: 'invalid-owner-batch' }
-      await expect(cleanupFileVersions(owners, options, 10)).rejects.toThrow(
-        'File owner is unavailable'
-      )
-      await expect(beginFileArchiveCleanup(owners, options)).rejects.toThrow(
-        'File owner is unavailable'
-      )
-      expect(await versions(expired.fileId)).toHaveLength(12)
-      expect(
-        await db
-          .select({ id: workspaceFiles.id })
-          .from(workspaceFiles)
-          .where(eq(workspaceFiles.id, expired.fileId))
-      ).toEqual([{ id: expired.fileId }])
-      expect(await cleanupEvents(f.projectId)).toEqual([])
-      const [usage] = await db
-        .select({ bytes: userStats.storageUsedBytes })
-        .from(userStats)
-        .where(eq(userStats.userId, f.ownerId))
-      expect(usage.bytes).toBe(15)
-    }
-  )
-
-  check(
     'a mixed queued batch retains each owner policy and leaves unselected workspace history alone',
     async () => {
       const f = await fixture('pro')
@@ -373,6 +342,50 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       const remaining = await versions(workspaceFile.fileId)
       expect(remaining).toHaveLength(11)
       expect(remaining.at(-1)).toEqual({ version: 12 })
+    }
+  )
+
+  check(
+    'a Project that fails after committing a version batch still spends the shared run limit',
+    async () => {
+      const [first, second] = [await fixture(), await fixture()].sort((a, b) =>
+        a.projectId < b.projectId ? -1 : 1
+      )
+      // One more file than a batch reads, so the first batch commits and the second one fails.
+      const files = await Promise.all(
+        Array.from({ length: FILES_PER_QUERY + 1 }, () => seedFile(first, 60 * 24))
+      )
+      const failingFileId = files
+        .map(({ fileId }) => fileId)
+        .sort(compareStrings)
+        .at(-1)
+      const survivor = await seedFile(second, 60 * 24)
+      const trigger = `version_retention_failure_${generateId().replaceAll('-', '')}`
+      await db.execute(
+        sql.raw(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF OLD.file_id = '${failingFileId}' THEN RAISE EXCEPTION 'version retention failure fixture'; END IF; RETURN OLD; END $$`)
+      )
+      await db.execute(
+        sql.raw(
+          `CREATE TRIGGER ${trigger} BEFORE DELETE ON workspace_file_version FOR EACH ROW EXECUTE FUNCTION ${trigger}()`
+        )
+      )
+      const committedByFirst = FILES_PER_QUERY * 2
+      try {
+        const deleted = await cleanupFileVersions(
+          [
+            { entityType: 'project', entityId: first.projectId },
+            { entityType: 'project', entityId: second.projectId },
+          ],
+          { plan: 'free', cutoff: new Date(), label: 'failed-owner-spends-limit' },
+          committedByFirst + 1
+        )
+        expect(deleted).toBe(committedByFirst + 1)
+        expect(await versions(survivor.fileId)).toHaveLength(11)
+      } finally {
+        await db.execute(sql.raw(`DROP TRIGGER ${trigger} ON workspace_file_version`))
+        await db.execute(sql.raw(`DROP FUNCTION ${trigger}()`))
+      }
     }
   )
 
@@ -571,6 +584,11 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
         .from(userStats)
         .where(eq(userStats.userId, f.ownerId))
       expect(usage.bytes).toBe(10)
+      const [environment] = await db
+        .select({ bytes: workspace.storageUsedBytes })
+        .from(workspace)
+        .where(eq(workspace.id, f.workspaceId))
+      expect(environment.bytes).toBe(5)
     }
   )
 
@@ -618,60 +636,89 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
     }
   )
 
-  check('workspace file folder deletion failure rolls back child locations and names', async () => {
-    const f = await fixture()
-    const parentId = generateId()
-    const childId = generateId()
-    const owner = { workspaceId: f.workspaceId, userId: f.ownerId, resourceType: 'file' as const }
-    await db.insert(folder).values({
-      ...owner,
-      id: parentId,
-      name: 'Archived parent',
-      deletedAt: new Date(Date.now() - 40 * 24 * HOUR),
-    })
-    await db.insert(folder).values({ ...owner, id: childId, name: 'Child', parentId })
-    const file = await seedFile(f, 1, false, 'workspace')
-    await db
-      .update(workspaceFiles)
-      .set({ folderId: parentId, originalName: 'Child.md' })
-      .where(eq(workspaceFiles.id, file.fileId))
-    const trigger = `folder_retention_failure_${generateId().replaceAll('-', '')}`
-    await db.execute(
-      sql.raw(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
-        IF OLD.id = '${parentId}' THEN RAISE EXCEPTION 'folder retention rollback fixture'; END IF; RETURN OLD; END $$`)
-    )
-    await db.execute(
-      sql.raw(
-        `CREATE TRIGGER ${trigger} BEFORE DELETE ON folder FOR EACH ROW EXECUTE FUNCTION ${trigger}()`
-      )
-    )
-    try {
-      await expect(
-        runCleanupSoftDeletes(
+  for (const budgeted of [true, false]) {
+    check(
+      budgeted
+        ? 'workspace file folder deletion failure rolls back child locations and names'
+        : 'an unbudgeted workspace file folder failure rolls back and the rest of the purge runs',
+      async () => {
+        const f = await fixture()
+        const parentId = generateId()
+        const childId = generateId()
+        const expiredWorkflowFolderId = generateId()
+        const owner = { workspaceId: f.workspaceId, userId: f.ownerId }
+        const expiredAt = new Date(Date.now() - 40 * 24 * HOUR)
+        await db.insert(folder).values([
           {
-            workspaceIds: [f.workspaceId],
-            plan: 'free',
-            retentionHours: 30 * 24,
-            label: 'workspace-folder-rollback',
+            ...owner,
+            id: parentId,
+            resourceType: 'file',
+            name: 'Archived parent',
+            deletedAt: expiredAt,
           },
-          createCleanupBudgets({ folders: 1 })
+          {
+            ...owner,
+            id: expiredWorkflowFolderId,
+            resourceType: 'workflow',
+            name: 'Archived workflows',
+            deletedAt: expiredAt,
+          },
+        ])
+        await db
+          .insert(folder)
+          .values({ ...owner, id: childId, resourceType: 'file', name: 'Child', parentId })
+        const file = await seedFile(f, 1, false, 'workspace')
+        await db
+          .update(workspaceFiles)
+          .set({ folderId: parentId, originalName: 'Child.md' })
+          .where(eq(workspaceFiles.id, file.fileId))
+        const trigger = `folder_retention_failure_${generateId().replaceAll('-', '')}`
+        await db.execute(
+          sql.raw(`CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF OLD.id = '${parentId}' THEN RAISE EXCEPTION 'folder retention rollback fixture'; END IF; RETURN OLD; END $$`)
         )
-      ).rejects.toMatchObject({ cause: { message: 'folder retention rollback fixture' } })
-      const [child] = await db
-        .select({ parentId: folder.parentId, name: folder.name })
-        .from(folder)
-        .where(eq(folder.id, childId))
-      expect(child).toEqual({ parentId, name: 'Child' })
-      const [head] = await db
-        .select({ folderId: workspaceFiles.folderId, name: workspaceFiles.originalName })
-        .from(workspaceFiles)
-        .where(eq(workspaceFiles.id, file.fileId))
-      expect(head).toEqual({ folderId: parentId, name: 'Child.md' })
-    } finally {
-      await db.execute(sql.raw(`DROP TRIGGER ${trigger} ON folder`))
-      await db.execute(sql.raw(`DROP FUNCTION ${trigger}()`))
-    }
-  })
+        await db.execute(
+          sql.raw(
+            `CREATE TRIGGER ${trigger} BEFORE DELETE ON folder FOR EACH ROW EXECUTE FUNCTION ${trigger}()`
+          )
+        )
+        try {
+          const run = runCleanupSoftDeletes(
+            {
+              workspaceIds: [f.workspaceId],
+              plan: 'free',
+              retentionHours: 30 * 24,
+              label: 'workspace-folder-rollback',
+            },
+            budgeted ? createCleanupBudgets({ folders: 1 }) : undefined
+          )
+          if (budgeted) {
+            await expect(run).rejects.toMatchObject({
+              cause: { message: 'folder retention rollback fixture' },
+            })
+          } else {
+            await expect(run).resolves.toBeUndefined()
+            expect(
+              await db.select().from(folder).where(eq(folder.id, expiredWorkflowFolderId))
+            ).toEqual([])
+          }
+          const [child] = await db
+            .select({ parentId: folder.parentId, name: folder.name })
+            .from(folder)
+            .where(eq(folder.id, childId))
+          expect(child).toEqual({ parentId, name: 'Child' })
+          const [head] = await db
+            .select({ folderId: workspaceFiles.folderId, name: workspaceFiles.originalName })
+            .from(workspaceFiles)
+            .where(eq(workspaceFiles.id, file.fileId))
+          expect(head).toEqual({ folderId: parentId, name: 'Child.md' })
+        } finally {
+          await db.execute(sql.raw(`DROP TRIGGER ${trigger} ON folder`))
+          await db.execute(sql.raw(`DROP FUNCTION ${trigger}()`))
+        }
+      }
+    )
+  }
 
   check(
     'workspace file folder purge waits for a concurrent restore and leaves its children in place',

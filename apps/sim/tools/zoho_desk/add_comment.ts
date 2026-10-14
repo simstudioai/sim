@@ -1,11 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZohoDeskAddCommentParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_COMMENT_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
-  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -65,7 +65,7 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
 
   request: {
     url: (params) =>
-      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/comments`,
+      `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'Ticket ID')}/comments`,
     method: 'POST',
     headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => ({

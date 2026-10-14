@@ -95,8 +95,17 @@ export const PUT = withRouteHandler(
       }
       throw error
     }
-    if (await queueRetiredProjectUploadCleanup(session))
-      return v2Error('CONFLICT', 'The Project no longer exists')
+    try {
+      if (await queueRetiredProjectUploadCleanup(session))
+        return v2Error('CONFLICT', 'The Project no longer exists')
+    } catch (error) {
+      // The object is already written. The expired-session sweep cleans it up, as will completion's
+      // Project re-authorization once Project uploads can complete.
+      logger.warn('Could not check for a retired Project after upload', {
+        uploadId: session.id,
+        error,
+      })
+    }
     return new NextResponse(null, { status: 204 })
   },
   {

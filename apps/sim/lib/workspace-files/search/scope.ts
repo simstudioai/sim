@@ -35,6 +35,14 @@ export function resolveFileSearchOwner(input: unknown): EditableFileOwner {
   throw new Error('Invalid file search owner')
 }
 
+/**
+ * Encodes an owner for an index job. Workspace jobs keep the legacy `{ workspaceId }` shape so a
+ * rolled-back worker can still decode them; only Project jobs carry `owner`.
+ */
+export function fileSearchOwnerScope(owner: EditableFileOwner): FileSearchOwnerScope {
+  return owner.entityType === 'workspace' ? { workspaceId: owner.entityId } : { owner }
+}
+
 /** Writes canonical owner columns and the legacy workspace key used by deployed workers. */
 export function fileSearchOwnerFields(owner: EditableFileOwner) {
   return {

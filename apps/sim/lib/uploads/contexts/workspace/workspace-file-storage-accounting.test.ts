@@ -16,7 +16,6 @@ import {
   workspaceFileSecretProvenanceMock,
   workspaceFileSecretProvenanceMockFns,
 } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
-import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -228,11 +227,8 @@ describe('workspace file metadata and storage accounting', () => {
     mockResolveFolderPathFromIndex
       .mockReturnValueOnce('folder-initial')
       .mockReturnValueOnce('folder-final')
-    workspaceFileFoldersMockFns.mockResolveFileFolderTarget.mockImplementationOnce(
-      async (_owner, target) => {
-        const folderId = toRecord(target).folderId
-        return typeof folderId === 'string' ? { id: folderId } : null
-      }
+    workspaceFileFoldersMockFns.mockAssertFileFolderTarget.mockImplementationOnce(
+      async (_owner, folderId) => (typeof folderId === 'string' ? folderId : null)
     )
     dbChainMockFns.returning.mockResolvedValueOnce([inserted])
 

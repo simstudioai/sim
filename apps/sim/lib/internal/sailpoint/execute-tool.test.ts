@@ -14,7 +14,6 @@ vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-import { clearSailPointTokenStateForTests } from '@/lib/internal/sailpoint/client'
 import { executeSailPointTool } from '@/lib/internal/sailpoint/execute-tool'
 import { MAX_SAILPOINT_CSV_BYTES } from '@/lib/internal/sailpoint/operations'
 
@@ -41,7 +40,6 @@ function request(operation: string, input: Record<string, unknown>, userId?: str
 
 describe('SailPoint internal tool handler', () => {
   beforeEach(() => {
-    clearSailPointTokenStateForTests()
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
     mockAssertToolFileAccess.mockReset().mockResolvedValue(null)
@@ -114,7 +112,6 @@ describe('SailPoint internal tool handler', () => {
     const providerResponse = await request('sailpoint_get_identity', { id: 'identity' })
     expect(providerResponse.status).toBe(200)
 
-    clearSailPointTokenStateForTests()
     mockFetch.mockReset()
     const fileResponse = await request('sailpoint_load_accounts', {
       sourceId: 'source',

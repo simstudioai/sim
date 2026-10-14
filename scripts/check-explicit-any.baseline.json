@@ -1217,7 +1217,7 @@
     "apps/sim/app/workspace/[workspaceId]/skills/components/utils.ts": 1,
     "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/cells/inline-editors.test.ts": 1,
     "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/data-row.tsx": 27,
-    "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/table-grid.tsx": 4,
+    "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/table-grid.tsx": 2,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/chat-message/chat-message.tsx": 1,

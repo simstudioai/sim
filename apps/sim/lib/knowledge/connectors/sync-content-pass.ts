@@ -445,8 +445,6 @@ export async function removeDisabledImages(
         lease: input.leaseKind,
       }
     )
-    /** Nothing removable is left, e.g. a row detached from this connector mid-walk. */
-    if (removed === 0) break
     input.result.docsDeleted += removed
   }
   await db

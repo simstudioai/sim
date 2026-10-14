@@ -175,7 +175,7 @@ export async function assertProjectBackfillDatabase(sql: Sql, write: boolean): P
       EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public'
         AND table_name = 'workspace' AND column_name = 'project_id') AS expanded
   `
-  if (!state?.expanded) throw new Error('Deploy #8830 before Project preparation')
+  if (!state?.expanded) throw new Error('Deploy v0.9.18 before Project preparation')
   if (state.version < 160000) throw new Error('Project preparation requires PostgreSQL 16+')
   if (write && (state.replica || state.readonly === 'on'))
     throw new Error('Project writes require the primary database')

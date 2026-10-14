@@ -54,14 +54,9 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     signal?.throwIfAborted()
     /**
      * Resolved here rather than at the surface so every caller (the File
-     * block, the v2 route) is confined by the same check. A folder tree
-     * holding one subtree per user makes this scope the isolation boundary,
-     * not a convenience filter.
-     */
-    /**
-     * `!== undefined`, not a length check: an explicitly empty list is a scope
-     * that names no folder, which must match nothing. Treating it as "absent"
-     * would answer a request for nothing with the whole workspace.
+     * block, the v2 route) narrows by the same rules. `!== undefined`, not a
+     * length check: an explicitly empty list is a scope that names no folder,
+     * which must match nothing rather than the whole workspace.
      */
     const folderScope =
       input.folderPaths !== undefined

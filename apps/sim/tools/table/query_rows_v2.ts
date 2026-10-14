@@ -27,8 +27,7 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
 
     /**
      * Without this the model never sees the table's real column names and has
-     * to guess field values for the predicate. Every other table tool enriches;
-     * v2's query shipped without it.
+     * to guess field values for the predicate.
      */
     toolEnrichment: {
       dependsOn: 'tableId',

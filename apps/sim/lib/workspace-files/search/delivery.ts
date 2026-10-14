@@ -41,7 +41,7 @@ export function resolveFileSearchFolderScope(
   )
   if (selection.missingPath !== undefined)
     throw new OrchestrationError('not_found', `Folder not found: ${selection.missingPath}`)
-  return { folderIds: selection.folderIds, includeRootItems: selection.includeRootItems }
+  return selection.scope
 }
 
 /**

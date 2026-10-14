@@ -1,11 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZohoDeskListThreadsParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_THREAD_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
-  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -71,7 +71,7 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
       if (params.limit !== undefined) query.set('limit', String(params.limit))
       if (params.sortBy) query.set('sortBy', params.sortBy)
       const qs = query.toString()
-      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/threads${qs ? `?${qs}` : ''}`
+      return `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'Ticket ID')}/threads${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),

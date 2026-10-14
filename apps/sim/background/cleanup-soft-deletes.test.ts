@@ -5,7 +5,7 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { billingStorageMock } from '@sim/testing/mocks/billing-storage.mock'
 import {
   knowledgeDocumentsServiceMock,
   knowledgeDocumentsServiceMockFns,
@@ -82,10 +82,7 @@ vi.mock('@/lib/folders/naming', () => ({ deduplicateFolderName: mockDeduplicateF
 
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
 
-const { mockDecrementStorageUsageForBillingContextInTx, mockResolveStorageBillingContext } =
-  billingStorageMockFns
 const { mockHardDeleteDocuments } = knowledgeDocumentsServiceMockFns
-mockDecrementStorageUsageForBillingContextInTx.mockResolvedValue(undefined)
 mockHardDeleteDocuments.mockImplementation(async (ids: string[]) => ids.length)
 
 const { mockDeleteFiles } = storageServiceMockFns
@@ -113,13 +110,6 @@ describe('cleanup soft deletes', () => {
     mockSelectRowsByIdChunks.mockReset().mockResolvedValue([])
     mockDeleteFiles.mockReset().mockResolvedValue({ deleted: 0, failed: [] })
     mockChunkedBatchDelete.mockReset().mockResolvedValue({ deleted: 0, failed: 0 })
-    mockResolveStorageBillingContext.mockResolvedValue({
-      workspaceId: 'ws-1',
-      billedAccountUserId: 'user-1',
-      billingEntity: { type: 'user', id: 'user-1' },
-      plan: 'free',
-      customStorageLimitGB: null,
-    })
   })
 
   it('keeps unbilled metadata rows whose object deletion failed', async () => {
@@ -169,8 +159,7 @@ describe('cleanup soft deletes', () => {
 
     expect(mockDeleteFiles).toHaveBeenCalledWith(['mothership/chat-file'], 'mothership')
     expect(dbChainMockFns.delete).toHaveBeenCalled()
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
-    expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('fails before deleting storage when canonical size metadata is missing', async () => {
@@ -460,8 +449,7 @@ describe('organization-owned Search retention cleanup', () => {
     await runCleanupSoftDeletes(organizationPayload)
     expect(mockDeleteFiles).toHaveBeenCalledWith(['knowledge-base/org-key'], 'knowledge-base')
     expect(mockPrepareChatCleanup).toHaveBeenCalledWith(['org-chat'], organizationPayload.label)
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
-    expect(mockDecrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mockBatchDeleteByWorkspaceAndTimestamp).not.toHaveBeenCalled()
     expect(mockChunkedBatchDelete).not.toHaveBeenCalled()
     expect(mockScopedChunkedBatchDelete).toHaveBeenCalledWith(
@@ -537,7 +525,7 @@ describe('organization-owned Search retention cleanup', () => {
     await runCleanupSoftDeletes(organizationPayload)
     expect(mockDeleteFiles).toHaveBeenCalledWith(['knowledge-base/orphan'], 'knowledge-base')
     expect(mockDeleteFileMetadata).toHaveBeenCalledWith('knowledge-base/orphan')
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('rejects an ambiguous batch before reading or deleting resources', async () => {

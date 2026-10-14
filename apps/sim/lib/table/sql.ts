@@ -35,11 +35,8 @@ import type {
   TablePredicate,
 } from '@/lib/table/types'
 
-/**
- * Re-exported: the `$`-prefixed wire whitelists now live with the `select` type
- * definition, but this module is where callers and tests already look for them.
- */
-export { MULTI_SELECT_OPERATORS, MULTI_SELECT_OPS, SINGLE_SELECT_OPERATORS, SINGLE_SELECT_OPS }
+/** The `$`-prefixed wire whitelists, defined with the `select` column type. */
+export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
 
 type ColumnType = ColumnDefinition['type']
 type ColumnMap = ReadonlyMap<string, ColumnDefinition>

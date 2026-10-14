@@ -5,9 +5,11 @@ import {
   consumeRowBudget,
   DEFAULT_MAX_BATCHES_PER_TABLE,
   type RowBudget,
+  selectRowsByIdChunks,
 } from '@/lib/cleanup/batch-delete'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbTransaction } from '@/lib/db/types'
+import { isolateOwnerFailure } from '@/lib/file-retention/failure'
 import { FILES_PER_QUERY } from '@/lib/file-retention/versions'
 import { deduplicateFolderNameInScope } from '@/lib/folders/naming'
 import { lockWorkspaceProject } from '@/lib/projects/membership'
@@ -131,27 +133,54 @@ export async function cleanupExpiredFileFolderInTx(
   return 1
 }
 
-/** Workspace file folders share the directory transaction used by Project folders. */
+/**
+ * Workspace file folders share the directory transaction used by Project folders. Only
+ * workspaces with an expired file folder are locked; without a budget, one workspace's failure
+ * is logged and the rest of the job continues.
+ */
 export async function cleanupArchivedWorkspaceFileFolders(
   workspaceIds: string[],
   cutoff: Date,
   budget?: RowBudget
 ): Promise<number> {
-  let total = 0
-  for (const workspaceId of workspaceIds) {
-    for (let batch = 0; batch < DEFAULT_MAX_BATCHES_PER_TABLE && budget?.remaining !== 0; batch++) {
-      const removed = await cleanupDb.transaction(async (tx) => {
-        await lockWorkspaceProject(tx, workspaceId)
-        return cleanupExpiredFileFolderInTx(
-          tx,
-          { entityType: 'workspace', entityId: workspaceId },
-          cutoff,
-          budget
+  const expired = await selectRowsByIdChunks(workspaceIds, (chunkIds, chunkLimit) =>
+    cleanupDb
+      .selectDistinct({ workspaceId: folder.workspaceId })
+      .from(folder)
+      .where(
+        and(
+          eq(folder.resourceType, 'file'),
+          inArray(folder.workspaceId, chunkIds),
+          isNotNull(folder.deletedAt),
+          lt(folder.deletedAt, cutoff)
         )
-      })
-      total += removed
-      if (!removed) break
-    }
+      )
+      .limit(chunkLimit)
+  )
+  let total = 0
+  for (const { workspaceId } of expired) {
+    if (!workspaceId) continue
+    total += await isolateOwnerFailure(Boolean(budget), { workspaceId }, async () => {
+      let removed = 0
+      for (
+        let batch = 0;
+        batch < DEFAULT_MAX_BATCHES_PER_TABLE && budget?.remaining !== 0;
+        batch++
+      ) {
+        const batchRemoved = await cleanupDb.transaction(async (tx) => {
+          await lockWorkspaceProject(tx, workspaceId)
+          return cleanupExpiredFileFolderInTx(
+            tx,
+            { entityType: 'workspace', entityId: workspaceId },
+            cutoff,
+            budget
+          )
+        })
+        removed += batchRemoved
+        if (!batchRemoved) break
+      }
+      return removed
+    })
   }
   return total
 }

@@ -87,6 +87,11 @@ export const projectMembershipMigration: ScriptMigration = {
               await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 1000 }))
             }
           }
+          // At most 1000 ids: archiveProjectRepairWorkflows refuses larger repairs.
+          logger.info('Archived workflows in archived workspace', {
+            workspaceId: repair.workspaceId,
+            workflowIds: repair.workflowIds,
+          })
         }
         logger.info('Archived workflows in archived workspaces', {
           workspaces: manifest.repairs.length,

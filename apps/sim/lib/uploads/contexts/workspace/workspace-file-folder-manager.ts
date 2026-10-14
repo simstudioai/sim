@@ -311,13 +311,16 @@ async function acquireFileFolderMutationLock(tx: DbTransaction, owner: EditableF
 
 /**
  * For operations that archive or restore many file rows: their search-index trigger upserts the
- * dispatch queue row, so the workspace row must be locked first, the order
- * {@link lockWorkspaceStorageForMutationInTx} requires of every file writer.
+ * dispatch queue row, so the workspace row is locked after the Project lock and before the
+ * directory lock, the order {@link lockWorkspaceStorageForMutationInTx} requires of every file
+ * writer.
  */
 async function acquireFileItemsMutationLock(tx: DbTransaction, owner: EditableFileOwner) {
-  await acquireFileFolderMutationLock(tx, owner)
-  if (owner.entityType === 'workspace')
+  if (owner.entityType === 'workspace') {
+    await lockWorkspaceProject(tx, owner.entityId)
     await lockWorkspaceStorageForMutationInTx(tx, owner.entityId)
+  }
+  await lockFileDirectories(tx, [owner])
 }
 
 export function buildWorkspaceFileFolderPathMap(
@@ -616,7 +619,7 @@ export async function resolveWorkspaceFileFolderTarget(
 }
 
 /** Checks an active destination without treating a foreign folder ID as a root selection. */
-async function assertFileFolderTarget(
+export async function assertFileFolderTarget(
   owner: EditableFileOwner,
   folderId?: string | null,
   client: DbOrTx = db

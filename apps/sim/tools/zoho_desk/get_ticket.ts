@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZohoDeskGetTicketParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_TICKET_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
@@ -6,7 +7,6 @@ import {
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
   normalizeZohoDeskCommaList,
-  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -58,7 +58,7 @@ export const zohoDeskGetTicketTool: ToolConfig<ZohoDeskGetTicketParams, ZohoDesk
       const include = normalizeZohoDeskCommaList(params.include)
       if (include) query.set('include', include)
       const qs = query.toString()
-      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}${qs ? `?${qs}` : ''}`
+      return `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'Ticket ID')}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),

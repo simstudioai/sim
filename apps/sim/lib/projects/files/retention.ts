@@ -16,6 +16,7 @@ import type { DbTransaction } from '@/lib/db/types'
 import { cleanupExpiredFileFolderInTx } from '@/lib/file-retention/folders'
 import {
   FILES_PER_QUERY,
+  FREE_MAX_SUPERSEDED_VERSIONS,
   KEEP_SUPERSEDED,
   releaseExpiredFileVersions,
   selectExpiredFileVersions,
@@ -43,7 +44,6 @@ async function prepareRetention(tx: DbTransaction, projectId: string, job: FileR
     tx
   )
   if (isBillingEnabled && owner.organizationId && billing.plan === null) return null
-  const mutation = await prepareFileStorageMutationInTx(tx, billing)
   const plan = isBillingEnabled ? getPlanType(billing.plan) : 'enterprise'
   const config = CLEANUP_CONFIG[job]
   let hours: number | null = config.defaults[plan]
@@ -57,25 +57,30 @@ async function prepareRetention(tx: DbTransaction, projectId: string, job: FileR
   }
   if (hours === null) return null
   if (!Number.isFinite(hours) || hours < 0) throw new Error('Invalid Project retention policy')
-  return { cutoff: new Date(Date.now() - hours * 60 * 60 * 1000), plan, mutation }
+  return { cutoff: new Date(Date.now() - hours * 60 * 60 * 1000), plan, billing }
 }
 
 function projectFiles(projectId: string) {
   return fileOwnerCondition({ entityType: 'project', entityId: projectId })
 }
 
-/** Releases only superseded history, retaining the current head and the newest nine predecessors. */
+/**
+ * Releases only superseded history, retaining the current head and the newest nine predecessors.
+ * Each committed batch is charged to `budget` as it commits, so a later failure cannot erase
+ * progress the shared run limit has to count.
+ */
 export async function cleanupProjectFileVersions(
   projectId: string,
-  limit: number
+  budget: RowBudget
 ): Promise<number> {
   let released = 0
   let afterId = ''
-  while (released < limit) {
+  while (budget.remaining > 0) {
     const batch = await cleanupDb.transaction(async (tx) => {
       const policy = await prepareRetention(tx, projectId, 'cleanup-file-versions')
       if (!policy) return null
-      const maximum = policy.plan === 'free' ? 99 : MAX_SUPERSEDED_FILE_VERSIONS
+      const maximum =
+        policy.plan === 'free' ? FREE_MAX_SUPERSEDED_VERSIONS : MAX_SUPERSEDED_FILE_VERSIONS
       const candidates = await tx
         .select({ id: workspaceFiles.id })
         .from(workspaceFiles)
@@ -114,7 +119,7 @@ export async function cleanupProjectFileVersions(
         )
         .orderBy(asc(workspaceFiles.id))
         .for('update')
-      const versionLimit = Math.min(DEFAULT_DELETE_CHUNK_SIZE, limit - released)
+      const versionLimit = Math.min(DEFAULT_DELETE_CHUNK_SIZE, budget.remaining)
       const expired = await selectExpiredFileVersions(
         tx,
         candidates.map(({ id }) => id),
@@ -129,6 +134,7 @@ export async function cleanupProjectFileVersions(
       }
     })
     if (!batch) break
+    consumeRowBudget(budget, batch.removed)
     afterId = batch.lastId
     released += batch.removed
   }
@@ -145,6 +151,7 @@ export async function cleanupArchivedProjectFiles(
     const removed = await cleanupDb.transaction(async (tx) => {
       const policy = await prepareRetention(tx, projectId, 'cleanup-soft-deletes')
       if (!policy) return 0
+      const mutation = await prepareFileStorageMutationInTx(tx, policy.billing)
       await lockFileDirectories(tx, [{ entityType: 'project', entityId: projectId }])
       const rows = await tx
         .select({
@@ -188,7 +195,7 @@ export async function cleanupArchivedProjectFiles(
       await tx
         .delete(workspaceFiles)
         .where(and(projectFiles(projectId), inArray(workspaceFiles.id, ids)))
-      await policy.mutation.applyDelta(-bytes)
+      await mutation.applyDelta(-bytes)
       return rows.length
     })
     total += removed
