@@ -294,7 +294,7 @@ An Intercom-connected AI agent can use conversation context to draft responses, 
 
 ### Can an AI agent draft Intercom replies?
 
-A workflow can [draft an Intercom reply](https://developers.intercom.com/docs/references/rest-api/api.intercom.io/conversations/replyconversation) from the active conversation, approved support content, and the minimum customer or account data needed for the question. It should preserve the evidence used for the answer and avoid presenting inferred information as confirmed fact. Financial changes, security issues, legal commitments, cancellations, and cases where customer identity cannot be confirmed should trigger human review.
+A workflow can generate a proposed Intercom reply from the active conversation, approved support content, and the minimum customer or account data needed for the question. Keep the proposed reply in Sim for review; the [Intercom reply endpoint](https://developers.intercom.com/docs/references/rest-api/api.intercom.io/conversations/replyconversation) posts a message rather than saving a draft, so call it only after approval. The workflow should preserve the evidence used for the answer and avoid presenting inferred information as confirmed fact. Financial changes, security issues, legal commitments, cancellations, and cases where customer identity cannot be confirmed should trigger human review.
 
 ### Can an AI agent tag Intercom conversations?
 
