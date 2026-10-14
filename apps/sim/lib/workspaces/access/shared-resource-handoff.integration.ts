@@ -309,7 +309,7 @@ describe('shared resource retention across workspace departure and account erasu
     expect(result).toEqual({
       revoked: false,
       reason: 'unresolved-workflows',
-      unresolvedWorkflows: [fixture.workspaceId],
+      unresolvedWorkspaceIds: [fixture.workspaceId],
     })
     expect(
       await db

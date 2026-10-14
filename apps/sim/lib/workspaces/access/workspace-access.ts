@@ -7,10 +7,7 @@ import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { lockProjectsForResourceDepartureTx } from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
-import {
-  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
-  WorkspaceBillingAccountRemovalError,
-} from '@/lib/workspaces/utils'
+import { transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx } from '@/lib/workspaces/utils'
 
 /**
  * Workspace access as a shared domain primitive.
@@ -119,9 +116,7 @@ export type RevokeWorkspaceAccessResult =
   /** `ownershipTransferred` is true when the departing user owned the workspace and it moved to the billed account. */
   | { revoked: true; ownershipTransferred: boolean }
   /** Workspace IDs whose shared resources or ownership lack a successor; access remains unchanged. */
-  | { revoked: false; reason: 'unresolved-workflows'; unresolvedWorkflows: string[] }
-  /** The user owns the workspace and it has no billed account to hand it to. */
-  | { revoked: false; reason: 'workspace-owner-without-successor' }
+  | { revoked: false; reason: 'unresolved-workflows'; unresolvedWorkspaceIds: string[] }
   /** The requested membership no longer exists; a replacement grant must remain untouched. */
   | { revoked: false; reason: 'membership-changed' }
 
@@ -162,23 +157,16 @@ export async function revokeWorkspaceAccessTx(
     return {
       revoked: false,
       reason: 'unresolved-workflows',
-      unresolvedWorkflows: reassignment.unresolved,
+      unresolvedWorkspaceIds: reassignment.unresolved,
     }
   }
 
-  let ownershipTransferred: boolean
-  try {
-    ownershipTransferred = await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
-      tx,
-      workspaceId: params.workspaceId,
-      departingUserId: params.userId,
-    })
-  } catch (error) {
-    if (error instanceof WorkspaceBillingAccountRemovalError) {
-      return { revoked: false, reason: 'workspace-owner-without-successor' }
-    }
-    throw error
-  }
+  /** The handoff above already refused an owner without a successor, under the workspace row lock. */
+  const ownershipTransferred = await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
+    tx,
+    workspaceId: params.workspaceId,
+    departingUserId: params.userId,
+  })
 
   await tx
     .delete(permissions)
