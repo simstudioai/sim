@@ -212,6 +212,7 @@
     "drizzle-kit@0.31.10": "patches/drizzle-kit@0.31.10.patch",
     "postgres@3.4.9": "patches/postgres@3.4.9.patch",
     "oracledb@7.0.1": "patches/oracledb@7.0.1.patch",
-    "echarts@6.1.0": "patches/echarts@6.1.0.patch"
+    "echarts@6.1.0": "patches/echarts@6.1.0.patch",
+    "next@16.4.0": "patches/next@16.4.0.patch"
   }
 }
