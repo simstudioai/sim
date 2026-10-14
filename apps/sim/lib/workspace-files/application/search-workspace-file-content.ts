@@ -100,33 +100,40 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           })
         return toWorkspaceFileSearchResult(result)
       }
-      /** Snapshot validation only: admission runs after commit, so row or advisory locks would fence nothing. */
-      const delivery = await db.transaction(async (tx) => {
-        const [current] = await tx
-          .select({
-            workspaceId: workspace.id,
-            billedAccountUserId: workspace.billedAccountUserId,
-            workspaceOrganizationId: workspace.organizationId,
-            allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+      /**
+       * One repeatable-read snapshot keeps the folder scope and file rows consistent with each other.
+       * Admission runs after commit, so row or advisory locks would fence nothing.
+       */
+      const delivery = await db.transaction(
+        async (tx) => {
+          const [current] = await tx
+            .select({
+              workspaceId: workspace.id,
+              billedAccountUserId: workspace.billedAccountUserId,
+              workspaceOrganizationId: workspace.organizationId,
+              allowPersonalApiKeys: workspace.allowPersonalApiKeys,
+            })
+            .from(workspace)
+            .where(and(eq(workspace.id, context.workspaceId), isNull(workspace.archivedAt)))
+          if (!current) throw new OrchestrationError('not_found', 'Workspace not found')
+          await authorizeWorkspaceFileAccess(principal, fileOperations.searchContent, current, {
+            executor: tx,
           })
-          .from(workspace)
-          .where(and(eq(workspace.id, context.workspaceId), isNull(workspace.archivedAt)))
-        if (!current) throw new OrchestrationError('not_found', 'Workspace not found')
-        await authorizeWorkspaceFileAccess(principal, fileOperations.searchContent, current, {
-          executor: tx,
-        })
-        const folders = input.folderPaths === undefined ? [] : await listFileFolders(owner, {}, tx)
-        const loaded = await loadFileSearchDelivery(tx, {
-          owner,
-          prepared: result,
-          scope: resolveFileSearchFolderScope(folders, input),
-          signal,
-          classify: classified,
-        })
-        for (const dependency of loaded.inputs)
-          await assertOwnedFileAccess(principal, { ...current, ...dependency }, tx)
-        return loaded
-      })
+          const folders =
+            input.folderPaths === undefined ? [] : await listFileFolders(owner, {}, tx)
+          const loaded = await loadFileSearchDelivery(tx, {
+            owner,
+            prepared: result,
+            scope: resolveFileSearchFolderScope(folders, input),
+            signal,
+            classify: classified,
+          })
+          for (const dependency of loaded.inputs)
+            await assertOwnedFileAccess(principal, { ...current, ...dependency }, tx)
+          return loaded
+        },
+        { isolationLevel: 'repeatable read' }
+      )
       const inScope = result.sources.filter(
         (source) => !delivery.outOfScope.has(source.identity.fileId)
       )
@@ -141,18 +148,20 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         }))
       )
       const admittedIds = new Set(admitted.map((source) => source.identity.fileId))
+      const results = result.results
+        .filter((hit) => !delivery.outOfScope.has(hit.fileId))
+        .map((hit) =>
+          admittedIds.has(hit.fileId)
+            ? hit
+            : {
+                ...hit,
+                text: '[Preview withheld: read or grep this file to inspect protected text.]',
+              }
+        )
       return toWorkspaceFileSearchResult({
         ...result,
-        results: result.results
-          .filter((hit) => !delivery.outOfScope.has(hit.fileId))
-          .map((hit) =>
-            admittedIds.has(hit.fileId)
-              ? hit
-              : {
-                  ...hit,
-                  text: '[Preview withheld: read or grep this file to inspect protected text.]',
-                }
-          ),
+        results,
+        count: results.length,
         sources: admitted,
       })
     } catch (error) {
