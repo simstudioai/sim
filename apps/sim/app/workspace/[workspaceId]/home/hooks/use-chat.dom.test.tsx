@@ -90,6 +90,7 @@ import {
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
@@ -766,17 +767,17 @@ describe('useChat remount send recovery', () => {
       }
       return { chats: [] }
     })
-    let turn = 0
+    const sentAttachments: unknown[] = []
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
         return fetchStub(input, init)
       }
       const sent = JSON.parse(String(init.body))
-      state.postBodies.push(sent)
-      turn += 1
+      sentAttachments.push(sent.resourceAttachments)
+      const turn = sentAttachments.length
       const envelope = { v: 1 as const, ts: '', stream: { streamId: sent.userMessageId } }
       const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
-      const events: MothershipStreamV1EventEnvelope[] =
+      const events: PersistedStreamEventEnvelope[] =
         turn === 1
           ? [
               { ...envelope, seq: 1, type: 'resource', payload: { op: 'upsert', resource: file } },
@@ -808,9 +809,7 @@ describe('useChat remount send recovery', () => {
 
     expect(persistedIds).toEqual(['deleted-file'])
     expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
-    expect(JSON.stringify(state.postBodies.at(-1)?.resourceAttachments ?? [])).not.toContain(
-      'deleted-file'
-    )
+    expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
   })
 
   it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {
