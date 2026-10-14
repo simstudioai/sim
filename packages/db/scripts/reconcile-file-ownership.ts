@@ -27,7 +27,7 @@ try {
       const source = await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8')
       for (const chunk of source.split('--> statement-breakpoint')) {
         const statement = chunk.replace(/^(?:\s|--[^\n]*(?:\n|$))*/, '')
-        if (/^UPDATE file_search_dependency\b/i.test(statement)) {
+        if (/^UPDATE\b/i.test(statement)) {
           backfills.push(statement)
           continue
         }

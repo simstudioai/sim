@@ -162,15 +162,12 @@ function rowOwner(row: { entityType: string; entityId: string }): EditableFileOw
   return resolveFileSearchOwner({ owner: row })
 }
 
+function queuedOwner(owner: EditableFileOwner): SQL {
+  return sql`(${fileSearchDispatchQueue.entityType} = ${owner.entityType} AND ${fileSearchDispatchQueue.entityId} = ${owner.entityId})`
+}
+
 function queuedOwnerFilter(owners: readonly EditableFileOwner[]): SQL | undefined {
-  return or(
-    ...owners.map((owner) =>
-      and(
-        eq(fileSearchDispatchQueue.entityType, owner.entityType),
-        eq(fileSearchDispatchQueue.entityId, owner.entityId)
-      )
-    )
-  )
+  return or(...owners.map(queuedOwner))
 }
 
 async function enqueueOwners(
@@ -502,14 +499,12 @@ async function claimQueuedOwnerJobs(
     )
   const keepsStaleRevision = owners.map(
     (owner) =>
-      sql`NOT (${fileSearchDispatchQueue.entityType} = ${owner.entityType}
-        AND ${fileSearchDispatchQueue.entityId} = ${owner.entityId}
-        AND ${exists(
-          tx
-            .select({ fileId: workspaceFileSearchRevision.fileId })
-            .from(workspaceFileSearchRevision)
-            .where(staleReadyRevision(owner))
-        )})`
+      sql`NOT (${queuedOwner(owner)} AND ${exists(
+        tx
+          .select({ fileId: workspaceFileSearchRevision.fileId })
+          .from(workspaceFileSearchRevision)
+          .where(staleReadyRevision(owner))
+      )})`
   )
   await tx
     .delete(fileSearchDispatchQueue)

@@ -483,7 +483,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
   it('reconciles a stale compiled document without walking the ready files of its owner', async () => {
     await connection`UPDATE workspace_file_search_backfill SET completed_at = now()`
     await connection`INSERT INTO workspace_files (id, workspace_id, context, content_updated_at)
-      SELECT 'ready-' || lpad(n::text, 6, '0'), 'workspace-1', 'workspace', '2026-09-16'
+      SELECT 'ready-' || lpad(n::text, 6, '0'), 'workspace-1', 'workspace', '2026-09-16'::timestamp
       FROM generate_series(1, 20000) n
       UNION ALL SELECT 'input-file', 'workspace-1', 'workspace', '2026-09-16'`
     await connection`INSERT INTO workspace_file_search_build (id, workspace_id, file_id)
