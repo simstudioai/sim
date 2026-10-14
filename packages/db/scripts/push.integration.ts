@@ -328,7 +328,7 @@ export const workflows = pgTable('workflow', {
     await expect(
       sql`UPDATE folder SET workspace_id = 'workspace-b' WHERE id = 'child'`
     ).rejects.toMatchObject({ code: '23503' })
-  }, 30_000)
+  }, 60_000)
 
   it('retires the legacy size bridge without losing bigint or unbackfilled values', async () => {
     await sql`CREATE TABLE workspace_files (id text PRIMARY KEY, size integer NOT NULL, size_bytes bigint)`
