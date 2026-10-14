@@ -1229,10 +1229,9 @@ export const SailPointBlock: BlockConfig = {
     config: {
       tool: (params) => {
         const operation = typeof params.operation === 'string' ? params.operation : ''
-        if (!SAILPOINT_OPERATION_SET.has(operation)) {
-          throw new Error(`Invalid SailPoint operation: ${operation}`)
-        }
-        return operation as SailPointOperation
+        return SAILPOINT_OPERATION_SET.has(operation)
+          ? (operation as SailPointOperation)
+          : 'sailpoint_search'
       },
       params: (params) => {
         const mapped: Record<string, unknown> = {
