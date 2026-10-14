@@ -152,6 +152,7 @@ import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { readWorkspaceFileSecretProvenance } from '@/lib/workspace-files/application/read-workspace-file-secret-provenance'
 import {
   getWorkspaceFileShares,
   updateWorkspaceFileShare,
@@ -1130,21 +1131,42 @@ describe('content reaching Chat is admitted per item', () => {
         userId: fixture.ids.aliceId,
         workspaceId: ws(),
       })
-      const result = await observeContentDelivery(
-        createRegistryContentGate({
-          registry,
-          actorUserId: fixture.ids.aliceId,
-          workspaceId: ws(),
-        }),
-        () =>
-          readWorkspaceFileContent.execute({
-            principal,
-            input: { fileId: created.fileId, includeSecretProvenance: true },
-          })
+      const gate = createRegistryContentGate({
+        registry,
+        actorUserId: fixture.ids.aliceId,
+        workspaceId: ws(),
+      })
+      const result = await observeContentDelivery(gate, () =>
+        readWorkspaceFileContent.execute({
+          principal,
+          input: { fileId: created.fileId, includeSecretProvenance: true },
+        })
       )
       expect(result.content.toString()).toBe(content)
       expect(result.file.vfsNamespace).toBe(context === 'test' ? 'tests' : 'changelog')
       expect(result.secretProvenance).toEqual({ status: 'exact', entries: [] })
+      const evidence = await observeContentDelivery(gate, () =>
+        readWorkspaceFileSecretProvenance.execute({
+          principal,
+          input: { fileId: created.fileId },
+        })
+      )
+      expect.soft(evidence.provenance).toEqual({ status: 'exact', entries: [] })
+      const staleEvidence = await observeContentDelivery(gate, () =>
+        readWorkspaceFileSecretProvenance.execute({
+          principal,
+          input: { fileId: created.fileId, expectedContentUpdatedAt: new Date(0) },
+        })
+      )
+      expect(staleEvidence.provenance).toEqual({ status: 'unknown' })
+      if (context === 'changelog') {
+        const version = await cli(
+          'GET',
+          `/api/v2/files/${created.fileId}/versions/1/text?workspaceId=${ws()}`
+        )
+        expect.soft(version.status).toBe(200)
+        expect.soft(modelView(version)).toContain(content)
+      }
       featureFlagsMockFns.mockIsFeatureEnabled.mockReset()
     }
   )
