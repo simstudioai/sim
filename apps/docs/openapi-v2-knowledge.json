@@ -43,6 +43,14 @@
         "x-sim-operation": "knowledge.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -194,6 +202,14 @@
         "x-sim-operation": "knowledge.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace, name, description, chunking configuration, and folder placement.",
@@ -268,6 +284,14 @@
         "x-sim-operation": "knowledge.read",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -347,6 +371,14 @@
         "x-sim-operation": "knowledge.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -432,6 +464,14 @@
         "x-sim-operation": "knowledge.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -510,6 +550,14 @@
         "x-sim-operation": "knowledge.export",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -609,6 +657,14 @@
         "x-sim-operation": "knowledge.connectors.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -734,6 +790,14 @@
         "x-sim-operation": "knowledge.connectors.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -821,6 +885,14 @@
         "x-sim-operation": "knowledge.connectors.read",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "connectorId",
@@ -909,6 +981,14 @@
         "x-sim-operation": "knowledge.connectors.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "connectorId",
@@ -1005,6 +1085,14 @@
         "x-sim-operation": "knowledge.connectors.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "connectorId",
@@ -1105,6 +1193,14 @@
         "x-sim-operation": "knowledge.connectors.sync",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "connectorId",
@@ -1203,6 +1299,14 @@
         "x-sim-operation": "knowledge.connectors.documents.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "connectorId",
@@ -1325,6 +1429,14 @@
         "x-sim-operation": "knowledge.connectors.documents.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "connectorId",
@@ -1420,6 +1532,14 @@
         "x-sim-operation": "knowledge.search",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Knowledge bases, query, result limit, retrieval mode, and optional tag filters.",
@@ -1497,6 +1617,14 @@
         "x-sim-operation": "knowledge.tags.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -1573,6 +1701,14 @@
         "x-sim-operation": "knowledge.tags.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -1658,6 +1794,14 @@
         "x-sim-operation": "knowledge.tags.bulk_save",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -1740,6 +1884,14 @@
         "x-sim-operation": "knowledge.tags.cleanup",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -1829,6 +1981,14 @@
         "x-sim-operation": "knowledge.documents.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -1998,6 +2158,14 @@
         "x-sim-operation": "knowledge.documents.bulk",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -2080,6 +2248,14 @@
         "x-sim-operation": "knowledge.documents.upload",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -2179,6 +2355,14 @@
         "x-sim-operation": "knowledge.documents.upload.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -2266,6 +2450,14 @@
         "x-sim-operation": "knowledge.documents.upload.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -2370,6 +2562,14 @@
         "x-sim-operation": "knowledge.documents.upload.parts",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -2491,6 +2691,14 @@
         "x-sim-operation": "knowledge.documents.upload.complete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -2595,6 +2803,14 @@
         "x-sim-operation": "knowledge.documents.read",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -2682,6 +2898,14 @@
         "x-sim-operation": "knowledge.documents.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -2775,6 +2999,14 @@
         "x-sim-operation": "knowledge.documents.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -2864,6 +3096,14 @@
         "x-sim-operation": "knowledge.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -2979,6 +3219,14 @@
         "x-sim-operation": "knowledge.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace and canonical path for a new knowledge-base folder.",
@@ -3051,6 +3299,14 @@
         "x-sim-operation": "knowledge.folders.relocate",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Current and destination canonical paths for a knowledge-base folder.",
@@ -3123,6 +3379,14 @@
         "x-sim-operation": "knowledge.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3232,6 +3496,14 @@
         "x-sim-operation": "knowledge.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -3319,6 +3591,14 @@
         "x-sim-operation": "knowledge.documents.add_workspace_files",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -3406,6 +3686,14 @@
         "x-sim-operation": "knowledge.chunks.list",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -3569,6 +3857,14 @@
         "x-sim-operation": "knowledge.chunks.create",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -3662,6 +3958,14 @@
         "x-sim-operation": "knowledge.chunks.bulk",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -3757,6 +4061,14 @@
         "x-sim-operation": "knowledge.chunks.read",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -3859,6 +4171,14 @@
         "x-sim-operation": "knowledge.chunks.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -3966,6 +4286,14 @@
         "x-sim-operation": "knowledge.chunks.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "documentId",
@@ -4070,6 +4398,14 @@
         "x-sim-operation": "knowledge.tags.update",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tagId",
@@ -4166,6 +4502,14 @@
         "x-sim-operation": "knowledge.tags.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tagId",
@@ -4259,6 +4603,14 @@
         "x-sim-operation": "knowledge.tags.read_next_slot",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -4350,6 +4702,14 @@
         "x-sim-operation": "knowledge.tags.read_usage",
         "x-oauth-scope": "api:read",
         "tags": ["Knowledge Bases"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "knowledgeBaseId",
@@ -4431,10 +4791,20 @@
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {

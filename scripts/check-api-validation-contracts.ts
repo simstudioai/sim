@@ -61,6 +61,8 @@ const INDIRECT_ZOD_ROUTES = new Set([
   // there is no input to validate and its only response is the fixed v2 error
   // envelope.
   'apps/sim/app/api/v2/[[...segments]]/route.ts',
+  // The same JSON 404 for unknown paths anywhere else under /api.
+  'apps/sim/app/api/[[...segments]]/route.ts',
   'apps/sim/app/api/demo-requests/route.ts',
   // Input-less session-bound GET: nothing to validate; response is
   // contract-typed via `satisfies InvitationDetails` in the route.

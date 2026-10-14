@@ -4,11 +4,15 @@ import { dirname } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 
-/** Exercises the public ownership challenge and host isolation through a running local app. */
+/**
+ * Exercises the public ownership challenge, protected-resource discovery, and host isolation
+ * through a running local app.
+ */
 const logger = createLogger('McpHostE2E')
 const CHALLENGE_PATH = '/.well-known/openai-apps-challenge'
 const EXPECTED_CHALLENGE = 'lFJ1-XIWpHGRNcgzTPl2Y_yYCTWLvlIbAvNRD08EvLI'
 const MCP_HOST = 'mcp.sim.test'
+const PROTECTED_RESOURCE_PATH = '/.well-known/oauth-protected-resource'
 const startedAt = new Date().toISOString()
 
 const configuredBaseUrl = process.env.MCP_HOST_E2E_BASE_URL
@@ -30,16 +34,23 @@ interface CheckResult {
 }
 
 const checks: CheckResult[] = []
-const requests: { path: string; userAgent: string; host: string; status: number }[] = []
+const requests: {
+  method: string
+  path: string
+  userAgent: string
+  host: string
+  status: number
+}[] = []
 
-async function request(path: string, userAgent: string, host = MCP_HOST) {
+async function request(path: string, userAgent: string, host = MCP_HOST, method = 'GET') {
   // boundary-raw-fetch: exercise the real proxy and route over local HTTP.
   const response = await fetch(new URL(path, baseUrl), {
+    method,
     headers: { Host: host, 'User-Agent': userAgent },
     redirect: 'error',
     signal: AbortSignal.timeout(120_000),
   })
-  requests.push({ path, userAgent, host, status: response.status })
+  requests.push({ method, path, userAgent, host, status: response.status })
   const body = await response.text()
   return { response, body }
 }
@@ -76,6 +87,39 @@ try {
     await check(`dedicated MCP host rejects ${path}`, async () => {
       const { response } = await request(path, 'Mozilla/5.0')
       assert.equal(response.status, 404)
+    })
+  }
+
+  for (const path of [`${PROTECTED_RESOURCE_PATH}/mcp`, PROTECTED_RESOURCE_PATH]) {
+    await check(
+      `dedicated MCP host serves its protected-resource metadata at ${path}`,
+      async () => {
+        const { response, body } = await request(path, '')
+        assert.equal(response.status, 200)
+        const metadata = JSON.parse(body) as Record<string, unknown>
+        assert.equal(metadata.resource, `http://${MCP_HOST}/mcp`)
+        assert.deepEqual(metadata.scopes_supported, ['api:read', 'api:write'])
+        assert(Array.isArray(metadata.authorization_servers))
+      }
+    )
+  }
+
+  await check('application host serves no root protected-resource metadata', async () => {
+    const { response } = await request(PROTECTED_RESOURCE_PATH, 'Mozilla/5.0', baseUrl.host)
+    assert.equal(response.status, 404)
+  })
+
+  for (const method of ['GET', 'POST']) {
+    await check(`application host answers an unknown API ${method} with JSON`, async () => {
+      const { response, body } = await request(
+        '/api/not-a-real-route/nested',
+        'Mozilla/5.0',
+        baseUrl.host,
+        method
+      )
+      assert.equal(response.status, 404)
+      assert.match(response.headers.get('content-type') ?? '', /^application\/json/)
+      assert.deepEqual(JSON.parse(body), { error: 'Not found' })
     })
   }
 

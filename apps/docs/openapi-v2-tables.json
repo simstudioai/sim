@@ -43,6 +43,14 @@
         "x-sim-operation": "tables.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -192,6 +200,14 @@
         "x-sim-operation": "tables.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace, table metadata, folder placement, and typed columns.",
@@ -266,6 +282,14 @@
         "x-sim-operation": "tables.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -345,6 +369,14 @@
         "x-sim-operation": "tables.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -424,6 +456,14 @@
         "x-sim-operation": "tables.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -511,6 +551,14 @@
         "x-sim-operation": "tables.columns.add",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -596,6 +644,14 @@
         "x-sim-operation": "tables.columns.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -681,6 +737,14 @@
         "x-sim-operation": "tables.columns.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -768,6 +832,14 @@
         "x-sim-operation": "tables.rows.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -879,6 +951,14 @@
         "x-sim-operation": "tables.rows.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -964,6 +1044,14 @@
         "x-sim-operation": "tables.rows.update_many",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1049,6 +1137,14 @@
         "x-sim-operation": "tables.rows.delete_many",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1136,6 +1232,14 @@
         "x-sim-operation": "tables.rows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1233,6 +1337,14 @@
         "x-sim-operation": "tables.rows.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1329,6 +1441,14 @@
         "x-sim-operation": "tables.rows.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1421,6 +1541,14 @@
         "x-sim-operation": "tables.rows.upsert",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1508,6 +1636,14 @@
         "x-sim-operation": "tables.rows.query",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1592,6 +1728,14 @@
         "x-sim-operation": "tables.rows.query",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1676,6 +1820,14 @@
         "x-sim-operation": "tables.views.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1752,6 +1904,14 @@
         "x-sim-operation": "tables.views.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1836,6 +1996,14 @@
         "x-sim-operation": "tables.views.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -1923,6 +2091,14 @@
         "x-sim-operation": "tables.views.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2016,6 +2192,14 @@
         "x-sim-operation": "tables.views.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2105,6 +2289,14 @@
         "x-sim-operation": "tables.groups.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2181,6 +2373,14 @@
         "x-sim-operation": "tables.groups.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2266,6 +2466,14 @@
         "x-sim-operation": "tables.groups.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2354,6 +2562,14 @@
         "x-sim-operation": "tables.groups.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2441,6 +2657,14 @@
         "x-sim-operation": "tables.runs.start",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2523,6 +2747,14 @@
         "x-sim-operation": "tables.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2601,6 +2833,14 @@
         "x-sim-operation": "tables.runs.start",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2705,6 +2945,14 @@
         "x-sim-operation": "tables.rows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2805,6 +3053,14 @@
         "x-sim-operation": "tables.rows.search",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -2889,6 +3145,14 @@
         "x-sim-operation": "tables.imports.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace, CSV source, target table, optional mapping, and timezone.",
@@ -2966,6 +3230,14 @@
         "x-sim-operation": "tables.imports.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3054,6 +3326,14 @@
         "x-sim-operation": "tables.imports.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3147,6 +3427,14 @@
         "x-sim-operation": "tables.imports.create_parts",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3257,6 +3545,14 @@
         "x-sim-operation": "tables.imports.complete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "importId",
@@ -3353,6 +3649,14 @@
         "x-sim-operation": "tables.exports.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3440,6 +3744,14 @@
         "x-sim-operation": "tables.exports.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3528,6 +3840,14 @@
         "x-sim-operation": "tables.exports.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3621,6 +3941,14 @@
         "x-sim-operation": "tables.exports.download",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3714,6 +4042,14 @@
         "x-sim-operation": "tables.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -3798,6 +4134,14 @@
         "x-sim-operation": "tables.folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3913,6 +4257,14 @@
         "x-sim-operation": "tables.folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope and canonical folder path to create.",
@@ -3985,6 +4337,14 @@
         "x-sim-operation": "tables.folders.update",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope, current canonical path, and destination path.",
@@ -4057,6 +4417,14 @@
         "x-sim-operation": "tables.folders.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4169,6 +4537,14 @@
         "x-sim-operation": "tables.folders.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope and the canonical path the archived folder held.",
@@ -4243,6 +4619,14 @@
         "x-sim-operation": "tables.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4330,6 +4714,14 @@
         "x-sim-operation": "tables.rows.update_many",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4417,6 +4809,14 @@
         "x-sim-operation": "tables.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4505,6 +4905,14 @@
         "x-sim-operation": "tables.runs.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "tableId",
@@ -4595,6 +5003,14 @@
         "x-sim-operation": "tables.bulk_move",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope, the tables and folder paths to move, and the destination folder path.",
@@ -4666,6 +5082,14 @@
         "x-sim-operation": "tables.bulk_delete",
         "x-oauth-scope": "api:write",
         "tags": ["Tables"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Workspace scope, and the tables and folder paths to delete.",
@@ -4742,10 +5166,20 @@
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {

@@ -87,6 +87,14 @@
         "x-sim-operation": "workspaces.list_public",
         "x-oauth-scope": "api:read",
         "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "sortBy",
@@ -191,6 +199,14 @@
         "x-sim-operation": "workspaces.read_public_detail",
         "x-oauth-scope": "api:read",
         "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -259,6 +275,14 @@
         "x-sim-operation": "workspaces.members.list_public",
         "x-oauth-scope": "api:read",
         "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -351,6 +375,14 @@
         "x-sim-operation": "mcp_servers.list",
         "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -477,6 +509,14 @@
         "x-sim-operation": "mcp_servers.create",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Configuration for a new MCP server.",
@@ -551,6 +591,14 @@
         "x-sim-operation": "mcp_servers.read",
         "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "mcpServerId",
@@ -628,6 +676,14 @@
         "x-sim-operation": "mcp_servers.update",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "mcpServerId",
@@ -710,6 +766,14 @@
         "x-sim-operation": "mcp_servers.delete",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "mcpServerId",
@@ -789,6 +853,14 @@
         "x-sim-operation": "mcp_servers.tools.discover",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "mcpServerId",
@@ -881,6 +953,14 @@
         "x-sim-operation": "skills.list",
         "x-oauth-scope": "api:read",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -1007,6 +1087,14 @@
         "x-sim-operation": "skills.create",
         "x-oauth-scope": "api:write",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Definition of a new skill.",
@@ -1081,6 +1169,14 @@
         "x-sim-operation": "skills.read",
         "x-oauth-scope": "api:read",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "skillId",
@@ -1158,6 +1254,14 @@
         "x-sim-operation": "skills.update",
         "x-oauth-scope": "api:write",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "skillId",
@@ -1243,6 +1347,14 @@
         "x-sim-operation": "skills.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "skillId",
@@ -1322,6 +1434,14 @@
         "x-sim-operation": "skills.editors.list",
         "x-oauth-scope": "api:read",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "skillId",
@@ -1447,6 +1567,14 @@
         "x-sim-operation": "skills.editors.grant",
         "x-oauth-scope": "api:write",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "skillId",
@@ -1550,6 +1678,14 @@
         "x-sim-operation": "skills.editors.revoke",
         "x-oauth-scope": "api:write",
         "tags": ["Skills"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "skillId",
@@ -1641,6 +1777,14 @@
         "x-sim-operation": "custom_tools.list",
         "x-oauth-scope": "api:read",
         "tags": ["Custom Tools"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -1767,6 +1911,14 @@
         "x-sim-operation": "custom_tools.create",
         "x-oauth-scope": "api:write",
         "tags": ["Custom Tools"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Definition and implementation of a new custom tool.",
@@ -1841,6 +1993,14 @@
         "x-sim-operation": "custom_tools.read",
         "x-oauth-scope": "api:read",
         "tags": ["Custom Tools"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "customToolId",
@@ -1918,6 +2078,14 @@
         "x-sim-operation": "custom_tools.update",
         "x-oauth-scope": "api:write",
         "tags": ["Custom Tools"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "customToolId",
@@ -2003,6 +2171,14 @@
         "x-sim-operation": "custom_tools.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Custom Tools"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "customToolId",
@@ -2082,6 +2258,14 @@
         "x-sim-operation": "sandboxes.list",
         "x-oauth-scope": "api:read",
         "tags": ["Sandboxes"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -2208,6 +2392,14 @@
         "x-sim-operation": "sandboxes.create",
         "x-oauth-scope": "api:write",
         "tags": ["Sandboxes"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Name, language, and dependency set of a new sandbox.",
@@ -2282,6 +2474,14 @@
         "x-sim-operation": "sandboxes.read",
         "x-oauth-scope": "api:read",
         "tags": ["Sandboxes"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "sandboxId",
@@ -2359,6 +2559,14 @@
         "x-sim-operation": "sandboxes.update",
         "x-oauth-scope": "api:write",
         "tags": ["Sandboxes"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "sandboxId",
@@ -2444,6 +2652,14 @@
         "x-sim-operation": "sandboxes.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Sandboxes"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "sandboxId",
@@ -2523,6 +2739,14 @@
         "x-sim-operation": "credentials.connections.list",
         "x-oauth-scope": "api:read",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -2671,6 +2895,14 @@
         "x-sim-operation": "credentials.service_accounts.create",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "Provider identifier, optional display metadata, and a write-only JSON object string containing the fields declared by provider discovery.",
@@ -2766,6 +2998,14 @@
         "x-sim-operation": "credentials.providers.list",
         "x-oauth-scope": "api:read",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -2846,6 +3086,14 @@
         "x-sim-operation": "credentials.connections.create",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved.",
@@ -2920,6 +3168,14 @@
         "x-sim-operation": "credentials.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "credentialId",
@@ -2998,6 +3254,14 @@
         "x-sim-operation": "credentials.update",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "credentialId",
@@ -3098,6 +3362,14 @@
         "x-sim-operation": "secrets.list",
         "x-oauth-scope": "api:read",
         "tags": ["Secrets"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3237,6 +3509,14 @@
         "x-sim-operation": "secrets.set",
         "x-oauth-scope": "api:write",
         "tags": ["Secrets"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "name",
@@ -3342,6 +3622,14 @@
         "x-sim-operation": "secrets.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Secrets"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "name",
@@ -3434,6 +3722,14 @@
         "x-sim-operation": "meta.capabilities.read",
         "x-oauth-scope": "api:read",
         "tags": ["Meta"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "responses": {
           "200": {
             "description": "Availability and lifecycle facts about the calling credential.",
@@ -3482,6 +3778,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.list",
         "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -3596,6 +3900,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.create_server",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "requestBody": {
           "required": true,
           "description": "A new workspace-published MCP server and the workflows it exposes.",
@@ -3670,6 +3982,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.read_server",
         "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "serverId",
@@ -3735,6 +4055,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.update_server",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "serverId",
@@ -3820,6 +4148,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.delete_server",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "serverId",
@@ -3890,6 +4226,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.list_tools",
         "x-oauth-scope": "api:read",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "serverId",
@@ -3955,6 +4299,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.deploy_tool",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "serverId",
@@ -4042,6 +4394,14 @@
         "x-sim-operation": "mcp_servers.workflow_deployments.undeploy_tool",
         "x-oauth-scope": "api:write",
         "tags": ["MCP Servers"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "serverId",
@@ -4123,6 +4483,14 @@
         "x-sim-operation": "catalog.blocks.list",
         "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4294,6 +4662,14 @@
         "x-sim-operation": "catalog.blocks.read",
         "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "blockId",
@@ -4374,6 +4750,14 @@
         "x-sim-operation": "catalog.tools.list",
         "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4525,6 +4909,14 @@
         "x-sim-operation": "catalog.tools.read",
         "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "toolId",
@@ -4605,6 +4997,14 @@
         "x-sim-operation": "tools.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Catalog"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "toolId",
@@ -4693,6 +5093,14 @@
         "x-sim-operation": "catalog.connector_types.list",
         "x-oauth-scope": "api:read",
         "tags": ["Catalog"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -4809,6 +5217,14 @@
         "x-sim-operation": "permission_groups.list",
         "x-oauth-scope": "api:read",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -4934,6 +5350,14 @@
         "x-sim-operation": "permission_groups.create",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5021,6 +5445,14 @@
         "x-sim-operation": "permission_groups.read",
         "x-oauth-scope": "api:read",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5097,6 +5529,14 @@
         "x-sim-operation": "permission_groups.update",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5193,6 +5633,14 @@
         "x-sim-operation": "permission_groups.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5271,6 +5719,14 @@
         "x-sim-operation": "permission_groups.members.list",
         "x-oauth-scope": "api:read",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5395,6 +5851,14 @@
         "x-sim-operation": "permission_groups.members.add",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5493,6 +5957,14 @@
         "x-sim-operation": "permission_groups.members.remove",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5585,6 +6057,14 @@
         "x-sim-operation": "permission_groups.members.bulk_add",
         "x-oauth-scope": "api:write",
         "tags": ["Permission Groups"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5683,6 +6163,14 @@
         "x-sim-operation": "organizations.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "search",
@@ -5799,6 +6287,14 @@
         "x-sim-operation": "organizations.read",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5866,6 +6362,14 @@
         "x-sim-operation": "organizations.workspaces.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -5993,6 +6497,14 @@
         "x-sim-operation": "organizations.members.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6120,6 +6632,14 @@
         "x-sim-operation": "organizations.members.update",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6216,6 +6736,14 @@
         "x-sim-operation": "organizations.members.remove",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6297,6 +6825,14 @@
         "x-sim-operation": "organizations.invitations.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6433,6 +6969,14 @@
         "x-sim-operation": "organizations.invitations.create",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6520,6 +7064,14 @@
         "x-sim-operation": "organizations.invitations.read",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6596,6 +7148,14 @@
         "x-sim-operation": "invitations.revoke",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6677,6 +7237,14 @@
         "x-sim-operation": "organizations.invitations.workspaces.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6815,6 +7383,14 @@
         "x-sim-operation": "invitations.resend",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -6913,6 +7489,14 @@
         "x-sim-operation": "organization.sso.providers.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7029,6 +7613,14 @@
         "x-sim-operation": "organization.sso.providers.save",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7137,6 +7729,14 @@
         "x-sim-operation": "organization.sso.providers.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7217,6 +7817,14 @@
         "x-sim-operation": "organization.sso.providers.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7299,6 +7907,14 @@
         "x-sim-operation": "organization.sso.set_primary_provider",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7398,6 +8014,14 @@
         "x-sim-operation": "organization.sso.read_requirement",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7466,6 +8090,14 @@
         "x-sim-operation": "organization.sso.set_requirement",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7553,6 +8185,14 @@
         "x-sim-operation": "organizations.domains.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7669,6 +8309,14 @@
         "x-sim-operation": "organizations.domains.add",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7777,6 +8425,14 @@
         "x-sim-operation": "organizations.domains.verify",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7876,6 +8532,14 @@
         "x-sim-operation": "organizations.domains.remove",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -7958,6 +8622,14 @@
         "x-sim-operation": "credentials.members.list",
         "x-oauth-scope": "api:read",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "credentialId",
@@ -8084,6 +8756,14 @@
         "x-sim-operation": "credentials.members.upsert",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "credentialId",
@@ -8202,6 +8882,14 @@
         "x-sim-operation": "credentials.members.remove",
         "x-oauth-scope": "api:write",
         "tags": ["Credentials"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "credentialId",
@@ -8294,6 +8982,14 @@
         "x-sim-operation": "permission_groups.read_user_config",
         "x-oauth-scope": "api:read",
         "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -8362,6 +9058,14 @@
         "x-sim-operation": "workspace_invitations.send_batch",
         "x-oauth-scope": "api:write",
         "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -8450,6 +9154,14 @@
         "x-sim-operation": "organization_member_usage_limits.read",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -8526,6 +9238,14 @@
         "x-sim-operation": "organization_member_usage_limits.update",
         "x-oauth-scope": "api:write",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -8621,6 +9341,14 @@
         "x-sim-operation": "organization_usage.summary.read",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -8748,6 +9476,14 @@
         "x-sim-operation": "organization_usage.breakdown.read",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -8902,6 +9638,14 @@
         "x-sim-operation": "organization_usage.events.list",
         "x-oauth-scope": "api:read",
         "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -9087,6 +9831,14 @@
         "x-sim-operation": "access_requests.discover",
         "x-oauth-scope": "api:read",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -9250,6 +10002,14 @@
         "x-sim-operation": "access_requests.list_mine",
         "x-oauth-scope": "api:read",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -9378,6 +10138,14 @@
         "x-sim-operation": "access_requests.create",
         "x-oauth-scope": "api:write",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -9466,6 +10234,14 @@
         "x-sim-operation": "access_requests.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "workspaceId",
@@ -9549,6 +10325,14 @@
         "x-sim-operation": "access_requests.discover",
         "x-oauth-scope": "api:read",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -9711,6 +10495,14 @@
         "x-sim-operation": "access_requests.list_mine",
         "x-oauth-scope": "api:read",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -9840,6 +10632,14 @@
         "x-sim-operation": "access_requests.create",
         "x-oauth-scope": "api:write",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -9925,6 +10725,14 @@
         "x-sim-operation": "access_requests.list_organization",
         "x-oauth-scope": "api:read",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -10066,6 +10874,14 @@
         "x-sim-operation": "access_requests.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -10148,6 +10964,14 @@
         "x-sim-operation": "access_requests.preview",
         "x-oauth-scope": "api:read",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -10230,6 +11054,14 @@
         "x-sim-operation": "access_requests.resolve",
         "x-oauth-scope": "api:write",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -10329,6 +11161,14 @@
         "x-sim-operation": "access_requests.get_settings",
         "x-oauth-scope": "api:read",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -10397,6 +11237,14 @@
         "x-sim-operation": "access_requests.update_settings",
         "x-oauth-scope": "api:write",
         "tags": ["Access Requests"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "organizationId",
@@ -10486,10 +11334,20 @@
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
       },
       "oauthBearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "OAuth 2.0 access token",
-        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
+        "type": "oauth2",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow with PKCE (S256), sent as `Authorization: Bearer`. Each operation declares the scope it requires: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://www.sim.ai/api/auth/oauth2/authorize",
+            "tokenUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "refreshUrl": "https://www.sim.ai/api/auth/oauth2/token",
+            "scopes": {
+              "api:read": "Read your workspaces, workflows, files, tables, and logs",
+              "api:write": "Read, create, change, run, and delete resources in your workspaces",
+              "offline_access": "Stay signed in without asking again"
+            }
+          }
+        }
       }
     },
     "headers": {
