@@ -217,7 +217,7 @@ const logger = createLogger('DocumentService')
  * and a machine-readable name would only invite a client to read resource
  * existence into it.
  */
-export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
+class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   constructor(public readonly storageKey: string) {
     super('forbidden', 'Document file is not owned by this knowledge base')
     this.name = 'KnowledgeBaseFileOwnershipError'
@@ -2861,6 +2861,7 @@ export async function getDocuments(
     knowledgeBaseId: string
     filename: string
     fileUrl: string
+    contentHash: string | null
     fileSize: number
     mimeType: string
     chunkCount: number
@@ -2968,6 +2969,7 @@ export async function getDocuments(
         knowledgeBaseId: document.knowledgeBaseId,
         filename: document.filename,
         fileUrl: document.fileUrl,
+        contentHash: document.contentHash,
         fileSize: document.fileSize,
         mimeType: document.mimeType,
         chunkCount: document.chunkCount,
@@ -3084,6 +3086,7 @@ export async function getDocuments(
       knowledgeBaseId: doc.knowledgeBaseId,
       filename: doc.filename,
       fileUrl: doc.fileUrl,
+      contentHash: doc.contentHash,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType,
       chunkCount: doc.chunkCount,

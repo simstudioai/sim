@@ -347,10 +347,7 @@ export async function waitForWorkflowToolCompletion({
 
   try {
     completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
-    if (!completion) {
-      toolRegistry?.markIncomplete('client-tool-completion-missing')
-      return null
-    }
+    if (!completion) return null
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
     const launchError = getWorkflowToolLaunchError(completion.data)

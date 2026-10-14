@@ -30,7 +30,10 @@ import {
 import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
-import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
+import {
+  requireAdmittedWorkspaceFile,
+  workspaceFileProvenanceIdentity,
+} from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import {
   type DownloadWorkspaceFileStreamResult,
@@ -128,12 +131,10 @@ async function readVersionSecretProvenance(
 ): Promise<WorkspaceFileSecretProvenance | undefined> {
   if (!mustClassifyContent(principal)) return undefined
   if (version.isCurrent) {
-    return getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
-      fileId: file.id,
-      key: file.key,
-      context: file.storageContext ?? 'workspace',
-      contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-    })
+    return getBoundWorkspaceFileSecretProvenance(
+      file.workspaceId,
+      workspaceFileProvenanceIdentity(file)
+    )
   }
   const snapshot = await getWorkspaceFileVersionProvenance(file.id, version.version, version.key)
   return snapshot ? workspaceFileSecretProvenanceFromSnapshot(snapshot) : { status: 'unknown' }
