@@ -37,7 +37,7 @@ Sim is the open-source AI workspace where teams build, deploy, and manage AI age
 
 ## Calling the Sim API
 
-- Base URL: \`${SIM_SITE_URL}\`. Every endpoint is under \`/api\`; there is no \`api.sim.ai\` host.
+- Sim Cloud base URL: \`${SIM_SITE_URL}\`. For self-hosted deployments, use your deployment's origin instead, including in the example below. Every endpoint is under \`/api\`; there is no \`api.sim.ai\` host.
 - Run a deployed workflow: \`POST ${SIM_SITE_URL}/api/v2/workflows/{workflowId}/execute\` with a JSON body like \`{ "input": { "fieldName": "value" } }\`.
 - Authenticate API keys with the \`X-API-Key\` header. \`Authorization: Bearer\` accepts only Sim OAuth access tokens, never API keys.
 - Responses wrap the payload in \`data\`. A synchronous run returns \`200 { "data": { "runId", "status", "output", ... } }\`; with \`"async": true\` in the body it returns \`202 { "data": { "runId", "statusUrl" } }\` and you poll \`statusUrl\`.
