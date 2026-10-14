@@ -148,7 +148,8 @@ describe('getFeatureFlags', () => {
     expect(flags.c).toBeUndefined()
     expect(mockFetch).toHaveBeenCalledWith(
       { application: 'sim-staging', environment: 'staging', profile: 'feature-flags' },
-      expect.any(Function)
+      expect.any(Function),
+      { shareWithTriggerRuns: true }
     )
   })
 

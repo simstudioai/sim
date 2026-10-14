@@ -26,7 +26,8 @@ it('reads the dev AppConfig values on the deployed www hostname', async () => {
   expect(await isMothershipModelSelectorEnabled()).toBe(true)
   expect(config.fetch).toHaveBeenCalledWith(
     { application: 'sim-dev', environment: 'dev', profile: 'feature-flags' },
-    expect.any(Function)
+    expect.any(Function),
+    { shareWithTriggerRuns: true }
   )
 })
 
