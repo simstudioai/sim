@@ -532,6 +532,8 @@ async function persistRoom(name: string, room: FileDocRoom, final: boolean): Pro
 }
 
 const FILE_DOC_PRESENCE_CHANGED = 'file-doc-presence-changed'
+const FILE_DOC_PRESENCE_RETRIES = 2
+const FILE_DOC_PRESENCE_RETRY_MS = 100
 const presenceRefreshes = new WeakMap<Server, Map<string, { revision: number }>>()
 
 function setupFileDocPresence(io: Server) {
@@ -553,10 +555,18 @@ async function refreshFileDocPresence(io: Server, name: string, fileId: string) 
   const refresh = { revision: 0 }
   refreshes.set(name, refresh)
   try {
-    let revision: number
-    do {
-      revision = refresh.revision
-      const sockets = await io.to(name).except(`${name}:pending`).fetchSockets()
+    let failures = 0
+    while (true) {
+      const revision = refresh.revision
+      let sockets: Awaited<ReturnType<Server['fetchSockets']>>
+      try {
+        sockets = await io.to(name).except(`${name}:pending`).fetchSockets()
+      } catch (error) {
+        if (failures >= FILE_DOC_PRESENCE_RETRIES) throw error
+        failures += 1
+        await sleep(FILE_DOC_PRESENCE_RETRY_MS)
+        continue
+      }
       if (revision !== refresh.revision) continue
       const users: FileDocPresenceUser[] = []
       for (const socket of sockets) {
@@ -565,7 +575,8 @@ async function refreshFileDocPresence(io: Server, name: string, fileId: string) 
       }
       // Each replica refreshes its own clients, so a delayed remote snapshot cannot overwrite theirs.
       io.local.to(name).except(`${name}:pending`).emit(FILE_DOC_EVENTS.PRESENCE, { fileId, users })
-    } while (revision !== refresh.revision)
+      return
+    }
   } catch (error) {
     logger.warn('Skipping file document presence refresh', { error: getErrorMessage(error) })
   } finally {
