@@ -20,6 +20,7 @@ const transcriptPositionSchema = z.object({
   id: z.string().uuid(),
 })
 
+/** A base64url cursor for `position`; `createdAt` keeps the column's microsecond precision. */
 export function encodeTranscriptCursor(position: TranscriptPosition): string {
   return Buffer.from(JSON.stringify(position)).toString('base64url')
 }

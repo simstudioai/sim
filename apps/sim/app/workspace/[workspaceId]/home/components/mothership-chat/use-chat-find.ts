@@ -24,7 +24,8 @@ import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 /**
  * Most matches a search keeps, counted back from the newest message: older history loads in
  * ahead of what is on screen, and a limit counted from the oldest would push the matches the
- * user is reading out of the list as it arrives.
+ * user is reading out of the list as it arrives. Within a message the first occurrences are
+ * kept, the ones `findRanges` highlights.
  */
 const MATCH_LIMIT = 500
 const EXCLUDED_CONTENT =
@@ -165,16 +166,19 @@ export function useChatFind({
         if (!message || hiddenUserByIndex[messageIndex] || message.origin === 'task') continue
         const text = getMessageSearchText(message, textCache)
         const occurrences: ChatFindMatch[] = []
+        let found = 0
         forEachSearchOccurrence(text, term, () => {
-          occurrences.push({ messageIndex, messageId: message.id, occurrence: occurrences.length })
+          if (count + found < MATCH_LIMIT) {
+            occurrences.push({ messageIndex, messageId: message.id, occurrence: found })
+          }
+          found++
         })
-        if (count + occurrences.length > MATCH_LIMIT) {
-          newestFirst.push(occurrences.slice(occurrences.length - (MATCH_LIMIT - count)))
+        newestFirst.push(occurrences)
+        count += occurrences.length
+        if (occurrences.length < found) {
           truncated = true
           break
         }
-        count += occurrences.length
-        newestFirst.push(occurrences)
       }
     }
     return { matches: newestFirst.reverse().flat(), truncated }
