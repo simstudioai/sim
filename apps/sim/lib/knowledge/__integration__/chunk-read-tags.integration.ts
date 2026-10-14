@@ -83,8 +83,7 @@ describe('reading a chunk whose document carries date tags', () => {
       createdAt: createdAt.toISOString(),
       updatedAt: createdAt.toISOString(),
     })
-    const wire = JSON.parse(JSON.stringify(body))
-    expect(getKnowledgeChunkContract.response.schema.parse(wire)).toEqual(wire)
+    expect(getKnowledgeChunkContract.response.schema.parse(body)).toEqual(body)
   })
 
   it('leaves the projected listing without date slots', async () => {
