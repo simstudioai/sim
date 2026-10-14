@@ -6,7 +6,8 @@
  */
 import { asyncJobs } from '@sim/db'
 import { sleep } from '@sim/utils/helpers'
-import { eq } from 'drizzle-orm'
+import { generateId } from '@sim/utils/id'
+import { eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, describe, expect, it, vi } from 'vitest'
@@ -22,26 +23,44 @@ const proxy = await vi.hoisted(async () => {
   const upstreamHost = upstream.hostname
   const upstreamPort = Number(upstream.port || 5432)
   const claimMarker = 'update "async_jobs" set "status"'
+  const answerMarker = 'UPDATE 1'
   let armed: ClaimFault | undefined
+  let beforeCut: (() => Promise<void>) | undefined
   let onFault: (() => void) | undefined
+
+  /** Matches a marker that TCP may have split across chunks by keeping the stream's tail. */
+  const streamMatcher = (marker: string) => {
+    let tail = ''
+    return (chunk: Buffer) => {
+      const seen = tail + chunk.toString('latin1')
+      tail = seen.slice(-(marker.length - 1))
+      return seen.includes(marker)
+    }
+  }
 
   const server = createServer((client) => {
     const db = connect(upstreamPort, upstreamHost)
+    const sawClaim = streamMatcher(claimMarker)
+    const sawAnswer = streamMatcher(answerMarker)
     let dropNextAnswer = false
-    const cut = () => {
+    // A message is cut mid-way at most, so Postgres never runs (or the client never reads) it whole.
+    const cut = async () => {
+      client.pause()
+      db.pause()
+      await beforeCut?.()
       client.destroy()
       db.destroy()
       onFault?.()
     }
     client.on('data', (chunk) => {
-      const fault = armed && chunk.includes(claimMarker) ? armed : undefined
+      const fault = sawClaim(chunk) && armed ? armed : undefined
       if (fault) armed = undefined
-      if (fault === 'drop-before-send') return cut()
+      if (fault === 'drop-before-send') return void cut()
       if (fault === 'drop-answer') dropNextAnswer = true
       db.write(chunk)
     })
     db.on('data', (chunk) => {
-      if (dropNextAnswer && chunk.includes('UPDATE 1')) return cut()
+      if (sawAnswer(chunk) && dropNextAnswer) return void cut()
       client.write(chunk)
     })
     client.on('close', () => db.destroy())
@@ -59,8 +78,10 @@ const proxy = await vi.hoisted(async () => {
 
   return {
     directUrl,
-    arm(fault: ClaimFault): Promise<void> {
+    /** `then` runs before the cut, while the claim's connection is held open. */
+    arm(fault: ClaimFault, then?: () => Promise<void>): Promise<void> {
       armed = fault
+      beforeCut = then
       return new Promise((resolve) => {
         onFault = resolve
       })
@@ -72,8 +93,17 @@ const proxy = await vi.hoisted(async () => {
 const directClient = postgres(proxy.directUrl, { max: 1 })
 const direct = drizzle(directClient)
 const queue = new DatabaseJobQueue()
+const jobIds: string[] = []
+
+async function enqueue(testCase: string, runner: () => Promise<unknown>): Promise<string> {
+  const jobId = `inline-claim-faults-${generateId()}`
+  jobIds.push(jobId)
+  await queue.enqueue('webhook-execution', { case: testCase }, { jobId, runner })
+  return jobId
+}
 
 afterAll(async () => {
+  if (jobIds.length > 0) await direct.delete(asyncJobs).where(inArray(asyncJobs.id, jobIds))
   await directClient.end()
   await proxy.close()
 })
@@ -107,18 +137,19 @@ describe('inline job claim on a dropped Postgres connection', () => {
     const runner = vi.fn(async () => ({ ran: true }))
 
     const fault = proxy.arm('drop-answer')
-    const jobId = await queue.enqueue('webhook-execution', { case: 'drop-answer' }, { runner })
+    const jobId = await enqueue('drop-answer', runner)
     await fault
 
     expect(await settle(jobId)).toEqual({ status: 'completed', attempts: 1 })
     expect(runner).toHaveBeenCalledTimes(1)
+    expect((await queue.getJob(jobId))?.metadata).not.toHaveProperty('claimToken')
   })
 
   it('runs the job once when the connection dropped before the claim was sent', async () => {
     const runner = vi.fn(async () => ({ ran: true }))
 
     const fault = proxy.arm('drop-before-send')
-    const jobId = await queue.enqueue('webhook-execution', { case: 'drop-before-send' }, { runner })
+    const jobId = await enqueue('drop-before-send', runner)
     await fault
 
     expect(await settle(jobId)).toEqual({ status: 'completed', attempts: 1 })
@@ -127,14 +158,19 @@ describe('inline job claim on a dropped Postgres connection', () => {
 
   it('does not run a job another claimer took while this claim was retrying', async () => {
     const runner = vi.fn(async () => ({ ran: true }))
+    let jobId = ''
 
-    const fault = proxy.arm('drop-before-send')
-    const jobId = await queue.enqueue('webhook-execution', { case: 'other-claimer' }, { runner })
+    // Another replica claims the same job id before this claim's dropped connection surfaces.
+    const fault = proxy.arm('drop-before-send', async () => {
+      await direct
+        .update(asyncJobs)
+        .set({ status: 'processing', startedAt: new Date(), attempts: 1 })
+        .where(eq(asyncJobs.id, jobId))
+    })
+    jobId = `inline-claim-faults-${generateId()}`
+    jobIds.push(jobId)
+    await queue.enqueue('webhook-execution', { case: 'other-claimer' }, { jobId, runner })
     await fault
-    await direct
-      .update(asyncJobs)
-      .set({ status: 'processing', startedAt: new Date(Date.now() - 60_000) })
-      .where(eq(asyncJobs.id, jobId))
     await sleep(3_000)
 
     expect(await readJob(jobId)).toBe('processing')
