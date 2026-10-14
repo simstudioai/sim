@@ -835,12 +835,39 @@ function TriggerMappingRow({ controller, mapping }: TriggerMappingRowProps) {
   )
 }
 
+interface ForkCopyResourcesProps {
+  controller: ForkSyncController
+}
+
+/** Unmapped source resources the sync can copy into the target, used ones first. */
+export function ForkCopyResources({ controller }: ForkCopyResourcesProps) {
+  return (
+    <div className='flex flex-col gap-2'>
+      {controller.referencedByKind.size > 0 ? (
+        <CopyKindSections controller={controller} byKind={controller.referencedByKind} />
+      ) : null}
+      {controller.unreferencedByKind.size > 0 ? (
+        <>
+          {controller.referencedByKind.size > 0 ? (
+            <div className='mt-2 text-[var(--text-muted)] text-caption'>
+              Not used by any workflow
+            </div>
+          ) : null}
+          <CopyKindSections controller={controller} byKind={controller.unreferencedByKind} />
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 interface ForkSyncViewProps {
   controller: ForkSyncController
   /** Resource mappings are edited by the parent surface. */
   externalMappings?: boolean
   /** The parent surface lists the deployed-workflow changes, opens their comparison, and shows load errors. */
   externalWorkflows?: boolean
+  /** The parent surface renders the copy checklist ({@link ForkCopyResources}) as its own step. */
+  externalCopy?: boolean
   /** Omit when the parent owns the direction control. */
   onDirectionChange?: (direction: ForkDirection) => void
 }
@@ -856,6 +883,7 @@ export function ForkSyncView({
   onDirectionChange,
   externalMappings = false,
   externalWorkflows = false,
+  externalCopy = false,
 }: ForkSyncViewProps) {
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
   const headsUp =
@@ -1072,23 +1100,9 @@ export function ForkSyncView({
         </SettingsSection>
       ) : null}
 
-      {controller.hasVisibleCopyables ? (
+      {controller.hasVisibleCopyables && !externalCopy ? (
         <SettingsSection label='Copy resources'>
-          <div className='flex flex-col gap-2'>
-            {controller.referencedByKind.size > 0 ? (
-              <CopyKindSections controller={controller} byKind={controller.referencedByKind} />
-            ) : null}
-            {controller.unreferencedByKind.size > 0 ? (
-              <>
-                {controller.referencedByKind.size > 0 ? (
-                  <div className='mt-2 text-[var(--text-muted)] text-caption'>
-                    Not used by any workflow
-                  </div>
-                ) : null}
-                <CopyKindSections controller={controller} byKind={controller.unreferencedByKind} />
-              </>
-            ) : null}
-          </div>
+          <ForkCopyResources controller={controller} />
         </SettingsSection>
       ) : null}
 

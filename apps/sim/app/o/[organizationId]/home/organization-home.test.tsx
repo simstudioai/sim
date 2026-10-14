@@ -14,7 +14,11 @@ import {
   organizationProviderMock,
   organizationProviderMockFns,
 } from '@sim/testing/mocks/organization-provider.mock'
-import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
+import {
+  createQueryResultMock,
+  reactQueryMock,
+  reactQueryMockFns,
+} from '@sim/testing/mocks/react-query.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -106,6 +110,7 @@ deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  reactQueryMockFns.mockUseQuery.mockReturnValue(createQueryResultMock())
   useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
   mocks.activeResource = null

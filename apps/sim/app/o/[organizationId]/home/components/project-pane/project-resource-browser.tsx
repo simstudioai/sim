@@ -8,6 +8,7 @@ import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { terminalResourceId } from '@/lib/terminal/resource-id'
 import { openTerminal } from '@/lib/terminal/transport'
 import {
+  type PaneTab,
   projectPaneOptions,
   projectPaneParsers,
 } from '@/app/o/[organizationId]/home/components/project-pane/search-params'
@@ -36,7 +37,7 @@ const EXCLUDED: readonly MothershipResourceType[] = [
   'generic',
 ]
 interface ProjectResourceBrowserProps {
-  tab: string
+  tab: Extract<PaneTab, { kind: 'browse' }>
   resources: MothershipResource[]
   desktopScopeId: string
 }
@@ -66,7 +67,7 @@ export function ProjectResourceBrowser({
   resources,
   desktopScopeId,
 }: ProjectResourceBrowserProps) {
-  const [id, workspaceId, kind] = tab.split(':')
+  const { id, workspaceId, resourceKind: kind } = tab
   const { organization } = useOrganizationContext()
   const { projects, roots, isPending } = useProjects(organization.id)
   const [, setParams] = useQueryStates(projectPaneParsers, projectPaneOptions)
@@ -82,8 +83,10 @@ export function ProjectResourceBrowser({
   const browse = (workspace = '', type = '') =>
     void setParams(
       (current) => ({
-        browse: current.browse.map((entry) =>
-          entry.split(':')[0] === id ? `${id}:${workspace}:${type}` : entry
+        tabs: current.tabs.map((entry) =>
+          entry.id === id
+            ? { kind: 'browse', id, workspaceId: workspace, resourceKind: type }
+            : entry
         ),
       }),
       { history: 'replace' }

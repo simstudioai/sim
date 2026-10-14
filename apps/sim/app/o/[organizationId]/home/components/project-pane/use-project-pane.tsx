@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { TabStripItem } from '@sim/emcn'
+import { ArrowLeftRight } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useQueryStates } from 'nuqs'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
@@ -10,8 +11,10 @@ import {
   projectPaneOptions,
   projectPaneParsers,
 } from '@/app/o/[organizationId]/home/components/project-pane/search-params'
+import { EnvironmentSync } from '@/app/o/[organizationId]/p/components/environments/environment-sync'
 import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const RESOURCE_SECTIONS: Partial<Record<MothershipResource['type'], string>> = {
   workflow: 'workflows',
@@ -29,7 +32,8 @@ export function useProjectPane(
   onReveal: () => void
 ) {
   const [params, setParams] = useQueryStates(projectPaneParsers, projectPaneOptions)
-  const activeBrowse = params.browse.find((tab) => tab.split(':')[0] === params.pane)
+  const { data: workspaces } = useWorkspacesQuery()
+  const activeTab = params.tabs.find((tab) => tab.id === params.pane)
   const dashboard = resources.find(
     (resource) =>
       resource.type === 'dashboard' && getChatResourceSelectionId(resource) === activeResourceId
@@ -46,10 +50,13 @@ export function useProjectPane(
   const hasActiveResource = resources.some(
     (resource) => getChatResourceSelectionId(resource) === activeResourceId
   )
-  const showProject = params.pane === 'project' || (!activeBrowse && !hasActiveResource)
+  const showProject = params.pane === 'project' || (!activeTab && !hasActiveResource)
   const browse = (workspaceId = params.project, kind = '') => {
     const id = generateShortId(8)
-    void setParams({ pane: id, browse: [...params.browse, `${id}:${workspaceId}:${kind}`] })
+    void setParams({
+      pane: id,
+      tabs: [...params.tabs, { kind: 'browse', id, workspaceId, resourceKind: kind }],
+    })
     onReveal()
   }
   const select = (id: string) => {
@@ -57,28 +64,36 @@ export function useProjectPane(
     onReveal()
   }
   const close = (id: string) => {
-    const index = params.browse.findIndex((tab) => tab.split(':')[0] === id)
-    const remaining = params.browse.filter((tab) => tab.split(':')[0] !== id)
-    const neighbor = remaining[Math.max(0, index - 1)]?.split(':')[0]
+    const index = params.tabs.findIndex((tab) => tab.id === id)
+    const remaining = params.tabs.filter((tab) => tab.id !== id)
+    const neighbor = remaining[Math.max(0, index - 1)]?.id
     void setParams(
       {
-        browse: remaining,
+        tabs: remaining,
         ...(params.pane === id ? { pane: neighbor ?? (hasActiveResource ? null : 'project') } : {}),
       },
       { history: 'replace' }
     )
   }
-  const tabs: TabStripItem[] = [
-    ...params.browse.map((tab) => ({
-      id: tab.split(':')[0],
-      title: 'New tab',
-      active: tab === activeBrowse,
-    })),
-  ]
+  const nameOf = new Map(workspaces?.map((workspace) => [workspace.id, workspace.name]))
+  const parentOf = new Map(
+    workspaces?.map((workspace) => [workspace.id, workspace.forkedFromWorkspaceId ?? ''])
+  )
+  const tabs: TabStripItem[] = params.tabs.map((tab) => {
+    if (tab.kind === 'browse') return { id: tab.id, title: 'New tab', active: tab === activeTab }
+    const child = nameOf.get(tab.childId) ?? 'Fork'
+    const parent = nameOf.get(parentOf.get(tab.childId) ?? '') ?? 'Parent'
+    return {
+      id: tab.id,
+      title: tab.direction === 'push' ? `${child} → ${parent}` : `${parent} → ${child}`,
+      icon: <ArrowLeftRight className='size-[14px]' />,
+      active: tab === activeTab,
+    }
+  })
   const navigation: ResourcePanelNavigation = {
     control: <ProjectControl active={showProject} onShow={() => select('project')} />,
     tabs,
-    active: showProject || Boolean(activeBrowse),
+    active: showProject || Boolean(activeTab),
     onSelect: select,
     onClose: close,
     onNew: () => browse(),
@@ -94,16 +109,19 @@ export function useProjectPane(
       })
       onReveal()
     },
-    content: activeBrowse ? (
-      <ProjectResourceBrowser
-        key={activeBrowse}
-        tab={activeBrowse}
-        resources={resources}
-        desktopScopeId={desktopScopeId}
-      />
-    ) : showProject ? (
-      <ProjectPaneContent />
-    ) : null,
+    content:
+      activeTab?.kind === 'sync' ? (
+        <EnvironmentSync tab={activeTab} />
+      ) : activeTab ? (
+        <ProjectResourceBrowser
+          key={activeTab.id}
+          tab={activeTab}
+          resources={resources}
+          desktopScopeId={desktopScopeId}
+        />
+      ) : showProject ? (
+        <ProjectPaneContent />
+      ) : null,
   }
   return { navigation }
 }

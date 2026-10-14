@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { cn, Skeleton } from '@sim/emcn'
 import { EnvironmentSecretPeek } from '@/app/o/[organizationId]/p/components/environments/environment-secret-peek'
 import {
@@ -21,6 +22,8 @@ interface ResourceMappingEditorProps {
   kinds: readonly MappableMappingKind[]
   /** Narrows the rows by resource name. */
   search: string
+  /** Shows only resources that had no target when the table opened, so a pick never hides its row. */
+  unmappedOnly: boolean
   sourceName: string
   targetName: string
 }
@@ -33,14 +36,28 @@ export function ResourceMappingEditor({
   controller,
   kinds,
   search,
+  unmappedOnly,
   sourceName,
   targetName,
 }: ResourceMappingEditorProps) {
+  const [unmappedAtOpen] = useState(
+    () =>
+      new Set(
+        controller.groups.flatMap((group) =>
+          group.items
+            .filter((entry) => !controller.targetFor(entry))
+            .map((entry) => `${entry.resourceType}:${entry.sourceId}`)
+        )
+      )
+  )
   const query = search.trim().toLowerCase()
   const rows = controller.groups
     .filter((group) => kinds.length === 0 || kinds.includes(group.kind))
     .flatMap((group) => group.items.map((entry) => ({ group, entry })))
     .filter(({ entry }) => entry.sourceLabel.toLowerCase().includes(query))
+    .filter(
+      ({ entry }) => !unmappedOnly || unmappedAtOpen.has(`${entry.resourceType}:${entry.sourceId}`)
+    )
   if (controller.isError || controller.diffErrorMessage) {
     return (
       <p role='alert' className={cn('py-6 text-[var(--text-error)] text-small', ROW_INSET_CLASS)}>
@@ -112,7 +129,11 @@ export function ResourceMappingEditor({
           </div>
         ))
       ) : (
-        <p className={cn('py-6 text-[var(--text-muted)]', ROW_INSET_CLASS)}>No mappings.</p>
+        <p className={cn('py-6 text-[var(--text-muted)]', ROW_INSET_CLASS)}>
+          {unmappedOnly
+            ? 'Every resource is mapped. Use Filter to review all mappings.'
+            : 'No mappings.'}
+        </p>
       )}
     </div>
   )

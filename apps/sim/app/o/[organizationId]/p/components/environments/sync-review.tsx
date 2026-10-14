@@ -1,11 +1,9 @@
 'use client'
 
-import { lazy, Suspense, useState } from 'react'
-import { Chip, Skeleton, Tooltip } from '@sim/emcn'
+import { lazy, Suspense } from 'react'
+import { Skeleton } from '@sim/emcn'
 import { ArrowRight, Columns2 } from '@sim/emcn/icons'
 import type { ForkWorkflowChange, ForkWorkflowComparison } from '@/lib/api/contracts/workspace-fork'
-import type { EnvironmentColumn } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
-import { ForkSyncConfirmModal } from '@/ee/workspace-forking/components/fork-sync/fork-sync-confirm-modal'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import type { ForkSyncController } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
@@ -35,29 +33,15 @@ const ACTION_LABEL: Record<ForkWorkflowChange['action'], string> = {
 }
 
 interface SyncReviewProps {
-  mappingChangesPending?: boolean
   controller: ForkSyncController
-  child: EnvironmentColumn
-  parent: EnvironmentColumn
   direction: ForkDirection
 }
 
 /**
  * What one sync between two environments ships, as a release: the deployed workflows it
- * changes, each opening the side-by-side comparison, and Sync, which confirms the overwrite
- * with the same modal the workspace fork settings use.
+ * changes, each opening the side-by-side comparison. The wizard footer owns Sync.
  */
-export function SyncReview({
-  child,
-  parent,
-  direction,
-  controller,
-  mappingChangesPending = false,
-}: SyncReviewProps) {
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const promote = direction === 'push'
-  const source = promote ? child : parent
-  const target = promote ? parent : child
+export function SyncReview({ direction, controller }: SyncReviewProps) {
   const changes = controller.workflowChanges
   const changedCount = changes.length
   /** Workflows marked not synced on either side; the sync leaves them alone. */
@@ -66,57 +50,24 @@ export function SyncReview({
   return (
     <section className='flex flex-col gap-3'>
       <article className='overflow-hidden rounded-xl border border-[var(--border)]'>
-        <header className='flex flex-wrap items-center gap-3 border-[var(--border)] border-b px-4 py-3'>
-          <div className='flex min-w-0 flex-1 flex-col gap-1'>
-            <h3 className='flex flex-wrap items-center gap-1.5 text-[var(--text-body)] text-small'>
-              {source.label}
-              <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
-              {target.label}
-            </h3>
-            <span className='text-[var(--text-muted)] text-caption'>
-              {controller.isError
-                ? 'Comparison unavailable'
-                : controller.isLoading || !controller.hasDiff
-                  ? 'Comparing environments…'
-                  : changedCount === 0
-                    ? 'Already in sync'
-                    : `${changedCount} ${changedCount === 1 ? 'change' : 'changes'} to review`}
+        <header className='flex flex-wrap items-center justify-between gap-3 border-[var(--border)] border-b px-4 py-3 text-caption'>
+          <span className='text-[var(--text-body)]'>
+            {controller.isError
+              ? 'Comparison unavailable'
+              : controller.isLoading || !controller.hasDiff
+                ? 'Comparing environments…'
+                : changedCount === 0
+                  ? 'Already in sync'
+                  : `${changedCount} ${changedCount === 1 ? 'change' : 'changes'} to review`}
+          </span>
+          {!controller.isLoading &&
+          !controller.isError &&
+          controller.hasDiff &&
+          changedCount > 0 ? (
+            <span className='text-[var(--text-muted)]'>
+              Syncing overwrites {controller.targetWorkspaceName}
             </span>
-          </div>
-          <div className='flex flex-col items-end gap-1'>
-            <div className='flex items-center gap-3'>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <span className='inline-flex'>
-                    <Chip
-                      variant='primary'
-                      onClick={() => setConfirmOpen(true)}
-                      disabled={
-                        mappingChangesPending || controller.syncDisabled || controller.isLoading
-                      }
-                    >
-                      {controller.submitting ? 'Syncing…' : 'Sync'}
-                    </Chip>
-                  </span>
-                </Tooltip.Trigger>
-                {mappingChangesPending || controller.syncDisabledReason ? (
-                  <Tooltip.Content side='top'>
-                    {mappingChangesPending
-                      ? 'Save or discard mapping changes first'
-                      : controller.syncDisabledReason}
-                  </Tooltip.Content>
-                ) : null}
-              </Tooltip.Root>
-            </div>
-            {!controller.isLoading &&
-            !controller.isError &&
-            controller.hasDiff &&
-            changedCount > 0 ? (
-              <span className='text-[var(--text-muted)] text-caption'>
-                Syncing overwrites {controller.targetWorkspaceName}
-              </span>
-            ) : null}
-          </div>
+          ) : null}
         </header>
         {controller.isError ? (
           <p className='px-4 py-3 text-[var(--text-error)] text-small'>
@@ -210,7 +161,13 @@ export function SyncReview({
         )}
       </article>
 
-      <ForkSyncView key={direction} controller={controller} externalMappings externalWorkflows />
+      <ForkSyncView
+        key={direction}
+        controller={controller}
+        externalMappings
+        externalWorkflows
+        externalCopy
+      />
 
       {controller.comparisonSelection ? (
         <Suspense fallback={null}>
@@ -220,11 +177,6 @@ export function SyncReview({
           />
         </Suspense>
       ) : null}
-      <ForkSyncConfirmModal
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        controller={controller}
-      />
     </section>
   )
 }

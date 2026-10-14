@@ -133,7 +133,7 @@ function OrganizationHomeContent({
     if (!projectViewEnabled) return
     void setPaneParams((current) => ({
       pane: null,
-      browse: current.browse.filter((tab) => tab.split(':')[0] !== current.pane),
+      tabs: current.tabs.filter((tab) => tab.kind !== 'browse' || tab.id !== current.pane),
     }))
   }, [projectViewEnabled, setPaneParams])
   const requestMode =
