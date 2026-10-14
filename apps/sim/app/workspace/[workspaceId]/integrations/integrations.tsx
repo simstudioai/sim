@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
   Search,
 } from '@sim/emcn'
-import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
   blockTypeToIconMap,
@@ -21,6 +20,7 @@ import {
   resolveCredentialDisplay,
 } from '@/lib/integrations'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
+import { useResourceWorkspaceId } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
@@ -148,8 +148,7 @@ export function Integrations() {
 
 function IntegrationsContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const params = useParams()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const workspaceId = useResourceWorkspaceId()
   const { integrationAvailability } = usePermissionConfig()
 
   const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =

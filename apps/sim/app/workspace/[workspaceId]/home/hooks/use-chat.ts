@@ -683,6 +683,11 @@ export interface UseChatOptions {
   projectsDesktopTabs?: boolean
   /** Fired when the server's `traceparent` response header arrives, before any stream content. */
   onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
+  /**
+   * Rewrite the browser URL to the chat's canonical route once a new chat is created.
+   * Defaults to true; a surface that owns its own URL (a side panel) passes false.
+   */
+  syncChatUrl?: boolean
 }
 
 interface ActiveStreamRecovery {
@@ -706,6 +711,7 @@ export function getMothershipUseChatOptions(
     | 'activeResourceState'
     | 'onRequestStarted'
     | 'requestMode'
+    | 'syncChatUrl'
   > = {}
 ): UseChatOptions {
   return {
@@ -780,6 +786,8 @@ export function useChat(
   const pendingStopModeRef = useRef<StopGenerationMode | null>(null)
   const workflowIdRef = useRef(options?.workflowId)
   workflowIdRef.current = options?.workflowId
+  const syncChatUrlRef = useRef(options?.syncChatUrl !== false)
+  syncChatUrlRef.current = options?.syncChatUrl !== false
   /** Identifies this chatless surface across mounts, for the sends it holds. */
   const heldSendSurface = `${scopeKey}:${options?.workflowId ?? 'home'}`
   const heldSendSurfaceRef = useRef(heldSendSurface)
@@ -1355,6 +1363,7 @@ export function useChat(
       }
       if (
         options?.replaceHomeHistory &&
+        syncChatUrlRef.current &&
         !selectedChatId &&
         !workflowIdRef.current &&
         typeof window !== 'undefined'

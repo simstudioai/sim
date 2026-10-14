@@ -1,4 +1,5 @@
 export { ChatsSection } from './chats-section'
 export { OrganizationFooter } from './organization-footer'
 export { OrganizationHeader } from './organization-header'
+export { ProjectsSection } from './projects-section'
 export { WorkspacesSection } from './workspaces-section'

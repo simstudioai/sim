@@ -21,6 +21,7 @@ import {
   FieldDivider,
   Label,
   OverflowText,
+  Plus,
   Tooltip,
 } from '@sim/emcn'
 import type {
@@ -48,6 +49,7 @@ import {
   forkBlockerResolution,
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
 import { forkRefKey } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import { CreateMappedSecret } from '@/ee/workspace-forking/components/fork-sync/create-mapped-secret'
 import {
   CUSTOM_BLOCK_UNSUPPORTED_HINT,
   customBlockBooleanOptions,
@@ -114,7 +116,8 @@ const NEW_TRIGGER_URL_VALUE = '__new_trigger_url__'
  * General). Wide enough to hold a full-length secret key - these are the longest labels the
  * picker shows, and clipping them is what makes two same-prefixed keys indistinguishable.
  */
-const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] shrink-0'
+/** The target picker's column, shared by tables that align a header or value over it. */
+export const MAPPING_TARGET_TRIGGER_CLASS = 'w-[380px] max-w-[55%] shrink-0'
 
 interface DependentBlock {
   targetBlockId: string
@@ -457,7 +460,8 @@ interface MappingEntryProps {
  * workflow the resource is used in, holding that workflow's dependent field selectors.
  * Workflows with nothing to configure are named in a muted note so the usage stays visible.
  */
-function MappingEntry({ controller, group, entry }: MappingEntryProps) {
+export function MappingEntry({ controller, group, entry }: MappingEntryProps) {
+  const [creatingSecret, setCreatingSecret] = useState(false)
   const [showConfigured, setShowConfigured] = useState(false)
   const target = controller.targetFor(entry)
   const takenOwners = controller.takenOwnersFor(entry, group.items)
@@ -508,6 +512,16 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
               className='w-full'
               align='start'
               options={[
+                ...(entry.kind === 'env-var'
+                  ? [
+                      {
+                        label: 'Create secret',
+                        value: '__create_secret__',
+                        icon: Plus,
+                        onSelect: () => setCreatingSecret(true),
+                      },
+                    ]
+                  : []),
                 // While copy-resolved, the closed control shows the copy by NAME (the copy
                 // keeps the source's name) via a hidden display-only option; the list itself
                 // stays unambiguous.
@@ -554,6 +568,15 @@ function MappingEntry({ controller, group, entry }: MappingEntryProps) {
           </p>
         ) : null}
       </div>
+      {entry.kind === 'env-var' && (
+        <CreateMappedSecret
+          open={creatingSecret}
+          onOpenChange={setCreatingSecret}
+          controller={controller}
+          sourceId={entry.sourceId}
+          onCreated={(name) => controller.setTarget(entry, name)}
+        />
+      )}
       {canEditConfigured ? (
         <div className='flex justify-end'>
           <Chip active={showConfigured} onClick={() => setShowConfigured((value) => !value)}>
@@ -812,9 +835,41 @@ function TriggerMappingRow({ controller, mapping }: TriggerMappingRowProps) {
   )
 }
 
+interface ForkCopyResourcesProps {
+  controller: ForkSyncController
+}
+
+/** Unmapped source resources the sync can copy into the target, used ones first. */
+export function ForkCopyResources({ controller }: ForkCopyResourcesProps) {
+  return (
+    <div className='flex flex-col gap-2'>
+      {controller.referencedByKind.size > 0 ? (
+        <CopyKindSections controller={controller} byKind={controller.referencedByKind} />
+      ) : null}
+      {controller.unreferencedByKind.size > 0 ? (
+        <>
+          {controller.referencedByKind.size > 0 ? (
+            <div className='mt-2 text-[var(--text-muted)] text-caption'>
+              Not used by any workflow
+            </div>
+          ) : null}
+          <CopyKindSections controller={controller} byKind={controller.unreferencedByKind} />
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 interface ForkSyncViewProps {
   controller: ForkSyncController
-  onDirectionChange: (direction: ForkDirection) => void
+  /** Resource mappings are edited by the parent surface. */
+  externalMappings?: boolean
+  /** The parent surface lists the deployed-workflow changes, opens their comparison, and shows load errors. */
+  externalWorkflows?: boolean
+  /** The parent surface renders the copy checklist ({@link ForkCopyResources}) as its own step. */
+  externalCopy?: boolean
+  /** Omit when the parent owns the direction control. */
+  onDirectionChange?: (direction: ForkDirection) => void
 }
 
 /**
@@ -823,7 +878,13 @@ interface ForkSyncViewProps {
  * status badge doubles as the summary), choose which unmapped resources to copy, and clear any
  * blocking references. The page header's Sync action commits it (after the overwrite confirm).
  */
-export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProps) {
+export function ForkSyncView({
+  controller,
+  onDirectionChange,
+  externalMappings = false,
+  externalWorkflows = false,
+  externalCopy = false,
+}: ForkSyncViewProps) {
   const detailsError = controller.errorMessage ?? controller.diffErrorMessage
   const headsUp =
     controller.mcpReauthCount > 0 ||
@@ -849,7 +910,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
 
   return (
     <div className='flex flex-col gap-7'>
-      {controller.comparisonSelection ? (
+      {controller.comparisonSelection && !externalWorkflows ? (
         <Suspense fallback={null}>
           <ForkComparisonModal
             {...controller.comparisonSelection}
@@ -857,28 +918,30 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           />
         </Suspense>
       ) : null}
-      <SettingsSection label='Sync direction'>
-        <div className='flex flex-col gap-2'>
-          <ChipSwitch
-            value={controller.direction}
-            onChange={onDirectionChange}
-            disabled={controller.saving || controller.submitting}
-            aria-label='Sync direction'
-            options={[
-              { value: 'push', label: 'Push' },
-              { value: 'pull', label: 'Pull' },
-            ]}
-          />
-          <p className='text-[var(--text-muted)] text-caption'>
-            {controller.direction === 'push'
-              ? `Push this workspace's deployed workflows to "${controller.otherWorkspaceName}", overwriting it.`
-              : `Pull deployed workflows from "${controller.otherWorkspaceName}", overwriting this workspace.`}
-          </p>
-        </div>
-      </SettingsSection>
+      {onDirectionChange && (
+        <SettingsSection label='Sync direction'>
+          <div className='flex flex-col gap-2'>
+            <ChipSwitch
+              value={controller.direction}
+              onChange={onDirectionChange}
+              disabled={controller.saving || controller.submitting}
+              aria-label='Sync direction'
+              options={[
+                { value: 'push', label: 'Push' },
+                { value: 'pull', label: 'Pull' },
+              ]}
+            />
+            <p className='text-[var(--text-muted)] text-caption'>
+              {controller.direction === 'push'
+                ? `Push this workspace's deployed workflows to "${controller.otherWorkspaceName}", overwriting it.`
+                : `Pull deployed workflows from "${controller.otherWorkspaceName}", overwriting this workspace.`}
+            </p>
+          </div>
+        </SettingsSection>
+      )}
 
       {/* Surface a failed/pending fetch so the page never renders blank below the direction. */}
-      {detailsError ? (
+      {externalWorkflows ? null : detailsError ? (
         <SettingsSection label='Sync details'>
           <div className='text-[var(--text-muted)] text-small'>{detailsError}</div>
         </SettingsSection>
@@ -891,7 +954,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
           deployed workflow appears here, changed or not), so the muted state nudges a deploy.
           Unsynced workflows list greyed at the end, with a tooltip naming which workspace
           they are unsynced in - the sync will not touch them. */}
-      {controller.hasDiff ? (
+      {controller.hasDiff && !externalWorkflows ? (
         <SettingsSection label='Deployed workflows'>
           {controller.workflowChanges.length + excludedRows.length > 0 ? (
             <Tooltip.Provider delayDuration={150}>
@@ -998,7 +1061,7 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
         </SettingsSection>
       ) : null}
 
-      {controller.hasMapping ? (
+      {controller.hasMapping && !externalMappings ? (
         <SettingsSection label='Mappings'>
           {controller.groups.length > 0 ? (
             <div className='flex flex-col gap-2'>
@@ -1037,23 +1100,9 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
         </SettingsSection>
       ) : null}
 
-      {controller.hasVisibleCopyables ? (
+      {controller.hasVisibleCopyables && !externalCopy ? (
         <SettingsSection label='Copy resources'>
-          <div className='flex flex-col gap-2'>
-            {controller.referencedByKind.size > 0 ? (
-              <CopyKindSections controller={controller} byKind={controller.referencedByKind} />
-            ) : null}
-            {controller.unreferencedByKind.size > 0 ? (
-              <>
-                {controller.referencedByKind.size > 0 ? (
-                  <div className='mt-2 text-[var(--text-muted)] text-caption'>
-                    Not used by any workflow
-                  </div>
-                ) : null}
-                <CopyKindSections controller={controller} byKind={controller.unreferencedByKind} />
-              </>
-            ) : null}
-          </div>
+          <ForkCopyResources controller={controller} />
         </SettingsSection>
       ) : null}
 

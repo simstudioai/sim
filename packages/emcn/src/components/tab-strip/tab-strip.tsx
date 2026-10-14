@@ -229,6 +229,8 @@ interface TabStripBaseProps {
     id: string,
     drag: TabStripDragContext
   ) => void
+  /** In-flow controls before the first tab, in the tab band. */
+  startActions?: ReactNode
   /** In-flow controls pinned to the far end; use `TabStripAction` for band-sized icon actions. */
   endActions?: ReactNode
   /**
@@ -519,6 +521,7 @@ export function TabStrip({
   maxTabs,
   newTabLabel = 'New tab',
   newTabControl,
+  startActions,
   endActions,
   overlays,
   variant = 'attached',
@@ -943,6 +946,16 @@ export function TabStrip({
             .join(' ')}
           className='sr-only'
         />
+      )}
+      {startActions && (
+        <div
+          className={cn(
+            'flex h-[var(--tab-strip-band,30px)] shrink-0 items-center gap-1',
+            variant === 'attached' && 'mb-px'
+          )}
+        >
+          {startActions}
+        </div>
       )}
       <div
         className={cn(

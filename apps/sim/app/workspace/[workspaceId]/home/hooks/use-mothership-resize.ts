@@ -91,25 +91,42 @@ export function keyboardPanelWidth(
 }
 
 /**
+ * Sets the panel width and mirrors it to `--chat-panel-width`, the width its content keeps
+ * while the panel animates open or closed (`ChatPanelContent`).
+ */
+function writePanelWidth(el: HTMLElement, width: number) {
+  el.style.width = `${width}px`
+  el.style.setProperty('--chat-panel-width', `${width}px`)
+}
+
+/**
  * Pins a width without animating to it. The panel's width transition would
  * otherwise make the embedded browser view chase a moving rect for 200ms.
  */
 function writeWidthInstantly(el: HTMLElement, width: number) {
   const prevTransition = el.style.transition
   el.style.transition = 'none'
-  el.style.width = `${width}px`
+  writePanelWidth(el, width)
   void el.offsetWidth
   el.style.transition = prevTransition
 }
 
-/** Restores the preference within the current layout without changing the saved width. */
-function restorePanelWidth(el: HTMLElement, preferred: number | undefined) {
-  if (preferred === undefined) {
+/**
+ * Restores the preference within the current layout without changing the saved width. It always
+ * records the open width in `--chat-panel-width` (the saved width, or the default half of the
+ * layout), so content holds that width while the panel slides, and reopening animates.
+ */
+function restorePanelWidth(el: HTMLElement, preferred: number | undefined, collapsed: boolean) {
+  const layoutWidth = el.parentElement?.getBoundingClientRect().width ?? window.innerWidth
+  const width = preferred === undefined ? layoutWidth / 2 : Math.min(preferred, measureMaxWidth(el))
+  el.style.setProperty('--chat-panel-width', `${width}px`)
+  if (collapsed || preferred === undefined) {
     el.style.removeProperty('width')
     return
   }
-  const width = Math.min(preferred, measureMaxWidth(el))
-  if (el.style.width !== `${width}px`) writeWidthInstantly(el, width)
+  if (el.style.width === `${width}px`) return
+  if (el.getBoundingClientRect().width < 1) el.style.width = `${width}px`
+  else writeWidthInstantly(el, width)
 }
 
 /** Mirrors the panel's current width and bounds onto the divider for assistive tech. */
@@ -162,7 +179,7 @@ export function useMothershipResize(
   const restoreWidth = useCallback(() => {
     const el = mothershipRef.current
     if (!el || cleanupRef.current) return
-    restorePanelWidth(el, collapsed ? undefined : preferredWidthRef.current)
+    restorePanelWidth(el, preferredWidthRef.current, collapsed)
     const divider = focusedDividerRef.current
     if (divider && document.activeElement === divider) syncDividerValue(divider, el)
   }, [collapsed])
@@ -218,7 +235,7 @@ export function useMothershipResize(
 
       // Pin to current rendered width so drag starts from the visual position
       const startRect = el.getBoundingClientRect()
-      el.style.width = `${startRect.width}px`
+      writePanelWidth(el, startRect.width)
 
       // Snapshot geometry avoids layout reads on every move; release applies fresh bounds.
       const geometry: DragGeometry = {
@@ -244,7 +261,7 @@ export function useMothershipResize(
       let lastClientX: number | null = null
 
       const applyWidth = (clientX: number) => {
-        el.style.width = `${panelWidthAt(clientX, geometry)}px`
+        writePanelWidth(el, panelWidthAt(clientX, geometry))
       }
 
       // AbortController removes all listeners at once on cleanup/cancel/unmount
@@ -262,7 +279,7 @@ export function useMothershipResize(
         }
         // Flush the restored width before transitions return, so the native view
         // does not chase a 200ms catch-up animation.
-        restorePanelWidth(el, preferredWidthRef.current)
+        restorePanelWidth(el, preferredWidthRef.current, false)
         void el.offsetWidth
         // A cancelled frame may never change DOM size, so ResizeObserver cannot undo its prediction.
         const restoredRect = el.getBoundingClientRect()

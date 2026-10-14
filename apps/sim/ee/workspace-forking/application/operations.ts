@@ -8,6 +8,13 @@ const adminPolicy = {
 } as const
 
 export const forkOperations = {
+  createSecretMapping: defineWorkspaceOperation({
+    ...adminPolicy,
+    capability: 'secrets.manage',
+    contentDelivery: 'none',
+    id: 'workspaces.fork.mappings.create_secret',
+    oauthScope: 'api:write',
+  }),
   /**
    * permission-group-exempt: fork discovery is workspace metadata governed by the source admin role.
    */

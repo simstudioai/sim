@@ -6,7 +6,10 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
+import type { ForkMappingScope } from '@/lib/api/contracts/workspace-fork'
 import {
+  type CreateForkSecretMappingBody,
+  createForkSecretMappingContract,
   type ForkWorkspaceBody,
   forkWorkspaceContract,
   type GetForkLineageResponse,
@@ -30,7 +33,10 @@ import {
 import type { WorkspacesResponse } from '@/lib/api/contracts/workspaces'
 import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work'
 import { deploymentKeys } from '@/hooks/queries/deployments'
+import { environmentKeys } from '@/hooks/queries/environment'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { projectKeys } from '@/hooks/queries/utils/project-keys'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -42,8 +48,19 @@ export const forkKeys = {
   lineages: () => [...forkKeys.all, 'lineage'] as const,
   lineage: (workspaceId?: string) => [...forkKeys.lineages(), workspaceId ?? ''] as const,
   mappings: () => [...forkKeys.all, 'mapping'] as const,
-  mapping: (workspaceId?: string, otherWorkspaceId?: string, direction?: ForkDirection) =>
-    [...forkKeys.mappings(), workspaceId ?? '', otherWorkspaceId ?? '', direction ?? ''] as const,
+  mapping: (
+    workspaceId?: string,
+    otherWorkspaceId?: string,
+    direction?: ForkDirection,
+    scope: ForkMappingScope = 'sync'
+  ) =>
+    [
+      ...forkKeys.mappings(),
+      workspaceId ?? '',
+      otherWorkspaceId ?? '',
+      direction ?? '',
+      scope,
+    ] as const,
   diffs: () => [...forkKeys.all, 'diff'] as const,
   diff: (workspaceId?: string, otherWorkspaceId?: string, direction?: ForkDirection) =>
     [...forkKeys.diffs(), workspaceId ?? '', otherWorkspaceId ?? '', direction ?? ''] as const,
@@ -52,9 +69,9 @@ export const forkKeys = {
 }
 
 export const WORKSPACE_FORK_RESOURCES_STALE_TIME = 30 * 1000
-export const WORKSPACE_FORK_LINEAGE_STALE_TIME = 30 * 1000
-export const WORKSPACE_FORK_MAPPING_STALE_TIME = 15 * 1000
-export const WORKSPACE_FORK_DIFF_STALE_TIME = 10 * 1000
+const WORKSPACE_FORK_LINEAGE_STALE_TIME = 30 * 1000
+const WORKSPACE_FORK_MAPPING_STALE_TIME = 15 * 1000
+const WORKSPACE_FORK_DIFF_STALE_TIME = 10 * 1000
 
 export function useForkResources(workspaceId?: string, enabled = true) {
   return useQuery({
@@ -90,6 +107,8 @@ export function useForkWorkspace() {
     mutationFn: (vars: { workspaceId: string; body: ForkWorkspaceBody }) =>
       requestJson(forkWorkspaceContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSuccess: (data) => {
+      /** A fork joins its parent's project. */
+      queryClient.invalidateQueries({ queryKey: projectKeys.lists() })
       // Merge the new fork into the active list cache before invalidation so the
       // immediate navigation into it can't race a stale list and trip the
       // not-in-workspaces redirect (mirrors useCreateWorkspace).
@@ -110,6 +129,7 @@ export function useForkWorkspace() {
       })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
+      queryClient.invalidateQueries({ queryKey: projectKeys.all })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
@@ -122,14 +142,19 @@ export function useForkMapping(args: {
   workspaceId?: string
   otherWorkspaceId?: string
   direction: ForkDirection
+  scope?: ForkMappingScope
   enabled?: boolean
 }) {
   return useQuery({
-    queryKey: forkKeys.mapping(args.workspaceId, args.otherWorkspaceId, args.direction),
+    queryKey: forkKeys.mapping(args.workspaceId, args.otherWorkspaceId, args.direction, args.scope),
     queryFn: ({ signal }) =>
       requestJson(getForkMappingContract, {
         params: { id: args.workspaceId as string },
-        query: { otherWorkspaceId: args.otherWorkspaceId as string, direction: args.direction },
+        query: {
+          otherWorkspaceId: args.otherWorkspaceId as string,
+          direction: args.direction,
+          scope: args.scope,
+        },
         signal,
       }),
     enabled: Boolean(args.workspaceId && args.otherWorkspaceId) && (args.enabled ?? true),
@@ -199,8 +224,9 @@ export function useUnlinkFork() {
       requestJson(unlinkForkContract, { params: { id: vars.workspaceId }, body: vars.body }),
     onSettled: () => {
       // Unlink dissolves the edge: lineage loses the row, and the edge's mappings/diff
-      // no longer exist. Workflows and deployments are untouched.
+      // no longer exist, and the fork's subtree leaves for a Project of its own.
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
+      queryClient.invalidateQueries({ queryKey: projectKeys.all })
       queryClient.invalidateQueries({ queryKey: forkKeys.mappings() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
       queryClient.invalidateQueries({ queryKey: backgroundWorkKeys.lists() })
@@ -308,6 +334,30 @@ export function useUpdateForkSyncDefault() {
       // and every sync preview: each one fingerprints the workspace rows this just rewrote.
       queryClient.invalidateQueries({ queryKey: forkKeys.lineages() })
       queryClient.invalidateQueries({ queryKey: forkKeys.diffs() })
+    },
+  })
+}
+
+/** Creates the secret and mapping together, then refreshes both environments' views. */
+export function useCreateForkSecretMapping() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (variables: { workspaceId: string; body: CreateForkSecretMappingBody }) =>
+      requestJson(createForkSecretMappingContract, {
+        params: { id: variables.workspaceId },
+        body: variables.body,
+      }),
+    onSettled: async (_data, _error, variables) => {
+      const targetId =
+        variables.body.direction === 'push'
+          ? variables.body.otherWorkspaceId
+          : variables.workspaceId
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: forkKeys.mappings() }),
+        queryClient.invalidateQueries({ queryKey: forkKeys.diffs() }),
+        queryClient.invalidateQueries({ queryKey: environmentKeys.workspace(targetId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() }),
+      ])
     },
   })
 }

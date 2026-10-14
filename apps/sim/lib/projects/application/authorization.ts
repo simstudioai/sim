@@ -2,6 +2,7 @@ import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { member, permissionGroup, permissions, project, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
+import { compareStrings } from '@sim/utils/string'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -142,6 +143,42 @@ async function loadProjectAccess(
 }
 
 /** Applies the access rules to one loaded Project; hidden environments never enter the result. */
+interface ProjectEnvironment {
+  id: string
+  name: string
+  forkedFromWorkspaceId: string | null
+}
+
+/**
+ * Roots first, each fork right after the environment it was forked from, siblings by name. A
+ * fork whose parent the viewer cannot see is presented as a root.
+ */
+function orderEnvironments(
+  rows: readonly { id: string; name: string; parentId: string | null }[]
+): ProjectEnvironment[] {
+  const ids = new Set(rows.map((row) => row.id))
+  const children = new Map<string | null, ProjectEnvironment[]>()
+  for (const row of rows) {
+    const parent = row.parentId && ids.has(row.parentId) ? row.parentId : null
+    const siblings = children.get(parent) ?? []
+    siblings.push({ id: row.id, name: row.name, forkedFromWorkspaceId: parent })
+    children.set(parent, siblings)
+  }
+  const ordered: ProjectEnvironment[] = []
+  const visit = (parent: string | null) => {
+    const siblings = (children.get(parent) ?? []).sort(
+      (a, b) => compareStrings(a.name, b.name) || compareStrings(a.id, b.id)
+    )
+    for (const environment of siblings) {
+      ordered.push(environment)
+      visit(environment.id)
+    }
+  }
+  visit(null)
+  if (ordered.length !== rows.length) throw new Error('Project environments contain a fork cycle')
+  return ordered
+}
+
 async function evaluateProjectAccess(
   tx: DbTransaction,
   principal: SessionPrincipal,
@@ -195,17 +232,7 @@ async function evaluateProjectAccess(
     if (record.archivedAt) throw new OrchestrationError('conflict', 'Project is archived')
     refuseCapability('project_issues.use')
   }
-  const visibleIds = new Set(visible.map((row) => row.id))
-  return {
-    record,
-    canAdminister,
-    canUseIssues,
-    environments: visible.map((row) => ({
-      id: row.id,
-      name: row.name,
-      forkedFromWorkspaceId: row.parentId && visibleIds.has(row.parentId) ? row.parentId : null,
-    })),
-  }
+  return { record, canAdminister, canUseIssues, environments: orderEnvironments(visible) }
 }
 
 export type AuthorizedProject = Awaited<ReturnType<typeof evaluateProjectAccess>>

@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import {
   chipVariants,
   cn,
@@ -28,6 +29,8 @@ import {
 
 interface ChatRowProps {
   chat: OrganizationChat
+  /** Shown before the title, such as the projects the chat worked in. */
+  leading?: ReactNode
   isCurrentRoute: boolean
   isSelected: boolean
   isMenuOpen: boolean
@@ -39,6 +42,7 @@ interface ChatRowProps {
 
 function ChatRow({
   chat,
+  leading,
   isCurrentRoute,
   isSelected,
   isMenuOpen,
@@ -66,6 +70,7 @@ function ChatRow({
       onContextMenu={(e) => onContextMenu(e, chat.id)}
       onSelectChat={onSelectChat}
     >
+      {leading}
       <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
       <RowActions
         open={isMenuOpen}
@@ -103,6 +108,8 @@ interface ChatsSectionProps {
   isLoading: boolean
   isCollapsed: boolean
   pathname: string | null
+  /** Renders before each chat's title; the org project view shows the chat's projects. */
+  leadingFor?: (chat: OrganizationChat) => ReactNode
 }
 
 export function ChatsSection({
@@ -111,6 +118,7 @@ export function ChatsSection({
   isLoading,
   isCollapsed,
   pathname,
+  leadingFor,
 }: ChatsSectionProps) {
   const actions = useOrganizationChatActions({ organizationId, chats })
   const { menu, hover, rename, selectedChat, selectedChats, menuOpenChatId } = actions
@@ -140,7 +148,7 @@ export function ChatsSection({
                   <CollapsedChatFlyoutItem
                     key={chat.id}
                     chat={chat}
-                    isCurrentRoute={pathname === chat.href}
+                    isCurrentRoute={pathname === chat.href.split('?')[0]}
                     isSelected={selectedChats.size > 1 && selectedChats.has(chat.id)}
                     onSelectChat={actions.handleChatClick}
                     isMenuOpen={menuOpenChatId === chat.id}
@@ -184,7 +192,8 @@ export function ChatsSection({
                     <ChatRow
                       key={chat.id}
                       chat={chat}
-                      isCurrentRoute={pathname === chat.href}
+                      leading={leadingFor?.(chat)}
+                      isCurrentRoute={pathname === chat.href.split('?')[0]}
                       isSelected={selectedChats.size > 1 && selectedChats.has(chat.id)}
                       isMenuOpen={menuOpenChatId === chat.id}
                       onSelectChat={actions.handleChatClick}

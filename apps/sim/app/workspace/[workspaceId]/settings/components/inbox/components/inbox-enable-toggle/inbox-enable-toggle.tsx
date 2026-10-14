@@ -13,8 +13,8 @@ import {
   Label,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 const INBOX_OPTIONS = [
   { value: 'enabled', label: 'On' },
@@ -22,8 +22,7 @@ const INBOX_OPTIONS = [
 ] as const
 
 export function InboxEnableToggle() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
 
   const { data: config } = useInboxConfig(workspaceId)
   const toggleInbox = useToggleInbox()

@@ -14,7 +14,11 @@ import {
   organizationProviderMock,
   organizationProviderMockFns,
 } from '@sim/testing/mocks/organization-provider.mock'
-import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
+import {
+  createQueryResultMock,
+  reactQueryMock,
+  reactQueryMockFns,
+} from '@sim/testing/mocks/react-query.mock'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,7 +76,11 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
   getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
   useChat: mocks.chat,
 }))
+vi.mock('@/hooks/queries/projects', () => ({
+  useOrganizationProjects: () => ({ data: [], isPending: false }),
+}))
 vi.mock('@/hooks/queries/mothership-chats', () => ({
+  useOrganizationMothershipChats: () => ({ data: [] }),
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
 vi.mock('@/app/o/[organizationId]/home/components/composer', () => ({ Composer: mocks.composer }))
@@ -102,6 +110,7 @@ deploymentShapeMockFns.mockGetDeploymentShape.mockImplementation(deploymentShape
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  reactQueryMockFns.mockUseQuery.mockReturnValue(createQueryResultMock())
   useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
   mocks.activeResource = null

@@ -26,6 +26,7 @@ import {
 import { organizationSkillOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/organization-skill-options'
 import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import type { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { SKILL_CHIP_TRIGGER } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
@@ -36,6 +37,8 @@ import { useVoiceInput } from '@/hooks/use-voice-input'
 import type { ChatContext } from '@/stores/panel'
 
 interface ComposerProps {
+  lookupMode?: boolean
+  onSearchMode?: () => void
   searchEnabled?: boolean
   requestMode?: ChatRequestMode
   onModeChange?: (mode: ChatRequestMode) => void
@@ -58,6 +61,8 @@ interface ComposerProps {
  * carries only the controls that are wired for the organization.
  */
 export function Composer({
+  lookupMode = false,
+  onSearchMode,
   searchEnabled = true,
   requestMode = 'assistant',
   onModeChange,
@@ -74,7 +79,10 @@ export function Composer({
 }: ComposerProps) {
   const attachedFilesRef = useRef(files.attachedFiles)
   attachedFilesRef.current = files.attachedFiles
-  const imagesOnly = requestMode === 'assistant'
+  const imagesOnly = lookupMode || requestMode === 'assistant'
+  /** With the org project view, Search keeps the composer's framed box instead of its own bar. */
+  const projectViewEnabled = useFeatureFlag('org-project-view')
+  const searchBar = imagesOnly && !projectViewEnabled
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -98,7 +106,7 @@ export function Composer({
     contextsEnabled: !imagesOnly,
     initialValue: value,
     initialContexts: restoredContexts,
-    onPasteFiles: files.processFiles,
+    onPasteFiles: lookupMode ? undefined : files.processFiles,
   })
   const { textareaRef } = editor
   const searchBlocked =
@@ -169,7 +177,13 @@ export function Composer({
     isInitialView && !value,
     imagesOnly ? 'search' : 'build'
   )
-  const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
+  const placeholder = lookupMode
+    ? 'Search your sources'
+    : projectViewEnabled && imagesOnly
+      ? 'Ask a question about your sources'
+      : isInitialView
+        ? animatedPlaceholder
+        : 'Send message to Sim'
 
   const submit = () => {
     if (attachedFilesRef.current.some((file) => file.uploading)) return
@@ -184,7 +198,7 @@ export function Composer({
     voice.resetTranscript()
     const contexts = imagesOnly ? [] : editor.getActiveContexts()
     onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
-    editor.clear()
+    if (!lookupMode) editor.clear()
   }
 
   const contextPicker = (kind: 'resources' | 'skills', icon: typeof Plus, label: string) => (
@@ -211,7 +225,7 @@ export function Composer({
     <PromptEditor
       editor={editor}
       placeholder={placeholder}
-      aria-label='Ask Sim'
+      aria-label={lookupMode ? 'Search your sources' : 'Ask Sim'}
       onSubmit={submit}
       className={cn(
         'max-h-[200px] max-md:max-h-[min(200px,calc(var(--mobile-viewport-height,100dvh)*0.25))]',
@@ -220,8 +234,48 @@ export function Composer({
     />
   )
 
+  const modeSelector = showModeSelector && (
+    <ConversationModeSelector
+      value={requestMode}
+      lookupSelected={lookupMode}
+      onSearch={
+        onSearchMode
+          ? () => {
+              if (editor.getActiveContexts().length || files.attachedFiles.length) {
+                toast.info('Remove mentions and attachments before switching to Search.')
+                return
+              }
+              onSearchMode()
+            }
+          : undefined
+      }
+      searchEnabled={searchEnabled}
+      onChange={
+        onModeChange
+          ? (mode) => {
+              if (
+                mode === 'assistant' &&
+                (editor.getActiveContexts().length > 0 ||
+                  files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
+              ) {
+                toast.info(
+                  projectViewEnabled
+                    ? 'Remove resource and skill mentions and non-image attachments before switching to Ask.'
+                    : 'Remove resource and skill mentions and non-image attachments before switching to Search.'
+                )
+                return
+              }
+              onModeChange(mode)
+            }
+          : undefined
+      }
+    />
+  )
+
   const leadingControls = (
     <>
+      {/** With the org project view the mode leads, then what the message carries. */}
+      {projectViewEnabled && modeSelector}
       {imagesOnly && !showModeSelector && (
         <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
       )}
@@ -241,13 +295,7 @@ export function Composer({
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
-      {showModeSelector && (
-        <ConversationModeSelector
-          value={requestMode}
-          searchEnabled={searchEnabled}
-          onChange={onModeChange ? handleModeChange : undefined}
-        />
-      )}
+      {!projectViewEnabled && modeSelector}
     </>
   )
   const voiceControl = voice.isSupported && (
@@ -266,7 +314,7 @@ export function Composer({
       type='button'
       onClick={submit}
       disabled={!canSubmit}
-      aria-label='Send'
+      aria-label={lookupMode ? 'Search' : 'Send'}
       active={canSubmit}
     >
       <ArrowUp className='block size-[16px] text-white dark:text-black' />
@@ -284,22 +332,22 @@ export function Composer({
   return (
     <div
       onKeyDown={handleModeShortcut}
-      onDragEnter={files.handleDragEnter}
+      onDragEnter={lookupMode ? undefined : files.handleDragEnter}
       onDragLeave={files.handleDragLeave}
       onDragOver={files.handleDragOver}
-      onDrop={files.handleDrop}
+      onDrop={lookupMode ? undefined : files.handleDrop}
       className={cn(
         inter.className,
         'relative z-10 mx-auto w-full max-w-chat',
-        !imagesOnly &&
+        !searchBar &&
           'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
-        !imagesOnly && isInitialView && 'shadow-ambient'
+        !searchBar && isInitialView && 'shadow-ambient'
       )}
     >
-      {!imagesOnly && attachmentList}
-      {!imagesOnly && promptEditor}
+      {!searchBar && attachmentList}
+      {!searchBar && promptEditor}
 
-      {imagesOnly ? (
+      {searchBar ? (
         <SearchInputBar
           floating={isInitialView}
           attachments={attachmentList}
@@ -309,13 +357,15 @@ export function Composer({
           onSubmit={submit}
           onPaste={editor.handlePaste}
           placeholder={placeholder}
-          aria-label='Ask Sim'
+          aria-label={lookupMode ? 'Search your sources' : 'Ask Sim'}
           leadingControls={leadingControls}
           voiceControl={voiceControl}
           submitControl={submitControl}
         />
       ) : (
         <InputToolbar
+          /** Search answers from indexed sources, so no model, speed or effort applies to it. */
+          showModelSelector={!imagesOnly}
           plan={requestMode === 'plan'}
           leadingControls={leadingControls}
           voiceControl={voiceControl}

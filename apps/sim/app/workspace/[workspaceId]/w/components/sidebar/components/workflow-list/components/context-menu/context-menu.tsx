@@ -6,12 +6,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import {
   Download,
   Duplicate,
   Eye,
+  FolderInput,
   FolderPlus,
   ImageUp,
   Lock,
@@ -26,9 +30,15 @@ import {
   Unlock,
   X,
 } from '@sim/emcn/icons'
+import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
 import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 
 interface ContextMenuProps {
+  /** Files the item under another folder; the value is a folder id or the root sentinel. */
+  onMove?: (optionValue: string) => void
+  /** Destinations for `onMove`; the submenu renders only when this is non-empty. */
+  moveOptions?: MoveOptionNode[]
   isOpen: boolean
   position: { x: number; y: number }
   menuRef: React.RefObject<HTMLDivElement | null>
@@ -131,6 +141,8 @@ export function ContextMenu({
   onCreate,
   onCreateFolder,
   onDuplicate,
+  onMove,
+  moveOptions,
   onExport,
   onDelete,
   onCloseTab,
@@ -170,6 +182,8 @@ export function ContextMenu({
   disableUploadLogo = false,
   selectedCount = 1,
 }: ContextMenuProps) {
+  /** `Move to` needs a NON-EMPTY `moveOptions`, not just the handler, to earn its row. */
+  const hasMoveAction = !!(onMove && moveOptions && moveOptions.length > 0)
   const hasActionsAboveDestructive =
     onCopyLink ||
     (showOpenInNewTab && onOpenInNewTab) ||
@@ -182,6 +196,7 @@ export function ContextMenu({
     (showLock && onToggleLock) ||
     (showUploadLogo && onUploadLogo) ||
     (showDuplicate && onDuplicate) ||
+    hasMoveAction ||
     (showExport && onExport)
   const hasDestructiveSection =
     (showLeave && onLeave) ||
@@ -365,6 +380,20 @@ export function ContextMenu({
             <Duplicate />
             {selectionActionLabel('Duplicate', selectedCount)}
           </DropdownMenuItem>
+        )}
+        {hasMoveAction && onMove && moveOptions && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <FolderInput />
+              {selectionActionLabel('Move', selectedCount, 'Move to')}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {renderMoveOptions(moveOptions, (value) => {
+                onMove(value)
+                onClose()
+              })}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
         {showExport && onExport && (
           <DropdownMenuItem

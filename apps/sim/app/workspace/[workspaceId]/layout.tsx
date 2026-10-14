@@ -15,10 +15,12 @@ import {
 } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
+import { isOrgProjectViewEnabled } from '@/lib/projects/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
+import { ProjectBuildSidebar } from '@/app/workspace/[workspaceId]/components/project-build-sidebar'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
 import {
@@ -130,6 +132,7 @@ async function WorkspaceContent({
     workflowTestsEnabled,
     changelogEnabled,
     desktopExecutorRegistered,
+    orgProjectViewEnabled,
     computerUseEnabled,
   ] = await Promise.all([
     cookies(),
@@ -148,6 +151,7 @@ async function WorkspaceContent({
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
+    isOrgProjectViewEnabled(hostContext.hostOrganizationId),
     isComputerUseAvailable(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
@@ -164,6 +168,7 @@ async function WorkspaceContent({
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
+          'org-project-view': orgProjectViewEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>
@@ -186,13 +191,17 @@ async function WorkspaceContent({
                   <SettingsNavigationProvider>
                     <WorkspaceChrome
                       sidebar={
-                        <Sidebar
-                          organizationHref={organizationHref}
-                          desktopExecutor={{
-                            available: isDesktopBackgroundExecutorAvailable(),
-                            registered: desktopExecutorRegistered,
-                          }}
-                        />
+                        orgProjectViewEnabled ? (
+                          <ProjectBuildSidebar organizationHref={organizationHref} />
+                        ) : (
+                          <Sidebar
+                            organizationHref={organizationHref}
+                            desktopExecutor={{
+                              available: isDesktopBackgroundExecutorAvailable(),
+                              registered: desktopExecutorRegistered,
+                            }}
+                          />
+                        )
                       }
                       initialSidebarCollapsed={initialSidebarCollapsed}
                     >

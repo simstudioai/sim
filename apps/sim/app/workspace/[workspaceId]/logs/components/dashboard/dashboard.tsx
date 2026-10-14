@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { LineChart, Loader } from '@sim/emcn'
-import { useParams } from 'next/navigation'
+import { useResourceWorkspaceId } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import {
   DashboardSegmentsContext,
   type SegmentSelectionMode,
@@ -73,7 +73,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
 
   const { workflowIds, toggleWorkflowId, timeRange } = useLogFilters()
 
-  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const workspaceId = useResourceWorkspaceId()
   const { data: allWorkflowList = [], isPending: isWorkflowsPending } = useWorkflows(workspaceId)
 
   const expandedWorkflowId = workflowIds.length === 1 ? workflowIds[0] : null

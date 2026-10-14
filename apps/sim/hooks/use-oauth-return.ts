@@ -31,6 +31,7 @@ import { SETTINGS_RETURN_URL_KEY } from '@/lib/navigation/settings-return'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { searchSetupAccessParam } from '@/lib/sim-search/search-params'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 import {
   organizationCredentialKeys,
@@ -275,9 +276,14 @@ export function useOAuthReturnRouter() {
   const router = useRouter()
   const params = useParams()
   const queryClient = useQueryClient()
-  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
-  const organizationId =
-    typeof params.organizationId === 'string' ? params.organizationId : undefined
+  const host = useOptionalWorkspaceHostContext()
+  const workspaceId =
+    host?.workspace.id ?? (typeof params.workspaceId === 'string' ? params.workspaceId : undefined)
+  const organizationId = workspaceId
+    ? undefined
+    : typeof params.organizationId === 'string'
+      ? params.organizationId
+      : undefined
   const handledRef = useRef(false)
   const chatAttemptHandledRef = useRef(false)
 

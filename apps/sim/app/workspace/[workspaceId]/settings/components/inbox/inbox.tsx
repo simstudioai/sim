@@ -1,7 +1,6 @@
 'use client'
 
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -14,10 +13,10 @@ import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { useInboxConfig } from '@/hooks/queries/inbox'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 export function Inbox() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
 
   const { data: config, isLoading, error } = useInboxConfig(workspaceId)
   const workspacePermissions = useUserPermissionsContext()

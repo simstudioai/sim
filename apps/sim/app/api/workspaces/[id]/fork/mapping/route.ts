@@ -1,4 +1,5 @@
 import {
+  createForkSecretMappingContract,
   getForkMappingContract,
   updateForkMappingContract,
 } from '@/lib/api/contracts/workspace-fork'
@@ -8,6 +9,7 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { internalForkErrorPolicy } from '@/ee/workspace-forking/api/route-policies'
+import { createWorkspaceForkSecretMapping } from '@/ee/workspace-forking/application/create-secret-mapping'
 import { getWorkspaceForkMappingDetails } from '@/ee/workspace-forking/application/mapping-details'
 import { forkOperations } from '@/ee/workspace-forking/application/operations'
 import { updateWorkspaceForkMappings } from '@/ee/workspace-forking/application/recovery-and-mappings'
@@ -37,4 +39,15 @@ export const PUT = defineInternalJsonRoute({
   }),
   useCase: updateWorkspaceForkMappings,
   present: (result) => ({ success: true as const, ...result }),
+})
+
+export const POST = defineInternalJsonRoute({
+  contract: createForkSecretMappingContract,
+  auth: internalSessionAuth,
+  operation: forkOperations.createSecretMapping,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal fork request policy' }),
+  errorPolicy: internalForkErrorPolicy,
+  mapInput: ({ params, body }) => ({ workspaceId: params.id, ...body }),
+  useCase: createWorkspaceForkSecretMapping,
+  present: ({ name }) => ({ name }),
 })

@@ -34,8 +34,13 @@ import {
 import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
 
 /** URL selection and event attention are installed before the chat starts streaming. */
-export function useResourcePanelController() {
+export function useResourcePanelController(options?: {
+  defaultExpanded?: boolean
+  onResourceSelected?: () => void
+}) {
   const isCompactLayout = useIsMobile()
+  const selectionCallbackRef = useRef(options?.onResourceSelected)
+  selectionCallbackRef.current = options?.onResourceSelected
   /**
    * URL is the single source of truth for the selected resource. `Home` renders
    * client-side, so nuqs reads `?resource=` from the URL on mount — the same
@@ -81,8 +86,9 @@ export function useResourcePanelController() {
     () => [activeResourceParam, setActiveResourceUrl],
     [activeResourceParam, setActiveResourceUrl]
   )
+  const notifyResourceSelected = useCallback(() => selectionCallbackRef.current?.(), [])
   const effectiveActiveResourceIdRef = useRef<string | null>(null)
-  const [isResourceCollapsed, setIsResourceCollapsedState] = useState(true)
+  const [isResourceCollapsed, setIsResourceCollapsedState] = useState(!options?.defaultExpanded)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
   const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
@@ -123,12 +129,14 @@ export function useResourcePanelController() {
     }
     if (presentation.activateResource && activeResourceId !== resourceId) {
       activeResourceParamRef.current = resourceId
+      notifyResourceSelected()
       setActiveResourceUrl(resourceId)
     }
   }
 
   return {
     isCompactLayout,
+    notifyResourceSelected,
     activeResourceParam,
     activeResourceParamRef,
     activeResourceState,
@@ -161,7 +169,7 @@ export function useChatResourcePanel(
     | 'setActiveResourceId'
   >,
   controller: ReturnType<typeof useResourcePanelController>,
-  userId?: string
+  options: { userId?: string; keepEmptyPanel?: boolean } = {}
 ) {
   const {
     desktopScopeId,
@@ -172,8 +180,10 @@ export function useChatResourcePanel(
     removeResource,
     setActiveResourceId,
   } = chat
+  const { userId, keepEmptyPanel = false } = options
   const {
     isCompactLayout,
+    notifyResourceSelected,
     activeResourceParam,
     activeResourceParamRef,
     isResourceCollapsed,
@@ -219,12 +229,12 @@ export function useChatResourcePanel(
     (resourceId: string) => {
       resourceSelectionOwnedByUserRef.current = true
       clearResourceActivity(resourceId)
-      if (effectiveActiveResourceIdRef.current === resourceId) return
       effectiveActiveResourceIdRef.current = resourceId
       activeResourceParamRef.current = resourceId
+      notifyResourceSelected()
       setActiveResourceId(resourceId)
     },
-    [setActiveResourceId, clearResourceActivity]
+    [setActiveResourceId, clearResourceActivity, notifyResourceSelected]
   )
 
   const desktopTabResourceOptions = {
@@ -277,7 +287,7 @@ export function useChatResourcePanel(
   useEffect(() => {
     const previousChatId = resourceAttentionChatIdRef.current
     resourceAttentionChatIdRef.current = resolvedChatId
-    if (!resolvedChatId) {
+    if (!resolvedChatId && !keepEmptyPanel) {
       setResourceCollapsed(true)
     }
     if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
@@ -285,7 +295,7 @@ export function useChatResourcePanel(
       resourceSelectionOwnedByUserRef.current = false
       setResourceActivityIds(new Set())
     }
-  }, [resolvedChatId, setResourceCollapsed, setResourceCollapseOwnedByUser])
+  }, [resolvedChatId, setResourceCollapsed, setResourceCollapseOwnedByUser, keepEmptyPanel])
 
   useEffect(() => {
     if (
@@ -303,10 +313,10 @@ export function useChatResourcePanel(
   }, [isCompactLayout, resources, resourceCollapseOwnedByUser, setResourceCollapsed])
 
   useEffect(() => {
-    if (resources.length === 0 && !isResourceCollapsedRef.current) {
+    if (!keepEmptyPanel && resources.length === 0 && !isResourceCollapsedRef.current) {
       setResourceCollapsed(true)
     }
-  }, [resources, setResourceCollapsed])
+  }, [resources, setResourceCollapsed, keepEmptyPanel])
 
   useEffect(() => {
     const resourceIds = new Set(resources.map(getChatResourceSelectionId))

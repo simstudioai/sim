@@ -18,6 +18,7 @@ import type {
   RosterPendingInvitation,
   RosterWorkspaceAccess,
 } from '@/lib/api/contracts/organization'
+import type { ProjectRecord } from '@/lib/api/contracts/projects'
 import type { Member } from '@/lib/workspaces/organization'
 import {
   ManageCreditsModal,
@@ -41,6 +42,7 @@ import {
   useUpdateInvitation,
   useUpdateOrganizationMemberRole,
 } from '@/hooks/queries/organization'
+import { useOrganizationProjects } from '@/hooks/queries/projects'
 
 const logger = createLogger('OrganizationMemberLists')
 
@@ -89,6 +91,19 @@ interface OrganizationMemberListsProps {
  * workspace's members and pending grants. A single search box filters every
  * section; sections with no matches collapse while a search is active.
  */
+/** Qualify environment names that repeat across projects. */
+function projectEnvironmentLabel(
+  projects: readonly ProjectRecord[] | undefined,
+  workspaceId: string,
+  fallback: string
+): string {
+  for (const project of projects ?? []) {
+    const environment = project.environments.find((entry) => entry.id === workspaceId)
+    if (environment) return `${project.name} / ${environment.name}`
+  }
+  return fallback
+}
+
 export function OrganizationMemberLists({
   canManage,
   organizationId,
@@ -99,6 +114,7 @@ export function OrganizationMemberLists({
   onRemoveMember,
   onTransferOwnership,
 }: OrganizationMemberListsProps) {
+  const projects = useOrganizationProjects(organizationId, { enabled: canManage })
   const [creditsTarget, setCreditsTarget] = useState<ManageCreditsTarget | null>(null)
 
   const updateMemberRole = useUpdateOrganizationMemberRole()
@@ -465,10 +481,10 @@ export function OrganizationMemberLists({
         return (
           <MemberSection
             key={`workspace-${workspace.id}`}
-            label={`${workspace.name} (${totalCount})`}
+            label={`${projectEnvironmentLabel(projects.data, workspace.id, workspace.name)} (${totalCount})`}
             isEmpty={visibleMembers.length + visibleInvites.length === 0}
             emptyText={
-              isActiveSearch ? `No members matching “${query}”` : 'No members in this workspace'
+              isActiveSearch ? `No members matching “${query}”` : 'No members in this environment'
             }
           >
             {visibleMembers.map(({ member, access }) =>

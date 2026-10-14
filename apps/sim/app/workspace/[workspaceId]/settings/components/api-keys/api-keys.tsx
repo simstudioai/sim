@@ -6,7 +6,6 @@ import { CircleInfo, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ApiKey } from '@/lib/api/contracts/api-keys'
 import { useSession } from '@/lib/auth/auth-client'
@@ -29,6 +28,7 @@ import {
   useDeleteApiKey,
   useUpdateWorkspaceApiKeySettings,
 } from '@/hooks/queries/api-keys'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 import { CreateApiKeyModal } from './components'
 
 const logger = createLogger('ApiKeys')
@@ -81,8 +81,7 @@ interface ApiKeysProps {
 export function ApiKeys({ scope = 'workspace' }: ApiKeysProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id
-  const params = useParams<{ workspaceId?: string }>()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const workspaceId = useSettingsWorkspaceId()
   const hostContext = useOptionalWorkspaceHostContext()
   const workspacePermissions = useUserPermissionsContext()
   const isWorkspaceScope = scope === 'workspace'

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Chip, ChipInput, ChipModalTabs, cn } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
@@ -46,6 +46,7 @@ import { useRestoreWorkspaceFileFolder } from '@/hooks/queries/workspace-file-fo
 import { useRestoreWorkspaceFile } from '@/hooks/queries/workspace-files'
 import { useLoadMoreSentinel } from '@/hooks/use-load-more-sentinel'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
@@ -110,11 +111,12 @@ const RESOURCE_TYPE_TO_MOTHERSHIP: Record<Exclude<ResourceType, 'all'>, Mothersh
   chat: 'task',
 }
 
-interface DeletedResource {
+export interface DeletedResource {
   id: string
   name: string
   type: Exclude<ResourceType, 'all'>
   deletedAt: Date
+  workspaceId: string
   /** The parent folder, for a folder row. */
   parentId: string | null
 }
@@ -185,16 +187,21 @@ function matchesActiveTab(resource: DeletedResource, activeTab: RecentlyDeletedF
   return RECENTLY_DELETED_TYPES_BY_FILTER[activeTab].includes(resource.type)
 }
 
-export function RecentlyDeleted() {
-  const params = useParams()
+interface RecentlyDeletedProps {
+  includeChats?: boolean
+  onViewResource?: (resource: DeletedResource) => void
+}
+
+export function RecentlyDeleted({ includeChats = true, onViewResource }: RecentlyDeletedProps) {
   const router = useRouter()
-  const workspaceId = params?.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
-  const [{ tab: activeTab }, setRecentlyDeletedFilters] = useQueryStates(
+  const [{ tab: requestedTab }, setRecentlyDeletedFilters] = useQueryStates(
     recentlyDeletedParsers,
     recentlyDeletedUrlKeys
   )
+  const activeTab = requestedTab === 'chat' && !includeChats ? 'all' : requestedTab
 
   const {
     sort: sortColumn,
@@ -251,13 +258,16 @@ export function RecentlyDeleted() {
 
   const filtered = useMemo(() => {
     const items: DeletedResource[] = (deletedQuery.data?.pages ?? []).flatMap((page) =>
-      page.items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        type: item.type,
-        deletedAt: new Date(item.deletedAt),
-        parentId: item.parentId,
-      }))
+      page.items
+        .filter((item) => includeChats || item.type !== 'chat')
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          deletedAt: new Date(item.deletedAt),
+          workspaceId,
+          parentId: item.parentId,
+        }))
     )
 
     const normalized = debouncedSearch.toLowerCase()
@@ -272,11 +282,15 @@ export function RecentlyDeleted() {
     }
 
     return items
-  }, [deletedQuery.data, debouncedSearch, activeTab, restoredItems])
+  }, [deletedQuery.data, debouncedSearch, activeTab, restoredItems, includeChats, workspaceId])
 
   const showNoResults = debouncedSearch !== '' && filtered.length === 0
 
   function handleView(resource: DeletedResource) {
+    if (onViewResource) {
+      onViewResource(resource)
+      return
+    }
     if (resource.type === 'folder') {
       const setExpanded = useFolderStore.getState().setExpanded
       const byId = new Map<string, WorkflowFolder>()
@@ -382,7 +396,10 @@ export function RecentlyDeleted() {
       </div>
 
       <ChipModalTabs
-        tabs={TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
+        tabs={TABS.filter((tab) => tab.id !== 'chat' || includeChats).map((tab) => ({
+          value: tab.id,
+          label: tab.label,
+        }))}
         value={activeTab}
         onChange={(v) => setRecentlyDeletedFilters({ tab: v as RecentlyDeletedFilter })}
       />

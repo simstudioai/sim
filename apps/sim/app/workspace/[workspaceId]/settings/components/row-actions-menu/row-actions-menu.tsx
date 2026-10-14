@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import {
   chipVariants,
   cn,
@@ -17,6 +18,8 @@ export interface RowAction {
   disabled?: boolean
   /** Hover tooltip on the item (e.g. why it's disabled) — mirrors `SettingsAction.tooltip`. */
   tooltip?: string
+  /** Opens an inline editor that takes focus: runs once the menu has closed and released focus. */
+  focusesEditor?: boolean
 }
 
 interface RowActionsMenuProps {
@@ -41,6 +44,7 @@ interface RowActionsMenuProps {
  * "Remove" with no reason attached.
  */
 export function RowActionsMenu({ label, actions, triggerClassName }: RowActionsMenuProps) {
+  const pendingEditorRef = useRef<(() => void) | null>(null)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -48,12 +52,24 @@ export function RowActionsMenu({ label, actions, triggerClassName }: RowActionsM
           <MoreHorizontal className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
+      <DropdownMenuContent
+        align='end'
+        onCloseAutoFocus={(event) => {
+          const openEditor = pendingEditorRef.current
+          if (!openEditor) return
+          pendingEditorRef.current = null
+          event.preventDefault()
+          openEditor()
+        }}
+      >
         {actions.map((action) => {
           const item = (
             <DropdownMenuItem
               key={action.label}
-              onSelect={action.onSelect}
+              onSelect={() => {
+                if (action.focusesEditor) pendingEditorRef.current = action.onSelect
+                else action.onSelect()
+              }}
               disabled={action.disabled}
               aria-label={
                 action.disabled && action.tooltip

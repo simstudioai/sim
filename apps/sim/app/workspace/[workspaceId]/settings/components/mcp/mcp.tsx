@@ -5,7 +5,6 @@ import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/
 import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { McpIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -50,6 +49,7 @@ import {
   useUpdateMcpServer,
 } from '@/hooks/queries/mcp'
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -182,8 +182,7 @@ function buildEditInitialData(server: McpServer) {
 }
 
 export function MCP() {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
   const workspacePermissions = useUserPermissionsContext()
   const canEdit = canMutateWorkspaceSettingsSection('mcp', workspacePermissions)
   const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {

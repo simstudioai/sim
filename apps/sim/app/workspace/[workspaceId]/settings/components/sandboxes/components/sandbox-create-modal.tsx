@@ -11,7 +11,6 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -31,6 +30,7 @@ import {
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { type Sandbox, useCreateSandbox, useSandboxes } from '@/hooks/queries/sandboxes'
+import { useSettingsWorkspaceId } from '@/hooks/use-settings-workspace-id'
 
 interface SandboxCreateModalProps {
   open: boolean
@@ -58,8 +58,7 @@ export function SandboxCreateModal({
   defaultLanguage,
   onCreated,
 }: SandboxCreateModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useSettingsWorkspaceId()
 
   // Keyed off `open` so the list is not fetched by every mounted picker, only by
   // one the user actually opened. It shares the picker's cache entry either way.

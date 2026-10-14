@@ -21,7 +21,6 @@ import {
 import { Loader, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import { type FieldErrors, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
@@ -33,6 +32,7 @@ import {
 } from '@/lib/uploads/client/admission'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { useResourceWorkspaceId } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
@@ -171,8 +171,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   onOpenChange,
   folderId = null,
 }: CreateBaseModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useResourceWorkspaceId()
 
   const createKnowledgeBaseMutation = useCreateKnowledgeBase()
   const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase()

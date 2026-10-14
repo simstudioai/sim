@@ -682,6 +682,57 @@ describe('Project foundation at the database and application boundary', () => {
   )
 
   check(
+    'orders environments roots first, each fork after its parent, siblings by name',
+    async () => {
+      const f = await fixture(true, 1)
+      const [root] = f.ids
+      /** Ascending ids, assigned so id order disagrees with fork order. */
+      const [staging, sandbox, dev] = Array.from({ length: 3 }, () => generateId()).sort()
+      await db.transaction(async (tx) => {
+        for (const [id, name, parent] of [
+          [staging, 'Staging', root],
+          [dev, 'Dev', root],
+          [sandbox, 'Sandbox', dev],
+        ] as const) {
+          await tx.insert(workspace).values({
+            id,
+            projectId: f.projectId,
+            name,
+            ownerId: f.ownerId,
+            billedAccountUserId: f.ownerId,
+            organizationId: f.organizationId,
+            workspaceMode: 'organization',
+            forkedFromWorkspaceId: parent,
+          })
+          await tx.insert(permissions).values({
+            id: generateId(),
+            entityType: 'workspace',
+            entityId: id,
+            userId: f.ownerId,
+            permissionType: 'admin',
+          })
+        }
+      })
+      const result = await getProject.execute({
+        principal: f.owner,
+        input: { projectId: f.projectId },
+        request,
+      })
+      expect(
+        result.project.environments.map(({ id, forkedFromWorkspaceId }) => [
+          id,
+          forkedFromWorkspaceId,
+        ])
+      ).toEqual([
+        [root, null],
+        [dev, root],
+        [sandbox, dev],
+        [staging, root],
+      ])
+    }
+  )
+
+  check(
     'hides inaccessible environments and denies mismatched scopes and workspace keys',
     async () => {
       const f = await fixture()
