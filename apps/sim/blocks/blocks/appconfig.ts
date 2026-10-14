@@ -7,7 +7,7 @@ export const AppConfigBlock: BlockConfig = {
   name: 'AWS AppConfig',
   description: 'Manage and retrieve configuration with AWS AppConfig',
   longDescription:
-    'Integrate AWS AppConfig into workflows. Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.',
+    'Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.',
   docsLink: 'https://docs.sim.ai/integrations/appconfig',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

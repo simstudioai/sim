@@ -93,7 +93,7 @@ export const AhrefsBlock: BlockConfig = {
   description: 'SEO analysis with Ahrefs',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs Enterprise plan with API access.',
+    'Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs API key with access to the selected endpoints; API v3 is available on Lite and higher plans.',
   docsLink: 'https://docs.sim.ai/integrations/ahrefs',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

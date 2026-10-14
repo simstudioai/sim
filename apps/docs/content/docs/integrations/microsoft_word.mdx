@@ -28,7 +28,7 @@ Every operation identifies a document by its **drive item ID**, not by its file 
 | `**bold**`, `*italic*` | Bold and italic text |
 | Anything else | A plain paragraph |
 
-Unsupported Markdown is left as visible text rather than being dropped, so nothing goes missing silently.
+Unsupported Markdown remains visible as text.
 
 **Replace Content** overwrites the whole document — its previous content and formatting are discarded. To add to a document instead, use **Append Content**, which adds plain paragraphs to the end and leaves everything already there untouched.
 
@@ -52,15 +52,33 @@ Word splits a sentence across several internal runs whenever formatting changes 
 
 ## Permissions
 
-Connecting a Microsoft account grants Sim `Files.Read` and `Files.ReadWrite`, the permissions Microsoft Graph requires to read and write drive items. The same permissions cover SharePoint document libraries the account can already reach — Sim never gains access to anything the signed-in account could not open itself.
+The Microsoft connection requests `Files.Read`, `Files.ReadWrite`, `Files.Read.All`, and `Files.ReadWrite.All`, alongside identity and offline-access scopes. The delegated `.All` scopes cover files in SharePoint libraries the signed-in account can reach; an older connection may need **Reconnect** to grant them. These scopes do not grant access beyond that account's existing file permissions. See the [Microsoft Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Microsoft Word into the workflow. Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.
+Sim requests these scopes when someone connects a Microsoft Word account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-word` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Files.Read` | Read your Word documents in OneDrive |
+| `Files.ReadWrite` | Read, create, and edit your Word documents in OneDrive |
+| `Files.Read.All` | Read Word documents you can access, including SharePoint libraries |
+| `Files.ReadWrite.All` | Read, create, and edit Word documents you have access to, including SharePoint libraries |
+| `offline_access` | Access account when not using the application |
+
+## Use the block [#usage-instructions]
+
+Create .docx documents from text, fill a formatted template by substituting its placeholders, read a document back as text, replace or append content, find and replace text across the body plus headers and footers, list and search documents in OneDrive or SharePoint, and export a document as PDF.
 
 ## Actions
 
@@ -269,25 +287,5 @@ Convert a Microsoft Word (.docx) document to PDF using Microsoft Graph and retur
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `file` | file | The converted PDF, stored in execution files |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Microsoft Word account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-word` |
-| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `openid` | Standard authentication |
-| `profile` | Access profile information |
-| `email` | Access email address |
-| `Files.Read` | Read your Word documents in OneDrive |
-| `Files.ReadWrite` | Read, create, and edit your Word documents in OneDrive |
-| `Files.Read.All` | Read Word documents you can access, including SharePoint libraries |
-| `Files.ReadWrite.All` | Read, create, and edit Word documents you have access to, including SharePoint libraries |
-| `offline_access` | Access account when not using the application |
 
 

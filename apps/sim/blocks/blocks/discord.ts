@@ -16,7 +16,7 @@ export const DiscordBlock: BlockConfig = {
   description: 'Interact with Discord',
   authMode: AuthMode.BotToken,
   longDescription:
-    'Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.',
+    'Manage Discord messages, threads, channels, roles, members, invites, and webhooks.',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#5865F2',

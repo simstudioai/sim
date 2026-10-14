@@ -15,17 +15,30 @@ Use [Google Calendar](https://calendar.google.com) to manage events and calendar
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Google Calendar into the workflow. Can create, read, update, and list calendar events.
+Sim requests these scopes when someone connects a Google Calendar account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-calendar` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/calendar` | View and manage calendar |
+
+## Use the block [#usage-instructions]
+
+Manage events, calendars, attendees, availability, and sharing. Event triggers can start workflows.
 
 ## Actions
 
 ### Google Calendar Create Event
 
-Create a new event in Google Calendar. Returns API-aligned fields only.
+Create a new event in Google Calendar.
 
 #### Input
 
@@ -63,7 +76,7 @@ Create a new event in Google Calendar. Returns API-aligned fields only.
 
 ### Google Calendar List Events
 
-List events from Google Calendar. Returns API-aligned fields only.
+List events from Google Calendar.
 
 #### Input
 
@@ -87,7 +100,7 @@ List events from Google Calendar. Returns API-aligned fields only.
 
 ### Google Calendar Get Event
 
-Get a specific event from Google Calendar. Returns API-aligned fields only.
+Get a specific event from Google Calendar.
 
 #### Input
 
@@ -114,7 +127,7 @@ Get a specific event from Google Calendar. Returns API-aligned fields only.
 
 ### Google Calendar Update Event
 
-Update an existing event in Google Calendar. Returns API-aligned fields only.
+Update an existing event in Google Calendar.
 
 #### Input
 
@@ -153,7 +166,7 @@ Update an existing event in Google Calendar. Returns API-aligned fields only.
 
 ### Google Calendar Delete Event
 
-Delete an event from Google Calendar. Returns API-aligned fields only.
+Delete an event from Google Calendar.
 
 #### Input
 
@@ -172,7 +185,7 @@ Delete an event from Google Calendar. Returns API-aligned fields only.
 
 ### Google Calendar Move Event
 
-Move an event to a different calendar. Returns API-aligned fields only.
+Move an event to a different calendar.
 
 #### Input
 
@@ -201,7 +214,7 @@ Move an event to a different calendar. Returns API-aligned fields only.
 
 ### Google Calendar Get Instances
 
-Get instances of a recurring event from Google Calendar. Returns API-aligned fields only.
+Get instances of a recurring event from Google Calendar.
 
 #### Input
 
@@ -224,7 +237,7 @@ Get instances of a recurring event from Google Calendar. Returns API-aligned fie
 
 ### Google Calendar List Calendars
 
-List all calendars in the user's calendar list. Returns API-aligned fields only.
+List all calendars in the user's calendar list.
 
 #### Input
 
@@ -254,7 +267,7 @@ List all calendars in the user's calendar list. Returns API-aligned fields only.
 
 ### Google Calendar Quick Add
 
-Create events from natural language text. Returns API-aligned fields only.
+Create events from natural language text.
 
 #### Input
 
@@ -283,7 +296,7 @@ Create events from natural language text. Returns API-aligned fields only.
 
 ### Google Calendar Invite Attendees
 
-Invite attendees to an existing Google Calendar event. Returns API-aligned fields only.
+Invite attendees to an existing Google Calendar event.
 
 #### Input
 
@@ -313,7 +326,7 @@ Invite attendees to an existing Google Calendar event. Returns API-aligned field
 
 ### Google Calendar Respond to Invitation
 
-RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched. Returns API-aligned fields only.
+RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched.
 
 #### Input
 
@@ -342,7 +355,7 @@ RSVP to a Google Calendar event (accept, decline, or tentative) as the connected
 
 ### Google Calendar Free/Busy
 
-Query free/busy information for one or more Google Calendars. Returns API-aligned fields only.
+Query free/busy information for one or more Google Calendars.
 
 #### Input
 
@@ -363,7 +376,7 @@ Query free/busy information for one or more Google Calendars. Returns API-aligne
 
 ### Google Calendar Create Calendar
 
-Create a new secondary calendar. Returns API-aligned fields only.
+Create a new secondary calendar.
 
 #### Input
 
@@ -386,7 +399,7 @@ Create a new secondary calendar. Returns API-aligned fields only.
 
 ### Google Calendar Update Calendar
 
-Update a secondary calendar's metadata. Returns API-aligned fields only.
+Update a secondary calendar's metadata.
 
 #### Input
 
@@ -410,7 +423,7 @@ Update a secondary calendar's metadata. Returns API-aligned fields only.
 
 ### Google Calendar Delete Calendar
 
-Permanently delete a secondary calendar. Returns API-aligned fields only.
+Permanently delete a secondary calendar.
 
 #### Input
 
@@ -427,7 +440,7 @@ Permanently delete a secondary calendar. Returns API-aligned fields only.
 
 ### Google Calendar Share Calendar
 
-Grant a user, group, or domain access to a calendar. Returns API-aligned fields only.
+Grant a user, group, or domain access to a calendar.
 
 #### Input
 
@@ -449,7 +462,7 @@ Grant a user, group, or domain access to a calendar. Returns API-aligned fields 
 
 ### Google Calendar Update Sharing
 
-Change the access role granted by an existing calendar sharing (ACL) rule. Returns API-aligned fields only.
+Change the access role granted by an existing calendar sharing (ACL) rule.
 
 #### Input
 
@@ -470,7 +483,7 @@ Change the access role granted by an existing calendar sharing (ACL) rule. Retur
 
 ### Google Calendar List Sharing
 
-List the access control rules (sharing) for a calendar. Returns API-aligned fields only.
+List the access control rules (sharing) for a calendar.
 
 #### Input
 
@@ -493,7 +506,7 @@ List the access control rules (sharing) for a calendar. Returns API-aligned fiel
 
 ### Google Calendar Remove Sharing
 
-Revoke an access control rule (sharing) from a calendar. Returns API-aligned fields only.
+Revoke an access control rule (sharing) from a calendar.
 
 #### Input
 
@@ -509,11 +522,13 @@ Revoke an access control rule (sharing) from a calendar. Returns API-aligned fie
 | `ruleId` | string | Removed ACL rule ID |
 | `deleted` | boolean | Whether removal was successful |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+These triggers poll for new data on a schedule.
 
 ### Google Calendar Event Trigger
 
@@ -533,7 +548,7 @@ Triggers when events are created, updated, or cancelled in Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `event` | object | event output from the tool |
+| `event` | object |  |
 |   ↳ `id` | string | Calendar event ID |
 |   ↳ `status` | string | Event status \(confirmed, tentative, cancelled\) |
 |   ↳ `eventType` | string | Change type: "created", "updated", or "cancelled" |
@@ -550,21 +565,4 @@ Triggers when events are created, updated, or cancelled in Google Calendar
 |   ↳ `organizer` | json | Event organizer |
 | `calendarId` | string | Calendar ID |
 | `timestamp` | string | Event processing timestamp in ISO format |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Google Calendar account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-calendar` |
-| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `https://www.googleapis.com/auth/userinfo.email` | View email address |
-| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
-| `https://www.googleapis.com/auth/calendar` | View and manage calendar |
-
 

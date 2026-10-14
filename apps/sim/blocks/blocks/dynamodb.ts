@@ -9,7 +9,7 @@ export const DynamoDBBlock: BlockConfig = {
   description: 'Get, put, query, scan, update, and delete items in Amazon DynamoDB tables',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.',
+    'Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.',
   docsLink: 'https://docs.sim.ai/integrations/dynamodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,

@@ -7,7 +7,7 @@ export const QdrantBlock: BlockConfig = {
   name: 'Qdrant',
   description: 'Use Qdrant vector database',
   authMode: AuthMode.ApiKey,
-  longDescription: 'Integrate Qdrant into the workflow. Can upsert, search, and fetch points.',
+  longDescription: 'Upsert, search, and fetch points.',
   docsLink: 'https://docs.sim.ai/integrations/qdrant',
   category: 'tools',
   integrationType: IntegrationType.Databases,

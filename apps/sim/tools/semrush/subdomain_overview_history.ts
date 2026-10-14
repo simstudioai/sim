@@ -19,7 +19,7 @@ export const semrushSubdomainOverviewHistoryTool: ToolConfig<
 > = {
   id: 'semrush_subdomain_overview_history',
   name: 'Semrush Subdomain Overview History',
-  description: 'Get the historical trend of a subdomain organic and paid search totals.',
+  description: 'Get the historical trend of a subdomain’s organic and paid search totals.',
   version: '1.0.0',
 
   params: {

@@ -38,7 +38,7 @@ export function circlebackSetupInstructions(eventType: string): string {
 export function buildMeetingOutputs(): Record<string, TriggerOutput> {
   return {
     id: {
-      type: 'number',
+      type: 'string',
       description: 'Circleback meeting ID',
     },
     name: {
@@ -125,7 +125,7 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Full meeting payload object',
       properties: {
-        id: { type: 'number', description: 'Meeting ID' },
+        id: { type: 'string', description: 'Meeting ID' },
         name: { type: 'string', description: 'Meeting name' },
         url: { type: 'string', description: 'Meeting URL' },
         duration: { type: 'number', description: 'Duration in seconds' },

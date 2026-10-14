@@ -15,11 +15,26 @@ Use [Google Vault](https://workspace.google.com/products/vault/) in Sim to manag
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Google Vault account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-vault` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/ediscovery` | Manage Google Vault matters, holds, and exports |
+| `https://www.googleapis.com/auth/ediscovery.readonly` | View Google Vault matters, holds, and saved queries |
+| `https://www.googleapis.com/auth/devstorage.read_only` | Read files from Google Cloud Storage |
+
+## Use the block [#usage-instructions]
 
 Connect Google Vault to manage the full matter lifecycle, create and manage holds and exports, and save reusable search queries for eDiscovery and compliance.
-
-
 
 ## Actions
 
@@ -444,22 +459,5 @@ Delete a saved query from a matter
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the saved query was deleted |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Google Vault account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-vault` |
-| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `https://www.googleapis.com/auth/userinfo.email` | View email address |
-| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
-| `https://www.googleapis.com/auth/ediscovery` | Manage Google Vault matters, holds, and exports |
-| `https://www.googleapis.com/auth/ediscovery.readonly` | View Google Vault matters, holds, and saved queries |
-| `https://www.googleapis.com/auth/devstorage.read_only` | Read files from Google Cloud Storage |
 
 

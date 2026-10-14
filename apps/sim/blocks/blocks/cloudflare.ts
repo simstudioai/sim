@@ -80,7 +80,7 @@ export const CloudflareBlock: BlockConfig = {
   description: 'Manage DNS, WAF, Zero Trust access, and edge infrastructure',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging. Configure WAF rulesets, managed rule overrides, and rate limiting rules through the current Rulesets engine. Administer Cloudflare Access (Zero Trust) applications, policies, groups, identity providers, and service tokens, and inspect R2 buckets, Workers scripts and routes, and Cloudflare Tunnels.',
+    'Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging. Configure WAF rulesets, managed rule overrides, and rate limiting rules through the current Rulesets engine. Administer Cloudflare Access (Zero Trust) applications, policies, groups, identity providers, and service tokens, and inspect R2 buckets, Workers scripts and routes, and Cloudflare Tunnels.',
   docsLink: 'https://docs.sim.ai/integrations/cloudflare',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

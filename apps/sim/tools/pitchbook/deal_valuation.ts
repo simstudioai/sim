@@ -22,7 +22,7 @@ export const pitchbookDealValuationTool: ToolConfig<PitchbookProfileParams, Pitc
       required: true,
       visibility: 'user-or-llm',
       description:
-        'PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup.',
+        'PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup.',
     },
     currency: {
       type: 'string',

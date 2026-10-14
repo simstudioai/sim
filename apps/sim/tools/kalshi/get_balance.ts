@@ -90,8 +90,7 @@ export const kalshiGetBalanceV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_balance_v2',
   name: 'Get Balance from Kalshi V2',
-  description:
-    'Retrieve your account balance and portfolio value from Kalshi (V2 - exact API response)',
+  description: 'Retrieve your account balance and portfolio value from Kalshi',
   version: '2.0.0',
 
   params: {

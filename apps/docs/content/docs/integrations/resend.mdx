@@ -11,25 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Resend](https://resend.com/) is a modern email service designed for developers to send transactional and marketing emails with ease. It provides a simple, reliable API and dashboard for managing email delivery, templates, and analytics, making it a popular choice for integrating email functionality into applications and workflows.
+Use [Resend](https://resend.com/) to send emails, retrieve their status, manage contacts, and inspect domains. Configure a Resend API key and the sender, recipients, and content required by the operation.
 
-With Resend, you can:
-
-- **Send transactional emails**: Deliver password resets, notifications, confirmations, and more with high deliverability
-- **Manage templates**: Create and update email templates for consistent branding and messaging
-- **Track analytics**: Monitor delivery, open, and click rates to optimize your email performance
-- **Integrate easily**: Use a straightforward API and SDKs for seamless integration with your applications
-- **Ensure security**: Benefit from robust authentication and domain verification to protect your email reputation
-
-In Sim, the Resend integration allows your agents to programmatically send emails as part of your automated workflows. This enables use cases such as sending notifications, alerts, or custom messages directly from your Sim-powered agents. By connecting Sim with Resend, you can automate communication tasks, ensuring timely and reliable email delivery without manual intervention. The integration leverages your Resend API key, keeping your credentials secure while enabling powerful email automation scenarios.
+Use returned email IDs to check delivery status. The block's actions define the available operations; template editing and analytics management are not exposed here.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Resend into your workflow. Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.
-
-
+Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.
 
 ## Actions
 
@@ -385,7 +375,7 @@ List all verified domains in your Resend account
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Resend Email Bounced
 

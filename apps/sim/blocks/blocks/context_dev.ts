@@ -78,7 +78,7 @@ export const ContextDevBlock: BlockConfig = {
   description: 'Scrape, crawl, search, extract, and enrich web and brand data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.',
+    'Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.',
   docsLink: 'https://docs.sim.ai/integrations/context_dev',
   category: 'tools',
   integrationType: IntegrationType.Search,

@@ -11,7 +11,7 @@ export const MailchimpBlock: BlockConfig = {
   name: 'Mailchimp',
   description: 'Manage audiences, campaigns, and marketing automation in Mailchimp',
   longDescription:
-    'Integrate Mailchimp into the workflow. Can manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.',
+    'Manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.',
   docsLink: 'https://docs.sim.ai/integrations/mailchimp',
   authMode: AuthMode.ApiKey,
   category: 'tools',

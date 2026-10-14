@@ -11,18 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Obsidian](https://obsidian.md/) stores notes as Markdown files in a vault. Use this integration to read, create, update, and search notes, work with periodic notes, and run Obsidian commands.
+Use [Obsidian](https://obsidian.md/) to read, create, update, search, or delete notes, manage periodic notes, and run commands.
 
-**How it works in Sim:**
-Add an Obsidian block to your workflow and select an operation. This integration requires the [Obsidian Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin to be installed and running in your vault. Provide your API key and vault URL, along with any required parameters. The block communicates with your local Obsidian instance and returns structured data you can pass to downstream blocks — for example, searching your vault for research notes and feeding them into an AI agent for summarization.
+Install and run the [Obsidian Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin in the vault. Provide its API key and base URL, plus the selected operation's fields. The plugin endpoint must be reachable from the Sim execution runtime; a URL on your own computer is not automatically reachable from Sim Cloud.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Read, create, update, search, and delete notes in your Obsidian vault. Manage periodic notes, execute commands, and patch content at specific locations. Requires the Obsidian Local REST API plugin.
-
-
 
 ## Actions
 

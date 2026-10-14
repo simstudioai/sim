@@ -11,29 +11,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Linear](https://linear.app) is a modern project management and issue tracking platform that helps teams plan, track, and manage their work with a streamlined interface. Linear supports agile methodologies with customizable workflows, cycles, and project milestones.
+Use [Linear](https://linear.app) to manage issues, labels, comments, projects, cycles, attachments, issue relations, and customers. The actions also list users, teams, workflow states, notifications, and favorites.
 
-With the Linear integration in Sim, you can:
-
-- **Manage issues**: Create, read, update, search, archive, unarchive, and delete issues
-- **Manage labels**: Add or remove labels from issues, and create, update, or archive labels
-- **Comment on issues**: Create, update, delete, and list comments on issues
-- **Manage projects**: List, get, create, update, archive, and delete projects with milestones, labels, and statuses
-- **Track cycles**: List, get, and create cycles, and retrieve the active cycle
-- **Handle attachments**: Create, list, update, and delete attachments on issues
-- **Manage issue relations**: Create, list, and delete relationships between issues
-- **Access team data**: List users, teams, workflow states, notifications, and favorites
-- **Manage customers**: Create, update, delete, list, and merge customers with statuses, tiers, and requests
-
-In Sim, the Linear integration enables your agents to interact with your project management workflow as part of automated processes. Agents can create issues from external triggers, update statuses, manage projects and cycles, and synchronize data—enabling intelligent project management automation at scale.
+Connect an account or [personal API key](/integrations/linear-service-account) with access to the target teams. Use returned IDs to connect issue and project operations, and consult the action reference for archive, unarchive, merge, and delete behavior.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.
+Sim requests these scopes when someone connects a Linear account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/linear` |
+| Environment variables | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `read` | Read issues, projects, teams, and other workspace data |
+| `write` | Create and update issues, projects, comments, and other workspace data |
+
+## Use the block [#usage-instructions]
+
+Manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Trigger workflows based on Linear webhook events.
 
 ## Actions
 
@@ -2172,9 +2172,11 @@ List all project statuses in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Linear Comment Created
 
@@ -2198,13 +2200,13 @@ Trigger workflow when a new comment is created in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Comment ID |
 |   ↳ `body` | string | Comment body text |
 |   ↳ `edited` | boolean | Whether the comment body has been edited \(Linear webhook payload field\) |
@@ -2245,13 +2247,13 @@ Trigger workflow when a comment is updated in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Comment ID |
 |   ↳ `body` | string | Comment body text |
 |   ↳ `edited` | boolean | Whether the comment body has been edited \(Linear webhook payload field\) |
@@ -2292,13 +2294,13 @@ Trigger workflow when a new customer request is created in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Customer request ID |
 |   ↳ `body` | string | Request body content \(Markdown\) |
 |   ↳ `priority` | number | Request priority \(0 = Not important, 1 = Important\) |
@@ -2337,13 +2339,13 @@ Trigger workflow when a customer request is updated in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Customer request ID |
 |   ↳ `body` | string | Request body content \(Markdown\) |
 |   ↳ `priority` | number | Request priority \(0 = Not important, 1 = Important\) |
@@ -2382,13 +2384,13 @@ Trigger workflow when a new cycle is created in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Cycle ID |
 |   ↳ `number` | number | Cycle number |
 |   ↳ `name` | string | Cycle name |
@@ -2432,13 +2434,13 @@ Trigger workflow when a cycle is updated in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Cycle ID |
 |   ↳ `number` | number | Cycle number |
 |   ↳ `name` | string | Cycle name |
@@ -2482,13 +2484,13 @@ Trigger workflow when a new issue is created in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `title` | string | Issue title |
 |   ↳ `description` | string | Issue description |
@@ -2551,13 +2553,13 @@ Trigger workflow when an issue is removed/deleted in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `title` | string | Issue title |
 |   ↳ `description` | string | Issue description |
@@ -2620,13 +2622,13 @@ Trigger workflow when an issue is updated in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `title` | string | Issue title |
 |   ↳ `description` | string | Issue description |
@@ -2689,13 +2691,13 @@ Trigger workflow when a new label is created in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Label ID |
 |   ↳ `name` | string | Label name |
 |   ↳ `description` | string | Label description |
@@ -2735,13 +2737,13 @@ Trigger workflow when a label is updated in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Label ID |
 |   ↳ `name` | string | Label name |
 |   ↳ `description` | string | Label description |
@@ -2781,13 +2783,13 @@ Trigger workflow when a new project is created in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
@@ -2841,13 +2843,13 @@ Trigger workflow when a new project update is posted in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Project update ID |
 |   ↳ `body` | string | Update body content |
 |   ↳ `url` | string | Project update URL |
@@ -2884,13 +2886,13 @@ Trigger workflow when a project is updated in Linear
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
 |   ↳ `email` | string | Actor email \(present for user actors in Linear webhook payloads\) |
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Project ID |
 |   ↳ `name` | string | Project name |
 |   ↳ `description` | string | Project description |
@@ -2944,7 +2946,7 @@ Trigger workflow from Linear events you select when creating the webhook in Line
 | `organizationId` | string | Organization ID |
 | `createdAt` | string | Event creation timestamp |
 | `url` | string | URL of the subject entity in Linear \(top-level webhook payload\) |
-| `actor` | object | actor output from the tool |
+| `actor` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | User display name |
 |   ↳ `actorType` | string | Actor type from Linear \(e.g. user, OauthClient, Integration\) |
@@ -2952,20 +2954,4 @@ Trigger workflow from Linear events you select when creating the webhook in Line
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
 | `data` | object | Complete entity data object |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Linear account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/linear` |
-| Environment variables | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `read` | Read issues, projects, teams, and other workspace data |
-| `write` | Create and update issues, projects, comments, and other workspace data |
-
 

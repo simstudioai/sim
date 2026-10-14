@@ -11,30 +11,17 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Checkr](https://checkr.com/) is a background screening platform for employment checks: criminal, motor vehicle, identity, education, and employment verifications, plus ongoing monitoring.
+Use [Checkr](https://checkr.com/) to create candidates, send hosted background-check invitations, order and read reports, and inspect screening results. The actions also cover report reviews and tags, adverse actions, recurring checks, continuous monitoring, and account reference data. Order a report directly only when you already collect the required candidate information and consent.
 
-With the Checkr block, you can:
+Create a secret API key under **Account Settings > Developer Settings** in the Checkr Dashboard. Use a production key: Sim uses Checkr's production API host and registers live-environment webhooks; staging keys are not supported. Checkr must also [enable the account for live report requests](https://docs.checkr.com/) before production report ordering works.
 
-- **Start background checks**: Create candidates and send them a Checkr-hosted invitation, or order a report directly when you already collect their information and consent.
-- **Track and read results**: Get reports, their estimated completion, progressive checkpoint status, verifications, address history, assessments, and the detailed results of each screening.
-- **Adjudicate**: Engage reports, apply review actions to paused reports, manage report tags, and run the adverse action process from adverse items through cancellation.
-- **Keep screening going**: Schedule recurring checks with subscriptions and enroll candidates in continuous criminal or motor vehicle monitoring.
-- **Look up account setup**: Read packages, geos, hierarchy nodes, programs, counties, candidate documents, users, and account details, and create, update, or delete geos.
-- **React to events**: Start workflows when reports, invitations, candidates, verifications, adverse actions, or continuous checks change.
-
-To connect, create a secret API key in the Checkr Dashboard under **Account Settings > Developer Settings** and paste it into the block. Use a production key: Checkr's staging environment uses a different API host and is not supported, and triggers register live-environment webhooks.
-
-Triggers register a webhook in Checkr when you deploy the workflow and verify every delivery's signature with your API key. Checkr allows at most two webhooks per account, and each deployed Checkr trigger uses one, so choose **All Events** when one workflow needs to handle several event types.
-
-In Sim, the Checkr block lets your agents send background checks the moment a candidate is selected, summarize completed reports for recruiters, queue consider results for human review, and keep drivers and other regulated roles under continuous monitoring.
+Triggers register a webhook when you deploy the workflow and verify delivery signatures with your API key. Checkr permits at most two webhooks per account, and each deployed Checkr trigger uses one. Choose **All Events** when one workflow needs several event types.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Checkr into the workflow. Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.
-
-
+Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.
 
 ## Actions
 
@@ -1940,7 +1927,7 @@ Change the package, schedule, node, or work locations of a subscription.
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Checkr Adverse Action Canceled
 
@@ -1962,7 +1949,7 @@ Trigger workflow when an adverse action is canceled
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -1974,7 +1961,7 @@ Trigger workflow when an adverse action is canceled
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
@@ -2003,7 +1990,7 @@ Trigger workflow when the post-adverse action notice is sent
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2015,7 +2002,7 @@ Trigger workflow when the post-adverse action notice is sent
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
@@ -2044,7 +2031,7 @@ Trigger workflow when an adverse action is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2056,7 +2043,7 @@ Trigger workflow when an adverse action is created
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
@@ -2085,7 +2072,7 @@ Trigger workflow when an adverse action notice cannot be delivered
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2097,7 +2084,7 @@ Trigger workflow when an adverse action notice cannot be delivered
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
@@ -2126,7 +2113,7 @@ Trigger workflow when delivery of a post-adverse action notice is paused
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2138,7 +2125,7 @@ Trigger workflow when delivery of a post-adverse action notice is paused
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
@@ -2167,7 +2154,7 @@ Trigger workflow when a paused adverse action resumes
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `adverseAction` | object | adverseAction output from the tool |
+| `adverseAction` | object |  |
 |   ↳ `id` | string | Adverse action ID |
 |   ↳ `object` | string | Object type \(adverse_action\) |
 |   ↳ `uri` | string | Adverse action API URI |
@@ -2179,7 +2166,7 @@ Trigger workflow when a paused adverse action resumes
 |   ↳ `post_notice_ready_at` | string | Earliest time the post-adverse action notice can be sent |
 |   ↳ `individualized_assessment_engaged` | boolean | Whether an individualized assessment was engaged |
 |   ↳ `context` | string | Scoping identifier for the adverse action |
-|   ↳ `delivery` | object | delivery output from the tool |
+|   ↳ `delivery` | object |  |
 |     ↳ `state` | string | Notice delivery state |
 |     ↳ `reason` | string | Reason for the delivery state |
 |     ↳ `updated_at` | string | Time the delivery state changed |
@@ -2233,7 +2220,7 @@ Trigger workflow when a candidate is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `candidate` | object | candidate output from the tool |
+| `candidate` | object |  |
 |   ↳ `id` | string | Candidate ID |
 |   ↳ `object` | string | Object type \(candidate\) |
 |   ↳ `uri` | string | Candidate API URI |
@@ -2277,7 +2264,7 @@ Trigger workflow when a candidate is updated
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `candidate` | object | candidate output from the tool |
+| `candidate` | object |  |
 |   ↳ `id` | string | Candidate ID |
 |   ↳ `object` | string | Object type \(candidate\) |
 |   ↳ `uri` | string | Candidate API URI |
@@ -2321,7 +2308,7 @@ Trigger workflow when a candidate is unenrolled from Continuous MVR and must be 
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `continuousCheck` | object | continuousCheck output from the tool |
+| `continuousCheck` | object |  |
 |   ↳ `id` | string | Continuous check ID |
 |   ↳ `object` | string | Object type \(continuous_check\) |
 |   ↳ `candidate_id` | string | Enrolled candidate ID |
@@ -2352,7 +2339,7 @@ Trigger workflow when enrolling a candidate in Continuous MVR fails
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `continuousCheck` | object | continuousCheck output from the tool |
+| `continuousCheck` | object |  |
 |   ↳ `id` | string | Continuous check ID |
 |   ↳ `object` | string | Object type \(continuous_check\) |
 |   ↳ `candidate_id` | string | Enrolled candidate ID |
@@ -2383,7 +2370,7 @@ Trigger workflow when an invitation is canceled
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2420,7 +2407,7 @@ Trigger workflow when a candidate completes an invitation
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2457,7 +2444,7 @@ Trigger workflow when an invitation is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2494,7 +2481,7 @@ Trigger workflow when an invitation expires
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `invitation` | object | invitation output from the tool |
+| `invitation` | object |  |
 |   ↳ `id` | string | Invitation ID |
 |   ↳ `object` | string | Object type \(invitation\) |
 |   ↳ `uri` | string | Invitation API URI |
@@ -2531,7 +2518,7 @@ Trigger workflow when a report is canceled
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2584,7 +2571,7 @@ Trigger workflow when a report is completed
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2637,7 +2624,7 @@ Trigger workflow when a report is created
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2690,7 +2677,7 @@ Trigger workflow when a report dispute is resolved
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2743,7 +2730,7 @@ Trigger workflow when a candidate disputes a report
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2796,7 +2783,7 @@ Trigger workflow when a report is adjudicated as engaged
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2849,7 +2836,7 @@ Trigger workflow when a report pauses awaiting a review action
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2902,7 +2889,7 @@ Trigger workflow when the post-adverse action notice for a report is sent
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -2955,7 +2942,7 @@ Trigger workflow when the pre-adverse action notice for a report is sent
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3008,7 +2995,7 @@ Trigger workflow when a suspended report resumes
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3061,7 +3048,7 @@ Trigger workflow when a report is suspended awaiting candidate documentation
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3114,7 +3101,7 @@ Trigger workflow when a report is updated, such as an ETA change or drug screeni
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3167,7 +3154,7 @@ Trigger workflow when a report is upgraded to another package
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `report` | object | report output from the tool |
+| `report` | object |  |
 |   ↳ `id` | string | Report ID |
 |   ↳ `object` | string | Object type \(report\) |
 |   ↳ `uri` | string | Report API URI |
@@ -3220,7 +3207,7 @@ Trigger workflow when a candidate completes a verification
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `verification` | object | verification output from the tool |
+| `verification` | object |  |
 |   ↳ `id` | string | Verification ID |
 |   ↳ `object` | string | Object type \(verification\) |
 |   ↳ `uri` | string | Verification API URI |
@@ -3254,7 +3241,7 @@ Trigger workflow when a candidate is asked to verify information or upload a doc
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `verification` | object | verification output from the tool |
+| `verification` | object |  |
 |   ↳ `id` | string | Verification ID |
 |   ↳ `object` | string | Object type \(verification\) |
 |   ↳ `uri` | string | Verification API URI |
@@ -3288,7 +3275,7 @@ Trigger workflow when a verification is processed and a decision is made
 | `accountId` | string | Checkr account ID the event belongs to |
 | `objectType` | string | Type of the object in the event, e.g. report |
 | `objectId` | string | ID of the object in the event |
-| `verification` | object | verification output from the tool |
+| `verification` | object |  |
 |   ↳ `id` | string | Verification ID |
 |   ↳ `object` | string | Object type \(verification\) |
 |   ↳ `uri` | string | Verification API URI |

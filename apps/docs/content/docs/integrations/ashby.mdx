@@ -13,12 +13,12 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Ashby](https://www.ashbyhq.com/) to manage recruiting records and react to hiring events. List Jobs supports incremental sync tokens; custom-field actions annotate jobs, openings, applications, and candidates.
 
-The Ashby block also supports **webhook triggers** that automatically start workflows in response to Ashby events. Available triggers include Application Submitted, Candidate Stage Change, Candidate Hired, Candidate Deleted, Job Created, and Offer Created. Webhooks are fully managed — Sim automatically creates the webhook in Ashby when you save the trigger and deletes it when you remove it, so there's no manual webhook configuration needed. Just provide your Ashby API key (with `apiKeysWrite` permission) and select the event type.
+The Ashby block also supports **webhook triggers** that automatically start workflows in response to Ashby events. Available triggers include Application Submitted, Candidate Stage Change, Candidate Hired, Candidate Deleted, Job Created, and Offer Created. Sim creates the webhook when you deploy the workflow. Remove the trigger and redeploy to delete it. Provide an Ashby API key with `apiKeysWrite` permission and select the event type.
 
 ## API key permissions
 
 Ashby grants permissions per module rather than per endpoint, and a missing permission fails at **runtime**, not when you build the workflow.
-A key without the right scope returns a 403 in the middle of a run, so check the key before scheduling anything against it.
+Check the key before scheduling a workflow: an endpoint permission failure returns HTTP 403 with `missing_endpoint_permission`.
 
 | Permission | Covers |
 | --- | --- |
@@ -41,19 +41,17 @@ Every job returned by List Jobs carries a `confidential` flag, so you can filter
 
 These are constraints of the Ashby API itself, not of the Sim block:
 
-- **No notes or tags on a job or req.** Both are candidate-scoped in Ashby. Custom field values are the only way to annotate a job, which is what Set Custom Field Value is for. Writing `null` clears a value, so the annotation is reversible.
+- **Job annotations use custom fields.** The note and tag operations here act on candidates. Use **Set Custom Field Value** to annotate a job. Writing `null` clears a value, so the annotation is reversible.
 - **No pagination on List Job Postings.** The endpoint returns every posting in one response, with no cursor, page limit, or sync token. Paginate through List Jobs instead when you need to page.
-- **No way to delete, archive, or update a custom field definition.** Creating one is irreversible, so never create throwaway field definitions against a shared organization.
-- **No note deletion endpoint.** Notes can be created and listed but never removed.
-- **No candidate deletion endpoint.** Anonymize Candidate strips personal information but leaves the record and its applications in place. Real deletion is available only in the Ashby UI, is limited to a 10-day window, and is restricted to certain roles.
+- **No delete, archive, or update operation for custom field definitions is exposed by this integration.** Plan field definitions before creating them in a shared organization.
+- **Note deletion is not exposed by this integration.** The note operations create and list candidate notes.
+- **No candidate deletion endpoint.** Anonymize Candidate strips personal information but leaves the record and its applications in place. Use Ashby’s administrative UI and its current retention and permission policy for deletion; anonymization and deletion have different effects.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Ashby into the workflow. Manage and search candidates, applications, jobs, users, and openings; transfer applications; upload resumes and candidate files; read application history and interview feedback; manage offers, notes, tags, stages, sources, and custom fields; and react to hiring lifecycle webhooks.
-
-
+Manage and search candidates, applications, jobs, users, and openings; transfer applications; upload resumes and candidate files; read application history and interview feedback; manage offers, notes, tags, stages, sources, and custom fields; and react to hiring lifecycle webhooks.
 
 ## Actions
 
@@ -114,7 +112,7 @@ Adds a tag to a candidate in Ashby and returns the updated candidate.
 
 ### Ashby Anonymize Candidate
 
-Strips personally identifiable information from a candidate in Ashby. This does not delete the candidate - the record and its applications remain, with the PII removed. Ashby exposes no candidate deletion endpoint; true deletion is UI-only, restricted by role, and limited to a 10-day window. Requires the candidatesWrite permission.
+Remove personally identifiable information from an Ashby candidate while retaining the candidate record and its applications. This operation does not delete the candidate. Requires the candidatesWrite permission.
 
 #### Input
 
@@ -1807,7 +1805,7 @@ Securely uploads a resume and sets it as the Ashby candidate resume.
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Ashby Application Submitted
 
@@ -1825,19 +1823,19 @@ Trigger workflow when a new application is submitted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
 
@@ -1860,19 +1858,19 @@ Trigger workflow when an application is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
 
@@ -1895,7 +1893,7 @@ Trigger workflow when a candidate is deleted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `candidate` | object | candidate output from the tool |
+| `candidate` | object |  |
 |   ↳ `id` | string | Deleted candidate UUID |
 
 
@@ -1917,28 +1915,28 @@ Trigger workflow when a candidate is hired
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Hired\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Accepted offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `acceptanceStatus` | string | Offer acceptance status |
 |   ↳ `offerStatus` | string | Offer process status |
 |   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\) |
-|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|   ↳ `latestVersion` | object |  |
 |     ↳ `id` | string | Latest offer version UUID |
 
 
@@ -1960,9 +1958,9 @@ Trigger workflow when two candidate records are merged
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `deletedCandidate` | object | deletedCandidate output from the tool |
+| `deletedCandidate` | object |  |
 |   ↳ `id` | string | Deleted candidate UUID |
-| `mergedCandidate` | object | mergedCandidate output from the tool |
+| `mergedCandidate` | object |  |
 |   ↳ `id` | string | Final merged candidate UUID |
 
 
@@ -1984,19 +1982,19 @@ Trigger workflow when a candidate changes interview stages
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `application` | object | application output from the tool |
+| `application` | object |  |
 |   ↳ `id` | string | Application UUID |
 |   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
 |   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
-|   ↳ `candidate` | object | candidate output from the tool |
+|   ↳ `candidate` | object |  |
 |     ↳ `id` | string | Candidate UUID |
 |     ↳ `name` | string | Candidate name |
-|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|   ↳ `currentInterviewStage` | object |  |
 |     ↳ `id` | string | Current interview stage UUID |
 |     ↳ `title` | string | Current interview stage title |
 |     ↳ `stageType` | string | Current interview stage type \(e.g., Lead, Applied, Interview, Offer\) |
-|   ↳ `job` | object | job output from the tool |
+|   ↳ `job` | object |  |
 |     ↳ `id` | string | Job UUID |
 |     ↳ `title` | string | Job title |
 
@@ -2019,7 +2017,7 @@ Trigger workflow when an interview schedule is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `interviewSchedule` | object | interviewSchedule output from the tool |
+| `interviewSchedule` | object |  |
 |   ↳ `id` | string | Interview schedule UUID |
 |   ↳ `status` | string | Interview schedule status |
 |   ↳ `applicationId` | string | Application UUID |
@@ -2048,7 +2046,7 @@ Trigger workflow when an interview schedule is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `interviewSchedule` | object | interviewSchedule output from the tool |
+| `interviewSchedule` | object |  |
 |   ↳ `id` | string | Interview schedule UUID |
 |   ↳ `status` | string | Interview schedule status |
 |   ↳ `applicationId` | string | Application UUID |
@@ -2078,7 +2076,7 @@ Trigger workflow when a new job is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `job` | object | job output from the tool |
+| `job` | object |  |
 |   ↳ `id` | string | Job UUID |
 |   ↳ `title` | string | Job title |
 |   ↳ `confidential` | boolean | Whether the job is confidential |
@@ -2104,7 +2102,7 @@ Trigger workflow when a job posting is deleted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `jobPosting` | object | jobPosting output from the tool |
+| `jobPosting` | object |  |
 |   ↳ `id` | string | Deleted job posting UUID |
 |   ↳ `jobId` | string | Associated job UUID |
 
@@ -2127,7 +2125,7 @@ Trigger workflow when a job posting is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `jobPosting` | object | jobPosting output from the tool |
+| `jobPosting` | object |  |
 |   ↳ `id` | string | Job posting UUID |
 |   ↳ `title` | string | Job posting title |
 |   ↳ `jobId` | string | Associated job UUID |
@@ -2158,7 +2156,7 @@ Trigger workflow when a job is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `job` | object | job output from the tool |
+| `job` | object |  |
 |   ↳ `id` | string | Job UUID |
 |   ↳ `title` | string | Job title |
 |   ↳ `confidential` | boolean | Whether the job is confidential |
@@ -2184,13 +2182,13 @@ Trigger workflow when a new offer is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `acceptanceStatus` | string | Offer acceptance status \(Accepted, Declined, Pending, Created, Cancelled\) |
 |   ↳ `offerStatus` | string | Offer process status \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnApprovalDefinition, WaitingOnCandidateResponse, CandidateRejected, CandidateAccepted, OfferCancelled\) |
 |   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\). Typically null at creation; populated after candidate responds. |
-|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|   ↳ `latestVersion` | object |  |
 |     ↳ `id` | string | Latest offer version UUID |
 
 
@@ -2212,7 +2210,7 @@ Trigger workflow when an offer is deleted
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Deleted offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 
@@ -2235,13 +2233,13 @@ Trigger workflow when an offer is updated
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `offer` | object | offer output from the tool |
+| `offer` | object |  |
 |   ↳ `id` | string | Offer UUID |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `acceptanceStatus` | string | Offer acceptance status \(Accepted, Declined, Pending, Created, Cancelled\) |
 |   ↳ `offerStatus` | string | Offer process status \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnApprovalDefinition, WaitingOnCandidateResponse, CandidateRejected, CandidateAccepted, OfferCancelled\) |
 |   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\). Typically null at creation; populated after candidate responds. |
-|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|   ↳ `latestVersion` | object |  |
 |     ↳ `id` | string | Latest offer version UUID |
 
 
@@ -2263,7 +2261,7 @@ Trigger workflow when a headcount opening is created
 | --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `webhookActionId` | string | Ashby delivery identifier, stable across retries |
-| `opening` | object | opening output from the tool |
+| `opening` | object |  |
 |   ↳ `id` | string | Opening UUID |
 |   ↳ `openedAt` | string | Open timestamp |
 |   ↳ `closedAt` | string | Close timestamp |

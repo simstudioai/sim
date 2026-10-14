@@ -8,7 +8,7 @@ export const PineconeBlock: BlockConfig = {
   description: 'Use Pinecone vector database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.',
+    'Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.',
   docsLink: 'https://docs.sim.ai/integrations/pinecone',
   category: 'tools',
   integrationType: IntegrationType.Databases,

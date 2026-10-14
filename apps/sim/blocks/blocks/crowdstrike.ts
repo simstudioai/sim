@@ -97,7 +97,7 @@ export const CrowdStrikeBlock: BlockConfig = {
   description:
     'Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities',
   longDescription:
-    'Integrate CrowdStrike Falcon into workflows to triage alerts, contain hosts, manage host groups and custom indicators of compromise, review Spotlight vulnerabilities, run read-only Real Time Response commands, read Case Management cases, and query Identity Protection sensors.',
+    'Triage alerts, contain hosts, manage host groups and custom indicators of compromise, review Spotlight vulnerabilities, run read-only Real Time Response commands, read Case Management cases, and query Identity Protection sensors.',
   docsLink: 'https://docs.sim.ai/integrations/crowdstrike',
   category: 'tools',
   integrationType: IntegrationType.Security,

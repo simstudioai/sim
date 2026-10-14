@@ -168,7 +168,7 @@ interface GoogleCalendarListV2Response {
 export const listV2Tool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListV2Response> = {
   id: 'google_calendar_list_v2',
   name: 'Google Calendar List Events',
-  description: 'List events from Google Calendar. Returns API-aligned fields only.',
+  description: 'List events from Google Calendar.',
   version: '2.0.0',
   oauth: listTool.oauth,
   params: listTool.params,

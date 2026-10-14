@@ -20,7 +20,8 @@ export const mailchimpArchiveMemberTool: ToolConfig<
 > = {
   id: 'mailchimp_archive_member',
   name: 'Archive Member from Mailchimp Audience',
-  description: 'Permanently archive (delete) a member from a Mailchimp audience',
+  description:
+    'Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified.',
   version: '1.0.0',
 
   params: {
@@ -75,7 +76,7 @@ export const mailchimpArchiveMemberTool: ToolConfig<
     success: { type: 'boolean', description: 'Operation success status' },
     output: {
       type: 'object',
-      description: 'Archive confirmation',
+      description: 'Permanent-deletion request confirmation',
       properties: {
         success: { type: 'boolean', description: 'Operation success' },
       },

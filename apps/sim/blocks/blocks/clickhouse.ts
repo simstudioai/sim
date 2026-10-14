@@ -65,7 +65,7 @@ export const ClickHouseBlock: BlockConfig = {
   name: 'ClickHouse',
   description: 'Connect to a ClickHouse database',
   longDescription:
-    'Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.',
+    'Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.',
   docsLink: 'https://docs.sim.ai/integrations/clickhouse',
   category: 'tools',
   integrationType: IntegrationType.Databases,

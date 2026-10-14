@@ -11,24 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Amazon SQS](https://aws.amazon.com/sqs/) to send and receive messages, manage queues, and redrive dead-letter messages.
+Use [Amazon SQS](https://aws.amazon.com/sqs/) to send, receive, and delete messages, extend visibility timeouts, and manage queues, attributes, and tags. Batch message actions accept up to 10 entries. Dead-letter actions list source queues and start, inspect, or cancel message move tasks.
 
-In Sim, the SQS integration gives your agents both sides of the queue — producing work and consuming it. Supported operations cover:
-
-- **Messages**: Send one message or a batch of up to 10, receive with long polling, delete individually or in batches, and extend visibility timeouts while work is still in flight
-- **Queues**: Create, delete, and purge queues, look up a queue URL by name, and read or update queue attributes
-- **Dead-letter handling**: List the source queues feeding a dead-letter queue, then start, monitor, and cancel message move tasks to redrive failed messages back
-- **Tags**: List, add, and remove queue tags for cost allocation and ownership tracking
-
-Because an agent can now drain a queue rather than only fill it, SQS becomes a way to hand work to Sim as well as from it. A workflow can long-poll a queue for jobs, process each message, delete it on success, and let the visibility timeout return anything it fails to finish — the standard reliable-consumer pattern, without running a worker of your own.
+A workflow can long-poll for work, process each message, and delete it after success. Receiving a message does not remove it: if processing fails and it is not deleted, it becomes available again after the visibility timeout.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Amazon SQS into the workflow. Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.
-
-
+Send and receive messages one at a time or in batches of ten, delete messages, extend visibility timeouts, manage queues along with their attributes and tags, and redrive messages out of a dead-letter queue.
 
 ## Actions
 

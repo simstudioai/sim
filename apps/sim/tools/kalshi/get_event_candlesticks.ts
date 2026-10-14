@@ -156,8 +156,7 @@ export const kalshiGetEventCandlesticksV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_event_candlesticks_v2',
   name: 'Get Event Candlesticks from Kalshi V2',
-  description:
-    'Retrieve OHLC candlestick data aggregated across all markets in an event (V2 - full API response)',
+  description: 'Retrieve OHLC candlestick data aggregated across all markets in an event',
   version: '2.0.0',
 
   params: {

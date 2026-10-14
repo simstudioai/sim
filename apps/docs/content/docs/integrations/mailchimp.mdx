@@ -12,14 +12,18 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Mailchimp](https://mailchimp.com/) in Sim to manage audiences and members, campaigns, automations, templates, segments, tags, and reports. The actions below also cover merge fields, interest categories, landing pages, signup forms, and batch operations.
+
+## Member removal
+
+**Delete Member from Mailchimp Audience** calls Mailchimp's reversible archive endpoint. **Archive Member from Mailchimp Audience** instead targets permanent deletion of identifying data, after which the member cannot be re-imported. These UI labels differ from the provider's terminology.
+
+The current permanent-deletion action sends `DELETE`, while [Mailchimp documents `POST` for delete-permanent](https://mailchimp.com/developer/marketing/api/lists/members/create-member-action-delete-permanent). Its compatibility is unverified; do not rely on it for deletion until the request method is corrected and tested.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Mailchimp into the workflow. Can manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.
-
-
+Manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.
 
 ## Actions
 
@@ -256,7 +260,7 @@ Update an existing member in a Mailchimp audience
 
 ### Delete Member from Mailchimp Audience
 
-Delete a member from a Mailchimp audience
+Archive a member from a Mailchimp audience without permanently deleting their data.
 
 #### Input
 
@@ -270,11 +274,11 @@ Delete a member from a Mailchimp audience
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `success` | boolean | Whether the member was successfully deleted |
+| `success` | boolean | Whether the archive request succeeded |
 
 ### Archive Member from Mailchimp Audience
 
-Permanently archive (delete) a member from a Mailchimp audience
+Request permanent deletion of a member and their identifying data. This targets delete-permanent, despite the Archive Member label; provider acceptance of the current HTTP method is unverified.
 
 #### Input
 
@@ -289,7 +293,7 @@ Permanently archive (delete) a member from a Mailchimp audience
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Operation success status |
-| `output` | object | Archive confirmation |
+| `output` | object | Permanent-deletion request confirmation |
 |   ↳ `success` | boolean | Operation success |
 
 ### Unarchive Member in Mailchimp Audience

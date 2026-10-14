@@ -9,7 +9,7 @@ export const TwilioVoiceBlock: BlockConfig = {
   description: 'Make and manage phone calls',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.',
+    'Make outbound calls, list calls, retrieve recordings, and receive call events through webhooks.',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   docsLink: 'https://docs.sim.ai/integrations/twilio_voice',

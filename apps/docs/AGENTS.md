@@ -1,6 +1,6 @@
 # Documentation guidelines
 
-Read [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) before editing documentation. It defines the voice, terminology, page types, section order, and component choices. [COPY_AUDIT.md](COPY_AUDIT.md) records the complete audit and material source qualifications; keep new conclusions evidence-based.
+Read [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) before editing documentation. It defines the voice, terminology, page types, section order, and component choices. [COPY_AUDIT.md](COPY_AUDIT.md) records the general documentation audit; [INTEGRATIONS_AUDIT.md](INTEGRATIONS_AUDIT.md) records the integration audit and provider compatibility qualifications. Keep new conclusions evidence-based.
 
 ## Copy and accuracy
 
@@ -14,6 +14,7 @@ Read [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) before editing documentation. It d
 - Edit generated API and CLI prose at its owner, then use the generation commands in the editorial guide. Do not hand-edit generated specifications, reference pages, or marked generated regions.
 - Preserve page URLs, operation IDs, method/path pairs, command options, authentication, and schema behavior. Validate copyable request bodies against the canonical input contracts.
 - Check inbound heading anchors from the entire docs site and application before renaming them. Use native explicit tab triggers for provider bookmarks, with `aria-controls` matching panel IDs; preserve the reciprocal `aria-labelledby` relationship and avoid duplicate element IDs.
+- Search citations must use the page's explicit heading IDs and omit the alias syntax from result titles.
 
 ## Layout and components
 

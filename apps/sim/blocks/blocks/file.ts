@@ -299,7 +299,7 @@ export const FileBlock: BlockConfig = {
   type: 'file',
   name: 'File (Legacy)',
   description: 'Read and parse multiple files',
-  longDescription: `Integrate File into the workflow. Can upload a file manually or insert a file url.`,
+  longDescription: `Upload a file manually or insert a file url.`,
   bestPractices: `
   - You should always use the File URL input method and enter the file URL if the user gives it to you or clarify if they have one.
   `,

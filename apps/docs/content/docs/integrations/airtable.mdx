@@ -12,14 +12,31 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Airtable](https://airtable.com/) to list bases and table schemas, read or write records, and start workflows from record changes. For token setup, see [Personal Access Tokens](/integrations/airtable-service-account).
+
+Trigger mode handles record creation, updates, and deletion. Inspect `payloads` or `latestPayload` for Airtable's raw changes; deleted record IDs are under `changedTablesById[tableId].destroyedRecordIds`. The `airtableChanges` array currently consolidates created and updated records and returns changed cell values in `changedFields`.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.
+Sim requests these scopes when someone connects an Airtable account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/airtable` |
+| Environment variables | `AIRTABLE_CLIENT_ID`, `AIRTABLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `data.records:read` | Read records |
+| `data.records:write` | Create, edit, and delete records |
+| `schema.bases:read` | View bases and tables |
+| `user.email:read` | Read email address |
+| `webhook:manage` | Create, view, and delete base webhooks and read their payloads |
+
+## Use the block [#usage-instructions]
+
+List bases, list tables (with schema), and create, get, list, update, upsert, or delete records. Use trigger mode to start a workflow when a record is created, updated, or deleted in an Airtable table.
 
 ## Actions
 
@@ -266,9 +283,11 @@ Get the schema of all tables, fields, and views in an Airtable base
 | `tables` | json | Array of table schemas with fields and views |
 | `metadata` | json | Operation metadata including total tables count |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Airtable Webhook
 
@@ -308,28 +327,9 @@ Trigger workflow from Airtable record changes like create, update, and delete ev
 |         ↳ `cellValuesByFieldId` | object | Cell values keyed by field ID |
 |     ↳ `createdRecordsById` | object | Created records by ID |
 |     ↳ `destroyedRecordIds` | array | Array of destroyed record IDs |
-| `airtableChanges` | array | Changes made to the Airtable table |
+| `airtableChanges` | array | Consolidated record creations and updates. Deleted record IDs remain in raw payloads. |
 |   ↳ `tableId` | string | Table ID |
 |   ↳ `recordId` | string | Record ID |
-|   ↳ `changeType` | string | Type of change \(created, changed, destroyed\) |
+|   ↳ `changeType` | string | Type of consolidated change: created or updated |
 |   ↳ `cellValuesByFieldId` | object | Cell values by field ID |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects an Airtable account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/airtable` |
-| Environment variables | `AIRTABLE_CLIENT_ID`, `AIRTABLE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `data.records:read` | Read records |
-| `data.records:write` | Create, edit, and delete records |
-| `schema.bases:read` | View bases and tables |
-| `user.email:read` | Read email address |
-| `webhook:manage` | Create, view, and delete base webhooks and read their payloads |
-
 

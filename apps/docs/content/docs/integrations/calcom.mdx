@@ -15,11 +15,18 @@ Use [Cal.com](https://cal.com/) to manage bookings, event types, schedules, and 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.
+Sim requests no OAuth scopes for Cal.com. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/calcom` |
+| Environment variables | `CALCOM_CLIENT_ID` |
 
+## Use the block [#usage-instructions]
+
+Create, list, confirm, decline, reschedule, or cancel bookings; manage event types and schedules; and retrieve available slots. Booking and meeting webhooks can start workflows. Connect with OAuth or a supported Cal.com API key.
 
 ## Actions
 
@@ -764,9 +771,11 @@ Get available booking slots for a Cal.com event type within a time range
 | `status` | string | Response status |
 | `data` | json | Available time slots grouped by date \(YYYY-MM-DD keys\). Each date maps to an array of slot objects with start time, optional end time, and seated event info. |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### CalCom Booking Cancelled
 
@@ -784,7 +793,7 @@ Trigger workflow when a booking is cancelled in Cal.com
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Booking title |
 |   ↳ `description` | string | Booking description |
 |   ↳ `eventTypeId` | number | Event type ID |
@@ -828,7 +837,7 @@ Trigger workflow when a new booking is created in Cal.com
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Booking title |
 |   ↳ `description` | string | Booking description |
 |   ↳ `eventTypeId` | number | Event type ID |
@@ -872,7 +881,7 @@ Trigger workflow when payment is completed for a paid booking
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type \(BOOKING_PAID\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Booking title |
 |   ↳ `description` | string | Booking description |
 |   ↳ `eventTypeId` | number | Event type ID |
@@ -919,7 +928,7 @@ Trigger workflow when a booking request is rejected by the host
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type \(BOOKING_REJECTED\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Booking title |
 |   ↳ `description` | string | Booking description |
 |   ↳ `eventTypeId` | number | Event type ID |
@@ -961,7 +970,7 @@ Trigger workflow when a booking request is submitted (pending confirmation)
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type \(BOOKING_REQUESTED\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Booking title |
 |   ↳ `description` | string | Booking description |
 |   ↳ `eventTypeId` | number | Event type ID |
@@ -1004,7 +1013,7 @@ Trigger workflow when a booking is rescheduled in Cal.com
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Booking title |
 |   ↳ `description` | string | Booking description |
 |   ↳ `eventTypeId` | number | Event type ID |
@@ -1051,7 +1060,7 @@ Trigger workflow when a Cal.com meeting ends
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type \(MEETING_ENDED\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Meeting title |
 |   ↳ `eventTypeId` | number | Event type ID |
 |   ↳ `startTime` | string | Meeting start time \(ISO 8601\) |
@@ -1091,7 +1100,7 @@ Trigger workflow when a meeting recording is ready for download
 | --------- | ---- | ----------- |
 | `triggerEvent` | string | The webhook event type \(RECORDING_READY\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `title` | string | Meeting title |
 |   ↳ `eventTypeId` | number | Event type ID |
 |   ↳ `startTime` | string | Meeting start time \(ISO 8601\) |
@@ -1132,15 +1141,4 @@ Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)
 | `triggerEvent` | string | The webhook event type \(e.g., BOOKING_CREATED, MEETING_ENDED\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |
-
-
-## OAuth Scopes
-
-Sim requests no OAuth scopes for Cal.com. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/calcom` |
-| Environment variables | `CALCOM_CLIENT_ID` |
-
 

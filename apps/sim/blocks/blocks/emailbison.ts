@@ -37,7 +37,7 @@ export const EmailBisonBlock: BlockConfig = {
   name: 'Email Bison',
   description: 'Manage Email Bison leads, campaigns, replies, and tags',
   longDescription:
-    'Integrate Email Bison into workflows. Create and update leads, manage campaigns, attach leads to campaigns, list replies, and organize leads with tags.',
+    'Create and update leads, manage campaigns, attach leads to campaigns, list replies, and organize leads with tags.',
   docsLink: 'https://docs.sim.ai/integrations/emailbison',
   category: 'tools',
   integrationType: IntegrationType.Email,

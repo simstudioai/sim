@@ -11,26 +11,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[ZoomInfo](https://www.zoominfo.com/) provides company and contact data, buyer intent signals, and company news.
+Use [ZoomInfo](https://www.zoominfo.com/) to search company and contact data, enrich records, retrieve buyer intent signals, and search company news.
 
-In Sim, the ZoomInfo integration lets your agents power prospecting, enrichment, and account research workflows end-to-end:
+**Search Contacts** returns people matching role and company filters, without email or phone data. Pass their IDs to **Enrich Contacts** for engagement details. **Enrich Companies** and **Enrich Contacts** accept up to 25 records per request. Company enrichment can resolve a name, domain, ticker, or ZoomInfo ID.
 
-- **Search Companies**: Use `zoominfo_search_companies` to find accounts matching firmographic filters.
-- **Search Contacts**: Use `zoominfo_search_contacts` to find people by role and company. Search results do not include emails or phone numbers — use Enrich Contacts for engagement data.
-- **Enrich Companies**: Use `zoominfo_enrich_companies` to resolve up to 25 companies per request from a name, domain, ticker, or ZoomInfo ID.
-- **Enrich Contacts**: Use `zoominfo_enrich_contacts` to resolve up to 25 contacts per request, returning verified emails, phones, and job details.
-- **Search Intent**: Use `zoominfo_search_intent` to find companies researching specific topics, with signal scores and recommended contacts.
-- **Search News**: Use `zoominfo_search_news` to monitor company news by category, source URL, or publish date.
+**Search Intent** returns companies researching selected topics, signal scores, and recommended contacts. **Search News** filters by category, source URL, or publication date.
 
-ZoomInfo authenticates with the OAuth 2.0 client credentials flow: Sim exchanges your client ID and secret for a short-lived bearer token automatically on each call, so you only ever provide your credentials. A common pattern is to search first to identify the records you want, then pass their IDs into the matching enrich tool to pull full detail efficiently.
+Supply a client ID and secret. Sim exchanges them for a short-lived OAuth bearer token on each call; you do not supply the access token yourself.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrates ZoomInfo into the workflow. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.
-
-
+Search companies and contacts, enrich company or contact records, retrieve intent signals, and search news through the ZoomInfo GTM API.
 
 ## Actions
 

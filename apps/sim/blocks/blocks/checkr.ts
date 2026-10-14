@@ -118,7 +118,7 @@ export const CheckrBlock: BlockConfig = {
   name: 'Checkr',
   description: 'Run and manage background checks with Checkr',
   longDescription:
-    'Integrate Checkr into the workflow. Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.',
+    'Create and update candidates, send background check invitations, order and upgrade reports, read screening results and assessments, manage report tags, run the adverse action process, schedule recurring checks and continuous monitoring, look up packages, geos, nodes, programs, documents, and users, and react to report, invitation, candidate, verification, adverse action, and continuous check webhooks.',
   docsLink: 'https://docs.sim.ai/integrations/checkr',
   category: 'tools',
   integrationType: IntegrationType.HR,

@@ -50,7 +50,7 @@ export const TelegramBlock: BlockConfig = {
   description: 'Interact with Telegram',
   authMode: AuthMode.BotToken,
   longDescription:
-    'Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.',
+    'Send, edit, forward, copy, pin, or delete messages; send media, locations, contacts, and polls; set reactions and chat actions; and inspect chats and members. Bot messages and events can start workflows.',
   docsLink: 'https://docs.sim.ai/integrations/telegram',
   category: 'tools',
   integrationType: IntegrationType.Communication,

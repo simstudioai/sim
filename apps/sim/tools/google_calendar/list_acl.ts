@@ -112,8 +112,7 @@ export const listAclV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_list_acl_v2',
   name: 'Google Calendar List Sharing',
-  description:
-    'List the access control rules (sharing) for a calendar. Returns API-aligned fields only.',
+  description: 'List the access control rules (sharing) for a calendar.',
   version: '2.0.0',
   oauth: listAclTool.oauth,
   params: listAclTool.params,

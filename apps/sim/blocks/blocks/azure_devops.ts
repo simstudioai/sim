@@ -17,7 +17,7 @@ export const AzureDevOpsBlock: BlockConfig = {
   name: 'Azure DevOps',
   description: 'Interact with Azure DevOps pipelines, builds, and work items',
   longDescription:
-    'Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.',
+    'List and inspect pipelines and builds, query and manage work items, and add or read comments.',
   docsLink: 'https://docs.sim.ai/integrations/azure_devops',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

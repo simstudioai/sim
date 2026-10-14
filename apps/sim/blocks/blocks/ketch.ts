@@ -7,7 +7,7 @@ export const KetchBlock: BlockConfig = {
   name: 'Ketch',
   description: 'Manage privacy consent, subscriptions, and data subject rights',
   longDescription:
-    'Integrate Ketch into the workflow. Retrieve and update consent preferences, manage subscription topics and controls, and submit data subject rights requests for access, deletion, correction, or processing restriction.',
+    'Retrieve and update consent preferences, manage subscription topics and controls, and submit data subject rights requests for access, deletion, correction, or processing restriction.',
   docsLink: 'https://docs.sim.ai/integrations/ketch',
   category: 'tools',
   integrationType: IntegrationType.Security,

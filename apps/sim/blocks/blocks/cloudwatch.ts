@@ -17,7 +17,7 @@ export const CloudWatchBlock: BlockConfig = {
   name: 'CloudWatch',
   description: 'Query and monitor AWS CloudWatch logs, metrics, and alarms',
   longDescription:
-    'Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
+    'Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   docsLink: 'https://docs.sim.ai/integrations/cloudwatch',

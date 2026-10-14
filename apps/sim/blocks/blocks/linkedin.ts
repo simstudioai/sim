@@ -9,7 +9,7 @@ export const LinkedInBlock: BlockConfig = {
   description: 'Share posts and manage your LinkedIn presence',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate LinkedIn into workflows. Share posts to your personal feed and access your LinkedIn profile information.',
+    'Share posts to your personal feed and access your LinkedIn profile information.',
   docsLink: 'https://docs.sim.ai/integrations/linkedin',
   category: 'tools',
   integrationType: IntegrationType.Sales,

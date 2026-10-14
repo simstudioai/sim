@@ -218,10 +218,12 @@ export class DocsChunker {
 
     while ((match = headerRegex.exec(content)) !== null) {
       const level = match[1].length
-      const text = match[2].trim()
+      const rawText = match[2].trim()
+      const aliasMatch = /\s*\[#(.+?)]\s*$/.exec(rawText)
+      const text = aliasMatch ? rawText.slice(0, aliasMatch.index).trimEnd() : rawText
       // A heading that is only a link (`## [Next](…)`) is navigation, not a section.
       if (LINK_ONLY_LINE.test(text)) continue
-      const anchor = this.generateAnchor(text)
+      const anchor = aliasMatch?.[1] ?? this.generateAnchor(text)
 
       headers.push({
         text,

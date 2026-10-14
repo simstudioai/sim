@@ -11,30 +11,29 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Fivetran](https://www.fivetran.com/) is a managed data movement platform that replicates data from SaaS apps, databases, and logs into warehouses and lakehouses such as Databricks, Snowflake, and BigQuery.
+Use [Fivetran](https://www.fivetran.com/) to manage connections and monitor data syncs.
 
-With the Fivetran block, you can:
+- List, read, create, update, pause, resume, or delete connections; inspect connector setup fields; and generate Connect Card links for source owners.
+- Start syncs, re-sync connections or selected tables, run setup tests, reload schemas, and change which schemas and tables are synced.
+- Read sync history, per-stage data volumes, warnings, schema configuration, and connection states.
+- Create or inspect groups and destinations, test destinations, and list, run, or cancel transformations.
+- Read account details, users, service accounts, and supported connector types.
 
-- **Manage connections**: List, read, create, update, pause, resume, and delete connections, look up the setup fields a connector type takes (such as Okta), and generate Connect Card links so source owners can authorize a connection themselves.
-- **Run and repair syncs**: Start a sync on demand, re-sync a whole connection or specific tables, run setup tests, reload the schema, and change which schemas and tables a connection syncs and how it handles new ones.
-- **Monitor pipelines**: Read sync history with per-stage data volumes, active warnings, schema configs, and each connection's setup, sync, and update state.
-- **Work with destinations and transformations**: Create and inspect groups and destinations such as Databricks, run destination setup tests, and list, run, or cancel transformations.
-- **Review the account**: Read account details, list users and service accounts, and look up the connector types you can create.
-- **React to events**: Start workflows when syncs start or end, connections succeed, fail, or change, tables are re-synced, or transformations start, succeed, or fail.
+## Authentication
 
-To connect, click your username in Fivetran, then **API Key** > **Generate API key**. In the block, choose **Add API key** under **Fivetran Account** and paste the key and secret. Sim checks them against your Fivetran account, stores them encrypted as a reusable workspace credential, and fills the Connection, Group, and Destination dropdowns from that account. The key acts with your Fivetran permissions.
+In Fivetran, open your user menu and choose **API Key → Generate API key**. Under the block's **Fivetran Account** field, choose **Add API key** and enter the key and secret. Sim validates them, stores them encrypted as a reusable credential, and populates the Connection, Group, and Destination pickers. The key acts with its owner's Fivetran permissions.
 
-Triggers take the API key and secret directly, register a webhook in Fivetran when you deploy the workflow (for the whole account or one group), and verify every delivery against a signing secret Sim generates for that webhook. The webhook is removed when you delete the trigger and redeploy.
+## Webhook lifecycle
 
-In Sim, the Fivetran block lets your agents triage failed syncs as they happen, keep security log pipelines into your SIEM from going stale, run dbt transformations after loads finish, and report on pipeline health and account access.
+Triggers take the API key and secret directly. When you deploy the workflow, Sim registers an account-level or group-level webhook and generates its signing secret. Sim verifies incoming deliveries against that secret. Remove the trigger and redeploy to delete its webhook.
+
+Triggers cover sync start/end, connection success/failure/change, table re-sync, and transformation start/success/failure events.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.
-
-
+List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.
 
 ## Actions
 
@@ -1067,7 +1066,7 @@ Create the destination for a Fivetran group, such as a Databricks workspace. The
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Fivetran All Events
 
@@ -1122,7 +1121,7 @@ Trigger workflow when a connection is created
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
@@ -1153,7 +1152,7 @@ Trigger workflow when a connection is deleted
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
@@ -1184,7 +1183,7 @@ Trigger workflow when connection credentials, sync frequency, or other settings 
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 |   ↳ `editType` | string | What was edited, e.g. CREDENTIALS |
@@ -1217,7 +1216,7 @@ Trigger workflow when Fivetran fails to connect to a source
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 |   ↳ `testName` | string | Name of the setup test |
@@ -1250,7 +1249,7 @@ Trigger workflow when a connection is paused, by a user or automatically
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 |   ↳ `reason` | string | Why the connection was paused automatically |
@@ -1282,7 +1281,7 @@ Trigger workflow when a historical re-sync of a connection is triggered
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
@@ -1313,7 +1312,7 @@ Trigger workflow when a connection is resumed
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
@@ -1344,7 +1343,7 @@ Trigger workflow when Fivetran connects to a source successfully
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 |   ↳ `testName` | string | Name of the setup test |
@@ -1377,7 +1376,7 @@ Trigger workflow when someone triggers a manual sync of a connection
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 
@@ -1408,7 +1407,7 @@ Trigger workflow when a connection sync finishes, succeeds, fails, or is resched
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `status` | string | Sync status \(SUCCESSFUL, FAILURE, FAILURE_WITH_TASK, RESCHEDULED\) |
 |   ↳ `sync_type` | string | HISTORICAL or INCREMENTAL |
 |   ↳ `load_volume_b` | number | Bytes loaded into the destination, on successful syncs that report it |
@@ -1444,7 +1443,7 @@ Trigger workflow when a connection starts syncing
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `sync_type` | string | HISTORICAL or INCREMENTAL |
 
 
@@ -1474,7 +1473,7 @@ Trigger workflow when a historical re-sync of a table is triggered
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `actor` | string | Internal ID of the user who acted, or _fivetran_system for automatic actions |
 |   ↳ `id` | string | Connection ID |
 |   ↳ `schema` | string | Schema name |
@@ -1506,7 +1505,7 @@ Trigger workflow when a transformation run fails
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Transformation job ID |
 |   ↳ `name` | string | Transformation job name |
 |   ↳ `startTime` | string | When the run started |
@@ -1541,7 +1540,7 @@ Trigger workflow when a transformation run starts
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Transformation job ID |
 |   ↳ `name` | string | Transformation job name |
 |   ↳ `startTime` | string | When the run started |
@@ -1574,7 +1573,7 @@ Trigger workflow when a transformation run succeeds
 | `connectorName` | string | Connection name \(its destination schema\) |
 | `syncId` | string | ID of the sync the event belongs to |
 | `destinationGroupId` | string | Group ID of the destination |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Transformation job ID |
 |   ↳ `name` | string | Transformation job name |
 |   ↳ `startTime` | string | When the run started |
