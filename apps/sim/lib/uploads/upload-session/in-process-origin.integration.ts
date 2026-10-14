@@ -171,7 +171,7 @@ function viaCli(fixture: Fixture) {
   }
 }
 
-/** The MCP server: one tool call dispatched to the owning v2 route under the caller's API key. */
+/** The MCP server: one tool call dispatched to the owning v2 route under the caller's API key; only the client address is inherited. */
 function viaMcp(fixture: Fixture) {
   return async (call: TransferCall) => {
     const result = await dispatchMcpOperation(
@@ -183,7 +183,10 @@ function viaMcp(fixture: Fixture) {
         body: call.body,
       },
       {
-        inbound: new NextRequest('https://mcp.sim.test/api/mcp', { method: 'POST' }),
+        inbound: new NextRequest('https://mcp.sim.test/api/mcp', {
+          method: 'POST',
+          headers: { 'x-forwarded-for': '203.0.113.7' },
+        }),
         credential: { apiKey: fixture.personalKey, bearer: null },
         audience: {},
         signal: new AbortController().signal,
