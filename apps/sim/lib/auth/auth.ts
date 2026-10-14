@@ -5,6 +5,7 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger, setRequestAuth } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import {
   APIError,
@@ -98,8 +99,8 @@ import {
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
-import { isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { getPlans, isOffCatalogPlan, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { isEnterprise, isLegacyPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -179,13 +180,15 @@ const logger = createLogger('Auth')
 
 /**
  * A Stripe price that maps to no catalog plan leaves the stored plan in place. That is expected
- * for off-catalog plans; for a catalog plan it means a price env var is missing or wrong.
+ * for enterprise (priced per customer) and for a legacy plan still on the price it was sold at;
+ * a catalog plan, or a legacy plan moved to a new price, means a price env var is missing or wrong.
  */
 function logUnresolvedStripePlan(
   hook: 'onSubscriptionComplete' | 'onSubscriptionUpdate',
-  details: { subscriptionId: string; dbPlan: string | null; priceId: string | undefined }
+  details: { subscriptionId: string; dbPlan: string | null; priceId: string | undefined },
+  priceChanged: boolean
 ): void {
-  if (isOffCatalogPlan(details.dbPlan)) {
+  if (isEnterprise(details.dbPlan) || (isLegacyPlan(details.dbPlan) && !priceChanged)) {
     logger.info(`[${hook}] Off-catalog Stripe price; keeping the stored plan`, details)
     return
   }
@@ -1572,11 +1575,11 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logUnresolvedStripePlan('onSubscriptionComplete', {
-                    subscriptionId: subscription.id,
-                    dbPlan: subscription.plan,
-                    priceId,
-                  })
+                  logUnresolvedStripePlan(
+                    'onSubscriptionComplete',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId },
+                    false
+                  )
                 }
 
                 const syncedPlan = await syncSubscriptionPlan(
@@ -1670,11 +1673,12 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logUnresolvedStripePlan('onSubscriptionUpdate', {
-                    subscriptionId: subscription.id,
-                    dbPlan: subscription.plan,
-                    priceId,
-                  })
+                  logUnresolvedStripePlan(
+                    'onSubscriptionUpdate',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId },
+                    isRecordLike(event.data.previous_attributes) &&
+                      'items' in event.data.previous_attributes
+                  )
                 }
 
                 const syncedPlan = await syncSubscriptionPlan(

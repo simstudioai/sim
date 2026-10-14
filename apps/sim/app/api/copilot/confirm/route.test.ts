@@ -853,6 +853,37 @@ describe('Copilot Confirm API Route', () => {
     expect(publishToolConfirmation).not.toHaveBeenCalled()
   })
 
+  it('refuses a lost workflow result when the server settled a different execution', async () => {
+    const runningRow = {
+      ...existingRow,
+      toolName: 'run_workflow',
+      args: { workflowId: 'workflow-1' },
+      claimedBy: null,
+    }
+    getAsyncToolCall.mockResolvedValueOnce(runningRow).mockResolvedValueOnce({
+      ...runningRow,
+      status: 'completed',
+      result: { success: true, workflowId: 'workflow-1', executionId: 'execution-2' },
+    })
+    getTrustedWorkflowToolExecution.mockResolvedValueOnce({
+      executionId: 'execution-1',
+      status: 'completed',
+    })
+    completeAsyncToolCall.mockResolvedValueOnce(null)
+
+    const response = await POST(
+      createMockPostRequest({
+        toolCallId: 'tool-call-123',
+        executionId: 'execution-1',
+        status: 'success',
+      }),
+      createRouteContext({})
+    )
+
+    expect(response.status).toBe(404)
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
+
   it('treats a workflow success as a notification and persists only canonical structure', async () => {
     getAsyncToolCall.mockResolvedValue({
       ...existingRow,

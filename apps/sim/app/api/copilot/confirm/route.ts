@@ -97,16 +97,17 @@ function acknowledgeSettledToolCall(
 function acknowledgeSettledWorkflowToolCall(
   span: Span,
   toolCallId: string,
-  settled: { status: AsyncTerminalStatus; result: unknown },
+  settledStatus: AsyncTerminalStatus,
+  settledResult: unknown,
   submittedExecutionId: string | undefined
 ): NextResponse {
-  const executionId = getWorkflowToolCompletionExecutionId(settled.result)
+  const executionId = getWorkflowToolCompletionExecutionId(settledResult)
   if (executionId && submittedExecutionId !== undefined && submittedExecutionId !== executionId) {
     span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
     return createNotFoundResponse('Completed workflow execution not found')
   }
 
-  const terminalStatus = getTerminalConfirmationStatus(settled.status)
+  const terminalStatus = getTerminalConfirmationStatus(settledStatus)
   span.setAttributes({
     [TraceAttr.ToolConfirmationStatus]: terminalStatus,
     [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
@@ -263,7 +264,8 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return acknowledgeSettledWorkflowToolCall(
             span,
             toolCallId,
-            { status: existing.status, result: existing.result },
+            existing.status,
+            existing.result,
             submittedExecutionId
           )
         }
@@ -486,7 +488,8 @@ export const POST = withRouteHandler((req: NextRequest) => {
               ? acknowledgeSettledWorkflowToolCall(
                   span,
                   toolCallId,
-                  { status: settled.status, result: settled.result },
+                  settled.status,
+                  settled.result,
                   submittedExecutionId
                 )
               : acknowledgeSettledToolCall(span, toolCallId, settled.status)

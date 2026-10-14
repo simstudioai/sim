@@ -3,7 +3,7 @@
  */
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST } from '@/app/ingest/[[...path]]/route'
 
 const logger = getMockLogger('PostHogProxy')
@@ -21,10 +21,6 @@ describe('PostHog ingest proxy', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('treats a client that disconnects mid-request as a closed request, not a proxy failure', async () => {

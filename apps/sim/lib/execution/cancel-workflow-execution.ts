@@ -7,7 +7,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { ExecutionJobCancellationScope } from '@/lib/core/async-jobs/types'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   clearExecutionCancellation,
   type ExecutionCancellationRecordResult,
@@ -1201,7 +1201,8 @@ export async function cancelWorkflowExecution({
     }
   } catch (error) {
     const details = { workflowId, executionId, error: toError(error).message }
-    if (error instanceof OrchestrationError && error.code !== 'internal') {
+    const classified = asOrchestrationError(error)
+    if (classified && classified.code !== 'internal') {
       logger.info('Execution cancellation refused', details)
     } else {
       logger.error('Failed to cancel execution', details)
