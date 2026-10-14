@@ -499,4 +499,17 @@ describe('loaded rich editor lifecycle', () => {
       vi.useRealTimers()
     }
   })
+
+  it('never renames an untitled file that was opened and left without edits', async () => {
+    const onDeriveTitleFromHeading = vi.fn()
+    await render('# Existing Heading\n\nBody', '# Existing Heading\n\nBody', true, {
+      file: { ...FILE, name: 'untitled.md' },
+      onDeriveTitleFromHeading,
+    })
+    const editor = getEditor()
+    await act(async () => editor.commands.blur())
+    await act(async () => root.render(null))
+
+    expect(onDeriveTitleFromHeading).not.toHaveBeenCalled()
+  })
 })

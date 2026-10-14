@@ -825,16 +825,19 @@ export function LoadedRichMarkdownEditor({
       // Only the LOCAL user's edits mark the heading title pending: `isChangeOrigin` is true for a
       // remote Yjs change, so every peer doesn't rename from someone else's half-synced heading.
       // `editor.isEditable` is the autosave gate (canEdit + settled + collab-ready), so a view-only
-      // viewer or the not-yet-editable mount seed never marks it. The commit re-checks the name and
-      // heading.
+      // viewer or the not-yet-editable mount seed never marks it, and `docChanged` skips the empty
+      // update `setEditable` emits on open. The commit re-checks the name and heading.
       if (isChangeOrigin(transaction)) return
-      if (editor.isEditable) headingTitlePendingRef.current = true
+      if (editor.isEditable && transaction.docChanged) headingTitlePendingRef.current = true
       if (!isSelectionInLeadingHeading(editor.state)) commitHeadingTitle(editor)
     },
     onSelectionUpdate: ({ editor }) => {
       if (!isSelectionInLeadingHeading(editor.state)) commitHeadingTitle(editor)
     },
-    onBlur: ({ editor }) => commitHeadingTitle(editor),
+    onBlur: ({ editor }) => {
+      // Switching windows blurs the editor mid-heading; only a blur within the page finishes it.
+      if (document.hasFocus()) commitHeadingTitle(editor)
+    },
   })
 
   useEffect(
