@@ -54,16 +54,17 @@ export const fileReadCommand: AgentCliEngine = {
         if (!match) return agentCliFail('Use knowledge/<knowledgeBaseId>/<documentId>.')
         const principal = enginePrincipal(runtime, readOriginalKnowledgeDocument)
         if (!principal) return agentCliFail('Knowledge authentication is unavailable.')
-        const { buffer, ...metadata } = await readOriginalKnowledgeDocument.execute({
-          principal,
-          input: {
-            knowledgeBaseId: match[1],
-            documentId: match[2],
-            assertedWorkspaceId: runtime.workspaceId,
-            maxBytes: query.data.maxBytes,
-            signal: runtime.signal,
-          },
-        })
+        const { buffer, hasRecordedSecrets, ...metadata } =
+          await readOriginalKnowledgeDocument.execute({
+            principal,
+            input: {
+              knowledgeBaseId: match[1],
+              documentId: match[2],
+              assertedWorkspaceId: runtime.workspaceId,
+              maxBytes: query.data.maxBytes,
+              signal: runtime.signal,
+            },
+          })
         if (!buffer)
           return agentCliOk(
             JSON.stringify({
@@ -74,7 +75,14 @@ export const fileReadCommand: AgentCliEngine = {
             })
           )
         return await observePrivateFile(
-          { buffer, ...metadata, knowledge: metadata, path: reference, source: 'knowledge' },
+          {
+            buffer,
+            ...metadata,
+            knowledge: metadata,
+            path: reference,
+            source: 'knowledge',
+            hasRecordedSecrets,
+          },
           flags,
           query.data,
           runtime.signal

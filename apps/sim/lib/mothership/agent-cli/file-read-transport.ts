@@ -1,168 +1,71 @@
 import { createLogger } from '@sim/logger'
 import { NextRequest } from 'next/server'
-import {
-  v2BulkDownloadFilesContract,
-  v2DownloadFileContract,
-  v2ListFileFoldersContract,
-  v2ReadFileTextContract,
-} from '@/lib/api/contracts/v2/files'
-import {
-  authenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError,
-} from '@/lib/api/server/routes/v2-api-key-auth'
-import { readV2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
+import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
+import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
 import { parseRequest } from '@/lib/api/server/validation'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { observeContentDelivery } from '@/lib/core/application'
 import {
   type CopilotChatDelegationContext,
   createCopilotChatPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
-import {
-  importWorkspaceFileSnapshotProvenance,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
-  mergeWorkspaceFileSecretProvenance,
-  type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
-import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('MothershipFileReads')
 
-/** Private file-read metadata stays in the authenticated host; the CLI consumes its usual wire shape. */
+/** Contract paths in the generated route table's `{param}` pattern syntax. */
+const routePattern = (path: string) => path.replace(/\[([^\]]+)\]/g, '{$1}')
+const DOWNLOAD_PATTERN = routePattern(v2DownloadFileContract.path)
+const TEXT_PATTERN = routePattern(v2ReadFileTextContract.path)
+
+/**
+ * Answers the two single-file reads Chat needs beyond their public routes — a chat upload by its
+ * `uploads/` reference and plain source decoded as text — by calling their use cases directly.
+ * Every other request, file collections included, goes to the route the generated table names.
+ *
+ * Classification is not decided here: the gate the caller installed decides each file. A direct
+ * download alone takes the single-file exception (D7): an unknown file is delivered with the whole
+ * invocation withheld, and the workbench copy keeps the unknown classification.
+ */
 export function createFileReadTransport(context: {
   endpoint: string
-  transport?: typeof fetch
-  userId: string
-  invocation?: CopilotChatDelegationContext
-  chatId?: string
+  transport: typeof fetch
+  invocation: CopilotChatDelegationContext & { workspaceId: string }
   registry?: ResolvedSecretTraceRegistry
-  trackDownload?: (
-    stream: ReadableStream<Uint8Array>,
-    provenance?: WorkspaceFileSecretProvenance
-  ) => void
 }): typeof fetch {
   const base = new URL(context.endpoint)
   const basePath = base.pathname.replace(/\/$/, '')
-  const prefix = `${basePath}${v2DownloadFileContract.path.split('[fileId]')[0]}`
-  const collectionPaths = new Set([
-    `${basePath}${v2ListFileFoldersContract.path}`,
-    `${basePath}${v2BulkDownloadFilesContract.path}`,
-  ])
-  /**
-   * Admits one delivery's classification into the invocation registry. A delivery it refuses is
-   * either withheld (text and forwarded responses reach only the model, so refusing them is enough)
-   * or, for a direct download whose bytes can be persisted, delivered with the whole invocation
-   * marked incomplete so anything derived from the copy keeps the unknown classification.
-   */
-  const admit = async (
-    workspaceId: string,
-    provenance: WorkspaceFileSecretProvenance | undefined,
-    resourceId?: string
-  ): Promise<boolean> =>
-    provenance !== undefined &&
-    (await importWorkspaceFileSnapshotProvenance({
-      workspaceId,
-      provenance,
-      registry: context.registry,
-      actorUserId: context.userId,
-      resourceId,
-    }))
-  const refused = () =>
-    v2FileErrorPolicies.concealResourceAuthorization.render(
-      new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
-    ) ??
-    Response.json(
-      { error: { message: MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE } },
-      { status: 403 }
-    )
-
-  const forward: typeof fetch = async (input, init) => {
-    const url = new URL(input instanceof Request ? input.url : input)
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
-    if (!context.invocation || method !== 'GET' || url.origin !== base.origin) {
-      return (context.transport ?? fetch)(input, init)
-    }
-    let provenance: WorkspaceFileSecretProvenance | undefined
-    const deliveries: {
-      source: WorkspaceFileSecretProvenance | undefined
-      fileId: string | undefined
-    }[] = []
-    const response = await observeWorkspaceFileDelivery(
-      async (source, fileId) => {
-        deliveries.push({ source, fileId })
-        provenance = mergeWorkspaceFileSecretProvenance(
-          provenance ?? { status: 'exact', entries: [] },
-          source ?? { status: 'unknown' }
-        )
-      },
-      () => (context.transport ?? fetch)(input, init)
-    )
-    if (!provenance) return response
-    try {
-      if (!context.registry) {
-        await response.body?.cancel().catch(() => {})
-        return Response.json(
-          { error: { message: 'File read provenance is unavailable. Retry the read.' } },
-          { status: 503 }
-        )
-      }
-      /** Single-file refusals retain the canonical file attribution. */
-      for (const { source, fileId } of deliveries) {
-        if (!(await admit(context.invocation.workspaceId, source, fileId))) {
-          await response.body?.cancel().catch(() => {})
-          return refused()
-        }
-      }
-      if (response.body) context.trackDownload?.(response.body, provenance)
-      return response
-    } catch (error) {
-      await response.body?.cancel().catch(() => {})
-      throw error
-    }
-  }
 
   return async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input)
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
-    if (
-      method !== 'GET' ||
-      url.origin !== base.origin ||
-      !url.pathname.startsWith(prefix) ||
-      collectionPaths.has(url.pathname)
-    ) {
-      return forward(input, init)
+    let route: ReturnType<typeof matchV2Route> = null
+    if (method === 'GET' && url.origin === base.origin && url.pathname.startsWith(`${basePath}/`)) {
+      try {
+        route = matchV2Route(url.pathname.slice(basePath.length))
+      } catch {
+        /** A malformed percent encoding names no file; the route answers it. */
+      }
     }
-    const match = /^([^/]+)(\/text)?$/.exec(url.pathname.slice(prefix.length))
-    if (!match) return forward(input, init)
+    if (!route || (route.pattern !== DOWNLOAD_PATTERN && route.pattern !== TEXT_PATTERN)) {
+      return context.transport(input, init)
+    }
     const request = new NextRequest(new Request(input, init))
     let stream: ReadableStream<Uint8Array> | undefined
     try {
       request.signal.throwIfAborted()
-      const principal = context.invocation
-        ? createCopilotChatPrincipal(context.invocation, WORKSPACE_FILES_DELEGATION_AUDIENCE)
-        : (await authenticateV2ApiKey(readV2CredentialHeaders(request.headers))).principal
-      request.signal.throwIfAborted()
-      if (
-        principal.kind === 'delegated'
-          ? principal.subjectUserId !== context.userId
-          : principal.kind !== 'personal_api_key' || principal.userId !== context.userId
-      ) {
-        throw new V2ApiKeyUnauthenticatedError()
-      }
-      if (!context.registry) {
-        return Response.json(
-          { error: { message: 'File read provenance is unavailable. Retry the read.' } },
-          { status: 503 }
-        )
-      }
-      const params = { fileId: decodeURIComponent(match[1] ?? '') }
-      if (match[2]) {
+      const principal = createCopilotChatPrincipal(
+        context.invocation,
+        WORKSPACE_FILES_DELEGATION_AUDIENCE
+      )
+      const params = { fileId: route.params.fileId ?? '' }
+      if (route.pattern === TEXT_PATTERN) {
         const parsed = await parseRequest(
           v2ReadFileTextContract,
           request,
@@ -171,27 +74,20 @@ export function createFileReadTransport(context: {
         )
         if (!parsed.success) return parsed.response
         request.signal.throwIfAborted()
-        const result = await observeWorkspaceFileDelivery(
-          async (source, fileId) => {
-            if (!(await admit(parsed.data.query.workspaceId, source, fileId))) {
-              throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
-            }
+        const result = await readWorkspaceFileText.execute({
+          principal,
+          input: {
+            workspaceId: parsed.data.query.workspaceId,
+            reference: parsed.data.params.fileId,
+            ...(context.invocation.chatId !== undefined
+              ? { chatId: context.invocation.chatId }
+              : {}),
+            maxBytes: parsed.data.query.maxBytes,
+            offset: parsed.data.query.offset,
+            limit: parsed.data.query.limit,
+            allowPlainText: true,
           },
-          () =>
-            readWorkspaceFileText.execute({
-              principal,
-              input: {
-                workspaceId: parsed.data.query.workspaceId,
-                reference: parsed.data.params.fileId,
-                ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
-                maxBytes: parsed.data.query.maxBytes,
-                offset: parsed.data.query.offset,
-                limit: parsed.data.query.limit,
-                includeSecretProvenance: true,
-                allowPlainText: true,
-              },
-            })
-        )
+        })
         request.signal.throwIfAborted()
         return Response.json(presentWorkspaceFileText(result))
       }
@@ -203,44 +99,33 @@ export function createFileReadTransport(context: {
       )
       if (!parsed.success) return parsed.response
       request.signal.throwIfAborted()
-      const result = await observeWorkspaceFileDelivery(
-        async (source, fileId) => {
-          if (!(await admit(parsed.data.query.workspaceId, source, fileId))) {
-            context.registry?.markIncomplete('workspace-file-provenance-unknown')
-          }
-        },
+      const result = await observeContentDelivery(
+        createRegistryContentGate({
+          registry: context.registry,
+          workspaceId: parsed.data.query.workspaceId,
+          actorUserId: context.invocation.userId,
+          unknown: 'taint',
+        }),
         () =>
           downloadWorkspaceFileStream.execute({
             principal,
             input: {
               fileId: parsed.data.params.fileId,
               assertedWorkspaceId: parsed.data.query.workspaceId,
-              includeSecretProvenance: true,
             },
           })
       )
       stream = result.stream
       request.signal.throwIfAborted()
-      const response = new Response(
-        stream.pipeThrough(new TransformStream(), { signal: request.signal }),
-        {
-          headers: {
-            'content-type': result.contentType,
-            'content-length': String(result.contentLength),
-          },
-        }
-      )
-      if (response.body) context.trackDownload?.(response.body, result.secretProvenance)
-      return response
+      return new Response(stream.pipeThrough(new TransformStream(), { signal: request.signal }), {
+        headers: {
+          'content-type': result.contentType,
+          'content-length': String(result.contentLength),
+        },
+      })
     } catch (error) {
       await stream?.cancel().catch(() => {})
       request.signal.throwIfAborted()
-      if (error instanceof V2ApiKeyUnauthenticatedError) {
-        return Response.json(
-          { error: { code: 'UNAUTHORIZED', message: error.message } },
-          { status: 401 }
-        )
-      }
       const response = v2FileErrorPolicies.concealResourceAuthorization.render(error)
       if (response) return response
       logger.error('File read failed', { error })

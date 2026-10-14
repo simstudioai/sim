@@ -1,6 +1,7 @@
-import { workspaceFiles } from '@sim/db/schema'
+import { changelogRelease, workflowTest, workspaceFiles } from '@sim/db/schema'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
@@ -34,6 +35,7 @@ export function resolveFileSearchOwner(input: unknown): EditableFileOwner {
   throw new Error('Invalid file search owner')
 }
 
+/** Writes canonical owner columns and the legacy workspace key used by deployed workers. */
 export function fileSearchOwnerFields(owner: EditableFileOwner) {
   return {
     entityType: owner.entityType,
@@ -55,20 +57,45 @@ export function fileSearchOwnerCondition(table: SearchOwnerColumns, owner: Edita
     : sql`${table.entityType} = 'project' AND ${table.entityId} = ${owner.entityId} AND ${table.workspaceId} IS NULL`
 }
 
+/** Primary search documents are Files resources, never chat uploads or resource-owned bodies. */
 export function searchableFileCondition(owner: EditableFileOwner): SQL {
   const result = and(fileOwnerCondition(owner), eq(workspaceFiles.context, owner.entityType))
   if (!result) throw new OrchestrationError('not_found', 'File owner not found')
   return result
 }
 
+/**
+ * Generated inputs may also be live test or changelog bodies in the same workspace. This
+ * predicate establishes storage identity only; delivery must apply the resource owner's policy.
+ */
+export function fileSearchInputCondition(
+  owner: EditableFileOwner,
+  input: Record<
+    'id' | 'projectId' | 'context' | 'workspaceId' | 'organizationId' | 'chatId',
+    SQLWrapper
+  > = workspaceFiles
+): SQL {
+  if (owner.entityType === 'project')
+    return sql`${input.projectId} = ${owner.entityId} AND ${input.context} = 'project'
+      AND ${input.workspaceId} IS NULL AND ${input.organizationId} IS NULL AND ${input.chatId} IS NULL`
+  return sql`${input.workspaceId} = ${owner.entityId}
+    AND ${input.projectId} IS NULL AND ${input.organizationId} IS NULL
+    AND (${input.context} = 'workspace'
+      OR (${input.context} = 'test' AND EXISTS (
+        SELECT 1 FROM ${workflowTest} WHERE ${workflowTest.bodyFileId} = ${input.id}
+          AND ${workflowTest.workspaceId} = ${owner.entityId} AND ${workflowTest.deletedAt} IS NULL))
+      OR (${input.context} = 'changelog' AND EXISTS (
+        SELECT 1 FROM ${changelogRelease} WHERE ${changelogRelease.bodyFileId} = ${input.id}
+          AND ${changelogRelease.workspaceId} = ${owner.entityId})))`
+}
+
 /** Input deletion leaves manifest rows intact, so absence can never become valid empty provenance. */
 export function currentFileSearchDependencies(buildId: SQLWrapper, owner: EditableFileOwner): SQL {
+  const input = alias(workspaceFiles, 'input')
   return sql`NOT EXISTS (
     SELECT 1 FROM file_search_dependency dependency
     LEFT JOIN workspace_files input ON input.id = dependency.file_id
-      AND input.context = ${owner.entityType}
-      AND (CASE WHEN input.project_id IS NOT NULL THEN 'project' ELSE 'workspace' END) = ${owner.entityType}
-      AND coalesce(input.project_id, input.workspace_id) = ${owner.entityId}
+      AND ${fileSearchInputCondition(owner, input)}
     WHERE dependency.build_id = ${buildId}
       AND (input.id IS NULL OR input.deleted_at IS NOT NULL OR input.key <> dependency.key
         OR input.content_updated_at <> dependency.source_content_updated_at)

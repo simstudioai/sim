@@ -341,6 +341,7 @@ export const sendWorkspaceInvitationBatch = defineAuthorizedWorkspaceUseCase({
 
 const organizationInvitationSendOperation = defineOrganizationOperation({
   id: 'organization_invitations.send_batch',
+  contentDelivery: 'none',
   minimumRole: 'admin',
   capability: 'invitations.send',
   principalKinds: ['session', 'organization_delegated'],

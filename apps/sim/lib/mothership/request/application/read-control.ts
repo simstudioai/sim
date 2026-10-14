@@ -14,6 +14,7 @@ export const readRunControlOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'none',
+  contentDelivery: 'none',
   principalKinds: ['delegated'],
   delegatedServices: ['copilot'],
 })
@@ -23,6 +24,7 @@ export const readRunControl = defineAuthorizedChatUseCase({
   /** permission-group-exempt: observing Stop must remain available after Assistant access is withheld. */
   organizationOperation: defineOrganizationOperation({
     id: readRunControlOperation.id,
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: readRunControlOperation.capability,
     principalKinds: ['organization_delegated'],

@@ -6,6 +6,7 @@ import {
   getWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
@@ -20,9 +21,8 @@ export interface ReadWorkspaceFileRecordResult {
 }
 
 /**
- * Record reads by id admit chat uploads: the sandbox mount reloads an `uploads/<name>`
- * upload through here before presigning it. Listings never surface chat uploads and
- * writes never resolve them.
+ * Record reads by id admit chat uploads. Listings never surface chat uploads and writes never
+ * resolve them.
  */
 function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(operation: O) {
   return defineAuthorizedWorkspaceFileUseCase({
@@ -41,6 +41,7 @@ function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(opera
       }),
     async execute({
       context,
+      principal,
     }: AuthorizedWorkspaceUseCaseContext<
       O,
       ReadWorkspaceFileRecordInput,
@@ -52,6 +53,8 @@ function createReadWorkspaceFileRecord<const O extends WorkspaceOperation>(opera
         includeOwnedFiles: true,
       })
       if (!file) throw new OrchestrationError('not_found', 'File not found')
+      /** Callers read and hand on the record's raw bytes, which no redaction reaches. */
+      await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
       return { file }
     },
   })

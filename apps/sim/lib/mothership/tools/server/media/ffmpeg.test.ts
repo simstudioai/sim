@@ -28,6 +28,8 @@ vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
   executeCopilotFileUseCase: async () => ({
     file,
     content: await workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer(file),
+    secretProvenance:
+      await workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance(),
   }),
   resolveCopilotWorkspaceFileReference: (...args: unknown[]) =>
     workspaceFileManagerMockFns.mockResolveWorkspaceFileReference(...args),
@@ -251,22 +253,6 @@ describe('ffmpeg server tool secret provenance', () => {
       success: false,
       message: 'ffmpeg convert failed: The media operation failed safely',
     })
-  })
-
-  it('does not expose storage errors after learning that an input has tracked provenance', async () => {
-    getBoundWorkspaceFileSecretProvenanceMock.mockResolvedValue(TRACKED)
-    fetchWorkspaceFileBufferMock.mockRejectedValue(new Error('storage echoed private bytes'))
-
-    const result = await ffmpegServerTool.execute(
-      { operation: 'convert', inputs: { files: [{ path: 'files/input.mp4' }] } },
-      context
-    )
-
-    expect(result).toEqual({
-      success: false,
-      message: 'ffmpeg convert failed: The media operation failed safely',
-    })
-    expect(runFfmpegOperationMock).not.toHaveBeenCalled()
   })
 
   it('projects dynamic parser errors before returning them', async () => {

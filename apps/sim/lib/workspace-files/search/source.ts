@@ -20,7 +20,11 @@ import {
 import type { IndexableBytes } from '@/lib/workspace-files/search/extract'
 import { FileSearchExclusionError } from '@/lib/workspace-files/search/index-plan'
 import type { FileSearchRevision } from '@/lib/workspace-files/search/index-state'
-import { resolveFileSearchOwner, searchableFileCondition } from '@/lib/workspace-files/search/scope'
+import {
+  fileSearchInputCondition,
+  resolveFileSearchOwner,
+  searchableFileCondition,
+} from '@/lib/workspace-files/search/scope'
 
 export interface FileSearchDependencyIdentity {
   fileId: string
@@ -88,7 +92,7 @@ export async function loadFileSearchSource(
           .from(workspaceFiles)
           .where(
             and(
-              searchableFileCondition(owner),
+              fileSearchInputCondition(owner),
               inArray(workspaceFiles.id, ids),
               isNull(workspaceFiles.deletedAt)
             )

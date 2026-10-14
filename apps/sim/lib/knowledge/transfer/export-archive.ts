@@ -37,12 +37,16 @@ export function knowledgeBundleFileName(knowledgeBaseName: string): string {
   return `${safeBundleLeafName(knowledgeBaseName)}.simkb.zip`
 }
 
-async function openFileSource(source: ExportableFileSource): Promise<Readable | Buffer> {
+/** Opens one captured original; inline bytes can be supplied from their classified row snapshot. */
+export async function openKnowledgeExportFile(
+  source: ExportableFileSource,
+  inlineFileUrl?: string
+): Promise<Readable | Buffer> {
   if (source.kind === 'storage') {
     return downloadFileStream({ key: source.key, context: 'knowledge-base' })
   }
   return decodeDataUriWithinLimit(
-    await readInlineFileUrl(source.knowledgeBaseId, source.documentId),
+    inlineFileUrl ?? (await readInlineFileUrl(source.knowledgeBaseId, source.documentId)),
     MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
   ).buffer
 }
@@ -149,7 +153,7 @@ async function appendBundleEntries(
   for (const document of bundle.documents) {
     const entries = bundleEntryPaths(document)
     if (document.file && entries.file) {
-      await appendEntry(archive, await openFileSource(document.file), entries.file, closed)
+      await appendEntry(archive, await bundle.file(document), entries.file, closed)
     }
     const chunkCount = entries.chunks
       ? await appendChunkEntry(

@@ -68,6 +68,7 @@ const headlessTargetOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
+  contentDelivery: 'none',
   principalKinds: ['delegated'],
   delegatedServices: ['copilot'],
 })

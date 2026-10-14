@@ -23,6 +23,7 @@ import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/pol
 /** Search's organization delegation can use only the member's currently available personal grant. */
 export const organizationPersonalCredentialOperation = defineOrganizationOperation({
   id: 'credentials.organization.personal.use',
+  contentDelivery: 'none',
   minimumRole: 'member',
   principalKinds: ['organization_delegated'],
   delegatedServices: ['copilot'],
@@ -132,6 +133,7 @@ export const resolveOrganizationPersonalToken = {
 
 export const organizationPersonalConnectionOperation = defineOrganizationOperation({
   id: 'credentials.organization.personal.prepareConnection',
+  contentDelivery: 'none',
   minimumRole: 'member',
   principalKinds: ['organization_delegated'],
   delegatedServices: ['copilot'],

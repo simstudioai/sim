@@ -8,6 +8,7 @@ export const listWorkspaceInvitationsOperation = defineWorkspaceOperation({
   id: 'workspace_invitations.list',
   minimumRole: 'admin',
   capability: 'none',
+  contentDelivery: 'none',
   workspaceApiKey: 'deny',
   principalKinds: ['session', 'delegated'],
   delegatedServices: ['copilot'],

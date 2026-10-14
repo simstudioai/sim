@@ -10,6 +10,7 @@ import {
 } from '@/lib/uploads/contexts/workspace'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { assertOwnedFileAccess } from '@/lib/workspace-files/application/workspace-file-context'
@@ -44,12 +45,14 @@ async function loadCurrentWorkspaceFileByKey(
 async function executeReadWorkspaceFileContentByKey({
   input,
   context,
+  principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
   ReadWorkspaceFileByKeyInput,
   ActiveWorkspaceFileContext
 >): Promise<ReadWorkspaceFileContentByKeyResult> {
   const file = await loadCurrentWorkspaceFileByKey(input, context)
+  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
   return {
     file,
     content: await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_BUFFERED_TRANSFER_BYTES }),
@@ -88,8 +91,11 @@ async function resolveWorkspaceFileByKeyContext({
 export const readWorkspaceFileRecordByKey = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
   resolveContext: resolveWorkspaceFileByKeyContext,
-  async execute({ input, context }): Promise<ReadWorkspaceFileRecordByKeyResult> {
-    return { file: await loadCurrentWorkspaceFileByKey(input, context) }
+  async execute({ input, context, principal }): Promise<ReadWorkspaceFileRecordByKeyResult> {
+    const file = await loadCurrentWorkspaceFileByKey(input, context)
+    /** Callers serve this key's raw bytes, which no redaction reaches. */
+    await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
+    return { file }
   },
 })
 

@@ -44,6 +44,7 @@ const userIds: string[] = []
 const workspaceIds: string[] = []
 const organizationIds: string[] = []
 const projectFileIds: string[] = []
+const projectFolderIds: string[] = []
 
 async function seedResources(archived: boolean, joined = true) {
   const ownerId = generateId()
@@ -263,6 +264,7 @@ async function assertRetained(fixture: Awaited<ReturnType<typeof seedResources>>
 afterAll(async () => {
   if (projectFileIds.length)
     await db.delete(workspaceFiles).where(inArray(workspaceFiles.id, projectFileIds))
+  if (projectFolderIds.length) await db.delete(folder).where(inArray(folder.id, projectFolderIds))
   if (workspaceIds.length) await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
   if (organizationIds.length)
     await db.delete(organization).where(inArray(organization.id, organizationIds))
@@ -374,6 +376,66 @@ describe('shared resource retention across workspace departure and account erasu
         }),
       ])
     )
+  })
+
+  it('allows Project creator departure with a valid successor in an organization without an owner', async () => {
+    const fixture = await seedResources(false, false)
+    const organizationId = generateId()
+    organizationIds.push(organizationId)
+    await db
+      .insert(organization)
+      .values({ id: organizationId, name: 'Project succession', slug: organizationId })
+    await db.insert(member).values([
+      {
+        id: generateId(),
+        organizationId,
+        userId: fixture.ownerId,
+        role: 'admin',
+        createdAt: new Date(),
+      },
+    ])
+    await db.transaction(async (tx) => {
+      await tx.update(project).set({ organizationId }).where(eq(project.id, fixture.projectId))
+      await tx
+        .update(workspace)
+        .set({ organizationId, workspaceMode: 'organization' })
+        .where(eq(workspace.id, fixture.workspaceId))
+    })
+    const fileId = generateId()
+    const folderId = generateId()
+    projectFileIds.push(fileId)
+    projectFolderIds.push(folderId)
+    await db.insert(folder).values({
+      id: folderId,
+      resourceType: 'file',
+      name: 'Project files',
+      projectId: fixture.projectId,
+      userId: fixture.departingId,
+    })
+    await db.insert(workspaceFiles).values({
+      id: fileId,
+      userId: fixture.departingId,
+      projectId: fixture.projectId,
+      folderId,
+      context: 'project',
+      key: `project/${fixture.projectId}/${fileId}`,
+      originalName: 'retained.txt',
+      contentType: 'text/plain',
+      sizeBytes: 1,
+    })
+    expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toEqual([])
+    await deleteUserAccount(fixture.departingId)
+    expect(
+      await db
+        .select({ userId: workspaceFiles.userId })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, fileId))
+    ).toEqual([{ userId: fixture.ownerId }])
+    expect(
+      await db.select({ userId: folder.userId }).from(folder).where(eq(folder.id, folderId))
+    ).toEqual([{ userId: fixture.ownerId }])
+    await db.delete(workspaceFiles).where(eq(workspaceFiles.id, fileId))
+    await db.delete(folder).where(eq(folder.id, folderId))
   })
 
   it('retains workspace-logo bindings after uploader departure and deletion', async () => {

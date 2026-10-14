@@ -21,6 +21,7 @@ const mocks = {
 const principal = createSessionPrincipal({ userId: 'member', sessionId: 'session' })
 const operation = defineOrganizationOperation({
   id: 'search.read',
+  contentDelivery: 'none',
   minimumRole: 'member',
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
   oauthScope: 'api:read',

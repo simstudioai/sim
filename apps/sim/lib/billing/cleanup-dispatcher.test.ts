@@ -204,7 +204,10 @@ describe('Project payer discovery backpressure', () => {
       vi.mocked(getHighestPriorityPersonalSubscription).mockReset()
       resetDbChainMock()
     }
-    expect(await dispatch).toMatchObject({ chunkCount: 29, jobCount: 29 })
+    expect(await dispatch).toMatchObject({ chunkCount: 1, jobCount: 1 })
+    const payload = mockEnqueue.mock.calls[0]?.[1]
+    expect(payload?.projectIds).toHaveLength(29)
+    expect(payload?.projectIds).not.toContain('project-12')
   })
 })
 

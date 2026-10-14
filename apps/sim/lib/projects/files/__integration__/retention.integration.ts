@@ -220,9 +220,41 @@ async function cleanupEvents(projectId: string) {
 
 describe('Project file retention follows the current payer in PostgreSQL', () => {
   check(
+    'omits empty Projects and batches retained Projects with the same cleanup policy',
+    async () => {
+      const empty = await fixture()
+      const activeOnly = await fixture()
+      const first = await fixture()
+      const second = await fixture()
+      await seedFile(activeOnly, 40 * 24)
+      await seedFile(first, 40 * 24, true)
+      await seedFile(second, 40 * 24, true)
+      const discovered: CleanupJobPayload[] = []
+      await runCleanupWithLimits('cleanup-soft-deletes', { files: 10 }, async (scope) => {
+        discovered.push(scope)
+      })
+      expect(discovered.some((scope) => scope.projectIds?.includes(empty.projectId))).toBe(false)
+      expect(discovered.some((scope) => scope.projectIds?.includes(activeOnly.projectId))).toBe(
+        false
+      )
+      const retained = discovered.filter(
+        (scope) =>
+          scope.projectIds?.includes(first.projectId) ||
+          scope.projectIds?.includes(second.projectId)
+      )
+      expect(retained).toHaveLength(1)
+      expect(retained[0].projectIds).toEqual(
+        expect.arrayContaining([first.projectId, second.projectId])
+      )
+      expect(retained[0]).toMatchObject({ plan: 'free', retentionHours: 30 * 24, workspaceIds: [] })
+    }
+  )
+
+  check(
     'scheduled discovery includes shared Projects with their payer policy independently of environment chunks',
     async () => {
       const f = await fixture()
+      await seedFile(f, 40 * 24, true)
       const discovered: CleanupJobPayload[] = []
       await runCleanupWithLimits('cleanup-soft-deletes', { files: 1 }, async (scope) => {
         discovered.push(scope)

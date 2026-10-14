@@ -101,7 +101,6 @@ async function readUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
       workspaceId: ids.workspaceId,
       chatId: ids.chatId,
       reference: `uploads/${ids.name}`,
-      includeSecretProvenance: true,
     },
   })
   return {

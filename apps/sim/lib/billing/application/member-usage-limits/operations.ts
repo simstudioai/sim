@@ -6,6 +6,7 @@ export const memberUsageLimitOperations = {
    */
   read: defineOrganizationOperation({
     id: 'organization_member_usage_limits.read',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
@@ -18,6 +19,7 @@ export const memberUsageLimitOperations = {
    */
   update: defineOrganizationOperation({
     id: 'organization_member_usage_limits.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],

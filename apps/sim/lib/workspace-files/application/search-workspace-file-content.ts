@@ -2,14 +2,15 @@ import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
+import { admitEach, mustClassifyContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { listFileFolders, loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { assertOwnedFileAccess } from '@/lib/workspace-files/application/workspace-file-context'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 import {
   loadFileSearchDelivery,
@@ -76,6 +77,7 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     signal?.throwIfAborted()
 
     try {
+      const classified = mustClassifyContent(principal)
       const owner = { entityType: 'workspace' as const, entityId: context.workspaceId }
       const result = await searchFileIndex({
         owner,
@@ -89,6 +91,7 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         const [current] = await tx
           .select({
             workspaceId: workspace.id,
+            billedAccountUserId: workspace.billedAccountUserId,
             workspaceOrganizationId: workspace.organizationId,
             allowPersonalApiKeys: workspace.allowPersonalApiKeys,
           })
@@ -103,15 +106,39 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           forUpdate: true,
         })
         const folders = input.folderPaths === undefined ? [] : await listFileFolders(owner, {}, tx)
-        return loadFileSearchDelivery(tx, {
+        const delivery = await loadFileSearchDelivery(tx, {
           owner,
           prepared: result,
           scope: resolveFileSearchFolderScope(folders, input),
           signal,
+          classify: classified,
         })
+        for (const dependency of delivery.inputs)
+          await assertOwnedFileAccess(principal, { ...current, ...dependency }, tx)
+        return delivery.provenance
       })
-      await reportWorkspaceFileDelivery(provenance)
-      return toWorkspaceFileSearchResult(result)
+      const admitted = await admitEach(principal, result.sources, async (sources) =>
+        sources.map((source) => ({
+          kind: 'workspace-file' as const,
+          id: source.identity.fileId,
+          provenance: provenance.get(source.identity.fileId) ?? { status: 'unknown' as const },
+          view: 'excerpt' as const,
+        }))
+      )
+      if (!classified) return toWorkspaceFileSearchResult(result)
+      const admittedIds = new Set(admitted.map((source) => source.identity.fileId))
+      return toWorkspaceFileSearchResult({
+        ...result,
+        results: result.results.map((hit) =>
+          admittedIds.has(hit.fileId)
+            ? hit
+            : {
+                ...hit,
+                text: '[Preview withheld: read or grep this file to inspect protected text.]',
+              }
+        ),
+        sources: admitted,
+      })
     } catch (error) {
       /**
        * A rejected or too-expensive pattern is the caller's to fix, and the

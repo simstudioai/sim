@@ -7,6 +7,7 @@ function definePermissionGroupOperation<const Id extends string>(
 ) {
   return defineOrganizationOperation({
     id,
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -72,5 +73,6 @@ export const permissionGroupWorkspaceOperations = {
     delegatedServices: ['copilot'],
     oauthScope: 'api:read',
     capability: 'none',
+    contentDelivery: 'none',
   }),
 } as const

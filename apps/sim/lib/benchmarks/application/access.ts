@@ -76,6 +76,7 @@ export function defineAuthorizedBenchmarkUseCase<
 
 const targetOperation = defineOrganizationOperation({
   id: 'benchmarks.target.authorize',
+  contentDelivery: 'none',
   minimumRole: 'member',
   capability: 'copilot.use',
   principalKinds: ['organization_delegated'],

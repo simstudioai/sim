@@ -12,7 +12,8 @@ const hoisted = vi.hoisted(() => ({
   executeOcr: vi.fn(),
 }))
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/knowledge/model-input-provenance', () => ({
+vi.mock(import('@/lib/knowledge/model-input-provenance'), async (importOriginal) => ({
+  ...(await importOriginal()),
   getKnowledgeOpaqueModelInputRegistry: hoisted.provenance,
   assertKnowledgeOpaqueModelInputSafe: hoisted.provenance,
 }))

@@ -116,12 +116,12 @@ export function getKnowledgeOpaqueModelInputRegistry(): ResolvedSecretTraceRegis
   return context.registry ?? new ResolvedSecretTraceRegistry()
 }
 
-/** Projects one string immediately before it enters an embedding or reranking request. */
-export function projectKnowledgeModelInput(value: string): string {
+/** Projects known literals in text before its transformation or delivery to a model. */
+export function projectKnowledgeModelInput(value: string, maxBytes?: number): string {
   const registry = knowledgeModelInputContext.getStore()?.registry
   if (!registry) return value
 
-  const projection = projectResolvedSecretModelContent(value, registry)
+  const projection = projectResolvedSecretModelContent(value, registry, maxBytes)
   if (!projection.safe || typeof projection.value !== 'string') {
     refuseResolvedSecretProjection({
       site: 'knowledge.modelInput',

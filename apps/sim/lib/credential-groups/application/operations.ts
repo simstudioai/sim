@@ -12,6 +12,7 @@ export const credentialGroupOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'none',
+    contentDelivery: 'none',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
   }),

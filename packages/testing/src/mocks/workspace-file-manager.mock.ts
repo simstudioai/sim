@@ -128,6 +128,9 @@ export const workspaceFileManagerMockFns = {
   mockUpdateWorkspaceFileDimensions: vi.fn(),
   mockGetWorkspaceFileByName: vi.fn(),
   mockListWorkspaceFiles: vi.fn(),
+  mockFindListedWorkspaceFiles: vi.fn(
+    async () => new Map<string, MockWorkspaceFileLookupFields | null>()
+  ),
   mockQueryWorkspaceFiles: vi.fn(),
   mockWorkspaceFileVfsPath: vi.fn(vfsPath),
   mockGetSandboxWorkspaceFilePath: vi.fn(
@@ -199,6 +202,7 @@ export const workspaceFileManagerMock = {
   updateWorkspaceFileDimensions: fns.mockUpdateWorkspaceFileDimensions,
   getWorkspaceFileByName: fns.mockGetWorkspaceFileByName,
   listWorkspaceFiles: fns.mockListWorkspaceFiles,
+  findListedWorkspaceFiles: fns.mockFindListedWorkspaceFiles,
   queryWorkspaceFiles: fns.mockQueryWorkspaceFiles,
   workspaceFileVfsPath: fns.mockWorkspaceFileVfsPath,
   getSandboxWorkspaceFilePath: fns.mockGetSandboxWorkspaceFilePath,

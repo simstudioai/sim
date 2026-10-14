@@ -1,48 +1,28 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { LRUCache } from 'lru-cache'
 import { NextRequest } from 'next/server'
-import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
+import { ContentGateFailure } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import {
-  type DurableSecretProvenance,
-  durableSecretProvenanceFromEnvelope,
-  EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
-  mergeDurableSecretProvenance,
-} from '@/lib/execution/durable-secret-provenance'
-import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
-import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
+import {
+  createSessionContentGate,
+  dispatchUnderContentGate,
+  markCommittedWriteResponse,
+  WorkbenchProvenanceUnavailableError,
+} from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
-import { isCatalogRoute } from '@/lib/mothership/tools/sandbox-catalog-routes'
 import {
   readSandboxResourceScope,
   recordSandboxResourceEffects,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { observeTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
-import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 const logger = createLogger('MothershipSandboxResourceTransport')
-
-/** How long one route's missing-provenance report suppresses repeats for that route. */
-const UNRECORDED_PROVENANCE_LOG_WINDOW_MS = 60 * 60 * 1000
-/** Memory backstop above the number of `method route` pairs the v2 route table can produce. */
-const UNRECORDED_PROVENANCE_LOG_MAX_ROUTES = 1_000
-
-/**
- * Data-bearing routes already reported as lacking a provenance producer. The gap is a
- * property of the route, not the request, so it is reported once per route per window.
- */
-const unrecordedProvenanceRoutesLogged = new LRUCache<string, true>({
-  max: UNRECORDED_PROVENANCE_LOG_MAX_ROUTES,
-  ttl: UNRECORDED_PROVENANCE_LOG_WINDOW_MS,
-})
 
 /** Private callback observes the real authenticated v2 request without changing its body or API contract. */
 export async function proxySandboxResourceRequest(
@@ -117,7 +97,6 @@ async function proxyAuthorizedSandboxRequest(
   const forwarded = new Request(target, init)
   const effects: ResourceChange[] = []
   let response: Response | undefined
-  let rowProvenance: DurableSecretProvenance | undefined
   let dispatched = false
   /** Invoke the same handler with private request identity; the declared use case still authorizes current domain access. */
   const matched = matchV2Route(path)
@@ -139,61 +118,37 @@ async function proxyAuthorizedSandboxRequest(
     if (!(result instanceof Response)) throw new Error('Invalid sandbox API response')
     return result
   }
-  const recordInput = (provenance: boolean | DurableSecretProvenance) =>
-    recordExistingSessionFileInput(chatSandboxSessionKey(scope.chatId), provenance)
-  const fileRead =
-    method === 'GET' &&
-    [v2DownloadFileContract, v2ReadFileTextContract].some(
-      (contract) =>
-        contract.path.replace(/\[([^\]]+)\]/g, (_match, key) =>
-          encodeURIComponent(matched.params[key] ?? '')
-        ) === path
-    )
+  const gate = createSessionContentGate({
+    sessionKey: chatSandboxSessionKey(scope.chatId),
+    workspaceId: targetWorkspaceId,
+    actorUserId: scope.userId,
+  })
   const deliver = async () => {
     dispatched = true
-    let fileObserved = false
-    const result = await observeTableRowDelivery(
-      async (provenance, _values, extras) => {
-        rowProvenance = mergeDurableSecretProvenance(
-          rowProvenance ?? EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
-          extras.unprovenancedErrorText
-            ? { status: 'unknown' }
-            : durableSecretProvenanceFromEnvelope(provenance)
-        )
-      },
-      () =>
-        observeWorkspaceFileDelivery(async (provenance) => {
-          if (provenance?.status === 'unrecorded') {
-            reportDurableSecretProvenanceUnrecorded({
-              surface: 'workspace-file',
-              workspaceId: targetWorkspaceId,
-              actorUserId: scope.userId,
-            })
-          }
-          await recordInput(provenance?.status === 'unrecorded' ? true : (provenance ?? false))
-          fileObserved = true
-        }, dispatch)
-    )
     try {
-      if (fileRead && !fileObserved && result.ok && result.body) await recordInput(false)
-      else if (!fileObserved && !rowProvenance && !isCatalogRoute(method, matched.pattern)) {
-        /** Missing producer evidence is unrecorded, not proof that the machine received a secret. */
-        const routeKey = `${method} ${matched.pattern}`
-        if (!unrecordedProvenanceRoutesLogged.has(routeKey)) {
-          unrecordedProvenanceRoutesLogged.set(routeKey, true)
-          logger.warn('Sandbox API response has no recorded secret provenance', {
-            method,
-            route: matched.pattern,
-            toolCallId: scope.toolCallId,
-          })
-        }
-      }
+      response = (await dispatchUnderContentGate(gate, dispatch)).response
     } catch (error) {
-      await result.body?.cancel().catch(() => {})
-      throw error
+      if (
+        !(error instanceof ContentGateFailure) ||
+        !(error.gateFailure instanceof WorkbenchProvenanceUnavailableError)
+      ) {
+        throw error
+      }
+      /** A mutation may already have committed; the result is withheld, never retried for it. */
+      logger.warn('Sandbox response provenance could not be recorded', {
+        toolCallId: scope.toolCallId,
+      })
+      const withheld = Response.json(
+        {
+          error: error.committedWrite
+            ? 'The change was saved, but its result could not be returned safely. Do not retry the change.'
+            : 'The API request ran, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.',
+        },
+        { status: 502 }
+      )
+      response = error.committedWrite ? markCommittedWriteResponse(withheld) : withheld
     }
-    response = result
-    return result
+    return response
   }
   try {
     await createResourceEffectTransport(endpoint, deliver, effects)(forwarded)
@@ -240,24 +195,6 @@ async function proxyAuthorizedSandboxRequest(
       }
     })
   )
-  if (rowProvenance) {
-    // Row mutations have already committed; admission must not interrupt completion or effects.
-    try {
-      await recordInput(rowProvenance)
-    } catch {
-      await response.body?.cancel().catch(() => {})
-      logger.warn('Sandbox response provenance could not be recorded after API completion', {
-        toolCallId: scope.toolCallId,
-        status: response.status,
-      })
-      response = Response.json(
-        {
-          error: `API request completed with HTTP ${response.status}, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.`,
-        },
-        { status: 502 }
-      )
-    }
-  }
   return new Response(request.method === 'HEAD' ? null : response.body, {
     status: response.status,
     statusText: response.statusText,

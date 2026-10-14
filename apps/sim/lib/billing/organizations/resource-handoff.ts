@@ -19,8 +19,6 @@ export async function listSharedResourceOrganizationIdsForUser(executor: DbOrTx,
         WHERE ${knowledgeBase.userId} = ${userId} AND ${knowledgeBase.workspaceId} IS NULL
       UNION ALL SELECT ${workspaceFiles.organizationId} FROM ${workspaceFiles}
         WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.workspaceId} IS NULL
-      UNION ALL SELECT p.organization_id FROM workspace_files f JOIN project p ON p.id = f.project_id WHERE f.user_id = ${userId}
-      UNION ALL SELECT p.organization_id FROM folder f JOIN project p ON p.id = f.project_id WHERE f.user_id = ${userId}
       UNION ALL SELECT ${permissionGroup.organizationId} FROM ${permissionGroup} WHERE ${permissionGroup.createdBy} = ${userId}
       UNION ALL SELECT ${ssoProvider.organizationId} FROM ${ssoProvider} WHERE ${ssoProvider.userId} = ${userId}
     ) owned WHERE "organizationId" IS NOT NULL ORDER BY "organizationId"

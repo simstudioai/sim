@@ -142,6 +142,8 @@ export interface DescribeWorkflowRunFilesOptions {
   includeBase64: boolean
   /** Inline ceiling per file. Clamped to the executor's own inline limit. */
   base64MaxBytes?: number
+  /** Files whose bytes may be inlined; any other file is described with `base64: null`. */
+  inlineable?: ReadonlySet<string>
 }
 
 /**
@@ -184,9 +186,12 @@ export async function describeWorkflowRunFiles(
   if (!options.includeBase64) {
     return files.map((file) => describe(file, null))
   }
+  const inlined = options.inlineable
+    ? files.filter((file) => options.inlineable?.has(file.id))
+    : files
 
   let declaredBytes = 0
-  for (const file of files) {
+  for (const file of inlined) {
     const downloadPath = workflowRunFileDownloadPath(options.workflowId, options.runId, file.id)
     if (file.size > cap) {
       throw new OrchestrationError(
@@ -202,6 +207,7 @@ export async function describeWorkflowRunFiles(
 
   let inlinedBytes = 0
   return mapWithConcurrency(files, INLINE_RUN_FILE_CONCURRENCY, async (file) => {
+    if (options.inlineable && !options.inlineable.has(file.id)) return describe(file, null)
     let content: Buffer
     try {
       content = await downloadFile({

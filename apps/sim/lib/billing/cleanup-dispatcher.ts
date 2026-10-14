@@ -1,10 +1,17 @@
 import { db } from '@sim/db'
 import type { DataRetentionSettings, WorkspaceMode } from '@sim/db/schema'
-import { organization, project, workspace } from '@sim/db/schema'
+import {
+  folder,
+  organization,
+  project,
+  workspace,
+  workspaceFiles,
+  workspaceFileVersion,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { tasks } from '@trigger.dev/sdk'
-import { and, asc, eq, gt, isNull } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm'
 import { validateCleanupLimits } from '@/lib/api/contracts/cleanup'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
@@ -343,6 +350,16 @@ async function forEachCleanupChunk(
         .where(
           and(
             isNull(project.archivedAt),
+            jobType === 'cleanup-soft-deletes'
+              ? sql`(EXISTS (SELECT 1 FROM ${workspaceFiles}
+                  WHERE ${workspaceFiles.projectId} = ${project.id} AND ${workspaceFiles.deletedAt} IS NOT NULL)
+                OR EXISTS (SELECT 1 FROM ${folder}
+                  WHERE ${folder.projectId} = ${project.id} AND ${folder.resourceType} = 'file' AND ${folder.deletedAt} IS NOT NULL))`
+              : sql`EXISTS (SELECT 1 FROM ${workspaceFiles}
+                  WHERE ${workspaceFiles.projectId} = ${project.id}
+                    AND EXISTS (SELECT 1 FROM ${workspaceFileVersion}
+                      WHERE ${workspaceFileVersion.fileId} = ${workspaceFiles.id}
+                        AND ${workspaceFileVersion.supersededAt} IS NOT NULL))`,
             afterProjectId ? gt(project.id, afterProjectId) : undefined
           )
         )
@@ -382,16 +399,25 @@ async function forEachCleanupChunk(
           }
         }
       )
+      const groups = new Map<string, CleanupJobPayload>()
       for (const scope of scopes) {
-        if (shouldStop()) break
         if (!scope) continue
-        await emitChunk({
-          plan: scope.plan,
-          retentionHours: scope.retentionHours,
-          projectIds: [scope.projectId],
-          workspaceIds: [],
-          label: `${scope.plan}/projects/${scope.projectId}`,
-        })
+        const key = `${scope.plan}/${scope.retentionHours}`
+        const group = groups.get(key)
+        if (group) group.projectIds?.push(scope.projectId)
+        else
+          groups.set(key, {
+            plan: scope.plan,
+            retentionHours: scope.retentionHours,
+            projectIds: [scope.projectId],
+            workspaceIds: [],
+            label: `${scope.plan}/projects/${scope.projectId}`,
+          })
+      }
+      for (const group of groups.values()) {
+        if (shouldStop()) break
+        for (const projectIds of chunkArray(group.projectIds ?? [], WORKSPACES_PER_CLEANUP_CHUNK))
+          await emitChunk({ ...group, projectIds })
       }
     }
   }

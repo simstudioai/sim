@@ -23,6 +23,7 @@ import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processi
 import {
   buildKnowledgeBundleArchive,
   knowledgeBundleFileName,
+  openKnowledgeExportFile,
 } from '@/lib/knowledge/transfer/export-archive'
 import type { ExportableChunk, ExportableDocument } from '@/lib/knowledge/transfer/export-source'
 
@@ -82,6 +83,10 @@ function bundle(overrides: Partial<KnowledgeBaseExportBundle> = {}): KnowledgeBa
       }),
       exportableDocument({ id: TEXT_ONLY_ID, filename: 'wiki page', file: null }),
     ],
+    file: (document) => {
+      if (!document.file) throw new Error('Fixture has no original')
+      return openKnowledgeExportFile(document.file)
+    },
     chunks: (documentId) =>
       documentId === STORED_ID
         ? chunksOf(chunk(0, [0.25, 0.5]), chunk(1, [1, 2]))

@@ -7,7 +7,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   FILE_SEARCH_BUILD_LEASE_MS,
@@ -25,6 +25,7 @@ import { estimateTrigramKeys, type FileSearchChunk } from '@/lib/workspace-files
 import { lockFileSearchOwners } from '@/lib/workspace-files/search/owner-policy'
 import {
   type FileSearchOwnerScope,
+  fileSearchInputCondition,
   fileSearchOwnerCondition,
   fileSearchOwnerFields,
   resolveFileSearchOwner,
@@ -48,6 +49,11 @@ function revisionFilter(revision: FileSearchRevision) {
   )
 }
 
+/**
+ * Locks owner authority before sorted file rows; callers then lock build and revision rows.
+ * Every dependency must retain its owner, key and content revision. Returns false for missing,
+ * deleted or changed inputs so a stale build cannot publish; malformed manifests throw.
+ */
 export async function lockFileSearchInputs(
   tx: DbTransaction,
   revision: FileSearchRevision,
@@ -66,12 +72,22 @@ export async function lockFileSearchInputs(
       id: workspaceFiles.id,
       key: workspaceFiles.key,
       deletedAt: workspaceFiles.deletedAt,
+      context: workspaceFiles.context,
       contentUpdatedAt: workspaceFiles.contentUpdatedAt,
     })
     .from(workspaceFiles)
     .where(
       and(
-        searchableFileCondition(owner),
+        or(
+          and(eq(workspaceFiles.id, revision.fileId), searchableFileCondition(owner)),
+          and(
+            inArray(
+              workspaceFiles.id,
+              dependencies.map((entry) => entry.fileId)
+            ),
+            fileSearchInputCondition(owner)
+          )
+        ),
         inArray(workspaceFiles.id, [
           ...new Set([revision.fileId, ...dependencies.map((entry) => entry.fileId)]),
         ])
@@ -83,6 +99,7 @@ export async function lockFileSearchInputs(
   const file = byId.get(revision.fileId)
   return Boolean(
     file &&
+      file.context === owner.entityType &&
       file.deletedAt === null &&
       (sourceKey === undefined || file.key === sourceKey) &&
       file.contentUpdatedAt.getTime() === revision.sourceContentUpdatedAt.getTime() &&

@@ -1,7 +1,7 @@
 import type { WorkspaceFileRow } from '@sim/db/schema'
 import { workspaceFileSearchRevision, workspaceFiles } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
-import { and, asc, inArray, isNull } from 'drizzle-orm'
+import { and, asc, inArray, isNull, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
@@ -15,9 +15,16 @@ import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-disp
 import { resolveFolderIdsForPaths } from '@/lib/workspace-files/folder-path-selection'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import type { FileSearchResult } from '@/lib/workspace-files/search/repository'
-import { searchableFileCondition } from '@/lib/workspace-files/search/scope'
+import {
+  fileSearchInputCondition,
+  searchableFileCondition,
+} from '@/lib/workspace-files/search/scope'
 import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
+/**
+ * Absent paths leave search unscoped; an explicit empty selection matches nothing. Resolves
+ * descendants unless disabled and rejects missing paths instead of broadening the scope.
+ */
 export function resolveFileSearchFolderScope(
   folders: Awaited<ReturnType<typeof listFileFolders>>,
   input: { folderPaths?: readonly string[]; includeSubfolders?: boolean }
@@ -45,22 +52,24 @@ export async function loadFileSearchDelivery(
     prepared,
     scope,
     signal,
+    classify,
   }: {
     owner: EditableFileOwner
     prepared: FileSearchResult
     scope?: FolderIdScope
     signal?: AbortSignal
+    classify: boolean
   }
-): Promise<WorkspaceFileSecretProvenance> {
+): Promise<{
+  provenance: Map<string, WorkspaceFileSecretProvenance>
+  inputs: { fileId: string; fileContext: string }[]
+}> {
   signal?.throwIfAborted()
-  const ids = [
-    ...new Set(
-      prepared.sources.flatMap((source) => [
-        source.identity.fileId,
-        ...source.dependencies.map((dependency) => dependency.fileId),
-      ])
-    ),
-  ]
+  const sourceIds = new Set(prepared.sources.map((source) => source.identity.fileId))
+  const dependencyIds = new Set(
+    prepared.sources.flatMap((source) => source.dependencies.map((input) => input.fileId))
+  )
+  const ids = [...new Set([...sourceIds, ...dependencyIds])]
   ids.sort(compareStrings)
   await configureFileSearchTransaction(tx)
   const rows: Pick<
@@ -69,6 +78,7 @@ export async function loadFileSearchDelivery(
   >[] = []
   for (let offset = 0; offset < ids.length; offset += 1_000) {
     signal?.throwIfAborted()
+    const batchIds = ids.slice(offset, offset + 1_000)
     rows.push(
       ...(await tx
         .select({
@@ -82,8 +92,22 @@ export async function loadFileSearchDelivery(
         .from(workspaceFiles)
         .where(
           and(
-            searchableFileCondition(owner),
-            inArray(workspaceFiles.id, ids.slice(offset, offset + 1_000)),
+            or(
+              and(
+                inArray(
+                  workspaceFiles.id,
+                  batchIds.filter((id) => sourceIds.has(id))
+                ),
+                searchableFileCondition(owner)
+              ),
+              and(
+                inArray(
+                  workspaceFiles.id,
+                  batchIds.filter((id) => dependencyIds.has(id))
+                ),
+                fileSearchInputCondition(owner)
+              )
+            ),
             isNull(workspaceFiles.deletedAt)
           )
         )
@@ -114,6 +138,7 @@ export async function loadFileSearchDelivery(
     const state = statesById.get(source.identity.fileId)
     if (
       !current ||
+      current.context !== owner.entityType ||
       current.key !== source.identity.key ||
       current.contentUpdatedAt.getTime() !== source.identity.contentUpdatedAt?.getTime() ||
       state?.status !== 'ready' ||
@@ -138,13 +163,27 @@ export async function loadFileSearchDelivery(
         )
     }
   }
-  const provenance = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, rows)
-  let secretProvenance: WorkspaceFileSecretProvenance = { status: 'exact', entries: [] }
-  for (const row of rows)
-    secretProvenance = mergeWorkspaceFileSecretProvenance(
-      secretProvenance,
-      provenance.get(row.id) ?? { status: 'unknown' }
-    )
+  const sources = new Map<string, WorkspaceFileSecretProvenance>()
+  if (classify) {
+    const provenance = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, rows)
+    for (const source of prepared.sources) {
+      let secretProvenance: WorkspaceFileSecretProvenance = { status: 'exact', entries: [] }
+      for (const id of [
+        source.identity.fileId,
+        ...source.dependencies.map((input) => input.fileId),
+      ])
+        secretProvenance = mergeWorkspaceFileSecretProvenance(
+          secretProvenance,
+          provenance.get(id) ?? { status: 'unknown' }
+        )
+      sources.set(source.identity.fileId, secretProvenance)
+    }
+  }
   signal?.throwIfAborted()
-  return secretProvenance
+  return {
+    provenance: sources,
+    inputs: rows
+      .filter((row) => row.context !== owner.entityType)
+      .map((row) => ({ fileId: row.id, fileContext: row.context })),
+  }
 }

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { db, runOutsideTransactionContext } from '@sim/db'
 import {
+  changelogRelease,
   fileSearchDispatchQueue,
   folder,
   member,
@@ -11,6 +12,7 @@ import {
   permissions,
   project,
   user,
+  workflowTest,
   workspace,
   workspaceFileSearchBuild,
   workspaceFileSearchChunk,
@@ -18,8 +20,12 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -29,11 +35,15 @@ import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { getFileContentProvenance } from '@/lib/internal/file/operations'
 import { lockProject } from '@/lib/projects/membership'
 import { listFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  createOwnedWorkspaceFile,
+  uploadWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
@@ -63,6 +73,7 @@ const signal = new AbortController().signal
 
 beforeEach(() => {
   vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
+  featureFlagsMockFns.mockIsFeatureEnabled.mockReset()
 })
 
 function check(name: string, run: () => Promise<void>) {
@@ -232,6 +243,116 @@ async function search(
 }
 
 describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () => {
+  for (const context of ['test', 'changelog'] as const) {
+    check(
+      `indexes a generated document with a live ${context} input and preserves input access`,
+      async () => {
+        const f = await fixture()
+        featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+        const body = await createOwnedWorkspaceFile({
+          context,
+          workspaceId: f.workspaceId,
+          userId: f.ownerId,
+          content: 'owned body',
+          contentType: 'text/plain',
+          fileName: (id) => `${id}.txt`,
+          insertOwner: async (tx, bodyFileId) => {
+            if (context === 'test')
+              await tx.insert(workflowTest).values({
+                id: generateId(),
+                workspaceId: f.workspaceId,
+                name: generateId(),
+                title: 'Search input',
+                bodyFileId,
+                sourceHash: 'fixture',
+              })
+            else
+              await tx.insert(changelogRelease).values({
+                id: generateId(),
+                workspaceId: f.workspaceId,
+                title: 'Search input',
+                bodyFileId,
+                versionMajor: 1,
+                versionMinor: 0,
+                versionPatch: 0,
+                bumpReason: 'fixture',
+              })
+          },
+        })
+        const source = `getFileBase64('${body.fileId}')`
+        const generated = await uploadWorkspaceFile(
+          f.workspaceId,
+          f.ownerId,
+          Buffer.from(source),
+          'owned-input.docx',
+          'text/plain',
+          { notifyWorkspaceChange: false }
+        )
+        const [inputRow] = await db
+          .select()
+          .from(workspaceFiles)
+          .where(eq(workspaceFiles.id, body.fileId))
+        const owner = { entityType: 'workspace' as const, entityId: f.workspaceId }
+        const artifact = await Packer.toBuffer(
+          new Document({ sections: [{ children: [new Paragraph('ownedinputneedle')] }] })
+        )
+        await storeCompiledDoc(
+          owner,
+          source,
+          'docx',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          artifact,
+          JSON.stringify({
+            version: 1,
+            inputs: [
+              {
+                fileId: body.fileId,
+                key: inputRow.key,
+                context: 'workspace',
+                contentVersion: inputRow.contentUpdatedAt.toISOString(),
+                size: inputRow.sizeBytes,
+              },
+            ],
+          })
+        )
+        await indexWorkspaceFileForSearch({ owner, ...(await claim(generated.id)) }, signal)
+        const read = () =>
+          searchWorkspaceFileContent.execute({
+            principal: f.principal,
+            input: {
+              workspaceId: f.workspaceId,
+              query: 'ownedinputneedle',
+              mode: 'exact',
+              maxResults: 100,
+            },
+          })
+        const result = await read()
+        expect(result.results.map((hit) => hit.fileId)).toEqual([generated.id])
+        expect(
+          result.sources.find((entry) => entry.identity.fileId === body.fileId)?.identity.context
+        ).toBe(context)
+        await expect(
+          searchWorkspaceFileContent.execute({
+            principal: createWorkspaceApiKeyPrincipal({ workspaceId: f.workspaceId }),
+            input: {
+              workspaceId: f.workspaceId,
+              query: 'ownedinputneedle',
+              mode: 'exact',
+              maxResults: 100,
+            },
+          })
+        ).rejects.toMatchObject({ code: 'not_found' })
+        featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
+        await expect(read()).rejects.toMatchObject({ code: 'forbidden' })
+        featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+        if (context === 'test')
+          await db.delete(workflowTest).where(eq(workflowTest.bodyFileId, body.fileId))
+        else await db.delete(changelogRelease).where(eq(changelogRelease.bodyFileId, body.fileId))
+        expect((await read()).results).toEqual([])
+      }
+    )
+  }
+
   check(
     'fences duplicate legacy and owner-aware workspace workers to one published build',
     async () => {
@@ -916,6 +1037,8 @@ afterAll(async () => {
       )
   ).map((row) => row.id)
   if (fileIds.length) {
+    await db.delete(workflowTest).where(inArray(workflowTest.bodyFileId, fileIds))
+    await db.delete(changelogRelease).where(inArray(changelogRelease.bodyFileId, fileIds))
     const builds = await db
       .select({ id: workspaceFileSearchBuild.id })
       .from(workspaceFileSearchBuild)

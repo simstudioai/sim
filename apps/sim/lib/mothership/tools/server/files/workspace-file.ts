@@ -248,7 +248,11 @@ export async function compileDocForWrite(args: {
 
   if (docInfo.isDoc) {
     try {
-      await runSandboxTask(docInfo.taskId!, { code: source, workspaceId }, { ownerKey, signal })
+      await runSandboxTask(
+        docInfo.taskId!,
+        { code: source, workspaceId },
+        { ownerKey, signal, filePrincipal: principal }
+      )
     } catch (err) {
       return {
         ok: false,

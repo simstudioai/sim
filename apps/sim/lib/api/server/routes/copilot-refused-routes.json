@@ -231,6 +231,11 @@
   },
   {
     "method": "GET",
+    "path": "/api/v2/tables/[tableId]/exports/[exportId]/download",
+    "operation": "tables.exports.download"
+  },
+  {
+    "method": "GET",
     "path": "/api/v2/workspaces",
     "operation": "workspaces.list_public"
   }

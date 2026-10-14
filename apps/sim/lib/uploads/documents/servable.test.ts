@@ -34,8 +34,8 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
 }))
-vi.mock('@/lib/uploads/documents/compiled-store', () => ({
-  compiledArtifactKey: vi.fn(() => 'compiled-artifact-key'),
+vi.mock('@/lib/uploads/documents/compiled-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/documents/compiled-store')>()),
   loadCompiledDoc: mockLoadCompiledDoc,
   loadPublishedCompiledDoc: mockLoadPublishedCompiledDoc,
   publishCompiledDocArtifact: mockPublishCompiledDocArtifact,

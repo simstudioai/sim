@@ -1,5 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
+import { ContentRefusedError } from '@/lib/core/application'
 import {
   executeInIsolatedVM,
   type IsolatedVMBrokerHandler,
@@ -20,6 +22,7 @@ export interface RunSandboxTaskOptions {
   signal?: AbortSignal
   /** Records canonical workspace files whose bytes were successfully read by a task broker. */
   onWorkspaceFileAccess?: SandboxBrokerContext['onWorkspaceFileAccess']
+  filePrincipal?: SandboxBrokerContext['filePrincipal']
   /** Run id that brokers see as `ctx.requestId`, for callers that keep per-run broker state. */
   requestId?: string
 }
@@ -59,10 +62,23 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
     workspaceId: input.workspaceId,
     requestId,
     onWorkspaceFileAccess: options.onWorkspaceFileAccess,
+    filePrincipal: options.filePrincipal,
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}
+  const runInCallerContext = AsyncLocalStorage.snapshot()
+  let brokerRefusals: Map<number, ContentRefusedError> | undefined
   for (const broker of task.brokers) {
-    brokers[broker.name] = (args) => broker.handle(brokerContext, args)
+    brokers[broker.name] = async (args, brokerId) => {
+      try {
+        return await runInCallerContext(() => broker.handle(brokerContext, args))
+      } catch (error) {
+        if (error instanceof ContentRefusedError) {
+          brokerRefusals ??= new Map()
+          brokerRefusals.set(brokerId, error)
+        }
+        throw error
+      }
+    }
   }
 
   const request: IsolatedVMExecutionRequest = {
@@ -120,6 +136,11 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
       if (result.error.stack) err.stack = result.error.stack
       throw err
     }
+    const brokerRefusal =
+      result.error.brokerErrorId === undefined
+        ? undefined
+        : brokerRefusals?.get(result.error.brokerErrorId)
+    if (brokerRefusal) throw brokerRefusal
     throw new SandboxUserCodeError(
       result.error.message,
       result.error.name || 'SandboxTaskError',

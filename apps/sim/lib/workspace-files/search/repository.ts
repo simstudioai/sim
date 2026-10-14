@@ -30,6 +30,7 @@ import {
 } from '@/lib/workspace-files/search/pattern'
 import {
   currentFileSearchDependencies,
+  fileSearchInputCondition,
   resolveFileSearchOwner,
   searchableFileCondition,
 } from '@/lib/workspace-files/search/scope'
@@ -53,7 +54,7 @@ export interface WorkspaceFileSearchSource {
   identity: WorkspaceFileSecretProvenanceIdentity
   ownerUserId?: string
   buildId: string
-  dependencies: (FileSearchDependencyIdentity & { ownerUserId?: string })[]
+  dependencies: (FileSearchDependencyIdentity & { ownerUserId?: string; context?: string })[]
 }
 
 export interface WorkspaceFileSearchResult {
@@ -386,13 +387,14 @@ export async function searchFileIndex({
                       key: fileSearchDependency.key,
                       sourceContentUpdatedAt: fileSearchDependency.sourceContentUpdatedAt,
                       ownerUserId: workspaceFiles.userId,
+                      context: workspaceFiles.context,
                     })
                     .from(fileSearchDependency)
                     .innerJoin(
                       workspaceFiles,
                       and(
                         eq(workspaceFiles.id, fileSearchDependency.fileId),
-                        searchableFileCondition(owner)
+                        fileSearchInputCondition(owner)
                       )
                     )
                     .where(inArray(fileSearchDependency.buildId, buildIds))
@@ -486,12 +488,15 @@ export function toWorkspaceFileSearchResult(result: FileSearchResult): Workspace
     })
     for (const dependency of source.dependencies) {
       if (sources.has(dependency.fileId)) continue
+      const context = dependency.context ?? 'workspace'
+      if (context !== 'workspace' && context !== 'test' && context !== 'changelog')
+        throw new Error('Workspace search input has a different owner')
       sources.set(dependency.fileId, {
         identity: {
           fileId: dependency.fileId,
           key: dependency.key,
           contentUpdatedAt: dependency.sourceContentUpdatedAt,
-          context: 'workspace',
+          context,
         },
         ...(dependency.ownerUserId ? { ownerUserId: dependency.ownerUserId } : {}),
         buildId: source.buildId,
