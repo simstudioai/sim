@@ -72,6 +72,7 @@ function createIo(deliver?: (message: SentMessage) => void) {
   const channel = (target: string, excluded: string[] = []) => ({
     except: (exclude: string) => channel(target, [...excluded, exclude]),
     emit: (event: string, payload: unknown) => emit({ target, except: excluded, event, payload }),
+    fetchSockets: async () => [...testSockets.values()],
   })
   const to = vi.fn((target: string) => channel(target))
   const inFn = vi.fn((socketId: string) => ({
@@ -79,21 +80,32 @@ function createIo(deliver?: (message: SentMessage) => void) {
       left.push({ socketId, room })
     },
   }))
-  // Doc-sync frames fan out via `io.local.to(...)` (cross-task delivery rides the Redis stream, not the
-  // adapter). With the store disabled in tests, `local` is the whole room — mirror `to` so those emits
-  // are recorded identically. Awareness/presence still use `io.to(...)`.
-  return { io: { to, in: inFn, local: { to } } as unknown as IRoomManager['io'], sent, left }
+  // With the shared store disabled, local and adapter broadcasts reach the same clients.
+  return {
+    io: {
+      to,
+      in: inFn,
+      local: { to },
+      sockets: { sockets: testSockets },
+      on: vi.fn(),
+      serverSideEmit: vi.fn(),
+    } as unknown as IRoomManager['io'],
+    sent,
+    left,
+  }
 }
 
 /** Every socket id a test created, so `afterEach` can drop their rooms without a
  * hardcoded list drifting out of sync with the tests. */
 const createdSocketIds = new Set<string>()
+const testSockets = new Map<string, ReturnType<typeof createSocket>['socket']>()
 
 function createSocket(id: string, overrides?: Record<string, unknown>) {
   createdSocketIds.add(id)
   const handlers: Record<string, Handler> = {}
   const socket = {
     id,
+    data: {},
     userId: 'user-1',
     userName: 'Test User',
     // Set so the server's roster resolves the avatar from the socket (never the DB).
@@ -114,6 +126,7 @@ function createSocket(id: string, overrides?: Record<string, unknown>) {
     leave: vi.fn(),
     ...overrides,
   }
+  testSockets.set(id, socket)
   return { handlers, socket }
 }
 
@@ -218,6 +231,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // map is cleared and never bleeds a counter into the next test.
     for (const id of createdSocketIds) cleanupFileDocForSocket(id, io, true)
     createdSocketIds.clear()
+    testSockets.clear()
     await getFileDocStore().shutdown()
   })
 
