@@ -10,6 +10,7 @@ import {
   outboxEvent,
   permissions,
   user,
+  workflowTest,
   workspace,
   workspaceFileSecretProvenance,
   workspaceFiles,
@@ -43,6 +44,7 @@ import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
+  createOwnedWorkspaceFile,
   deleteWorkspaceFileVersion,
   fetchWorkspaceFileBuffer,
   getWorkspaceFile,
@@ -64,13 +66,7 @@ import {
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import * as storageService from '@/lib/uploads/core/storage-service'
-import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
-import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
-import {
-  downloadWorkspaceFileVersion,
-  readWorkspaceFileVersionText,
-  revertWorkspaceFileVersion,
-} from '@/lib/workspace-files/application/file-versions'
+import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
@@ -355,6 +351,7 @@ describe('workspace file version history in PostgreSQL', () => {
   )
 
   it.each([
+    { operation: 'owned', enqueueAvailable: true, code: 'CONNECTION_CLOSED' },
     { operation: 'upload', enqueueAvailable: true, code: undefined },
     { operation: 'content', enqueueAvailable: true, code: undefined },
     { operation: 'upload', enqueueAvailable: false, code: undefined },
@@ -389,23 +386,41 @@ describe('workspace file version history in PostgreSQL', () => {
       })
       try {
         const result =
-          operation === 'content'
-            ? updateWorkspaceFileContent(
-                fixture.workspaceId,
-                fixture.fileId,
-                fixture.aliceId,
-                Buffer.from('committed content'),
-                undefined,
-                { version: { source: 'api', authorUserId: fixture.aliceId } }
-              )
-            : uploadWorkspaceFile(
-                fixture.workspaceId,
-                fixture.aliceId,
-                Buffer.from('committed content'),
-                'committed.txt',
-                'text/plain',
-                { notifyWorkspaceChange: false }
-              )
+          operation === 'owned'
+            ? createOwnedWorkspaceFile({
+                context: 'test',
+                workspaceId: fixture.workspaceId,
+                userId: fixture.aliceId,
+                content: 'committed content',
+                contentType: 'text/plain',
+                fileName: (id) => `${id}.txt`,
+                insertOwner: async (tx, bodyFileId) =>
+                  tx.insert(workflowTest).values({
+                    id: generateId(),
+                    workspaceId: fixture.workspaceId,
+                    name: generateId(),
+                    title: 'Commit outcome',
+                    bodyFileId,
+                    sourceHash: 'fixture',
+                  }),
+              })
+            : operation === 'content'
+              ? updateWorkspaceFileContent(
+                  fixture.workspaceId,
+                  fixture.fileId,
+                  fixture.aliceId,
+                  Buffer.from('committed content'),
+                  undefined,
+                  { version: { source: 'api', authorUserId: fixture.aliceId } }
+                )
+              : uploadWorkspaceFile(
+                  fixture.workspaceId,
+                  fixture.aliceId,
+                  Buffer.from('committed content'),
+                  'committed.txt',
+                  'text/plain',
+                  { notifyWorkspaceChange: false }
+                )
         await expect(result).rejects.toThrow('Commit acknowledgement lost')
       } finally {
         capture.mockRestore()
@@ -417,11 +432,15 @@ describe('workspace file version history in PostgreSQL', () => {
         .from(workspaceFiles)
         .where(eq(workspaceFiles.key, stagedKey))
       expect(committed?.id).toEqual(expect.any(String))
-      const file = await getWorkspaceFile(fixture.workspaceId, committed.id)
-      if (!file) throw new Error('committed file missing')
-      expect((await fetchWorkspaceFileBuffer(file, { maxBytes: 1024 })).toString()).toBe(
-        'committed content'
-      )
+      expect(
+        (
+          await storageService.downloadFile({
+            key: stagedKey,
+            context: 'workspace',
+            maxBytes: 1024,
+          })
+        ).toString()
+      ).toBe('committed content')
       expect(
         await db
           .select({ id: outboxEvent.id })

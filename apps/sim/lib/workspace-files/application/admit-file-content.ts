@@ -113,7 +113,7 @@ export async function requireAdmittedContributors(
  * Admits each of many files on its own, classifying all of them in one batch, and returns the ids
  * admitted. A caller no gate observes gets every id back without a provenance read.
  */
-export async function admitWorkspaceFileIdentities(
+async function admitWorkspaceFileIdentities(
   principal: Principal,
   workspaceId: string,
   identities: readonly WorkspaceFileSecretProvenanceIdentity[],

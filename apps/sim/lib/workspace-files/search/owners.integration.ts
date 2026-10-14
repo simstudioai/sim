@@ -25,6 +25,7 @@ import {
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { envFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -36,6 +37,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { getFileContentProvenance } from '@/lib/internal/file/operations'
 import { lockProject } from '@/lib/projects/membership'
@@ -44,8 +46,9 @@ import {
   createOwnedWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
+import { compiledArtifactKey, storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
+import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
 import { resolveFileSearchFolderScope } from '@/lib/workspace-files/search/delivery'
 import { prepareWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/dispatcher'
@@ -315,6 +318,12 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
             ],
           })
         )
+        setEnvFlags({ isDocSandboxEnabled: true })
+        const served = await fetchAuthorizedServableWorkspaceFileBuffer(generated, f.principal, {
+          maxBytes: 1024 * 1024,
+        })
+        expect(served.buffer).toEqual(artifact)
+        expect(served.contributingFiles?.map((file) => file.context)).toEqual([context])
         await indexWorkspaceFileForSearch({ owner, ...(await claim(generated.id)) }, signal)
         const read = () =>
           searchWorkspaceFileContent.execute({
@@ -345,6 +354,41 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
         await expect(read()).rejects.toMatchObject({ code: 'forbidden' })
         featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+        await db
+          .delete(fileSearchDispatchQueue)
+          .where(
+            and(
+              eq(fileSearchDispatchQueue.entityType, 'workspace'),
+              eq(fileSearchDispatchQueue.entityId, f.workspaceId)
+            )
+          )
+        await db
+          .update(workspaceFiles)
+          .set({ contentUpdatedAt: new Date(inputRow.contentUpdatedAt.getTime() + 1000) })
+          .where(eq(workspaceFiles.id, body.fileId))
+        expect((await read()).results).toEqual([])
+        expect(
+          await db
+            .select()
+            .from(fileSearchDispatchQueue)
+            .where(
+              and(
+                eq(fileSearchDispatchQueue.entityType, 'workspace'),
+                eq(fileSearchDispatchQueue.entityId, f.workspaceId)
+              )
+            )
+        ).toHaveLength(1)
+        expect(
+          await db
+            .select()
+            .from(workspaceFileSearchRevision)
+            .where(eq(workspaceFileSearchRevision.fileId, body.fileId))
+        ).toEqual([])
+        await db
+          .update(workspaceFiles)
+          .set({ contentUpdatedAt: inputRow.contentUpdatedAt })
+          .where(eq(workspaceFiles.id, body.fileId))
+        expect((await read()).count).toBe(1)
         if (context === 'test')
           await db.delete(workflowTest).where(eq(workflowTest.bodyFileId, body.fileId))
         else await db.delete(changelogRelease).where(eq(changelogRelease.bodyFileId, body.fileId))
@@ -811,7 +855,6 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         .select()
         .from(workspaceFiles)
         .where(eq(workspaceFiles.id, dependency.file.id))
-      const artifactKeys: string[] = []
       await storeCompiledDoc(
         f.owner,
         source,
@@ -820,11 +863,14 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         await Packer.toBuffer(
           new Document({ sections: [{ children: [new Paragraph('oldrender')] }] })
         ),
-        fileDocumentInputIdentity(f.owner, [dependencyRow]),
-        (key) => artifactKeys.push(key)
+        fileDocumentInputIdentity(f.owner, [dependencyRow])
       )
-      const artifactKey = artifactKeys.find((key) => key.endsWith('.docx'))
-      if (!artifactKey) throw new Error('Artifact was not stored')
+      const artifactKey = compiledArtifactKey(
+        f.owner,
+        source,
+        'docx',
+        fileDocumentInputIdentity(f.owner, [dependencyRow])
+      )
       const completion = {
         owner: f.owner,
         file: {
@@ -884,7 +930,6 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         .select()
         .from(workspaceFiles)
         .where(eq(workspaceFiles.id, dependency.file.id))
-      const artifactKeys: string[] = []
       await storeCompiledDoc(
         f.owner,
         source,
@@ -893,11 +938,14 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         await Packer.toBuffer(
           new Document({ sections: [{ children: [new Paragraph('old-contributor')] }] })
         ),
-        fileDocumentInputIdentity(f.owner, [dependencyRow]),
-        (key) => artifactKeys.push(key)
+        fileDocumentInputIdentity(f.owner, [dependencyRow])
       )
-      const artifactKey = artifactKeys.find((key) => key.endsWith('.docx'))
-      if (!artifactKey) throw new Error('Artifact was not stored')
+      const artifactKey = compiledArtifactKey(
+        f.owner,
+        source,
+        'docx',
+        fileDocumentInputIdentity(f.owner, [dependencyRow])
+      )
       const { markFileSearchArtifactReadyInTx } = await import(
         '@/lib/workspace-files/search/artifact-ready'
       )

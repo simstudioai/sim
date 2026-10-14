@@ -29,7 +29,10 @@ import {
   iterateDocumentFileReferences,
 } from '@/lib/uploads/documents/references'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { admitWorkspaceFiles } from '@/lib/workspace-files/application/admit-file-content'
+import {
+  admitWorkspaceFiles,
+  workspaceFileProvenanceIdentity,
+} from '@/lib/workspace-files/application/admit-file-content'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
@@ -193,12 +196,12 @@ function touchesReferencedFiles(
 function referencedImageIdentities(
   resolution: ReferencedImageResolution
 ): WorkspaceFileSecretProvenanceIdentity[] {
-  return resolution.images.map(({ record }) => ({
-    fileId: record.id,
-    key: record.key,
-    context: record.storageContext ?? 'workspace',
-    contentUpdatedAt: record.contentUpdatedAt ?? record.updatedAt,
-  }))
+  return resolution.images.map(({ record }) =>
+    workspaceFileProvenanceIdentity({
+      ...record,
+      contentUpdatedAt: record.contentUpdatedAt ?? record.updatedAt,
+    })
+  )
 }
 
 /** Collects static input identities, retaining one over the cap so callers can reject oversized sets. */

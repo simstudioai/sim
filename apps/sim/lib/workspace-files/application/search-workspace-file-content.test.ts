@@ -83,11 +83,13 @@ describe('searchWorkspaceFileContent cancellation', () => {
       })
     )
     await expect(
-      searchWorkspaceFileContent.execute({
-        principal,
-        input,
-        request: { headers: new Headers() },
-      })
+      observeContentDelivery(cleanOnlyGate, () =>
+        searchWorkspaceFileContent.execute({
+          principal: copilotPrincipal(),
+          input,
+          request: { headers: new Headers() },
+        })
+      )
     ).rejects.toMatchObject({ code: 'locked' })
   })
 })
@@ -215,7 +217,18 @@ describe('searchWorkspaceFileContent for Chat', () => {
     expect(found.results[0].text).toMatch(/preview withheld/i)
   })
 
-  it("leaves a person's search limit and result untouched", async () => {
+  it("preserves a person's point-in-time results after matching rows change", async () => {
+    resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      {
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'user-1',
+      },
+    ])
+    queueTableRows(schemaMock.workspaceFiles, [])
+    queueTableRows(schemaMock.workspaceFileSearchRevision, [])
     const raw = {
       results: [hit('refused', 1)],
       count: 1,

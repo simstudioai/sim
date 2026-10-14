@@ -119,8 +119,10 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
     await connection`CREATE TABLE workspace_files (
       id text PRIMARY KEY, workspace_id text, context text NOT NULL,
       deleted_at timestamp, content_updated_at timestamp NOT NULL,
-      project_id text, key text NOT NULL DEFAULT 'key'
+      project_id text, organization_id text, chat_id text, key text NOT NULL DEFAULT 'key'
     )`
+    await connection`CREATE TABLE workflow_test (body_file_id text, workspace_id text, deleted_at timestamp)`
+    await connection`CREATE TABLE changelog_release (body_file_id text, workspace_id text)`
     await connection`CREATE TABLE workspace_file_search_revision (
       file_id text PRIMARY KEY, workspace_id text NOT NULL,
       source_content_updated_at timestamp NOT NULL, status text NOT NULL DEFAULT 'pending',

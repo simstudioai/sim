@@ -39,7 +39,12 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
     }
   )
   const artifactKey = result.artifactKey
-  if (artifactKey && result.contributingFiles?.every((file) => file.contentUpdatedAt) !== false) {
+  if (
+    artifactKey &&
+    result.contributingFiles?.every(
+      (file) => file.contentUpdatedAt && ['workspace', 'test', 'changelog'].includes(file.context)
+    ) !== false
+  ) {
     await db.transaction((tx) =>
       markFileSearchArtifactReadyInTx(tx, {
         owner: { entityType: 'workspace', entityId: fileRecord.workspaceId },
@@ -49,7 +54,7 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
           contentUpdatedAt: fileRecord.contentUpdatedAt ?? fileRecord.updatedAt,
         },
         dependencies: (result.contributingFiles ?? []).map((file) => {
-          if (!file.contentUpdatedAt || file.context !== 'workspace')
+          if (!file.contentUpdatedAt)
             throw new Error('Artifact input has no canonical workspace revision')
           return {
             fileId: file.fileId,

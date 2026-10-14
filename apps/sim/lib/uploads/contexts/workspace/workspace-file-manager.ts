@@ -789,54 +789,36 @@ export async function createOwnedWorkspaceFile<T>(params: {
   const fileId = `wf_${generateShortId()}`
   const name = params.fileName(fileId)
   const buffer = Buffer.from(params.content, 'utf-8')
-  const storageKey = generateWorkspaceFileKey(params.workspaceId, name)
   const storageBillingContext = await resolveStorageBillingContext(params.workspaceId)
-  const uploadResult = await uploadFile({
-    file: buffer,
-    fileName: storageKey,
+  const staged = await stageFileContent({
+    owner: { entityType: 'workspace', entityId: params.workspaceId },
+    userId: params.userId,
+    name,
     contentType: params.contentType,
-    context: 'workspace',
-    preserveKey: true,
-    customKey: storageKey,
-    metadata: {
-      originalName: name,
-      uploadedAt: new Date().toISOString(),
-      purpose: 'workspace',
+    content: buffer,
+  })
+  const { owner, updatedUsage } = await finalizeStagedFileContent(staged, async (tx) => {
+    const inserted = await insertWorkspaceFileMetadataInTx(tx, {
+      id: fileId,
+      key: staged.key,
       userId: params.userId,
       workspaceId: params.workspaceId,
-    },
-    persistMetadata: false,
-  })
-  try {
-    const { owner, updatedUsage } = await db.transaction(async (tx) => {
-      const inserted = await insertWorkspaceFileMetadataInTx(tx, {
-        id: fileId,
-        key: uploadResult.key,
-        userId: params.userId,
-        workspaceId: params.workspaceId,
-        folderId: null,
-        originalName: name,
-        contentType: params.contentType,
-        size: buffer.length,
-        context: params.context,
-      })
-      if (!inserted) throw new Error(`Owned ${params.context} file ${fileId} was not inserted`)
-      const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-        tx,
-        storageBillingContext,
-        buffer.length
-      )
-      return { owner: await params.insertOwner(tx, fileId), updatedUsage }
+      folderId: null,
+      originalName: name,
+      contentType: params.contentType,
+      size: buffer.length,
+      context: params.context,
     })
-    void maybeNotifyStorageLimitForBillingContext(storageBillingContext, updatedUsage)
-    return { fileId, owner }
-  } catch (error) {
-    await cleanupWorkspaceStorageObject(
-      uploadResult.key,
-      `${params.context} file owner insert failure`
+    if (!inserted) throw new Error(`Owned ${params.context} file ${fileId} was not inserted`)
+    const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+      tx,
+      storageBillingContext,
+      buffer.length
     )
-    throw error
-  }
+    return { owner: await params.insertOwner(tx, fileId), updatedUsage }
+  })
+  void maybeNotifyStorageLimitForBillingContext(storageBillingContext, updatedUsage)
+  return { fileId, owner }
 }
 
 /**

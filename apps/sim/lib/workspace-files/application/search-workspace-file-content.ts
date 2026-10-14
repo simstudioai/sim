@@ -86,6 +86,22 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
         folderScope,
         signal,
       })
+      if (!classified) {
+        const ownedInputs = new Map(
+          result.sources.flatMap((source) =>
+            source.dependencies
+              .filter((dependency) => dependency.context !== 'workspace')
+              .map((dependency) => [dependency.fileId, dependency] as const)
+          )
+        )
+        for (const dependency of ownedInputs.values())
+          await assertOwnedFileAccess(principal, {
+            ...context,
+            fileId: dependency.fileId,
+            fileContext: dependency.context ?? '',
+          })
+        return toWorkspaceFileSearchResult(result)
+      }
       const provenance = await db.transaction(async (tx) => {
         await lockWorkspaceProject(tx, context.workspaceId)
         const [current] = await tx
@@ -125,7 +141,6 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
           view: 'excerpt' as const,
         }))
       )
-      if (!classified) return toWorkspaceFileSearchResult(result)
       const admittedIds = new Set(admitted.map((source) => source.identity.fileId))
       return toWorkspaceFileSearchResult({
         ...result,
