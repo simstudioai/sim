@@ -188,6 +188,12 @@ describe('planIssueActions', () => {
     expect(action.body).toContain('Occurrences: 4002')
   })
 
+  it('does not count again a job id that dropped off the full counted list', () => {
+    const jobs = Array.from({ length: 4_001 }, (_, index) => occurrence(index + 1))
+    const issues = applied([flake('test:a', jobs)], [])
+    expect(planIssueActions([flake('test:a', [occurrence(1)])], issues)).toEqual([])
+  })
+
   it('matches an issue by its key even when the test name could end an HTML comment', () => {
     const key = 'test:a > renders --> and | pipes'
     const issues = applied([flake(key, [occurrence(1)])], [])

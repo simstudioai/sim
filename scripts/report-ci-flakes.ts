@@ -35,8 +35,9 @@ const KEY_MARKER = /<!-- ci-flake-key: (\S+) -->/
 const COUNTED_MARKER = /<!-- ci-flake-jobs: ([\d,]*) -->/
 const TOTAL_LINE = /^Occurrences: (\d+)$/m
 /**
- * Job ids only grow, and a counted job can only be seen again while its run is inside the lookback
- * window, so keeping the newest ids is enough. The cap keeps the body under GitHub's size limit.
+ * The cap keeps the body under GitHub's size limit. Job ids only grow, so once the list is full its
+ * lowest id is a watermark: a job below it is treated as counted, which keeps a wider backfill from
+ * counting a dropped id again at the cost of never counting an older job first seen that late.
  */
 const MAX_COUNTED_JOB_IDS = 4_000
 const OCCURRENCE_ROW = /^\| (\S+) \| (.+) \| \[attempt (\d+)\]\((\S+\/job\/(\d+))\) \|$/gm
@@ -203,7 +204,13 @@ export function planIssueActions(flakes: Flake[], issues: IssueSnapshot[]): Issu
     }
     const counted = countedJobIds(issue.body)
     const countedIds = new Set(counted)
-    const added = flake.occurrences.filter((occurrence) => !countedIds.has(occurrence.jobId))
+    const watermark =
+      counted.length >= MAX_COUNTED_JOB_IDS
+        ? counted.reduce((lowest, id) => Math.min(lowest, id))
+        : Number.NEGATIVE_INFINITY
+    const added = flake.occurrences.filter(
+      (occurrence) => !countedIds.has(occurrence.jobId) && occurrence.jobId > watermark
+    )
     if (added.length === 0) continue
     const listed = parseOccurrences(issue.body)
     const previousTotal = Number(TOTAL_LINE.exec(issue.body)?.[1] ?? counted.length)
