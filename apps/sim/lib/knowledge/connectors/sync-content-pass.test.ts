@@ -471,6 +471,7 @@ describe('disabled image removal', () => {
       docsUnchanged: 0,
       docsSkipped: 0,
       docsFailed: 0,
+      processingDispatch: { requested: 0, accepted: 0, failed: 0 },
     }
 
     const finished = await removeDisabledImages({

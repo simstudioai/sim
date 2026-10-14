@@ -1674,8 +1674,7 @@
     "TS2741": 1
   },
   "apps/sim/lib/knowledge/connectors/sync-content-pass.test.ts": {
-    "TS2345": 1,
-    "TS2741": 1
+    "TS2345": 1
   },
   "apps/sim/lib/knowledge/connectors/sync-engine.test.ts": {
     "TS2322": 2,
