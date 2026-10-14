@@ -62,6 +62,7 @@ import {
 import { lockFileSearchOwners } from '@/lib/workspace-files/search/owner-policy'
 import {
   fileSearchOwnerFields,
+  fileSearchOwnerScope,
   resolveFileSearchOwner,
   staleFileSearchDependencyBuilds,
 } from '@/lib/workspace-files/search/scope'
@@ -510,7 +511,7 @@ async function claimQueuedOwnerJobs(
     .delete(fileSearchDispatchQueue)
     .where(and(queuedOwnerFilter(owners), notExists(pendingRevision), ...keepsStaleRevision))
   return rows.map((row) => ({
-    owner: rowOwner(row),
+    ...fileSearchOwnerScope(rowOwner(row)),
     fileId: row.fileId,
     sourceContentUpdatedAt: new Date(row.sourceContentUpdatedAt).toISOString(),
     dispatchToken: now.toISOString(),
