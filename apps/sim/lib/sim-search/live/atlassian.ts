@@ -244,6 +244,7 @@ export async function searchAtlassian(
         return { ...ranked, next: undefined, ranking: 'relevance' }
       } catch (error) {
         // Cancellation arrives as an AbortSignal reason; any other failure keeps the all-terms page.
+        input.signal?.throwIfAborted()
         if (error instanceof DOMException) throw error
         return { ...exact, ranking: 'unavailable' }
       }

@@ -306,6 +306,22 @@ describe('Confluence plain search ranking', () => {
     expect(page.partial).toBe(true)
   })
 
+  it('propagates a caller cancellation whatever its reason', async () => {
+    const caller = new AbortController()
+    const api = confluence({ ids: ['old-1', 'old-2'], more: true }, [])
+    const exact = api.json.getMockImplementation()
+    api.json.mockImplementation(
+      async (path: string, options?: { query?: Record<string, string> }) => {
+        if (!options?.query?.cql?.includes('siteSearch ~')) return exact?.(path, options)
+        caller.abort(new Error('Caller stopped'))
+        throw new Error('Request aborted')
+      }
+    )
+    await expect(
+      searchAtlassian(api, 'confluence', { ...query, signal: caller.signal })
+    ).rejects.toThrow('Caller stopped')
+  })
+
   it('propagates cancellation during relevance ranking', async () => {
     const api = confluence({ ids: ['old-1', 'old-2'], more: true }, [])
     const exact = api.json.getMockImplementation()
