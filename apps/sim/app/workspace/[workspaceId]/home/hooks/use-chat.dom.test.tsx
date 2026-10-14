@@ -762,9 +762,11 @@ describe('useChat remount send recovery', () => {
     /**
      * Streams a turn that opens a file tab without an effect (the client
      * persists it), then the server's own removal of that file as an effect.
-     * Later turns only complete. Returns each send's resource attachments.
+     * Later turns only complete. The removal is held until `addSent` resolves,
+     * so the client's own write for the add has started by then. Returns each
+     * send's resource attachments.
      */
-    function streamAddThenServerRemoval(): unknown[] {
+    function streamAddThenServerRemoval(addSent: Promise<void>): unknown[] {
       const sentAttachments: unknown[] = []
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
@@ -801,10 +803,15 @@ describe('useChat remount send recovery', () => {
         const encoder = new TextEncoder()
         const body = new ReadableStream<Uint8Array>({
           async start(controller) {
-            for (const event of events) {
+            const [first, ...rest] = events
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(first)}\n\n`))
+            if (rest.length > 0) {
+              await addSent
+              // One macrotask lets a write that already failed settle in the queue.
+              await sleep(0)
+            }
+            for (const event of rest) {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
-              // Lets the client's own write for the add settle before the next event.
-              await sleep(10)
             }
             controller.close()
           },
@@ -816,23 +823,32 @@ describe('useChat remount send recovery', () => {
       return sentAttachments
     }
 
-    /** Resource writes the hook sent, as `METHOD id`. */
-    function recordResourceWrites(persist: () => Promise<unknown>): string[] {
+    /**
+     * Resource writes the hook sent, as `METHOD id`, and a promise that
+     * resolves once the first add has been sent.
+     */
+    function recordResourceWrites(persist: () => Promise<unknown>): {
+      writes: string[]
+      addSent: Promise<void>
+    } {
       const writes: string[] = []
+      const addSent = Promise.withResolvers<void>()
       mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
         if (contract.path !== '/api/mothership/chat/resources') return { chats: [] }
         const { body } = input as { body: { resource?: { id: string }; resourceId?: string } }
         writes.push(`${contract.method} ${body.resource?.id ?? body.resourceId}`)
-        return contract.method === 'POST' ? persist() : { resources: [] }
+        if (contract.method !== 'POST') return { resources: [] }
+        addSent.resolve()
+        return persist()
       })
-      return writes
+      return { writes, addSent: addSent.promise }
     }
 
     it('drops a failed add without re-posting it or deleting server-side', async () => {
-      const writes = recordResourceWrites(async () => {
+      const { writes, addSent } = recordResourceWrites(async () => {
         throw new Error('Persist failed')
       })
-      const sentAttachments = streamAddThenServerRemoval()
+      const sentAttachments = streamAddThenServerRemoval(addSent)
       const { getResult } = renderUseChatInChat(chat.id, chat)
 
       await act(async () => {
@@ -855,8 +871,8 @@ describe('useChat remount send recovery', () => {
 
     it('deletes an add still in flight once it lands, after the server removal', async () => {
       const add = Promise.withResolvers<unknown>()
-      const writes = recordResourceWrites(() => add.promise)
-      streamAddThenServerRemoval()
+      const { writes, addSent } = recordResourceWrites(() => add.promise)
+      streamAddThenServerRemoval(addSent)
       const { getResult } = renderUseChatInChat(chat.id, chat)
 
       await act(async () => {
@@ -874,7 +890,7 @@ describe('useChat remount send recovery', () => {
     })
 
     it('drops a failed add when the removal arrives in a reconnect replay', async () => {
-      const writes = recordResourceWrites(async () => {
+      const { writes } = recordResourceWrites(async () => {
         throw new Error('Persist failed')
       })
       const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
