@@ -521,6 +521,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/projects/[projectId]/files/move/route'),
   },
   {
+    pattern: '/api/v2/projects/{projectId}/files/search',
+    load: () => import('@/app/api/v2/projects/[projectId]/files/search/route'),
+  },
+  {
     pattern: '/api/v2/projects/{projectId}/files/uploads',
     load: () => import('@/app/api/v2/projects/[projectId]/files/uploads/route'),
   },

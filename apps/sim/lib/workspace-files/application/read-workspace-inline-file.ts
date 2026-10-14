@@ -11,7 +11,9 @@ import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { createFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 export interface ReadWorkspaceInlineFileInput {
   workspaceId: string
@@ -50,10 +52,19 @@ async function executeReadWorkspaceInlineFile({
   if (!file) throw new OrchestrationError('not_found', 'Not found')
   await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
 
-  const stream = await downloadFileStream({ key: file.key, context: 'workspace' })
+  const stream = nodeReadableToWebStream(
+    await downloadFileStream({ key: file.key, context: 'workspace' })
+  )
+  await finishFileDelivery({
+    authorize: () => readWorkspaceInlineFile.authorize({ principal, input }),
+    receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
+      { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
+    ]),
+    stream,
+  })
   return {
     file,
-    stream: nodeReadableToWebStream(stream),
+    stream,
     contentAddressed: input.key !== undefined && input.key === file.key,
   }
 }

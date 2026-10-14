@@ -10,6 +10,8 @@ import {
   type YamlExpansionBudget,
   type YamlExpansionLimits,
 } from '@/lib/file-parsers/yaml-limits'
+import { parseSimFileReference } from '@/lib/uploads/utils/file-reference'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 /**
  * Compiler for agent-authored `.html` pages.
@@ -230,10 +232,36 @@ const SIM_RESOURCE_ROUTES: Record<string, (workspaceId: string, id: string) => s
   workflow: (workspaceId, id) => `/workspace/${workspaceId}/w/${id}`,
   table: (workspaceId, id) => `/workspace/${workspaceId}/tables/${id}`,
   knowledge: (workspaceId, id) => `/workspace/${workspaceId}/knowledge/${id}`,
-  // The normal Files page with the file open — the same in-app navigation a
-  // markdown link performs (the fullscreen /view route is only for the
-  // standalone surface, not for links).
-  file: (workspaceId, id) => `/workspace/${workspaceId}/files/${id}`,
+}
+
+const FILE_RESOURCE_ROUTES: Record<
+  EditableFileOwner['entityType'],
+  (entityId: string, fileId: string, attribute: string) => string
+> = {
+  workspace: (entityId, fileId, attribute) =>
+    attribute === 'src' ? `/api/files/view/${fileId}` : `/workspace/${entityId}/files/${fileId}`,
+  project: (entityId, fileId, attribute) =>
+    attribute === 'src'
+      ? `/api/projects/${entityId}/files/${fileId}/content`
+      : `/projects/${entityId}/files/${fileId}`,
+}
+
+function resolveSimFileLinks(html: string, owner: EditableFileOwner | undefined, baseUrl: string) {
+  return html.replace(
+    /\b(src|href)="sim:file\/([^"]+)"/g,
+    (match, attribute: string, reference: string) => {
+      const parsed = parseSimFileReference(reference, owner)
+      if (!parsed || (!parsed.owner && attribute === 'href')) return match
+      const path = parsed.owner
+        ? FILE_RESOURCE_ROUTES[parsed.owner.entityType](
+            parsed.owner.entityId,
+            parsed.fileId,
+            attribute
+          )
+        : `/api/files/view/${parsed.fileId}`
+      return `${attribute}="${baseUrl}${path}${parsed.fragment}"${attribute === 'href' ? ' data-sim-link=""' : ''}`
+    }
+  )
 }
 
 /**
@@ -244,8 +272,12 @@ const SIM_RESOURCE_ROUTES: Record<string, (workspaceId: string, id: string) => s
  * app router instead of cancelling them.
  */
 export function resolveSimResourceLinks(html: string, workspaceId: string, baseUrl = ''): string {
-  return html.replace(
-    /href="sim:(workflow|table|knowledge|file)\/([^"]+)"/g,
+  return resolveSimFileLinks(
+    html,
+    { entityType: 'workspace', entityId: workspaceId },
+    baseUrl
+  ).replace(
+    /href="sim:(workflow|table|knowledge)\/([^"]+)"/g,
     (match, type: string, id: string) => {
       const route = SIM_RESOURCE_ROUTES[type]
       return route ? `href="${baseUrl}${route(workspaceId, id)}" data-sim-link=""` : match
@@ -492,25 +524,26 @@ function compileBody(source: string, budget: YamlExpansionBudget, diagnostics?: 
  */
 export function compileSimPage(
   source: string,
-  options?: { workspaceId?: string; baseUrl?: string; diagnostics?: string[] }
+  options?: { workspaceId?: string; projectId?: string; baseUrl?: string; diagnostics?: string[] }
 ): string {
-  // Workspace images (`![alt](sim:file/<id>)`) resolve to the authed byte
-  // route regardless of surface; deep links additionally need the workspace.
-  // A baseUrl absolutizes both — a DOWNLOADED page opened outside the app
-  // must reach Sim the way an absolute link in a downloaded .md does,
-  // instead of resolving dead against file:// or a foreign host.
   const origin = options?.baseUrl?.replace(/\/$/, '') ?? ''
   const compiled = compileSimPageDocument(source, options?.diagnostics)
-    .replace(/src="sim:file\/([^"]+)"/g, `src="${origin}/api/files/view/$1"`)
     // External links leave the page in a new tab on every surface; in the
     // sandboxed preview the bootstrap bridges the click to the host instead.
     .replace(
       /<a href="(https?:\/\/[^"]+)"/g,
       '<a href="$1" target="_blank" rel="noopener noreferrer"'
     )
+  if (options?.projectId) {
+    return resolveSimFileLinks(
+      compiled,
+      { entityType: 'project', entityId: options.projectId },
+      origin
+    )
+  }
   return options?.workspaceId
     ? resolveSimResourceLinks(compiled, options.workspaceId, origin)
-    : compiled
+    : resolveSimFileLinks(compiled, undefined, origin)
 }
 
 /**

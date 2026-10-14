@@ -4,6 +4,7 @@ import {
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -28,6 +29,8 @@ class FakeDocNotReadyError extends Error {}
 const hoisted = vi.hoisted(() => ({
   fetchServable: vi.fn(),
 }))
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@sim/audit', () => auditMock)
 

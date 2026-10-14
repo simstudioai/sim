@@ -3254,7 +3254,6 @@
   "apps/sim/lib/api/contracts/v2/files.ts#v2FileMetadataSchema",
   "apps/sim/lib/api/contracts/v2/files.ts#v2FileReferenceParamsSchema",
   "apps/sim/lib/api/contracts/v2/files.ts#v2FileScopeSchema",
-  "apps/sim/lib/api/contracts/v2/files.ts#v2FileSearchResultsSchema",
   "apps/sim/lib/api/contracts/v2/files.ts#v2FileShareSchema",
   "apps/sim/lib/api/contracts/v2/files.ts#v2FileUploadParamsSchema",
   "apps/sim/lib/api/contracts/v2/files.ts#v2FileUploadWorkspaceQuerySchema",

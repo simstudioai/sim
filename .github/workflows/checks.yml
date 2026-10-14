@@ -243,6 +243,14 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
+      - name: Build native isolate addon for Project file rendering
+        if: matrix.group == 'project-files'
+        working-directory: apps/sim
+        run: |
+          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["./apps/sim"] }))')"
+          cd "$addon_dir"
+          bun run install
+
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.
       - name: Run end-to-end suites

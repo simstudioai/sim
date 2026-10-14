@@ -13,8 +13,10 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { assertOwnedFileAccess } from '@/lib/workspace-files/application/file-context'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { OWNED_FILE_CONTEXTS, ownedFileKind } from '@/lib/workspace-files/owned-files'
+import { createFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 export interface ReadWorkspaceFileByKeyInput {
   key: string
@@ -53,10 +55,14 @@ async function executeReadWorkspaceFileContentByKey({
 >): Promise<ReadWorkspaceFileContentByKeyResult> {
   const file = await loadCurrentWorkspaceFileByKey(input, context)
   await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
-  return {
-    file,
-    content: await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_BUFFERED_TRANSFER_BYTES }),
-  }
+  const content = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_BUFFERED_TRANSFER_BYTES })
+  await finishFileDelivery({
+    authorize: () => readWorkspaceFileContentByKey.authorize({ principal, input }),
+    receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
+      { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
+    ]),
+  })
+  return { file, content }
 }
 
 /** Workspace files and owned files share the `workspace/` key prefix; the row says which. */

@@ -1,5 +1,6 @@
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
 import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
@@ -19,6 +20,8 @@ const hoisted = vi.hoisted(() => ({
   getProvenance: vi.fn(),
   streamRecord: vi.fn(),
 }))
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 

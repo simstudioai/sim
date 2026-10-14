@@ -1,5 +1,6 @@
 export {
   collectReferencedFileIds,
+  compileFileDocument,
   getDocumentSourceLanguage,
   getE2BDocFormat,
   isCompiledDocumentBuffer,

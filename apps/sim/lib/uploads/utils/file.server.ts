@@ -410,6 +410,7 @@ export async function downloadFileFromStorage(
  * actually attach/upload, plus the content type that matches those bytes.
  */
 export interface ServableFile {
+  dependsOnReferencedFiles?: boolean
   artifactKey?: string
   buffer: Buffer
   contentType: string
@@ -473,6 +474,7 @@ export async function downloadServableFileFromStorage(
         buffer: rendered,
         contentType: 'text/html',
         contributingFiles: page.contributingFiles,
+        dependsOnReferencedFiles: true,
       }
     }
   }

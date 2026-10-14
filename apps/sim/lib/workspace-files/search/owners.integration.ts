@@ -21,6 +21,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
+  createExecutorPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
@@ -39,18 +40,25 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
+import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { getFileContentProvenance } from '@/lib/internal/file/operations'
+import { readProjectFileArtifact } from '@/lib/projects/files/application/artifacts'
+import {
+  createProjectFile,
+  updateProjectFileContent,
+} from '@/lib/projects/files/application/content'
+import { createProjectFileFolder } from '@/lib/projects/files/application/folders'
 import { lockProject } from '@/lib/projects/membership'
-import { listFileFolders } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   createOwnedWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/file-manager'
 import { compiledArtifactKey, storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
+import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
+import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
-import { resolveFileSearchFolderScope } from '@/lib/workspace-files/search/delivery'
 import { prepareWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/dispatcher'
 import {
   appendFileSearchChunks,
@@ -58,8 +66,6 @@ import {
   publishFileSearchBuild,
 } from '@/lib/workspace-files/search/index-state'
 import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
-import { compileFileSearchPattern } from '@/lib/workspace-files/search/pattern'
-import { searchFileIndex } from '@/lib/workspace-files/search/repository'
 
 const storageRoot = mkdtempSync(join(tmpdir(), 'sim-file-owner-search-'))
 setUploadDirServer(storageRoot)
@@ -75,8 +81,9 @@ const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; e
 const signal = new AbortController().signal
 
 beforeEach(() => {
-  vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
   featureFlagsMockFns.mockIsFeatureEnabled.mockReset()
+  featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
+  vi.stubEnv('FREE_STORAGE_LIMIT_GB', '')
 })
 
 function check(name: string, run: () => Promise<void>) {
@@ -156,27 +163,18 @@ async function create(
   content: string,
   options: { name?: string; folderId?: string } = {}
 ) {
-  const id = generateId()
-  const name = options.name ?? 'architecture.md'
-  const key = `project/${f.projectId}/${id}/${name}`
-  await mkdir(dirname(join(storageRoot, key)), { recursive: true })
-  await writeFile(join(storageRoot, key), content)
-  const [file] = await db
-    .insert(workspaceFiles)
-    .values({
-      id,
-      userId: f.ownerId,
+  return createProjectFile.execute({
+    principal: f.principal,
+    input: {
       projectId: f.projectId,
-      context: 'project',
-      key,
-      originalName: name,
+      name: options.name ?? 'architecture.md',
       contentType: 'text/plain',
-      sizeBytes: Buffer.byteLength(content),
-      folderId: options.folderId,
-    })
-    .returning()
-  if (!file) throw new Error('Search source fixture missing')
-  return { file }
+      content,
+      encoding: 'utf-8',
+      exactName: true,
+      ...(options.folderId ? { folderId: options.folderId } : {}),
+    },
+  })
 }
 
 async function claim(fileId: string) {
@@ -194,54 +192,15 @@ async function claim(fileId: string) {
   }
 }
 
-async function changeFile(fileId: string, content: string) {
-  const [old] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, fileId))
-  if (!old) throw new Error('Search source fixture missing')
-  const key = `project/${old.projectId}/${generateId()}/${old.originalName}`
-  await mkdir(dirname(join(storageRoot, key)), { recursive: true })
-  await writeFile(join(storageRoot, key), content)
-  await db
-    .update(workspaceFiles)
-    .set({
-      key,
-      sizeBytes: Buffer.byteLength(content),
-      contentUpdatedAt: new Date(old.contentUpdatedAt.getTime() + 1_000),
-    })
-    .where(eq(workspaceFiles.id, fileId))
-}
-
-async function createFolder(
-  f: Awaited<ReturnType<typeof fixture>>,
-  name: string,
-  parentId?: string
-) {
-  const [record] = await db
-    .insert(folder)
-    .values({
-      id: generateId(),
-      resourceType: 'file',
-      projectId: f.projectId,
-      userId: f.ownerId,
-      name,
-      parentId,
-    })
-    .returning()
-  if (!record) throw new Error('Search folder fixture missing')
-  return { folder: record }
-}
-
 async function search(
   f: Awaited<ReturnType<typeof fixture>>,
   query: string,
   options: { folderPaths?: string[]; includeSubfolders?: boolean } = {}
 ) {
-  const folders = await listFileFolders(f.owner)
-  return searchFileIndex({
-    owner: f.owner,
-    pattern: compileFileSearchPattern(query, 'exact'),
-    maxResults: 100,
-    folderScope: resolveFileSearchFolderScope(folders, options),
-    signal,
+  const { searchProjectFileContent } = await import('@/lib/projects/files/application/search')
+  return searchProjectFileContent.execute({
+    principal: f.reader,
+    input: { projectId: f.projectId, query, mode: 'exact', maxResults: 100, ...options },
   })
 }
 
@@ -653,7 +612,15 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         [{ ordinal: 0, lineStart: 1, fragment: false, overlap: 0, content: 'supersededneedle' }],
         signal
       )
-      await changeFile(created.file.id, 'currentneedle')
+      await updateProjectFileContent.execute({
+        principal: f.principal,
+        input: {
+          projectId: f.projectId,
+          fileId: created.file.id,
+          content: 'currentneedle',
+          encoding: 'utf-8',
+        },
+      })
       expect(
         await publishFileSearchBuild(
           build,
@@ -673,37 +640,96 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
     }
   )
 
-  check(
-    'keeps empty and recursive folder scopes exact after the creator is reassigned',
-    async () => {
-      const f = await fixture()
-      const folder = await createFolder(f, 'Architecture')
-      const child = await createFolder(f, 'Backend', folder.folder.id)
-      const created = await create(f, 'folderneedle', { folderId: child.folder.id })
-      await db
-        .update(workspaceFiles)
-        .set({ userId: f.readerId })
-        .where(eq(workspaceFiles.id, created.file.id))
-      await indexWorkspaceFileForSearch(
-        { owner: f.owner, ...(await claim(created.file.id)) },
-        signal
+  check('keeps empty and recursive folder scopes exact after creator handoff', async () => {
+    const f = await fixture()
+    await db
+      .update(permissions)
+      .set({ permissionType: 'write' })
+      .where(and(eq(permissions.userId, f.readerId), eq(permissions.entityId, f.workspaceId)))
+    const folder = await createProjectFileFolder.execute({
+      principal: f.principal,
+      input: { projectId: f.projectId, name: 'Architecture' },
+    })
+    const child = await createProjectFileFolder.execute({
+      principal: f.principal,
+      input: { projectId: f.projectId, name: 'Backend', parentId: folder.folder.id },
+    })
+    const created = await create({ ...f, principal: f.reader }, 'folderneedle', {
+      folderId: child.folder.id,
+    })
+    const [creatorMembership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.organizationId, f.organizationId), eq(member.userId, f.readerId)))
+    if (!creatorMembership) throw new Error('Creator membership missing')
+    const removal = await removeUserFromOrganization({
+      userId: f.readerId,
+      organizationId: f.organizationId,
+      memberId: creatorMembership.id,
+      actorUserId: f.ownerId,
+      skipBillingLogic: true,
+      onError: 'throw',
+    })
+    expect(removal.success).toBe(true)
+    await deleteUserAccount(f.readerId)
+    const surviving = { ...f, reader: f.principal }
+    await indexWorkspaceFileForSearch({ owner: f.owner, ...(await claim(created.file.id)) }, signal)
+    expect((await search(surviving, 'folderneedle', { folderPaths: [] })).results).toEqual([])
+    expect(
+      (
+        await search(surviving, 'folderneedle', {
+          folderPaths: ['/Architecture'],
+          includeSubfolders: false,
+        })
+      ).results
+    ).toEqual([])
+    expect(
+      (await search(surviving, 'folderneedle', { folderPaths: ['/Architecture'] })).results.map(
+        (hit) => hit.fileId
       )
-      expect((await search(f, 'folderneedle', { folderPaths: [] })).results).toEqual([])
-      expect(
-        (
-          await search(f, 'folderneedle', {
-            folderPaths: ['/Architecture'],
-            includeSubfolders: false,
-          })
-        ).results
-      ).toEqual([])
-      expect(
-        (await search(f, 'folderneedle', { folderPaths: ['/Architecture'] })).results.map(
-          (hit) => hit.fileId
-        )
-      ).toEqual([created.file.id])
+    ).toEqual([created.file.id])
+  })
+
+  check('denies current access revocation, wrong owner and execution principals', async () => {
+    const f = await fixture()
+    const other = await fixture()
+    const created = await create(f, 'protectedneedle')
+    await indexWorkspaceFileForSearch({ owner: f.owner, ...(await claim(created.file.id)) }, signal)
+    const { searchProjectFileContent } = await import('@/lib/projects/files/application/search')
+    const input = {
+      projectId: f.projectId,
+      query: 'protectedneedle',
+      mode: 'exact' as const,
+      maxResults: 100,
     }
-  )
+    await expect(
+      searchProjectFileContent.execute({ principal: other.reader, input })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    await expect(
+      searchProjectFileContent.execute({
+        principal: createExecutorPrincipal({ workspaceId: f.workspaceId }),
+        input,
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    await db
+      .delete(permissions)
+      .where(and(eq(permissions.userId, f.readerId), eq(permissions.entityId, f.workspaceId)))
+    await expect(search(f, 'protectedneedle')).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  check('settles private source provenance before returning indexed snippets', async () => {
+    const f = await fixture()
+    const created = await create(f, 'observerneedle')
+    await indexWorkspaceFileForSearch({ owner: f.owner, ...(await claim(created.file.id)) }, signal)
+    await expect(
+      observeWorkspaceFileDelivery(
+        async () => {
+          throw new Error('Delivery rejected')
+        },
+        () => search(f, 'observerneedle')
+      )
+    ).rejects.toThrow('Delivery rejected')
+  })
 
   check('rejects forged owner payloads without changing the current revision', async () => {
     const f = await fixture()
@@ -759,7 +785,15 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       expect(loaded?.bytes.buffer).toEqual(artifact)
       expect(loaded?.bytes.kind).toBe('artifact')
       expect(loaded?.dependencies.map((row) => row.fileId)).toEqual([dependency.file.id])
-      await changeFile(dependency.file.id, 'new input')
+      await updateProjectFileContent.execute({
+        principal: f.principal,
+        input: {
+          projectId: f.projectId,
+          fileId: dependency.file.id,
+          content: 'new input',
+          encoding: 'utf-8',
+        },
+      })
       const changed = await loadFileSearchSource(revision, signal)
       expect(changed?.bytes.kind).toBe('source')
       expect(changed?.bytes.buffer.toString()).toBe(source)
@@ -794,7 +828,15 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
           sourceContentUpdatedAt: dependency.file.contentUpdatedAt,
         },
       ]
-      await changeFile(dependency.file.id, 'after')
+      await updateProjectFileContent.execute({
+        principal: f.principal,
+        input: {
+          projectId: f.projectId,
+          fileId: dependency.file.id,
+          content: 'after',
+          encoding: 'utf-8',
+        },
+      })
       expect(
         await publishFileSearchBuild(
           build,
@@ -803,6 +845,57 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         )
       ).toBe(false)
       expect((await search(f, 'old dependency')).results).toEqual([])
+    }
+  )
+  check(
+    'replaces indexed generation source after an authorized current artifact read',
+    async () => {
+      const f = await fixture()
+      const source = 'unrenderedsourceonly'
+      const generated = await create(f, source, { name: 'transition.docx' })
+      await indexWorkspaceFileForSearch(
+        { owner: f.owner, ...(await claim(generated.file.id)) },
+        signal
+      )
+      expect((await search(f, source)).count).toBe(1)
+      const artifact = await Packer.toBuffer(
+        new Document({ sections: [{ children: [new Paragraph('renderedartifactneedle')] }] })
+      )
+      await storeCompiledDoc(
+        f.owner,
+        source,
+        'docx',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        artifact
+      )
+      const input = { projectId: f.projectId, fileId: generated.file.id, maxBytes: 1_000_000 }
+      const rendered = await readProjectFileArtifact.execute({ principal: f.reader, input })
+      expect(rendered.buffer).toEqual(artifact)
+      const [pending] = await db
+        .select()
+        .from(workspaceFileSearchRevision)
+        .where(eq(workspaceFileSearchRevision.fileId, generated.file.id))
+      expect(pending.status).toBe('pending')
+      expect(pending.sourceContentUpdatedAt).toEqual(generated.file.contentUpdatedAt)
+      await indexWorkspaceFileForSearch(
+        { owner: f.owner, ...(await claim(generated.file.id)) },
+        signal
+      )
+      expect((await search(f, 'renderedartifactneedle')).results.map((hit) => hit.fileId)).toEqual([
+        generated.file.id,
+      ])
+      expect((await search(f, source)).results).toEqual([])
+      const [ready] = await db
+        .select()
+        .from(workspaceFileSearchRevision)
+        .where(eq(workspaceFileSearchRevision.fileId, generated.file.id))
+      await readProjectFileArtifact.execute({ principal: f.reader, input })
+      const [unchanged] = await db
+        .select()
+        .from(workspaceFileSearchRevision)
+        .where(eq(workspaceFileSearchRevision.fileId, generated.file.id))
+      expect(unchanged.status).toBe('ready')
+      expect(unchanged.buildId).toBe(ready.buildId)
     }
   )
 
@@ -918,7 +1011,15 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         ],
         artifactKey,
       }
-      await changeFile(generated.file.id, 'newrevisionneedle')
+      await updateProjectFileContent.execute({
+        principal: f.principal,
+        input: {
+          projectId: f.projectId,
+          fileId: generated.file.id,
+          content: 'newrevisionneedle',
+          encoding: 'utf-8',
+        },
+      })
       await indexWorkspaceFileForSearch(
         { owner: f.owner, ...(await claim(generated.file.id)) },
         signal
@@ -1076,8 +1177,8 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         while (Date.now() < deadline) {
           const [blocked] = await tx.execute<{
             event: string
-          }>(sql`SELECT wait_event AS event FROM pg_stat_activity
-            WHERE ${backend.pid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'`)
+          }>(sql`SELECT locktype AS event FROM pg_locks
+            WHERE NOT granted AND ${backend.pid} = ANY(pg_blocking_pids(pid))`)
           if (blocked) {
             event = blocked.event
             break

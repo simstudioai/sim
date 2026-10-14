@@ -18,7 +18,7 @@ import type { FileSearchDependencyIdentity } from '@/lib/workspace-files/search/
 import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
 /** A renderer's private receipt; surfaces cannot supply it through a file contract. */
-interface FileSearchArtifactCompletion {
+export interface FileSearchArtifactCompletion {
   owner: EditableFileOwner
   file: { fileId: string; key: string; contentUpdatedAt: Date }
   dependencies: readonly FileSearchDependencyIdentity[]

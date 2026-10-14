@@ -164,7 +164,8 @@ export async function publishCompiledDocArtifact(
   owner: string | EditableFileOwner,
   source: string,
   ext: string,
-  referencedInputIdentity: string
+  referencedInputIdentity: string,
+  onArtifactWrite?: (key: string) => void
 ): Promise<void> {
   if (!referencedInputIdentity) {
     throw new Error('Published compiled document identity must not be empty')
@@ -174,6 +175,7 @@ export async function publishCompiledDocArtifact(
   if (existing?.referencedInputIdentity === referencedInputIdentity) return
   const pointer: PublishedArtifactPointer = { version: 1, referencedInputIdentity }
   try {
+    onArtifactWrite?.(key)
     await uploadFile({
       file: Buffer.from(JSON.stringify(pointer), 'utf-8'),
       fileName: `doc.${ext}.published.json`,
@@ -283,10 +285,12 @@ export async function storeCompiledDoc(
   ext: string,
   contentType: string,
   binary: Buffer,
-  referencedInputIdentity?: string
+  referencedInputIdentity?: string,
+  onArtifactWrite?: (key: string) => void
 ): Promise<void> {
   const key = compiledArtifactKey(owner, source, ext, referencedInputIdentity)
   try {
+    onArtifactWrite?.(key)
     await uploadFile({
       file: binary,
       fileName: `doc.${ext}`,
@@ -296,7 +300,7 @@ export async function storeCompiledDoc(
       preserveKey: true,
     })
     if (referencedInputIdentity) {
-      await publishCompiledDocArtifact(owner, source, ext, referencedInputIdentity)
+      await publishCompiledDocArtifact(owner, source, ext, referencedInputIdentity, onArtifactWrite)
     }
   } catch (err) {
     logger.error('Failed to store compiled doc artifact', {

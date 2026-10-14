@@ -299,8 +299,10 @@ process.once('SIGINT', interrupt)
 process.once('SIGTERM', interrupt)
 
 const suites = [
+  ['delivery', 'FILE_DELIVERY', 'test-file-delivery-e2e.ts'],
   ['browser', 'PROJECT_FILE_BROWSER', 'test-project-file-browser-e2e.ts'],
   ['history', 'PROJECT_FILE_HISTORY', 'test-project-file-history-e2e.ts'],
+  ['rendered', 'PROJECT_FILE_RENDERED', 'test-project-file-rendered-e2e.ts'],
   ['realtime', 'FILE_LIST_REALTIME', 'test-file-list-realtime-e2e.ts'],
 ] as const
 

@@ -13514,6 +13514,53 @@ export type SearchKnowledgeResponse = {
   data: SearchKnowledgeResponseRef1
 }
 
+/** `GET /api/v2/projects/[projectId]/files/search` */
+export type SearchProjectFileContentParams = {
+  projectId: string
+}
+
+export type SearchProjectFileContentQuery = {
+  query: string
+  mode?: 'exact' | 'regex'
+  maxResults?: number
+  folderPaths?: string
+  includeSubfolders?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+}
+
+type SearchProjectFileContentResponseRef0 = {
+  results: Array<{
+    fileId: string
+    lineNumber: number
+    text: string
+  }>
+  count: number
+  truncated: boolean
+  complete: boolean
+  indexStatus: {
+    readyFiles: number
+    pendingFiles: number
+    failedFiles: number
+    skippedFiles: number
+    partialFiles: number
+  }
+}
+
+export type SearchProjectFileContentResponse = {
+  data: SearchProjectFileContentResponseRef0
+}
+
 /** `POST /api/v2/tables/[tableId]/rows/search` */
 export type SearchTableRowsParams = {
   tableId: string
@@ -23182,6 +23229,53 @@ export const V2_OPERATIONS = {
         kind: 'integer',
         describe:
           'How many candidate chunks to retrieve before reranking. Defaults to four times `topK`, capped at 100. A larger pool costs more retrieval work but gives the reranker more to choose from.',
+      },
+    },
+  },
+  searchProjectFileContent: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/search',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Search Project File Content',
+    workspaceKeyUnsupported: true,
+    query: {
+      query: {
+        kind: 'string',
+        required: true,
+        describe: 'Regular expression, or exact text when `mode` is `exact`.',
+      },
+      mode: {
+        kind: 'enum',
+        values: ['exact', 'regex'] as const,
+        default: 'regex',
+        describe: 'How `query` is read.',
+      },
+      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated folder paths within the Project. Omit to search the entire Project; index coverage applies to the selected folders.',
+      },
+      includeSubfolders: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
       },
     },
   },

@@ -2,6 +2,7 @@ import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import {
   uploadsMetadataMock,
   uploadsMetadataMockFns,
@@ -12,6 +13,8 @@ import {
   workspaceUploadsMockFns,
 } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 

@@ -15,8 +15,10 @@ import {
 } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
+import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
+import { createFileReadReceipt, type FileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 export interface DownloadWorkspaceFileInput {
   fileId: string
@@ -36,6 +38,7 @@ export interface DownloadWorkspaceFileStreamResult extends DownloadWorkspaceFile
    */
   contentLength: number
   contentType: string
+  receipt?: FileReadReceipt
 }
 
 /** Audits the bytes actually handed out, which for a generated doc is not `file.size`. */
@@ -88,6 +91,7 @@ function resolveRenderedArtifact(
 }
 
 async function executeDownloadWorkspaceFileStream({
+  input,
   context,
   principal,
 }: AuthorizedWorkspaceUseCaseContext<
@@ -100,7 +104,23 @@ async function executeDownloadWorkspaceFileStream({
   })
   if (!file) throw new OrchestrationError('not_found', 'File not found')
   await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'complete')
-  return streamWorkspaceFileRecord(file, principal)
+  const result = await streamWorkspaceFileRecord(file, principal)
+  const provenance = await finishFileDelivery({
+    authorize: () => downloadWorkspaceFileStream.authorize({ principal, input }),
+    receipt:
+      result.receipt ??
+      createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
+        { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },
+      ]),
+    stream: result.stream,
+  })
+  try {
+    await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'complete', provenance)
+    return result
+  } catch (error) {
+    await result.stream.cancel(error).catch(() => undefined)
+    throw error
+  }
 }
 
 /**
@@ -121,7 +141,7 @@ export async function streamWorkspaceFileRecord(
    * double peak memory.
    */
   if (needsRenderedArtifact(file.type, file.name)) {
-    const { buffer, contentType, contributingFiles } = await resolveRenderedArtifact(
+    const { buffer, contentType, contributingFiles, receipt } = await resolveRenderedArtifact(
       file,
       principal
     )
@@ -138,6 +158,7 @@ export async function streamWorkspaceFileRecord(
       }),
       contentLength: buffer.length,
       contentType,
+      receipt,
     }
   }
 
