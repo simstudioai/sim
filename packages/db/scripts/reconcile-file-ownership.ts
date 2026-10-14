@@ -18,14 +18,21 @@ const migrations = [
   '0428_file_search_dependency_owner.sql',
 ]
 
+/** Backfills run after the DDL transaction commits, as in the migrations, so they never hold its table locks. */
+const backfills: string[] = []
+
 try {
   await sql.begin(async (tx) => {
     for (const migration of migrations) {
       const source = await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8')
       for (const chunk of source.split('--> statement-breakpoint')) {
         const statement = chunk.replace(/^(?:\s|--[^\n]*(?:\n|$))*/, '')
+        if (/^UPDATE file_search_dependency\b/i.test(statement)) {
+          backfills.push(statement)
+          continue
+        }
         if (
-          !/^(?:CREATE (?:OR REPLACE FUNCTION|(?:CONSTRAINT )?TRIGGER)|DROP (?:TRIGGER|FUNCTION)|UPDATE file_search_dependency)\b/i.test(
+          !/^(?:CREATE (?:OR REPLACE FUNCTION|(?:CONSTRAINT )?TRIGGER)|DROP (?:TRIGGER|FUNCTION))\b/i.test(
             statement
           )
         )
@@ -36,6 +43,7 @@ try {
       }
     }
   })
+  for (const statement of backfills) await sql.unsafe(statement)
   logger.info('File ownership functions and triggers reconciled')
 } finally {
   await sql.end()
