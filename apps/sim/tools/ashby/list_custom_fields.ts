@@ -1,3 +1,4 @@
+import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
 import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -177,7 +178,7 @@ export const listCustomFieldsTool: ToolConfig<
     },
     nextSyncCursor: {
       type: 'string',
-      description: 'Opaque sync token returned after the last page; pass on next sync',
+      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
       optional: true,
     },
   },

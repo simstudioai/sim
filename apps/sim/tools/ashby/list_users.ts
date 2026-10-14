@@ -1,4 +1,5 @@
 import type { AshbyUserSummary } from '@/tools/ashby/types'
+import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
@@ -120,7 +121,7 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
     },
     nextSyncCursor: {
       type: 'string',
-      description: 'Opaque token for the next incremental sync',
+      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
       optional: true,
     },
   },

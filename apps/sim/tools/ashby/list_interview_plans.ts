@@ -1,3 +1,4 @@
+import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
 import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -102,6 +103,10 @@ export const listInterviewPlansTool: ToolConfig<Params, Response> = {
     },
     moreDataAvailable: { type: 'boolean', description: 'Whether more pages exist' },
     nextCursor: { type: 'string', description: 'Next page cursor', optional: true },
-    nextSyncCursor: { type: 'string', description: 'Next incremental sync token', optional: true },
+    nextSyncCursor: {
+      type: 'string',
+      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
+      optional: true,
+    },
   },
 }

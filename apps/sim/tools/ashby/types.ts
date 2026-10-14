@@ -1,5 +1,12 @@
 import type { ToolResponse } from '@/tools/types'
 
+/**
+ * Shared description of the `nextSyncCursor` output on every Ashby list tool. Ashby
+ * returns the sync token only once the last page is drained, so earlier pages carry null.
+ */
+export const ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION =
+  'Opaque syncToken for the next incremental sync, returned only on the final page; persist it only when non-null'
+
 interface AshbyBaseParams {
   apiKey: string
   onBehalfOfUserId?: string

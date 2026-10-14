@@ -1,4 +1,5 @@
 import type { AshbyListCandidatesParams, AshbyListCandidatesResponse } from '@/tools/ashby/types'
+import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
@@ -114,7 +115,7 @@ export const listCandidatesTool: ToolConfig<
     },
     nextSyncCursor: {
       type: 'string',
-      description: 'Opaque token for the next incremental sync, returned on the final page',
+      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
       optional: true,
     },
   },

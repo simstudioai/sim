@@ -1,3 +1,4 @@
+import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
 import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -127,7 +128,7 @@ export const listCandidateTagsTool: ToolConfig<
     },
     nextSyncCursor: {
       type: 'string',
-      description: 'Sync token to use for incremental updates in future requests',
+      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
       optional: true,
     },
   },

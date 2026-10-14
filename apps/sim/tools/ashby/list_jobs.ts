@@ -1,4 +1,5 @@
 import type { AshbyListJobsParams, AshbyListJobsResponse } from '@/tools/ashby/types'
+import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
@@ -178,8 +179,7 @@ export const listJobsTool: ToolConfig<AshbyListJobsParams, AshbyListJobsResponse
     },
     nextSyncCursor: {
       type: 'string',
-      description:
-        "Ashby's syncToken for the next incremental run, returned only once the last page is drained. Named as a cursor because that is what it is - an opaque resumption marker, not a credential - so it stays readable in block output alongside nextCursor.",
+      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
       optional: true,
     },
   },

@@ -2,6 +2,7 @@ import type {
   AshbyListApplicationsParams,
   AshbyListApplicationsResponse,
 } from '@/tools/ashby/types'
+import { ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION } from '@/tools/ashby/types'
 import {
   APPLICATION_OUTPUTS,
   ashbyAuthHeaders,
@@ -141,7 +142,7 @@ export const listApplicationsTool: ToolConfig<
     },
     nextSyncCursor: {
       type: 'string',
-      description: 'Opaque token for the next incremental sync, returned on the final page',
+      description: ASHBY_NEXT_SYNC_CURSOR_DESCRIPTION,
       optional: true,
     },
   },
