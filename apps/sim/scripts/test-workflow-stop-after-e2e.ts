@@ -602,16 +602,26 @@ try {
     )
     assert(siblingContext)
     const completion = resume(siblingPauses, paused)
+    /**
+     * The claim is held for as long as the resume runs, so the wait ends with the request rather
+     * than a fixed window: under `next dev` a request can sit seconds before reaching the route.
+     */
+    let resumeSettled = false
+    completion.then(
+      () => {
+        resumeSettled = true
+      },
+      () => {
+        resumeSettled = true
+      }
+    )
     try {
       let claimed = false
-      for (let attempt = 0; attempt < 100; attempt++) {
+      while (!claimed && !resumeSettled) {
         const [{ count }] =
           await sql`select count(*)::int as count from resume_queue where parent_execution_id = ${paused.runId} and status = 'claimed'`
-        if (count === 1) {
-          claimed = true
-          break
-        }
-        await sleep(20)
+        claimed = count === 1
+        if (!claimed) await sleep(20)
       }
       assert(claimed, 'The first resume must own the run before its sibling is queued')
       await execute(

@@ -8,9 +8,10 @@
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
 #
-# Under `next dev` the first request cold-compiles the app under Turbopack, which takes 42-150s on
-# CI runners, so the readiness deadline only has to catch a hung boot: an exited server fails
-# immediately, and either way the server log tail lands in the job log.
+# Under `next dev` the first request cold-compiles the app under Turbopack, which takes 60-185s on
+# a healthy CI runner and has run past 300s on a degraded one. The readiness deadline, about three
+# times the healthy worst case, only has to catch a hung boot: an exited server fails immediately,
+# and either way the server log tail lands in the job log.
 #
 # Each app starts from an empty Turbopack dev cache: a cache written under other NEXT_PUBLIC_*
 # values, by a server that `next dev` SIGKILLs 100ms after SIGTERM, can panic Turbopack or wedge a
@@ -21,7 +22,7 @@ set -euo pipefail
 
 group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|mobile>}
 report_dir="$RUNNER_TEMP/e2e"
-ready_timeout_seconds=300
+ready_timeout_seconds=600
 mkdir -p "$report_dir"
 
 server_pid=''

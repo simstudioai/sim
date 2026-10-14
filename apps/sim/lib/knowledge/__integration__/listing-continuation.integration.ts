@@ -1008,7 +1008,10 @@ describe('durable source and member cycles in PostgreSQL', () => {
         hardDelete.mockRestore()
       }
     }
-    /** Plans a window statement from freshly analyzed statistics, returning the document rows it read. */
+    /**
+     * Plans a window statement from freshly analyzed statistics, returning the document rows it
+     * read and the scans that read them, so a statement over the bound names the plan behind it.
+     */
     const explainWalk = async (query: string, params: Parameters<typeof db.$client.unsafe>[1]) => {
       const [explained] = await db.$client.begin(async (tx) => {
         await tx.unsafe('ANALYZE document')
@@ -1018,17 +1021,16 @@ describe('durable source and member cycles in PostgreSQL', () => {
         const plan = toRecord(node)
         return [plan, ...toArray(plan.Plans).flatMap(nodes)]
       }
-      const plan = nodes(toRecord(toArray(explained['QUERY PLAN'])[0]).Plan)
-      return plan
+      const scans = nodes(toRecord(toArray(explained['QUERY PLAN'])[0]).Plan)
         .filter((node) => node['Relation Name'] === 'document')
-        .reduce(
-          (total, node) =>
-            total +
+        .map((node) => ({
+          scan: `${node['Node Type']}${node['Index Name'] ? ` on ${node['Index Name']}` : ''}`,
+          read:
             ((toNumberOrNull(node['Actual Rows']) ?? 0) +
               (toNumberOrNull(node['Rows Removed by Filter']) ?? 0)) *
-              (toNumberOrNull(node['Actual Loops']) ?? 1),
-          0
-        )
+            (toNumberOrNull(node['Actual Loops']) ?? 1),
+        }))
+      return { read: scans.reduce((total, { read }) => total + read, 0), scans }
     }
     /**
      * Every window statement reads at most one window of documents, whichever connector index
@@ -1040,7 +1042,8 @@ describe('durable source and member cycles in PostgreSQL', () => {
     ) => {
       expect(walked.length).toBeGreaterThan(0)
       for (const { query, params } of walked) {
-        expect(await explainWalk(query, params), query).toBeLessThanOrEqual(
+        const { read, scans } = await explainWalk(query, params)
+        expect(read, `${query}\n${JSON.stringify(scans, null, 2)}`).toBeLessThanOrEqual(
           RECONCILIATION_WINDOW_SIZE
         )
       }
