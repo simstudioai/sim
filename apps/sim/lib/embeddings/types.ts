@@ -148,12 +148,6 @@ export interface EmbedOptions {
    */
   apiKey?: string
   /**
-   * Marks `apiKey` as a Sim-hosted key the tool layer injected and bills for,
-   * so it shares the platform's admission budget and quota pause and is never
-   * reported as the caller's own key.
-   */
-  usesHostedKey?: boolean
-  /**
    * Rewrites resolved-secret plaintext back to placeholders before the inputs
    * reach a provider.
    *

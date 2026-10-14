@@ -63,8 +63,5 @@ export const executeEmbeddingsTool: InternalToolOperationHandler = async (reques
       { status: 400 }
     )
   }
-  return executeEmbedding(parsed.data, {
-    signal: request.signal,
-    usesHostedKey: request.usesHostedKey,
-  })
+  return executeEmbedding(parsed.data, { signal: request.signal })
 }

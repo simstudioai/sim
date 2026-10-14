@@ -2165,7 +2165,6 @@ async function executeToolImplementation(
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
         refreshCredential,
-        usesHostedKey: hostedKeyInfo.isUsingHostedKey,
       })
 
       let finalResult = result
@@ -2586,7 +2585,6 @@ interface ExecuteDeclaredInternalOperationInput {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
   refreshCredential?: (signal: AbortSignal) => Promise<void>
-  usesHostedKey?: boolean
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2635,7 +2633,6 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
   refreshCredential,
-  usesHostedKey,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2769,7 +2766,6 @@ async function executeDeclaredInternalOperation({
         context,
         requestId,
         signal: operationController.signal,
-        usesHostedKey,
       })
       if (result instanceof Response && result.status === 401 && refreshCredential) {
         await result.body?.cancel()
@@ -2786,7 +2782,6 @@ async function executeDeclaredInternalOperation({
           privateToolMetadataType,
           resolvedSecretTraceRegistry,
           internalSandboxProfile,
-          usesHostedKey,
         })
       }
       response = await presentInternalToolOperationResult(

@@ -45,8 +45,6 @@ export interface InternalToolOperationCall {
   context: InternalToolOperationContext
   requestId: string
   signal?: AbortSignal
-  /** True when the tool layer injected a Sim-hosted key into `input`; never read from tool input. */
-  usesHostedKey?: boolean
 }
 
 export type InternalToolOperationResult = Response | InternalToolFileResult

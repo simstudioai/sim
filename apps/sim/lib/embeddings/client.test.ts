@@ -393,23 +393,6 @@ describe('embed', () => {
     expect(result.billableTokens).toBe(0)
   })
 
-  it('admits a tool-injected hosted key through the shared hosted bucket, not as BYOK', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1]])))
-
-    const result = await embed(['hello'], {
-      model: 'text-embedding-3-small',
-      apiKey: 'sk-hosted-pool',
-      usesHostedKey: true,
-      projectInputs: null,
-    })
-
-    expect(result.isBYOK).toBe(false)
-    expect(mockAdmit).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialFingerprint: 'hosted:openai' })
-    )
-    expect(fetchMock.mock.calls[0][0]).toContain('api.openai.com')
-  })
-
   /**
    * `batchByTokenLimit` truncates any single text above the limit it is given,
    * so the limit has to be the selected model's own. One shared constant sent
