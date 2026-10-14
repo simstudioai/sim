@@ -1759,6 +1759,10 @@ export interface QueryWorkspaceFilesOptions {
   folderId?: string | null | readonly string[]
   /** A resolved union of folder ids and workspace-root files. */
   folderScope?: FolderIdScope
+  /** Exact file id. */
+  fileId?: string
+  /** Exact file name. */
+  name?: string
   /** Case-insensitive substring match on the file name. */
   search?: string
   sortBy: V2FileSortBy
@@ -1833,6 +1837,8 @@ async function queryFileRecords<const O extends EditableFileOwner>(
     scope = 'active',
     folderId,
     folderScope,
+    fileId,
+    name,
     search,
     sortBy,
     sortOrder,
@@ -1861,6 +1867,8 @@ async function queryFileRecords<const O extends EditableFileOwner>(
         : isNull(workspaceFiles.deletedAt),
     workspaceFileFolderCondition(folderId),
     workspaceFileFolderScopeCondition(folderScope),
+    fileId === undefined ? undefined : eq(workspaceFiles.id, fileId),
+    name === undefined ? undefined : eq(workspaceFiles.originalName, name),
     searchFilter(workspaceFiles.originalName, search),
     resumeAfter,
   ]
