@@ -42,7 +42,7 @@ export const CALENDAR_RETRY: ToolRetryConfig = {
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 
 /** Graph event and calendar ids are opaque and can contain `/`, which encodes as `%2F`. */
-const GRAPH_ID_SEGMENT = { allowSeparators: true }
+const GRAPH_ID_SEGMENT = { allowSeparators: true } as const
 
 /**
  * Build the Graph URL for a calendar-scoped collection.
