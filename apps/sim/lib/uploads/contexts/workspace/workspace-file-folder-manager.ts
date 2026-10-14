@@ -5,6 +5,7 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type ListSortOrder, listOrderBy } from '@/lib/api/list-query'
+import { lockWorkspaceStorageForMutationInTx } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
@@ -306,6 +307,17 @@ async function acquireWorkspaceFileFolderMutationLock(tx: DbTransaction, workspa
 async function acquireFileFolderMutationLock(tx: DbTransaction, owner: EditableFileOwner) {
   if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
   await lockFileDirectories(tx, [owner])
+}
+
+/**
+ * For operations that archive or restore many file rows: their search-index trigger upserts the
+ * dispatch queue row, so the workspace row must be locked first, the order
+ * {@link lockWorkspaceStorageForMutationInTx} requires of every file writer.
+ */
+async function acquireFileItemsMutationLock(tx: DbTransaction, owner: EditableFileOwner) {
+  await acquireFileFolderMutationLock(tx, owner)
+  if (owner.entityType === 'workspace')
+    await lockWorkspaceStorageForMutationInTx(tx, owner.entityId)
 }
 
 export function buildWorkspaceFileFolderPathMap(
@@ -1260,7 +1272,7 @@ async function restoreFileFolder<O extends EditableFileOwner>(
   folderId: string,
   tx: DbTransaction
 ) {
-  await acquireFileFolderMutationLock(tx, owner)
+  await acquireFileItemsMutationLock(tx, owner)
 
   const raw = await tx
     .select()
@@ -1433,7 +1445,7 @@ async function archiveFileItems(
   const explicitFileIds = Array.from(new Set(params.fileIds ?? []))
   const explicitFolderIds = Array.from(new Set(params.folderIds ?? []))
 
-  await acquireFileFolderMutationLock(tx, params.owner)
+  await acquireFileItemsMutationLock(tx, params.owner)
   await assertFileItemsBelongToOwner(params, tx)
 
   const activeFolders = await selectAffectedFileFolders(params.owner, explicitFolderIds, tx)
