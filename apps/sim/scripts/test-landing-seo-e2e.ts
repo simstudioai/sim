@@ -198,7 +198,10 @@ async function run() {
     const webPage = jsonLdNodes(body).find((node) => node['@type'] === 'WebPage')
     assert.equal(webPage?.dateModified, integration.updatedAt)
     assert(
-      body.includes(`dateTime="${integration.updatedAt}"`),
+      // HTML attribute names are case-insensitive; React emits `dateTime`, parsers fold it.
+      body
+        .toLowerCase()
+        .includes(`datetime="${integration.updatedAt}"`),
       'Visible last-updated date differs'
     )
   })
