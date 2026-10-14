@@ -32,6 +32,8 @@ const logger = createLogger('EmbeddingOperations')
 
 export interface EmbeddingOperationContext {
   signal?: AbortSignal
+  /** Set only by the tool layer when it injected a Sim-hosted key into `apiKey`. */
+  usesHostedKey?: boolean
 }
 
 function failureResponse(error: string, status: number): Response {
@@ -182,6 +184,7 @@ export async function executeEmbedding(
          */
         dimensions: ollamaDimensions ?? dimensions,
         apiKey,
+        usesHostedKey: context.usesHostedKey,
         projectInputs: null,
         signal: context.signal,
       })

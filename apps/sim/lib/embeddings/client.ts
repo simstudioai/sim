@@ -449,7 +449,7 @@ async function resolveProvider(
   }
 
   const { apiKey, isBYOK } = options.apiKey
-    ? { apiKey: options.apiKey, isBYOK: true }
+    ? { apiKey: options.apiKey, isBYOK: !options.usesHostedKey }
     : await resolveProviderKey(info.provider, options.workspaceId)
 
   return {
