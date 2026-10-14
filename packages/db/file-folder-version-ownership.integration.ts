@@ -276,7 +276,8 @@ describe('file folder and version ownership in PostgreSQL', () => {
       code: '23503',
     })
     await expect(sql`DELETE FROM "user" WHERE id = 'user-a'`).rejects.toMatchObject({
-      code: '23503',
+      code: '23514',
+      constraint_name: 'project_resource_creator_handoff',
     })
     await sql`UPDATE folder SET user_id = 'user-b' WHERE id = 'project-folder'`
     await sql`DELETE FROM "user" WHERE id = 'user-a'`

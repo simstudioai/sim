@@ -15,7 +15,7 @@ const migration = readFileSync(
 )
 
 const workspaceBindingMigration = readFileSync(
-  new URL('./migrations/0428_file_workspace_binding.sql', import.meta.url),
+  new URL('./migrations/0427_file_workspace_binding.sql', import.meta.url),
   'utf8'
 )
 

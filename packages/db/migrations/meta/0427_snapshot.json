@@ -1,6 +1,6 @@
 {
-  "id": "ec46a436-88d2-4e86-a5f5-87711de5b966",
-  "prevId": "6127dc99-6e8f-4842-9a28-7805522e406d",
+  "id": "ff76360a-4b7e-48b8-943f-7a9cc6980064",
+  "prevId": "ec46a436-88d2-4e86-a5f5-87711de5b966",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -29742,6 +29742,10 @@
         "workspace_files_project_binding_check": {
           "name": "workspace_files_project_binding_check",
           "value": "(\"workspace_files\".\"project_id\" IS NOT NULL) = (\"workspace_files\".\"context\" = 'project') AND (\"workspace_files\".\"project_id\" IS NULL OR \"workspace_files\".\"chat_id\" IS NULL)"
+        },
+        "workspace_files_workspace_binding_check": {
+          "name": "workspace_files_workspace_binding_check",
+          "value": "\"workspace_files\".\"context\" NOT IN ('workspace', 'chat', 'mothership', 'execution', 'workspace-logos') OR \"workspace_files\".\"workspace_id\" IS NOT NULL"
         }
       },
       "isRLSEnabled": false

@@ -13,9 +13,8 @@ const migrations = [
   '0359_workspace_file_search_chunks.sql',
   '0422_file_entity_ownership.sql',
   '0423_file_folder_version_ownership.sql',
-  '0424_file_creator_lifetime.sql',
-  '0426_public_share_entity_ownership.sql',
-  '0427_file_search_owner_scope.sql',
+  '0425_public_share_entity_ownership.sql',
+  '0426_file_search_owner_scope.sql',
 ]
 
 try {

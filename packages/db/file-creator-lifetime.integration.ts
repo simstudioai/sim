@@ -8,11 +8,9 @@ import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 const databaseUrl = readTestDatabaseUrl()
-const migrations = [
-  '0422_file_entity_ownership.sql',
-  '0423_file_folder_version_ownership.sql',
-  '0424_file_creator_lifetime.sql',
-].map((name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8'))
+const migrations = ['0422_file_entity_ownership.sql', '0423_file_folder_version_ownership.sql'].map(
+  (name) => readFileSync(new URL(`./migrations/${name}`, import.meta.url), 'utf8')
+)
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 function check(name: string, run: () => Promise<void>) {
@@ -157,8 +155,8 @@ describe('Shared file creator lifetime in PostgreSQL', () => {
   check(
     'creator guard can be replayed without weakening existing resource protection',
     async () => {
-      await applyMigration(migrations[2])
-      await applyMigration(migrations[2])
+      await applyMigration(migrations[1])
+      await applyMigration(migrations[1])
       await sql`INSERT INTO folder (id,name,user_id,resource_type,project_id,deleted_at) VALUES ('folder','Archived','user-a','file','project-a',now())`
       await expect(sql`DELETE FROM "user" WHERE id='user-a'`).rejects.toMatchObject({
         code: '23514',
