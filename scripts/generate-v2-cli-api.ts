@@ -115,11 +115,25 @@ export function docPathKey(method: string, contractPath: string): string {
  * `description` is read for the same reason — it is where the workspace-key
  * denial is already stated.
  */
-export function loadSummaries(
+export async function loadSummaries(
   workspaceKeyDenialMarkers: readonly string[]
-): Map<string, OperationDoc> {
+): Promise<Map<string, OperationDoc>> {
   const docs = new Map<string, OperationDoc>()
-
+  const [
+    { generateOpenApiDocument },
+    { filesAuditOpenApiDocument },
+    { unpublishedProjectFileDocumentation },
+  ] = await Promise.all([
+    import(path.join(ROOT, 'scripts/openapi/generator.ts')),
+    import(path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/files-audit.ts')),
+    import(path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/unpublished-project-files.ts')),
+  ])
+  /** Runtime help retains canonical metadata even when its public reference is unpublished. */
+  const unpublished = generateOpenApiDocument({
+    ...filesAuditOpenApiDocument,
+    routes: unpublishedProjectFileDocumentation.routes,
+  })
+  const specs = [unpublished]
   for (const file of specFiles()) {
     let spec: Record<string, any>
     try {
@@ -130,6 +144,10 @@ export function loadSummaries(
       continue
     }
 
+    specs.push(spec)
+  }
+
+  for (const spec of specs) {
     for (const [specPath, methods] of Object.entries(spec.paths ?? {})) {
       for (const [method, operation] of Object.entries(methods as Record<string, any>)) {
         const doc: OperationDoc = {}
@@ -717,6 +735,7 @@ export function render(operations: Operation[], docs: Map<string, OperationDoc>)
         const discriminator = renderBodyDiscriminator(op.contract.body, '    ')
         if (discriminator) out.push(`    bodyDiscriminator: ${discriminator},`)
         else if (isUnionSlot(op.contract.body)) out.push(`    opaqueBody: true,`)
+        else if (!map && op.contract.body instanceof z.ZodObject) out.push(`    body: {},`)
       }
     }
     // Contract headers are request input like any other slot: `upload-token`
@@ -768,7 +787,9 @@ async function main() {
   const args = new Set(process.argv.slice(2))
   const operations = await collectOperations()
 
-  const generated = format(render(operations, loadSummaries(await loadWorkspaceKeyDenialMarkers())))
+  const generated = format(
+    render(operations, await loadSummaries(await loadWorkspaceKeyDenialMarkers()))
+  )
 
   if (args.has('--check')) {
     let current = ''

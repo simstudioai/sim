@@ -6243,7 +6243,7 @@
         ],
         "additionalProperties": false,
         "title": "File share",
-        "description": "Public-safe share configuration for a workspace file."
+        "description": "Public-safe share configuration for a file."
       },
       "V2FileMetadata": {
         "type": "object",

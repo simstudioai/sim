@@ -182,8 +182,6 @@ export const extractWorkspaceFileResponseSchema = workspaceFileSuccessSchema.ext
   skippedCount: z.number().int().nonnegative(),
 })
 
-export type ExtractWorkspaceFileResponse = z.output<typeof extractWorkspaceFileResponseSchema>
-
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files',

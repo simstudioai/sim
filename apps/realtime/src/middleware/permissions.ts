@@ -13,14 +13,9 @@ import {
   VARIABLE_OPERATIONS,
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
-import {
-  projectFileDocTarget,
-  ROOM_TYPES,
-  type RoomRef,
-  roomName,
-} from '@sim/realtime-protocol/rooms'
+import { isProjectRoom, ROOM_TYPES, type RoomRef, roomName } from '@sim/realtime-protocol/rooms'
 import { and, eq, isNull } from 'drizzle-orm'
-import { fetchProjectFileDocAccess } from '@/handlers/file-doc-app'
+import { fetchProjectRoomAccess } from '@/handlers/file-list-app'
 
 const logger = createLogger('SocketPermissions')
 
@@ -228,10 +223,9 @@ async function readAuthoritativeRoomPermission(
   room: RoomRef,
   connectionId?: string
 ): Promise<PermissionType | null> {
-  if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) {
-    const target = projectFileDocTarget(room)
-    if (!target || !connectionId) throw new Error('Project document requires a socket identity')
-    const authorization = await fetchProjectFileDocAccess({ ...target, userId, connectionId })
+  if (isProjectRoom(room)) {
+    if (!connectionId) throw new Error('Project room requires a socket identity')
+    const authorization = await fetchProjectRoomAccess(room, { userId, connectionId })
     return authorization.allowed ? authorization.workspacePermission : null
   }
   if (room.type === ROOM_TYPES.WORKFLOW) {
@@ -270,8 +264,11 @@ async function resolveRoleUncached(
     // already-revoked user — so a recorded revocation survives a transient DB failure
     // instead of reverting to the stale join-time role. Only trust `fallbackRole` when
     // nothing has been recorded for this (user, workflow) yet.
-    if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) throw error
     const lastKnown = roleCache.get(key)
+    if (isProjectRoom(room) || room.type === ROOM_TYPES.WORKSPACE_FILE_DOC) {
+      if (lastKnown?.role === null) return null
+      throw error
+    }
     return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }
 }
@@ -283,7 +280,7 @@ async function resolveRoleUncached(
  * (single-flight), so out-of-order cache writes cannot resurrect revoked access.
  *
  * Returns `null` when the user genuinely has no access (removed/revoked, or the room's
- * resource is gone). Project callback failures throw so callers can retry without recording a revocation.
+ * resource is gone). Document authorization failures throw so callers retry without granting writes or recording a revocation.
  * On a transient DB failure for other room types, it reuses the last recorded decision for
  * this (user, room) — including a previously recorded revocation (`null`) — and only
  * falls back to `fallbackRole` when no decision has been recorded yet, so a blip neither

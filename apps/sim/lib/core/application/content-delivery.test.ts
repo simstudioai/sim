@@ -38,6 +38,17 @@ function delegated(serviceId: DelegatedServiceId): Principal {
 }
 
 const CHAT = delegated('copilot')
+const PROJECT_CHAT: Principal = {
+  kind: 'resource_delegated',
+  serviceId: 'copilot',
+  subjectUserId: 'user-1',
+  audience: 'sim:project-files',
+  delegationId: 'delegation-1',
+  issuedAt: new Date(),
+  expiresAt: new Date(Date.now() + 60_000),
+  scope: { kind: 'entity', entityType: 'project', entityId: 'project-1' },
+  invocation: { kind: 'workspace', workspaceId: 'workspace-1' },
+}
 const EXECUTOR = delegated('executor')
 const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
 
@@ -80,6 +91,7 @@ function recordingGate() {
 describe('mustClassifyContent', () => {
   it('refuses Chat with no gate before anything loads', () => {
     expect(() => mustClassifyContent(CHAT)).toThrow(ContentDeliveryUnobservedError)
+    expect(() => mustClassifyContent(PROJECT_CHAT)).toThrow(ContentDeliveryUnobservedError)
   })
 
   it('is true for Chat under a gate and false for every other caller, gate or not', () => {

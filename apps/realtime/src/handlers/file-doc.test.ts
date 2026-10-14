@@ -4,6 +4,7 @@ import {
   FILE_DOC_SCHEMA_VERSION,
   FILE_DOC_SEED,
 } from '@sim/realtime-protocol/file-doc'
+import { fileDocAdmissionRoom } from '@sim/realtime-protocol/file-doc-target'
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { flushMicrotasks } from '@sim/testing/helpers'
 import { sleep } from '@sim/utils/helpers'
@@ -36,7 +37,6 @@ vi.mock('@/handlers/file-doc-app', () => ({
 import {
   applyMarkdownToLiveFileDoc,
   cleanupFileDocForSocket,
-  fileDocAdmissionRoom,
   flushAllFileDocRooms,
   invalidateLiveFileDocument,
   setupWorkspaceFileDocHandlers,
@@ -391,7 +391,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
       source.getText(FILE_DOC_FIELD).insert(0, 'Stale text')
       const acknowledge = vi.fn()
       try {
-        if (timing === 'before append') await invalidateLiveFileDocument('file-1', 2)
+        if (timing === 'before append')
+          await invalidateLiveFileDocument({ type: 'workspace-file-doc', id: 'file-1' }, 2)
         sent.length = 0
         handlers[FILE_DOC_EVENTS.UPDATE](
           {
@@ -404,7 +405,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         )
         if (timing !== 'before append') {
           expect(publish).toHaveBeenCalledTimes(1)
-          await invalidateLiveFileDocument('file-1', 2)
+          await invalidateLiveFileDocument({ type: 'workspace-file-doc', id: 'file-1' }, 2)
           if (timing === 'during append and reseed') {
             mockFetchFileDocSeed.mockResolvedValue({
               ...seedResult('Replacement', 'doc-new'),
@@ -527,7 +528,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // A real user edit (socket-origin sync update) marks the doc dirty.
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
@@ -605,8 +606,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
       const edit = new Y.Doc()
       edit.getText(FILE_DOC_FIELD).insert(0, 'edit after revocation')
-      const editFrame = () =>
-        handlers[FILE_DOC_EVENTS.MESSAGE](
+      const editFrame = async () =>
+        await handlers[FILE_DOC_EVENTS.MESSAGE](
           frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
             syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
           )
@@ -651,7 +652,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const before = sent.length
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'agent streamed this')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC_NO_PERSIST, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
@@ -688,7 +689,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     const edit = new Y.Doc()
     edit.getText(FILE_DOC_FIELD).insert(0, 'user typed this')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
       )
@@ -750,8 +751,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
         expect(memberships.has(ROOM_NAME)).toBe(false)
         resolvePermission(permission)
         await joining
-        expect(memberships.has(ROOM_NAME)).toBe(permission === 'write')
-        if (permission === 'write') {
+        expect(memberships.has(ROOM_NAME)).toBe(permission !== null)
+        if (permission !== null) {
           expect(joinSuccessFileId(pending.socket)).toBe('file-1')
           expect(pending.socket.emit).toHaveBeenCalledWith(
             FILE_DOC_EVENTS.MESSAGE,
@@ -801,7 +802,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
           commitRoomPermission(
             'user-1',
             { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' },
-            'read',
+            null,
             beginRoomPermissionRead()
           )
         } else if (access === 'expired') {
@@ -809,7 +810,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
         }
         finishSubscription()
         await joining
-        expect(memberships.has(fileDocAdmissionRoom('file-1'))).toBe(false)
+        expect(memberships.has(fileDocAdmissionRoom({ fileId: 'file-1' }))).toBe(false)
         expect(memberships.has(ROOM_NAME)).toBe(access === 'unchanged')
         if (access === 'unchanged') {
           expect(joinSuccessFileId(pending.socket)).toBe('file-1')
@@ -866,7 +867,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     // The joiner that never triggered the fetch is served the seeded document all the same.
     b.socket.emit.mockClear()
-    b.handlers[FILE_DOC_EVENTS.MESSAGE](
+    await b.handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
     )
     const reply = b.socket.emit.mock.calls.find(
@@ -930,7 +931,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     // A document frame sent before the join was answered reaches an unbound socket and is dropped.
     const early = new Y.Doc()
     early.getText(FILE_DOC_FIELD).insert(0, 'too early')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
         syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(early))
       )
@@ -942,7 +943,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
 
     // The first thing the client is served is the finished document — content and seed flag together.
     socket.emit.mockClear()
-    handlers[FILE_DOC_EVENTS.MESSAGE](
+    await handlers[FILE_DOC_EVENTS.MESSAGE](
       frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) => syncProtocol.writeSyncStep1(e, new Y.Doc()))
     )
     const reply = socket.emit.mock.calls.find(
@@ -964,19 +965,31 @@ describe('setupWorkspaceFileDocHandlers', () => {
     mockFetchFileDocMerge.mockResolvedValue(Y.encodeStateAsUpdate(new Y.Doc()))
 
     // A newer durable version lands and is recorded as the synced version.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# newer', { version: 100 })).toBe('applied')
+    expect(
+      await applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# newer', {
+        version: 100,
+      })
+    ).toBe('applied')
     mockFetchFileDocMerge.mockClear()
 
     // An older durable version arriving out of order (e.g. a concurrent write on another process) is
     // stale: skipped before any diff is computed, so the live doc never regresses to older content and
     // no diff is published that a later persist could write back.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# older, stale', { version: 50 })).toBe(
-      'stale'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# older, stale',
+        { version: 50 }
+      )
+    ).toBe('stale')
     // The same version is idempotent — also skipped.
-    expect(await applyMarkdownToLiveFileDoc('file-1', '# same version', { version: 100 })).toBe(
-      'stale'
-    )
+    expect(
+      await applyMarkdownToLiveFileDoc(
+        { type: 'workspace-file-doc', id: 'file-1' },
+        '# same version',
+        { version: 100 }
+      )
+    ).toBe('stale')
     expect(mockFetchFileDocMerge).not.toHaveBeenCalled()
   })
 
@@ -994,8 +1007,8 @@ describe('setupWorkspaceFileDocHandlers', () => {
       .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
       .mockResolvedValueOnce(noOpUpdate)
 
-    const first = applyMarkdownToLiveFileDoc('file-1', '# One')
-    const second = applyMarkdownToLiveFileDoc('file-1', '# Two')
+    const first = applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# One')
+    const second = applyMarkdownToLiveFileDoc({ type: 'workspace-file-doc', id: 'file-1' }, '# Two')
     await flushMicrotasks(SEED_CHAIN_TICKS)
     expect(mockFetchFileDocMerge).toHaveBeenCalledTimes(1) // second is queued behind the first
 
@@ -1014,7 +1027,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     await a.handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 100 })
     sent.length = 0
 
-    a.handlers[FILE_DOC_EVENTS.MESSAGE](spoof)
+    await a.handlers[FILE_DOC_EVENTS.MESSAGE](spoof)
 
     const relayed = sent.find(
       (m) =>
@@ -1105,7 +1118,7 @@ describe('setupWorkspaceFileDocHandlers', () => {
     const updateFrame = frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
       syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(doc))
     )
-    a.handlers[FILE_DOC_EVENTS.MESSAGE](updateFrame)
+    await a.handlers[FILE_DOC_EVENTS.MESSAGE](updateFrame)
     expect(sent.some((m) => m.event === FILE_DOC_EVENTS.MESSAGE)).toBe(false)
   })
 

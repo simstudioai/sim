@@ -8,6 +8,7 @@ vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 const mockEnforceUserRateLimit = rateLimiterMockFns.mockEnforceUserRateLimit
 
 import { defineRouteContract } from '@/lib/api/contracts'
+import { completeProjectFileUploadContract } from '@/lib/api/contracts/project-file-uploads'
 import {
   defineInternalJsonRoute,
   InternalUnauthenticatedError,
@@ -23,7 +24,7 @@ class TestLockedError extends HttpError {
   readonly statusCode = 423
 }
 
-const operation = { id: 'test.read' } as const
+const operation = { id: 'test.read', capability: 'none' } as const
 const auth = {
   authenticate: vi.fn(async () => ({
     kind: 'session' as const,
@@ -151,7 +152,7 @@ describe('defineInternalJsonRoute', () => {
       mapInput: ({ body }) => body.outcome,
       useCase: {
         operation,
-        async execute({ input }) {
+        async execute({ input }: { input: 'success' | 'failure' }): Promise<{ value: string }> {
           if (input === 'failure') throw new Error('Unhandled')
           return { value: 'ok' }
         },
@@ -233,7 +234,7 @@ describe('defineInternalJsonRoute', () => {
       },
       useCase: {
         operation,
-        async execute({ input }) {
+        async execute({ input }: { input: string }): Promise<{ value: string }> {
           events.push('use-case')
           return { value: input }
         },
@@ -328,5 +329,29 @@ describe('defineInternalJsonRoute', () => {
 
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({ error: 'Internal server error' })
+  })
+})
+
+describe('optional upload completion JSON', () => {
+  it.each([undefined, '{}'])('accepts an empty completion body: %s', async (body) => {
+    const handler = defineInternalJsonRoute({
+      contract: defineRouteContract({
+        method: 'POST',
+        path: '/api/test/complete',
+        body: completeProjectFileUploadContract.body,
+        response: { mode: 'json', schema: z.object({ completed: z.boolean() }) },
+      }),
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Parser regression' }),
+      errorPolicy: internalOrchestrationErrorPolicy,
+      parseOptions: { optionalJsonBody: true },
+      mapInput: () => undefined,
+      useCase: { operation, execute: async () => ({ completed: true }) },
+    })
+    const response = await handler(
+      new NextRequest('http://localhost/api/test/complete', { method: 'POST', body })
+    )
+    expect(response.status).toBe(200)
   })
 })

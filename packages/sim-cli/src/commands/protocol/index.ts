@@ -1,7 +1,12 @@
 import { Command } from 'commander'
 import { attachChat } from './chat'
-import { attachFileGet, attachFileVersionDownload } from './files-get'
-import { attachFileUpload } from './files-upload'
+import {
+  attachFileGet,
+  attachFileVersionDownload,
+  attachProjectFileSource,
+  attachProjectFileVersionSource,
+} from './files-get'
+import { attachFileUpload, attachProjectFileUpload } from './files-upload'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
 import { attachKnowledgeExport } from './knowledge-export'
 import { attachLogsFollow } from './logs-follow'
@@ -22,6 +27,10 @@ function group(program: Command, name: string): Command {
 
 /** Attaches commands whose multi-request or binary protocols cannot be generated. */
 export function attachProtocolCommands(program: Command): void {
+  const projectFiles = group(group(program, 'projects'), 'files')
+  attachProjectFileUpload(projectFiles)
+  attachProjectFileSource(projectFiles)
+  attachProjectFileVersionSource(group(projectFiles, 'versions'))
   const files = group(program, 'files')
   attachFileUpload(files)
   attachFileGet(files)

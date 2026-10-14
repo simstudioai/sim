@@ -329,11 +329,9 @@ function advanceEditor(
       ? message.ei
       : id
   if (current && !isAfterStreamId(sourceId, current.id)) return current
-  const editor =
-    message.eu?.trim() && message.ec?.trim()
-      ? { userId: message.eu, connectionId: message.ec }
-      : null
-  return { id: sourceId, editor }
+  /** Durable external merges carry no editor; retain only a previously authenticated writer. */
+  if (!message.eu?.trim() || !message.ec?.trim()) return current
+  return { id: sourceId, editor: { userId: message.eu, connectionId: message.ec } }
 }
 
 /** One locally-open room the store tracks: its doc and the last stream id applied to it. */
@@ -608,11 +606,8 @@ export class FileDocStore {
     expectedGeneration = this.rooms.get(name)?.generation ?? '',
     editor?: FileDocEditor
   ): Promise<void> {
-    if (
-      name.startsWith('project-file-doc:') &&
-      (!editor?.userId.trim() || !editor.connectionId.trim())
-    ) {
-      throw new Error('Project document updates require an authenticated editor')
+    if (!editor?.userId.trim() || !editor.connectionId.trim()) {
+      throw new Error('Document updates require an authenticated editor')
     }
     if (!this.enabled) return
     if (!this.write) throw new Error('FileDocStore is not initialized')

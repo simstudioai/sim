@@ -32,6 +32,10 @@
     "./testing/test-infrastructure": {
       "types": "./testing/test-infrastructure.ts",
       "default": "./testing/test-infrastructure.ts"
+    },
+    "./testing/workspace-fixtures": {
+      "types": "./testing/workspace-fixtures.ts",
+      "default": "./testing/workspace-fixtures.ts"
     }
   },
   "scripts": {

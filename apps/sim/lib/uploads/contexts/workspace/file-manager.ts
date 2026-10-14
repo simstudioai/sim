@@ -56,7 +56,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { parseFolderPath } from '@/lib/folders/paths'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
+import { buildFolderPath, parseFolderPath } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import { normalizeVfsSegment } from '@/lib/mothership/vfs/normalize-segment'
@@ -65,7 +66,21 @@ import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileFolderRecord } from '@/lib/uploads/contexts/workspace/file-folder-manager'
-import { enqueueWorkspaceFileLiveDocReconciliation } from '@/lib/uploads/contexts/workspace/file-live-doc-outbox'
+import {
+  assertFileFolderTarget,
+  assertWorkspaceFileFolderTarget,
+  buildWorkspaceFileFolderPathMap,
+  fileNameExistsInWorkspaceFolder,
+  findWorkspaceFileFolderIdByPath,
+  getWorkspaceFileFolderPath,
+  listFileFolders,
+  listWorkspaceFileFolders,
+  loadActiveFileFolderPathIndex,
+  normalizeWorkspaceFileItemName,
+  resolveFileFolderTarget,
+  resolveWorkspaceFileFolderTarget,
+  workspaceFileNameFolderCondition,
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   applyWorkspaceFileSecretProvenancePolicyInTx,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
@@ -98,7 +113,12 @@ import {
   uploadFile,
 } from '@/lib/uploads/core/storage-service'
 import { finishFileContentEffects } from '@/lib/uploads/server/content-effects'
+import { enqueueFileLiveDocReconciliation } from '@/lib/uploads/server/live-doc-outbox'
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  getVerifiedUploadSessionObject,
+  type UploadSessionRecord,
+} from '@/lib/uploads/upload-session/service'
 import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import type { ServableFile } from '@/lib/uploads/utils/file.server'
 import {
@@ -133,20 +153,6 @@ import {
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { isUuid } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
-import {
-  assertFileFolderTarget,
-  assertWorkspaceFileFolderTarget,
-  buildWorkspaceFileFolderPathMap,
-  fileNameExistsInWorkspaceFolder,
-  findWorkspaceFileFolderIdByPath,
-  getWorkspaceFileFolderPath,
-  listFileFolders,
-  listWorkspaceFileFolders,
-  normalizeWorkspaceFileItemName,
-  resolveFileFolderTarget,
-  resolveWorkspaceFileFolderTarget,
-  workspaceFileNameFolderCondition,
-} from './file-folder-manager'
 
 const logger = createLogger('WorkspaceFileStorage')
 
@@ -207,7 +213,7 @@ export interface VersionedWorkspaceFileRecord extends WorkspaceFileRecord {
 }
 
 /** Shared file metadata never substitutes an environment ID for its owning Project. */
-interface OwnedFileRecord<O extends EditableFileOwner = EditableFileOwner>
+export interface OwnedFileRecord<O extends EditableFileOwner = EditableFileOwner>
   extends Omit<WorkspaceFileRecord, 'workspaceId' | 'storageContext' | 'vfsNamespace'> {
   owner: O
   folderId: string | null
@@ -481,7 +487,7 @@ export async function allocateUniqueWorkspaceFileName(
   return withCopySuffix(baseName, generateShortId(8))
 }
 
-interface StagedFileContent {
+export interface StagedFileContent {
   readonly owner: Readonly<EditableFileOwner>
   readonly key: string
   readonly name: string
@@ -491,8 +497,9 @@ interface StagedFileContent {
 }
 
 const stagedFileContents = new WeakSet<StagedFileContent>()
+const adoptedUploadContents = new WeakSet<StagedFileContent>()
 
-interface PlannedFileIdentity {
+export interface PlannedFileIdentity {
   readonly id: string
 }
 
@@ -505,8 +512,36 @@ function planFileIdentity(owner: EditableFileOwner): PlannedFileIdentity {
   return identity
 }
 
+/** Adopts verified session bytes without making generic staging cleanup their owner. */
+export function adoptVerifiedUploadSession(
+  session: UploadSessionRecord,
+  owner: EditableFileOwner
+): StagedFileContent {
+  const object = getVerifiedUploadSessionObject(session)
+  if (
+    owner.entityType !== 'project' ||
+    object.purpose !== 'project_file' ||
+    object.projectId !== owner.entityId ||
+    object.workspaceId !== null ||
+    object.storageContext !== 'project' ||
+    !object.finalKey.startsWith(`project/${owner.entityId}/`)
+  )
+    throw new Error('Verified upload does not belong to this file owner')
+  const staged = Object.freeze({
+    owner: Object.freeze({ ...owner }),
+    key: object.finalKey,
+    name: normalizeWorkspaceFileItemName(object.fileName, 'File'),
+    size: object.fileSize,
+    contentType: object.contentType,
+    contentHash: null,
+  })
+  stagedFileContents.add(staged)
+  adoptedUploadContents.add(staged)
+  return staged
+}
+
 /** Writes private bytes before the owner-authorized metadata transaction begins. */
-async function stageFileContent(args: {
+export async function stageFileContent(args: {
   owner: EditableFileOwner
   userId: string
   name: string
@@ -572,8 +607,10 @@ function assertStagedFileOwner(owner: EditableFileOwner, staged: StagedFileConte
 }
 
 /** Discards definitely uncommitted bytes without replacing the operation's original failure. */
-async function discardStagedFileContent(staged: StagedFileContent): Promise<void> {
+export async function discardStagedFileContent(staged: StagedFileContent): Promise<void> {
   assertStagedFileOwner(staged.owner, staged)
+  if (adoptedUploadContents.has(staged))
+    throw new Error('Staged bytes are owned by their upload session')
   let events: string[]
   try {
     events = await enqueueWorkspaceFileStorageCleanups(db, [staged.key], staged.owner.entityType)
@@ -630,7 +667,7 @@ async function finalizeStagedFileContent<T>(
 }
 
 /** Commits new canonical metadata and provenance under the owner's directory lock. */
-async function commitFileCreateInTx(
+export async function commitFileCreateInTx(
   tx: DbTransaction,
   args: {
     owner: EditableFileOwner
@@ -1454,7 +1491,7 @@ function mapWorkspaceFileRecord(
 }
 
 /** Projects the same persisted file metadata for either supported editable owner. */
-function mapFileRecord<const O extends EditableFileOwner>(
+export function mapFileRecord<const O extends EditableFileOwner>(
   file: WorkspaceFileListRow,
   owner: O,
   folderPaths: Map<string, string>
@@ -1823,7 +1860,7 @@ export async function queryWorkspaceFiles(
 }
 
 /** Authorized callers share one owner-filtered keyset query under their transaction. */
-async function queryFileRecords<const O extends EditableFileOwner>(
+export async function queryFileRecords<const O extends EditableFileOwner>(
   owner: O,
   options: QueryWorkspaceFilesOptions,
   client: DbOrTx = db
@@ -2004,6 +2041,78 @@ export function findWorkspaceFileRecord(
   if (normalizedPathMatch) return normalizedPathMatch
 
   return files.find((file) => normalizeVfsSegment(file.name) === segmentKey) ?? null
+}
+
+/** Resolves an ID or scoped VFS path without widening to another owner or scanning file contents. */
+export async function resolveFileReference<const O extends EditableFileOwner>(
+  owner: O,
+  reference: string,
+  client: DbOrTx = db
+): Promise<OwnedFileRecord<O> | null> {
+  let localReference = reference.trim().replace(/^\/+/, '')
+  const namespace = owner.entityType === 'project' ? 'projects' : 'workspaces'
+  if (localReference.startsWith(`${namespace}/`)) {
+    const prefix = `${namespace}/${owner.entityId}/`
+    if (!localReference.startsWith(prefix)) {
+      throw new OrchestrationError('validation', 'File reference does not match its owner')
+    }
+    localReference = localReference.slice(prefix.length)
+  }
+  const isFileId = localReference.startsWith('wf_') || isUuid(localReference)
+  if (!isFileId && !localReference.startsWith('files/')) {
+    throw new OrchestrationError(
+      'validation',
+      'File reference must be an ID or an owner-scoped files path'
+    )
+  }
+  let segments: string[]
+  try {
+    segments = decodeVfsPathSegments(
+      isFileId ? localReference : localReference.slice('files/'.length)
+    )
+  } catch {
+    throw new OrchestrationError('validation', 'Invalid file reference path')
+  }
+  if (segments.length === 0) throw new OrchestrationError('validation', 'File reference is empty')
+
+  const folders = await loadActiveFileFolderPathIndex(owner, client, {
+    maxRows: MAX_FOLDERS_PER_WORKSPACE,
+  })
+  let selector: SQL
+  if (isFileId) {
+    selector = eq(workspaceFiles.id, localReference)
+  } else {
+    const folderPath = buildFolderPath(segments.slice(0, -1))
+    let folderId: string | null = null
+    if (folderPath !== '/') {
+      const matchingFolders = [...folders.pathById].filter(
+        ([, path]) =>
+          parseFolderPath(path).map(normalizeVfsSegment).join('/') ===
+          segments.slice(0, -1).map(normalizeVfsSegment).join('/')
+      )
+      if (matchingFolders.length > 1) {
+        throw new OrchestrationError('conflict', 'File folder reference is ambiguous')
+      }
+      const match = matchingFolders[0]
+      if (!match) return null
+      folderId = match[0]
+    }
+    const name = segments.at(-1) ?? ''
+    selector =
+      and(
+        workspaceFileNameFolderCondition(folderId),
+        sql`regexp_replace(normalize(${workspaceFiles.originalName}, NFC), '[\\x01-\\x1f\\x7f]', '', 'g') ~ ${displaySegmentPattern(name)}`
+      ) ?? sql`false`
+  }
+  const rows = await client
+    .select()
+    .from(workspaceFiles)
+    .where(and(fileOwnerCondition(owner), isNull(workspaceFiles.deletedAt), selector))
+    .limit(2)
+  if (rows.length > 1) throw new OrchestrationError('conflict', 'File reference is ambiguous')
+  const row = rows[0]
+  if (!row) return null
+  return mapFileRecord(row, owner, buildWorkspaceFileFolderPathMap([...folders.rowById.values()]))
 }
 
 async function getWorkspaceFileByExactReference(
@@ -2400,7 +2509,7 @@ export class ContentVersionConflictError extends Error {
   }
 }
 
-interface CommitFileContentOptions {
+export interface CommitFileContentOptions {
   commitOwner?: (tx: DbOrTx) => Promise<void>
   owner: EditableFileOwner
   fileId: string
@@ -2412,7 +2521,7 @@ interface CommitFileContentOptions {
 }
 
 /** Commits bytes, history and provenance after the caller has prepared the owner's accounting. */
-async function commitFileContentInTx(tx: DbTransaction, options: CommitFileContentOptions) {
+export async function commitFileContentInTx(tx: DbTransaction, options: CommitFileContentOptions) {
   const { owner, fileId, staged } = options
   if (staged.contentHash === null)
     throw new Error('Content replacement requires staged bytes with a verified content hash')
@@ -2619,7 +2728,7 @@ export async function updateWorkspaceFileContent(
         options.syncLiveDoc !== false &&
         (isMarkdownFile({ type: currentFile.contentType, name: currentFile.originalName }) ||
           isMarkdownFile({ type: updatedFile.contentType, name: updatedFile.originalName }))
-          ? await enqueueWorkspaceFileLiveDocReconciliation(tx, {
+          ? await enqueueFileLiveDocReconciliation(tx, {
               workspaceId,
               fileId,
               version: updatedFile.contentUpdatedAt.getTime(),
@@ -2740,7 +2849,7 @@ export async function renameWorkspaceFile(
 }
 
 /** Renames under the owner's tree and file locks without changing the content identity. */
-async function renameFileInTx(
+export async function renameFileInTx(
   tx: DbTransaction,
   owner: EditableFileOwner,
   fileId: string,
@@ -2937,7 +3046,7 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
 }
 
 /** Restores a retained head, re-rooting and deduplicating within its canonical owner. */
-async function restoreFileInTx(
+export async function restoreFileInTx(
   tx: DbTransaction,
   owner: EditableFileOwner,
   fileId: string

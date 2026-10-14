@@ -2,14 +2,14 @@ import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
-import { workspaceFileLiveDocOutboxHandlers } from '@/lib/uploads/contexts/workspace/file-live-doc-outbox'
-import { WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
+import { fileLiveDocOutboxHandlers } from '@/lib/uploads/server/live-doc-outbox'
 
 const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 
@@ -35,7 +35,7 @@ function context(): OutboxEventContext {
 }
 
 function handler() {
-  const registered = workspaceFileLiveDocOutboxHandlers[WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT]
+  const registered = fileLiveDocOutboxHandlers[WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT]
   if (!registered) throw new Error('Workspace file live-document handler is not registered')
   return registered
 }
@@ -64,7 +64,11 @@ describe('workspace file live-document outbox', () => {
       expect.objectContaining({ key: 'workspace/workspace-1/file.md', context: 'workspace' })
     )
     expect(mockApplyEditToLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       '# Durable content',
       { version: VERSION.getTime() },
       expect.any(AbortSignal)
@@ -125,7 +129,11 @@ describe('workspace file live-document outbox', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockApplyEditToLiveFileDoc).not.toHaveBeenCalled()
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       VERSION.getTime(),
       expect.any(AbortSignal)
     )
@@ -147,7 +155,11 @@ describe('workspace file live-document outbox', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockApplyEditToLiveFileDoc).not.toHaveBeenCalled()
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       VERSION.getTime(),
       expect.any(AbortSignal)
     )
@@ -170,7 +182,11 @@ describe('workspace file live-document outbox', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockApplyEditToLiveFileDoc).not.toHaveBeenCalled()
     expect(mockInvalidateLiveFileDoc).toHaveBeenCalledWith(
-      'file-1',
+      {
+        fileId: 'file-1',
+        version: VERSION.getTime(),
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      },
       latestVersion,
       expect.any(AbortSignal)
     )

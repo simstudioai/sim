@@ -680,7 +680,7 @@ export async function createWorkspaceFileFolder(
 }
 
 /** Creates one folder under the caller's owner transaction and the shared hierarchy lock. */
-async function createFileFolder<O extends EditableFileOwner>(
+export async function createFileFolder<O extends EditableFileOwner>(
   params: CreateFileFolderParams<O>,
   tx: DbTransaction
 ): Promise<FileFolderRecord<O>> {
@@ -924,7 +924,7 @@ export async function updateWorkspaceFileFolder(
 }
 
 /** Renames or moves one folder while preserving its canonical owner and subtree identity. */
-async function updateFileFolder<O extends EditableFileOwner>(
+export async function updateFileFolder<O extends EditableFileOwner>(
   params: UpdateFileFolderParams<O>,
   tx: DbTransaction
 ): Promise<FileFolderRecord<O>> {
@@ -1032,7 +1032,7 @@ export async function moveWorkspaceFileItems(params: {
   )
 }
 
-async function moveFileItems(
+export async function moveFileItems(
   params: {
     owner: EditableFileOwner
     fileIds?: string[]
@@ -1269,7 +1269,7 @@ export async function restoreWorkspaceFileFolder(
 }
 
 /** Restores the folder's archive batch, keeping independently archived descendants unchanged. */
-async function restoreFileFolder<O extends EditableFileOwner>(
+export async function restoreFileFolder<O extends EditableFileOwner>(
   owner: O,
   folderId: string,
   tx: DbTransaction
@@ -1435,7 +1435,7 @@ export async function bulkArchiveWorkspaceFileItems(params: {
   )
 }
 
-async function archiveFileItems(
+export async function archiveFileItems(
   params: {
     owner: EditableFileOwner
     fileIds?: string[]
@@ -1533,7 +1533,7 @@ async function archiveFileItems(
 }
 
 /** Loads a complete canonical owner tree, refusing a partial index when a bound is supplied. */
-async function loadActiveFileFolderPathIndex(
+export async function loadActiveFileFolderPathIndex(
   owner: EditableFileOwner,
   client: DbOrTx = db,
   options?: { maxRows?: number }
@@ -1547,6 +1547,56 @@ async function loadActiveFileFolderPathIndex(
     throw new FolderCollectionLimitExceededError('path index', options.maxRows)
   }
   return buildFolderPathIndex(rows)
+}
+
+/** Archived files can belong to active folders or multiple historical folders with the same path. */
+export async function resolveArchivedFileFolderScope(
+  owner: EditableFileOwner,
+  path: string,
+  recursive: boolean | undefined,
+  maxRows: number,
+  client: DbOrTx
+): Promise<string[] | null | undefined> {
+  const segments = parseFolderPath(path)
+  if (segments.length === 0) return recursive ? undefined : null
+  let parents: (string | null)[] = [null]
+  for (const segment of segments) {
+    const rows = await client
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(
+        and(
+          fileFolderOwnerCondition(owner),
+          eq(folderTable.name, segment),
+          parents[0] === null
+            ? isNull(folderTable.parentId)
+            : inArray(
+                folderTable.parentId,
+                parents.filter((id): id is string => id !== null)
+              )
+        )
+      )
+      .limit(maxRows + 1)
+    if (rows.length > maxRows) throw new FolderCollectionLimitExceededError('path index', maxRows)
+    parents = rows.map((row) => row.id)
+    if (parents.length === 0) return []
+  }
+  const matchingIds = parents.filter((id): id is string => id !== null)
+  if (!recursive) return matchingIds
+  const found = new Set(matchingIds)
+  let frontier = matchingIds
+  while (frontier.length > 0) {
+    const rows = await client
+      .select({ id: folderTable.id })
+      .from(folderTable)
+      .where(and(fileFolderOwnerCondition(owner), inArray(folderTable.parentId, frontier)))
+      .limit(maxRows - found.size + 1)
+    const children = rows.map((row) => row.id).filter((id) => !found.has(id))
+    for (const id of children) found.add(id)
+    if (found.size > maxRows) throw new FolderCollectionLimitExceededError('cascade', maxRows)
+    frontier = children
+  }
+  return [...found]
 }
 
 export interface WorkspaceFileFolderPathMutation {

@@ -1,4 +1,4 @@
-import { WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { INVALIDATION_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { setupConnectionHandlers } from '@/handlers/connection'
 import { setupWorkspaceFileDocHandlers } from '@/handlers/file-doc'
 import { setupOperationsHandlers } from '@/handlers/operations'
@@ -17,8 +17,7 @@ export function setupAllHandlers(socket: AuthenticatedSocket, roomManager: IRoom
   setupSubblocksHandlers(socket, roomManager)
   setupVariablesHandlers(socket, roomManager)
   setupPresenceHandlers(socket, roomManager)
-  // Presence-free, workspace-scoped live-list rooms (share one implementation).
-  for (const roomType of WORKSPACE_LIST_ROOM_TYPES) {
+  for (const roomType of INVALIDATION_ROOM_TYPES) {
     setupWorkspaceInvalidationRoom(socket, roomManager, roomType)
   }
   setupWorkspaceFileDocHandlers(socket, roomManager)

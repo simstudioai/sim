@@ -7,8 +7,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox', () => ({
   processWorkspaceFileStorageCleanupsNow: mocks.cleanup,
 }))
-vi.mock('@/lib/uploads/contexts/workspace/file-live-doc-outbox', () => ({
-  processWorkspaceFileLiveDocReconciliationNow: mocks.reconcile,
+vi.mock('@/lib/uploads/server/live-doc-outbox', () => ({
+  processFileLiveDocReconciliationNow: mocks.reconcile,
 }))
 
 import { finishFileContentEffects } from '@/lib/uploads/server/content-effects'
