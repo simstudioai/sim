@@ -2990,6 +2990,13 @@
       "when": 1791934984611,
       "tag": "0427_file_workspace_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 428,
+      "version": "7",
+      "when": 1791991132680,
+      "tag": "0428_file_search_dependency_owner",
+      "breakpoints": true
     }
   ]
 }

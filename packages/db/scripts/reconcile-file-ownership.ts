@@ -15,6 +15,7 @@ const migrations = [
   '0423_file_folder_version_ownership.sql',
   '0425_public_share_entity_ownership.sql',
   '0426_file_search_owner_scope.sql',
+  '0428_file_search_dependency_owner.sql',
 ]
 
 try {
@@ -24,7 +25,7 @@ try {
       for (const chunk of source.split('--> statement-breakpoint')) {
         const statement = chunk.replace(/^(?:\s|--[^\n]*(?:\n|$))*/, '')
         if (
-          !/^(?:CREATE (?:OR REPLACE FUNCTION|(?:CONSTRAINT )?TRIGGER)|DROP (?:TRIGGER|FUNCTION))\b/i.test(
+          !/^(?:CREATE (?:OR REPLACE FUNCTION|(?:CONSTRAINT )?TRIGGER)|DROP (?:TRIGGER|FUNCTION)|UPDATE file_search_dependency)\b/i.test(
             statement
           )
         )
