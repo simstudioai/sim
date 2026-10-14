@@ -433,6 +433,7 @@ describe('destructive operations are gated', () => {
     'unzipProjectFile',
     'updateProjectFileContent',
     'updateProjectFileFolder',
+    'updateProjectFileShare',
     /** These amend access or request history without discarding a resource. */
     'cancelOrganizationAccessRequest',
     'cancelWorkspaceAccessRequest',

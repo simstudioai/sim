@@ -24,6 +24,7 @@ export {
   resolveProjectFileReference,
 } from './read'
 export { searchProjectFileContent } from './search'
+export { getProjectFileShare, updateProjectFileShare } from './shares'
 export {
   abortProjectFileUploadSession,
   completeProjectFileUploadSession,
