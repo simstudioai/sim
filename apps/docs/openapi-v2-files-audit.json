@@ -6920,7 +6920,7 @@
                     "description": "Replacement text. An empty string clears the interior."
                   },
                   "occurrence": {
-                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "description": "Which beforeAnchor match to use, starting at 1. Defaults to 1. afterAnchor is the first match after it.",
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991
@@ -6948,7 +6948,7 @@
                     "description": "Text to insert."
                   },
                   "occurrence": {
-                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "description": "Which anchor match to insert after, starting at 1. Defaults to 1.",
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991
@@ -6976,7 +6976,7 @@
                     "description": "Ending boundary line. This end anchor remains."
                   },
                   "occurrence": {
-                    "description": "Matching anchor occurrence, starting at 1. Defaults to 1.",
+                    "description": "Which startAnchor match to use, starting at 1. Defaults to 1. endAnchor is the first match after it.",
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 9007199254740991
