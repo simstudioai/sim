@@ -11,11 +11,19 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
-import { normalizeMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
+import {
+  normalizeMessage,
+  type PersistedMessage,
+  stripToolResultOutput,
+} from '@/lib/mothership/chat/persisted-message'
 import {
   getTurnLiveIndicators,
   ownsTurnWait,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
+import {
+  contentBlocksToModel,
+  modelToContentBlocks,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '../../types'
 import { getOrchestratorMessageText, parseBlocks } from './message-content'
 
@@ -239,6 +247,109 @@ describe('top-level activity groups', () => {
     expect(
       segments.filter((segment) => segment.type === 'agent_group').map((group) => group.agentName)
     ).toEqual(['mothership', 'mothership', 'general'])
+  })
+})
+
+describe('async agent display names', () => {
+  const agentId = 'review-report-validatio-1'
+  const displayName = 'Review report validation'
+  const launch: ContentBlock = {
+    type: 'tool_call',
+    timestamp: 1,
+    toolCall: {
+      id: 'launch',
+      name: 'workflow',
+      status: 'success',
+      result: {
+        success: true,
+        output: { async: true, status: 'launched', agentId, name: displayName },
+      },
+    },
+  }
+  const wait: ContentBlock = {
+    type: 'tool_call',
+    timestamp: 2,
+    toolCall: {
+      id: 'wait',
+      name: 'wait_agents',
+      status: 'executing',
+      params: { agent_ids: [agentId, 'other-agent-2'] },
+      displayTitle: 'Waiting for Review Report Validatio + 1',
+    },
+  }
+  const waitTitle = (blocks: ContentBlock[]) =>
+    parseBlocks(blocks)
+      .flatMap((segment) => (segment.type === 'agent_group' ? segment.items : []))
+      .find((item) => item.type === 'tool' && item.data.id === 'wait')
+
+  it.each([false, true])(
+    'resolves launch names in live and reloaded traces (spans: %s)',
+    (spans) => {
+      const blocks = [
+        launch,
+        ...(spans ? [subagentStart('research', 'research-span', 'main')] : []),
+        wait,
+      ]
+      const original = structuredClone(blocks)
+      expect(waitTitle([wait])).toMatchObject({
+        data: { displayTitle: wait.toolCall?.displayTitle },
+      })
+      const expected = { data: { displayTitle: 'Waiting for Review report validation + 1' } }
+      expect(waitTitle(blocks)).toMatchObject(expected)
+      expect(waitTitle(modelToContentBlocks(contentBlocksToModel(blocks)))).toMatchObject(expected)
+      const saved: PersistedMessage = {
+        id: 'message',
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(0).toISOString(),
+        contentBlocks: blocks
+          .flatMap((block) => (block.toolCall ? [block.toolCall] : []))
+          .map((toolCall) => ({
+            type: 'tool',
+            phase: 'call',
+            toolCall: {
+              id: toolCall.id,
+              name: toolCall.name,
+              state: toolCall.status,
+              params: toolCall.params,
+              result: toolCall.result,
+              display: { title: toolCall.displayTitle },
+            },
+            ...(spans ? { spanId: 'main' } : {}),
+          })),
+      }
+      expect(
+        waitTitle(toDisplayMessage(stripToolResultOutput(saved)).contentBlocks ?? [])
+      ).toMatchObject({
+        data: {
+          displayTitle: 'Stopped waiting for Review report validation + 1',
+          status: 'interrupted',
+        },
+      })
+      expect(blocks).toEqual(original)
+      expect(waitTitle([wait])).toMatchObject({
+        data: { displayTitle: wait.toolCall?.displayTitle },
+      })
+    }
+  )
+
+  it('ignores unrelated, failed, malformed and unnamed launch results', () => {
+    for (const patch of [
+      { name: 'call_integration_tool' },
+      { result: { success: false, output: launch.toolCall?.result?.output } },
+      { result: { success: true, output: { async: true, agentId, name: displayName } } },
+      {
+        result: { success: true, output: { async: true, status: 'launched', agentId, name: ' ' } },
+      },
+      { result: { success: true, output: null } },
+    ]) {
+      const invalid = structuredClone(launch)
+      if (!invalid.toolCall) throw new Error('Expected an async launch tool call')
+      Object.assign(invalid.toolCall, patch)
+      expect(waitTitle([invalid, wait])).toMatchObject({
+        data: { displayTitle: wait.toolCall?.displayTitle },
+      })
+    }
   })
 })
 
