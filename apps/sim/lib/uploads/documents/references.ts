@@ -1,4 +1,4 @@
-import { tokenizer } from 'acorn'
+import ts from '@typescript/typescript6'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 export type DocumentSourceLanguage = 'javascript' | 'python'
@@ -18,31 +18,55 @@ interface SourceToken {
 const FILE_HELPERS = new Set(['getFileBase64', 'addImage', 'drawImage', 'input_path'])
 
 function* javascriptTokens(source: string): Generator<SourceToken> {
-  try {
-    const tokens = tokenizer(source, { ecmaVersion: 'latest', allowHashBang: true })
-    for (let token = tokens.getToken(); token.type.label !== 'eof'; token = tokens.getToken()) {
-      const label = token.type.label
-      if (label === 'string') {
-        yield {
-          kind: 'string',
-          value: source.slice(token.start + 1, token.end - 1),
-          start: token.start + 1,
-        }
-      } else if (label === 'template') {
-        if (source[token.start - 1] === '`' && source[token.end] === '`') {
-          yield { kind: 'string', value: source.slice(token.start, token.end), start: token.start }
-        }
-      } else {
-        yield {
-          kind: label === 'name' ? 'word' : 'punctuation',
-          value: source.slice(token.start, token.end),
-          start: token.start,
-        }
+  const fileName = 'document.js'
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS
+  )
+  const program = ts.createProgram(
+    [fileName],
+    { allowJs: true, noLib: true, noResolve: true },
+    {
+      getSourceFile: (name) => (name === fileName ? sourceFile : undefined),
+      getDefaultLibFileName: () => '',
+      writeFile: () => {},
+      getCurrentDirectory: () => '',
+      getDirectories: () => [],
+      fileExists: (name) => name === fileName,
+      readFile: (name) => (name === fileName ? source : undefined),
+      getCanonicalFileName: (name) => name,
+      useCaseSensitiveFileNames: () => true,
+      getNewLine: () => '\n',
+    }
+  )
+  const diagnostic = program.getSyntacticDiagnostics(sourceFile)[0]
+  if (diagnostic) {
+    throw new DocCompileUserError(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
+  }
+
+  const pending: ts.Node[] = [sourceFile]
+  while (pending.length > 0) {
+    const node = pending.pop()
+    if (!node) break
+    if (ts.isStringLiteralLike(node)) {
+      const start = node.getStart(sourceFile) + 1
+      yield { kind: 'string', value: source.slice(start, node.end - 1), start }
+      continue
+    }
+    const children = node.getChildren(sourceFile)
+    if (children.length > 0) {
+      for (let index = children.length - 1; index >= 0; index--) pending.push(children[index])
+    } else {
+      const start = node.getStart(sourceFile)
+      yield {
+        kind: ts.isIdentifier(node) ? 'word' : 'punctuation',
+        value: source.slice(start, node.end),
+        start,
       }
     }
-  } catch (error) {
-    if (error instanceof SyntaxError) throw new DocCompileUserError(error.message)
-    throw error
   }
 }
 

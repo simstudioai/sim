@@ -324,7 +324,38 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         })
         expect(served.buffer).toEqual(artifact)
         expect(served.contributingFiles?.map((file) => file.context)).toEqual([context])
-        await indexWorkspaceFileForSearch({ owner, ...(await claim(generated.id)) }, signal)
+        const extraction = await import('@/lib/workspace-files/search/extract')
+        const extract = extraction.extractIndexText
+        const entered = createDeferred<void>()
+        const release = createDeferred<void>()
+        const pause = vi
+          .spyOn(extraction, 'extractIndexText')
+          .mockImplementationOnce(async (...args) => {
+            entered.resolve()
+            await release.promise
+            return extract(...args)
+          })
+        const indexing = indexWorkspaceFileForSearch(
+          { owner, ...(await claim(generated.id)) },
+          signal
+        )
+        await entered.promise
+        try {
+          for (let repeat = 0; repeat < 2; repeat++) {
+            const cached = await fetchAuthorizedServableWorkspaceFileBuffer(
+              generated,
+              f.principal,
+              {
+                maxBytes: 1024 * 1024,
+              }
+            )
+            expect(cached.buffer).toEqual(artifact)
+          }
+        } finally {
+          release.resolve()
+          await indexing
+          pause.mockRestore()
+        }
         const read = () =>
           searchWorkspaceFileContent.execute({
             principal: f.principal,

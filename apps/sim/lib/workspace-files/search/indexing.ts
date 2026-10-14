@@ -28,6 +28,7 @@ import {
 import {
   appendFileSearchChunks,
   beginFileSearchBuild,
+  bindFileSearchBuildArtifact,
   type FileSearchBuild,
   type FileSearchRevision,
   failFileSearchRevision,
@@ -117,6 +118,8 @@ export async function indexWorkspaceFileForSearch(
     const source = await loadFileSearchSource(revision, signal)
     if (!source) return
     const { file, bytes, dependencies, artifactKey } = source
+    if (artifactKey && !(await bindFileSearchBuildArtifact(build, artifactKey, dependencies)))
+      return
     const extracted = await extractIndexText(bytes, file.originalName, signal)
     if (!extracted) {
       await publishFileSearchBuild(

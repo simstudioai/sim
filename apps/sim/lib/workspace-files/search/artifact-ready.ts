@@ -51,11 +51,18 @@ export async function markFileSearchArtifactReadyInTx(
   const [state] = await tx.select().from(workspaceFileSearchRevision).where(predicate).limit(1)
   if (state?.buildId) {
     const [build] = await tx
-      .select({ artifactKey: workspaceFileSearchBuild.artifactKey })
+      .select({
+        artifactKey: workspaceFileSearchBuild.artifactKey,
+        live: sql<boolean>`${workspaceFileSearchBuild.expiresAt} > clock_timestamp()`,
+      })
       .from(workspaceFileSearchBuild)
       .where(eq(workspaceFileSearchBuild.id, state.buildId))
       .for('update')
-    if (state.status === 'ready' && build?.artifactKey === input.artifactKey) return false
+    if (
+      build?.artifactKey === input.artifactKey &&
+      (state.status === 'ready' || (state.status === 'pending' && build.live))
+    )
+      return false
     await tx
       .update(workspaceFileSearchBuild)
       .set({ expiresAt: sql`clock_timestamp()` })

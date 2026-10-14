@@ -201,6 +201,24 @@ export async function beginFileSearchBuild(
   })
 }
 
+/** Records the selected artifact before extraction so repeated render receipts preserve this build. */
+export async function bindFileSearchBuildArtifact(
+  build: FileSearchBuild,
+  artifactKey: string,
+  dependencies: readonly FileSearchDependencyIdentity[]
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await configureFileSearchTransaction(tx, FILE_SEARCH_INDEX_TRANSACTION_LIMITS)
+    if (!(await lockFileSearchInputs(tx, build, dependencies)) || !(await lockBuild(tx, build)))
+      return false
+    await tx
+      .update(workspaceFileSearchBuild)
+      .set({ artifactKey })
+      .where(eq(workspaceFileSearchBuild.id, build.id))
+    return true
+  })
+}
+
 /** Each batch is fenced and work-bounded; no file or parser work runs inside this transaction. */
 export async function appendFileSearchChunks(
   build: FileSearchBuild,

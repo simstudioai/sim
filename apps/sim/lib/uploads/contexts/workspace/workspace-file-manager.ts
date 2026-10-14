@@ -20,7 +20,6 @@ import {
   getErrorMessage,
   getPostgresConstraintName,
   getPostgresErrorCode,
-  isPostgresCommitRejection,
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -580,6 +579,30 @@ async function discardStagedFileContent(staged: StagedFileContent): Promise<void
     owner: staged.owner,
     reason: 'content commit failed',
   })
+}
+
+const POSTGRES_COMMIT_REJECTION_CODES = new Set([
+  '23000',
+  '23001',
+  '23502',
+  '23503',
+  '23505',
+  '23514',
+  '23P01',
+  '40000',
+  '40001',
+  '40002',
+  '40P01',
+])
+
+/**
+ * Recognizes explicit PostgreSQL constraint/rollback rejections at COMMIT. Use only on the
+ * transaction's rejection after its callback completed, never on errors from post-commit work.
+ * Unknown outcomes, including 40003 and connection failures, are not safe cleanup authority.
+ */
+function isPostgresCommitRejection(error: unknown): boolean {
+  const code = getPostgresErrorCode(error)
+  return code !== undefined && POSTGRES_COMMIT_REJECTION_CODES.has(code)
 }
 
 /** Discards known rollbacks while retaining bytes whose COMMIT outcome is uncertain. */
