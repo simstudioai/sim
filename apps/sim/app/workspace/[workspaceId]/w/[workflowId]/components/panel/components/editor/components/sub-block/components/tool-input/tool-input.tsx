@@ -63,6 +63,7 @@ import { clearDependentToolParams } from '@/app/workspace/[workspaceId]/w/[workf
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import {
   isAgentToolBlock,
+  isCoreAgentToolBlock,
   isCustomToolAlreadySelected,
   isMcpToolAlreadySelected,
   isWorkflowAlreadySelected,
@@ -78,7 +79,6 @@ import { isCustomBlockType } from '@/blocks/custom/build-config'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig, SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
-import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
@@ -1370,8 +1370,8 @@ export const ToolInput = memo(function ToolInput({
       })
     }
 
-    const builtInTools = toolBlocks.filter((block) => BUILT_IN_TOOL_TYPES.has(block.type))
-    const integrations = toolBlocks.filter((block) => !BUILT_IN_TOOL_TYPES.has(block.type))
+    const builtInTools = toolBlocks.filter(isCoreAgentToolBlock)
+    const integrations = toolBlocks.filter((block) => !isCoreAgentToolBlock(block))
 
     if (builtInTools.length > 0) {
       groups.push({

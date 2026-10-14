@@ -5046,8 +5046,6 @@
   "apps/sim/lib/table/rows/ordering.ts#maxOrderKey",
   "apps/sim/lib/table/schema-invariants.ts#findSplitGroups",
   "apps/sim/lib/table/schema-invariants.ts#validateSchema",
-  "apps/sim/lib/table/sql.ts#MULTI_SELECT_OPS",
-  "apps/sim/lib/table/sql.ts#SINGLE_SELECT_OPS",
   "apps/sim/lib/table/types.ts#ColumnValue",
   "apps/sim/lib/table/types.ts#EnrichmentProviderStatus",
   "apps/sim/lib/table/types.ts#TableJobStatus",
