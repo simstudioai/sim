@@ -10,7 +10,7 @@ import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { observeContentDelivery } from '@/lib/core/application'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
@@ -925,7 +925,19 @@ export async function resolveActiveResourceContext(
         return null
     }
   } catch (error) {
-    logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
+    // A tab can outlive its resource or the viewer's access to it; the
+    // request simply goes without that context.
+    const code = asOrchestrationError(error)?.code
+    if (code === 'not_found') {
+      logger.info('Skipped active resource that no longer exists', { resourceType, resourceId })
+    } else if (code === 'forbidden') {
+      logger.warn('Skipped active resource the user can no longer access', {
+        resourceType,
+        resourceId,
+      })
+    } else {
+      logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
+    }
     return null
   }
 }

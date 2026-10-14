@@ -749,6 +749,70 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  it('does not re-add a tab whose queued add the server removal outran', async () => {
+    const history: MothershipChatHistory = {
+      id: 'chat-removed-file',
+      title: 'Files',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+    const persistedIds: string[] = []
+    mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
+      if (contract.path === '/api/mothership/chat/resources' && contract.method === 'POST') {
+        const { body } = input as { body: { resource: { id: string } } }
+        persistedIds.push(body.resource.id)
+        throw new Error('Persist failed')
+      }
+      return { chats: [] }
+    })
+    let turn = 0
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+        return fetchStub(input, init)
+      }
+      const sent = JSON.parse(String(init.body))
+      state.postBodies.push(sent)
+      turn += 1
+      const envelope = { v: 1 as const, ts: '', stream: { streamId: sent.userMessageId } }
+      const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
+      const events: MothershipStreamV1EventEnvelope[] =
+        turn === 1
+          ? [
+              { ...envelope, seq: 1, type: 'resource', payload: { op: 'upsert', resource: file } },
+              {
+                ...envelope,
+                seq: 2,
+                type: 'resource',
+                payload: { op: 'remove', resource: file, effectId: 'remove-deleted-file' },
+              },
+              { ...envelope, seq: 3, type: 'complete', payload: { status: 'complete' } },
+            ]
+          : [{ ...envelope, seq: 1, type: 'complete', payload: { status: 'complete' } }]
+      return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+        headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': history.id },
+      })
+    })
+    const { getResult } = renderUseChatInChat(history.id, history)
+
+    await act(async () => {
+      await getResult().sendMessage('Export the report, then delete it')
+    })
+    await act(async () => {
+      queryClient.setQueryData(mothershipChatKeys.detail(history.id), { ...history })
+      await sleep(0)
+    })
+    await act(async () => {
+      await getResult().sendMessage('What is open?')
+    })
+
+    expect(persistedIds).toEqual(['deleted-file'])
+    expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
+    expect(JSON.stringify(state.postBodies.at(-1)?.resourceAttachments ?? [])).not.toContain(
+      'deleted-file'
+    )
+  })
+
   it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {
     const shape = resolveDeploymentShape()
     seedDeploymentShape({ ...shape, features: shape.features })

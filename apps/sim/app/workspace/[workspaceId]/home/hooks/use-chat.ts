@@ -1543,6 +1543,21 @@ export function useChat(
     [queryClient, refreshResourceHistory, resourcePersistenceQueue]
   )
 
+  const discardPendingResourceUpsert = useCallback(
+    ({ type, id, workspaceId }: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>) => {
+      // An add queued before the chat id resolved stays in the provisional
+      // bucket until a flush adopts it, so both scopes may hold it.
+      const scopes = new Set([
+        chatIdRef.current ?? selectedChatIdRef.current,
+        pendingChatKeyRef.current,
+      ])
+      for (const scopeId of scopes) {
+        if (scopeId) resourcePersistenceQueue.discardUpsert(type, id, scopeId, workspaceId)
+      }
+    },
+    [resourcePersistenceQueue]
+  )
+
   /**
    * Drops hydrated workflow tabs whose workflow no longer exists, so an old
    * chat cannot resurrect a deleted workflow. The workspace list is the fast
@@ -2373,6 +2388,7 @@ export function useChat(
         setActiveResourceId,
         addResource,
         removeResource,
+        discardPendingResourceUpsert,
         startClientWorkflowTool,
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
           startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
@@ -2517,6 +2533,7 @@ export function useChat(
       queryClient,
       addResource,
       removeResource,
+      discardPendingResourceUpsert,
       startClientWorkflowTool,
       startClientLocalFilesystemTool,
       startClientTerminalTool,

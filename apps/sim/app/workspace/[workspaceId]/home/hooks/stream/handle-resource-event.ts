@@ -250,6 +250,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
     const resourceType = resource.type
     if (payload.effectId) {
+      ctx.deps.discardPendingResourceUpsert(resource)
       applyResourceEffect(ctx, (current) =>
         current.filter((item) => getChatResourceKey(item) !== getChatResourceKey(resource))
       )
