@@ -994,9 +994,6 @@
   "apps/sim/lib/api/list-keyset-paging.test.ts": {
     "TS2554": 4
   },
-  "apps/sim/lib/api/server/routes/copilot-route-inventory.test.ts": {
-    "TS2322": 1
-  },
   "apps/sim/lib/api/server/routes/definition.test.ts": {
     "TS2741": 1
   },
@@ -1683,9 +1680,6 @@
   "apps/sim/lib/knowledge/application/slack-search/stop.test.ts": {
     "TS2352": 2
   },
-  "apps/sim/lib/knowledge/application/tags.test.ts": {
-    "TS2322": 2
-  },
   "apps/sim/lib/knowledge/chunks/keyset-sql.test.ts": {
     "TS2345": 2
   },
@@ -1967,10 +1961,6 @@
     "TS2345": 1,
     "TS2550": 2
   },
-  "apps/sim/lib/mothership/chat/process-contents.test.ts": {
-    "TS2322": 6,
-    "TS2345": 1
-  },
   "apps/sim/lib/mothership/chat/terminal-state.test.ts": {
     "TS18046": 2,
     "TS2571": 1
@@ -2167,10 +2157,7 @@
   },
   "apps/sim/lib/table/application/rows.test.ts": {
     "TS2322": 4,
-    "TS2345": 1,
-    "TS2352": 1,
     "TS2353": 2,
-    "TS2493": 1,
     "TS2739": 5,
     "TS2741": 1
   },
@@ -2519,9 +2506,6 @@
   },
   "apps/sim/lib/workspace-events/rules.test.ts": {
     "TS2353": 1
-  },
-  "apps/sim/lib/workspace-files/application/download-workspace-file-items.test.ts": {
-    "TS2345": 1
   },
   "apps/sim/lib/workspace-files/application/edit-workspace-file-content.test.ts": {
     "TS2345": 1,

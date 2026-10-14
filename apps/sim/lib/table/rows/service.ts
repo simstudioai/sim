@@ -1098,7 +1098,10 @@ export async function findRowMatches(
   table: TableDefinition,
   options: { q: string; filter?: Filter; sort?: Sort },
   requestId: string
-): Promise<{ matches: FindRowMatch[]; truncated: boolean }> {
+): Promise<{
+  matches: FindRowMatch[]
+  truncated: boolean
+}> {
   const tableName = USER_TABLE_ROWS_SQL_NAME
   const columns = table.schema.columns
   // Row data is keyed by stable column id, so scan/return JSONB keys as ids.

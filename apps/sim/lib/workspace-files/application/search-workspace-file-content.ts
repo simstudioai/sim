@@ -1,5 +1,7 @@
+import { isCopilotPrincipal } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
+import { admitWorkspaceFileIdentities } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
@@ -61,13 +63,34 @@ export const searchWorkspaceFileContent = defineAuthorizedWorkspaceFileUseCase({
     signal?.throwIfAborted()
 
     try {
-      return await searchWorkspaceFileIndex({
+      const classified = isCopilotPrincipal(principal)
+      const found = await searchWorkspaceFileIndex({
         workspaceId: context.workspaceId,
         pattern: compileFileSearchPattern(input.query, input.mode),
         maxResults: input.maxResults,
         folderScope,
         signal,
       })
+      /** Index previews are already clipped; protect them without changing match locations or totals. */
+      const admitted = await admitWorkspaceFileIdentities(
+        principal,
+        context.workspaceId,
+        found.sources.map((source) => source.identity),
+        'excerpt'
+      )
+      if (!classified) return found
+      return {
+        ...found,
+        results: found.results.map((result) =>
+          admitted.has(result.fileId)
+            ? result
+            : {
+                ...result,
+                text: '[Preview withheld: read or grep this file to inspect protected text.]',
+              }
+        ),
+        sources: found.sources.filter((source) => admitted.has(source.identity.fileId)),
+      }
     } catch (error) {
       /**
        * A rejected or too-expensive pattern is the caller's to fix, and the

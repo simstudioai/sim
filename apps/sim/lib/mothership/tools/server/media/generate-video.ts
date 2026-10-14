@@ -13,7 +13,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/mothership/tools/server/model-input'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
 import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -76,7 +75,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
             reference: refPath,
           }
         )
-        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
+
         const { content: buffer } = await executeCopilotFileUseCase(
           context,
           readWorkspaceFileContent,
@@ -84,6 +83,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
             fileId: fileRecord.id,
             assertedWorkspaceId: workspaceId,
             maxBytes: MAX_MEDIA_BYTES,
+            contentView: 'opaque',
           },
           { fileId: fileRecord.id }
         )

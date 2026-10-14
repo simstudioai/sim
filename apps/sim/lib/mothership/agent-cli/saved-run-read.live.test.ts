@@ -28,6 +28,7 @@ import { db } from '@sim/db'
 import {
   auditLog,
   copilotAsyncToolCalls,
+  copilotAsyncToolCallsPersistSeq,
   copilotChats,
   copilotMessages,
   copilotRequestStops,
@@ -82,6 +83,7 @@ import {
   v2ExecuteWorkflowDataSchema,
   v2WorkflowRunStatusSchema,
 } from '@/lib/api/contracts/v2/workflows'
+import { observeContentDelivery } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -127,6 +129,7 @@ import {
   resolveActiveResourceContext,
 } from '@/lib/mothership/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { prepareInboxAttachments } from '@/lib/mothership/inbox/attachments'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
@@ -1171,6 +1174,10 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
     beforeAll(async () => {
       fixture.directory = await mkdtemp(join(tmpdir(), 'mship-run-logs-'))
       await db.execute(sql`CREATE SCHEMA ${sql.identifier(schemaName)}`)
+      const persistSequenceName = copilotAsyncToolCallsPersistSeq.seqName
+      if (!persistSequenceName) throw new Error('Tool-call persistence sequence has no name')
+      const persistSequence = sql`${sql.identifier(schemaName)}.${sql.identifier(persistSequenceName)}`
+      await db.execute(sql`CREATE SEQUENCE ${persistSequence}`)
       for (const table of tables) {
         const config = getTableConfig(table)
         const columns = config.columns.map((column) => {
@@ -1185,6 +1192,9 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
           sql`CREATE TABLE ${sql.identifier(config.name)} (${sql.join(columns, sql`, `)})`
         )
       }
+      await db.execute(
+        sql`ALTER SEQUENCE ${persistSequence} OWNED BY ${sql.identifier(schemaName)}.${sql.identifier(getTableConfig(copilotAsyncToolCalls).name)}.${sql.identifier(copilotAsyncToolCalls.persistSeq.name)}`
+      )
       await db.execute(
         sql`ALTER TABLE workflow_execution_snapshots ALTER COLUMN created_at SET DEFAULT now()`
       )
@@ -1287,7 +1297,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       await Promise.all(postExecution.mock.calls.map(([promise]) => promise))
     })
     afterAll(async () => {
-      postExecution.mockRestore()
+      postExecution?.mockRestore()
       controlServer?.closeAllConnections()
       if (controlServer) await new Promise<void>((resolve) => controlServer.close(() => resolve()))
       try {
@@ -2644,6 +2654,15 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       async (extension) => {
         const name = `shared-${generateId()}.${extension}`
         const chats = [generateId(), generateId()]
+        const emptyChatId = generateId()
+        await db.insert(copilotChats).values(
+          [...chats, emptyChatId].map((id) => ({
+            id,
+            workspaceId,
+            userId: 'run-reader',
+            type: 'mothership' as const,
+          }))
+        )
         const attachmentIds = [generateId(), generateId()]
         const fileIds: string[] = []
         try {
@@ -2679,34 +2698,43 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               .where(eq(workspaceFiles.key, prepared.storedAttachments[0].key))
             fileIds.push(row.id)
           }
-          const read = async (chatId: string) =>
-            executeAgentCliRequest(
-              {
-                invocation:
-                  extension === 'pdf'
-                    ? {
-                        kind: 'augmentation',
-                        name: 'files view',
-                        positionals: [`uploads/${encodeURIComponent(name)}`],
-                        flags: {},
-                      }
-                    : {
-                        kind: 'cli',
-                        argv: ['files', 'read', `uploads/${encodeURIComponent(name)}`],
-                      },
-              },
-              {
-                workspaceId,
-                userId: 'run-reader',
-                chatId,
-                resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
-                  userId: 'run-reader',
-                  workspaceId,
-                }),
-              }
+          const read = async (chatId: string) => {
+            const registry = new ResolvedSecretTraceRegistry([], {
+              userId: 'run-reader',
+              workspaceId,
+            })
+            return observeContentDelivery(
+              createRegistryContentGate({ registry, actorUserId: 'run-reader', workspaceId }),
+              () =>
+                executeAgentCliRequest(
+                  {
+                    invocation:
+                      extension === 'pdf'
+                        ? {
+                            kind: 'augmentation',
+                            name: 'files view',
+                            positionals: [`uploads/${encodeURIComponent(name)}`],
+                            flags: {},
+                          }
+                        : {
+                            kind: 'cli',
+                            argv: ['files', 'read', `uploads/${encodeURIComponent(name)}`],
+                          },
+                  },
+                  {
+                    workspaceId,
+                    userId: 'run-reader',
+                    chatId,
+                    resolvedSecretTraceRegistry: registry,
+                  }
+                )
             )
+          }
           const first = await read(chats[0])
-          expect(first.exitCode, first.stderr).toBe(0)
+          expect(
+            first.exitCode,
+            JSON.stringify({ stderr: first.stderr, errors: fixture.errors })
+          ).toBe(0)
           const second = await read(chats[1])
           expect(second.exitCode, second.stderr).toBe(0)
           if (extension === 'csv') {
@@ -2724,7 +2752,7 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               )
             }
           }
-          const absent = await read(generateId())
+          const absent = await read(emptyChatId)
           expect(absent.exitCode).not.toBe(0)
           expect(absent.stdout).not.toContain('second')
           expect(absent.observations).toBeUndefined()
@@ -2744,13 +2772,19 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
               { workspaceId, reference }
             )
             expect(mediaReference.id).toBe(fileIds[index])
-            const mounts = await resolveInputFiles(
-              context,
-              [{ path: reference, sandboxPath: '/tmp/incoming.csv' }],
-              undefined,
-              undefined,
-              new ResolvedSecretTraceRegistry([], { userId: 'run-reader', workspaceId })
+            const { files: mounts, excluded } = await observeContentDelivery(
+              createRegistryContentGate({
+                registry: new ResolvedSecretTraceRegistry([], {
+                  userId: 'run-reader',
+                  workspaceId,
+                }),
+                actorUserId: 'run-reader',
+                workspaceId,
+              }),
+              () =>
+                resolveInputFiles(context, [{ path: reference, sandboxPath: '/tmp/incoming.csv' }])
             )
+            expect(excluded).toEqual([])
             expect(mounts).toHaveLength(1)
             const mount = mounts[0]
             if (mount.type === 'url') throw new Error('Expected inline mount bytes')

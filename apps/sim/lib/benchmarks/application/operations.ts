@@ -102,6 +102,7 @@ export const benchmarkOperations = {
 
 export const benchmarkSourceOperation = defineWorkspaceOperation({
   id: 'benchmarks.source.read',
+  contentDelivery: 'none',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],

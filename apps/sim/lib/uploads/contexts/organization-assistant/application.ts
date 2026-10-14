@@ -128,6 +128,7 @@ export async function finalizeOrganizationAssistantAttachment(
 
 const organizationAttachmentReadOperation = defineOrganizationOperation({
   id: 'organization.chat.attachments.read',
+  contentDelivery: 'none',
   minimumRole: 'member',
   capability: 'copilot.use',
   principalKinds: ['session', 'organization_delegated'],

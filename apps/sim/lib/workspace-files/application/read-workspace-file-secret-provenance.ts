@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { admitContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
@@ -25,7 +26,7 @@ export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUs
     principal: Principal
     input: ReadWorkspaceFileSecretProvenanceInput
   }) => resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
-  async execute({ input, context }): Promise<{
+  async execute({ input, context, principal }): Promise<{
     provenance: WorkspaceFileSecretProvenance
     ownerUserId: string
   }> {
@@ -34,6 +35,8 @@ export const readWorkspaceFileSecretProvenance = defineAuthorizedWorkspaceFileUs
       includeOwnedFiles: true,
     })
     if (!file) throw new OrchestrationError('not_found', 'File not found')
+    /** A classification names secrets by ciphertext only and returns none of the file's content. */
+    await admitContent(principal, [])
     return {
       provenance: await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
         fileId: file.id,

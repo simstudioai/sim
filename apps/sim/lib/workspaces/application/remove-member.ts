@@ -12,6 +12,7 @@ export const removeWorkspaceMemberOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'none',
+  contentDelivery: 'none',
   principalKinds: ['session', 'delegated'],
   delegatedServices: ['copilot'],
 })

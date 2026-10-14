@@ -33,7 +33,8 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
 }))
-vi.mock('./doc-compiled-store', () => ({
+vi.mock('@/lib/workspace-files/compiled-document-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/workspace-files/compiled-document-store')>()),
   loadCompiledDoc: mockLoadCompiledDoc,
   loadPublishedCompiledDoc: mockLoadPublishedCompiledDoc,
   publishCompiledDocArtifact: mockPublishCompiledDocArtifact,
@@ -48,8 +49,12 @@ vi.mock('@/app/api/files/utils', () => ({
         : 'application/octet-stream',
 }))
 
+import {
+  compileDoc,
+  resolveServableDoc,
+  resolveServableDocBytes,
+} from '@/lib/mothership/tools/server/files/doc-compile'
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
-import { compileDoc, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
 
 const { mockExecuteInSandbox } = remoteSandboxMockFns
 

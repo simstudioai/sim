@@ -14,6 +14,7 @@ const targetOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
+  contentDelivery: 'none',
   principalKinds: ['session', 'personal_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 })
@@ -23,6 +24,7 @@ export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
   operation: targetOperation,
   organizationOperation: defineOrganizationOperation({
     id: targetOperation.id,
+    contentDelivery: 'none',
     minimumRole: 'member',
     capability: 'copilot.use',
     principalKinds: ['session', 'personal_api_key', 'organization_delegated'],

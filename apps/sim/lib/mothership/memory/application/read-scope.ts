@@ -11,6 +11,7 @@ import { requireOwnedMemorySpace } from '@/lib/mothership/memory/spaces'
 export const MEMORY_SCOPE_AUDIENCE = 'sim:copilot-memory'
 export const readMemoryScopeOperation = defineWorkspaceOperation({
   id: 'mothership.memory.read_scope',
+  contentDelivery: 'none',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
@@ -23,6 +24,7 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
   operation: readMemoryScopeOperation,
   organizationOperation: defineOrganizationOperation({
     id: readMemoryScopeOperation.id,
+    contentDelivery: readMemoryScopeOperation.contentDelivery,
     minimumRole: 'member',
     capability: readMemoryScopeOperation.capability,
     principalKinds: ['organization_delegated'],

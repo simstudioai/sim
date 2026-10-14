@@ -28,13 +28,14 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
+import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/file-outbox-events'
 import {
@@ -57,13 +58,7 @@ import {
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
-import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
-import {
-  downloadWorkspaceFileVersion,
-  readWorkspaceFileVersionText,
-  revertWorkspaceFileVersion,
-} from '@/lib/workspace-files/application/file-versions'
+import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
 import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
@@ -635,9 +630,8 @@ describe('workspace file version history in PostgreSQL', () => {
     }
   )
 
+  /** Version downloads are direct-only, so Chat reaches history as text. */
   it.each([
-    ['named', 'download'],
-    ['anonymous', 'download'],
     ['named', 'read'],
     ['anonymous', 'read'],
     ['empty', 'read'],
@@ -685,52 +679,30 @@ describe('workspace file version history in PostgreSQL', () => {
         userId: fixture.aliceId,
         workspaceId: fixture.workspaceId,
       })
-      const delivered: Array<{
-        stream: ReadableStream<Uint8Array>
-        provenance: WorkspaceFileSecretProvenance | undefined
-      }> = []
-      const transport = createFileReadTransport({
+      const transport = createAgentCliTransport({
         endpoint: 'https://version-fixture.test',
-        userId: fixture.aliceId,
         registry,
         invocation: {
           userId: fixture.aliceId,
           workspaceId: fixture.workspaceId,
           chatId: 'version-fixture',
         },
-        trackDownload: (stream, provenance) => {
-          delivered.push({ stream, provenance })
-        },
-        transport: async () => {
-          if (command === 'read') {
-            const result = await readWorkspaceFileVersionText.execute({
-              principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-              input: {
-                fileId: fixture.fileId,
-                assertedWorkspaceId: fixture.workspaceId,
-                version: 2,
-              },
-            })
-            return Response.json({
-              data: { ...presentWorkspaceFileText(result).data, version: result.version.version },
-            })
-          }
-          const result = await downloadWorkspaceFileVersion.execute({
-            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 2 },
-          })
-          return new Response(result.stream, { headers: { 'content-type': result.contentType } })
-        },
+        resources: [],
+        observeReads: true,
       })
-      const result = await runCli(
-        ['files', 'versions', command, fixture.fileId, '2'],
-        {
-          endpoint: 'https://version-fixture.test',
-          apiKey: 'fixture',
-          workspaceId: fixture.workspaceId,
-          transport,
-        },
-        null
+      const result = await withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        () =>
+          runCli(
+            ['files', 'versions', command, fixture.fileId, '2'],
+            {
+              endpoint: 'https://version-fixture.test',
+              apiKey: 'fixture',
+              workspaceId: fixture.workspaceId,
+              transport,
+            },
+            null
+          )
       )
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain(historicalContent)
@@ -740,7 +712,6 @@ describe('workspace file version history in PostgreSQL', () => {
       if (hasSecret) expect(projected.value).not.toContain(secret)
       else expect(projected.value).toBe(result.stdout)
       if (kind === 'named') expect(projected.value).toContain('{{FILE_TOKEN}}')
-      expect(delivered.map((delivery) => delivery.provenance)).toEqual([provenance])
     }
   )
 
@@ -781,32 +752,30 @@ describe('workspace file version history in PostgreSQL', () => {
         userId: fixture.aliceId,
         workspaceId: fixture.workspaceId,
       })
-      const transport = createFileReadTransport({
+      const transport = createAgentCliTransport({
         endpoint: 'https://version-fixture.test',
-        userId: fixture.aliceId,
         registry,
         invocation: {
           userId: fixture.aliceId,
           workspaceId: fixture.workspaceId,
           chatId: 'version-fixture',
         },
-        transport: async () => {
-          const result = await downloadWorkspaceFileVersion.execute({
-            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 1 },
-          })
-          return new Response(result.stream, { headers: { 'content-type': result.contentType } })
-        },
+        resources: [],
+        observeReads: true,
       })
-      const result = await runCli(
-        ['files', 'versions', 'download', fixture.fileId, '1'],
-        {
-          endpoint: 'https://version-fixture.test',
-          apiKey: 'fixture',
-          workspaceId: fixture.workspaceId,
-          transport,
-        },
-        null
+      const result = await withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        () =>
+          runCli(
+            ['files', 'versions', 'read', fixture.fileId, '1'],
+            {
+              endpoint: 'https://version-fixture.test',
+              apiKey: 'fixture',
+              workspaceId: fixture.workspaceId,
+              transport,
+            },
+            null
+          )
       )
       if (kind === 'legacy') {
         expect(result.exitCode).toBe(0)
@@ -820,7 +789,7 @@ describe('workspace file version history in PostgreSQL', () => {
   )
 
   it.each(['current', 'historical'] as const)(
-    'redacts %s file contents when the real parser includes them in a CLI error',
+    'keeps %s file contents out of a real parser error',
     async (revision) => {
       const fixture = await seedFile('{}', 'json')
       const secret = 'ZZTOKEN99'
@@ -866,54 +835,37 @@ describe('workspace file version history in PostgreSQL', () => {
         userId: fixture.aliceId,
         workspaceId: fixture.workspaceId,
       })
-      const transport = createFileReadTransport({
+      const transport = createAgentCliTransport({
         endpoint: 'https://version-fixture.test',
-        userId: fixture.aliceId,
         registry,
         invocation: {
           userId: fixture.aliceId,
           workspaceId: fixture.workspaceId,
           chatId: 'version-fixture',
         },
-        transport: async () => {
-          try {
-            const result = await readWorkspaceFileVersionText.execute({
-              principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
-              input: {
-                fileId: fixture.fileId,
-                assertedWorkspaceId: fixture.workspaceId,
-                version: 2,
-              },
-            })
-            return Response.json({
-              data: { ...presentWorkspaceFileText(result).data, version: result.version.version },
-            })
-          } catch (error) {
-            const response = v2FileErrorPolicies.concealResourceAuthorization.render(error)
-            if (!response) throw error
-            return response
-          }
-        },
+        resources: [],
+        observeReads: true,
       })
-      const result = await runCli(
-        revision === 'current'
-          ? ['files', 'read', fixture.fileId]
-          : ['files', 'versions', 'read', fixture.fileId, '2'],
-        {
-          endpoint: 'https://version-fixture.test',
-          apiKey: 'fixture',
-          workspaceId: fixture.workspaceId,
-          transport,
-        },
-        null
+      const result = await withWorkspaceInvocationScope(
+        { workspaceId: fixture.workspaceId, organizationId: fixture.organizationId },
+        () =>
+          runCli(
+            revision === 'current'
+              ? ['files', 'read', fixture.fileId]
+              : ['files', 'versions', 'read', fixture.fileId, '2'],
+            {
+              endpoint: 'https://version-fixture.test',
+              apiKey: 'fixture',
+              workspaceId: fixture.workspaceId,
+              transport,
+            },
+            null
+          )
       )
       expect(result.exitCode).not.toBe(0)
-      expect(result.stderr).toContain(secret)
-      const projected = projectResolvedSecretModelContent(result.stderr, registry)
-      expect(projected.safe).toBe(true)
-      if (!projected.safe) throw new Error('File parser error was withheld')
-      expect(projected.value).not.toContain(secret)
-      expect(projected.value).toContain('{{FILE_TOKEN}}')
+      /** The parser names the failure without quoting the input, so no fragment can survive. */
+      expect(result.stderr).toContain('Invalid JSON')
+      expect(result.stderr).not.toContain(secret)
     }
   )
 

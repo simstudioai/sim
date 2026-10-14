@@ -60,6 +60,7 @@ export const workspaceInvitationOperations = {
     id: 'workspace_invitations.send_batch',
     minimumRole: 'admin',
     capability: 'invitations.send',
+    contentDelivery: 'none',
     workspaceApiKey: 'deny',
     principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],

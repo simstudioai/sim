@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   loadCompiledDoc,
   loadPublishedCompiledDoc,
   storeCompiledDoc,
-} from '@/lib/mothership/tools/server/files/doc-compiled-store'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+} from '@/lib/workspace-files/compiled-document-store'
 
 const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
 

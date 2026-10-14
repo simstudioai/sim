@@ -1,6 +1,7 @@
 import { runEmbeddedCli } from 'sim/embed'
 import { describe, expect, it, vi } from 'vitest'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
+import { markCommittedWriteResponse } from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 
 const endpoint = 'https://sim.test'
@@ -41,6 +42,18 @@ describe('confirmed CLI resource effects', () => {
     ])
     expect(await effectsFor(path, method, {}, 403)).toEqual([])
     expect(await effectsFor(path, 'GET')).toEqual([])
+  })
+
+  it('refreshes what a committed write changed even when its result was withheld', async () => {
+    const effects: ResourceChange[] = []
+    const withheld = markCommittedWriteResponse(
+      Response.json({ error: 'The change was saved' }, { status: 403 })
+    )
+    const transport = createResourceEffectTransport(endpoint, async () => withheld, effects)
+    await transport(`${endpoint}/api/v2/tables/t/rows/r`, { method: 'PATCH' })
+    expect(effects).toEqual([{ op: 'upsert', resource: { type: 'table', id: 't' } }])
+    /** A refusal that changed nothing changes nothing. */
+    expect(await effectsFor('tables/t/rows/r', 'PATCH', {}, 403)).toEqual([])
   })
 
   it.each([

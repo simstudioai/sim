@@ -31,6 +31,7 @@ export const organizationChatOperations = {
   }),
   list: defineOrganizationOperation({
     id: 'organization.chats.list',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -160,6 +161,7 @@ export const organizationChatDelegationOperations = {
    */
   cancel: defineOrganizationOperation({
     id: 'organization.chats.cancel',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     capability: 'none',
@@ -168,6 +170,7 @@ export const organizationChatDelegationOperations = {
   }),
   settings: defineOrganizationOperation({
     id: 'organization.chats.settings',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -176,6 +179,7 @@ export const organizationChatDelegationOperations = {
   }),
   workspaces: defineOrganizationOperation({
     id: 'organization.chats.workspaces',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -184,6 +188,7 @@ export const organizationChatDelegationOperations = {
   }),
   knowledge: defineOrganizationOperation({
     id: 'organization.chats.knowledge',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -192,6 +197,7 @@ export const organizationChatDelegationOperations = {
   }),
   secrets: defineOrganizationOperation({
     id: 'organization.chats.secrets',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -200,6 +206,7 @@ export const organizationChatDelegationOperations = {
   }),
   billing: defineOrganizationOperation({
     id: 'organization.chats.admit',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',

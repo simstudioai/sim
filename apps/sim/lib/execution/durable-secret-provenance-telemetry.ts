@@ -9,7 +9,12 @@ import { createLogger } from '@sim/logger'
 
 const persistenceLogger = createLogger('DurableSecretProvenancePersistence')
 
-export type DurableSecretProvenanceSurface = 'memory' | 'table-row' | 'knowledge' | 'workspace-file'
+export type DurableSecretProvenanceSurface =
+  | 'memory'
+  | 'table-row'
+  | 'knowledge'
+  | 'workspace-file'
+  | 'tool-result'
 
 export type DurableSecretProvenanceWriteCause =
   | 'source-provenance-unknown'
@@ -35,6 +40,11 @@ export type DurableSecretProvenanceRefusalCause =
   | 'workspace-file-provenance-unavailable'
   | 'workspace-file-opaque-secret-content'
   | 'workspace-file-registry-unavailable'
+  | 'table-row-provenance-unavailable'
+  | 'table-row-opaque-secret-content'
+  | 'knowledge-opaque-secret-content'
+  | 'content-registry-unavailable'
+  | 'tool-result-provenance-unavailable'
 
 export interface DurableSecretProvenanceRefusalReport {
   surface: DurableSecretProvenanceSurface

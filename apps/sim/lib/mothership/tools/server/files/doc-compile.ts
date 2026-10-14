@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { ContentRefusedError, mustClassifyContent } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -10,17 +11,20 @@ import {
 } from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
+import { PPTX_SHIM_JS } from '@/lib/mothership/tools/server/files/pptx-shim'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { admitWorkspaceFiles } from '@/lib/workspace-files/application/admit-file-content'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import {
   type CompiledDocReadOptions,
   loadCompiledDoc,
   loadPublishedCompiledDoc,
+  COMPILED_PDF_MAGIC as PDF_MAGIC,
   publishCompiledDocArtifact,
   storeCompiledDoc,
-} from '@/lib/mothership/tools/server/files/doc-compiled-store'
-import { PPTX_SHIM_JS } from '@/lib/mothership/tools/server/files/pptx-shim'
-import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
-import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+  COMPILED_ZIP_MAGIC as ZIP_MAGIC,
+} from '@/lib/workspace-files/compiled-document-store'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
@@ -217,6 +221,14 @@ async function resolveReferencedImages(
       `More than ${MAX_REFERENCED_INPUTS} referenced input files; maximum is ${MAX_REFERENCED_INPUTS}. Reference fewer files.`
     )
   }
+  return resolveReferencedFileIds(workspaceId, principal, ids)
+}
+
+async function resolveReferencedFileIds(
+  workspaceId: string,
+  principal: Principal,
+  ids: ReadonlySet<string>
+): Promise<ReferencedImageResolution> {
   if (ids.size === 0) {
     return { images: [], referenceCount: 0 }
   }
@@ -344,6 +356,8 @@ interface LegacyCompileArgs {
   workspaceId: string
   ownerKey?: string
   signal?: AbortSignal
+  /** Who the compile reads for; absent for a server render that serves no principal's view. */
+  filePrincipal?: Principal
 }
 
 interface CompileArgs extends LegacyCompileArgs {
@@ -652,13 +666,27 @@ interface CompilableFormat {
   contentType: string
 }
 
-const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
-const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d])
-
 const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
   '.pptx': { magic: ZIP_MAGIC, taskId: 'pptx-generate', contentType: PPTX_MIME },
   '.docx': { magic: ZIP_MAGIC, taskId: 'docx-generate', contentType: DOCX_MIME },
   '.pdf': { magic: PDF_MAGIC, taskId: 'pdf-generate', contentType: PDF_MIME },
+}
+
+/** Whether a cached build read exactly the versions this compile admitted, and nothing else. */
+function cachedFromAdmittedVersions(
+  contributors: readonly WorkspaceFileSecretProvenanceIdentity[],
+  admitted: ReadonlyMap<string, ResolvedReferencedImage['record']>
+): boolean {
+  return contributors.every((contributor) => {
+    const record = admitted.get(contributor.fileId)
+    return (
+      record !== undefined &&
+      record.key === contributor.key &&
+      (record.storageContext ?? 'workspace') === contributor.context &&
+      (record.contentUpdatedAt ?? record.updatedAt).getTime() ===
+        contributor.contentUpdatedAt?.getTime()
+    )
+  })
 }
 
 async function compileDocInLegacySandbox(
@@ -677,7 +705,29 @@ async function compileDocInLegacySandbox(
 
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
   const cached = compiledDocCache.get(cacheKey)
-  if (cached) {
+  let cacheReadable = true
+  if (cached && args.filePrincipal && mustClassifyContent(args.filePrincipal)) {
+    const { images } = await resolveReferencedFileIds(
+      args.workspaceId,
+      args.filePrincipal,
+      new Set(cached.contributingFiles?.map((file) => file.fileId))
+    )
+    const records = images.map((image) => image.record)
+    cacheReadable = cachedFromAdmittedVersions(
+      cached.contributingFiles ?? [],
+      new Map(records.map((file) => [file.id, file]))
+    )
+    if (cacheReadable) {
+      const admitted = await admitWorkspaceFiles(
+        args.filePrincipal,
+        args.workspaceId,
+        records,
+        'complete'
+      )
+      if (admitted.length !== records.length) throw new ContentRefusedError('workspace-file')
+    }
+  }
+  if (cached && cacheReadable) {
     return {
       buffer: cached.buffer,
       contentType: fmt.contentType,
@@ -698,6 +748,7 @@ async function compileDocInLegacySandbox(
     {
       ownerKey: args.ownerKey,
       signal: args.signal,
+      filePrincipal: args.filePrincipal,
       onWorkspaceFileAccess: (identity) => {
         contributingFiles.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
       },
@@ -715,8 +766,8 @@ async function compileDocInLegacySandbox(
 /**
  * Returns the compiled binary for a document. The remote backend reuses and publishes a
  * dependency-bound artifact after statically staging its inputs. The isolated-VM backend preserves
- * its live-broker semantics and keeps only a small process-local cache; it cannot publish a durable
- * artifact until broker calls can report the exact file versions they accessed.
+ * its live-broker semantics and keeps a small process-local cache bound to the actual file revisions
+ * read by its brokers. Each broker read is authorized and admitted before returning bytes.
  */
 export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> {
   const { source, fileName, workspaceId } = args
@@ -942,7 +993,10 @@ export async function resolveServableDocBytes(args: {
     if (!isDocSandboxEnabled) {
       const fmt = await getE2BDocFormat(fileName)
       if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
-      return compileDocInLegacySandbox({ source, fileName, workspaceId, ownerKey, signal }, fmt)
+      return compileDocInLegacySandbox(
+        { source, fileName, workspaceId, ownerKey, signal, filePrincipal },
+        fmt
+      )
     }
     const referencedFileIds = collectReferencedFileIds(source)
     if (referencedFileIds.size > 0) {
