@@ -47,6 +47,14 @@
         "x-sim-operation": "project_files.rename",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -145,6 +153,14 @@
         "x-sim-operation": "project_files.move_items",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -232,6 +248,14 @@
         "x-sim-operation": "project_files.archive_items",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -319,6 +343,14 @@
         "x-sim-operation": "project_files.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -417,6 +449,14 @@
         "x-sim-operation": "project_files.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -502,6 +542,14 @@
         "x-sim-operation": "project_files.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -576,10 +624,10 @@
             "name": "sortBy",
             "in": "query",
             "required": false,
-            "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+            "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
             "schema": {
               "default": "uploadedAt",
-              "description": "Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.",
+              "description": "Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.",
               "type": "string",
               "enum": ["name", "size", "uploadedAt", "updatedAt"]
             }
@@ -675,6 +723,14 @@
         "x-sim-operation": "project_files.read_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -758,6 +814,14 @@
         "x-sim-operation": "project_files.update_content",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -856,6 +920,14 @@
         "x-sim-operation": "project_files.read_metadata",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -934,6 +1006,14 @@
         "x-sim-operation": "project_files.versions.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1060,6 +1140,14 @@
         "x-sim-operation": "project_files.versions.read",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1148,6 +1236,14 @@
         "x-sim-operation": "project_files.versions.delete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1241,6 +1337,14 @@
         "x-sim-operation": "project_files.versions.read_content",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1338,6 +1442,14 @@
         "x-sim-operation": "project_files.versions.revert",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1444,10 +1556,18 @@
       "get": {
         "operationId": "listProjectFileFolders",
         "summary": "List Project File Folders",
-        "description": "List the Project folder tree with stable identifiers. Use scope=archived to find folders eligible for restore. Returns the complete set in one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "description": "List the Project folder tree with stable identifiers. Use scope=archived to find folders eligible for restore. Returns one page; `nextCursor` is always null. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "project_file_folders.list",
         "x-oauth-scope": "api:read",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1525,6 +1645,14 @@
         "x-sim-operation": "project_file_folders.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1612,6 +1740,14 @@
         "x-sim-operation": "project_file_folders.update",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1710,6 +1846,14 @@
         "x-sim-operation": "project_file_folders.restore",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1808,6 +1952,14 @@
         "x-sim-operation": "project_file_uploads.create",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1895,6 +2047,14 @@
         "x-sim-operation": "project_file_uploads.read",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -1991,6 +2151,14 @@
         "x-sim-operation": "project_file_uploads.cancel",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -2089,6 +2257,14 @@
         "x-sim-operation": "project_file_uploads.complete",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -2187,6 +2363,14 @@
         "x-sim-operation": "project_file_uploads.parts",
         "x-oauth-scope": "api:write",
         "tags": ["Files"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
         "parameters": [
           {
             "name": "projectId",
@@ -7339,7 +7523,7 @@
           },
           "content": {
             "default": "",
-            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.",
+            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads.",
             "type": "string",
             "maxLength": 70000000
           },
@@ -7365,7 +7549,7 @@
           "content": {
             "type": "string",
             "maxLength": 70000000,
-            "description": "Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`."
+            "description": "Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content."
           },
           "encoding": {
             "default": "utf-8",
@@ -7374,7 +7558,7 @@
             "enum": ["utf-8", "base64"]
           },
           "expectedRevision": {
-            "description": "Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.",
+            "description": "Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on.",
             "type": "string",
             "minLength": 1
           }
@@ -7403,7 +7587,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -7552,7 +7736,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there is nothing further to fetch. Never construct one yourself."
+            "description": "Opaque cursor for the next page. Send it back as `cursor`; `null` means there are no more pages. Do not construct a cursor yourself."
           }
         },
         "required": ["data", "nextCursor"],
@@ -7859,7 +8043,7 @@
             "maximum": 2147483647
           },
           "expectedRevision": {
-            "description": "Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.",
+            "description": "Revert only while the file still holds the content this revision names, as returned by Get file metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.",
             "type": "string",
             "minLength": 1
           }
@@ -8011,7 +8195,7 @@
                 "type": "null"
               }
             ],
-            "description": "Always `null` — this list has no `cursor` or `limit` param and returns its whole bounded set in one page. Present so the list can gain pages later without a shape change."
+            "description": "Always `null`. This list has no `cursor` or `limit` parameters; see the operation for inventory limits."
           }
         },
         "required": ["data", "nextCursor"],

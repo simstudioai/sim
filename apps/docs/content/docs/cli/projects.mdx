@@ -68,7 +68,7 @@ sim projects files list <projectId> [options]
 | `--no-recursive` | No | Send --recursive as false. |
 | `--scope <value>` | No | Which lifecycle set to list: `active` (default) for live files, `archived` for files a delete soft-deleted. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too. Accepted values: `active`, `archived`. |
 | `--search <value>` | No | Case-insensitive substring match against the file name. |
-| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Defaults to "uploadedAt". Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
+| `--sort-by <value>` | No | Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`. Defaults to "uploadedAt". Accepted values: `name`, `size`, `uploadedAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Defaults to "asc". Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
@@ -180,7 +180,7 @@ sim projects files create <projectId> [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | File name, including its extension. Path separators and dot segments are rejected. |
 | `--content-type <value>` | No | MIME type. When omitted, it is inferred from the file extension. |
-| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger. Defaults to "". |
+| `--content <value>` | No | Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads. Defaults to "". |
 | `--encoding <value>` | No | Encoding of the content field. Defaults to "utf-8". Accepted values: `utf-8`, `base64`. |
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 
@@ -309,7 +309,7 @@ sim projects files versions revert <projectId> <fileId> <version> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
-| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get file metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
 
 </CommandTable>
 
@@ -513,9 +513,9 @@ sim projects files set-content <projectId> <fileId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
+| `--content <value>` | Yes | Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content. |
 | `--encoding <value>` | No | Content encoding. Defaults to "utf-8". Accepted values: `utf-8`, `base64`. |
-| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
+| `--expected-revision <value>` | No | Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on. |
 
 </CommandTable>
 

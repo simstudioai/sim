@@ -7,6 +7,7 @@ import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { type Editor, Extension } from '@tiptap/core'
+import Collaboration from '@tiptap/extension-collaboration'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
@@ -24,8 +25,9 @@ import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/co
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/files')
 
-const { collaborationRef, uploadFile } = vi.hoisted(() => ({
+const { collaborationRef, realCollaboration, uploadFile } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
+  realCollaboration: { enabled: false },
   uploadFile: vi.fn(),
 }))
 
@@ -54,8 +56,15 @@ vi.mock(
   () => ({
     createMarkdownEditorExtensions: (options: {
       pasteAdmission?: RichMarkdownPasteAdmissionOptions
+      collaboration?: { doc: Y.Doc }
     }) => [
-      ...createMarkdownContentExtensions(),
+      ...createMarkdownContentExtensions(
+        {},
+        { disableHistory: realCollaboration.enabled && Boolean(options.collaboration) }
+      ),
+      ...(realCollaboration.enabled && options.collaboration
+        ? [Collaboration.configure({ document: options.collaboration.doc })]
+        : []),
       ImageUploadPlaceholders,
       ...(options.pasteAdmission ? [createRichMarkdownPasteAdmission(options.pasteAdmission)] : []),
       Extension.create({ name: 'slashCommand', addStorage: () => ({ insertImage: null }) }),
@@ -204,6 +213,7 @@ function getEditor() {
 beforeEach(() => {
   uploadFile.mockReset()
   collaborationRef.current = null
+  realCollaboration.enabled = false
   vi.spyOn(toast, 'warning').mockReturnValue('test-toast')
   vi.spyOn(toast, 'info').mockReturnValue('uploading-toast')
   vi.spyOn(toast, 'dismiss').mockImplementation(() => {})
@@ -226,6 +236,7 @@ describe('loaded rich editor lifecycle', () => {
     const frontmatter = '---\r\n# Metadata\r\ntitle: Updated\r\n---\r\n\r\n'
     config.set(FILE_DOC_SEED.frontmatterKey, frontmatter)
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -327,11 +338,77 @@ describe('loaded rich editor lifecycle', () => {
     }
   )
 
+  it('stops queued and subsequent agent stream writes after losing write permission', async () => {
+    realCollaboration.enabled = true
+    const frames = new Map<number, FrameRequestCallback>()
+    let nextFrameId = 0
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = ++nextFrameId
+      frames.set(id, callback)
+      return id
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id))
+    const tick = async () => {
+      const pending = [...frames.values()]
+      frames.clear()
+      await act(async () => {
+        for (const callback of pending) callback(0)
+      })
+    }
+    const provider = new FakeFileDocProvider()
+    const doc = new Y.Doc()
+    const awareness = new Awareness(doc)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    const collaboration = {
+      canWrite: true,
+      doc,
+      awareness,
+      provider,
+      user: { name: 'User', color: '#000000', clientId: doc.clientID },
+    }
+    collaborationRef.current = collaboration
+    const streaming = { collaborative: true, isStreaming: true, streamIsIncremental: true }
+    try {
+      await render('Original', 'Original', true, { collaborative: true })
+      await act(async () => provider.setSynced(true))
+      const editor = getEditor()
+      await act(async () => editor.commands.setContent('<p>Original</p>'))
+      expect(editor.isEditable).toBe(true)
+      await render('Original accepted', 'Original', true, streaming)
+      await tick()
+      expect(editor.getText().trim()).toBe('Original accepted')
+      const acceptedDocument = doc.getXmlFragment('default').toString()
+      await render('Original accepted queued', 'Original', true, streaming)
+      collaborationRef.current = { ...collaboration, canWrite: false }
+      await render('Original accepted queued', 'Original', true, streaming)
+      await tick()
+      expect(doc.getXmlFragment('default').toString()).toBe(acceptedDocument)
+      await render('Original accepted queued later', 'Original', true, streaming)
+      await tick()
+      await render('Original accepted queued later', 'Original accepted queued later', true, {
+        collaborative: true,
+      })
+      await tick()
+      expect(doc.getXmlFragment('default').toString()).toBe(acceptedDocument)
+      expect(editor.getText().trim()).toBe('Original accepted')
+      expect(editor.isEditable).toBe(false)
+      expect(provider.synced).toBe(true)
+      expect(provider.joinError).toBeNull()
+      expect(onChange).not.toHaveBeenCalled()
+      expect(onSaveShortcut).not.toHaveBeenCalled()
+    } finally {
+      await act(async () => root.render(null))
+      awareness.destroy()
+      doc.destroy()
+    }
+  })
+
   it('keeps revoked pending edits visible and read-only without draft-management prompts', async () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()
     doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -371,6 +448,7 @@ describe('loaded rich editor lifecycle', () => {
     const provider = new FakeFileDocProvider()
     const doc = new Y.Doc()
     collaborationRef.current = {
+      canWrite: true,
       doc,
       awareness: new Awareness(doc),
       provider,
@@ -411,6 +489,7 @@ describe('loaded rich editor lifecycle', () => {
       const doc = new Y.Doc()
       doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
       collaborationRef.current = {
+        canWrite: true,
         doc,
         awareness: new Awareness(doc),
         provider,

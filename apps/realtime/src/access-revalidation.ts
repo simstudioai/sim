@@ -36,14 +36,8 @@ const logger = createLogger('AccessRevalidation')
 export const ACCESS_REVALIDATION_SWEEP_INTERVAL_MS = ROLE_REVALIDATION_TTL_MS
 
 /**
- * Fallback consumed by {@link resolveCurrentRoomPermission} only on a transient DB
- * failure with a cold cache, where resolving to a permission that KEEPS the socket
- * (never eviction) is the safe outcome during an outage. It is the room's own
- * membership level, so it satisfies that room's requirement exactly — a static
- * `'read'` would have evicted every file-doc socket (which needs `write`) on a cold
- * cache blip. The scan deliberately does not read presence for a per-socket
- * join-time role: that would put a Redis dependency inside the security-critical
- * scan lane, and the fallback's only job is to be permissive.
+ * Preserves membership for room types that allow a cold-cache outage fallback.
+ * Document rooms throw instead; the sweep retains their subscriptions for retry.
  */
 function fallbackRoleFor(type: RoomType): string {
   return ROOM_MEMBERSHIP_ACTIONS[type]
@@ -337,8 +331,14 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
         ])
         // {@link SCAN_TIMED_OUT} is the only symbol this race can yield; matching on
         // the type narrows it out of the permission comparison below.
-        if (typeof role !== 'symbol' && room.type === ROOM_TYPES.PROJECT_FILE_DOC) {
-          const target = projectFileDocTarget(room)
+        if (
+          typeof role !== 'symbol' &&
+          (room.type === ROOM_TYPES.PROJECT_FILE_DOC || room.type === ROOM_TYPES.WORKSPACE_FILE_DOC)
+        ) {
+          const target =
+            room.type === ROOM_TYPES.PROJECT_FILE_DOC
+              ? projectFileDocTarget(room)
+              : { fileId: room.id }
           if (target)
             socket.emit(FILE_DOC_EVENTS.PERMISSION, {
               ...target,
@@ -350,9 +350,6 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
             `Authorization check timed out for user ${userId} on ${name}; skipping this pass`
           )
         } else if (!satisfiesRoomMembership(role, room.type)) {
-          // Covers both revocation (`null`) and downgrade below the level this room
-          // requires — a member dropped to `read` may keep a table room but not the
-          // collaborative document editor, exactly as at join time.
           revokeSocket(socket, room, name)
         }
       } catch (error) {

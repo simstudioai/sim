@@ -138,9 +138,9 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   >()
 
   synced = false
-  canWrite = true
+  canWrite = false
+  private permissionKnown = false
   private readonly owner: FileDocOwner
-  private readonly scopedPermissions: boolean
   private readonly membershipKey: string
   /**
    * The current readiness failure, or `null`. Retryable timeouts clear once authoritative sync
@@ -195,8 +195,6 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     super()
 
     this.owner = scope.owner
-    this.scopedPermissions = this.owner.entityType !== 'workspace'
-    this.canWrite = !this.scopedPermissions
     this.membershipKey = roomName(fileDocRoom({ fileId, owner: this.owner }))
     this.journal = new PendingFileDocUpdateJournal({ ...scope, fileId: this.fileId })
     this.registerActiveProvider()
@@ -411,7 +409,12 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       (data.clientId !== undefined && data.clientId !== this.doc.clientID)
     )
       return
-    if (this.scopedPermissions) this.setCanWrite(data.canWrite === true)
+    /** Schema-v2 Workspace relays without capabilities only acknowledge write-authorized joins. */
+    const legacyWriterAdmission =
+      this.owner.entityType === 'workspace' &&
+      data.canWrite === undefined &&
+      data.schemaVersion === 2
+    this.setCanWrite(data.canWrite === true || legacyWriterAdmission)
     this.clearJoinAckTimer()
     this.joinPending = false
     this.joinRetryAttempt = 0
@@ -427,7 +430,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
     const recoveryDocId = data.docId
-    if (this.scopedPermissions && !this.canWrite) {
+    if (!this.canWrite) {
       void this.journal.discard(recoveryDocId).then(() => {
         this.finishAcceptJoin(data, generation, null)
       })
@@ -725,7 +728,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
     /** A terminal document cannot publish; inbound and recovery updates must not echo. */
     if (
       this.fatal ||
-      (this.scopedPermissions && !this.canWrite) ||
+      (this.permissionKnown && !this.canWrite) ||
       origin === this ||
       origin === RECOVERY_ORIGIN
     )
@@ -874,15 +877,13 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
       return
     }
 
-    if (this.scopedPermissions && ack.code === 'ACCESS_REVOKED') {
+    if (ack.code === 'ACCESS_REVOKED') {
       this.setCanWrite(false)
       return
     }
     if (!ack.retryable) {
       const message =
-        ack.code === 'ACCESS_REVOKED'
-          ? 'Your access to this document has been revoked'
-          : 'This document changed while this tab was disconnected; refresh to continue editing'
+        'This document changed while this tab was disconnected; refresh to continue editing'
       this.failFatally(message, ack.code)
       return
     }
@@ -1081,7 +1082,7 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }): boolean {
     const target = parseFileDocTarget(data)
     if (!target || target.fileId !== this.fileId) return false
-    if (!target.owner) return !this.scopedPermissions
+    if (!target.owner) return this.owner.entityType === 'workspace'
     return (
       target.owner.entityType === this.owner.entityType &&
       target.owner.entityId === this.owner.entityId
@@ -1089,16 +1090,17 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
   }
 
   private handlePermission = (data: FileDocPermission) => {
-    if (!this.matchesTarget(data) || data.fileId !== this.fileId || !this.scopedPermissions) return
+    if (!this.matchesTarget(data) || data.fileId !== this.fileId) return
     this.setCanWrite(data.canWrite)
     if (data.canWrite) this.sendInFlightUpdate()
   }
 
   private setCanWrite(canWrite: boolean) {
+    this.permissionKnown = true
     if (this.canWrite === canWrite) return
     this.canWrite = canWrite
     if (!canWrite) this.clearUpdateTimers()
-    if (this.scopedPermissions && !canWrite) {
+    if (!canWrite) {
       this.pendingUpdatesDrained = true
       this.pendingUpdateBatch = []
       this.inFlightUpdate = null

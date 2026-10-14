@@ -486,7 +486,7 @@ export function LoadedRichMarkdownEditor({
    * Collaboration is decided once at mount from synchronously-available inputs
    * via `useState`-init, and never changes — TipTap
    * fixes the extension set at editor creation, so it cannot turn on later. Enabled on a
-   * `collaborative` surface (the Files page or the embedded chat file preview) for an editable,
+   * `collaborative` surface (the Files page or the embedded chat file preview) for a readable,
    * round-trip-safe workspace document with a known user, as long as it is not ALREADY streaming at
    * mount. An agent stream that begins AFTER mount is applied as CRDT
    * diffs into the live doc, so collaboration and streaming coexist (see the streaming effect below).
@@ -494,7 +494,6 @@ export function LoadedRichMarkdownEditor({
   const [collaborationEnabled] = useState(
     () =>
       collaborative &&
-      canEdit &&
       !streamingAtMount &&
       (settled?.verdict ?? false) &&
       Boolean(userId) &&
@@ -519,7 +518,6 @@ export function LoadedRichMarkdownEditor({
     collaborationEnabled ? 'connecting' : 'ready'
   )
   const collabReady = collabStatus === 'ready'
-  const isEditable = canEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   const collaboration = useFileDocCollaboration({
     workspaceId,
@@ -528,6 +526,8 @@ export function LoadedRichMarkdownEditor({
     userName,
     enabled: collaborationEnabled,
   })
+  const effectiveCanEdit = canEdit && (!collaborationEnabled || collaboration?.canWrite === true)
+  const isEditable = effectiveCanEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   /**
    * Initial editor content. When collaborating, the Y.Doc is the source of truth —
@@ -1039,6 +1039,16 @@ export function LoadedRichMarkdownEditor({
     // the standalone Files page) alike. This branch moves content only — editability for the collab
     // lifecycle is owned by the reactive effect above.
     if (collaborationEnabled) {
+      if (!effectiveCanEdit) {
+        if (streamRafRef.current !== null) cancelAnimationFrame(streamRafRef.current)
+        streamRafRef.current = null
+        pendingStreamSourceRef.current = null
+        if (collaboration && agentAnnouncedRef.current) clearAgentApplying(collaboration.awareness)
+        agentAnnouncedRef.current = false
+        if (agentStreamSessionRef.current) endAgentStream(agentStreamSessionRef.current)
+        agentStreamSessionRef.current = null
+        return
+      }
       if (isStreaming) {
         wasStreamingRef.current = true
         // Apply streamed diffs only after the shared doc has SEEDED (synced + seed flag, i.e.
@@ -1246,7 +1256,7 @@ export function LoadedRichMarkdownEditor({
         syncEditorContent(content)
         pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
-        editor.setEditable(canEdit && settledVerdict && collabReady)
+        editor.setEditable(effectiveCanEdit && settledVerdict && collabReady)
         if (shouldFocus) editor.commands.focus('end')
       })
       return
@@ -1259,7 +1269,7 @@ export function LoadedRichMarkdownEditor({
         pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
       }
-      if (settled) editor.setEditable(canEdit && settled.verdict && collabReady)
+      if (settled) editor.setEditable(effectiveCanEdit && settled.verdict && collabReady)
     })
   }, [
     editor,
@@ -1268,7 +1278,7 @@ export function LoadedRichMarkdownEditor({
     settled,
     collaboration,
     isStreaming,
-    canEdit,
+    effectiveCanEdit,
     autoFocus,
     disableStreamingAutoScroll,
     collaborationEnabled,

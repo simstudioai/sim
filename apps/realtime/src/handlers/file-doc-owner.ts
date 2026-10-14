@@ -14,7 +14,7 @@ interface PersistenceActor {
 }
 
 interface FileDocOwnerAdapter {
-  requiresCurrentActor: boolean
+  allowLocalSnapshotFallback: boolean
   tracksLifecycle: boolean
   seed(
     target: FileDocTarget,
@@ -47,7 +47,7 @@ function projectRequest(target: FileDocTarget, actor?: PersistenceActor) {
 
 const OWNER_ADAPTERS: Record<FileDocOwner['entityType'], FileDocOwnerAdapter> = {
   workspace: {
-    requiresCurrentActor: false,
+    allowLocalSnapshotFallback: true,
     tracksLifecycle: false,
     seed: (target) => fetchFileDocSeed(requireOwner(target, 'workspace'), target.fileId),
     persist: (target, actor, state, version) =>
@@ -60,7 +60,7 @@ const OWNER_ADAPTERS: Record<FileDocOwner['entityType'], FileDocOwnerAdapter> = 
       ),
   },
   project: {
-    requiresCurrentActor: true,
+    allowLocalSnapshotFallback: false,
     tracksLifecycle: true,
     seed: (target, actor) => fetchProjectFileDocSeed(projectRequest(target, actor)),
     persist: (target, actor, state, version) =>

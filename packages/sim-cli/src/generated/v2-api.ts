@@ -16670,7 +16670,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         default: '',
         describe:
-          'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. Use an upload session for anything larger.',
+          'Initial file content. Omit or send an empty string for a zero-byte file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Use an upload session for larger payloads.',
       },
       encoding: {
         kind: 'enum',
@@ -20765,7 +20765,7 @@ export const V2_OPERATIONS = {
         values: ['name', 'size', 'uploadedAt', 'updatedAt'] as const,
         default: 'uploadedAt',
         describe:
-          'Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order.',
+          'Field used to sort the result. Do not rely on case-insensitive ordering when sorting by `name`.',
       },
       sortOrder: {
         kind: 'enum',
@@ -22708,7 +22708,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'string',
         describe:
-          'Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
+          'Revert only while the file still holds the content this revision names, as returned by Get file metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version.',
       },
     },
   },
@@ -23802,7 +23802,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe:
-          'Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`.',
+          'Complete replacement content for the file. The complete JSON request is capped at 10 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The separate decoded-file limit is 50 MiB. Small patches can edit a larger stored text file without sending its full content.',
       },
       encoding: {
         kind: 'enum',
@@ -23813,7 +23813,7 @@ export const V2_OPERATIONS = {
       expectedRevision: {
         kind: 'string',
         describe:
-          'Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on.',
+          'Revision from Get file metadata or an earlier write; the request is refused with `409` when the content moved on.',
       },
     },
   },

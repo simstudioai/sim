@@ -101,6 +101,7 @@ function acceptJoin(
     clientId,
     docId,
     acknowledgedUpdates: acknowledgedUpdates ? true : undefined,
+    canWrite: true,
   })
 }
 
@@ -1944,4 +1945,43 @@ describe('FileDocProvider', () => {
     expect(provider.joinError?.code).toBe('DOCUMENT_REPLACED')
     provider.destroy()
   })
+})
+
+describe('document permission protocol overlap', () => {
+  it.each([
+    { owner: 'workspace', schemaVersion: 2, canWrite: undefined, expected: true },
+    { owner: 'workspace', schemaVersion: 2, canWrite: false, expected: false },
+    { owner: 'workspace', schemaVersion: undefined, canWrite: undefined, expected: false },
+    { owner: 'project', schemaVersion: 2, canWrite: undefined, expected: false },
+    { owner: 'project', schemaVersion: 2, canWrite: true, expected: true },
+  ] as const)(
+    'honors $owner schema=$schemaVersion capability=$canWrite',
+    ({ owner, schemaVersion, canWrite, expected }) => {
+      const { socket, fire } = createSocket()
+      const doc = new Y.Doc()
+      const awareness = new awarenessProtocol.Awareness(doc)
+      const provider = new FileDocProvider(socket, 'file-1', doc, awareness, {
+        owner: { entityType: owner, entityId: 'scope-1' },
+        userId: 'user-1',
+      })
+      expect(provider.canWrite).toBe(false)
+      fire(FILE_DOC_EVENTS.JOIN_SUCCESS, {
+        fileId: 'file-1',
+        owner: { entityType: owner, entityId: 'scope-1' },
+        clientId: doc.clientID,
+        schemaVersion,
+        canWrite,
+      })
+      expect(provider.canWrite).toBe(expected)
+      fire(FILE_DOC_EVENTS.PERMISSION, {
+        fileId: 'file-1',
+        owner: { entityType: owner, entityId: 'scope-1' },
+        canWrite: false,
+      })
+      expect(provider.canWrite).toBe(false)
+      provider.destroy()
+      awareness.destroy()
+      doc.destroy()
+    }
+  )
 })
