@@ -10,6 +10,7 @@ import {
 import type { FileRetentionOptions, FileVersionCleanupResult } from '@/lib/file-retention/types'
 import {
   FILES_PER_QUERY,
+  FREE_MAX_SUPERSEDED_VERSIONS,
   KEEP_SUPERSEDED,
   releaseExpiredFileVersions,
   selectExpiredFileVersions,
@@ -17,7 +18,6 @@ import {
 import { MAX_SUPERSEDED_FILE_VERSIONS } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 
 const cleanupDb = dbFor('cleanup')
-const FREE_MAX_SUPERSEDED_VERSIONS = 99
 
 async function selectCandidateFileIds(
   workspaceIds: string[],

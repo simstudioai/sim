@@ -3,6 +3,7 @@ import {
   DEFAULT_DELETE_CHUNK_SIZE,
   DEFAULT_MAX_BATCHES_PER_TABLE,
 } from '@/lib/cleanup/batch-delete'
+import { isolateOwnerFailure } from '@/lib/file-retention/failure'
 import { prepareLegacyFileArchiveCleanup } from '@/lib/file-retention/legacy-archive'
 import type {
   FileArchiveCleanup,
@@ -41,15 +42,17 @@ const OWNER_ADAPTERS: FileOwnerAdapters<RetentionAdapter> = {
       prepareLegacyFileArchiveCleanup({ kind: 'organization', ids }, options),
   },
   project: {
-    async versions(ids, _options, limit) {
+    async versions(ids, { budgets, label }, limit) {
       let deleted = 0
       for (const id of ids) {
         if (deleted >= limit) break
-        deleted += await cleanupProjectFileVersions(id, limit - deleted)
+        deleted += await isolateOwnerFailure(Boolean(budgets), { label, projectId: id }, () =>
+          cleanupProjectFileVersions(id, limit - deleted)
+        )
       }
       return { deleted, attempted: deleted }
     },
-    async archive(ids, { budgets }) {
+    async archive(ids, { budgets, label }) {
       const files = budgets?.files ?? {
         remaining: DEFAULT_DELETE_CHUNK_SIZE * DEFAULT_MAX_BATCHES_PER_TABLE,
       }
@@ -59,8 +62,13 @@ const OWNER_ADAPTERS: FileOwnerAdapters<RetentionAdapter> = {
       let deleted = 0
       for (const id of ids) {
         if (files.remaining <= 0 && folders.remaining <= 0) break
-        deleted += await cleanupArchivedProjectFiles(id, files)
-        deleted += await cleanupArchivedProjectFileFolders(id, folders)
+        deleted += await isolateOwnerFailure(
+          Boolean(budgets),
+          { label, projectId: id },
+          async () =>
+            (await cleanupArchivedProjectFiles(id, files)) +
+            (await cleanupArchivedProjectFileFolders(id, folders))
+        )
       }
       return {
         cleanupStorage: async () => ({ filesDeleted: 0, deleteRows: async () => deleted }),

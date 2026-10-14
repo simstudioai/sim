@@ -6,6 +6,11 @@ import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/work
 
 /** Always retain the current head and its newest nine predecessors. */
 export const KEEP_SUPERSEDED = 9
+/**
+ * Superseded versions a free file keeps (its newest 100 with the current one); versions beyond it
+ * are pruned whatever their age. Paid plans are bounded only by the inline write-time ceiling.
+ */
+export const FREE_MAX_SUPERSEDED_VERSIONS = 99
 export const FILES_PER_QUERY = 500
 
 /** Rank each file independently; expiry never removes its protected recent history. */
