@@ -168,7 +168,7 @@ interface GoogleCalendarMoveV2Response {
 export const moveV2Tool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMoveV2Response> = {
   id: 'google_calendar_move_v2',
   name: 'Google Calendar Move Event',
-  description: 'Move an event to a different calendar. Returns API-aligned fields only.',
+  description: 'Move an event to a different calendar.',
   version: '2.0.0',
   oauth: moveTool.oauth,
   params: moveTool.params,

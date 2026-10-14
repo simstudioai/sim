@@ -19,8 +19,7 @@ export const PulseBlock: BlockConfig = {
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'pulse_v2' },
   authMode: AuthMode.ApiKey,
-  longDescription:
-    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via URL or upload.',
+  longDescription: 'Extract text from PDF documents, images, and Office files via URL or upload.',
   docsLink: 'https://docs.sim.ai/integrations/pulse',
   category: 'tools',
   integrationType: IntegrationType.AI,
@@ -185,7 +184,7 @@ export const PulseV2Block: BlockConfig = {
   name: 'Pulse',
   hideFromToolbar: false,
   longDescription:
-    'Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.',
+    'Extract text from PDF documents, images, and Office files via upload or file references.',
   canvasPresentation: {
     defaultTitle: 'Pulse',
     sentences: {

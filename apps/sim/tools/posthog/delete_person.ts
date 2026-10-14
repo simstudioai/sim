@@ -21,7 +21,7 @@ export const deletePersonTool: ToolConfig<PostHogDeletePersonParams, PostHogDele
     id: 'posthog_delete_person',
     name: 'PostHog Delete Person',
     description:
-      'Delete a person from PostHog. This will remove all associated events and data. Use with caution.',
+      'Request deletion of one PostHog person. Associated event and recording deletion is not requested. Deletion can be queued asynchronously even when the current result reports no person deleted.',
     version: '1.0.0',
     errorExtractor: 'posthog-errors',
 

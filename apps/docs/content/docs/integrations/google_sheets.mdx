@@ -11,28 +11,31 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Sheets](https://www.google.com/sheets/about/) is a cloud-based spreadsheet platform that allows teams and individuals to create, edit, and collaborate on spreadsheets in real-time. Widely used for data tracking, reporting, and lightweight database needs, Google Sheets integrates with many tools and services.
+Use [Google Sheets](https://www.google.com/sheets/about/) to read and write cell ranges, append rows, clear values, and create or inspect spreadsheets. Batch actions read, update, or clear multiple ranges; sheet-copy actions duplicate sheets within or between spreadsheets.
 
-With the Google Sheets integration in Sim, you can:
-
-- **Read data**: Retrieve cell values from specific ranges in a spreadsheet
-- **Write data**: Write values to specific cell ranges
-- **Update data**: Modify existing cell values in a spreadsheet
-- **Append rows**: Add new rows of data to the end of a sheet
-- **Clear ranges**: Remove data from specific cell ranges
-- **Manage spreadsheets**: Create new spreadsheets or retrieve metadata about existing ones
-- **Batch operations**: Perform batch read, update, and clear operations across multiple ranges
-- **Copy sheets**: Duplicate sheets within or between spreadsheets
-
-In Sim, the Google Sheets integration enables your agents to read from, write to, and manage spreadsheets as part of automated workflows. This is ideal for automated reporting, data synchronization, record-keeping, and building data pipelines that use spreadsheets as a collaborative data layer.
+Provide the spreadsheet ID and range required by the selected operation. Read the returned values or update counts before passing data to later workflow steps.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.
+Sim requests these scopes when someone connects a Google Sheets account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-sheets` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
+
+## Use the block [#usage-instructions]
+
+Select a sheet to read, write, append, update, or clear cell values. Create spreadsheets, inspect their metadata, copy sheets, and run batch range operations.
 
 ## Actions
 
@@ -379,11 +382,13 @@ Permanently delete a Google Sheets spreadsheet using the Google Drive API
 | `spreadsheetId` | string | The ID of the deleted spreadsheet |
 | `deleted` | boolean | Whether the spreadsheet was successfully deleted |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+These triggers poll for new data on a schedule.
 
 ### Google Sheets New Row Trigger
 
@@ -412,22 +417,4 @@ Triggers when new rows are added to a Google Sheet
 | `spreadsheetId` | string | The spreadsheet ID |
 | `sheetName` | string | The sheet tab name |
 | `timestamp` | string | Event timestamp in ISO format |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Google Sheets account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-sheets` |
-| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `https://www.googleapis.com/auth/userinfo.email` | View email address |
-| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
-| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
-| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
-
 

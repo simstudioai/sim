@@ -1,6 +1,6 @@
 ---
 title: Gong
-description: Revenue intelligence and conversation analytics
+description: Read Gong calls, transcripts, users, and coaching metrics
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,29 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Gong](https://www.gong.io/) is a revenue intelligence platform that captures and analyzes customer interactions across calls, emails, and meetings. By integrating Gong with Sim, your agents can access conversation data, user analytics, coaching metrics, and more through automated workflows.
+Use [Gong](https://www.gong.io/) to list calls, read call details and transcripts, and retrieve topics, trackers, interaction statistics, and other extensive call data. The actions also read users, activity and coaching metrics, answered scorecards, scorecard definitions, tracker configuration, call-library folders and content, and Engage flows.
 
-The Gong integration in Sim provides tools to:
-
-- **List and retrieve calls:** Fetch calls by date range, get individual call details, or retrieve extensive call data including trackers, topics, interaction stats, and points of interest.
-- **Access call transcripts:** Retrieve full transcripts with speaker turns, topics, and sentence-level timestamps for any recorded call.
-- **Manage users:** List all Gong users in your account or retrieve detailed information for a specific user, including settings, spoken languages, and contact details.
-- **Analyze activity and performance:** Pull aggregated activity statistics, interaction stats (longest monologue, interactivity, patience, question rate), and answered scorecard data for your team.
-- **Work with scorecards and trackers:** List scorecard definitions and keyword tracker configurations to understand how your team's conversations are being evaluated and monitored.
-- **Browse the call library:** List library folders and retrieve their contents, including call snippets and notes curated by your team.
-- **Access coaching metrics:** Retrieve coaching data for managers and their direct reports to track team development.
-- **List Engage flows:** Fetch sales engagement sequences (flows) with visibility and ownership details.
-- **Look up contacts by email or phone:** Find all Gong references to a specific email address or phone number, including related calls, emails, meetings, CRM data, and customer engagement events.
-
-By combining these capabilities, you can automate sales coaching workflows, extract conversation insights, monitor team performance, sync Gong data with other systems, and build intelligent pipelines around your organization's revenue conversations -- all securely using your Gong API credentials.
+Look up an email address or phone number to find related calls, emails, meetings, CRM records, and engagement events. Connect your Gong API credentials and inspect the returned data when preparing coaching reports or syncing conversations to another system.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.
-
-
+Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.
 
 ## Actions
 
@@ -1145,7 +1131,7 @@ Erase all Gong data (calls, leads, contacts) referencing a phone number. Asynchr
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Gong Call Completed
 
@@ -1165,7 +1151,7 @@ Trigger workflow when a call is completed and processed in Gong
 | `callId` | string | Gong call ID \(same value as metaData.id when present\) |
 | `isTest` | boolean | Whether this is a test webhook from the Gong UI |
 | `callData` | json | Full call data object |
-| `metaData` | object | metaData output from the tool |
+| `metaData` | object |  |
 |   ↳ `id` | string | Gong call ID |
 |   ↳ `url` | string | URL to the call in Gong |
 |   ↳ `title` | string | Call title |
@@ -1213,7 +1199,7 @@ Generic webhook trigger for all Gong events
 | `callId` | string | Gong call ID \(same value as metaData.id when present\) |
 | `isTest` | boolean | Whether this is a test webhook from the Gong UI |
 | `callData` | json | Full call data object |
-| `metaData` | object | metaData output from the tool |
+| `metaData` | object |  |
 |   ↳ `id` | string | Gong call ID |
 |   ↳ `url` | string | URL to the call in Gong |
 |   ↳ `title` | string | Call title |

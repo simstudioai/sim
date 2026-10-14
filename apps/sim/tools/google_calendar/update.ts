@@ -238,7 +238,7 @@ export const updateV2Tool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendar
   {
     id: 'google_calendar_update_v2',
     name: 'Google Calendar Update Event',
-    description: 'Update an existing event in Google Calendar. Returns API-aligned fields only.',
+    description: 'Update an existing event in Google Calendar.',
     version: '2.0.0',
     oauth: updateTool.oauth,
     params: updateTool.params,

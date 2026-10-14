@@ -15,11 +15,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.
+Sim requests these scopes when someone connects a Google Contacts account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-contacts` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/contacts` | View and manage Google Contacts |
+
+## Use the block [#usage-instructions]
+
+Create, read, update, delete, list, and search contacts.
 
 ## Actions
 
@@ -145,20 +158,5 @@ Delete a contact from Google Contacts
 | --------- | ---- | ----------- |
 | `content` | string | Contact deletion confirmation message |
 | `metadata` | json | Deletion details including resource name |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Google Contacts account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-contacts` |
-| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `https://www.googleapis.com/auth/userinfo.email` | View email address |
-| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
-| `https://www.googleapis.com/auth/contacts` | View and manage Google Contacts |
 
 

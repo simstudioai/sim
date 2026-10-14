@@ -31,7 +31,7 @@ export const IncidentioBlock: BlockConfig = {
   description: 'Manage incidents with incident.io',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
+    'Manage incidents, actions, follow-ups, workflows, schedules, escalations, and custom fields in incident.io.',
   docsLink: 'https://docs.sim.ai/integrations/incidentio',
   category: 'tools',
   integrationType: IntegrationType.Observability,

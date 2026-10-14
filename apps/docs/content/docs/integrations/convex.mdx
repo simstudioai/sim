@@ -11,21 +11,17 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-Sim's Convex integration connects your workflows to any Convex deployment with two fields: the deployment URL and a deploy key from the dashboard Settings page. From there you can:
+Connect to [Convex](https://www.convex.dev/) with a deployment URL and deploy key from that deployment's settings. Grant the key the function and data access required by your operations.
 
-- **Run functions:** Call query, mutation, and action functions with named JSON arguments — or use Run Function when you don't want to specify the function type.
-- **Inspect your data model:** List Tables returns every table in the deployment with the JSON schema of its documents.
-- **Export and sync data:** List Documents pages through a consistent snapshot of a table, and Document Deltas returns only the documents that changed since a snapshot — including deletions — making incremental syncs to warehouses, search indexes, or other tools straightforward.
+Use **Run Query**, **Run Mutation**, or **Run Action** to call a function with JSON arguments; **Run Function** lets Convex resolve its type. **List Tables** returns document schemas. **List Documents** pages a consistent snapshot, and **Document Deltas** retrieves subsequent changes, including deletions, for incremental synchronization.
 
-The Run Query, Run Mutation, Run Action, and Run Function operations work on every Convex plan. List Tables, List Documents, and Document Deltas use Convex's streaming export API, which is available on Convex paid plans.
+Function calls are available across plans. List Tables, List Documents, and Document Deltas use [streaming export](https://docs.convex.dev/production/integrations/streaming-import-export), which Convex documents as requiring a Pro plan. Its deploy key needs `deployment:data:view`; confirm that your current plan includes streaming export.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Convex into the workflow. Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.
-
-
+Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.
 
 ## Actions
 

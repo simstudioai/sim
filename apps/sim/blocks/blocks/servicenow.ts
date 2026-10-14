@@ -168,7 +168,7 @@ export const ServiceNowBlock = {
   sunset: { status: 'legacy', replacedBy: 'servicenow_v2' },
   description: 'Create, read, update, and delete ServiceNow records',
   longDescription:
-    'Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.',
+    'Read or modify records in a selected ServiceNow table, using the instance and fields required by the operation.',
   docsLink: 'https://docs.sim.ai/integrations/servicenow',
   category: 'tools',
   integrationType: IntegrationType.Support,

@@ -134,8 +134,7 @@ export const shareCalendarV2Tool: ToolConfig<
 > = {
   id: 'google_calendar_share_calendar_v2',
   name: 'Google Calendar Share Calendar',
-  description:
-    'Grant a user, group, or domain access to a calendar. Returns API-aligned fields only.',
+  description: 'Grant a user, group, or domain access to a calendar.',
   version: '2.0.0',
   oauth: shareCalendarTool.oauth,
   params: shareCalendarTool.params,

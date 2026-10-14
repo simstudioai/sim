@@ -20,7 +20,7 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
       'Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, ' +
       'nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. ' +
       'Order is a sort spec, e.g. `[{"field":"wins","direction":"desc"}]`. Omit limit to return the entire result — ' +
-      'the query fails if it exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, ' +
+      'the query fails if it exceeds the default 5 MiB response budget (narrow with a filter or set a limit). With a limit, ' +
       'a page can end early at the byte budget: a non-null nextCursor means more rows exist — pass it back ' +
       'as cursor to continue; never infer completion from page size.',
     version: '1.0.0',
@@ -62,7 +62,7 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
         type: 'number',
         required: false,
         description:
-          'Maximum rows per page. Omit to return the entire matching result — fails if it exceeds the 5MB budget. With a limit, pages may byte-cut early and set nextCursor when more remain.',
+          'Maximum rows per page. Omit to return the entire matching result — fails if it exceeds the default 5 MiB response budget. With a limit, pages may byte-cut early and set nextCursor when more remain.',
         visibility: 'user-or-llm',
       },
       cursor: {

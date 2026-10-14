@@ -40,7 +40,7 @@ export const ExaBlock: BlockConfig = {
   description: 'Search with Exa AI',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Exa into the workflow. Can search the web, get page contents, find similar links, answer a question with citations, and run deep research with Exa Agent.',
+    'Search the web, retrieve page content, answer questions with citations, or run multi-step research with Exa Agent. Find Similar Links remains a legacy operation; prefer Search for new workflows.',
   docsLink: 'https://docs.sim.ai/integrations/exa',
   category: 'tools',
   integrationType: IntegrationType.Search,

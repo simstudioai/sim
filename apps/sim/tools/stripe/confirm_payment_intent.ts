@@ -21,7 +21,8 @@ export const stripeConfirmPaymentIntentTool: ToolConfig<
 > = {
   id: 'stripe_confirm_payment_intent',
   name: 'Stripe Confirm Payment Intent',
-  description: 'Confirm a Payment Intent to complete the payment',
+  description:
+    'Confirm a Payment Intent and inspect its resulting status. Confirmation can require further action or asynchronous processing before payment succeeds.',
   version: '1.0.0',
 
   params: {

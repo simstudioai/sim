@@ -15,11 +15,62 @@ Use [Jira Service Management](https://www.atlassian.com/software/jira/service-ma
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Jira account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/jira` |
+| Environment variables | `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read:jira-user` | View Jira user profiles, including email addresses |
+| `read:jira-work` | View Jira projects and issues, and search issues |
+| `write:jira-work` | Create, edit, and delete Jira issues, comments, and worklogs |
+| `read:me` | Read profile information |
+| `offline_access` | Access account when not using the application |
+| `read:issue.vote:jira` | Read Jira issue votes |
+| `read:user:jira` | View Jira users |
+| `delete:issue:jira` | Delete Jira issues |
+| `delete:comment:jira` | Delete comments from Jira issues |
+| `delete:attachment:jira` | Delete attachments from Jira issues |
+| `delete:issue-worklog:jira` | Delete worklog entries from Jira issues |
+| `delete:issue-link:jira` | Delete links between Jira issues |
+| `read:servicedesk-request` | View service desk requests |
+| `write:servicedesk-request` | Create and update service desk requests |
+| `manage:servicedesk-customer` | Manage service desk customers and organizations |
+| `read:servicedesk:jira-service-management` | View service desks and their settings |
+| `read:requesttype:jira-service-management` | View request types available in service desks |
+| `read:request:jira-service-management` | View customer requests in service desks |
+| `write:request:jira-service-management` | Create customer requests in service desks |
+| `read:request.comment:jira-service-management` | View comments on customer requests |
+| `write:request.comment:jira-service-management` | Add comments to customer requests |
+| `read:servicedesk.customer:jira-service-management` | View customers linked to service desks |
+| `write:servicedesk.customer:jira-service-management` | Add and remove customers from service desks |
+| `read:organization:jira-service-management` | View organizations |
+| `write:organization:jira-service-management` | Create and manage organizations |
+| `read:servicedesk.organization:jira-service-management` | View organizations linked to service desks |
+| `write:servicedesk.organization:jira-service-management` | Add and remove organizations from service desks |
+| `read:queue:jira-service-management` | View service desk queues and their issues |
+| `read:request.sla:jira-service-management` | View SLA information for customer requests |
+| `read:request.status:jira-service-management` | View status of customer requests |
+| `write:request.status:jira-service-management` | Transition customer request status |
+| `read:request.participant:jira-service-management` | View participants on customer requests |
+| `write:request.participant:jira-service-management` | Add and remove participants from customer requests |
+| `read:request.approval:jira-service-management` | View approvals on customer requests |
+| `write:request.approval:jira-service-management` | Approve or decline customer requests |
+| `read:cmdb-object:jira` | View Assets objects and run AQL searches |
+| `write:cmdb-object:jira` | Create and update Assets objects |
+| `delete:cmdb-object:jira` | Delete Assets objects |
+| `read:cmdb-schema:jira` | View Assets object schemas |
+| `read:cmdb-type:jira` | View Assets object types |
+| `read:cmdb-attribute:jira` | View Assets object type attributes |
+
+## Use the block [#usage-instructions]
 
 Integrate with Jira Service Management for IT service management. Create and manage service requests, handle customers and organizations, track SLAs, and manage queues.
-
-
 
 ## Actions
 
@@ -1198,9 +1249,11 @@ Delete an Assets (Insight/CMDB) object by ID
 | `objectId` | string | The deleted object ID |
 | `deleted` | boolean | Whether the object was deleted |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### JSM Request Commented
 
@@ -1219,38 +1272,38 @@ Trigger workflow when a comment is added to a Jira Service Management request
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, jira:issue_updated, comment_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
-| `user` | object | user output from the tool |
+| `user` | object |  |
 |   ↳ `displayName` | string | Display name of the user who triggered the event |
 |   ↳ `accountId` | string | Account ID of the user who triggered the event |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Issue key \(e.g., SD-123\) |
 |   ↳ `self` | string | REST API URL for this issue |
-|   ↳ `fields` | object | fields output from the tool |
+|   ↳ `fields` | object |  |
 |     ↳ `summary` | string | Request summary/title |
-|     ↳ `status` | object | status output from the tool |
+|     ↳ `status` | object |  |
 |       ↳ `name` | string | Current status name |
 |       ↳ `id` | string | Status ID |
 |       ↳ `statusCategory` | json | Status category information |
-|     ↳ `priority` | object | priority output from the tool |
+|     ↳ `priority` | object |  |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
-|     ↳ `issuetype` | object | issuetype output from the tool |
+|     ↳ `issuetype` | object |  |
 |       ↳ `name` | string | Issue type name \(e.g., Service Request, Incident\) |
 |       ↳ `id` | string | Issue type ID |
-|     ↳ `project` | object | project output from the tool |
+|     ↳ `project` | object |  |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
-|     ↳ `reporter` | object | reporter output from the tool |
+|     ↳ `reporter` | object |  |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `assignee` | object | assignee output from the tool |
+|     ↳ `assignee` | object |  |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `creator` | object | creator output from the tool |
+|     ↳ `creator` | object |  |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
@@ -1258,17 +1311,17 @@ Trigger workflow when a comment is added to a Jira Service Management request
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `duedate` | string | Due date for the request |
 |     ↳ `labels` | array | Array of labels applied to this request |
-|     ↳ `resolution` | object | resolution output from the tool |
+|     ↳ `resolution` | object |  |
 |       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
 |       ↳ `id` | string | Resolution ID |
-| `comment` | object | comment output from the tool |
+| `comment` | object |  |
 |   ↳ `id` | string | Comment ID |
 |   ↳ `body` | json | Comment body in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
-|   ↳ `author` | object | author output from the tool |
+|   ↳ `author` | object |  |
 |     ↳ `displayName` | string | Comment author display name |
 |     ↳ `accountId` | string | Comment author account ID |
 |     ↳ `emailAddress` | string | Comment author email address |
-|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|   ↳ `updateAuthor` | object |  |
 |     ↳ `displayName` | string | Display name of the user who last updated the comment |
 |     ↳ `accountId` | string | Account ID of the user who last updated the comment |
 |   ↳ `created` | string | Comment creation date \(ISO format\) |
@@ -1294,38 +1347,38 @@ Trigger workflow when a new service request is created in Jira Service Managemen
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, jira:issue_updated, comment_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
-| `user` | object | user output from the tool |
+| `user` | object |  |
 |   ↳ `displayName` | string | Display name of the user who triggered the event |
 |   ↳ `accountId` | string | Account ID of the user who triggered the event |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Issue key \(e.g., SD-123\) |
 |   ↳ `self` | string | REST API URL for this issue |
-|   ↳ `fields` | object | fields output from the tool |
+|   ↳ `fields` | object |  |
 |     ↳ `summary` | string | Request summary/title |
-|     ↳ `status` | object | status output from the tool |
+|     ↳ `status` | object |  |
 |       ↳ `name` | string | Current status name |
 |       ↳ `id` | string | Status ID |
 |       ↳ `statusCategory` | json | Status category information |
-|     ↳ `priority` | object | priority output from the tool |
+|     ↳ `priority` | object |  |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
-|     ↳ `issuetype` | object | issuetype output from the tool |
+|     ↳ `issuetype` | object |  |
 |       ↳ `name` | string | Issue type name \(e.g., Service Request, Incident\) |
 |       ↳ `id` | string | Issue type ID |
-|     ↳ `project` | object | project output from the tool |
+|     ↳ `project` | object |  |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
-|     ↳ `reporter` | object | reporter output from the tool |
+|     ↳ `reporter` | object |  |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `assignee` | object | assignee output from the tool |
+|     ↳ `assignee` | object |  |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `creator` | object | creator output from the tool |
+|     ↳ `creator` | object |  |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
@@ -1333,7 +1386,7 @@ Trigger workflow when a new service request is created in Jira Service Managemen
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `duedate` | string | Due date for the request |
 |     ↳ `labels` | array | Array of labels applied to this request |
-|     ↳ `resolution` | object | resolution output from the tool |
+|     ↳ `resolution` | object |  |
 |       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
 |       ↳ `id` | string | Resolution ID |
 | `issue_event_type_name` | string | Issue event type name from Jira |
@@ -1358,38 +1411,38 @@ Trigger workflow when a service request is resolved in Jira Service Management
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, jira:issue_updated, comment_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
-| `user` | object | user output from the tool |
+| `user` | object |  |
 |   ↳ `displayName` | string | Display name of the user who triggered the event |
 |   ↳ `accountId` | string | Account ID of the user who triggered the event |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Issue key \(e.g., SD-123\) |
 |   ↳ `self` | string | REST API URL for this issue |
-|   ↳ `fields` | object | fields output from the tool |
+|   ↳ `fields` | object |  |
 |     ↳ `summary` | string | Request summary/title |
-|     ↳ `status` | object | status output from the tool |
+|     ↳ `status` | object |  |
 |       ↳ `name` | string | Current status name |
 |       ↳ `id` | string | Status ID |
 |       ↳ `statusCategory` | json | Status category information |
-|     ↳ `priority` | object | priority output from the tool |
+|     ↳ `priority` | object |  |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
-|     ↳ `issuetype` | object | issuetype output from the tool |
+|     ↳ `issuetype` | object |  |
 |       ↳ `name` | string | Issue type name \(e.g., Service Request, Incident\) |
 |       ↳ `id` | string | Issue type ID |
-|     ↳ `project` | object | project output from the tool |
+|     ↳ `project` | object |  |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
-|     ↳ `reporter` | object | reporter output from the tool |
+|     ↳ `reporter` | object |  |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `assignee` | object | assignee output from the tool |
+|     ↳ `assignee` | object |  |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `creator` | object | creator output from the tool |
+|     ↳ `creator` | object |  |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
@@ -1397,11 +1450,11 @@ Trigger workflow when a service request is resolved in Jira Service Management
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `duedate` | string | Due date for the request |
 |     ↳ `labels` | array | Array of labels applied to this request |
-|     ↳ `resolution` | object | resolution output from the tool |
+|     ↳ `resolution` | object |  |
 |       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
 |       ↳ `id` | string | Resolution ID |
 | `issue_event_type_name` | string | Issue event type name from Jira |
-| `changelog` | object | changelog output from the tool |
+| `changelog` | object |  |
 |   ↳ `id` | string | Changelog ID |
 
 
@@ -1424,38 +1477,38 @@ Trigger workflow when a service request is updated in Jira Service Management
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, jira:issue_updated, comment_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
-| `user` | object | user output from the tool |
+| `user` | object |  |
 |   ↳ `displayName` | string | Display name of the user who triggered the event |
 |   ↳ `accountId` | string | Account ID of the user who triggered the event |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Issue key \(e.g., SD-123\) |
 |   ↳ `self` | string | REST API URL for this issue |
-|   ↳ `fields` | object | fields output from the tool |
+|   ↳ `fields` | object |  |
 |     ↳ `summary` | string | Request summary/title |
-|     ↳ `status` | object | status output from the tool |
+|     ↳ `status` | object |  |
 |       ↳ `name` | string | Current status name |
 |       ↳ `id` | string | Status ID |
 |       ↳ `statusCategory` | json | Status category information |
-|     ↳ `priority` | object | priority output from the tool |
+|     ↳ `priority` | object |  |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
-|     ↳ `issuetype` | object | issuetype output from the tool |
+|     ↳ `issuetype` | object |  |
 |       ↳ `name` | string | Issue type name \(e.g., Service Request, Incident\) |
 |       ↳ `id` | string | Issue type ID |
-|     ↳ `project` | object | project output from the tool |
+|     ↳ `project` | object |  |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
-|     ↳ `reporter` | object | reporter output from the tool |
+|     ↳ `reporter` | object |  |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `assignee` | object | assignee output from the tool |
+|     ↳ `assignee` | object |  |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `creator` | object | creator output from the tool |
+|     ↳ `creator` | object |  |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
@@ -1463,11 +1516,11 @@ Trigger workflow when a service request is updated in Jira Service Management
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `duedate` | string | Due date for the request |
 |     ↳ `labels` | array | Array of labels applied to this request |
-|     ↳ `resolution` | object | resolution output from the tool |
+|     ↳ `resolution` | object |  |
 |       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
 |       ↳ `id` | string | Resolution ID |
 | `issue_event_type_name` | string | Issue event type name from Jira |
-| `changelog` | object | changelog output from the tool |
+| `changelog` | object |  |
 |   ↳ `id` | string | Changelog ID |
 
 
@@ -1490,38 +1543,38 @@ Trigger workflow on any Jira Service Management webhook event
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, jira:issue_updated, comment_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
-| `user` | object | user output from the tool |
+| `user` | object |  |
 |   ↳ `displayName` | string | Display name of the user who triggered the event |
 |   ↳ `accountId` | string | Account ID of the user who triggered the event |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Issue key \(e.g., SD-123\) |
 |   ↳ `self` | string | REST API URL for this issue |
-|   ↳ `fields` | object | fields output from the tool |
+|   ↳ `fields` | object |  |
 |     ↳ `summary` | string | Request summary/title |
-|     ↳ `status` | object | status output from the tool |
+|     ↳ `status` | object |  |
 |       ↳ `name` | string | Current status name |
 |       ↳ `id` | string | Status ID |
 |       ↳ `statusCategory` | json | Status category information |
-|     ↳ `priority` | object | priority output from the tool |
+|     ↳ `priority` | object |  |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
-|     ↳ `issuetype` | object | issuetype output from the tool |
+|     ↳ `issuetype` | object |  |
 |       ↳ `name` | string | Issue type name \(e.g., Service Request, Incident\) |
 |       ↳ `id` | string | Issue type ID |
-|     ↳ `project` | object | project output from the tool |
+|     ↳ `project` | object |  |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
-|     ↳ `reporter` | object | reporter output from the tool |
+|     ↳ `reporter` | object |  |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `assignee` | object | assignee output from the tool |
+|     ↳ `assignee` | object |  |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
-|     ↳ `creator` | object | creator output from the tool |
+|     ↳ `creator` | object |  |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
 |       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
@@ -1529,74 +1582,19 @@ Trigger workflow on any Jira Service Management webhook event
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `duedate` | string | Due date for the request |
 |     ↳ `labels` | array | Array of labels applied to this request |
-|     ↳ `resolution` | object | resolution output from the tool |
+|     ↳ `resolution` | object |  |
 |       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
 |       ↳ `id` | string | Resolution ID |
 | `issue_event_type_name` | string | Issue event type name from Jira |
-| `changelog` | object | changelog output from the tool |
+| `changelog` | object |  |
 |   ↳ `id` | string | Changelog ID |
-| `comment` | object | comment output from the tool |
+| `comment` | object |  |
 |   ↳ `id` | string | Comment ID |
 |   ↳ `body` | json | Comment body in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
-|   ↳ `author` | object | author output from the tool |
+|   ↳ `author` | object |  |
 |     ↳ `displayName` | string | Comment author display name |
 |     ↳ `accountId` | string | Comment author account ID |
 |     ↳ `emailAddress` | string | Comment author email address |
 |   ↳ `created` | string | Comment creation date \(ISO format\) |
 |   ↳ `updated` | string | Comment last updated date \(ISO format\) |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Jira account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/jira` |
-| Environment variables | `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `read:jira-user` | View Jira user profiles, including email addresses |
-| `read:jira-work` | View Jira projects and issues, and search issues |
-| `write:jira-work` | Create, edit, and delete Jira issues, comments, and worklogs |
-| `read:me` | Read profile information |
-| `offline_access` | Access account when not using the application |
-| `read:issue.vote:jira` | Read Jira issue votes |
-| `read:user:jira` | View Jira users |
-| `delete:issue:jira` | Delete Jira issues |
-| `delete:comment:jira` | Delete comments from Jira issues |
-| `delete:attachment:jira` | Delete attachments from Jira issues |
-| `delete:issue-worklog:jira` | Delete worklog entries from Jira issues |
-| `delete:issue-link:jira` | Delete links between Jira issues |
-| `read:servicedesk-request` | View service desk requests |
-| `write:servicedesk-request` | Create and update service desk requests |
-| `manage:servicedesk-customer` | Manage service desk customers and organizations |
-| `read:servicedesk:jira-service-management` | View service desks and their settings |
-| `read:requesttype:jira-service-management` | View request types available in service desks |
-| `read:request:jira-service-management` | View customer requests in service desks |
-| `write:request:jira-service-management` | Create customer requests in service desks |
-| `read:request.comment:jira-service-management` | View comments on customer requests |
-| `write:request.comment:jira-service-management` | Add comments to customer requests |
-| `read:servicedesk.customer:jira-service-management` | View customers linked to service desks |
-| `write:servicedesk.customer:jira-service-management` | Add and remove customers from service desks |
-| `read:organization:jira-service-management` | View organizations |
-| `write:organization:jira-service-management` | Create and manage organizations |
-| `read:servicedesk.organization:jira-service-management` | View organizations linked to service desks |
-| `write:servicedesk.organization:jira-service-management` | Add and remove organizations from service desks |
-| `read:queue:jira-service-management` | View service desk queues and their issues |
-| `read:request.sla:jira-service-management` | View SLA information for customer requests |
-| `read:request.status:jira-service-management` | View status of customer requests |
-| `write:request.status:jira-service-management` | Transition customer request status |
-| `read:request.participant:jira-service-management` | View participants on customer requests |
-| `write:request.participant:jira-service-management` | Add and remove participants from customer requests |
-| `read:request.approval:jira-service-management` | View approvals on customer requests |
-| `write:request.approval:jira-service-management` | Approve or decline customer requests |
-| `read:cmdb-object:jira` | View Assets objects and run AQL searches |
-| `write:cmdb-object:jira` | Create and update Assets objects |
-| `delete:cmdb-object:jira` | Delete Assets objects |
-| `read:cmdb-schema:jira` | View Assets object schemas |
-| `read:cmdb-type:jira` | View Assets object types |
-| `read:cmdb-attribute:jira` | View Assets object type attributes |
-
 

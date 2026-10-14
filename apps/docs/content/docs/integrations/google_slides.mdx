@@ -15,11 +15,25 @@ Use [Google Slides](https://slides.google.com) in Sim to build and update presen
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Google Drive account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-drive` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
+
+## Use the block [#usage-instructions]
 
 Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.
-
-
 
 ## Actions
 
@@ -1385,21 +1399,5 @@ Export a presentation to PDF, PPTX, ODP, TXT, PNG, JPEG, or SVG via the Drive ex
 |   ↳ `presentationId` | string | The presentation ID |
 |   ↳ `url` | string | URL to the presentation |
 |   ↳ `exportFormat` | string | Export format used |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Google Drive account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-drive` |
-| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `https://www.googleapis.com/auth/userinfo.email` | View email address |
-| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
-| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
-| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
 
 

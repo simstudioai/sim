@@ -15,11 +15,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Google BigQuery account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-bigquery` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/bigquery` | View and manage data in Google BigQuery |
+
+## Use the block [#usage-instructions]
 
 Connect to Google BigQuery to run SQL queries, list datasets and tables, get table metadata, and insert rows.
-
-
 
 ## Actions
 
@@ -311,20 +324,5 @@ Insert rows into a Google BigQuery table using streaming insert
 |     ↳ `reason` | string | Short error code summarizing the error |
 |     ↳ `location` | string | Where the error occurred |
 |     ↳ `message` | string | Human-readable error description |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Google BigQuery account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-bigquery` |
-| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `https://www.googleapis.com/auth/userinfo.email` | View email address |
-| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
-| `https://www.googleapis.com/auth/bigquery` | View and manage data in Google BigQuery |
 
 

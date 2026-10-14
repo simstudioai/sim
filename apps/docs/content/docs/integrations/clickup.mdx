@@ -1,6 +1,6 @@
 ---
 title: ClickUp
-description: Interact with ClickUp
+description: Manage ClickUp tasks, comments, hierarchy, and time entries
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,29 +11,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[ClickUp](https://clickup.com/) is a work management platform that organizes tasks into a hierarchy of workspaces, spaces, folders, and lists. It combines task tracking, comments, checklists, custom fields, and time tracking in one place, with configurable statuses and views for each team.
+Use [ClickUp](https://clickup.com/) to manage tasks, comments, checklists, custom fields, tags, attachments, and time entries. Browse workspaces, spaces, folders, and lists to find the resource IDs needed by each action; you can also create folders and lists and look up task or list members.
 
-With the ClickUp integration in Sim, you can:
-
-- **Manage tasks**: Create, get, update, and delete tasks, and list or search tasks across a workspace
-- **Collaborate with comments**: Create, list, update, and delete comments on tasks
-- **Organize the hierarchy**: Look up workspaces, spaces, folders, and lists, and create new folders and lists
-- **Work with custom fields**: Retrieve a list's custom fields, and set or clear their values on a task
-- **Track checklists**: Create, update, and delete checklists and their individual items
-- **Track time**: List, create, update, and delete time entries, and start, stop, or inspect a running timer
-- **Apply tags and attachments**: Add or remove space tags on a task and upload file attachments
-- **Look up people**: Retrieve the members of a task or a list
-- **React to changes**: Trigger workflows on task, list, folder, space, goal, and key-result events
-
-In Sim, the ClickUp integration enables your agents to participate in your team's project workflow. Agents can open tasks from incoming requests, comment with context they gathered elsewhere, move work through statuses, log time, and run downstream automation the moment a task is created, updated, or moved.
+Trigger mode starts workflows on task, list, folder, space, goal, and key-result events. For a saved personal API token, see [ClickUp API tokens](/integrations/clickup-service-account).
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate ClickUp into the workflow. Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Can also trigger workflows on ClickUp events like task, list, folder, space, and goal changes.
+Sim requests no OAuth scopes for ClickUp. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/clickup` |
+| Environment variables | `CLICKUP_CLIENT_ID`, `CLICKUP_CLIENT_SECRET` |
 
+## Use the block [#usage-instructions]
+
+Create, read, update, and delete tasks, manage comments, tags, folders, and lists, upload attachments, and look up workspaces, members, and custom fields. Trigger workflows on ClickUp events like task, list, folder, space, and goal changes.
 
 ## Actions
 
@@ -804,9 +799,11 @@ Get the currently running time entry in a ClickUp workspace (null when no timer 
 | --------- | ---- | ----------- |
 | `timeEntry` | json | The running time entry \(duration is negative while running\); null when no timer is running |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### ClickUp Folder Created
 
@@ -1584,15 +1581,4 @@ Trigger workflow on any ClickUp event (subscribes to all events)
 | `listId` | string | ID of the affected list \(list events only\) |
 | `folderId` | string | ID of the affected folder \(folder events only\) |
 | `spaceId` | string | ID of the affected space \(space events only\) |
-
-
-## OAuth Scopes
-
-Sim requests no OAuth scopes for ClickUp. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/clickup` |
-| Environment variables | `CLICKUP_CLIENT_ID`, `CLICKUP_CLIENT_SECRET` |
-
 

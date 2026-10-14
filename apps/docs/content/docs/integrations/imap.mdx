@@ -1,6 +1,6 @@
 ---
 title: IMAP
-description: IMAP triggers for automating workflows
+description: Start workflows from IMAP events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -17,13 +17,13 @@ Use the IMAP Email trigger to start workflows from messages in an IMAP-enabled m
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+These triggers poll for new data on a schedule.
 
 ### IMAP Email Trigger
 
-Triggers when new emails are received via IMAP (works with any email provider)
+Start a workflow when an IMAP-enabled mailbox receives matching messages.
 
 #### Configuration
 
@@ -43,7 +43,7 @@ Triggers when new emails are received via IMAP (works with any email provider)
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `email` | object | email output from the tool |
+| `email` | object |  |
 |   ↳ `messageId` | string | RFC Message-ID header |
 |   ↳ `subject` | string | Email subject line |
 |   ↳ `from` | string | Sender email address |

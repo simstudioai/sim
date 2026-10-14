@@ -15,11 +15,9 @@ Use [Rootly](https://rootly.com/) in Sim with a Rootly API key to manage inciden
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.
-
-
+Create and manage incidents, alerts, services, severities, and retrospectives.
 
 ## Actions
 
@@ -1322,7 +1320,7 @@ List incident roles configured in Rootly (e.g. commander, scribe).
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Rootly Alert Created
 
@@ -1341,7 +1339,7 @@ Trigger workflow when a new alert is created in Rootly
 | `eventId` | string | Unique webhook event ID |
 | `eventType` | string | Rootly event type \(e.g. alert.created\) |
 | `issuedAt` | string | When the event was issued \(ISO 8601\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Alert ID |
 |   ↳ `team_id` | number | Team ID |
 |   ↳ `source` | string | Alert source \(e.g. pagerduty\) |
@@ -1379,7 +1377,7 @@ Trigger workflow when a new incident is created in Rootly
 | `eventId` | string | Unique webhook event ID |
 | `eventType` | string | Rootly event type \(e.g. incident.created\) |
 | `issuedAt` | string | When the event was issued \(ISO 8601\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `sequential_id` | number | Sequential incident number |
 |   ↳ `title` | string | Incident title |
@@ -1442,7 +1440,7 @@ Trigger workflow when an incident is resolved in Rootly
 | `eventId` | string | Unique webhook event ID |
 | `eventType` | string | Rootly event type \(e.g. incident.created\) |
 | `issuedAt` | string | When the event was issued \(ISO 8601\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `sequential_id` | number | Sequential incident number |
 |   ↳ `title` | string | Incident title |
@@ -1505,7 +1503,7 @@ Trigger workflow when an incident is updated in Rootly
 | `eventId` | string | Unique webhook event ID |
 | `eventType` | string | Rootly event type \(e.g. incident.created\) |
 | `issuedAt` | string | When the event was issued \(ISO 8601\) |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Incident ID |
 |   ↳ `sequential_id` | number | Sequential incident number |
 |   ↳ `title` | string | Incident title |

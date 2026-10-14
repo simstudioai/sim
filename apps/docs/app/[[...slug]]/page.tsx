@@ -314,7 +314,12 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
           </div>
           <PageNavigationArrows previous={neighbours?.previous} next={neighbours?.next} />
         </PageHeader>
-        <DocsBody className={DOCS_BODY_CLASS_NAME}>
+        <DocsBody
+          className={cn(
+            DOCS_BODY_CLASS_NAME,
+            slug?.[0] === 'integrations' && '[&_td]:[overflow-wrap:normal]'
+          )}
+        >
           {integrationLandingPage && (
             <p>
               {INTEGRATION_LANDING_LABEL}{' '}

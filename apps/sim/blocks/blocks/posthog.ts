@@ -11,7 +11,7 @@ export const PostHogBlock: BlockConfig = {
   description: 'Product analytics and feature management',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate PostHog into your workflow. Track events, manage feature flags, analyze user behavior, run experiments, create surveys, and access session recordings.',
+    'Capture events, query analytics, and manage people, insights, feature flags, experiments, cohorts, surveys, recordings, dashboards, projects, and organizations.',
   docsLink: 'https://docs.sim.ai/integrations/posthog',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

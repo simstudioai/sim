@@ -186,7 +186,7 @@ export const FivetranBlock: BlockConfig = {
   name: 'Fivetran',
   description: 'Manage Fivetran connections, syncs, and transformations',
   longDescription:
-    'Integrate Fivetran into the workflow. List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.',
+    'List, create, update, pause, resume, and delete connections, trigger syncs and historical re-syncs, read sync history, warnings, and schema configs, enable or disable schemas and tables, run setup tests, generate Connect Card links, look up connector setup fields, create and inspect groups and destinations, run and cancel transformations, review users, and react to sync, connection, and transformation webhooks.',
   docsLink: 'https://docs.sim.ai/integrations/fivetran',
   category: 'tools',
   integrationType: IntegrationType.Databases,

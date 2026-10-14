@@ -8,7 +8,7 @@ export const BrightDataBlock: BlockConfig = {
   description: 'Scrape websites, search engines, and extract structured data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.',
+    'Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.',
   docsLink: 'https://docs.sim.ai/integrations/brightdata',
   category: 'tools',
   integrationType: IntegrationType.Search,

@@ -8,7 +8,7 @@ export const LemlistBlock: BlockConfig = {
   description: 'Manage outreach activities, leads, and send emails via Lemlist',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.',
+    'Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.',
   docsLink: 'https://docs.sim.ai/integrations/lemlist',
   category: 'tools',
   integrationType: IntegrationType.Email,

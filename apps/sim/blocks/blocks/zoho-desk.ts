@@ -69,7 +69,7 @@ export const ZohoDeskBlock: BlockConfig = {
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
-    'Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Can also trigger workflows from Zoho Desk webhook events.',
+    'Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Trigger workflows from Zoho Desk webhook events.',
   docsLink: 'https://docs.sim.ai/integrations/zoho_desk',
   category: 'tools',
   integrationType: IntegrationType.Support,

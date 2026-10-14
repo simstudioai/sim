@@ -63,7 +63,7 @@ export const BrexBlock: BlockConfig = {
   description: 'Manage expenses, receipts, transactions, and team data in Brex',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrates Brex into the workflow. List and update expenses, upload and match receipts, view card and cash transactions, accounts, budgets, spend limits, vendors, transfers, and team data.',
+    'List and update expenses, upload and match receipts, view card and cash transactions, accounts, budgets, spend limits, vendors, transfers, and team data.',
   docsLink: 'https://docs.sim.ai/integrations/brex',
   category: 'tools',
   integrationType: IntegrationType.Commerce,

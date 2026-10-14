@@ -1,6 +1,6 @@
 # Documentation guidelines
 
-Read [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) before editing documentation. It defines the voice, terminology, page types, section order, and component choices. [COPY_AUDIT.md](COPY_AUDIT.md) records the complete audit and material source qualifications; keep new conclusions evidence-based.
+Read [EDITORIAL_GUIDE.md](EDITORIAL_GUIDE.md) before editing documentation. It defines the voice, terminology, page types, section order, and component choices. [COPY_AUDIT.md](COPY_AUDIT.md) records the general documentation audit; [INTEGRATIONS_AUDIT.md](INTEGRATIONS_AUDIT.md) records the integration audit and provider compatibility qualifications. Keep new conclusions evidence-based.
 
 ## Copy and accuracy
 

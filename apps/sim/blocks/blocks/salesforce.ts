@@ -10,7 +10,7 @@ export const SalesforceBlock: BlockConfig = {
   description: 'Interact with Salesforce CRM',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.',
+    'Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.',
   docsLink: 'https://docs.sim.ai/integrations/salesforce',
   category: 'tools',
   integrationType: IntegrationType.Sales,

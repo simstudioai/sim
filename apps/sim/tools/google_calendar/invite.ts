@@ -233,8 +233,7 @@ export const inviteV2Tool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendar
   {
     id: 'google_calendar_invite_v2',
     name: 'Google Calendar Invite Attendees',
-    description:
-      'Invite attendees to an existing Google Calendar event. Returns API-aligned fields only.',
+    description: 'Invite attendees to an existing Google Calendar event.',
     version: '2.0.0',
     oauth: inviteTool.oauth,
     params: inviteTool.params,

@@ -20,7 +20,7 @@ export const ReductoBlock: BlockConfig = {
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'reducto_v2' },
   authMode: AuthMode.ApiKey,
-  longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
+  longDescription: `Extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/integrations/reducto',
   category: 'tools',
   integrationType: IntegrationType.AI,
@@ -186,7 +186,7 @@ export const ReductoV2Block: BlockConfig = {
   type: 'reducto_v2',
   name: 'Reducto',
   hideFromToolbar: false,
-  longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.`,
+  longDescription: `Extract text from uploaded PDF documents or file references.`,
   canvasPresentation: {
     defaultTitle: 'Reducto',
     sentences: {

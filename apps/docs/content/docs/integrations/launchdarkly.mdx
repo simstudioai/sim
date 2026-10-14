@@ -1,6 +1,6 @@
 ---
 title: LaunchDarkly
-description: Manage feature flags with LaunchDarkly.
+description: Manage feature flags with LaunchDarkly
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -11,30 +11,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[LaunchDarkly](https://launchdarkly.com/) is a feature management platform that enables teams to safely deploy, control, and measure their software features at scale.
+Use [LaunchDarkly](https://launchdarkly.com/) to list, create, update, toggle, and delete feature flags, and inspect their environment-specific status. Toggling uses LaunchDarkly's semantic patch API.
 
-With the LaunchDarkly integration in Sim, you can:
-
-- **Feature flag management** — List, create, update, toggle, and delete feature flags programmatically. Toggle flags on or off in specific environments using LaunchDarkly's semantic patch API.
-- **Flag status monitoring** — Check whether a flag is active, inactive, new, or launched in a given environment. Track the last time a flag was evaluated.
-- **Project and environment management** — List all projects and their environments to understand your LaunchDarkly organization structure.
-- **User segments** — List user segments within a project and environment to understand how your audience is organized for targeting.
-- **Team visibility** — List account members and their roles for auditing and access management workflows.
-- **Audit log** — Retrieve recent audit log entries to track who changed what, when. Filter entries by resource type for targeted monitoring.
-
-In Sim, the LaunchDarkly integration enables your agents to automate feature flag operations as part of their workflows. This allows for automation scenarios such as toggling flags on/off based on deployment pipeline events, monitoring flag status and alerting on stale or unused flags, auditing flag changes by querying the audit log after deployments, syncing flag metadata with your project management tools, and listing all feature flags across projects for governance.
+Read projects, environments, segments, members, and audit logs to find targeting context or review changes. For example, toggle a flag after a deployment, then inspect its status and the resulting audit entry.
 
 ## Authentication
 
-This integration uses a LaunchDarkly API key. You can create personal access tokens or service tokens in the LaunchDarkly dashboard under **Account Settings > Authorization**. The API key is passed directly in the `Authorization` header (no `Bearer` prefix).
+Create a personal access token or service token under **Organization settings > Authorization > Tokens** in LaunchDarkly. Sim sends it directly in the `Authorization` header, without a `Bearer` prefix. Grant only the access the workflow needs. [Service tokens are available on selected plans](https://launchdarkly.com/docs/home/account/api); SDK keys cannot authenticate REST API requests.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.
-
-
+List, create, update, toggle, and delete feature flags. Read projects, environments, segments, members, and audit logs. Requires an API key.
 
 ## Actions
 

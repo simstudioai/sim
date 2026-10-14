@@ -127,7 +127,7 @@ export const ManagedAgentBlock: BlockConfig = {
   description: 'Run a Claude Platform Managed Agent',
   authMode: AuthMode.ApiKey,
   longDescription:
-    "Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.",
+    'Select a Claude Platform account, agent, and environment, then send a task. Optionally attach vaults, a memory store, files, and metadata. Returns the agent’s final text, session ID, and token usage.',
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/managed_agent',

@@ -10,7 +10,7 @@ export const pitchbookCompanyDealServiceProvidersTool: ToolConfig<
   id: 'pitchbook_company_deal_service_providers',
   name: 'PitchBook Company Deal Service Providers',
   description:
-    'Retrieve the service providers that worked on a company deals, and what each was hired for',
+    'Retrieve the service providers that worked on a company’s deals, and what each was hired for',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 
@@ -58,7 +58,7 @@ export const pitchbookCompanyDealServiceProvidersTool: ToolConfig<
   outputs: {
     dealServiceProviders: {
       type: 'array',
-      description: 'Service providers engaged on the company deals',
+      description: 'Service providers engaged on the company’s deals',
       items: {
         type: 'object',
         properties: {

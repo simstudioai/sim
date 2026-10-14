@@ -134,7 +134,7 @@ export const YouComBlock: BlockConfig = {
   description: 'Search, read, and research the web with You.com',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate You.com into the workflow. Search the web and news with query-relevant highlights or full page content, fetch page contents, get cited answers, run deep or financial research, search images, and check API credit balance.',
+    'Search the web and news with query-relevant highlights or full page content, fetch page contents, get cited answers, run deep or financial research, search images, and check API credit balance.',
   docsLink: 'https://docs.sim.ai/integrations/youcom',
   category: 'tools',
   integrationType: IntegrationType.Search,

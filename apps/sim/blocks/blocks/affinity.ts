@@ -308,7 +308,7 @@ export const AffinityBlock: BlockConfig = {
   name: 'Affinity',
   description: 'Read and write companies, people, lists, notes, and relationships in Affinity',
   longDescription:
-    'Integrates the Affinity v2 API into the workflow. Read and search companies, people, and opportunities, page the rows of any list or saved view, read and write field values one at a time or a hundred at once, write and reply to notes, create reminders, follow logged calls, emails, meetings, and transcripts, find warm introductions through shared work and investment history, search notes and files by keyword, find companies from a description in plain language, and follow the field-value change feed for delta sync. What each operation can reach depends on the permissions granted to the API key.',
+    'Read and search Affinity companies, people, opportunities, lists, and saved views. Read or update field values, notes, and reminders; retrieve interactions and transcripts; discover relationship paths; and follow field changes for incremental synchronization. Access depends on the API key holder’s permissions.',
   docsLink: 'https://docs.sim.ai/integrations/affinity',
   category: 'tools',
   integrationType: IntegrationType.Sales,

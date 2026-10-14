@@ -21,7 +21,7 @@ export const MicrosoftTeamsBlock: BlockConfig = {
   description: 'Manage messages, reactions, and members in Teams',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`',
+    'Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list teams, chats, channels, and their members. Use trigger mode to start a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_teams',
   category: 'tools',
   integrationType: IntegrationType.Communication,

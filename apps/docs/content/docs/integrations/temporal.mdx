@@ -11,24 +11,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Temporal](https://temporal.io/) is an open-source durable execution platform that lets teams write workflows as code that survive crashes, retries, and outages. A Temporal cluster tracks every workflow execution's state and event history, so long-running business processes — order fulfillment, payment pipelines, infrastructure provisioning, human-in-the-loop approvals — run reliably for minutes or months at a time.
+Use [Temporal](https://temporal.io/) to start and manage durable workflow executions from Sim. Connect to the server's HTTP API, supply the namespace, and add an API key if the server uses bearer authentication. Your server must expose the HTTP API at a URL Sim can reach; `http://localhost:7243` is an example for a local server, not a guarantee that the API is enabled on every deployment.
 
-With the Temporal integration in Sim, your agents can drive those durable workflows directly. Connect to any Temporal cluster that exposes the server's HTTP API (enabled by default on the frontend's HTTP port, 7243, in modern Temporal servers) and:
+- **Start executions:** Supply the workflow type, task queue, and JSON arguments. Configure ID reuse policy, cron, timeouts, memo, or search attributes where needed. **Signal With Start** atomically signals an execution, creating it if necessary; it does not guarantee exactly-once application processing.
+- **Interact with executions:** Send signals, query state, or invoke an update handler and wait for its result.
+- **Inspect executions:** Read status, timing, pending activities, event history, or the close event. List and count use Temporal's visibility query language.
+- **Manage execution lifecycle:** Request cancellation, terminate immediately, or reset to a past workflow task. Schedule actions create, list, inspect, pause, unpause, trigger, or delete schedules.
 
-- **Run workflows**: start executions with JSON input, use signal-with-start for exactly-once delivery, and set ID reuse policies, cron schedules, timeouts, memo fields, and search attributes.
-- **Communicate with running workflows**: send signals, invoke update handlers and wait for their results, and run queries against live workflow state.
-- **Observe executions**: describe a single execution (status, timing, pending activities), list and count executions with Temporal's visibility query language, and fetch full event histories — including just the close event to read a workflow's outcome.
-- **Operate the fleet**: cancel or terminate runaway executions, reset a workflow to a previous point in its history, and manage schedules — list, describe, pause, unpause, trigger, and delete them.
+Inputs use Temporal's standard `json/plain` payload encoding, and result payloads are decoded into JSON values. Workers must accept that encoding; custom payload codecs may need a separate adapter. A top-level JSON array is treated as the argument list; any other JSON value becomes one argument. The workflow's worker must already implement the named type and poll the selected task queue.
 
-Workflow inputs and results are encoded with Temporal's standard `json/plain` payload converter, so the integration interoperates with workers written in any Temporal SDK. If your server has authentication enabled, provide an API key and Sim sends it as a Bearer token on every request.
+Starting an execution acknowledges its creation, rather than its completion. Poll its state or history before consuming a final outcome. See Temporal's [workflow messaging reference](https://docs.temporal.io/sending-messages) for signal and update semantics.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. API key only required for servers with authentication enabled.
-
-
+Use a Temporal server’s HTTP API to start or signal executions, query or update workflow state, inspect execution history and workers, manage schedules, and cancel, terminate, or reset executions. Supply an API key when the server requires bearer authentication.
 
 ## Actions
 
@@ -88,7 +86,7 @@ Send a signal to a running Temporal workflow execution.
 
 ### Temporal Signal With Start
 
-Atomically signal a Temporal workflow, starting it first if it is not already running, so the signal is never lost.
+Atomically signal a Temporal workflow execution, starting it first if it is not already running.
 
 #### Input
 

@@ -8,7 +8,7 @@ export const CloudFormationBlock: BlockConfig = {
   name: 'CloudFormation',
   description: 'Manage and inspect AWS CloudFormation stacks, resources, and drift',
   longDescription:
-    'Integrate AWS CloudFormation into workflows. Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.',
+    'Create, update, and delete stacks, preview changes with change sets, describe stacks, list resources, detect drift, view stack events, and retrieve or validate templates. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   docsLink: 'https://docs.sim.ai/integrations/cloudformation',

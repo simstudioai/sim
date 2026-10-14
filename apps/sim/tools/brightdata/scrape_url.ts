@@ -11,7 +11,7 @@ export const brightDataScrapeUrlTool: ToolConfig<
   id: 'brightdata_scrape_url',
   name: 'Bright Data Scrape URL',
   description:
-    'Fetch content from any URL using Bright Data Web Unlocker. Bypasses anti-bot protections, CAPTCHAs, and IP blocks automatically.',
+    'Fetch page content with Bright Data Web Unlocker, including its supported anti-bot, CAPTCHA, and IP-block handling. Access depends on the target site and zone configuration.',
   version: '1.0.0',
 
   params: {

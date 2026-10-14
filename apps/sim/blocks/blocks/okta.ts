@@ -48,7 +48,7 @@ export const OktaBlock: BlockConfig = {
   name: 'Okta',
   description: 'Manage users, groups, apps, and MFA in Okta',
   longDescription:
-    'Integrate Okta identity management into your workflow. Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.',
+    'Manage users, groups, and group rules. Run service desk actions like resetting MFA factors and clearing sessions. Review and change application assignments and admin roles. Query the System Log to audit sign-ins and admin changes.',
   docsLink: 'https://docs.sim.ai/integrations/okta',
   category: 'tools',
   authMode: AuthMode.ApiKey,

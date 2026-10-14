@@ -163,7 +163,7 @@ export const CodaBlock: BlockConfig = {
   description: 'Read and write Coda docs, pages, tables, and rows',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Coda (Superhuman Docs) into your workflow with a reusable API-token credential. Create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.',
+    'Use a reusable API-token credential to create, copy, publish, and share docs; create, update, read, export, and clear pages; read table schemas; list, insert, upsert, update, and delete rows and push row buttons; read formulas and controls; trigger webhook automations; manage folders, custom domains, and workspace roles; and read doc and page analytics. Pick docs, pages, tables, rows, and more from dropdowns populated by your account.',
   docsLink: 'https://docs.sim.ai/integrations/coda',
   category: 'tools',
   integrationType: IntegrationType.Documents,

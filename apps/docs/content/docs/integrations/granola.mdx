@@ -11,23 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Granola](https://www.granola.ai/) is an AI notepad for meetings that automatically records and transcribes calls, then generates structured notes and summaries alongside your own typed notes.
+Use [Granola](https://www.granola.ai/) to list meeting notes, read summaries, attendees, calendar details, and transcripts, and browse folders. Filter lists by date or folder and use pagination to retrieve more notes.
 
-With Granola, you can:
-
-- **List meeting notes**: Browse notes with date filters, folder scoping, and pagination
-- **Retrieve full note details**: Get summaries, attendees, calendar event details, and transcripts for a specific note
-- **Organize by folders**: List and filter notes using Granola's folder structure
-
-In Sim, the Granola integration allows your agents to pull meeting notes, summaries, and transcripts directly into a workflow. Agents can list recent notes with date or folder filters, fetch a specific note's summary text, attendees, and calendar details, retrieve the full transcript with speaker labels when needed, and browse folders to organize retrieval. This makes it possible to build workflows that surface meeting outcomes, route action items, or feed meeting context into downstream agent reasoning.
+The integration also reads workspace audit events and manages webhook endpoints. Note-generated, edited, and shared events can start workflows that route action items or pass meeting context to later steps.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts, review workspace audit events, and manage webhook endpoints. Granola can also trigger workflows when notes are generated, edited, or shared with you.
-
-
 
 ## Actions
 
@@ -301,7 +293,7 @@ Deletes a Granola webhook endpoint by ID, stopping its event deliveries immediat
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Granola Events
 

@@ -80,7 +80,7 @@ export const semrushDomainVsDomainTool: ToolConfig<
   id: 'semrush_domain_vs_domain',
   name: 'Semrush Domain vs. Domain',
   description:
-    'Compare up to five domains on the keywords they rank for, returning each domain position side by side.',
+    'Compare up to five domains on the keywords they rank for, returning each domain’s position side by side.',
   version: '1.0.0',
 
   params: {
@@ -199,7 +199,7 @@ export const semrushDomainVsDomainTool: ToolConfig<
     },
     keywords: {
       type: 'array',
-      description: 'Keywords with each compared domain position',
+      description: 'Keywords with each compared domain’s position',
       items: {
         type: 'object',
         properties: {

@@ -15,10 +15,23 @@ Use [Trello](https://trello.com) to manage boards, lists, cards, checklists, lab
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a Trello account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Environment variables | `TRELLO_API_KEY` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read` | Read boards, lists, cards, and workspaces |
+| `write` | Create and update boards, lists, and cards |
+
+## Use the block [#usage-instructions]
 
 {/* MANUAL-CONTENT-START:usage */}
-## Trello OAuth Setup
+## Trello OAuth setup [#trello-oauth-setup]
 
 Before connecting Trello in Sim, add your Sim app origin to the **Allowed Origins** list for your Trello API key in the Trello Power-Up admin settings.
 
@@ -27,8 +40,6 @@ Trello's authorization flow redirects back to Sim using a `return_url`. If your 
 
 
 Integrate with Trello to list, search, create, update, and delete cards and lists, manage checklists and checklist items, assign labels and members, review activity, and add comments.
-
-
 
 ## Actions
 
@@ -578,18 +589,5 @@ List members of a Trello board
 |   ↳ `fullName` | string | Member full name |
 |   ↳ `username` | string | Member username |
 | `count` | number | Number of members returned |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Trello account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Environment variables | `TRELLO_API_KEY` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `read` | Read boards, lists, cards, and workspaces |
-| `write` | Create and update boards, lists, and cards |
 
 

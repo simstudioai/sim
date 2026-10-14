@@ -11,35 +11,41 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Zoho Desk](https://www.zoho.com/desk/) is Zoho's customer support help desk. Support teams use it to receive tickets from email, web forms, chat, phone, and social channels, route them to the right department and agent, and track every customer conversation through to resolution.
+Use [Zoho Desk](https://www.zoho.com/desk/) to list, read, and update tickets, inspect threads and comments, add public or private comments, look up contacts, and download attachments. Comment and thread results include plain-text `contentText` alongside the original HTML `content`.
 
-With the Sim Zoho Desk integration, you can:
+Connect a credential, choose the organization, and fill in the selected operation's inputs. The organization picker reflects the connected account's access.
 
-- **Read and filter tickets**: List tickets across an organization filtered by department, status, or priority, or fetch a single ticket by ID with its related contact, assignee, and department.
-- **Update tickets**: Change subject, status, priority, assignee, department, category, due date, and custom fields — useful for AI triage that classifies an incoming ticket and writes the result back.
-- **Work with conversations**: List and read ticket threads (the customer-facing email/chat exchange) and comments (internal agent notes), then add your own comment as public or private.
-- **Look up contacts**: Retrieve the contact behind a ticket to enrich it with data from your CRM or knowledge base.
-- **Download attachments**: Pull an attachment from a thread or comment into a Sim file you can pass to downstream blocks.
-- **Trigger on events**: Start a workflow when a ticket, comment, thread, contact, agent, task, or article changes in Zoho Desk.
+Trigger mode starts workflows from Zoho Desk events. Sim creates the webhook subscription on deployment and removes it on undeployment. [Webhooks require Professional or higher](https://desk.zoho.com/support/WebhookDocument.do) and a connected account with webhook permission.
 
-**How it works in Sim:**
-Add a Zoho Desk block to your workflow, connect your Zoho account, and pick the Organization (portal) to work in — Sim loads the list for you from the connected account. Choose an operation and fill in its parameters; the block calls the Zoho Desk API and returns structured data for downstream blocks. For comment and thread bodies, Sim adds a derived plain-text `contentText` field alongside Zoho's raw HTML `content`, so an AI agent can read the message without HTML markup.
-
-To trigger on Zoho Desk activity instead, use the block's trigger mode. Sim creates the webhook subscription in Zoho Desk for you and removes it automatically when the workflow is undeployed.
-
-**Requirements and limitations**
-
-> Zoho Desk webhooks require a Zoho Desk edition of **Professional or higher** — Free and Standard plans cannot create webhook subscriptions, so the trigger will fail to deploy on those plans.
->
-> Connecting a Zoho account with **OAuth** — which the trigger requires — works only for the **US data center** (`accounts.zoho.com`). To use Zoho Desk blocks from the EU, India, or Australia data centers, connect a [Self Client](/integrations/zoho-desk-service-account) instead and set its data center. The Japan, Canada, Saudi Arabia, China, and UK data centers are not supported by either path.
+Interactive OAuth, which triggers require, supports the US data center only. Blocks can instead use a [Self Client](/integrations/zoho-desk-service-account) for US, EU, India, or Australia. Japan, Canada, Saudi Arabia, China, and UK data centers are not supported by these connections.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Can also trigger workflows from Zoho Desk webhook events.
+Sim requests these scopes when someone connects a Zoho Desk account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/zoho-desk` |
+| Environment variables | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `Desk.tickets.READ` | View tickets, threads, comments, and attachments |
+| `Desk.tickets.UPDATE` | Update tickets and add comments |
+| `Desk.contacts.READ` | View contacts |
+| `Desk.articles.READ` | View knowledge base articles |
+| `Desk.organization.READ` | View organization details |
+| `Desk.agents.READ` | View agents |
+| `Desk.basic.READ` | View basic data such as organizations, agents, and departments |
+| `Desk.webhooks.CREATE` | Create webhooks |
+| `Desk.webhooks.DELETE` | Delete webhooks |
+| `aaaserver.profile.READ` | View your Zoho profile |
+
+## Use the block [#usage-instructions]
+
+Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Trigger workflows from Zoho Desk webhook events.
 
 ## Actions
 
@@ -481,9 +487,11 @@ List the Zoho Desk organizations (portals) the connected account can access.
 |   ↳ `portalName` | string | Portal name |
 | `count` | number | Number of organizations returned |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Zoho Desk Event
 
@@ -510,28 +518,4 @@ Trigger a workflow when a Zoho Desk event occurs (ticket, comment, thread, conta
 | `orgId` | string | Zoho Desk organization ID |
 | `payload` | json | The full resource that changed \(ticket, comment, thread, etc.\). Comment and thread events gain a derived plain-text `contentText` alongside the raw `content` + `contentType`; ticket events gain `descriptionText` alongside `description`. |
 | `prevState` | json | Previous state of the resource \(update events only\) |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Zoho Desk account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/zoho-desk` |
-| Environment variables | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `Desk.tickets.READ` | View tickets, threads, comments, and attachments |
-| `Desk.tickets.UPDATE` | Update tickets and add comments |
-| `Desk.contacts.READ` | View contacts |
-| `Desk.articles.READ` | View knowledge base articles |
-| `Desk.organization.READ` | View organization details |
-| `Desk.agents.READ` | View agents |
-| `Desk.basic.READ` | View basic data such as organizations, agents, and departments |
-| `Desk.webhooks.CREATE` | Create webhooks |
-| `Desk.webhooks.DELETE` | Delete webhooks |
-| `aaaserver.profile.READ` | View your Zoho profile |
-
 
