@@ -8,7 +8,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { workspaceFileProvenanceIdentity } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export interface ReadWorkspaceFileSecretProvenanceInput {

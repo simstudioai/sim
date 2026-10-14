@@ -47,7 +47,7 @@ vi.mock(
   () => workspaceFileSecretProvenanceMock
 )
 
-vi.mock('@/lib/uploads/contexts/workspace/file-versions', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-version-store', () => ({
   isVersionHeadCurrent: vi.fn(() => false),
   listWorkspaceFileVersionKeysInTx: vi.fn(async () => []),
   loadWorkspaceFileVersionHead: vi.fn(async () => undefined),

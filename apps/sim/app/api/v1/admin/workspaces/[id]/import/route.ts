@@ -45,7 +45,7 @@ import {
   extractWorkflowsFromZip,
   parseWorkflowJson,
 } from '@/lib/workflows/operations/import-export'
-import { createWorkflowWithState } from '@/lib/workflows/orchestration/lifecycle'
+import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { normalizeImportedVariables } from '@/lib/workflows/variables/parse'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'

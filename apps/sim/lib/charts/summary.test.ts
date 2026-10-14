@@ -8,7 +8,7 @@ import {
   summarizeChart,
 } from '@/lib/charts/summary'
 import { bindTimeSeriesInteractions, type ChartReadout } from '@/lib/charts/time-series'
-import { createDashboardCursorStore } from '@/stores/dashboards/store'
+import { createDashboardCursorStore } from '@/stores/dashboards/cursor/store'
 
 echarts.setPlatformAPI({ measureText: (text) => ({ width: String(text).length * 6 }) })
 echarts.use(chartSummaryExtension)

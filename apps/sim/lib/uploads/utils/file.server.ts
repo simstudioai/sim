@@ -15,7 +15,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { StorageService } from '@/lib/uploads'
 import { isExecutionFile } from '@/lib/uploads/contexts/execution/utils'
-// This file is lazily imported back by workspace-file-manager, so that edge
+// This file is lazily imported back by `contexts/workspace/file-manager`, so that edge
 // stays dynamic on their side; these statics do not close a load-time cycle.
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/file-manager'
 import {

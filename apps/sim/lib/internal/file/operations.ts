@@ -54,7 +54,7 @@ import {
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { INITIAL_WORKSPACE_FILE_VERSION } from '@/lib/uploads/contexts/workspace/file-versions'
+import { INITIAL_WORKSPACE_FILE_VERSION } from '@/lib/uploads/contexts/workspace/file-version-store'
 import {
   getFileExtension,
   getMimeTypeFromExtension,

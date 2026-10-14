@@ -27,7 +27,7 @@ vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
-vi.mock('@/lib/uploads/contexts/workspace/file-versions', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-version-store', () => ({
   getCurrentWorkspaceFileVersion: hoisted.getCurrentVersion,
   getWorkspaceFileVersion: hoisted.getVersion,
   getWorkspaceFileVersionProvenance: hoisted.getProvenance,

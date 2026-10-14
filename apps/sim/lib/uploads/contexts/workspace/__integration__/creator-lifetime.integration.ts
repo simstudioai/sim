@@ -35,7 +35,7 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/file-manager'
-import { queryWorkspaceFileVersions } from '@/lib/uploads/contexts/workspace/file-versions'
+import { queryWorkspaceFileVersions } from '@/lib/uploads/contexts/workspace/file-version-store'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'

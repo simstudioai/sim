@@ -26,7 +26,7 @@ import {
   getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
-} from '@/lib/uploads/contexts/workspace/file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { formatFileSize } from '@/lib/uploads/utils/file'
@@ -35,11 +35,11 @@ import {
   workspaceFileProvenanceIdentity,
 } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import {
   type DownloadWorkspaceFileStreamResult,
   streamWorkspaceFileRecord,
 } from '@/lib/workspace-files/application/download-workspace-file'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

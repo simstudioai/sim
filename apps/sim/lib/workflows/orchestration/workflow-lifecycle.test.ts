@@ -29,7 +29,7 @@ vi.mock('@/lib/workflows/defaults', () => ({
   }),
 }))
 
-import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/lifecycle'
+import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration/workflow-lifecycle'
 
 /** Shape the `postgres` driver throws for a unique violation. */
 const uniqueViolation = (constraintName: string) =>

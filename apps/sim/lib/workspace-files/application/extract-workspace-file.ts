@@ -19,7 +19,7 @@ import {
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { isArchiveFileName } from '@/lib/uploads/utils/file'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 

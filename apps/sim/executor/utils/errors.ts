@@ -185,7 +185,7 @@ const MAX_CAUSE_DEPTH = 8
  * Reads only SIM-OWNED carriers: `HttpError.statusCode` (canonical) and the
  * `statusCode` field `generic/handler` re-attaches from a failed `ToolResponse`.
  * Deliberately does NOT read the duck-typed `status` field: that carries an
- * UPSTREAM target's status (`api-handler` copies it off the remote response, and
+ * UPSTREAM target's status (`api/handler` copies it off the remote response, and
  * transformed HTTP tool errors carry it too). Adopting it would turn a remote
  * 404 into the workflow API's 404, colliding with the statuses that route owns
  * (404 = workflow not found, 401 = bad API key, 429 = Sim rate limit).

@@ -16,8 +16,8 @@ import {
   requireAdmittedWorkspaceFile,
 } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 export interface ReadWorkspaceFileMountInput {

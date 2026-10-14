@@ -13,7 +13,10 @@ import {
   relativeDashboardRange,
 } from '@/lib/dashboards/time'
 import { tableAnalyticsKeys } from '@/hooks/queries/table-analytics'
-import { createDashboardCursorStore, type DashboardCursorStore } from '@/stores/dashboards/store'
+import {
+  createDashboardCursorStore,
+  type DashboardCursorStore,
+} from '@/stores/dashboards/cursor/store'
 
 /** How often a relative range advances its end to the present while the page is visible. */
 const LIVE_TICK_MS = 60_000

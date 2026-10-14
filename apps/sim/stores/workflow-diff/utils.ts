@@ -121,7 +121,7 @@ export async function persistWorkflowStateToServer(
 
     type ContractEdgeInput = WorkflowStateContractInput['edges'][number]
 
-    // Mirror auto-layout-utils sanitization: schema rejects nullable
+    // Mirror `utils/auto-layout` sanitization: schema rejects nullable
     // sourceHandle/targetHandle (input type is `string | undefined`), but the
     // store's Edge type carries `string | null | undefined`. Drop nulls before
     // sending so the contract input parses cleanly.

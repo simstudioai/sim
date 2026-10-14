@@ -47,7 +47,7 @@ function stateWithSubBlock(type: string, value: unknown): Partial<WorkflowState>
 
 /**
  * The exact option set `json-sanitizer`'s `sanitizeForExport` passes, copied rather than imported
- * so this suite keeps testing `extractor` without pulling in its own consumer.
+ * so this suite keeps testing the credential extractor without pulling in its own consumer.
  *
  * The copy cannot drift unnoticed: `import-export-roundtrip` calls the real `sanitizeForExport`
  * and asserts the same withholding, so dropping an option there turns that suite red. Every

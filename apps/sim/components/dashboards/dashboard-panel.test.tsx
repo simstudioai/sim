@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DashboardInteractionContext } from '@/components/dashboards/dashboard-interactions'
 import { DashboardPanel } from '@/components/dashboards/dashboard-panel'
 import type { QueryTableAnalyticsResponse } from '@/lib/api/contracts/table-analytics'
-import { createDashboardCursorStore } from '@/stores/dashboards/store'
+import { createDashboardCursorStore } from '@/stores/dashboards/cursor/store'
 
 const mocks = vi.hoisted(() => ({ query: vi.fn() }))
 vi.mock('@/hooks/queries/table-analytics', () => ({ useTableAnalytics: mocks.query }))

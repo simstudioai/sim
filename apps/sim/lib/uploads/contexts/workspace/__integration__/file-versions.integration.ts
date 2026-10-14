@@ -64,7 +64,7 @@ import {
   getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
-} from '@/lib/uploads/contexts/workspace/file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import * as storageService from '@/lib/uploads/core/storage-service'
 import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'

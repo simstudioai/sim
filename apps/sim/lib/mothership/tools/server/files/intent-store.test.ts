@@ -26,7 +26,7 @@ function uniqueWorkspace(): string {
   return `ws-${generateShortId()}`
 }
 
-describe('intent-store channel scoping', () => {
+describe('file intent store channel scoping', () => {
   it('consumes the intent for the requesting channel, not the latest in the message', async () => {
     const ws = uniqueWorkspace()
     const scope = { chatId: 'chat-1', messageId: 'msg-1' }

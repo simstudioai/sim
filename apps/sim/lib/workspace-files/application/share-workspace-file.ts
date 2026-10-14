@@ -31,7 +31,7 @@ import { loadPublishedCompiledDocInputs } from '@/lib/uploads/documents/compiled
 import { getFileExtension, isRenderableDocumentName } from '@/lib/uploads/utils/file'
 import { workspaceFileProvenanceIdentity } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { validatePublicFileSharing } from '@/ee/access-control/utils/permission-check'

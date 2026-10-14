@@ -13,7 +13,7 @@ import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { createWorkflowWithState } from '@/lib/workflows/orchestration/lifecycle'
+import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 

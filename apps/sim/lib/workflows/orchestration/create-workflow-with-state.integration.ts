@@ -9,7 +9,7 @@ import { generateId } from '@sim/utils/id'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createWorkflowWithState } from '@/lib/workflows/orchestration/lifecycle'
+import { createWorkflowWithState } from '@/lib/workflows/orchestration/workflow-lifecycle'
 
 const userId = generateId()
 const workspaceId = generateId()

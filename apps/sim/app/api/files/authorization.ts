@@ -13,7 +13,7 @@ import {
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { getFileMetadata } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
-import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/file-versions'
+import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/file-version-store'
 import type { StorageConfig } from '@/lib/uploads/core/storage-client'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { isWorkspaceScopedContext } from '@/lib/uploads/shared/types'

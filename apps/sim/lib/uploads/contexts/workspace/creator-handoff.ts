@@ -6,7 +6,7 @@ import {
   isVersionHeadCurrent,
   loadWorkspaceFileVersionHeads,
   materializeWorkspaceFileVersionInTx,
-} from '@/lib/uploads/contexts/workspace/file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 
 /** Freezes implicit history under the writer lock before replacing a shared file's live creator. */
 export async function handoffFileCreatorsInTx(

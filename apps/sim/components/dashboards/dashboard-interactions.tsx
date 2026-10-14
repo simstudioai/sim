@@ -2,7 +2,7 @@
 
 import { createContext, useContext } from 'react'
 import type { DashboardTimeRange } from '@/lib/dashboards/time'
-import type { DashboardCursorStore } from '@/stores/dashboards/store'
+import type { DashboardCursorStore } from '@/stores/dashboards/cursor/store'
 
 interface DashboardInteractions {
   cursorStore: DashboardCursorStore

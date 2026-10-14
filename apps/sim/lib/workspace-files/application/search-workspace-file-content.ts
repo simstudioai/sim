@@ -7,7 +7,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listFileFolders, loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { assertOwnedFileAccess } from '@/lib/workspace-files/application/context'
+import { assertOwnedFileAccess } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFolderScope } from '@/lib/workspace-files/resolve-folder-scope'
 import {

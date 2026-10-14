@@ -23,8 +23,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/file-versions', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/uploads/contexts/workspace/file-versions')>()),
+vi.mock('@/lib/uploads/contexts/workspace/file-version-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/uploads/contexts/workspace/file-version-store')>()),
   currentWorkspaceFileVersionNumberSql: vi.fn(() => ({ versionProjection: true })),
 }))
 

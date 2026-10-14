@@ -10,7 +10,7 @@ import { createMarkdownExport, MarkdownExportSizeError } from '@/lib/uploads/ser
 import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { isMarkdownFile } from '@/lib/uploads/utils/file'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/context'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 

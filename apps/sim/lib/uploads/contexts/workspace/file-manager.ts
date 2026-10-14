@@ -88,7 +88,7 @@ import {
   recordWorkspaceFileVersionInTx,
   type WorkspaceFileVersionDeletion,
   type WorkspaceFileVersionWrite,
-} from '@/lib/uploads/contexts/workspace/file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   deleteFile,

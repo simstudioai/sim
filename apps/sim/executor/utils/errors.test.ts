@@ -46,7 +46,7 @@ describe('getExecutionErrorStatus', () => {
   })
 
   it("never adopts an upstream target's duck-typed status as our own", () => {
-    // `api-handler` copies the remote response's status onto the thrown error.
+    // `api/handler` copies the remote response's status onto the thrown error.
     // Adopting it would make a remote 404 the workflow API's 404.
     const error = Object.assign(new Error('HTTP 404'), { status: 404 })
     expect(getExecutionErrorStatus(error)).toBe(500)

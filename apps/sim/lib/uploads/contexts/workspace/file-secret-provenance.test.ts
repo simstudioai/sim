@@ -8,7 +8,7 @@ const { mockReportWrite, mockReportRefusal, mockFindWorkspaceFileVersionKeys } =
   mockFindWorkspaceFileVersionKeys: vi.fn(async () => new Set<string>()),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/file-versions', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-version-store', () => ({
   findWorkspaceFileVersionKeys: mockFindWorkspaceFileVersionKeys,
 }))
 

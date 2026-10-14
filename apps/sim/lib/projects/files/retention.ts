@@ -26,7 +26,7 @@ import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/work
 import {
   MAX_SUPERSEDED_FILE_VERSIONS,
   releaseWorkspaceFileVersionsForPurgeInTx,
-} from '@/lib/uploads/contexts/workspace/file-versions'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 

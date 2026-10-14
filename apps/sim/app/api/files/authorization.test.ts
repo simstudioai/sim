@@ -29,7 +29,7 @@ const { mockFindWorkspaceFileVersionKeys } = vi.hoisted(() => ({
   mockFindWorkspaceFileVersionKeys: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/file-versions', () => ({
+vi.mock('@/lib/uploads/contexts/workspace/file-version-store', () => ({
   findWorkspaceFileVersionKeys: mockFindWorkspaceFileVersionKeys,
 }))
 

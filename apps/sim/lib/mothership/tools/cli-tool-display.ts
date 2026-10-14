@@ -4,7 +4,7 @@
  * (`cli_<command path with spaces/dashes as underscores>`).
  *
  * Generated from the sim CLI command inventory; present-participle titles so
- * the standard completed/failed tense projection in `display.ts` applies.
+ * the standard completed/failed tense projection in `tools/display.ts` applies.
  * Regenerate when the CLI command surface changes.
  */
 export const CLI_TOOL_TITLES: Record<string, string> = {

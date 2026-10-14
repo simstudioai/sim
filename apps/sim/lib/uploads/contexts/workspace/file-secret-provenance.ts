@@ -23,7 +23,7 @@ import {
   PROVENANCE_MAX_ENTRIES,
   PROVENANCE_MAX_SERIALIZED_BYTES,
 } from '@/lib/execution/provenance-limits'
-import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/file-versions'
+import { findWorkspaceFileVersionKeys } from '@/lib/uploads/contexts/workspace/file-version-store'
 import type { OwnedFileContext } from '@/lib/workspace-files/owned-files'
 import { OWNED_FILE_CONTEXTS } from '@/lib/workspace-files/owned-files'
 import {

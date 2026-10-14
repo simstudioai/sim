@@ -11,7 +11,7 @@ import { cleanupArchivedWorkspaceFileFolders } from '@/lib/file-retention/folder
 import type { FileArchiveCleanup, FileRetentionOptions } from '@/lib/file-retention/types'
 import { isUsingCloudStorage, type StorageContext, StorageService } from '@/lib/uploads'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
-import { releaseWorkspaceFileVersionsForPurgeInTx } from '@/lib/uploads/contexts/workspace/file-versions'
+import { releaseWorkspaceFileVersionsForPurgeInTx } from '@/lib/uploads/contexts/workspace/file-version-store'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('FileArchiveCleanup')

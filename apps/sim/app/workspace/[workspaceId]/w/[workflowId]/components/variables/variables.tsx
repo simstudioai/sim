@@ -34,7 +34,7 @@ import {
   MIN_VARIABLES_HEIGHT,
   MIN_VARIABLES_WIDTH,
   useVariablesModalStore,
-} from '@/stores/variables/modal/store'
+} from '@/stores/modals/variables/store'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

@@ -22,7 +22,7 @@ import type {
 } from '@/lib/workflows/application/import-export'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { resolveImportedMetadata } from '@/lib/workflows/operations/import-workflow'
-import { createWorkflowInTransaction } from '@/lib/workflows/orchestration/lifecycle'
+import { createWorkflowInTransaction } from '@/lib/workflows/orchestration/workflow-lifecycle'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import { admitWorkflowState, saveAdmittedWorkflowState } from '@/lib/workflows/persistence/utils'
 import {

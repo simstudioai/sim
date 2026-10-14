@@ -14,7 +14,7 @@ import {
   coerceWorkflowVariableValue,
   normalizeWorkflowVariables,
   type WorkflowVariable,
-} from '@/lib/workflows/application/variables'
+} from '@/lib/workflows/application/workflow-variables'
 
 const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
 
