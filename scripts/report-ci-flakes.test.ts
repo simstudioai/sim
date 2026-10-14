@@ -136,6 +136,12 @@ describe('planIssueActions', () => {
     expect(action.body).toContain('Occurrences: 2')
   })
 
+  it('records the occurrences an update adds, so the next run skips them', () => {
+    let issues = applied([flake('test:a', [occurrence(1)])], [])
+    issues = applied([flake('test:a', [occurrence(1), occurrence(2)])], issues)
+    expect(planIssueActions([flake('test:a', [occurrence(1), occurrence(2)])], issues)).toEqual([])
+  })
+
   it('leaves an open issue open', () => {
     const issues = applied([flake('test:a', [occurrence(1)])], [])
     const [action] = planIssueActions([flake('test:a', [occurrence(2)])], issues)
@@ -161,6 +167,16 @@ describe('planIssueActions', () => {
     expect(issues[0].body).toContain('Occurrences: 31')
     expect(issues[0].body).not.toContain('/job/1)')
     expect(planIssueActions([flake('test:a', [occurrence(1)])], issues)).toEqual([])
+  })
+
+  it('counts an older occurrence a full list never saw, as a wider backfill finds', () => {
+    const jobs = Array.from({ length: 31 }, (_, index) => occurrence(index + 10))
+    const issues = applied([flake('test:a', jobs)], [])
+
+    const [action] = planIssueActions([flake('test:a', [occurrence(5)])], issues)
+
+    expect(action).toMatchObject({ kind: 'update', added: 1 })
+    expect(action.body).toContain('Occurrences: 32')
   })
 
   it('matches an issue by its key even when the test name could end an HTML comment', () => {

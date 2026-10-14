@@ -72,7 +72,9 @@ that failed on a CI attempt and passed when the same commit was re-run, and reop
 flake recurs after it was closed. Fix the nondeterminism it names: pin the clock
 (`vi.useFakeTimers({ toFake: ['Date'] })` + `vi.setSystemTime`), give each test its own ids and
 rows, wait on the condition rather than a delay, and keep cold imports out of a test's timeout by
-importing statically. Never add a retry, a longer timeout, or a skip to make one pass.
+importing statically. Never add a retry, a skip, or a longer timeout to make one pass; raise a
+budget only when its run history shows the budget itself is wrong, and record that evidence
+beside it.
 
 ## Unit test mechanics
 

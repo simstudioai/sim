@@ -9,9 +9,14 @@
  * names no failing test is tracked as the job itself. A flake an author clears by pushing again,
  * rather than re-running, leaves no trace in the API and is not counted.
  *
- * Every issue carries the `ci-flake` label and a hidden key, and lists each occurrence by its job
- * URL, so a run is idempotent: an occurrence already listed is skipped, and a closed issue is
- * reopened when its flake recurs — closing one is a claim that the flake is fixed.
+ * Every issue carries the `ci-flake` label, a hidden key, and the hidden list of job ids it has
+ * counted, so a run is idempotent: an occurrence already counted is skipped, a write that failed
+ * partway is completed by the next run, and a closed issue is reopened when its flake recurs —
+ * closing one is a claim that the flake is fixed.
+ *
+ * Runs are selected by creation date, so a run re-run after it leaves the lookback window is
+ * missed. Re-runs start within hours of the run (every one in a two-week sample within four), and
+ * the daily schedule's three-day window leaves two days of slack.
  *
  * Usage: bun scripts/report-ci-flakes.ts [--days <n>] [--dry-run]
  * Needs GITHUB_TOKEN with `actions: read` and `issues: write`, and GITHUB_REPOSITORY (owner/name).
@@ -27,8 +32,13 @@ const MAX_LISTED_OCCURRENCES = 30
 const MAX_TITLE_LENGTH = 200
 /** The key is URI-encoded so a test name can never close the HTML comment that carries it. */
 const KEY_MARKER = /<!-- ci-flake-key: (\S+) -->/
+const COUNTED_MARKER = /<!-- ci-flake-jobs: ([\d,]*) -->/
+/**
+ * Job ids only grow, and a counted job can only be seen again while its run is inside the lookback
+ * window, so keeping the newest ids is enough. The cap keeps the body under GitHub's size limit.
+ */
+const MAX_COUNTED_JOB_IDS = 4_000
 const OCCURRENCE_ROW = /^\| (\S+) \| (.+) \| \[attempt (\d+)\]\((\S+\/job\/(\d+))\) \|$/gm
-const TOTAL_LINE = /^Occurrences: (\d+)$/m
 
 export interface Occurrence {
   jobId: number
@@ -112,8 +122,9 @@ function keyOfIssueBody(body: string): string | undefined {
   return match ? decodeURIComponent(match[1]) : undefined
 }
 
-function listedJobIds(body: string): number[] {
-  return parseOccurrences(body).map((occurrence) => occurrence.jobId)
+function countedJobIds(body: string): number[] {
+  const ids = COUNTED_MARKER.exec(body)?.[1]
+  return ids ? ids.split(',').map(Number) : []
 }
 
 function parseOccurrences(body: string): Occurrence[] {
@@ -126,18 +137,25 @@ function parseOccurrences(body: string): Occurrence[] {
   }))
 }
 
-/** Renders an issue body; `total` counts every occurrence ever recorded, listed or not. */
-function renderIssueBody(flake: Flake, occurrences: Occurrence[], total: number): string {
+/**
+ * Renders an issue body: the newest occurrences as a table, and `counted`, every job id counted
+ * so far, listed or not.
+ */
+function renderIssueBody(flake: Flake, occurrences: Occurrence[], counted: number[]): string {
   const listed = [...occurrences]
     .sort((left, right) => compareStrings(right.at, left.at))
     .slice(0, MAX_LISTED_OCCURRENCES)
+  const kept = [...new Set(counted)]
+    .sort((left, right) => right - left)
+    .slice(0, MAX_COUNTED_JOB_IDS)
   return [
     `<!-- ci-flake-key: ${encodeURIComponent(flake.key)} -->`,
+    `<!-- ci-flake-jobs: ${kept.join(',')} -->`,
     `\`${flake.subject.replaceAll('`', "'")}\` failed on a CI attempt and passed when the same commit was re-run.`,
     '',
     'Fix the nondeterminism (clock, ordering, shared state, an unawaited condition) rather than adding a retry or a longer timeout. Close this issue once it is fixed; `scripts/report-ci-flakes.ts` reopens it if the flake recurs.',
     '',
-    `Occurrences: ${total}`,
+    `Occurrences: ${kept.length}`,
     '',
     '| Failed at | Job | Run |',
     '| --- | --- | --- |',
@@ -150,10 +168,8 @@ function renderIssueBody(flake: Flake, occurrences: Occurrence[], total: number)
 
 /**
  * Decides what to do with each flake given the tracker's existing issues: create one, or append
- * the occurrences an issue does not list yet (reopening it if closed). A flake whose occurrences
- * are all listed already needs nothing, which is what makes overlapping lookback windows safe.
- * A full list keeps only the newest occurrences, so one older than all of them was counted before
- * it dropped off and is not counted again.
+ * the occurrences an issue has not counted yet (reopening it if closed). A flake whose occurrences
+ * are all counted already needs nothing, which is what makes overlapping lookback windows safe.
  */
 export function planIssueActions(flakes: Flake[], issues: IssueSnapshot[]): IssueAction[] {
   const byKey = new Map<string, IssueSnapshot>()
@@ -169,32 +185,29 @@ export function planIssueActions(flakes: Flake[], issues: IssueSnapshot[]): Issu
       actions.push({
         kind: 'create',
         flake,
-        body: renderIssueBody(flake, flake.occurrences, flake.occurrences.length),
+        body: renderIssueBody(
+          flake,
+          flake.occurrences,
+          flake.occurrences.map((occurrence) => occurrence.jobId)
+        ),
       })
       continue
     }
-    const listed = parseOccurrences(issue.body)
-    const listedIds = new Set(listed.map((occurrence) => occurrence.jobId))
-    const oldestKept =
-      listed.length >= MAX_LISTED_OCCURRENCES
-        ? listed.reduce(
-            (oldest, { at }) => (compareStrings(at, oldest) < 0 ? at : oldest),
-            listed[0].at
-          )
-        : undefined
-    const added = flake.occurrences.filter(
-      (occurrence) =>
-        !listedIds.has(occurrence.jobId) &&
-        (oldestKept === undefined || compareStrings(occurrence.at, oldestKept) >= 0)
-    )
+    const counted = countedJobIds(issue.body)
+    const countedIds = new Set(counted)
+    const added = flake.occurrences.filter((occurrence) => !countedIds.has(occurrence.jobId))
     if (added.length === 0) continue
-    const previousTotal = Number(TOTAL_LINE.exec(issue.body)?.[1] ?? listed.length)
+    const listed = parseOccurrences(issue.body)
     actions.push({
       kind: 'update',
       number: issue.number,
       reopen: issue.state === 'closed',
       added: added.length,
-      body: renderIssueBody(flake, [...listed, ...added], previousTotal + added.length),
+      body: renderIssueBody(
+        flake,
+        [...listed, ...added],
+        [...counted, ...added.map((occurrence) => occurrence.jobId)]
+      ),
     })
   }
   return actions
@@ -256,7 +269,7 @@ class GitHubClient {
 
   successfulRunsSince(since: string): Promise<WorkflowRun[]> {
     return this.list(
-      `/actions/workflows/${CI_WORKFLOW_FILE}/runs?status=success&exclude_pull_requests=true&created=>=${since}`,
+      `/actions/workflows/${CI_WORKFLOW_FILE}/runs?status=success&created=>=${since}`,
       (page) => (page as { workflow_runs: WorkflowRun[] }).workflow_runs
     )
   }
@@ -328,17 +341,8 @@ class GitHubClient {
 
 const FAILED_CONCLUSIONS = new Set(['failure', 'timed_out'])
 
-/**
- * Collects the failed earlier-attempt jobs of every run that finally succeeded. A job an issue
- * already lists had every test in its log attributed when it was first seen, so its log is not
- * downloaded again.
- */
-async function collectFlakes(
-  client: GitHubClient,
-  since: string,
-  issues: IssueSnapshot[]
-): Promise<Flake[]> {
-  const recorded = new Set(issues.flatMap((issue) => listedJobIds(issue.body)))
+/** Collects the failed earlier-attempt jobs of every run that finally succeeded. */
+async function collectFlakes(client: GitHubClient, since: string): Promise<Flake[]> {
   const failures: Array<{ occurrence: Occurrence; tests: string[] }> = []
   for (const run of await client.successfulRunsSince(since)) {
     if (run.run_attempt < 2) continue
@@ -346,8 +350,7 @@ async function collectFlakes(
       if (
         job.run_attempt >= run.run_attempt ||
         job.name === GATE_JOB_NAME ||
-        !FAILED_CONCLUSIONS.has(job.conclusion ?? '') ||
-        recorded.has(job.id)
+        !FAILED_CONCLUSIONS.has(job.conclusion ?? '')
       ) {
         continue
       }
@@ -381,8 +384,8 @@ async function main(): Promise<void> {
 
   const client = new GitHubClient(token, repository)
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-  const issues = await client.trackedIssues()
-  const actions = planIssueActions(await collectFlakes(client, since, issues), issues)
+  const flakes = await collectFlakes(client, since)
+  const actions = planIssueActions(flakes, await client.trackedIssues())
 
   for (const action of actions) {
     const summary =
