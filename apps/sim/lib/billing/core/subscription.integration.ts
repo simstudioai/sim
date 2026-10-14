@@ -1,6 +1,6 @@
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import postgres, { type Sql } from 'postgres'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixture = vi.hoisted(() => ({
   schema: `enterprise_entitlement_${process.pid}`,
@@ -55,6 +55,10 @@ describe('enterprise BYOK entitlement', () => {
 
   beforeEach(async () => {
     await admin`CREATE TABLE subscription (LIKE public.subscription)`
+  })
+
+  afterEach(async () => {
+    await admin`DROP TABLE IF EXISTS subscription`
   })
 
   afterAll(async () => {
