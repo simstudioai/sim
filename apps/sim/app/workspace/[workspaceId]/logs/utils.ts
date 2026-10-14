@@ -35,15 +35,21 @@ export function resolveLogWorkflowId(log: {
   return log.workflow?.id || log.workflowId || null
 }
 
-/** The workflow label a log row and its details panel show, derived from {@link resolveLogWorkflowId}. */
+/**
+ * The workflow label a log row and its details panel show. An archived workflow keeps its name
+ * (it just cannot be opened, see {@link resolveLogWorkflowId}); only a hard-deleted workflow, which
+ * leaves no workflow id, reads as deleted.
+ */
 export function getLogWorkflowLabel(log: {
   trigger?: string | null
   workflowId?: string | null
   jobTitle?: string | null
-  workflow?: { id?: string; name?: string | null; archivedAt?: string | null } | null
+  workflow?: { id?: string; name?: string | null } | null
 }): string {
   if (log.trigger === 'mothership') return log.jobTitle || 'Untitled Job'
-  return resolveLogWorkflowId(log) ? log.workflow?.name || 'Unknown' : DELETED_WORKFLOW_LABEL
+  return log.workflow?.id || log.workflowId
+    ? log.workflow?.name || 'Unknown'
+    : DELETED_WORKFLOW_LABEL
 }
 
 /** Path to a workflow in the editor. */
