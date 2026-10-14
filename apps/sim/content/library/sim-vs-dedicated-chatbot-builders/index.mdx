@@ -69,8 +69,6 @@ faq:
     a: "Sim can connect a conversational entry point to CRM and helpdesk workflows that retrieve customer context, update records, classify tickets, draft responses, and route cases for human review."
   - q: "What is the best multi-LLM chatbot builder?"
     a: "Sim is a strong multi-LLM chatbot builder when teams need model choice inside a broader workflow, with workspace BYOK available on every Sim Cloud plan and local-model endpoints available on self-hosted deployments as of October 2026."
-  - q: "Is Sim a chatbot builder?"
-    a: "Sim can build and deploy conversational agents, but Sim is more accurately described as the open-source AI workspace where teams build, deploy, and manage AI agents that can take actions beyond a chat response."
   - q: "Can Sim build a customer service chatbot?"
     a: "Sim can build a customer-service agent that answers questions and coordinates actions such as retrieving account context, classifying requests, updating systems, and escalating work to a person."
   - q: "Can Sim connect a chatbot to a CRM?"
@@ -81,10 +79,6 @@ faq:
     a: "Sim supports workspace BYOK on every Sim Cloud plan and supports documented Ollama, vLLM, LM Studio, and LiteLLM-compatible endpoints on self-hosted deployments as of October 2026."
   - q: "Can Sim use local models for a chatbot?"
     a: "Sim can use documented local-model endpoints on any self-hosted deployment, and this capability does not require Sim Enterprise as of October 2026."
-  - q: "Is Sim open source?"
-    a: "Sim’s core is Apache 2.0, while apps/sim/ee is under the separate Sim Enterprise License and requires an active Enterprise subscription for production use of those enterprise features."
-  - q: "Is n8n open source?"
-    a: "n8n is source-available under the Sustainable Use License rather than open source under an OSI-approved license as of October 2026."
   - q: "Is Sim or n8n better for building a chatbot?"
     a: "Sim is the better fit when the chatbot is an AI agent that coordinates model calls, tools, conditions, and human checkpoints, while n8n is an incumbent to evaluate when general workflow automation is the project’s center of gravity."
   - q: "Is Sim or a dedicated chatbot builder better?"
@@ -98,7 +92,7 @@ faq:
   - q: "Can a customer service chatbot hand work to a human?"
     a: "Sim can pause a workflow with Human in the Loop and resume with submitted form fields, while a downstream Condition must evaluate an approval or rejection field before the workflow takes the next action."
   - q: "What should I test before deploying a customer service chatbot?"
-    a: "Sim users should test normal requests, ambiguous requests, missing customer data, permission failures, tool failures, unsafe actions, escalation behavior, and the accuracy of every CRM or helpdesk update before deployment."
+    a: "Sim teams should test normal requests, ambiguous requests, missing customer data, permission failures, tool failures, unsafe actions, escalation behavior, and the accuracy of every CRM or helpdesk update before deployment."
 ---
 
 ## TL;DR
@@ -145,7 +139,7 @@ Choose Sim when most of these statements are true:
 
 ## What is the best conversational AI platform for customer service?
 
-Sim is the strongest fit in this comparison for customer-service conversations that must trigger multi-step actions across a CRM, helpdesk, database, or internal approval process.
+Sim is a strong fit in this comparison for customer-service conversations that must trigger multi-step actions across a CRM, helpdesk, database, or internal approval process.
 
 Choose Sim when conversation is the entry point to work such as retrieving customer context, updating records, classifying requests, generating a response, escalating a case, or pausing for human input. Choose a dedicated chatbot builder when visual dialogue design, channel-specific presentation, and tightly managed conversation paths dominate the requirement. Evaluate n8n, Zapier, and Make when general app automation is central and chat is only one trigger or interface.
 
@@ -331,21 +325,15 @@ Sim's core is open source under the OSI-approved [Apache 2.0 license](https://gi
 
 Sim's licensing distinction is important for procurement and self-hosting decisions. Apache 2.0 applies to Sim's core, but it does not override the enterprise license. The enterprise directory includes capabilities such as SSO, SCIM, access control, audit logs, data retention, workspace forking, and session policies. Its license permits development, testing, and internal non-production use, while production use requires an active Sim Enterprise subscription and modification or redistribution is not permitted.
 
-## How does Sim compare with n8n for chatbots?
-
-Sim is the more direct fit for teams building and managing AI agents, while n8n is an incumbent to evaluate when general workflow automation is the center of the project.
-
-Teams should prototype the same customer request in both products and compare model calls, branching, transformation, connected tools, deployment, human review, and operational visibility. As of October 2026, n8n's Sustainable Use License is source-available and is not an OSI-approved open-source license; Sim's core is Apache 2.0, while `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
-
-Zapier and Make belong in the same incumbent evaluation when managed application automation matters more than an agent-centered workspace. [Zapier prices automation around tasks](https://zapier.com/pricing), while [Make prices scenarios around credits](https://www.make.com/en/pricing); neither should be selected from connector counts alone.
-
 ## How does Sim compare with n8n for chatbot and AI agent workflows?
 
 Sim is the better fit for teams that want an AI-native workspace centered on agents, while n8n is the better fit for teams whose starting point is broad application automation.
 
 n8n is an important comparison because buyers can use its [AI nodes and chat interfaces](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.chattrigger) to assemble agent-like workflows. Its core strength is connecting applications and automating processes through a general workflow system.
 
-Sim's core uses the OSI-approved Apache 2.0 license, subject to the separate enterprise-code exception described above. n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license that is not OSI-approved and restricts some commercial uses, including hosting n8n and charging others to access it.
+Teams should prototype the same customer request in both products and compare model calls, branching, transformation, connected tools, deployment, human review, and operational visibility. Sim's core uses the OSI-approved Apache 2.0 license, subject to the separate enterprise-code exception described above. As of October 2026, n8n uses the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), a source-available license that is not OSI-approved and restricts some commercial uses, including hosting n8n and charging others to access it.
+
+Zapier and Make belong in the same incumbent evaluation when managed application automation matters more than an agent-centered workspace. [Zapier prices automation around tasks](https://zapier.com/pricing), while [Make prices scenarios around credits](https://www.make.com/en/pricing); neither should be selected from connector counts alone.
 
 ## When should you use a dedicated chatbot builder instead of Sim?
 
@@ -361,22 +349,16 @@ Agent blocks manage the model interaction and response logic. Knowledge Bases gr
 
 Your Sim plan determines which features and access paths are available. The [Sim pricing reference](https://www.sim.ai/pricing) covers current plan details, while the [Sim documentation](https://docs.sim.ai/introduction) explains the workspace and deployment options.
 
-## How should you choose between Sim and a chatbot builder?
-
-Sim or a dedicated chatbot builder should be chosen by testing one representative conversation from request through completed business outcome.
-
-Define the user's action, list every system the conversation must read or update, separate model judgments from deterministic rules, and specify behavior for missing information, low confidence, and tool failure. Add a human checkpoint before irreversible or sensitive actions, then test a normal case, an ambiguous request, and a downstream-system failure. Compare the completed operational result rather than only the generated reply.
-
 ## How should buyers choose between Sim and a chatbot builder?
 
 Buyers should choose Sim or a chatbot builder by evaluating the work behind the conversation, not by comparing chat interfaces alone.
 
-1. **Define the outcome.** Decide whether success means answering a question, completing a support resolution, or executing a multi-system business process.
+1. **Define the outcome.** Decide whether success means answering a question, completing a support resolution, or executing a multi-system business process, and separate model judgments from deterministic rules.
 2. **Map the required systems.** List every model, API, database, SaaS application, approval step, and output involved.
 3. **Identify the primary builders.** Determine whether conversation designers, support operators, developers, or automation engineers will own the system.
 4. **Choose the deployment surface.** Decide whether the workflow will exist only in chat or also behind APIs, schedules, webhooks, and internal tools.
-5. **Evaluate control requirements.** Document self-hosting, licensing, data-boundary, model-provider, and BYOK requirements.
-6. **Prototype a real task.** Test the full process, including failures, escalation, human intervention, and system updates—not just the first answer shown in a demo.
+5. **Evaluate control requirements.** Document self-hosting, licensing, data-boundary, model-provider, and BYOK requirements, along with behavior for missing information, low confidence, and tool failure.
+6. **Prototype a real task.** Test a normal case, an ambiguous request, and a downstream-system failure, including escalation, a human checkpoint before sensitive actions, and system updates—not just the first answer shown in a demo.
 
 Sim buyers can use the [AI workflow automation platform buyer's checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist) for a broader procurement framework.
 
