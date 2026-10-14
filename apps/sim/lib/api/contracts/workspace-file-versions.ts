@@ -20,9 +20,13 @@ const listWorkspaceFileVersionsResponseSchema = z.object({
   revision: writtenFileRevisionSchema,
   nextCursor: z.string().nullable(),
 })
+export type ListWorkspaceFileVersionsResponse = z.output<
+  typeof listWorkspaceFileVersionsResponseSchema
+>
 const revertWorkspaceFileVersionBodySchema = v2RevertFileVersionBodySchema
   .omit({ workspaceId: true })
   .extend({ expectedRevision: z.string().min(1).max(1024).optional() })
+export type RevertWorkspaceFileVersionBody = z.input<typeof revertWorkspaceFileVersionBodySchema>
 const revertWorkspaceFileVersionResponseSchema = z.object({
   reverted: z.boolean(),
   revision: writtenFileRevisionSchema,

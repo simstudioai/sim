@@ -7,12 +7,12 @@ import type { BaseServerTool } from '@/lib/mothership/tools/server/base-tool'
 
 const logger = createLogger('FileTabs')
 
-/** Row contexts that open as a file tab: workspace files and chat uploads. */
-const FILE_TAB_CONTEXTS = ['workspace', 'mothership']
+/** Row contexts that open as a file tab: workspace/Project files and chat uploads. */
+const FILE_TAB_CONTEXTS = ['workspace', 'project', 'mothership']
 
 /**
  * The ids among `fileIds` whose rows must not open as a file tab: any context other than a
- * workspace file or chat upload belongs to another resource (a test's source, for one), which
+ * workspace/Project file or chat upload belongs to another resource (a test's source, for one), which
  * opens as that resource instead.
  */
 export async function findNonTabFileIds(fileIds: string[]): Promise<Set<string>> {

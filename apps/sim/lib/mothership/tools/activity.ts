@@ -239,6 +239,7 @@ export const TOOL_ACTIVITIES: Readonly<Record<string, ActivityPhrase | Operation
   list_integrations: 'read integrations',
   list_workspace_mcp_servers: 'read MCP servers',
   list_workspaces: { verb: 'listed', object: 'workspaces' },
+  list_user_projects: { verb: 'listed', object: 'projects' },
   load_deployment: 'loaded workflow versions',
   load_integration_tool: 'loaded integration tools',
   load_skill: 'loaded skills',

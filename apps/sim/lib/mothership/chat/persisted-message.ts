@@ -14,6 +14,7 @@ import {
   redactSensitiveContent,
   redactToolCallResult,
 } from '@/lib/mothership/chat/sim-key-redaction'
+import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -41,6 +42,7 @@ export interface PersistedFileAttachment {
 }
 
 export interface PersistedMessageContext {
+  owner?: FileOperationOwner
   kind: string
   label: string
   workflowId?: string
@@ -94,6 +96,7 @@ export function copyPersistedMessageContext(c: PersistedMessageContext): Persist
   return {
     kind: c.kind,
     label: c.label,
+    ...(c.owner ? { owner: { ...c.owner } } : {}),
     ...(c.workflowId ? { workflowId: c.workflowId } : {}),
     ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
     ...(c.tableId ? { tableId: c.tableId } : {}),

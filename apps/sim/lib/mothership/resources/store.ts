@@ -4,6 +4,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   getChatResourceKey,
+  hasValidChatResourceOwner,
   type MothershipResource,
   type MothershipResourceUpdate,
   mergeChatResource,
@@ -54,7 +55,10 @@ export async function serializeChatResourceWrite<T>(
 
 export type ChatResourceChange =
   | { kind: 'upsert'; resources: MothershipResourceUpdate[] }
-  | { kind: 'remove'; resources: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>[] }
+  | {
+      kind: 'remove'
+      resources: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>[]
+    }
   | { kind: 'reorder'; resources: MothershipResource[] }
   | { kind: 'clear-view'; tableId: string; viewId: string; workspaceId?: string }
 
@@ -64,6 +68,11 @@ export async function changeStoredChatResources(
   change: ChatResourceChange,
   effectId?: string
 ): Promise<MothershipResource[]> {
+  if (
+    change.kind !== 'clear-view' &&
+    change.resources.some((resource) => !hasValidChatResourceOwner(resource))
+  )
+    throw new OrchestrationError('validation', 'Resource owner conflicts with its address')
   return serializeChatResourceWrite(chatId, () =>
     db.transaction(async (tx) => {
       await setChatResourceTxTimeouts(tx)
@@ -99,12 +108,7 @@ export async function changeStoredChatResources(
         resources = existing.filter(
           (resource) =>
             !change.resources.some(
-              (removed) =>
-                removed.type === resource.type &&
-                removed.workspaceId === resource.workspaceId &&
-                (removed.id === resource.id ||
-                  removed.type === 'browser' ||
-                  removed.type === 'terminal')
+              (removed) => getChatResourceKey(removed) === getChatResourceKey(resource)
             )
         )
       } else {

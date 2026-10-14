@@ -789,7 +789,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ...(await loadRelatedWorkspaces(userId, tx)).map((row) => row.id),
       ...(await listSharedResourceWorkspaceIdsForUser(tx, userId)),
     ])
-    const projectIdsToDelete = await prepareProjectsForAccountDeletion(
+    const { projectIdsToDelete } = await prepareProjectsForAccountDeletion(
       tx,
       userId,
       doomedWorkspaceIds,

@@ -34,6 +34,10 @@ import {
   removeUserFromOrganization,
   transferOrganizationOwnership,
 } from '@/lib/billing/organizations/membership'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
+import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
+import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import {
   archiveProject,
@@ -1249,10 +1253,11 @@ describe('Project foundation at the database and application boundary', () => {
       })
       const blocker = await held.promise
       const deletion = db.transaction(async (tx) => {
-        const projectIds = await prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[1]])
-        expect(projectIds).toHaveLength(1)
+        const { projectIdsToDelete } = await prepareProjectsForAccountDeletion(tx, f.ownerId, [
+          f.ids[1],
+        ])
         await tx.delete(workspace).where(eq(workspace.id, f.ids[1]))
-        await tx.delete(project).where(inArray(project.id, projectIds))
+        await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
       })
       try {
         await waitUntilBlockedBy(blocker, "lock='project'")
@@ -1379,14 +1384,13 @@ describe('Project foundation at the database and application boundary', () => {
           .where(eq(workspace.projectId, privateProject.projectId))
       ).toEqual([{ workspaceId: privateProject.ids[0] }])
       await db.transaction(async (tx) => {
-        const projectIds = await prepareProjectsForAccountDeletion(
+        const { projectIdsToDelete } = await prepareProjectsForAccountDeletion(
           tx,
           privateProject.ownerId,
           privateProject.ids
         )
-        expect(projectIds).toEqual([privateProject.projectId])
         await tx.delete(workspace).where(inArray(workspace.id, privateProject.ids))
-        await tx.delete(project).where(inArray(project.id, projectIds))
+        await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
       })
       expect(
         await db.select().from(project).where(eq(project.id, privateProject.projectId))
@@ -1396,6 +1400,169 @@ describe('Project foundation at the database and application boundary', () => {
 })
 
 describe('Project discovery delegation', () => {
+  beforeEach(() => {
+    vi.stubEnv('PROJECTS', 'true')
+  })
+  /** Cross-process CLI requests must retain admitted authoring identity and execution exclusions. */
+  const cliRequest = {
+    invocation: { kind: 'service', name: 'list_user_projects', input: { limit: 100 } },
+  }
+
+  check(
+    'explicit Project CLI ownership reaches the authorized file collection without workspace fallback',
+    async () => {
+      const state = await fixture(false)
+      const context: ToolExecutionContext = {
+        userId: state.ownerId,
+        workflowId: '',
+        workspaceId: state.ids[0],
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        requestMode: 'agent',
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: state.ownerId,
+          invocation: { kind: 'workspace', workspaceId: state.ids[0] },
+        }),
+      }
+      const request = {
+        fileOwner: { entityType: 'project', entityId: state.projectId },
+        invocation: {
+          kind: 'cli',
+          argv: ['projects', 'files', 'list', state.projectId, '--output', 'json'],
+        },
+      }
+      const result = await executeSimCli({ request }, context)
+      expect(result.success, result.error).toBe(true)
+      const output = AgentCliRawResult.parse(result.output)
+      expect(output.exitCode, output.stderr).toBe(0)
+      expect(JSON.parse(output.stdout)).toMatchObject({ data: [], nextCursor: null })
+      const workspaceAttempt = await executeSimCli(
+        {
+          request: {
+            ...request,
+            invocation: { kind: 'cli', argv: ['files', 'list', '--output', 'json'] },
+          },
+        },
+        context
+      )
+      expect(workspaceAttempt.success).toBe(false)
+      expect(AgentCliRawResult.parse(workspaceAttempt.output).exitCode).not.toBe(0)
+      const foreign = await fixture(false)
+      const mismatch = await executeSimCli(
+        {
+          request: {
+            ...request,
+            invocation: {
+              kind: 'cli',
+              argv: ['projects', 'files', 'list', foreign.projectId, '--output', 'json'],
+            },
+          },
+        },
+        context
+      )
+      expect(mismatch.success).toBe(false)
+      expect(AgentCliRawResult.parse(mismatch.output).exitCode).not.toBe(0)
+    }
+  )
+
+  check(
+    'CLI Project discovery carries admitted workspace identity to the real application boundary',
+    async () => {
+      const state = await fixture(false)
+      const context: ToolExecutionContext = {
+        userId: state.ownerId,
+        workflowId: '',
+        workspaceId: state.ids[0],
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        requestMode: 'agent',
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: state.ownerId,
+          invocation: { kind: 'workspace', workspaceId: state.ids[0] },
+        }),
+      }
+      const result = await executeSimCli({ request: cliRequest }, context)
+      expect(result.success, result.error).toBe(true)
+      const output = AgentCliRawResult.parse(result.output)
+      expect(JSON.parse(output.stdout)).toMatchObject({
+        success: true,
+        projects: [{ id: state.projectId }],
+      })
+      for (const patch of [
+        { copilotResourceAdmission: undefined },
+        { copilotResourceAdmission: structuredClone(context.copilotResourceAdmission) },
+        { userId: state.outsiderId },
+        { workspaceId: state.ids[1] },
+        { mcpBlockId: generateId() },
+        { boundWorkflowExecutionId: generateId() },
+        { executorDelegationOrigin: { workflowId: generateId(), subjectUserId: state.ownerId } },
+      ]) {
+        const rejected = await executeSimCli(
+          { request: cliRequest, copilotResourceAdmission: context.copilotResourceAdmission },
+          { ...context, ...patch }
+        )
+        expect(rejected.success).toBe(false)
+      }
+      expect(
+        (await executeSimCli({ request: { ...cliRequest, workspaceId: state.ids[1] } }, context))
+          .success
+      ).toBe(false)
+    }
+  )
+
+  check(
+    'CLI Project discovery without an environment binds the owned organization chat and rechecks revocation',
+    async () => {
+      const state = await fixture()
+      const other = await fixture()
+      const chatId = generateId()
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId: state.ownerId,
+        organizationId: state.organizationId,
+        type: 'mothership',
+        config: { conversationMode: 'agent' },
+      })
+      const context: ToolExecutionContext = {
+        userId: state.ownerId,
+        workflowId: '',
+        organizationId: state.organizationId ?? undefined,
+        chatOrganizationId: state.organizationId ?? undefined,
+        chatId,
+        toolCallId: generateId(),
+        copilotToolExecution: true,
+        requestMode: 'agent',
+        copilotResourceAdmission: createCopilotResourceAdmission({
+          userId: state.ownerId,
+          invocation: { kind: 'chat', chatId },
+        }),
+      }
+      const result = await executeSimCli({ request: cliRequest }, context)
+      expect(result.success, result.error).toBe(true)
+      expect(JSON.parse(AgentCliRawResult.parse(result.output).stdout)).toMatchObject({
+        success: true,
+        projects: [{ id: state.projectId }],
+      })
+      expect(
+        (
+          await executeSimCli(
+            { request: cliRequest },
+            {
+              ...context,
+              organizationId: other.organizationId ?? undefined,
+              chatOrganizationId: other.organizationId ?? undefined,
+            }
+          )
+        ).success
+      ).toBe(false)
+      await db
+        .update(copilotChats)
+        .set({ userId: state.outsiderId })
+        .where(eq(copilotChats.id, chatId))
+      expect((await executeSimCli({ request: cliRequest }, context)).success).toBe(false)
+    }
+  )
+
   check(
     'binds organization discovery to the current owned chat and rechecks membership',
     async () => {

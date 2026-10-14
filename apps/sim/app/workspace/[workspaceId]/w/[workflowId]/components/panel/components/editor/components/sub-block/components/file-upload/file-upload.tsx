@@ -26,11 +26,11 @@ import { useActiveCanonicalSubBlockValue } from '@/app/workspace/[workspaceId]/w
 import { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 import {
   useCloudStorageConfigured,
   useUploadWorkspaceFile,
   useWorkspaceFiles,
-  workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
 import { getProviderAttachmentMaxBytes } from '@/providers/attachments'
 import { getProviderFromModel } from '@/providers/utils'

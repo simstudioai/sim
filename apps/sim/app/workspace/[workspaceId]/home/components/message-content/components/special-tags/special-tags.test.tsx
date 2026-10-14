@@ -114,7 +114,11 @@ import {
   restoreRevealedSimKeysForMessage,
 } from '@/lib/mothership/chat/sim-key-redaction'
 import type { CredentialItemData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
-import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+import {
+  SpecialTags,
+  WorkspaceResourceDisplay,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { organizationSecretKeys } from '@/hooks/queries/organization-secrets'
 
 const mockOrganizationContext = organizationProviderMockFns.mockUseOptionalOrganizationContext
@@ -521,5 +525,62 @@ describe('CredentialDisplay link tag', () => {
       'Credential setup submitted — {"integrations":[],"secrets":[{"name":"WORKSPACE_KEY","status":"skipped"},{"name":"PERSONAL_KEY","status":"saved"}]}'
     )
     act(() => root.unmount())
+  })
+})
+
+describe('restored Project file mentions', () => {
+  it.each([false])('stops metadata reads after projects becomes %s', async (projects) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    vi.useFakeTimers()
+    const requests: string[] = []
+    vi.stubGlobal('fetch', async (input: string) => {
+      requests.push(input)
+      return Response.json({ error: 'Unavailable fixture' }, { status: 404 })
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const render = async (projects: boolean) => {
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <FeatureFlagsProvider
+              flags={{
+                projects,
+
+                dashboards: false,
+                'workflow-tests': false,
+                changelog: false,
+                'mothership-model-selector': false,
+                'mothership-plan-mode': false,
+              }}
+            >
+              <WorkspaceResourceDisplay
+                data={{
+                  type: 'file',
+                  id: 'file',
+                  title: 'Fixture',
+                  owner: { entityType: 'project', entityId: 'project' },
+                }}
+              />
+            </FeatureFlagsProvider>
+          </QueryClientProvider>
+        )
+      )
+      await act(async () => vi.advanceTimersByTimeAsync(10))
+    }
+    try {
+      await render(true)
+      expect(requests).toHaveLength(1)
+      requests.length = 0
+      await render(projects)
+      await act(async () => client.invalidateQueries())
+      expect(requests).toEqual([])
+    } finally {
+      await act(async () => root.unmount())
+      client.clear()
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
   })
 })

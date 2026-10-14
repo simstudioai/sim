@@ -89,6 +89,7 @@ export interface ResourceRow {
 }
 
 export interface SelectableConfig {
+  selectAllLabel?: string
   selectedIds: Set<string>
   onSelectRow: (id: string, checked: boolean, shiftKey?: boolean) => void
   onSelectAll: (checked: boolean) => void
@@ -402,7 +403,7 @@ const ResourceTable = memo(function ResourceTable({
                     checked={selectable.isAllSelected}
                     onCheckedChange={handleSelectAll}
                     disabled={selectable.disabled}
-                    aria-label='Select all'
+                    aria-label={selectable.selectAllLabel ?? 'Select all'}
                     className='max-md:before:inset-[-15px]'
                   />
                 </div>

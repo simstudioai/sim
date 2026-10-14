@@ -1,40 +1,17 @@
-import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
-import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
-import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engines'
-import { curateKnowledgeDocuments } from '@/lib/mothership/agent-cli/knowledge-curation'
-import { isReadOnlyCliRequest, readOnlyCliTransport } from '@/lib/mothership/agent-cli/read-only'
-import { runCli } from '@/lib/mothership/agent-cli/run-cli'
+import { executeFileCopyCliRequest } from '@/lib/mothership/agent-cli/file-copy'
+import { isReadOnlyCliRequest } from '@/lib/mothership/agent-cli/read-only'
 import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
-import { applySink } from '@/lib/mothership/agent-cli/sink'
-import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
-import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
-import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
-import {
-  COPILOT_APPLICATION_DELEGATION_TTL_MS,
-  createCopilotChatPrincipal,
-  createTrustedOrganizationCopilotPrincipal,
-} from '@/lib/mothership/auth/application-delegation'
+import { executeWorkspaceCliRequest } from '@/lib/mothership/agent-cli/workspace'
+import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
-import type { ResourceChange } from '@/lib/mothership/generated/resources'
-import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
-import { withCopilotSpan } from '@/lib/mothership/request/otel'
-import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
-import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 export interface AgentCliExecutionContext extends Omit<ServerToolContext, 'abortSignal'> {
-  signal?: AbortSignal
   readOnly?: boolean
+  signal?: AbortSignal
 }
 
-/**
- * Executes one typed request from the worker: mint the caller's delegated identity, run
- * the real CLI, named engine or service, and land the pre-parsed sink. All
- * lanes preserve the server-minted identity so "the agent is the user" holds without any
- * credential crossing to the worker. Success here means only "the invocation ran".
- */
+/** Dispatches explicit file owners through registered policy adapters; non-file commands retain their scope. */
 export async function executeAgentCliRequest(
   request: AgentCliRequest,
   context: AgentCliExecutionContext
@@ -47,140 +24,24 @@ export async function executeAgentCliRequest(
       stderr: 'This operation is unavailable during benchmark reference generation.',
     }
   }
+  if (request.invocation.kind === 'file-copy') {
+    return executeFileCopyCliRequest(request, context)
+  }
+  if (request.fileOwner) {
+    const owner = Object.freeze({ ...request.fileOwner })
+    return getCopilotFileOwnerAdapter(owner).executeCli(
+      { ...request, fileOwner: owner },
+      context,
+      owner
+    )
+  }
   if (
     request.invocation.kind === 'service' ||
     (request.invocation.kind === 'stdout' &&
       request.workspaceId === undefined &&
       (context.chatOrganizationId || context.organizationId))
-  )
+  ) {
     return executeAgentCliService(request, context)
-  const target = await resolveInvocationWorkspace(context, request.workspaceId)
-  return withWorkspaceInvocationScope(
-    {
-      workspaceId: target.workspaceId,
-      organizationId: context.chatOrganizationId ?? context.organizationId,
-    },
-    () =>
-      executeBoundAgentCliRequest(request, {
-        ...context,
-        ...target,
-        chatOrganizationId: context.chatOrganizationId ?? context.organizationId,
-      })
-  )
-}
-
-async function executeBoundAgentCliRequest(
-  request: AgentCliRequest,
-  context: AgentCliExecutionContext & { workspaceId: string }
-): Promise<AgentCliRawResult> {
-  /** The embedded client's required credential is opaque and never valid on the public API. */
-  const apiKey = 'mothership-in-process'
-  const invocationIdentity = {
-    userId: context.userId,
-    workspaceId: context.workspaceId,
-    chatId: context.chatId,
   }
-  const endpoint = getInternalApiBaseUrl()
-  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
-  const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
-  const resources: ResourceChange[] = []
-  const identity = {
-    endpoint,
-    apiKey,
-    workspaceId: context.workspaceId,
-    transport: createAgentCliTransport({
-      endpoint,
-      invocation: invocationIdentity,
-      registry: context.resolvedSecretTraceRegistry,
-      ...(files ? { files } : {}),
-      resources,
-      observeReads:
-        request.invocation.kind === 'cli' ||
-        (request.invocation.kind === 'augmentation' &&
-          AUGMENTATION_ENGINES[request.invocation.name]?.openReadResources === true),
-    }),
-    ...(context.signal ? { signal: context.signal } : {}),
-  } satisfies EmbeddedCliIdentity
-  if (context.readOnly) identity.transport = readOnlyCliTransport(identity.transport)
-
-  const { invocation, sink } = request
-  let result: AgentCliRawResult
-  context.signal?.throwIfAborted()
-  if (invocation.kind === 'stdout') {
-    // Text the worker already holds (sliced, or worker-answered): only the sink applies.
-    result = { exitCode: 0, stdout: invocation.stdout, stderr: '' }
-  } else if (invocation.kind === 'augmentation') {
-    result = await withCopilotSpan(TraceSpan.CopilotCliInvoke, undefined, async () =>
-      runEngine(
-        invocation.name,
-        invocation.positionals,
-        {
-          client: createEmbeddedClient(identity),
-          workspaceId: context.workspaceId,
-          userId: context.userId,
-          principal: createCopilotChatPrincipal(
-            invocationIdentity,
-            WORKSPACE_FILES_DELEGATION_AUDIENCE
-          ),
-          invocation: invocationIdentity,
-          ...(context.chatOrganizationId && context.chatId
-            ? {
-                chatOrganizationId: context.chatOrganizationId,
-                chatPrincipal: createTrustedOrganizationCopilotPrincipal(
-                  {
-                    userId: context.userId,
-                    organizationId: context.chatOrganizationId,
-                    chatId: context.chatId,
-                    delegationId: `scratch:${context.chatId}`,
-                  },
-                  {
-                    audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-                    ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
-                  }
-                ),
-              }
-            : {}),
-          ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
-          resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
-          signal: context.signal,
-        },
-        invocation.flags
-      )
-    )
-  } else if (invocation.kind === 'cli') {
-    const { argv } = invocation
-    result = await withCopilotSpan(TraceSpan.CopilotCliInvoke, undefined, () =>
-      runCli(argv, identity, sessionKey, files)
-    )
-    if (request.curate === 'knowledge-documents') result = curateKnowledgeDocuments(result)
-    if (result.exitCode === 0 && request.curate === 'block') {
-      result = await withCopilotSpan(TraceSpan.CopilotCliCurate, undefined, () =>
-        curateBlockDetail(result, context)
-      )
-    }
-  } else throw new Error('Service invocation must use the service bridge')
-  if (resources.length)
-    result = { ...result, resources: [...resources, ...(result.resources ?? [])] }
-  // Only organization chats address a workspace; a workspace chat's resources leave it implicit.
-  if (context.chatOrganizationId && result.resources?.length)
-    result = {
-      ...result,
-      resources: result.resources.map((effect) => {
-        switch (effect.op) {
-          case 'upsert':
-            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
-          case 'remove':
-            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
-          case 'refresh':
-            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
-          case 'clear_view':
-            return { ...effect, resource: { ...effect.resource, workspaceId: context.workspaceId } }
-        }
-      }),
-    }
-  return sink
-    ? withCopilotSpan(TraceSpan.CopilotCliSink, undefined, () =>
-        applySink(sink, sessionKey, result, context.signal, files?.observeOutput)
-      )
-    : result
+  return executeWorkspaceCliRequest(request, context)
 }

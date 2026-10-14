@@ -148,13 +148,13 @@ export async function getProjectAccountDeletionBlockers(
   return blockers
 }
 
-/** Transfers surviving Projects and returns private Projects to delete after their workspaces. */
+/** Prepares private Project cleanup and returns IDs to delete after their workspaces in this transaction. */
 export async function prepareProjectsForAccountDeletion(
   tx: DbTransaction,
   userId: string,
   doomedWorkspaceIds: string[],
   additionalWorkspaceIds: string[] = []
-): Promise<string[]> {
+): Promise<{ projectIdsToDelete: string[]; storageCleanupEventIds: string[] }> {
   const ownedEnvironments = await tx
     .select({ id: workspace.id })
     .from(workspace)
@@ -264,8 +264,12 @@ export async function prepareProjectsForAccountDeletion(
       (environments.get(record.id) ?? []).filter((row) => !doomed.has(row.id)).map((row) => row.id)
     )
   }
+  const storageCleanupEventIds: string[] = []
   for (const { projectId: id, billableBytes } of removedProjects) {
-    await purgeProjectFilesInTx(tx, id, billableBytes)
+    storageCleanupEventIds.push(...(await purgeProjectFilesInTx(tx, id, billableBytes)))
   }
-  return projectsToDelete
+  return {
+    projectIdsToDelete: removedProjects.map(({ projectId }) => projectId),
+    storageCleanupEventIds,
+  }
 }

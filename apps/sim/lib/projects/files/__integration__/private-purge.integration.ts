@@ -235,7 +235,8 @@ async function erasePrivateProject(f: Awaited<ReturnType<typeof fixture>>) {
   return db.transaction(async (tx) => {
     const result = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
     await tx.delete(workspace).where(eq(workspace.id, f.workspaceId))
-    await tx.delete(project).where(inArray(project.id, result))
+    if (result.projectIdsToDelete.length)
+      await tx.delete(project).where(inArray(project.id, result.projectIdsToDelete))
     return result
   })
 }
@@ -290,9 +291,10 @@ describe('Private Project teardown and durable object cleanup', () => {
       const f = await fixture()
       await expect(
         db.transaction(async (tx) => {
-          const projectIds = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
+          const result = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
           await tx.delete(workspace).where(eq(workspace.id, f.workspaceId))
-          await tx.delete(project).where(inArray(project.id, projectIds))
+          if (result.projectIdsToDelete.length)
+            await tx.delete(project).where(inArray(project.id, result.projectIdsToDelete))
           throw new Error('Later account teardown failed')
         })
       ).rejects.toThrow('Later account teardown failed')
@@ -337,9 +339,10 @@ describe('Private Project teardown and durable object cleanup', () => {
     const deletion = db.transaction(async (tx) => {
       const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
       pid.resolve(connection.pid)
-      const projectIds = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
+      const result = await prepareProjectsForAccountDeletion(tx, f.userId, [f.workspaceId])
       await tx.delete(workspace).where(eq(workspace.id, f.workspaceId))
-      await tx.delete(project).where(inArray(project.id, projectIds))
+      if (result.projectIdsToDelete.length)
+        await tx.delete(project).where(inArray(project.id, result.projectIdsToDelete))
     })
     const observedDeletion = deletion.then(
       () => null,

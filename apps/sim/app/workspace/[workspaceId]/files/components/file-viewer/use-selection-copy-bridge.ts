@@ -2,7 +2,17 @@
 
 import { type RefObject, useEffect } from 'react'
 import { attachSelectionContextToClipboard } from '@/lib/mothership/chat/selection-clipboard'
+import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ChatContext } from '@/stores/panel'
+
+interface UseSelectionCopyBridgeProps {
+  containerRef: RefObject<HTMLElement | null>
+  /** Returns null when there is no non-empty selection. */
+  buildContext: () => ChatContext | null
+  owner: string | FileOperationOwner | undefined
+  /** Reattaches when a loading gate mounts the container, since a ref is not reactive. */
+  enabled?: boolean
+}
 
 /**
  * Rides a selection {@link ChatContext} onto the editor's native copy so a
@@ -12,21 +22,16 @@ import type { ChatContext } from '@/stores/panel'
  * handler — Monaco and ProseMirror both `clearData()` before writing
  * `text/plain`, so the custom type must be added last to survive.
  *
- * @param buildContext - Returns null when there is no non-empty selection.
- * @param workspaceId - Workspace that owns the selected resource.
- * @param enabled - Re-runs the effect for a container that mounts late (behind a
- * loading gate); a ref isn't reactive, so the effect would otherwise bail on the
- * first render and never re-attach.
  */
-export function useSelectionCopyBridge(
-  containerRef: RefObject<HTMLElement | null>,
-  buildContext: () => ChatContext | null,
-  workspaceId: string,
-  enabled = true
-): void {
+export function useSelectionCopyBridge({
+  containerRef,
+  buildContext,
+  owner,
+  enabled = true,
+}: UseSelectionCopyBridgeProps): void {
   useEffect(() => {
     const dom = containerRef.current
-    if (!dom || !enabled) return
+    if (!dom || !enabled || !owner) return
     const onCopy = (e: ClipboardEvent) => {
       // A copy from a field nested in the editor — Monaco's find box being the
       // common one — bubbles here while the document still holds a highlight,
@@ -38,9 +43,9 @@ export function useSelectionCopyBridge(
       // main copy path this hook exists for.
       if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return
       const context = buildContext()
-      if (context) attachSelectionContextToClipboard(e.clipboardData, context, workspaceId)
+      if (context) attachSelectionContextToClipboard(e.clipboardData, context, owner)
     }
     dom.addEventListener('copy', onCopy)
     return () => dom.removeEventListener('copy', onCopy)
-  }, [containerRef, buildContext, workspaceId, enabled])
+  }, [containerRef, buildContext, owner, enabled])
 }

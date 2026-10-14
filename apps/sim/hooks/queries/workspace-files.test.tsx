@@ -9,6 +9,9 @@
  */
 
 import { act, type ReactNode } from 'react'
+import { toast } from '@sim/emcn'
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   apiClientRequestMock,
   apiClientRequestMockFns,
@@ -22,14 +25,18 @@ import {
   updateWorkspaceFileContentContract,
 } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { getProjectFileQueryOptions } from '@/hooks/queries/project-files'
+import { resolveFileQueryOwner } from '@/hooks/queries/utils/file-owner-query-adapters'
+import { projectFilesKeys } from '@/hooks/queries/utils/project-file-keys'
+import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
 import {
   useAddressedWorkspaceFileRecord,
   useReloadWorkspaceFileContent,
   useUpdateWorkspaceFileContent,
+  useUploadWorkspaceFile,
   useWorkspaceFileContent,
   useWorkspaceFiles,
   type WorkspaceFileContentResult,
-  workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
@@ -147,6 +154,7 @@ describe('useReloadWorkspaceFileContent', () => {
       },
     })
     root = createRoot(document.createElement('div'))
+    mockRequestJson.mockReset()
     mockRequestJson.mockResolvedValue({ success: true, files: [file] })
     function Probe() {
       mutation = useReloadWorkspaceFileContent()
@@ -165,6 +173,50 @@ describe('useReloadWorkspaceFileContent', () => {
     act(() => root.unmount())
     client.clear()
   })
+
+  it.each([false, true])(
+    'keeps Project metadata current when a reload races an older read (cached=%s)',
+    async (cached) => {
+      const owner = { entityType: 'project', entityId: 'project-1' } as const
+      const oldRecord = {
+        file: { ...file, owner, key: 'project/project-1/old.md' },
+        capabilities: { canRead: true, canWrite: true },
+      }
+      const currentRecord = {
+        ...oldRecord,
+        file: { ...oldRecord.file, key: 'project/project-1/current.md' },
+      }
+      const query = getProjectFileQueryOptions(owner.entityId, file.id)
+      const olderRead = createDeferred<typeof oldRecord>()
+      const readStarted = createDeferred<void>()
+      if (cached) client.setQueryData(query.queryKey, oldRecord)
+      mockRequestJson
+        .mockImplementationOnce(() => {
+          readStarted.resolve()
+          return olderRead.promise
+        })
+        .mockResolvedValueOnce(currentRecord)
+      const pending = client.fetchQuery({ ...query, staleTime: 0 }).catch(() => undefined)
+      await readStarted.promise
+
+      const resolved = resolveFileQueryOwner(owner)
+      if (!resolved) throw new Error('Project adapter is unavailable')
+      try {
+        const reload = resolved.adapter.reloadRecord(client, resolved.id, file.id)
+        await flushMacrotask()
+        olderRead.resolve(oldRecord)
+        const reloaded = await reload
+        expect(reloaded.key).toBe(currentRecord.file.key)
+        await pending
+        expect(client.getQueryData(projectFilesKeys.record(owner.entityId, file.id))).toEqual(
+          currentRecord
+        )
+      } finally {
+        olderRead.resolve(oldRecord)
+        await pending
+      }
+    }
+  )
 
   it.each([false, true])(
     'recovers matching bytes and version after key rotation (raw=%s)',
@@ -380,3 +432,51 @@ describe('addressed file metadata fallback', () => {
     }
   })
 })
+
+it.each(['abort-error', 'aborted-signal', 'failure'] as const)(
+  'suppresses only intentional upload cancellation notifications (%s)',
+  async (scenario) => {
+    const notifications: unknown[] = []
+    vi.spyOn(toast, 'error').mockImplementation((message) => {
+      notifications.push(message)
+      return 'toast'
+    })
+    const controller = new AbortController()
+    if (scenario === 'aborted-signal') controller.abort()
+    const failure =
+      scenario === 'abort-error'
+        ? new DOMException('Cancelled', 'AbortError')
+        : new Error('Provider failed')
+    mockRequestJson.mockRejectedValueOnce(failure)
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    let upload: ReturnType<typeof useUploadWorkspaceFile> | undefined
+    function Probe() {
+      upload = useUploadWorkspaceFile()
+      return null
+    }
+    try {
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      )
+      await act(async () => {
+        await expect(
+          upload?.mutateAsync({
+            workspaceId: 'workspace',
+            file: new File(['content'], 'upload.txt'),
+            signal: controller.signal,
+          })
+        ).rejects.toBe(failure)
+      })
+      expect(notifications.length).toBe(scenario === 'failure' ? 1 : 0)
+    } finally {
+      await act(async () => root.unmount())
+      client.clear()
+    }
+  }
+)

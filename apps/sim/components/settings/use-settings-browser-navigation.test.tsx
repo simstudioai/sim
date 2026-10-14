@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { act, useState } from 'react'
+import { act, useEffect, useState } from 'react'
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +8,10 @@ import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { SettingsNavigationGuard } from '@/components/settings/settings-navigation-guard'
 import { useSettingsBrowserNavigation } from '@/components/settings/use-settings-browser-navigation'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
+import {
+  FileNavigationProvider,
+  useFileNavigation,
+} from '@/app/workspace/[workspaceId]/files/components/file-detail/navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 vi.mock(
@@ -587,3 +591,63 @@ describe('native settings navigation', () => {
     expect(unload.defaultPrevented).toBe(false)
   })
 })
+
+function FileDraft() {
+  const [draft, setDraft] = useState('')
+  const { setIsDirty, discardRef } = useFileNavigation({
+    owner: { entityType: 'project', entityId: 'project' },
+  })
+  useEffect(() => {
+    discardRef.current = () => setDraft('')
+    return () => {
+      discardRef.current = null
+    }
+  }, [discardRef])
+  return (
+    <input
+      value={draft}
+      onChange={(event) => {
+        setDraft(event.target.value)
+        setIsDirty(Boolean(event.target.value))
+      }}
+    />
+  )
+}
+
+it.each([-1, 1])(
+  'keeps a file draft through native history cancellation and discards only on confirmed traversal %s',
+  async (delta) => {
+    window.history.pushState({ router: 'future' }, '', '/future')
+    nativeGo.call(window.history, -1)
+    await settle()
+    act(() =>
+      root.render(
+        <FileNavigationProvider
+          owner={{ entityType: 'project', entityId: 'project' }}
+          fileId='file'
+        >
+          <FileDraft />
+        </FileNavigationProvider>
+      )
+    )
+    const field = container.querySelector('input')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    if (!field || !setter) throw new Error('Missing file draft')
+    act(() => {
+      setter.call(field, 'unsaved file draft')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    nativeGo.call(window.history, delta)
+    await settle()
+    expect(window.location.pathname).toBe('/editor')
+    expect(field.value).toBe('unsaved file draft')
+    act(() => useSettingsDirtyStore.getState().cancelLeave())
+    expect(field.value).toBe('unsaved file draft')
+    nativeGo.call(window.history, delta)
+    await settle()
+    act(() => useSettingsDirtyStore.getState().confirmLeave())
+    await settle()
+    expect(window.location.pathname).toBe(delta === -1 ? '/prior' : '/future')
+    expect(field.value).toBe('')
+  }
+)

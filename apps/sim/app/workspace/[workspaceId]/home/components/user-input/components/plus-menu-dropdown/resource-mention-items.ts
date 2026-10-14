@@ -39,6 +39,7 @@ export function resourceMentionMatches(item: AvailableItem, query: string): bool
   if (!normalized) return true
   return (
     item.name.toLowerCase().includes(normalized) ||
+    (typeof item.projectName === 'string' && item.projectName.toLowerCase().includes(normalized)) ||
     (typeof item.workspaceName === 'string' &&
       item.workspaceName.toLowerCase().includes(normalized)) ||
     (typeof item.mentionFamily === 'string' &&

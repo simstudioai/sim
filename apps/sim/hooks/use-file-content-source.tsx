@@ -6,7 +6,11 @@ import {
   resolveEmbeddedFileRef,
   storedFileId,
 } from '@/lib/uploads/utils/embedded-image-ref'
-import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
+import {
+  type FileOwnerAdapters,
+  requireFileOwnerAdapter,
+} from '@/lib/workspace-files/owner-adapters'
+import type { EditableFileOwner, FileOwner } from '@/lib/workspace-files/ownership'
 
 export interface FileContentUrlOptions {
   /** Request the uncompiled source instead of the rendered/compiled bytes. */
@@ -57,6 +61,8 @@ export interface ImageDimensionsSource {
  * this source so the same components work in both contexts.
  */
 export interface FileContentSource {
+  /** The explicit file owner, for consumers that read or write through owner-scoped APIs. */
+  owner?: EditableFileOwner
   buildUrl: (key: string, opts?: FileContentUrlOptions) => string
   /**
    * Map an embedded image `src` to a display URL scoped to the current context: the in-app source
@@ -90,6 +96,7 @@ function inlineImageSource(
   owner?: EditableFileOwner
 ): FileContentSource {
   return {
+    owner,
     buildUrl,
     resolveImageSrc: (src) => {
       if (!src) return src
@@ -122,6 +129,52 @@ export function createWorkspaceFileContentSource(
     ),
     ...imageDimensions,
   }
+}
+
+/** Authenticated Project bytes and embeds retain their explicit owner independently of navigation. */
+function createProjectFileContentSource(projectId: string, fileId: string): FileContentSource {
+  const base = `/api/projects/${encodeURIComponent(projectId)}/files`
+  return {
+    owner: { entityType: 'project', entityId: projectId },
+    ...inlineImageSource(
+      (_key, opts) => {
+        const params = new URLSearchParams()
+        if (opts?.preview && !opts.raw) params.set('preview', '1')
+        if (opts?.version != null) params.set('v', String(opts.version))
+        else if (opts?.bust) params.set('t', String(Date.now()))
+        const query = params.toString()
+        return `${base}/${encodeURIComponent(fileId)}/${opts?.raw ? 'content' : 'artifact'}${query ? `?${query}` : ''}`
+      },
+      `${base}/inline`,
+      { entityType: 'project', entityId: projectId }
+    ),
+  }
+}
+
+interface OwnedContentSourceOptions {
+  imageDimensions?: ImageDimensionsSource
+  storageContext?: 'workspace' | 'mothership'
+}
+
+type ContentSourceAdapter = (
+  ownerId: string,
+  fileId: string,
+  options?: OwnedContentSourceOptions
+) => FileContentSource
+
+const FILE_CONTENT_ADAPTERS: FileOwnerAdapters<ContentSourceAdapter> = {
+  workspace: (id, _fileId, options) =>
+    createWorkspaceFileContentSource(id, options?.imageDimensions, options?.storageContext),
+  project: (id, fileId) => createProjectFileContentSource(id, fileId),
+}
+
+/** Authenticated owner dispatch is separate from bearer-token sources. */
+export function createOwnedFileContentSource(
+  owner: FileOwner,
+  fileId: string,
+  options?: OwnedContentSourceOptions
+): FileContentSource {
+  return requireFileOwnerAdapter(FILE_CONTENT_ADAPTERS, owner)(owner.entityId, fileId, options)
 }
 
 /**

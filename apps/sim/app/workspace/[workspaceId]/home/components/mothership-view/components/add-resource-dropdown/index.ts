@@ -1,6 +1,7 @@
 export {
   AddResourceDropdown,
   FOLDERED_RESOURCE_TYPES,
+  ProjectResourceSubmenu,
   ResourceFolderTreeItems,
   ResourceMenuSections,
   useResourceTreeSections,

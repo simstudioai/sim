@@ -10,7 +10,10 @@ import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
 import {
   getChatResourceKey,
   getChatResourceSelectionId,
+  getChatResourceWorkspaceId,
+  hasValidChatResourceOwner,
   mergeChatResource,
+  normalizeChatResource,
 } from '@/lib/mothership/resources/types'
 import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -30,6 +33,7 @@ import {
   refreshMothershipChatDetail,
 } from '@/hooks/queries/mothership-chats'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { projectFilesKeys } from '@/hooks/queries/utils/project-file-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 
@@ -119,6 +123,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     if (settings.scope !== 'account' || settings.id === 'profile') ctx.deps.refreshRoute?.()
     return
   }
+  if (!hasValidChatResourceOwner(payload.resource)) return
   if (payload.resource.type === 'search') {
     if (payload.op === 'refresh' || payload.op === 'clear_view') return
     const search = payload.resource.search
@@ -192,7 +197,52 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     onResourceEvent?.(getChatResourceSelectionId(resource))
     return
   }
-  const workspaceId = payload.resource.workspaceId ?? chatWorkspaceId
+  if ('owner' in payload.resource && payload.resource.owner?.entityType === 'project') {
+    if (
+      (payload.resource.type !== 'file' && payload.resource.type !== 'filefolder') ||
+      payload.resource.workspaceId
+    )
+      return
+    const owner = payload.resource.owner
+    void queryClient.invalidateQueries({ queryKey: projectFilesKeys.project(owner.entityId) })
+    if (payload.op === 'refresh' || payload.resource.type === 'filefolder') return
+    if (payload.effectId || payload.replay || ctx.deps.options.deferFlushes) {
+      const chatId = ctx.deps.chatIdRef.current
+      if (chatId)
+        void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      if (payload.replay || ctx.deps.options.deferFlushes) return
+    }
+    const resource: MothershipResource = {
+      ...payload.resource,
+      type: 'file',
+      owner,
+      title: payload.resource.title ?? payload.resource.id,
+    }
+    if (payload.op === 'remove') {
+      if (payload.effectId) {
+        setResources((current) =>
+          current.filter((item) => getChatResourceKey(item) !== getChatResourceKey(resource))
+        )
+        ctx.deps.setActiveResourceId((current) =>
+          current === getChatResourceSelectionId(resource) ? null : current
+        )
+      } else removeResource('file', resource.id, undefined, owner)
+      return
+    }
+    if (payload.effectId)
+      setResources((current) => {
+        const previous = current.find(
+          (item) => getChatResourceKey(item) === getChatResourceKey(resource)
+        )
+        return previous
+          ? current.map((item) => (item === previous ? mergeChatResource(item, resource) : item))
+          : [...current, resource]
+      })
+    else addResource(resource)
+    onResourceEvent?.(getChatResourceSelectionId(resource))
+    return
+  }
+  const workspaceId = getChatResourceWorkspaceId(payload.resource, chatWorkspaceId)
   if (!workspaceId || (chatWorkspaceId && workspaceId !== chatWorkspaceId)) return
   // Browser and terminal tabs are projected from the desktop app's live
   // lists, never from the stream; older servers announced them as resources.
@@ -243,14 +293,14 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     payload.resource.viewId.trim()
       ? payload.resource.viewId
       : undefined
-  const resource: MothershipResource = {
+  const resource: MothershipResource = normalizeChatResource({
     ...payload.resource,
     ...(chatWorkspaceId ? {} : { workspaceId }),
     type: payload.resource.type as MothershipResourceType,
     title:
       typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
     ...(pinnedViewId ? { viewId: pinnedViewId } : {}),
-  }
+  })
   const resourceUpdate = resource
 
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
@@ -262,7 +312,9 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       ctx.deps.setActiveResourceId((current) =>
         current === getChatResourceSelectionId(resource) ? null : current
       )
-    } else if (resource.workspaceId) removeResource(resourceType, resource.id, resource.workspaceId)
+    } else if (resource.owner)
+      removeResource(resourceType, resource.id, resource.workspaceId, resource.owner)
+    else if (resource.workspaceId) removeResource(resourceType, resource.id, resource.workspaceId)
     else removeResource(resourceType, resource.id)
     if (resourceType === 'workflow') {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)

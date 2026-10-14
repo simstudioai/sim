@@ -191,6 +191,8 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
       return context.kind === 'folder' && c.folderId === context.folderId
     case 'filefolder':
       return context.kind === 'filefolder' && c.fileFolderId === context.fileFolderId
+    case 'project':
+      return context.kind === 'project' && c.projectId === context.projectId
     case 'workspace':
       return true // The owner comparison above is the whole identity.
     // Selection kinds scope to part of a resource, so equality is the selected

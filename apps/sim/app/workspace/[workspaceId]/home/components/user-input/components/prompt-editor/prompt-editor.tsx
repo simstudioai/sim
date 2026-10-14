@@ -205,6 +205,7 @@ export function PromptEditor({
           data-paste-max-bytes={PASTE_LIMITS.CHAT_BYTES}
           data-paste-max-characters={PASTE_LIMITS.CHAT_CHARACTERS}
           data-paste-selection-context={editor.workspaceId}
+          data-paste-selection-owners={JSON.stringify(editor.selectionOwners)}
           onCopy={editor.handleCopy}
           onCut={readOnly ? undefined : editor.handleCut}
           onSelect={readOnly ? undefined : editor.handleSelectAdjust}
@@ -227,6 +228,7 @@ export function PromptEditor({
             warm={hasFocused}
             onResourceSelect={editor.insertResource}
             onWorkspaceSelect={editor.insertWorkspace}
+            onProjectSelect={editor.insertProject}
             onClose={editor.handlePlusMenuClose}
             textareaRef={editor.textareaRef}
             pendingCursorRef={editor.pendingCursorRef}

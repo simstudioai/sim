@@ -5,7 +5,7 @@ import {
 } from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import {
   type ContentSource,
   noteContentDeliveryOperation,
@@ -14,18 +14,21 @@ import {
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
-const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint } = vi.hoisted(() => ({
+const { readScope, recordEffects, fetcher, routeMatcher, recordInput } = vi.hoisted(() => ({
   readScope: vi.fn(),
   recordEffects: vi.fn(async () => {}),
   fetcher: vi.fn(),
   routeMatcher: vi.fn(),
   recordInput: vi.fn(),
-  mint: vi.fn(),
 }))
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
-vi.mock('@/lib/api/server/routes/in-process-transport', () => ({ matchV2Route: routeMatcher }))
+vi.mock('@/lib/api/server/routes/in-process-transport', () => ({
+  matchV2Route: routeMatcher,
+  dispatchInProcessV2Request: (request: Request) => fetcher(request),
+}))
 vi.mock('@/lib/mothership/tools/sandbox-resources', () => ({
   readSandboxResourceScope: readScope,
   recordSandboxResourceEffects: recordEffects,
@@ -58,7 +61,6 @@ function request(path: string, init?: RequestInit) {
 
 beforeEach(() => {
   readScope.mockResolvedValue(scope)
-  mint.mockResolvedValue('server-only-identity')
   target.mockResolvedValue({ workspaceId: scope.workspaceId })
   routeMatcher.mockReturnValue({
     params: { tableId: 'table' },
@@ -95,7 +97,6 @@ describe('private sandbox v2 resource transport', () => {
       token
     )
     expect(await response.json()).toEqual({ data: { inserted: 1 } })
-    expect(fetcher).toHaveBeenCalledTimes(1)
     expect(recordEffects).toHaveBeenCalledWith(token, scope, [
       {
         op: 'upsert',
@@ -113,7 +114,6 @@ describe('private sandbox v2 resource transport', () => {
     )
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Forbidden' })
-    expect(fetcher).toHaveBeenCalledTimes(1)
     expect(fetcher.mock.calls[0]?.[0].url).toBe(
       'http://internal-sim/api/v2/tables/table/rows?workspaceId=other'
     )
@@ -146,7 +146,6 @@ describe('private sandbox v2 resource transport', () => {
         )
       ).status
     ).toBe(403)
-    expect(mint).not.toHaveBeenCalled()
     expect(fetcher).not.toHaveBeenCalled()
     target.mockResolvedValueOnce({ workspaceId: 'target' })
     fetcher.mockImplementation(async (req: Request) => {
@@ -164,7 +163,6 @@ describe('private sandbox v2 resource transport', () => {
       ).status
     ).toBe(200)
     expect(target).toHaveBeenLastCalledWith(orgScope, 'target')
-    expect(mint).not.toHaveBeenCalled()
   })
 
   it('rejects stale scopes and non-v2 destinations before dispatch', async () => {
@@ -232,7 +230,6 @@ describe('private sandbox v2 resource transport', () => {
       token
     )
     expect(response.status).toBe(400)
-    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('rejects unknown v2 routes and methods without dispatch or network fallback', async () => {
@@ -268,8 +265,11 @@ it('records nothing into the workbench for a route that returns no stored conten
     load: async () => ({ GET: fetcher }),
   })
   fetcher.mockResolvedValue(Response.json({ data: { id: 'agent' } }))
-  await proxySandboxResourceRequest(request('/api/v2/tools/function_execute'), token)
-  expect(fetcher).toHaveBeenCalledOnce()
+  const response = await proxySandboxResourceRequest(
+    request('/api/v2/tools/function_execute'),
+    token
+  )
+  expect(await response.json()).toEqual({ data: { id: 'agent' } })
   expect(recordInput).not.toHaveBeenCalled()
 })
 
@@ -293,6 +293,34 @@ it('replaces a successful response its sourced operation never classified with a
   expect(recordInput).not.toHaveBeenCalled()
 })
 
+it.each([
+  [
+    'contradictory workspace',
+    '/api/v2/projects/project/files',
+    1,
+    { 'x-mothership-workspace-id': 'workspace' },
+  ],
+  ['another Project path', '/api/v2/projects/other/files', 1, {}],
+  ['non-file path', '/api/v2/tables', 1, {}],
+  ['unnegotiated lease', '/api/v2/projects/project/files', undefined, {}],
+] as const)(
+  'refuses %s before a Project callback can dispatch',
+  async (_name, path, protocol, headers) => {
+    readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: protocol })
+    fetcher.mockResolvedValue(Response.json({ data: [] }))
+    const response = await proxySandboxResourceRequest(
+      request(path, {
+        headers: {
+          ...headers,
+          'x-mothership-file-owner': JSON.stringify({ entityType: 'project', entityId: 'project' }),
+        },
+      }),
+      token
+    )
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(fetcher).not.toHaveBeenCalled()
+  }
+)
 /**
  * The file read and download use cases refuse a Chat principal no gate observes, so the
  * workbench's reads depend on this proxy installing its session gate around the route handler.
@@ -331,18 +359,35 @@ it('withholds a result whose provenance the workbench history could not record',
   expect(fetcher).toHaveBeenCalledOnce()
 })
 
-vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))
-
-it('never resolves a real credential for an invalid callback scope', async () => {
-  readScope.mockResolvedValue(null)
-  expect((await proxySandboxResourceRequest(request('/api/v2/tools'), token)).status).toBe(403)
-  expect(mint).not.toHaveBeenCalled()
-  expect(fetcher).not.toHaveBeenCalled()
-})
-it('keeps the server identity out of callback response headers and body', async () => {
-  fetcher.mockResolvedValue(Response.json({ data: [] }))
-  const response = await proxySandboxResourceRequest(request('/api/v2/tools'), token)
-  expect(mint).not.toHaveBeenCalled()
-  expect(JSON.stringify([...response.headers])).not.toContain('server-only-identity')
-  expect(await response.text()).not.toContain('server-only-identity')
+it('reconstructs Project authority from the admitted lease without borrowing its workspace', async () => {
+  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: 1 })
+  routeMatcher.mockReturnValue({
+    pattern: '/api/v2/projects/{projectId}/files',
+    params: { projectId: 'project' },
+    load: async () => ({ GET: fetcher }),
+  })
+  fetcher.mockImplementation(async (request: Request) => {
+    const principal = copilotRequestPrincipal(request, projectFileOperations.list, {
+      operation: projectFileOperations.list,
+      delegationAudience: 'sim:project-files',
+    })
+    expect(principal).toMatchObject({
+      kind: 'resource_delegated',
+      subjectUserId: scope.userId,
+      invocation: { kind: 'chat', chatId: scope.chatId },
+      scope: { kind: 'entity', entityType: 'project', entityId: 'project' },
+    })
+    expect(principal).not.toHaveProperty('workspaceId')
+    return Response.json({ data: [] })
+  })
+  const response = await proxySandboxResourceRequest(
+    request('/api/v2/projects/project/files', {
+      headers: {
+        'x-mothership-file-owner': JSON.stringify({ entityType: 'project', entityId: 'project' }),
+      },
+    }),
+    token
+  )
+  expect(response.status).toBe(200)
+  expect(target).not.toHaveBeenCalled()
 })

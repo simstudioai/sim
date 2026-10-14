@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
 import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 import { useCsvTruncationImport } from './csv-import'
@@ -17,8 +17,8 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   file,
   workspaceId,
 }: {
-  file: WorkspaceFileRecord
-  workspaceId: string
+  file: ViewerFileRecord
+  workspaceId: string | undefined
 }) {
   const scrollRef = useHorizontalWheelScroll()
   const version = Number(new Date(file.updatedAt)) || file.size

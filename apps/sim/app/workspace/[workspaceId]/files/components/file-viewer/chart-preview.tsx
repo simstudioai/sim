@@ -20,7 +20,7 @@ const CHART_HEADER_HEIGHT = 24
 
 interface ChartPreviewProps {
   content: string
-  workspaceId: string
+  workspaceId: string | undefined
   isStreaming?: boolean
 }
 
@@ -50,6 +50,7 @@ export function ChartPreview({ content, workspaceId, isStreaming = false }: Char
   if (parseError && isStreaming) return <PreviewLoadingFrame className='h-full flex-1' />
   const error =
     parseError ??
+    (tableSource && !workspaceId ? 'Table-backed charts require a workspace.' : null) ??
     (tableSource && (rowsQuery.isError || tableQuery.isError)
       ? getErrorMessage(rowsQuery.error ?? tableQuery.error, 'Failed to read table')
       : null)

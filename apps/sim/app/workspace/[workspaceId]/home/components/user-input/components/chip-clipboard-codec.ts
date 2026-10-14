@@ -1,4 +1,5 @@
 import { isWorkspaceOwnedContext } from '@/lib/mothership/chat/context-ownership'
+import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
   computeMentionHighlightRanges,
   extractContextTokens,
@@ -30,6 +31,7 @@ const PORTABLE_KIND_TO_ID_FIELD = {
   folder: 'folderId',
   filefolder: 'fileFolderId',
   workspace: 'workspaceId',
+  project: 'projectId',
   knowledge: 'knowledgeId',
   past_chat: 'chatId',
   workflow: 'workflowId',
@@ -45,13 +47,6 @@ const PORTABLE_KIND_TO_ID_FIELD = {
  * `sim:<kind>/<id>` markdown link.
  */
 export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
-
-/**
- * Carries the owning workspace of a resource chip, which an organization chat
- * needs to resolve it: `sim:kind/id?workspace=<owner>`. Links without it parse
- * exactly as before.
- */
-const OWNER_PARAM = '?workspace='
 
 /**
  * Decodes a link's owner, or `null` when it is not valid percent-encoding —
@@ -70,11 +65,13 @@ export function serializePortableChipLink(
   kind: PortableKind,
   id: string,
   label: string,
-  workspaceId?: string
+  owner?: string | FileOperationOwner
 ): string {
   const escapedLabel = label.replace(/[\\[\]]/g, '\\$&')
-  const owner = workspaceId ? `${OWNER_PARAM}${encodeURIComponent(workspaceId)}` : ''
-  return `[${escapedLabel}](${CHIP_LINK_SCHEME}:${kind}/${id}${owner})`
+  const entityType = typeof owner === 'string' ? 'workspace' : owner?.entityType
+  const entityId = typeof owner === 'string' ? owner : owner?.entityId
+  const ownerQuery = entityType && entityId ? `?${entityType}=${encodeURIComponent(entityId)}` : ''
+  return `[${escapedLabel}](${CHIP_LINK_SCHEME}:${kind}/${id}${ownerQuery})`
 }
 
 function parsePortableChipLabel(label: string): string {
@@ -102,6 +99,7 @@ export interface ParsedChipLink {
   label: string
   /** Owning workspace, carried by resource chips copied from an organization chat. */
   workspaceId?: string
+  owner?: FileOperationOwner
   start: number
   end: number
 }
@@ -140,7 +138,11 @@ function serializeChipContext(context: ChatContext): string | null {
     context.kind,
     id,
     context.label,
-    isWorkspaceOwnedContext(context) ? context.workspaceId : undefined
+    context.kind === 'file' && context.owner
+      ? context.owner
+      : isWorkspaceOwnedContext(context)
+        ? context.workspaceId
+        : undefined
   )
 }
 
@@ -247,14 +249,28 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
   while ((match = pattern.exec(text)) !== null) {
     const [full, label, kind, address] = match
     if (!isPortableKind(kind)) continue
-    const ownerAt = address.lastIndexOf(OWNER_PARAM)
-    const workspaceId =
-      ownerAt === -1 ? undefined : decodeOwner(address.slice(ownerAt + OWNER_PARAM.length))
-    if (workspaceId === null) continue
+    const queryAt = address.indexOf('?')
+    const id = queryAt === -1 ? address : address.slice(0, queryAt)
+    if (!id) continue
+    let workspaceId: string | undefined
+    let owner: FileOperationOwner | undefined
+    if (queryAt !== -1) {
+      const query = /^(workspace|project)=([^&?]+)$/.exec(address.slice(queryAt + 1))
+      if (!query) continue
+      const entityId = decodeOwner(query[2])
+      if (!entityId || entityId.length > 200 || entityId.trim() !== entityId) continue
+      if (query[1] === 'project') {
+        if (kind !== 'file') continue
+        owner = { entityType: 'project', entityId }
+      } else {
+        workspaceId = entityId
+      }
+    }
     links.push({
       kind,
-      id: ownerAt === -1 ? address : address.slice(0, ownerAt),
+      id,
       ...(workspaceId ? { workspaceId } : {}),
+      ...(owner ? { owner } : {}),
       label: parsePortableChipLabel(label),
       start: match.index,
       end: match.index + full.length,
@@ -275,6 +291,7 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
  */
 export function chipLinkToContext(link: ParsedChipLink): ChatContext {
   const context = chipLinkBaseContext(link)
+  if (context.kind === 'file' && link.owner) return { ...context, owner: link.owner }
   return link.workspaceId && isWorkspaceOwnedContext(context)
     ? { ...context, workspaceId: link.workspaceId }
     : context
@@ -292,6 +309,8 @@ function chipLinkBaseContext(link: ParsedChipLink): ChatContext {
       return { kind: 'folder', folderId: link.id, label: link.label }
     case 'filefolder':
       return { kind: 'filefolder', fileFolderId: link.id, label: link.label }
+    case 'project':
+      return { kind: 'project', projectId: link.id, label: link.label }
     case 'workspace':
       return { kind: 'workspace', workspaceId: link.id, label: link.label }
     case 'knowledge':

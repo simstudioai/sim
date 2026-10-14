@@ -47,12 +47,13 @@ export function useDragTeardown(teardown: () => void): void {
       teardownRef.current()
     }
 
-    window.addEventListener('dragover', markDragging)
+    // Folder rows stop propagation after handling their drop target.
+    window.addEventListener('dragover', markDragging, true)
     window.addEventListener('dragend', endDrag)
     window.addEventListener('drop', endDrag)
     window.addEventListener('pointermove', endDrag)
     return () => {
-      window.removeEventListener('dragover', markDragging)
+      window.removeEventListener('dragover', markDragging, true)
       window.removeEventListener('dragend', endDrag)
       window.removeEventListener('drop', endDrag)
       window.removeEventListener('pointermove', endDrag)

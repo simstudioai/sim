@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useToast } from '@sim/emcn'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { readSelectionContextFromClipboard } from '@/lib/mothership/chat/selection-clipboard'
+import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 
 const EDITABLE_TARGET_SELECTOR =
   'input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="hidden"]), textarea, [contenteditable]:not([contenteditable="false"]), .monaco-editor, .xterm'
@@ -21,6 +22,27 @@ function clipboardHasImageFile(data: DataTransfer | null): boolean {
   return Array.from(data.items).some(
     (item) => item.kind === 'file' && item.type.startsWith('image/')
   )
+}
+
+function selectionOwnerHints(element: Element | null): FileOperationOwner[] {
+  const encoded = element?.getAttribute('data-paste-selection-owners')
+  if (encoded !== null && encoded !== undefined) {
+    try {
+      const parsed: unknown = JSON.parse(encoded)
+      if (!Array.isArray(parsed)) return []
+      const owners: FileOperationOwner[] = []
+      for (const candidate of parsed) {
+        const owner = FileOperationOwner.safeParse(candidate)
+        if (!owner.success) return []
+        owners.push(owner.data)
+      }
+      return owners
+    } catch {
+      return []
+    }
+  }
+  const workspaceId = element?.getAttribute('data-paste-selection-context')
+  return workspaceId ? [{ entityType: 'workspace', entityId: workspaceId }] : []
 }
 
 /**
@@ -42,13 +64,15 @@ export function PasteAdmissionGuard() {
         return
       }
 
-      const acceptsSelectionContext = event.target.closest('[data-paste-selection-context]')
-      const destinationWorkspaceId = acceptsSelectionContext?.getAttribute(
-        'data-paste-selection-context'
+      const acceptsSelectionContext = event.target.closest(
+        '[data-paste-selection-owners], [data-paste-selection-context]'
       )
       if (
-        destinationWorkspaceId &&
-        readSelectionContextFromClipboard(event.clipboardData, destinationWorkspaceId)
+        acceptsSelectionContext &&
+        readSelectionContextFromClipboard(
+          event.clipboardData,
+          selectionOwnerHints(acceptsSelectionContext)
+        )
       ) {
         return
       }
