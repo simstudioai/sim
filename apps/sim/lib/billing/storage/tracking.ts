@@ -171,8 +171,7 @@ async function readStorageUsageInTx(
       .select({ storageUsedBytes: organization.storageUsedBytes })
       .from(organization)
       .where(eq(organization.id, billingEntity.id))
-      .limit(1)
-    const [row] = await (lock ? query.for('no key update') : query)
+    const [row] = lock ? await query.for('no key update').limit(1) : await query.limit(1)
     if (!row) throw new Error(`Storage payer organization:${billingEntity.id} not found`)
     return row.storageUsedBytes
   }
@@ -181,8 +180,7 @@ async function readStorageUsageInTx(
     .select({ storageUsedBytes: userStats.storageUsedBytes })
     .from(userStats)
     .where(eq(userStats.userId, billingEntity.id))
-    .limit(1)
-  const [row] = await (lock ? query.for('no key update') : query)
+  const [row] = lock ? await query.for('no key update').limit(1) : await query.limit(1)
   if (!row) throw new Error(`Storage payer user:${billingEntity.id} not found`)
   return row.storageUsedBytes
 }

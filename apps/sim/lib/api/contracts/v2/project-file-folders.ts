@@ -71,9 +71,6 @@ const v2UpdateProjectFileFolderBodySchema = updateProjectFileFolderBodySchema
 const v2RestoreProjectFileFolderResponseSchema = restoreProjectFileFolderResponseSchema.extend({
   folder: v2ProjectFileFolderSchema.describe('Restored Project folder.'),
 })
-export type V2RestoreProjectFileFolderResponse = z.output<
-  typeof v2RestoreProjectFileFolderResponseSchema
->
 
 export const v2ListProjectFileFoldersContract = defineRouteContract({
   method: 'GET',
