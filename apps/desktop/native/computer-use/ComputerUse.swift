@@ -67,7 +67,9 @@ func completeMenuPress(_ item: AXUIElement, pid: pid_t) async throws {
     guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
           entries.contains(where: { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == menuLevel }) else { return }
     try checkCancellation()
+    // Return runs whatever is highlighted, so it is sent only when this exact item is.
     _ = AXUIElementSetAttributeValue(item, kAXSelectedAttribute as CFString, kCFBooleanTrue)
+    guard attribute(item, kAXSelectedAttribute) as? Bool == true else { return }
     try checkCancellation()
     try postKey(pid: pid, code: 36)
 }
@@ -404,20 +406,28 @@ func mapPoint(frame: CGRect, x: Double, y: Double) throws -> CGPoint {
 func requireForegroundTarget(pid: pid_t, windowID: String, point: CGPoint, frame: CGRect) throws {
     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw ComputerError("foreground_required", "Coordinate mouse input requires the target app in front. Call activate_app, then observe again.") }
     guard try windowRect(windowID, pid: pid) == frame else { throw ComputerError("stale_window", "Window moved during input; observe it again.") }
-    guard let owner = pointOwner(point), owner == pid else { throw ComputerError("window_occluded", "The target point is covered by another app's window; bring the intended window forward and observe again.") }
+    guard let hit = elementAtPoint(point) else { throw ComputerError("window_occluded", "Cannot confirm which window receives this point; observe again before retrying.") }
+    var owner: pid_t = 0
+    guard AXUIElementGetPid(hit, &owner) == .success, owner == pid else { throw ComputerError("window_occluded", "The target point is covered by another app's window; bring the intended window forward and observe again.") }
+    // The app's own sheets, popovers, panels and menus may sit above the observed window; another
+    // of its document windows may not.
+    if let rawWindow = attribute(hit, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() {
+        let window = unsafeBitCast(rawWindow, to: AXUIElement.self)
+        guard elementRect(window) == frame || attribute(window, kAXSubroleAttribute) as? String != kAXStandardWindowSubrole else {
+            throw ComputerError("window_occluded", "Another of this app's windows covers the target point; observe that window and target it instead.")
+        }
+    }
 }
-/// The process that receives a click at a global point. Notification Center and the Dock keep
+/// The element that receives a click at a global point. Notification Center and the Dock keep
 /// full-screen click-through windows above every app, so the topmost window in the window list is not
-/// the click target; Accessibility hit-testing follows the window server's routing. The app's own
-/// sheets, popovers and menus above the observed window resolve to the app itself. Without an answer
-/// the point's owner is unknown, and the caller refuses the input.
-func pointOwner(_ point: CGPoint) -> pid_t? {
+/// the click target; Accessibility hit-testing follows the window server's routing. Without an answer
+/// the target is unknown, and the caller refuses the input.
+func elementAtPoint(_ point: CGPoint) -> AXUIElement? {
     let system = AXUIElementCreateSystemWide()
     AXUIElementSetMessagingTimeout(system, 0.25)
     var hit: AXUIElement?
-    var owner: pid_t = 0
-    guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &hit) == .success, let hit, AXUIElementGetPid(hit, &owner) == .success else { return nil }
-    return owner
+    guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &hit) == .success else { return nil }
+    return hit
 }
 final class CoordinateDispatch {
     private(set) var hasDispatched = false
