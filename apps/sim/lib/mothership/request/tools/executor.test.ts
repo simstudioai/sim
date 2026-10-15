@@ -706,7 +706,7 @@ describe('executeToolAndReport provenance isolation', () => {
       return new Promise(() => {})
     })
     upsertAsyncToolCall.mockResolvedValueOnce({
-      executionDeadlineAt: new Date(Date.now() + 30_000),
+      executionDeadlineAt: new Date(Date.now() + 90_000),
     })
     const tool: ToolCallState = {
       ...buildPendingToolCall(),
@@ -718,10 +718,27 @@ describe('executeToolAndReport provenance isolation', () => {
       workflowId: 'workflow-1',
     })
 
-    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.advanceTimersByTimeAsync(90_000)
 
     expect(signal?.aborted).toBe(true)
     expect((await pending).status).toBe('error')
+  })
+
+  it('does not start a handler with less than a minute of its deadline left', async () => {
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 30_000,
+    }
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(completion.status).toBe('error')
+    expect(tool.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
   })
 
   it('aborts a timed-out handler without cancelling a parallel tool', async () => {

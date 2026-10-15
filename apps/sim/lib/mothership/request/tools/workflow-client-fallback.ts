@@ -10,7 +10,7 @@ import { claimWorkflowToolExecution } from '@/lib/mothership/async-runs/reposito
 import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { waitForWorkflowToolCompletion } from '@/lib/mothership/request/tools/client'
-import { toolDeadlinePassed } from '@/lib/mothership/request/tools/deadline'
+import { toolStartWindowClosed } from '@/lib/mothership/request/tools/deadline'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotWorkflowClientFallback')
@@ -98,8 +98,8 @@ export async function raceWorkflowToolClientPickup(
     return { winner: 'client', completion: first.completion }
   }
 
-  // Never claim work on a turn the user already stopped, or past the call's deadline.
-  if (abortSignal?.aborted || toolDeadlinePassed(params.deadlineAt, Date.now())) {
+  // Never claim work on a turn the user already stopped, or too late to start the call.
+  if (abortSignal?.aborted || toolStartWindowClosed(params.deadlineAt, Date.now())) {
     return { winner: 'client', completion: await clientWait }
   }
 

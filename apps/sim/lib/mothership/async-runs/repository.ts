@@ -42,7 +42,7 @@ import {
   INTERRUPTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_LEASE_SECONDS,
   SIM_TOOL_EXECUTION_MAX_ATTEMPTS,
-  SIM_TOOL_RERUN_MIN_REMAINING_MS,
+  SIM_TOOL_MIN_START_BUDGET_MS,
   SimToolExecutionLeaseLostError,
   type SimToolExecutionOwner,
 } from '@/lib/mothership/async-runs/execution-lease'
@@ -892,7 +892,7 @@ const unfinishedSimExecution = allOf(
 )
 
 /** A call whose deadline leaves less than a re-run needs; a call without one never matches. */
-const tooLateToRerun = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} < clock_timestamp() + ${SIM_TOOL_RERUN_MIN_REMAINING_MS} * interval '1 millisecond')`
+const tooLateToRerun = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} < clock_timestamp() + ${SIM_TOOL_MIN_START_BUDGET_MS} * interval '1 millisecond')`
 
 /**
  * A Sim execution whose owner died before recording a result: its lease lapsed, which a live

@@ -66,7 +66,7 @@ import {
   capToToolDeadline,
   TOOL_DEADLINE_BEFORE_START_MESSAGE,
   toDeadlineDate,
-  toolDeadlinePassed,
+  toolStartWindowClosed,
 } from '@/lib/mothership/request/tools/deadline'
 import { desktopToolNotStarted } from '@/lib/mothership/request/tools/desktop-wait'
 import {
@@ -376,8 +376,8 @@ async function executeToolWithWatchdog(
   // execution always dispatches on the model's real tool name.
   const executableName = toolCall.execName ?? toolCall.name
   const now = Date.now()
-  // Admission or approval can spend the whole deadline; the handler then never starts.
-  if (toolDeadlinePassed(toolCall.deadlineAt, now))
+  // Admission or approval can leave too little time to finish; the handler then never starts.
+  if (toolStartWindowClosed(toolCall.deadlineAt, now))
     throw new Error(TOOL_DEADLINE_BEFORE_START_MESSAGE)
   const timeoutMs = capToToolDeadline(
     toolWatchdogTimeoutMs(executableName),

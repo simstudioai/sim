@@ -114,6 +114,17 @@ describe('raceWorkflowToolClientPickup', () => {
     expect(params.runOnServer).not.toHaveBeenCalled()
   })
 
+  it('does not take a call over with less than a minute of its deadline left', async () => {
+    waitForWorkflowToolCompletion.mockResolvedValue(null)
+    claimWorkflowToolExecution.mockResolvedValue({ toolCallId: 'tool-1' })
+    const params = baseParams({ timeoutMs: 0, deadlineAt: Date.now() + 30_000 })
+
+    await raceWorkflowToolClientPickup(params as never)
+
+    expect(claimWorkflowToolExecution).not.toHaveBeenCalled()
+    expect(params.runOnServer).not.toHaveBeenCalled()
+  })
+
   it('claims immediately when the caller declared no client pickup (graceMs 0)', async () => {
     // ChatRequest.clientCapabilities without 'workflow-tool-pickup' resolves to graceMs 0
     // at the dispatch site: same claim arbitration, no dead-air grace for a client that

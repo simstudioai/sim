@@ -236,6 +236,28 @@ describe('runGatedToolExecution', () => {
     }
   })
 
+  it('does not honor an approval that leaves less than a minute to run the call', async () => {
+    vi.useFakeTimers()
+    try {
+      waitForToolPermissionDecision.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ toolCallId: 'call-1', decision: 'allow' }), 40_000)
+          )
+      )
+      const toolCall = { ...makeToolCall(), deadlineAt: Date.now() + 90_000 }
+      const execute = vi.fn()
+      const pending = gate(makeContext(), toolCall, execute, [])
+
+      await vi.advanceTimersByTimeAsync(40_000)
+
+      expect(await pending).toMatchObject({ status: 'error' })
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('stops waiting for an answer at the deadline the worker named for the call', async () => {
     vi.useFakeTimers()
     try {

@@ -41,6 +41,7 @@ import {
   TOOL_DEADLINE_EXCEEDED_MESSAGE,
   toDeadlineDate,
   toolDeadlinePassed,
+  toolStartWindowClosed,
 } from '@/lib/mothership/request/tools/deadline'
 import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
 import {
@@ -1000,7 +1001,7 @@ async function dispatchToolExecution(
         // provably never ran; a claimed one (a takeover re-hands calls) is read, then settled
         // below as outcome unknown.
         if (
-          toolDeadlinePassed(toolCall.deadlineAt, Date.now()) &&
+          toolStartWindowClosed(toolCall.deadlineAt, Date.now()) &&
           (await failUnstartedToolCall(
             toolCallId,
             context,
