@@ -39,6 +39,9 @@ import {
 } from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import {
   getProjectAccountDeletionBlockers,
   prepareProjectsForAccountDeletion,
@@ -777,6 +780,9 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
 
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
+  let stoppedRuns: StoppedRun[] = []
+  /** Resolved while the account's settings still exist to route a superuser's runs. */
+  const mothershipBaseURL = await getMothershipBaseURL({ userId })
 
   await db.transaction(async (tx) => {
     /** Organization and Project gates precede workspace rows, which precede user FK barriers. */
@@ -840,6 +846,11 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       true
     )
     if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
+    /**
+     * A deleted person's Chat runs stop like their table runs below. Collected before the
+     * workspace and user deletes cascade their rows away; delivered after commit.
+     */
+    stoppedRuns = await stopLiveRunsTx(tx, { userId })
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -989,6 +1000,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   await invalidateReportingUsagePrefixes()
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
+
+  deliverRunStops(stoppedRuns, { mothershipBaseURL })
 
   await purgeStorageObjects(userId, storageKeys)
 

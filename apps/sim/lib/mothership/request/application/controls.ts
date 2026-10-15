@@ -6,28 +6,16 @@ import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
-import { markExecutionCancelled } from '@/lib/execution/cancellation'
-import { abortManualExecution } from '@/lib/execution/manual-cancellation'
-import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
 import {
   areStreamToolExecutionsSettled,
   getLatestRunForStream,
-  getUnsettledClientWorkflowExecutions,
-  getUnsettledStreamSandboxProcesses,
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
-import {
-  abortActiveStream,
-  releasePendingChatStream,
-  waitForPendingChatStream,
-} from '@/lib/mothership/request/session'
-import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+import { deliverRunStop } from '@/lib/mothership/request/application/stop-delivery'
 import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
-import { recoverSandboxProcesses } from '@/lib/mothership/request/tools/sandbox-recovery'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('MothershipRunControls')
@@ -159,66 +147,12 @@ export const abortRun = defineAuthorizedChatUseCase({
       { ...input, workspaceId, organizationId },
       run
     )
-    /** Admission is closed: the device re-reads its inbox and cancels what it is running. */
-    if (run.desktopDeviceId) ringDesktopInbox(run.desktopDeviceId, 'cancel')
-    /** Push delivers promptly; the worker also reconciles Sim's durable intent after an outage. */
-    const workerStop = requestExplicitStreamAbort({
+    const { settled, workerSettled } = await deliverRunStop({
+      id: run.id,
       streamId,
       userId,
       chatId,
-      timeoutMs: 6000,
-    }).catch((error) => {
-      logger.warn('Stop saved; worker delivery awaits reconciliation', {
-        streamId,
-        error: getErrorMessage(error),
-      })
-      return { settled: false }
-    })
-    await abortActiveStream(streamId)
-    const cancelClientWorkflows = async () => {
-      const executionIds = await getUnsettledClientWorkflowExecutions(streamId, userId)
-      await Promise.all(
-        executionIds.map(async (executionId) => {
-          /** The execution route reserved these IDs before recording ownership; no client result is trusted. */
-          abortManualExecution(executionId)
-          await markExecutionCancelled(executionId)
-        })
-      )
-    }
-    const recoverCommands = async () => {
-      const signal = AbortSignal.timeout(8000)
-      const processes = await getUnsettledStreamSandboxProcesses(streamId, userId).catch(
-        (error) => {
-          logger.warn('Stopped stream sandbox ownership could not be read', {
-            streamId,
-            error: getErrorMessage(error),
-          })
-          return []
-        }
-      )
-      await recoverSandboxProcesses(processes, signal)
-    }
-    const [settled, worker] = await Promise.all([
-      waitForPendingChatStream(chatId, 8000, streamId),
-      workerStop,
-      recoverCommands(),
-      cancelClientWorkflows().catch((error) => {
-        logger.warn('Stopped stream workflow cancellation could not be delivered', {
-          streamId,
-          error: getErrorMessage(error),
-        })
-      }),
-    ])
-    if (!settled) {
-      await releasePendingChatStream(chatId, streamId)
-      logger.warn('Stopped stream did not settle; released its chat lock', { chatId, streamId })
-    }
-    /** A run with no controller left, or none to begin with, has nothing else to settle it. */
-    await settleStoppedRunWithoutController(run.id).catch((error) => {
-      logger.warn('Stopped run without a controller could not be settled', {
-        streamId,
-        error: getErrorMessage(error),
-      })
+      desktopDeviceId: run.desktopDeviceId,
     })
     if (!settled) return { aborted: true, settled: false, forceReleased: true }
     const toolsSettled = await areStreamToolExecutionsSettled(streamId, userId).catch((error) => {
@@ -228,7 +162,7 @@ export const abortRun = defineAuthorizedChatUseCase({
       })
       return false
     })
-    return { aborted: true, settled: worker.settled && toolsSettled }
+    return { aborted: true, settled: workerSettled && toolsSettled }
   },
 })
 

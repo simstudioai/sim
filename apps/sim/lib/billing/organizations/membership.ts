@@ -59,6 +59,8 @@ import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { isRetryableTransactionError } from '@/lib/db/transaction'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
@@ -1120,6 +1122,8 @@ export async function transferUserBetweenOrganizations(
     }
   }
 
+  /** The source organization's runs this transfer ends, delivered once it commits. */
+  let stoppedRuns: StoppedRun[] = []
   try {
     const transferResult = await withInvitationSafeOrganizationAccessMutation(
       {
@@ -1242,6 +1246,13 @@ export async function transferUserBetweenOrganizations(
           )
           await removeWorkspaceSkillMembershipsTx(tx, workspaceIds, params.userId)
         }
+        stoppedRuns = [
+          ...(await stopLiveRunsTx(tx, {
+            userId: params.userId,
+            organizationId: params.sourceOrganizationId,
+          })),
+          ...(await stopLiveRunsTx(tx, { userId: params.userId, workspaceIds })),
+        ]
 
         const added = await ensureUserInOrganizationTx(tx, {
           userId: params.userId,
@@ -1277,6 +1288,7 @@ export async function transferUserBetweenOrganizations(
     // The transferred member's fallbacks must resolve to the destination org
     // immediately, and their sessions clamp to its policy — same treatment as
     // invite acceptance. Best-effort.
+    deliverRunStops(stoppedRuns)
     await applySessionPolicyToNewMember(params.userId, params.destinationOrganizationId)
     return transferResult
   } catch (error) {
@@ -1431,6 +1443,11 @@ export async function removeUserFromOrganization(
         })
         if (revokePersonalApiKeys) await revokePersonalApiKeysTx(tx, { userId })
         await endDirectoryMembershipTx(tx, { userId, organizationId })
+        /** The member's organization Assistant runs and their runs in its workspaces end with access. */
+        const stoppedRuns = [
+          ...(await stopLiveRunsTx(tx, { userId, organizationId })),
+          ...(await stopLiveRunsTx(tx, { userId, workspaceIds })),
+        ]
 
         if (workspaceIds.length === 0) {
           return {
@@ -1441,6 +1458,7 @@ export async function removeUserFromOrganization(
             usageCaptured: 0,
             credentialMembershipsRevoked: 0,
             pendingInvitationsCancelled: cancelledInvitations.length,
+            stoppedRuns,
           }
         }
 
@@ -1478,6 +1496,7 @@ export async function removeUserFromOrganization(
           usageCaptured: 0,
           credentialMembershipsRevoked,
           pendingInvitationsCancelled: cancelledInvitations.length,
+          stoppedRuns,
         }
       }
     )
@@ -1490,6 +1509,8 @@ export async function removeUserFromOrganization(
       })
       return { success: true, removed: false, billingActions }
     }
+
+    deliverRunStops(result.stoppedRuns)
 
     billingActions.usageCaptured = result.usageCaptured
     billingActions.workspaceAccessRevoked = result.workspaceIdsToRevoke.length
@@ -1578,6 +1599,8 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
   actorUserId?: string
 }): Promise<RemoveExternalWorkspaceAccessResult> {
   const { userId, organizationId } = params
+  /** The member's runs in the workspaces they lose, delivered once the removal commits. */
+  let stoppedRuns: StoppedRun[] = []
 
   try {
     const [existingMember] = await db
@@ -1688,6 +1711,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
           userId
         )
         await removeWorkspaceSkillMembershipsTx(tx, workspaceIds, userId)
+        stoppedRuns = await stopLiveRunsTx(tx, { userId, workspaceIds })
 
         return {
           workspaceAccessRevoked: deletedPermissions.length,
@@ -1697,6 +1721,8 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
         }
       }
     )
+
+    deliverRunStops(stoppedRuns)
 
     if (
       workspaceAccessRevoked === 0 &&

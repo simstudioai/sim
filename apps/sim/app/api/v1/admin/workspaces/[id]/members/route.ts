@@ -50,6 +50,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { ProjectConflictError } from '@/lib/projects/errors'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
@@ -397,12 +398,13 @@ export const DELETE = withRouteHandler(
           expectedPermissionId: existingPermission.id,
         })
         if (!result.revoked) {
-          if (result.reason === 'membership-changed') return false
+          if (result.reason === 'membership-changed') return null
           throw new WorkspaceBillingAccountRemovalError()
         }
-        return true
+        return result
       })
       if (!removed) return adminNotFoundResponse('Workspace member')
+      deliverRunStops(removed.stoppedRuns)
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)
 

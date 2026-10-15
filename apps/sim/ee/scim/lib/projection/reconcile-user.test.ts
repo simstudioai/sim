@@ -117,7 +117,11 @@ describe('reconcileUserProjection', () => {
     mocks.grantWorkspace.mockResolvedValue('granted')
     mocks.lowerWorkspace.mockResolvedValue('lowered')
     mocks.readPermission.mockResolvedValue('write')
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
     mocks.addMember.mockResolvedValue('added')
     mocks.removeMember.mockResolvedValue('removed')
     mocks.changeMemberRole.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
@@ -301,7 +305,11 @@ describe('reconcileUserProjection', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
     mocks.readPermission.mockResolvedValue('write')
     stage({
       current: [

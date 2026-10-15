@@ -21,6 +21,8 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   archiveProjectWithLastEnvironment,
   lockWorkspaceProjectExclusive,
@@ -40,6 +42,8 @@ export interface EnvironmentArchiveEffects {
   workspaceId: string
   workflows: { id: string; serverIds: string[] }[]
   serverIds: string[]
+  /** Chat runs the archive stopped, delivered once it commits. */
+  stoppedRuns: StoppedRun[]
 }
 
 interface ArchiveWorkspaceOptions {
@@ -101,9 +105,9 @@ export async function archiveWorkspace(
 }
 
 /**
- * Archives an environment and its active workflows in the caller's transaction, batching
- * the workflow statements; callers own the Project lifecycle. Announce the returned
- * effects with {@link finishEnvironmentArchive} after commit.
+ * Archives an environment, its active workflows and its live Chat runs in the caller's
+ * transaction, batching the workflow statements; callers own the Project lifecycle. Announce
+ * the returned effects with {@link finishEnvironmentArchive} after commit.
  */
 export async function archiveEnvironmentInTransaction(
   tx: DbTransaction,
@@ -134,7 +138,8 @@ export async function archiveEnvironmentInTransaction(
     for (const id of batch) workflows.push({ id, serverIds: serverIdsByWorkflow.get(id) ?? [] })
   }
   const serverIds = await archiveWorkspaceRecordsInTransaction(tx, workspaceId, now)
-  return { workspaceId, workflows, serverIds }
+  const stoppedRuns = await stopLiveRunsTx(tx, { workspaceId })
+  return { workspaceId, workflows, serverIds, stoppedRuns }
 }
 
 /**
@@ -147,6 +152,7 @@ export async function finishEnvironmentArchive(
   options: { strictExternalCleanup?: boolean } = {}
 ): Promise<void> {
   const { workspaceId } = effects
+  deliverRunStops(effects.stoppedRuns)
   try {
     const cleanupErrors: unknown[] = []
     await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>

@@ -1,11 +1,15 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import type {
+  DelegatedPrincipal,
+  OrganizationDelegatedPrincipal,
+  Principal,
+} from '@sim/auth/principal'
+import { type AuthorizingUseCase, defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { getLatestRunForStream, isRunStopRequested } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
-import type { RunControlRequest } from '@/lib/mothership/generated/run-control'
+import type { RunControlRequest, RunControlState } from '@/lib/mothership/generated/run-control'
 
 export const RUN_CONTROL_AUDIENCE = 'sim:copilot-run-control'
 // permission-group-exempt: observing stop state must remain possible after Copilot access is withheld
@@ -19,7 +23,8 @@ export const readRunControlOperation = defineWorkspaceOperation({
   delegatedServices: ['copilot'],
 })
 
-export const readRunControl = defineAuthorizedChatUseCase({
+/** Answers for a run Sim still has: its chat live, its owner still allowed, Stop not requested. */
+const readLiveRunControl = defineAuthorizedChatUseCase({
   operation: readRunControlOperation,
   /** permission-group-exempt: observing Stop must remain available after Assistant access is withheld. */
   organizationOperation: defineOrganizationOperation({
@@ -60,3 +65,49 @@ export const readRunControl = defineAuthorizedChatUseCase({
     return { stopped: await isRunStopRequested({ ...context, streamId: input.streamId }) }
   },
 })
+
+/** The worker asking about its own run: a copilot delegation for this chat, still in date. */
+function requireRunControlCaller(principal: Principal, input: RunControlRequest): void {
+  if (principal.kind !== 'delegated' && principal.kind !== 'organization_delegated')
+    throw new OrchestrationError('forbidden', 'Run control delegation is not valid')
+  /** A workspace delegation may leave the chat unscoped; an organization one always names it. */
+  const chatScope =
+    principal.kind === 'delegated'
+      ? (principal.resourceScope?.chatId ?? input.chatId)
+      : principal.resourceScope.chatId
+  if (
+    principal.serviceId !== 'copilot' ||
+    principal.audience !== RUN_CONTROL_AUDIENCE ||
+    principal.expiresAt.getTime() <= Date.now() ||
+    chatScope !== input.chatId
+  ) {
+    throw new OrchestrationError('forbidden', 'Run control delegation is not valid')
+  }
+}
+
+/**
+ * Whether the worker's run may continue. Sim is the authority, so a run whose chat was
+ * deleted, whose owner or workspace is gone, or whose owner lost access answers Stop rather
+ * than an error the worker can only retry: a deletion stops its runs even when no push
+ * reached the worker. Only a failure to read the answer is an error.
+ */
+export const readRunControl: AuthorizingUseCase<
+  typeof readRunControlOperation,
+  RunControlRequest,
+  RunControlState
+> = {
+  operation: readRunControlOperation,
+  async authorize({ principal, input }) {
+    requireRunControlCaller(principal, input)
+  },
+  async execute(args) {
+    requireRunControlCaller(args.principal, args.input)
+    try {
+      return await readLiveRunControl.execute(args)
+    } catch (error) {
+      const refusal = asOrchestrationError(error)?.code
+      if (refusal === 'not_found' || refusal === 'forbidden') return { stopped: true }
+      throw error
+    }
+  },
+}

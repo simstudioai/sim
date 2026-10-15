@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { lockProjectsForResourceDepartureTx } from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
@@ -113,8 +114,12 @@ export async function lowerWorkspaceAccessTx(
 }
 
 export type RevokeWorkspaceAccessResult =
-  /** `ownershipTransferred` is true when the departing user owned the workspace and it moved to the billed account. */
-  | { revoked: true; ownershipTransferred: boolean }
+  /**
+   * `ownershipTransferred` is true when the departing user owned the workspace and it moved to
+   * the billed account. `stoppedRuns` are the user's Chat runs there, stopped in this
+   * transaction; deliver them with `deliverRunStops` after commit.
+   */
+  | { revoked: true; ownershipTransferred: boolean; stoppedRuns: StoppedRun[] }
   /** Workspace IDs whose shared resources or ownership lack a successor; access remains unchanged. */
   | { revoked: false; reason: 'unresolved-workflows'; unresolvedWorkspaceIds: string[] }
   /** The requested membership no longer exists; a replacement grant must remain untouched. */
@@ -183,8 +188,12 @@ export async function revokeWorkspaceAccessTx(
 
   await revokeWorkspaceCredentialMembershipsTx(tx, params.workspaceId, params.userId)
   await removeWorkspaceSkillMembershipsTx(tx, params.workspaceId, params.userId)
+  const stoppedRuns = await stopLiveRunsTx(tx, {
+    userId: params.userId,
+    workspaceIds: [params.workspaceId],
+  })
 
-  return { revoked: true, ownershipTransferred }
+  return { revoked: true, ownershipTransferred, stoppedRuns }
 }
 
 /** The permission a user currently holds on a workspace, if any. */

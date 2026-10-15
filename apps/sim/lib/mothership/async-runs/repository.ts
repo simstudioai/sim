@@ -32,6 +32,7 @@ import {
 } from 'drizzle-orm'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { executableToolPermission } from '@/lib/mothership/async-runs/executable-tool-permission'
@@ -194,32 +195,111 @@ export async function requestRunStop(
         (input.chatId && run.chatId !== input.chatId))
     )
       return run
-    const { userId, streamId } = input
-    const owner = resourceScopeFromOwner(input)
-    if (owner.kind === 'organization') {
-      await tx
-        .insert(copilotOrganizationRequestStops)
-        .values({ userId, organizationId: owner.organizationId, streamId })
-        .onConflictDoNothing()
-    } else {
-      await tx
-        .insert(copilotRequestStops)
-        .values({ userId, workspaceId: owner.workspaceId, streamId })
-        .onConflictDoNothing()
-    }
-    if (run) {
-      const stoppedRuns = and(
-        eq(copilotRuns.userId, input.userId),
-        eq(copilotRuns.streamId, input.streamId)
-      )
-      await tx
-        .update(copilotRuns)
-        .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
-        .where(stoppedRuns)
-      await cancelOpenDesktopToolCalls(tx, stoppedRuns, input.userId)
-    }
+    await recordRunStopTx(tx, input, Boolean(run))
     return run ?? null
   })
+}
+
+/**
+ * Records Stop for one stream in the caller's transaction: the durable intent every later
+ * segment and the worker's run-control read observe, closed tool admission, and settled
+ * desktop calls. `admitted` is false when no run row exists yet to close.
+ */
+async function recordRunStopTx(tx: DbTransaction, input: RunStopInput, admitted = true) {
+  const { userId, streamId } = input
+  const owner = resourceScopeFromOwner(input)
+  if (owner.kind === 'organization') {
+    await tx
+      .insert(copilotOrganizationRequestStops)
+      .values({ userId, organizationId: owner.organizationId, streamId })
+      .onConflictDoNothing()
+  } else {
+    await tx
+      .insert(copilotRequestStops)
+      .values({ userId, workspaceId: owner.workspaceId, streamId })
+      .onConflictDoNothing()
+  }
+  if (!admitted) return
+  const stoppedRuns = and(eq(copilotRuns.userId, userId), eq(copilotRuns.streamId, streamId))
+  await tx
+    .update(copilotRuns)
+    .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
+    .where(stoppedRuns)
+  await cancelOpenDesktopToolCalls(tx, stoppedRuns, userId)
+}
+
+/** A live run a removal stopped, with what its post-commit delivery needs. */
+export interface StoppedRun {
+  id: string
+  streamId: string
+  userId: string
+  chatId: string
+  desktopDeviceId: string | null
+}
+
+/** Whose live runs a deletion or access removal ends. */
+type LiveRunScope =
+  | { chatIds: string[] }
+  | { userId: string }
+  | { workspaceId: string }
+  | { userId: string; workspaceIds: string[] }
+  | { userId: string; organizationId: string }
+
+function liveRunScopeCondition(scope: LiveRunScope): SQL | undefined {
+  if ('chatIds' in scope) return inArray(copilotRuns.chatId, scope.chatIds)
+  if ('organizationId' in scope)
+    return and(
+      eq(copilotRuns.userId, scope.userId),
+      eq(copilotRuns.organizationId, scope.organizationId)
+    )
+  if ('workspaceIds' in scope)
+    return and(
+      eq(copilotRuns.userId, scope.userId),
+      inArray(copilotRuns.workspaceId, scope.workspaceIds)
+    )
+  if ('workspaceId' in scope) return eq(copilotRuns.workspaceId, scope.workspaceId)
+  return eq(copilotRuns.userId, scope.userId)
+}
+
+/**
+ * Stops every unfinished run in `scope` inside the removal's own transaction, so Stop commits
+ * exactly when the removal does: a restored chat cannot revive the run and a takeover never
+ * adopts it. Rows a hard delete cascades away take their Stop with them; run control then
+ * answers Stop because the chat or owner is gone. Callers deliver the returned runs' Stop with
+ * `deliverRunStops` after commit.
+ */
+export async function stopLiveRunsTx(
+  tx: DbTransaction,
+  scope: LiveRunScope
+): Promise<StoppedRun[]> {
+  if (
+    ('chatIds' in scope && scope.chatIds.length === 0) ||
+    ('workspaceIds' in scope && scope.workspaceIds.length === 0)
+  )
+    return []
+  const rows = await tx
+    .select({
+      id: copilotRuns.id,
+      streamId: copilotRuns.streamId,
+      userId: copilotRuns.userId,
+      chatId: copilotRuns.chatId,
+      workspaceId: copilotRuns.workspaceId,
+      organizationId: copilotRuns.organizationId,
+      desktopDeviceId: copilotRuns.desktopDeviceId,
+    })
+    .from(copilotRuns)
+    .where(and(liveRunScopeCondition(scope), notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)))
+  for (const row of rows) {
+    /** A run with no single owner has no Stop row to write; run control already answers Stop. */
+    if (Boolean(row.workspaceId) !== Boolean(row.organizationId)) await recordRunStopTx(tx, row)
+  }
+  return rows.map(({ id, streamId, userId, chatId, desktopDeviceId }) => ({
+    id,
+    streamId,
+    userId,
+    chatId,
+    desktopDeviceId,
+  }))
 }
 
 /**

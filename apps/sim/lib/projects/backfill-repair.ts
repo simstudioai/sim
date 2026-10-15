@@ -117,7 +117,7 @@ export async function repairArchivedProjectEnvironment(
           archivedAt
         )
     }
-    await archiveEnvironmentInTransaction(tx, repair.workspaceId, archivedAt)
+    const archived = await archiveEnvironmentInTransaction(tx, repair.workspaceId, archivedAt)
     const tools = await tx
       .select({
         workflowId: schema.workflowMcpTool.workflowId,
@@ -130,7 +130,7 @@ export async function repairArchivedProjectEnvironment(
       .from(schema.workflowMcpServer)
       .where(eq(schema.workflowMcpServer.workspaceId, repair.workspaceId))
     const result: EnvironmentArchiveEffects = {
-      workspaceId: repair.workspaceId,
+      ...archived,
       workflows: repair.workflowIds.map((id) => ({
         id,
         serverIds: tools.filter((tool) => tool.workflowId === id).map((tool) => tool.serverId),

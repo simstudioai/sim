@@ -68,8 +68,19 @@ describe('organization run-control authorization', () => {
       })
     )
   })
-  it.each(['user', 'organization', 'chat', 'expired'] as const)(
-    'rejects altered %s delegation',
+  it.each(['chat', 'expired'] as const)('rejects altered %s delegation', async (field) => {
+    queueChat()
+    const trusted = principal()
+    const caller = {
+      ...trusted,
+      ...(field === 'chat' ? { resourceScope: { chatId: 'other' } } : {}),
+      ...(field === 'expired' ? { expiresAt: new Date(0) } : {}),
+    }
+    await expect(readRunControl.execute({ principal: caller, input })).rejects.toThrow()
+    expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it.each(['user', 'organization'] as const)(
+    'answers Stop without reading the owner state for a %s the chat does not belong to',
     async (field) => {
       queueChat()
       const trusted = principal()
@@ -77,27 +88,40 @@ describe('organization run-control authorization', () => {
         ...trusted,
         ...(field === 'user' ? { subjectUserId: 'other' } : {}),
         ...(field === 'organization' ? { organizationId: 'other' } : {}),
-        ...(field === 'chat' ? { resourceScope: { chatId: 'other' } } : {}),
-        ...(field === 'expired' ? { expiresAt: new Date(0) } : {}),
       }
-      await expect(readRunControl.execute({ principal: caller, input })).rejects.toThrow()
+      expect(await readRunControl.execute({ principal: caller, input })).toEqual({ stopped: true })
       expect(mocks.stopped).not.toHaveBeenCalled()
     }
   )
-  it('rejects removed organization membership and a run owned by another organization', async () => {
+  it('answers Stop once organization membership ends or the run belongs to another organization', async () => {
     queueTableRows(copilotChats, [
       { userId: 'actor', organizationId: 'org-1', workspaceId: null, type: 'mothership' },
     ])
-    await expect(readRunControl.execute({ principal: principal(), input })).rejects.toThrow(
-      'Organization not found'
-    )
+    expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
+      stopped: true,
+    })
     expect(mocks.stopped).not.toHaveBeenCalled()
     resetDbChainMock()
     queueChat()
     mocks.run.mockResolvedValue({ chatId: 'chat-1', organizationId: 'org-2', workspaceId: null })
-    await expect(readRunControl.execute({ principal: principal(), input })).rejects.toThrow(
-      'Stream not found'
-    )
+    expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
+      stopped: true,
+    })
     expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('answers Stop for a suspended owner', async () => {
+    queueChat()
+    mocks.banned.mockResolvedValue(['actor'])
+    expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
+      stopped: true,
+    })
+    expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('lets a live run continue', async () => {
+    queueChat()
+    mocks.stopped.mockResolvedValue(false)
+    expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
+      stopped: false,
+    })
   })
 })
