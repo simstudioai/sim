@@ -16,7 +16,7 @@ export const MicrosoftDataverseBlock = {
   description: 'Manage records in Microsoft Dataverse tables',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.',
+    'Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_dataverse',
   category: 'tools',
   integrationType: IntegrationType.Databases,

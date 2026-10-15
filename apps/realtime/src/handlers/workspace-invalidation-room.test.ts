@@ -1,4 +1,5 @@
-import { WORKSPACE_LIST_ROOM_TYPES } from '@sim/realtime-protocol/rooms'
+import { INVALIDATION_ROOM_TYPES, invalidationRoomIdKey } from '@sim/realtime-protocol/rooms'
+import { createDeferred } from '@sim/testing'
 import { databaseMock } from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,10 +15,14 @@ vi.mock('@sim/platform-authz/rooms', () => ({
   authorizeRoom: mockAuthorizeRoom,
 }))
 
+vi.mock('@/handlers/file-list-app', () => ({
+  fetchProjectRoomAccess: mockAuthorizeRoom,
+}))
+
 import { setupWorkspaceInvalidationRoom } from '@/handlers/workspace-invalidation-room'
 import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
-type Payload = { workspaceId?: string }
+type Payload = { workspaceId?: string; projectId?: string }
 
 function createSocket(overrides?: Record<string, unknown>) {
   const handlers: Record<string, (payload?: Payload) => Promise<void> | void> = {}
@@ -25,6 +30,7 @@ function createSocket(overrides?: Record<string, unknown>) {
   const rooms = new Set<string>()
   const socket = {
     id: 'socket-1',
+    disconnected: false,
     userId: 'user-1',
     userName: 'Test User',
     userImage: 'avatar.png',
@@ -68,14 +74,13 @@ function createRoomManager(overrides?: Partial<IRoomManager>): IRoomManager {
   } as unknown as IRoomManager
 }
 
-// The presence-free live-list rooms share one implementation; run the whole suite against each
-// so they can never drift. Event names and room names derive from the room type.
-describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (roomType) => {
+/** All invalidation room types share authorization and cancellation behavior. */
+describe.each(INVALIDATION_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (roomType) => {
   const joinEvent = `join-${roomType}`
   const successEvent = `${joinEvent}-success`
   const errorEvent = `${joinEvent}-error`
   const leaveEvent = `leave-${roomType}`
-  const _roomOf = (workspaceId: string) => `${roomType}:${workspaceId}`
+  const idKey = invalidationRoomIdKey(roomType)
 
   const setup = (socket: ReturnType<typeof createSocket>['socket'], roomManager: IRoomManager) =>
     setupWorkspaceInvalidationRoom(
@@ -103,7 +108,7 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
     const { socket, handlers } = createSocket()
     setup(socket, createRoomManager())
 
-    await handlers[joinEvent]({ workspaceId: 'ws-1' })
+    await handlers[joinEvent]({ [idKey]: 'ws-1' })
 
     expect(socket.emit).toHaveBeenCalledWith(
       errorEvent,
@@ -112,11 +117,7 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
   })
 
   it('aborts a join superseded during the access re-check await', async () => {
-    // The access re-resolve is an await like any other: a leave landing during it must
-    // still cancel this join, or the stale join would leave the room the client
-    // switched to and commit the abandoned one. Forced down the re-resolve's DB path
-    // by expiring the cached decision mid-join, so the interleaving is deterministic
-    // rather than dependent on microtask ordering.
+    /** Expire the cache to exercise a leave while the permission re-check is pending. */
     vi.useFakeTimers()
     try {
       const { handlers, socket } = createSocket({ id: 'socket-sup', userId: 'user-sup' })
@@ -141,12 +142,12 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
           await sleep(31_000)
         } else {
           // Second call is the re-check's re-resolve: the client leaves during it.
-          handlers[leaveEvent]({ workspaceId: 'ws-sup' })
+          handlers[leaveEvent]({ [idKey]: 'ws-sup' })
         }
         return { allowed: true, status: 200, workspaceId: 'ws-sup', workspacePermission: 'admin' }
       })
 
-      const joining = handlers[joinEvent]({ workspaceId: 'ws-sup' })
+      const joining = handlers[joinEvent]({ [idKey]: 'ws-sup' })
       await vi.advanceTimersByTimeAsync(31_000)
       await joining
 
@@ -178,12 +179,189 @@ describe.each(WORKSPACE_LIST_ROOM_TYPES)('setupWorkspaceInvalidationRoom(%s)', (
       return { allowed: true, status: 200, workspaceId: 'ws-race', workspacePermission: 'admin' }
     })
 
-    await handlers[joinEvent]({ workspaceId: 'ws-race' })
+    await handlers[joinEvent]({ [idKey]: 'ws-race' })
 
     expect(socket.emit).toHaveBeenCalledWith(
       errorEvent,
       expect.objectContaining({ code: 'ACCESS_DENIED', retryable: false })
     )
     expect(socket.join).not.toHaveBeenCalled()
+  })
+})
+
+/** Exercise every owner address through the real authorization and membership handler. */
+describe.each(INVALIDATION_ROOM_TYPES)('concurrent owner subscriptions (%s)', (roomType) => {
+  const idKey = invalidationRoomIdKey(roomType)
+  const payload = (id: string): Payload => ({ [idKey]: id })
+  const joinEvent = `join-${roomType}`
+  const leaveEvent = `leave-${roomType}`
+  const successEvent = `${joinEvent}-success`
+  const errorEvent = `${joinEvent}-error`
+  const allowed = { allowed: true, status: 200, workspacePermission: 'admin' }
+
+  function setup() {
+    const state = createSocket({ disconnected: false })
+    setupWorkspaceInvalidationRoom(
+      state.socket as unknown as Parameters<typeof setupWorkspaceInvalidationRoom>[0],
+      createRoomManager(),
+      roomType
+    )
+    return state
+  }
+
+  function pendingAuthorization() {
+    const pending = createDeferred<typeof allowed>()
+    mockAuthorizeRoom.mockImplementationOnce(() => pending.promise)
+    return pending
+  }
+
+  beforeEach(() => {
+    mockAuthorizeRoom.mockReset().mockResolvedValue(allowed)
+  })
+
+  it('keeps both owners subscribed after sequential joins', async () => {
+    const { handlers, rooms } = setup()
+    await handlers[joinEvent](payload('owner-a'))
+    await handlers[joinEvent](payload('owner-b'))
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`, `${roomType}:owner-b`]))
+  })
+
+  it('allows independent joins to finish in reverse order', async () => {
+    const { handlers, rooms } = setup()
+    const first = pendingAuthorization()
+    const joining = handlers[joinEvent](payload('owner-a'))
+    await handlers[joinEvent](payload('owner-b'))
+    first.resolve(allowed)
+    await joining
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`, `${roomType}:owner-b`]))
+  })
+
+  it('scoped leave cancels only its pending owner and retains other membership', async () => {
+    const { handlers, rooms } = setup()
+    await handlers[joinEvent](payload('owner-c'))
+    const first = pendingAuthorization()
+    const joiningA = handlers[joinEvent](payload('owner-a'))
+    const second = pendingAuthorization()
+    const joiningB = handlers[joinEvent](payload('owner-b'))
+    handlers[leaveEvent](payload('owner-a'))
+    second.resolve(allowed)
+    first.resolve(allowed)
+    await Promise.all([joiningA, joiningB])
+    expect(rooms).toEqual(new Set([`${roomType}:owner-b`, `${roomType}:owner-c`]))
+  })
+
+  it('scoped leave removes only the specified joined owner', async () => {
+    const { handlers, rooms } = setup()
+    await handlers[joinEvent](payload('owner-a'))
+    await handlers[joinEvent](payload('owner-b'))
+    handlers[leaveEvent](payload('owner-b'))
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`]))
+  })
+
+  it('leave all cancels every pending join and removes only this room type', async () => {
+    const { handlers, rooms } = setup()
+    rooms.add('other:owner')
+    await handlers[joinEvent](payload('owner-c'))
+    const first = pendingAuthorization()
+    const joiningA = handlers[joinEvent](payload('owner-a'))
+    const second = pendingAuthorization()
+    const joiningB = handlers[joinEvent](payload('owner-b'))
+    handlers[leaveEvent]()
+    first.resolve(allowed)
+    second.resolve(allowed)
+    await Promise.all([joiningA, joiningB])
+    expect(rooms).toEqual(new Set(['other:owner']))
+  })
+
+  it('does not revive an old attempt after leave and rejoin of the same owner', async () => {
+    const { handlers, socket, rooms } = setup()
+    const first = pendingAuthorization()
+    const joining = handlers[joinEvent](payload('owner-a'))
+    handlers[leaveEvent](payload('owner-a'))
+    await handlers[joinEvent](payload('owner-a'))
+    first.resolve(allowed)
+    await joining
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`]))
+    expect(socket.emit.mock.calls.filter(([event]) => event === successEvent)).toHaveLength(1)
+  })
+
+  it('supersedes a duplicate pending join for the same owner only', async () => {
+    const { handlers, socket, rooms } = setup()
+    const first = pendingAuthorization()
+    const joining = handlers[joinEvent](payload('owner-a'))
+    await handlers[joinEvent](payload('owner-b'))
+    await handlers[joinEvent](payload('owner-a'))
+    first.resolve(allowed)
+    await joining
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`, `${roomType}:owner-b`]))
+    expect(socket.emit.mock.calls.filter(([event]) => event === successEvent)).toHaveLength(2)
+  })
+
+  it('suppresses stale authorization errors after the owner has rejoined', async () => {
+    const { handlers, socket, rooms } = setup()
+    const first = pendingAuthorization()
+    const joining = handlers[joinEvent](payload('owner-a'))
+    handlers[leaveEvent](payload('owner-a'))
+    await handlers[joinEvent](payload('owner-a'))
+    first.reject(new Error('Delayed authorization failure'))
+    await joining
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`]))
+    expect(socket.emit).not.toHaveBeenCalledWith(errorEvent, expect.anything())
+  })
+
+  it('does not clear a newer pending attempt when the old attempt finishes', async () => {
+    const { handlers, socket, rooms } = setup()
+    const first = pendingAuthorization()
+    const joiningA = handlers[joinEvent](payload('owner-a'))
+    const second = pendingAuthorization()
+    const joiningAgain = handlers[joinEvent](payload('owner-a'))
+    first.resolve(allowed)
+    await joiningA
+    expect(rooms.size).toBe(0)
+    second.resolve(allowed)
+    await joiningAgain
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`]))
+    expect(socket.emit.mock.calls.filter(([event]) => event === successEvent)).toHaveLength(1)
+  })
+
+  it('preserves another owner while rejecting a revoked pending join', async () => {
+    const { handlers, socket, rooms } = setup()
+    await handlers[joinEvent](payload('owner-b'))
+    const first = pendingAuthorization()
+    const joining = handlers[joinEvent](payload('owner-a'))
+    commitRoomPermission(
+      socket.userId,
+      { type: roomType, id: 'owner-a' },
+      null,
+      beginRoomPermissionRead()
+    )
+    first.resolve(allowed)
+    await joining
+    expect(rooms).toEqual(new Set([`${roomType}:owner-b`]))
+    expect(socket.emit).toHaveBeenCalledWith(
+      errorEvent,
+      expect.objectContaining({ [idKey]: 'owner-a', code: 'ACCESS_DENIED' })
+    )
+  })
+
+  it('does not commit any pending joins after disconnect', async () => {
+    const { handlers, socket, rooms } = setup()
+    const first = pendingAuthorization()
+    const joining = handlers[joinEvent](payload('owner-a'))
+    socket.disconnected = true
+    first.resolve(allowed)
+    await joining
+    expect(rooms.size).toBe(0)
+    expect(socket.emit).not.toHaveBeenCalledWith(successEvent, expect.anything())
+  })
+
+  it('rejects malformed joins without cancelling a valid pending owner', async () => {
+    const { handlers, rooms } = setup()
+    const first = pendingAuthorization()
+    const joining = handlers[joinEvent](payload('owner-a'))
+    await handlers[joinEvent](payload(''))
+    first.resolve(allowed)
+    await joining
+    expect(rooms).toEqual(new Set([`${roomType}:owner-a`]))
   })
 })

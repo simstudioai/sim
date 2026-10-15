@@ -28,6 +28,7 @@ const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
   'listOrganizationMembers',
   'listOrganizationWorkspaces',
   'listFiles',
+  'listProjectFiles',
   'listKnowledgeBases',
   'listKnowledgeConnectors',
   'listMcpServers',

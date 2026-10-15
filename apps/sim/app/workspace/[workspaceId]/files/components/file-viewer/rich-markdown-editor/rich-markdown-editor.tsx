@@ -316,6 +316,26 @@ function RichMarkdownSurface({
    * re-clobbering exactly what this closes. The child turns it on for the non-collaborative fallback.
    */
   const [canClientAutosave, setCanClientAutosave] = useState(!collaborative)
+  const [collaborationReset, setCollaborationReset] = useState({
+    fileId: file.id,
+    previewContextKey,
+    generation: 0,
+  })
+  const collaborationGeneration =
+    collaborationReset.fileId === file.id &&
+    collaborationReset.previewContextKey === previewContextKey
+      ? collaborationReset.generation
+      : 0
+  const resetCollaboration = useCallback(() => {
+    setCollaborationReset((previous) => ({
+      fileId: file.id,
+      previewContextKey,
+      generation:
+        previous.fileId === file.id && previous.previewContextKey === previewContextKey
+          ? previous.generation + 1
+          : 1,
+    }))
+  }, [file.id, previewContextKey])
 
   const {
     content,
@@ -370,7 +390,9 @@ function RichMarkdownSurface({
         />
       )}
       <LoadedRichMarkdownEditor
-        key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
+        key={`${file.id}:${previewContextKey ?? ''}:${collaborationGeneration}`}
+        recoveringCollaboration={collaborationGeneration > 0}
+        onWriteAccessLost={resetCollaboration}
         file={file}
         workspaceId={workspaceId}
         content={content}
@@ -398,6 +420,8 @@ function RichMarkdownSurface({
 }
 
 interface LoadedRichMarkdownEditorProps {
+  recoveringCollaboration?: boolean
+  onWriteAccessLost?: () => void
   file: WorkspaceFileRecord
   workspaceId: string
   /** The live content from the engine — grows as the agent streams, then settles to the saved doc. */
@@ -453,6 +477,8 @@ function lockSettled(content: string): SettledContent {
 
 /** The single TipTap editor: read-only while streaming, editable on settle; frontmatter is held aside and re-applied. */
 export function LoadedRichMarkdownEditor({
+  recoveringCollaboration = false,
+  onWriteAccessLost,
   file,
   workspaceId,
   content,
@@ -480,14 +506,16 @@ export function LoadedRichMarkdownEditor({
 
   /** Only accepted source snapshots and stream settlement change editing eligibility. */
   const [settled, setSettled] = useState<SettledContent | null>(() =>
-    streamingAtMount ? null : lockSettled(content)
+    streamingAtMount && !recoveringCollaboration
+      ? null
+      : lockSettled(recoveringCollaboration ? (acceptedBaselineContent ?? '') : content)
   )
   const [acceptedBaseline, setAcceptedBaseline] = useState(acceptedBaselineContent)
   /**
    * Collaboration is decided once at mount from synchronously-available inputs
    * via `useState`-init, and never changes — TipTap
    * fixes the extension set at editor creation, so it cannot turn on later. Enabled on a
-   * `collaborative` surface (the Files page or the embedded chat file preview) for an editable,
+   * `collaborative` surface (the Files page or the embedded chat file preview) for a readable,
    * round-trip-safe workspace document with a known user, as long as it is not ALREADY streaming at
    * mount. An agent stream that begins AFTER mount is applied as CRDT
    * diffs into the live doc, so collaboration and streaming coexist (see the streaming effect below).
@@ -495,8 +523,7 @@ export function LoadedRichMarkdownEditor({
   const [collaborationEnabled] = useState(
     () =>
       collaborative &&
-      canEdit &&
-      !streamingAtMount &&
+      (!streamingAtMount || recoveringCollaboration) &&
       (settled?.verdict ?? false) &&
       Boolean(userId) &&
       (file.storageContext ?? 'workspace') === 'workspace'
@@ -520,7 +547,6 @@ export function LoadedRichMarkdownEditor({
     collaborationEnabled ? 'connecting' : 'ready'
   )
   const collabReady = collabStatus === 'ready'
-  const isEditable = canEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   const collaboration = useFileDocCollaboration({
     workspaceId,
@@ -528,7 +554,10 @@ export function LoadedRichMarkdownEditor({
     userId,
     userName,
     enabled: collaborationEnabled,
+    onWriteAccessLost,
   })
+  const effectiveCanEdit = canEdit && (!collaborationEnabled || collaboration?.canWrite === true)
+  const isEditable = effectiveCanEdit && !isStreaming && (settled?.verdict ?? false) && collabReady
 
   /**
    * Initial editor content. When collaborating, the Y.Doc is the source of truth —
@@ -547,7 +576,13 @@ export function LoadedRichMarkdownEditor({
    */
   const [placeholder] = useState(() =>
     collaborationEnabled
-      ? { content: parseMarkdownToDoc(splitFrontmatter(content).body), markdown: content }
+      ? {
+          content: parseMarkdownToDoc(
+            splitFrontmatter(recoveringCollaboration ? (acceptedBaselineContent ?? '') : content)
+              .body
+          ),
+          markdown: recoveringCollaboration ? (acceptedBaselineContent ?? '') : content,
+        }
       : null
   )
   /**
@@ -628,6 +663,13 @@ export function LoadedRichMarkdownEditor({
   /** The picker anchor maps through edits while the operating-system file dialog is open. */
   const imageInputRef = useRef<HTMLInputElement>(null)
   const pendingImageAnchorRef = useRef<string | null>(null)
+  const imageUploadBatchesRef = useRef<Set<{
+    editor: Editor
+    anchors: string[]
+    controller: AbortController
+    toastId?: ReturnType<typeof toast.info>
+  }> | null>(null)
+  imageUploadBatchesRef.current ??= new Set()
 
   /**
    * Uploads are sequential; every position is anchored before awaiting so queued images also follow
@@ -642,39 +684,55 @@ export function LoadedRichMarkdownEditor({
     fallback?: ImageFileFallback | null
   ) => {
     const editor = editorInstanceRef.current
-    if (!editor) return
+    if (!editor || !effectiveCanEdit) return
     const anchors = beginImageUploads(
       editor,
       range,
       images.map((image) => image.name)
     )
-    for (const [index, image] of images.entries()) {
-      if (editor.isDestroyed) break
-      if (!editor.isEditable) {
-        for (const pending of anchors) removeImageUpload(editor, pending)
-        break
-      }
-      const anchor = anchors[index]
-      if (!anchor || findImageUpload(editor, anchor) === null) continue
-      const uploadingToastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
-      const result = await uploadFile
-        .mutateAsync({ workspaceId, file: image, folderId: file.folderId ?? null })
-        .catch(() => null)
-      toast.dismiss(uploadingToastId)
-      if (result) {
-        const inserted = finishImageUpload(
-          editor,
-          anchor,
-          result.file.url,
-          image.name,
-          fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
-        )
-        if (!inserted && !editor.isDestroyed) {
-          toast.info('The image was uploaded to the workspace but was not inserted.')
+    const batch = {
+      editor,
+      anchors,
+      controller: new AbortController(),
+      toastId: undefined as ReturnType<typeof toast.info> | undefined,
+    }
+    imageUploadBatchesRef.current?.add(batch)
+    try {
+      for (const [index, image] of images.entries()) {
+        if (editor.isDestroyed || !editor.isEditable || batch.controller.signal.aborted) break
+        const anchor = anchors[index]
+        if (!anchor || findImageUpload(editor, anchor) === null) continue
+        batch.toastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
+        const result = await uploadFile
+          .mutateAsync({
+            workspaceId,
+            file: image,
+            folderId: file.folderId ?? null,
+            signal: batch.controller.signal,
+          })
+          .catch(() => null)
+        toast.dismiss(batch.toastId)
+        batch.toastId = undefined
+        if (batch.controller.signal.aborted) break
+        if (result) {
+          const inserted = finishImageUpload(
+            editor,
+            anchor,
+            result.file.url,
+            image.name,
+            fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
+          )
+          if (!inserted && !editor.isDestroyed) {
+            toast.info('The image was uploaded to the workspace but was not inserted.')
+          }
+        } else {
+          removeImageUpload(editor, anchor)
         }
-      } else {
-        removeImageUpload(editor, anchor)
       }
+    } finally {
+      if (batch.toastId !== undefined) toast.dismiss(batch.toastId)
+      for (const anchor of anchors) removeImageUpload(editor, anchor)
+      imageUploadBatchesRef.current?.delete(batch)
     }
   }
 
@@ -975,6 +1033,22 @@ export function LoadedRichMarkdownEditor({
     }
   }, [editor, collaborationEnabled, isEditable])
 
+  useEffect(() => {
+    if (!editor || !effectiveCanEdit) return
+    return () => {
+      for (const batch of imageUploadBatchesRef.current ?? []) {
+        batch.controller.abort()
+        for (const anchor of batch.anchors) removeImageUpload(batch.editor, anchor)
+        if (batch.toastId !== undefined) toast.dismiss(batch.toastId)
+      }
+      imageUploadBatchesRef.current?.clear()
+      const anchor = pendingImageAnchorRef.current
+      if (anchor) removeImageUpload(editor, anchor)
+      pendingImageAnchorRef.current = null
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
+  }, [editor, effectiveCanEdit])
+
   /**
    * Wire the `/Image` slash command to the hidden picker (per-editor storage, since the extension set is
    * shared across instances). Reads only refs, so the handler stays stable across the editor's life.
@@ -989,6 +1063,7 @@ export function LoadedRichMarkdownEditor({
     }
     input?.addEventListener('cancel', cancelImagePicker)
     editor.storage.slashCommand.insertImage = (at: number) => {
+      if (!editor.isEditable) return
       const previous = pendingImageAnchorRef.current
       if (previous) removeImageUpload(editor, previous)
       pendingImageAnchorRef.current =
@@ -1044,6 +1119,16 @@ export function LoadedRichMarkdownEditor({
     // the standalone Files page) alike. This branch moves content only — editability for the collab
     // lifecycle is owned by the reactive effect above.
     if (collaborationEnabled) {
+      if (!effectiveCanEdit) {
+        if (streamRafRef.current !== null) cancelAnimationFrame(streamRafRef.current)
+        streamRafRef.current = null
+        pendingStreamSourceRef.current = null
+        if (collaboration && agentAnnouncedRef.current) clearAgentApplying(collaboration.awareness)
+        agentAnnouncedRef.current = false
+        if (agentStreamSessionRef.current) endAgentStream(agentStreamSessionRef.current)
+        agentStreamSessionRef.current = null
+        return
+      }
       if (isStreaming) {
         wasStreamingRef.current = true
         // Apply streamed diffs only after the shared doc has SEEDED (synced + seed flag, i.e.
@@ -1251,7 +1336,7 @@ export function LoadedRichMarkdownEditor({
         syncEditorContent(content)
         pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
-        editor.setEditable(canEdit && settledVerdict && collabReady)
+        editor.setEditable(effectiveCanEdit && settledVerdict && collabReady)
         if (shouldFocus) editor.commands.focus('end')
       })
       return
@@ -1264,7 +1349,7 @@ export function LoadedRichMarkdownEditor({
         pendingCollapseRef.current = false
         editor.commands.setTextSelection(editor.state.doc.content.size)
       }
-      if (settled) editor.setEditable(canEdit && settled.verdict && collabReady)
+      if (settled) editor.setEditable(effectiveCanEdit && settled.verdict && collabReady)
     })
   }, [
     editor,
@@ -1273,7 +1358,7 @@ export function LoadedRichMarkdownEditor({
     settled,
     collaboration,
     isStreaming,
-    canEdit,
+    effectiveCanEdit,
     autoFocus,
     disableStreamingAutoScroll,
     collaborationEnabled,

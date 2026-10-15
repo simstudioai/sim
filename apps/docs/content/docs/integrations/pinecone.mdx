@@ -15,11 +15,9 @@ Use [Pinecone](https://www.pinecone.io) in Sim to generate embeddings, store and
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Pinecone into the workflow. Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.
-
-
+Generate embeddings, upsert and update text records, delete vectors, search with text or vectors, fetch and list vectors, inspect index statistics, and manage indexes.
 
 ## Actions
 
@@ -181,7 +179,7 @@ Fetch vectors by ID from a Pinecone index
 |   ↳ `id` | string | Vector ID |
 |   ↳ `values` | array | Vector values |
 |   ↳ `metadata` | object | Associated metadata |
-|   ↳ `score` | number | Match score \(1.0 for exact matches\) |
+|   ↳ `score` | number | Fixed score of 1.0 assigned by this fetch operation; not a similarity-query score |
 | `data` | array | Vector data with values and vector type |
 |   ↳ `values` | array | Vector values |
 |   ↳ `vector_type` | string | Vector type \(dense/sparse\) |

@@ -60,7 +60,7 @@ export const GmailBlock: BlockConfig = {
   description: 'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.',
+    'Send or draft messages, read and search mail, and manage labels and read status. New-mail triggers can start workflows.',
   docsLink: 'https://docs.sim.ai/integrations/gmail',
   category: 'tools',
   integrationType: IntegrationType.Email,

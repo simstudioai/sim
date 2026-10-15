@@ -15,11 +15,24 @@ Use [Salesforce](https://www.salesforce.com/) in Sim to manage accounts, contact
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.
+Sim requests these scopes when someone connects a Salesforce account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | Production or Developer Edition: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce`<br />Sandbox: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce-sandbox` |
+| Environment variables | `SALESFORCE_CLIENT_ID`, `SALESFORCE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `api` | Access Salesforce API |
+| `refresh_token` | Maintain long-term access to Salesforce account |
+| `openid` | Standard authentication |
+
+## Use the block [#usage-instructions]
+
+Manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and manage org schema by creating custom fields and objects via the Tooling API.
 
 ## Actions
 
@@ -1083,9 +1096,11 @@ Execute a SOQL query against the Tooling API to inspect metadata objects
 |     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Salesforce Case Status Changed
 
@@ -1106,7 +1121,7 @@ Trigger workflow when a case status changes
 | `objectType` | string | Salesforce object type \(Case\) |
 | `recordId` | string | Case ID |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Case ID |
 |   ↳ `Subject` | string | Case subject |
 |   ↳ `Status` | string | Current case status |
@@ -1141,7 +1156,7 @@ Trigger workflow when an opportunity stage changes
 | `objectType` | string | Salesforce object type \(Opportunity\) |
 | `recordId` | string | Opportunity ID |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Opportunity ID |
 |   ↳ `Name` | string | Opportunity name |
 |   ↳ `StageName` | string | Current stage name |
@@ -1177,7 +1192,7 @@ Trigger workflow when a Salesforce record is created
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
 | `recordId` | string | ID of the affected record |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Record ID |
 |   ↳ `Name` | string | Record name |
 |   ↳ `CreatedDate` | string | Record creation date |
@@ -1210,7 +1225,7 @@ Trigger workflow when a Salesforce record is deleted
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
 | `recordId` | string | ID of the affected record |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Record ID |
 |   ↳ `Name` | string | Record name |
 |   ↳ `CreatedDate` | string | Record creation date |
@@ -1243,7 +1258,7 @@ Trigger workflow when a Salesforce record is updated
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
 | `recordId` | string | ID of the affected record |
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
-| `record` | object | record output from the tool |
+| `record` | object |  |
 |   ↳ `Id` | string | Record ID |
 |   ↳ `Name` | string | Record name |
 |   ↳ `CreatedDate` | string | Record creation date |
@@ -1278,21 +1293,4 @@ Trigger workflow on any Salesforce webhook event
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
 | `record` | json | Full record data |
 | `payload` | json | Full webhook payload |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Salesforce account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | Production or Developer Edition: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce`<br />Sandbox: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce-sandbox` |
-| Environment variables | `SALESFORCE_CLIENT_ID`, `SALESFORCE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `api` | Access Salesforce API |
-| `refresh_token` | Maintain long-term access to Salesforce account |
-| `openid` | Standard authentication |
-
 

@@ -1,7 +1,7 @@
 import type { createLogger } from '@sim/logger'
 import { authorizeRoom } from '@sim/platform-authz/rooms'
-import { projectFileDocTarget, ROOM_TYPES, type RoomRef } from '@sim/realtime-protocol/rooms'
-import { fetchProjectFileDocAccess } from '@/handlers/file-doc-app'
+import { isProjectRoom, type RoomRef } from '@sim/realtime-protocol/rooms'
+import { fetchProjectRoomAccess } from '@/handlers/file-list-app'
 import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
 type Authorized = Awaited<ReturnType<typeof authorizeRoom>> & { docId?: string | null }
@@ -42,12 +42,9 @@ export async function resolveRoomJoinAuth(
   // is never overwritten by this older result — see {@link commitRoomPermission}.
   const readSeq = beginRoomPermissionRead()
   try {
-    if (room.type === ROOM_TYPES.PROJECT_FILE_DOC) {
-      const target = projectFileDocTarget(room)
-      if (!target || !params.connectionId)
-        throw new Error('Project document requires a socket identity')
-      authorized = await fetchProjectFileDocAccess({
-        ...target,
+    if (isProjectRoom(room)) {
+      if (!params.connectionId) throw new Error('Project room requires a socket identity')
+      authorized = await fetchProjectRoomAccess(room, {
         userId,
         connectionId: params.connectionId,
       })

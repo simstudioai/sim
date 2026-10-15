@@ -174,7 +174,7 @@ export const kalshiGetPositionsV2Tool: ToolConfig<
 > = {
   id: 'kalshi_get_positions_v2',
   name: 'Get Positions from Kalshi V2',
-  description: 'Retrieve your open positions from Kalshi (V2 - exact API response)',
+  description: 'Retrieve your open positions from Kalshi',
   version: '2.0.0',
 
   params: {

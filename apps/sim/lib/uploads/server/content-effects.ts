@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
-import { processWorkspaceFileLiveDocReconciliationNow } from '@/lib/uploads/contexts/workspace/file-live-doc-outbox'
 import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
+import { processFileLiveDocReconciliationNow } from '@/lib/uploads/server/live-doc-outbox'
 
 const logger = createLogger('FileContentEffects')
 
@@ -14,7 +14,7 @@ export async function finishFileContentEffects(
   if (!effects.liveDocEventId) return
   const context = { ...logContext, eventId: effects.liveDocEventId }
   try {
-    const result = await processWorkspaceFileLiveDocReconciliationNow(effects.liveDocEventId)
+    const result = await processFileLiveDocReconciliationNow(effects.liveDocEventId)
     if (result === 'dead_letter' || result === 'not_found') {
       logger.error('Committed file live-document reconciliation requires intervention', {
         ...context,

@@ -17,7 +17,7 @@ export const cbinsightsLookupOrganizationsTool: InternalToolConfig<
   id: 'cbinsights_lookup_organizations',
   name: 'CB Insights Look Up Organizations',
   description:
-    'Resolve company names or websites to CB Insights organization IDs. This endpoint never charges credits, so use it to match your own records before spending credits on the data endpoints.',
+    'Resolve company names or websites to CB Insights organization IDs. The integration contract describes lookup as credit-free; confirm current credit terms with CB Insights before requesting paid datasets.',
   version: '1.0.0',
 
   params: {

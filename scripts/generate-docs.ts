@@ -269,6 +269,12 @@ const INTEGRATION_CATEGORY_VALUES: ReadonlySet<IntegrationType> = new Set(
   Object.values(IntegrationType)
 )
 
+interface BlockOperation {
+  label: string
+  id: string
+  group?: string
+}
+
 /**
  * Defensive shape for blocks parsed out of source files. Fields stay loose
  * (`string`) so the AST-style extractor can populate them progressively; the
@@ -287,7 +293,7 @@ interface BlockConfig {
   tools?: {
     access?: string[]
   }
-  operations?: OperationInfo[]
+  operations?: BlockOperation[]
   /**
    * Param names the block itself supplies — via a `subBlocks` field (id or
    * `canonicalParamId`) or via its `tools.config.params` mapper.
@@ -1244,12 +1250,12 @@ export function extractBlockSuppliedParamIds(
 
 /**
  * Extract operation options from the subBlock with id: 'operation' (if present).
- * Returns { label, id } pairs — label is the display name, id is the option's id field
- * (used to construct the tool ID as `{blockType}_{id}`).
+ * Preserves labels, operation identifiers and optional groups from the operation selector.
+ * Identifiers construct tool IDs as `{blockType}_{id}`.
  * Parses the subBlocks array using brace/bracket counting to safely traverse
  * the nested structure without eval or a full AST parser.
  */
-function extractOperationsFromContent(blockContent: string): { label: string; id: string }[] {
+function extractOperationsFromContent(blockContent: string): BlockOperation[] {
   const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(blockContent)
   if (!subBlocksMatch) return []
 
@@ -1275,7 +1281,7 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
         if (optArrayEnd === -1) return []
         const optionsContent = objContent.substring(optArrayStart + 1, optArrayEnd - 1)
 
-        const pairs: { label: string; id: string }[] = []
+        const pairs: BlockOperation[] = []
         const optionObjectRegex = /\{[^{}]*\}/g
         let m
         while ((m = optionObjectRegex.exec(optionsContent)) !== null) {
@@ -1283,7 +1289,12 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
           const labelMatch = /label\s*:\s*['"]([^'"]+)['"]/.exec(optObj)
           const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(optObj)
           if (labelMatch) {
-            pairs.push({ label: labelMatch[1], id: idMatch ? idMatch[1] : '' })
+            const group = extractStringPropertyFromContent(optObj, 'group')
+            pairs.push({
+              label: labelMatch[1],
+              id: idMatch ? idMatch[1] : '',
+              ...(group ? { group } : {}),
+            })
           }
         }
         return pairs
@@ -1857,25 +1868,28 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
           ? exportStarts.map((start, i) => content.substring(start, exportStarts[i + 1]))
           : [content]
 
+      const evaluatedTriggers = await loadTriggerRegistry()
       for (const segment of segments) {
         const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
-        const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
 
         // Deprecated triggers stay registered for existing workflows but are
         // excluded from generated documentation.
         if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         if (idMatch && nameMatch) {
+          const trigger = evaluatedTriggers[idMatch[1]]
           registry.set(idMatch[1], {
             id: idMatch[1],
-            name: nameMatch[1],
-            description: descMatch?.[1] ?? '',
+            name: trigger?.name ?? nameMatch[1],
+            description:
+              trigger?.description ??
+              extractStringPropertyFromContent(segment, 'description', true) ??
+              '',
           })
         }
       }
 
-      const evaluatedTriggers = await loadTriggerRegistry()
       const factoryExportRegex =
         /export\s+const\s+\w+(?:\s*:\s*TriggerConfig)?\s*=\s*\w+\s*\(\s*['"]([^'"]+)['"]/g
       let factoryExportMatch: RegExpExecArray | null
@@ -3576,7 +3590,7 @@ export function extractToolInfo(
           name: paramName,
           type: typeMatch ? typeMatch[1] : 'string',
           required: requiredMatch ? requiredMatch[1] === 'true' : false,
-          description: descriptionMatch ? descriptionMatch[1] : 'No description',
+          description: descriptionMatch ? descriptionMatch[1] : '',
         })
       }
     }
@@ -3645,7 +3659,7 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
 
   for (const [key, output] of Object.entries(outputs)) {
     let type = 'unknown'
-    let description = `${key} output from the tool`
+    let description = ''
 
     if (typeof output === 'object' && output !== null) {
       if (output.type) {
@@ -4361,7 +4375,7 @@ export async function getToolInfo(
         name,
         type: typeof param.type === 'string' ? param.type : 'string',
         required: param.required === true,
-        description: typeof param.description === 'string' ? param.description : 'No description',
+        description: typeof param.description === 'string' ? param.description : '',
       }))
 
     return {
@@ -4416,7 +4430,7 @@ function mergeWithManualContent(
         regex: /<BlockInfoCard[\s\S]*?(\/>|<\/svg>`}\s*\/>)/,
       },
       usage: {
-        regex: /## Usage Instructions/,
+        regex: /## Use the block \[#usage-instructions\]/,
       },
       outputs: {
         regex: /## Outputs/,
@@ -4545,13 +4559,37 @@ async function generateMarkdownForBlock(
     toolsSection = '## Actions\n\n'
 
     const displayNames = await loadToolDisplayNames()
+    const actionNames = tools.access.map(
+      (tool) => displayNames.get(tool) ?? displayNames.get(stripVersionSuffix(tool)) ?? tool
+    )
+    const operationGroups = new Map(
+      (blockConfig.operations ?? []).flatMap((operation) =>
+        operation.group
+          ? [[`${stripVersionSuffix(type)}_${operation.id}`, operation.group] as const]
+          : []
+      )
+    )
+    const orderedGroups = tools.access.map((tool) => operationGroups.get(stripVersionSuffix(tool)))
+    const groupRuns = orderedGroups.filter((group, index) => group !== orderedGroups[index - 1])
+    const groupActions =
+      new Set(actionNames).size < actionNames.length &&
+      orderedGroups.every((group) => group !== undefined) &&
+      new Set(orderedGroups).size === groupRuns.length
+    const actionHeading = groupActions ? '####' : '###'
+    const fieldHeading = groupActions ? '#####' : '####'
+    let activeGroup: string | undefined
 
     for (const tool of tools.access) {
+      const group = groupActions ? operationGroups.get(stripVersionSuffix(tool)) : undefined
+      if (group && group !== activeGroup) {
+        toolsSection += `### ${group} [#actions-${tool}]\n\n`
+        activeGroup = group
+      }
       // Prefer the tool's own name ("A2A Send Message") over its id — the id is an
       // implementation detail, and these headings are what the page's table of
       // contents shows. Falls back to the id for a tool missing from the metadata.
       const heading = displayNames.get(tool) ?? displayNames.get(stripVersionSuffix(tool))
-      toolsSection += `### ${heading ?? stripVersionSuffix(tool)}\n\n`
+      toolsSection += `${actionHeading} ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
       const toolInfo = await getToolInfo(tool, userSettableParamIds)
@@ -4562,7 +4600,7 @@ async function generateMarkdownForBlock(
           toolsSection += `${escapedToolDescription}\n\n`
         }
 
-        toolsSection += '#### Input\n\n'
+        toolsSection += `${fieldHeading} Input\n\n`
         toolsSection += '| Parameter | Type | Required | Description |\n'
         toolsSection += '| --------- | ---- | -------- | ----------- |\n'
 
@@ -4576,14 +4614,14 @@ async function generateMarkdownForBlock(
               inputSchemas.set(schema[3], schema[2])
               description = `${escapeMdxCell(description)} <a href="#${schema[3].toLowerCase()}">Schema</a>`
             } else {
-              description = description ? escapeMdxCell(description) : 'No description'
+              description = description ? escapeMdxCell(description) : ''
             }
 
             toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${description} |\n`
           }
         }
 
-        toolsSection += '\n#### Output\n\n'
+        toolsSection += `\n${fieldHeading} Output\n\n`
 
         if (Object.keys(toolInfo.outputs).length > 0) {
           toolsSection += '| Parameter | Type | Description |\n'
@@ -4596,7 +4634,7 @@ async function generateMarkdownForBlock(
 
           for (const [key, output] of Object.entries(outputs)) {
             let type = 'string'
-            let description = `${key} output from the tool`
+            let description = ''
 
             if (typeof output === 'string') {
               type = output
@@ -4614,7 +4652,7 @@ async function generateMarkdownForBlock(
             toolsSection += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
           }
         } else {
-          toolsSection += 'This tool does not produce any outputs.\n'
+          toolsSection += 'No output fields are documented for this action.\n'
         }
       }
 
@@ -4623,7 +4661,7 @@ async function generateMarkdownForBlock(
   }
 
   if (inputSchemas.size) {
-    toolsSection += '## JSON Input Schemas\n\n'
+    toolsSection += '## JSON input schemas [#json-input-schemas]\n\n'
     toolsSection +=
       'These GraphQL type definitions describe the JSON inputs. `!` marks required values, and brackets mark arrays. Fields with a provider default can be omitted.\n\n'
     for (const [name, definition] of inputSchemas) {
@@ -4633,7 +4671,7 @@ async function generateMarkdownForBlock(
 
   let usageInstructions = ''
   if (longDescription) {
-    usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`
+    usageInstructions = `## Use the block [#usage-instructions]\n\n${longDescription}\n\n`
   }
 
   const oauthScopesSection = oauthCredential
@@ -4652,13 +4690,11 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="${bgColor || '#F5F5F5'}"
 />
 
-${usageInstructions}
-
-${toolsSection}${oauthScopesSection}
+${oauthScopesSection}${usageInstructions}${toolsSection}
 `
 }
 
-const OAUTH_SCOPES_HEADING = '## OAuth Scopes'
+const OAUTH_SCOPES_HEADING = '## OAuth scopes [#oauth-scopes]'
 const DATAVERSE_ENVIRONMENT_SCOPE = '<environment-url>/.default'
 const DATAVERSE_SAMPLE_ENVIRONMENT = 'https://yourorg.crm.dynamics.com'
 const SELF_HOSTING_OAUTH_GUIDE = '/platform/self-hosting/integrations-oauth'
@@ -4784,7 +4820,7 @@ async function buildOAuthScopesSection(
   section += requested.length
     ? `Sim requests these scopes when someone connects ${article} ${service.name} account. `
     : `Sim requests no OAuth scopes for ${service.name}. `
-  section += `On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](${SELF_HOSTING_OAUTH_GUIDE}) for the full setup.\n\n`
+  section += `For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](${SELF_HOSTING_OAUTH_GUIDE}) for setup.\n\n`
 
   const providerIds = [service.providerId, ...(service.additionalProviderIds ?? [])]
   const redirects = providerIds.flatMap((providerId) => {
@@ -5141,7 +5177,6 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
       for (const segment of segments) {
         const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
-        const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
         const providerMatch = /\bprovider\s*:\s*['"]([^'"]+)['"]/.exec(segment)
 
         if (!idMatch || !nameMatch || !providerMatch) continue
@@ -5156,7 +5191,10 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
         registry.set(idMatch[1], {
           id: idMatch[1],
           name: nameMatch[1],
-          description: descMatch?.[1] ?? '',
+          description:
+            registryTrigger?.description ??
+            extractStringPropertyFromContent(segment, 'description', true) ??
+            '',
           provider: providerMatch[1],
           polling,
           outputs: normalizeTriggerOutputs(registryTrigger?.outputs ?? {}),
@@ -5274,11 +5312,9 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
 
   let typeNote = ''
   if (allPolling) {
-    typeNote =
-      '\nThese run on a schedule \\(**polling-based**\\) — they check for new data rather than receiving push notifications.\n'
+    typeNote = '\nThese triggers poll for new data on a schedule.\n'
   } else if (mixedTypes) {
-    typeNote =
-      '\nSome of these are **polling-based** \\(checked on a schedule\\) while others are push-based webhooks.\n'
+    typeNote = '\nSome triggers poll on a schedule; others receive webhooks from the service.\n'
   }
 
   let triggersSection = ''
@@ -5319,7 +5355,7 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
 
   return `## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 ${typeNote}
 ${triggersSection}`
 }
@@ -5334,7 +5370,7 @@ function generateTriggerProviderDoc(
   const providerName = formatTriggerProviderName(provider)
   return `---
 title: ${providerName}
-description: ${providerName} triggers for automating workflows
+description: Start workflows from ${providerName} events
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -5449,16 +5485,18 @@ async function generateAllTriggerDocs(): Promise<void> {
       const existing = readGeneratedFile(outputFilePath)
 
       if (existing?.includes('\n## Actions')) {
-        // Actions page generated this run by the block pass — add the Triggers
-        // section after Actions and before any OAuth Scopes section.
         if (!existing.includes('\n## Triggers')) {
           const triggersSection = buildTriggersSection(triggers)
-          const scopesIndex = existing.indexOf(`\n${OAUTH_SCOPES_HEADING}\n`)
+          const insertionIndexes = [
+            existing.indexOf('\n## JSON input schemas [#json-input-schemas]\n'),
+            existing.indexOf('\n{/* MANUAL-CONTENT-START:notes */}'),
+          ].filter((index) => index >= 0)
+          const insertionIndex = insertionIndexes.length
+            ? Math.min(...insertionIndexes)
+            : existing.length
           emitGeneratedFile(
             outputFilePath,
-            scopesIndex === -1
-              ? `${existing}\n${triggersSection}`
-              : `${existing.slice(0, scopesIndex)}\n${triggersSection}${existing.slice(scopesIndex)}`
+            `${existing.slice(0, insertionIndex)}\n${triggersSection}${existing.slice(insertionIndex)}`
           )
         }
       } else {

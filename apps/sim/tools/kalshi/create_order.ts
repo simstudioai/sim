@@ -280,7 +280,7 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
 > = {
   id: 'kalshi_create_order_v2',
   name: 'Create Order on Kalshi V2',
-  description: 'Create a new order on a Kalshi prediction market (V2 with full API response)',
+  description: 'Create a new order on a Kalshi prediction market',
   version: '2.0.0',
 
   params: {

@@ -11,25 +11,43 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Azure Active Directory](https://entra.microsoft.com) (now Microsoft Entra ID) is Microsoft's cloud-based identity and access management service. It helps organizations manage users, groups, and access to applications and resources across cloud and on-premises environments.
+Use [Microsoft Entra ID](https://entra.microsoft.com), formerly Azure Active Directory, to manage directory users, groups, memberships, licenses, passwords, sign-in sessions, app roles, and directory roles. Read sign-in and audit logs, registered devices, and conditional access policies; device writes are excluded.
 
-With the Azure AD integration in Sim, you can:
-
-- **Manage users**: List, create, update, and delete user accounts in your directory
-- **Manage groups**: Create and configure security groups and Microsoft 365 groups
-- **Control group membership**: Add and remove members from groups programmatically
-- **Query directory data**: Search and filter users and groups using OData expressions
-- **Automate onboarding/offboarding**: Create new user accounts with initial passwords and enable/disable accounts as part of HR workflows
-
-In Sim, the Azure AD integration enables your agents to programmatically manage your organization's identity infrastructure. This allows for automation scenarios such as provisioning new employees, updating user profiles in bulk, managing team group memberships, and auditing directory data. By connecting Sim with Azure AD, you can streamline identity lifecycle management and ensure your directory stays in sync with your organization's needs.
+Use OData filters to query directory records. Grant the connection the permissions and administrative roles required by each operation before using it for onboarding, offboarding, or access review. Microsoft 365 groups have a 30-day recovery window. Cloud security-group recovery is a [public-cloud preview with tenant restrictions](https://learn.microsoft.com/en-us/entra/identity/users/groups-restore-deleted); confirm eligibility before deleting a group.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Azure Active Directory into your workflows. Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.
+Sim requests these scopes when someone connects an Azure AD account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-ad` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `User.ReadWrite.All` | Read and write all user profiles |
+| `Group.ReadWrite.All` | Read and write all groups |
+| `GroupMember.ReadWrite.All` | Read and write all group memberships |
+| `LicenseAssignment.Read.All` | Read license assignments and subscribed SKUs |
+| `LicenseAssignment.ReadWrite.All` | Assign and remove user licenses |
+| `UserAuthenticationMethod.ReadWrite.All` | Read and reset authentication methods and passwords for all users |
+| `AuditLog.Read.All` | Read sign-in and directory audit logs |
+| `Application.Read.All` | Read all applications and service principals |
+| `AppRoleAssignment.ReadWrite.All` | Manage app role assignments and permission grants for any app |
+| `RoleManagement.ReadWrite.Directory` | Read and manage directory role assignments |
+| `Device.Read.All` | Read all devices |
+| `Policy.Read.All` | Read conditional access and other policies |
+| `offline_access` | Access account when not using the application |
+
+## Use the block [#usage-instructions]
+
+Create, update, and delete users and groups, manage group memberships, assign and remove licenses, reset passwords, revoke sign-in sessions, read sign-in and directory audit logs, grant and revoke app and directory roles, and read registered devices and conditional access policies. Device writes are not supported.
 
 ## Actions
 
@@ -283,7 +301,7 @@ Update group properties in Azure AD (Microsoft Entra ID)
 
 ### Delete Azure AD Group
 
-Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 and security groups can be restored within 30 days.
+Delete a group from Azure AD (Microsoft Entra ID). Microsoft 365 groups can be restored within 30 days. Cloud security-group recovery is a public-cloud preview with tenant restrictions; confirm eligibility before deleting.
 
 #### Input
 
@@ -976,33 +994,5 @@ Get a single conditional access policy by ID, including the conditions it matche
 |   ↳ `conditions` | json | Conditions that trigger the policy \(users, applications, platforms, locations, risk levels\) |
 |   ↳ `grantControls` | json | Controls enforced when the policy applies, or null when none are configured |
 |   ↳ `sessionControls` | json | Session controls enforced when the policy applies, or null when none are set |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects an Azure AD account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-ad` |
-| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `openid` | Standard authentication |
-| `profile` | Access profile information |
-| `email` | Access email address |
-| `User.ReadWrite.All` | Read and write all user profiles |
-| `Group.ReadWrite.All` | Read and write all groups |
-| `GroupMember.ReadWrite.All` | Read and write all group memberships |
-| `LicenseAssignment.Read.All` | Read license assignments and subscribed SKUs |
-| `LicenseAssignment.ReadWrite.All` | Assign and remove user licenses |
-| `UserAuthenticationMethod.ReadWrite.All` | Read and reset authentication methods and passwords for all users |
-| `AuditLog.Read.All` | Read sign-in and directory audit logs |
-| `Application.Read.All` | Read all applications and service principals |
-| `AppRoleAssignment.ReadWrite.All` | Manage app role assignments and permission grants for any app |
-| `RoleManagement.ReadWrite.Directory` | Read and manage directory role assignments |
-| `Device.Read.All` | Read all devices |
-| `Policy.Read.All` | Read conditional access and other policies |
-| `offline_access` | Access account when not using the application |
 
 

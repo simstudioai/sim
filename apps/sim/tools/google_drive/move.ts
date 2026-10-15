@@ -48,7 +48,7 @@ export const moveTool: InternalToolConfig<GoogleDriveMoveParams, GoogleDriveMove
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Whether to remove the file from its current parent folder (default: true). Set to false to add the file to the destination without removing it from the current location.',
+        'Whether to remove the current parent when adding the destination (default: true). Google Drive supports one parent folder, so false can be rejected when the file already has a different parent.',
     },
   },
 

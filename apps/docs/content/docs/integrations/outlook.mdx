@@ -15,11 +15,30 @@ Use [Microsoft Outlook](https://outlook.office365.com) in Sim to send and draft 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Outlook into the workflow. Can send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events. Can be used in trigger mode to trigger a workflow when a new email is received.
+Sim requests these scopes when someone connects an Outlook account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/outlook` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Mail.ReadWrite` | Read, create, update, and delete your email |
+| `Mail.ReadBasic` | Read email properties, excluding body and attachments |
+| `Mail.Read` | Read your email |
+| `Mail.Send` | Send emails |
+| `Calendars.ReadWrite` | Read and manage Outlook calendar events |
+| `offline_access` | Access account when not using the application |
+
+## Use the block [#usage-instructions]
+
+Send, draft, read, search, reply, forward, move, copy, and delete email; manage mail folders and attachments; and set categories and flags on messages. Can also list, create, update, delete, and respond to calendar events. Can be used in trigger mode to trigger a workflow when a new email is received.
 
 ## Actions
 
@@ -679,11 +698,13 @@ Accept, tentatively accept, or decline an Outlook calendar event invitation
 |   ↳ `httpStatus` | number | HTTP status code returned by the API |
 |   ↳ `requestId` | string | Microsoft Graph request-id header for tracing |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
-These run on a schedule \(**polling-based**\) — they check for new data rather than receiving push notifications.
+These triggers poll for new data on a schedule.
 
 ### Outlook Email Trigger
 
@@ -703,7 +724,7 @@ Triggers when new emails are received in Outlook (requires Microsoft credentials
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `email` | object | email output from the tool |
+| `email` | object |  |
 |   ↳ `id` | string | Outlook message ID |
 |   ↳ `conversationId` | string | Outlook conversation ID |
 |   ↳ `subject` | string | Email subject line |
@@ -720,27 +741,4 @@ Triggers when new emails are received in Outlook (requires Microsoft credentials
 |   ↳ `messageId` | string | Message ID for threading |
 |   ↳ `threadId` | string | Thread ID for conversation threading |
 | `timestamp` | string | Event timestamp |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects an Outlook account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/outlook` |
-| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `openid` | Standard authentication |
-| `profile` | Access profile information |
-| `email` | Access email address |
-| `Mail.ReadWrite` | Read, create, update, and delete your email |
-| `Mail.ReadBasic` | Read email properties, excluding body and attachments |
-| `Mail.Read` | Read your email |
-| `Mail.Send` | Send emails |
-| `Calendars.ReadWrite` | Read and manage Outlook calendar events |
-| `offline_access` | Access account when not using the application |
-
 

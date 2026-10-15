@@ -7,7 +7,7 @@ export const MailgunBlock: BlockConfig = {
   name: 'Mailgun',
   description: 'Send emails and manage mailing lists with Mailgun',
   longDescription:
-    'Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.',
+    'Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.',
   docsLink: 'https://docs.sim.ai/integrations/mailgun',
   category: 'tools',
   integrationType: IntegrationType.Email,

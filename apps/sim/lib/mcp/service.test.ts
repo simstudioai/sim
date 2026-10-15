@@ -1,6 +1,6 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { dbChainMockFns, loggerMock, resetDbChainMock } from '@sim/testing'
-import { mcpOauthMock } from '@sim/testing/mocks/mcp-oauth.mock'
+import { McpOauthRedirectRequiredMock, mcpOauthMock } from '@sim/testing/mocks/mcp-oauth.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -351,6 +351,31 @@ describe('McpService.discoverTools per-server caching', () => {
     mockResolveEnvVars.mockClear()
     await mcpService.discoverTools(USER_ID, WORKSPACE_ID)
     expect(mockResolveEnvVars).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * A refresh that fails sends the SDK to the browser authorization step, which
+   * Sim's provider refuses by throwing. That is the same stale grant as above, so
+   * it must not negative-cache the server: the cooldown would hide the reauth prompt.
+   */
+  it('keeps a grant that needs a fresh authorization redirect soft-pending', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mockResolveEnvVars.mockRejectedValue(
+      new McpOauthRedirectRequiredMock('https://auth.example.com/authorize')
+    )
+
+    expect(await mcpService.discoverTools(USER_ID, WORKSPACE_ID)).toEqual([])
+
+    await vi.waitFor(() => {
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({ connectionStatus: 'disconnected', lastError: null })
+      )
+    })
+    expect(mockCacheAdapter.set).not.toHaveBeenCalledWith(
+      `workspace:${WORKSPACE_ID}:server:mcp-a:failure`,
+      [],
+      expect.any(Number)
+    )
   })
 
   it('retries a transient tools/list timeout and succeeds on the second attempt', async () => {

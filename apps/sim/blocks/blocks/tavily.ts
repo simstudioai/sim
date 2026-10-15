@@ -8,7 +8,7 @@ export const TavilyBlock: BlockConfig = {
   description: 'Search and extract information',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Tavily into the workflow. Can search the web and extract content from specific URLs. Requires API Key.',
+    'Search the web, extract content from URLs, crawl sites, and map their URLs. Requires an API key.',
   category: 'tools',
   integrationType: IntegrationType.Search,
   docsLink: 'https://docs.sim.ai/integrations/tavily',

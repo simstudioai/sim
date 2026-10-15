@@ -104,7 +104,7 @@ const FEATURE_FLAGS = {
   },
   projects: {
     description:
-      'Expose the Project APIs once the membership backfill has validated. Global on/off only; ' +
+      'Expose Projects and Project-scoped features, including files and memories. Global on/off only; ' +
       'workspace creation assigns Projects and lifecycle protections apply either way. ' +
       'Off-AppConfig falls back to PROJECTS.',
     fallback: 'PROJECTS',
@@ -181,7 +181,8 @@ export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
       environment: env.APPCONFIG_ENVIRONMENT as string,
       profile: FEATURE_FLAGS_PROFILE,
     },
-    parseGateConfig
+    parseGateConfig,
+    { shareWithTriggerRuns: true }
   )
 
   return value ?? fallbackFlags()

@@ -11,26 +11,21 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Brex](https://www.brex.com/) is the AI-powered spend platform that gives companies corporate cards, expense management, banking, and bill pay in one place. Finance teams use Brex to control spend with budgets and spend limits, automate expense review, and keep every transaction reconciled with receipts and memos.
+Use [Brex](https://www.brex.com/) to retrieve spend data, update expense memos, manage budgets and vendors, and create transfers.
 
-With the Brex integration in Sim, your agents can work directly with your company's spend data:
+- List and filter expenses by status, owner, or purchase date; retrieve merchant, amount, and receipt details.
+- Attach a receipt to a card expense or upload one for Brex to match automatically.
+- Read settled card and cash transactions, account balances, and finalized statements.
+- Read or create budgets and spend limits, inspect current-period balances, and archive budgets.
+- Look up users, departments, locations, titles, cards, vendors, and transfers; create or update vendors.
 
-- **Expenses**: List and filter expenses by status, owner, or purchase date, fetch full expense details (merchant, amounts, receipts), and update expense memos.
-- **Receipts**: Upload a receipt file straight onto a specific card expense, or let Brex automatically match an uploaded receipt to the right expense.
-- **Transactions and accounts**: Pull settled card transactions, cash account transactions, account balances, and finalized statements for reporting and reconciliation.
-- **Budgets and spend limits**: Read budgets and spend limits — including current period balances — to power utilization reports and proactive alerts.
-- **Team**: Look up users, departments, locations, titles, and cards to enrich spend data with organizational context.
-- **Payments**: Track vendors and money transfers to monitor payment status end to end.
-
-Authentication uses a Brex user token, which you can generate from **Developer → Settings** in your Brex dashboard. The integration is intentionally read-focused: it never moves money, issues cards, or exposes card numbers.
+Authenticate with a Brex user token from **Developer → Settings** in the Brex dashboard. **Create Transfer** can move money from a Brex cash account to a vendor. Set **Approval Type** to `MANUAL` when the transfer should require cash-admin approval, and inspect its returned status before assuming payment completed. Archiving a budget makes its child spend limits unusable for future expenses. The block does not issue cards or expose card numbers.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrates Brex into the workflow. List and update expenses, upload and match receipts, view card and cash transactions, accounts, budgets, spend limits, vendors, transfers, and team data.
-
-
+List and update expenses, upload and match receipts, view card and cash transactions, accounts, budgets, spend limits, vendors, transfers, and team data.
 
 ## Actions
 

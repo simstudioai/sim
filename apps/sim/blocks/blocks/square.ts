@@ -16,7 +16,7 @@ export const SquareBlock: BlockConfig = {
   description: 'Process payments and manage Square commerce data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Square into the workflow. Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).',
+    'Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).',
   docsLink: 'https://docs.sim.ai/integrations/square',
   category: 'tools',
   integrationType: IntegrationType.Commerce,

@@ -3,7 +3,7 @@
 # mobile, which serves the production build the `e2e-build` job uploads with `next start` (the
 # job extracts it into apps/sim/.next first).
 #
-# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|mobile>   (run from apps/sim)
+# Usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>   (run from apps/sim)
 #
 # The job provides DATABASE_URL, BETTER_AUTH_SECRET and ENCRYPTION_KEY; each group sets the rest of
 # its app's environment here. Reports and server logs land in $RUNNER_TEMP/e2e.
@@ -20,7 +20,7 @@
 # telemetry flush runs detached and still writes .next/dev).
 set -euo pipefail
 
-group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|mobile>}
+group=${1:?usage: http-e2e.sh <scim|cli|stop-after|desktop-inbox|project-files|mobile>}
 report_dir="$RUNNER_TEMP/e2e"
 ready_timeout_seconds=600
 mkdir -p "$report_dir"
@@ -210,6 +210,15 @@ case "$group" in
     DESKTOP_INBOX_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \
     DESKTOP_INBOX_E2E_REPORT_PATH="$report_dir/desktop-inbox-http-report.json" \
       bun run test:desktop-inbox:e2e
+    ;;
+
+  project-files)
+    PROJECT_FILES_E2E_ADMIN_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres \
+    PROJECT_FILES_E2E_REDIS_URL=redis://127.0.0.1:6379 \
+    PROJECT_FILES_E2E_BASE_URL=http://127.0.0.1:3050 \
+    PROJECT_FILES_E2E_RELAY_URL=http://127.0.0.1:3052 \
+    PROJECT_FILES_E2E_REPORT_PATH="$report_dir/project-files/orchestration.json" \
+      bun --no-env-file scripts/test-project-files-e2e.ts
     ;;
 
   # MOBILE_E2E_BROWSER (chromium or webkit) narrows the job to one browser; unset runs both.

@@ -15,7 +15,7 @@ export const UptimeRobotBlock: BlockConfig = {
   name: 'UptimeRobot',
   description: 'Monitor uptime, manage incidents, maintenance windows, and status pages',
   longDescription:
-    'Integrate UptimeRobot into your workflow. Create and manage monitors, inspect incidents, schedule maintenance windows, manage alert contacts, and publish public status pages using the UptimeRobot v3 API.',
+    'Create and manage monitors, inspect incidents, schedule maintenance windows, manage alert contacts, and publish public status pages using the UptimeRobot v3 API.',
   docsLink: 'https://docs.sim.ai/integrations/uptimerobot',
   category: 'tools',
   integrationType: IntegrationType.Observability,

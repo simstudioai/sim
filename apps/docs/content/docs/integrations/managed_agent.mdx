@@ -11,26 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Claude Managed Agents](https://www.anthropic.com/) are agents you build and host on the Claude Platform. Anthropic runs the agent loop, and the Claude Managed Agents block calls one from a Sim workflow.
+Call a [Claude Managed Agent](https://www.anthropic.com/) hosted on the Claude Platform from a Sim workflow. Select a Claude Platform account, agent, and environment, then send the task message.
 
-With Claude Managed Agents, you can:
-
-- **Run a hosted agent**: Send a message to an agent in your Claude workspace and get its final response back
-- **Pick the environment**: Choose the agent and the environment it runs in, so the same workflow can target development or production
-- **Attach credential vaults**: Give the agent scoped access to the credentials it needs for the run
-- **Use a memory store**: Connect a memory store with read or write access and pass instructions for how the agent should use it
-- **Send files**: Attach files to the run for the agent to work with
-- **Tag runs with metadata**: Add key-value tags so runs can be traced and grouped later
-
-In Sim, the Claude Managed Agents block lets a workflow hand work to an agent that lives on the Claude Platform instead of assembling the prompt, tools, and loop yourself. The block returns the agent's final text alongside its session ID and token counts, so you can chain the response into later blocks and track cost per run.
+Optional inputs attach credential vaults, a memory store with read or write access and usage instructions, files, and metadata tags. The **Run session (create, send, wait for reply)** operation waits for the reply and returns final text and a session ID, with token usage when available, for downstream processing and cost tracking. Outputs from the other operations depend on the selected action. Session actions also create, inspect, interrupt, archive, update, or delete sessions; read events; and submit custom-tool results or confirmation responses. File attachments are supported for cloud environments.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform account, pick an agent and environment from that workspace, optionally attach vaults, a memory store, and files, and add metadata tags. Returns the assistant's final text.
-
-
+Run or create a session with a Claude Platform account, agent, and environment. Optionally attach vaults, a memory store, files, and metadata. The Run session operation waits for the agent’s reply and returns final text and a session ID, with token usage when available. Outputs from other operations depend on the selected action.
 
 ## Actions
 

@@ -67,7 +67,7 @@ export const workspaceFilesKeys = {
   cloudConfigured: () => [...workspaceFilesKeys.all, 'cloudConfigured'] as const,
 }
 
-export const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
+const WORKSPACE_FILES_LIST_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_CONTENT_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BINARY_STALE_TIME = 30 * 1000
 /** Cloud storage (S3/Blob) is env-driven and does not change at runtime. */
@@ -575,6 +575,7 @@ export function useUploadWorkspaceFile() {
       }
     },
     onError: (error, variables) => {
+      if (variables.signal?.aborted) return
       logger.error('Failed to upload file:', error)
       if (!variables.skipToast) {
         toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {

@@ -161,7 +161,7 @@ function format(source: string): string {
 
 async function main() {
   const check = process.argv.includes('--check')
-  const docs = loadSummaries(await loadWorkspaceKeyDenialMarkers())
+  const docs = await loadSummaries(await loadWorkspaceKeyDenialMarkers())
   const readRoute = (relativePath: string) => {
     const file = path.join(APP_ROOT, relativePath)
     return existsSync(file) ? readFileSync(file, 'utf8') : null

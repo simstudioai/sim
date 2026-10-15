@@ -61,7 +61,7 @@ export const VantaBlock: BlockConfig = {
   description: 'Query compliance status and manage evidence in Vanta',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.',
+    'Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Select a saved Vanta credential created with your Vanta application client ID and client secret.',
   category: 'tools',
   integrationType: IntegrationType.Security,
   docsLink: 'https://docs.sim.ai/integrations/vanta',

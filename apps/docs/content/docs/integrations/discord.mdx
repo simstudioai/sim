@@ -11,34 +11,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Discord](https://discord.com) is a powerful communication platform that allows you to connect with friends, communities, and teams. It offers a range of features for team collaboration, including text channels, voice channels, and video calls.
+Use [Discord](https://discord.com) to manage messages, threads, channels, roles, members, invites, and webhooks. Authenticate with a bot token and grant the bot access to the servers and channels the workflow needs.
 
-With a Discord account or bot, you can:
+## Set up your Discord bot [#setting-up-your-discord-bot]
 
-- **Send messages**: Send messages to a specific channel
-- **Get messages**: Get messages from a specific channel
-- **Get server**: Get information about a specific server
-- **Get user**: Get information about a specific user
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications) and create an application.
+2. Open **Bot**, create the bot if needed, and copy its token.
+3. Under **Privileged Gateway Intents**, enable **Message Content Intent** when the workflow needs message content.
+4. Invite the bot to your servers with the permissions required by its operations.
 
-In Sim, the Discord integration enables your agents to access and leverage your organization's Discord servers. Agents can retrieve information from Discord channels, search for specific users, get server information, and send messages. This allows your workflows to integrate with your Discord communities, automate notifications, and create interactive experiences.
-
-> **Important:** To read message content, your Discord bot needs the "Message Content Intent" enabled in the Discord Developer Portal. Without this permission, you'll still receive message metadata but the content field will appear empty.
-
-## Setting Up Your Discord Bot
-
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a new application and navigate to the "Bot" tab
-3. Create a bot and copy your bot token
-4. Under "Privileged Gateway Intents", enable the **Message Content Intent** to read message content
-5. Invite your bot to your servers with appropriate permissions
+Discord restricts `content`, embeds, attachments, and components when the Message Content intent is unavailable, with exceptions such as messages sent by the bot, direct messages, and messages that mention it. Verified apps may need approval for this intent. See [Discord's Message Content requirements](https://docs.discord.com/developers/events/gateway#message-content-intent).
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.
-
-
+Manage Discord messages, threads, channels, roles, members, invites, and webhooks.
 
 ## Actions
 

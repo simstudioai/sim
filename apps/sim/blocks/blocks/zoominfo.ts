@@ -8,7 +8,7 @@ export const ZoomInfoBlock: BlockConfig = {
   description: 'Search and enrich B2B company and contact data with ZoomInfo.',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrates ZoomInfo into the workflow. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.',
+    'Search companies and contacts, enrich company or contact records, retrieve intent signals, and search news through the ZoomInfo GTM API.',
   docsLink: 'https://docs.sim.ai/integrations/zoominfo',
   category: 'tools',
   integrationType: IntegrationType.Sales,

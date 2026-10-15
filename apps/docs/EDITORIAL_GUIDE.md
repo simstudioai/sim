@@ -22,6 +22,7 @@ Use the order appropriate to the page. These are ordering rules, not a requireme
 | Task guide | Result → actual prerequisites → numbered steps with examples at the relevant step → verify the result → limits or troubleshooting → related docs |
 | Concept | Purpose or decision → behavior and example → boundaries and edge cases → related docs |
 | Block reference | Purpose → minimum working example → settings and inputs → outputs → behavior, limits, and errors → distinct additional examples → related docs |
+| Integration reference | Purpose → connection requirements and setup → use guidance → actions with inputs and outputs → triggers with configuration and outputs → shared schemas and operational notes → related docs |
 | Operator guide | Deployment scope → prerequisites → supported setup → verification → operational and security consequences → troubleshooting or reference → related docs |
 | Command or API reference | Purpose and access → invocation or request example → inputs and defaults → outputs and statuses → consequences, errors, and limits → related references |
 
@@ -58,6 +59,7 @@ A link replaces repeated detail only after the owner contains it. Keep a concise
 - Fold useful FAQ answers into the section they explain. Keep a separate FAQ only for questions that cannot be organized coherently elsewhere.
 - Use a callout for a specific prerequisite or a non-obvious security, data-loss, or operational risk that deserves interruption. Use ordinary prose or a table for normal explanation. Keep important limits visible.
 - Use Markdown lists and tables for simple procedures and reference data. Use tabs for distinct configurations and Steps for substantial sequential procedures.
+- Integration table cells use ordinary word wrapping so short field names and types stay readable. Keep long tokens within the existing table scroll container; do not let them widen the page.
 - Match inline code to Sim Chat: normal-weight monospace text, tight padding, and the existing borderless filled surface tokens. Scope the treatment to prose code; preserve fenced examples, API route bars, schema controls, and selector labels.
 - Use shared `ChipSelect` controls for API response and request-example pickers, with accessible names that include the current value, checked radio semantics for single choices, and menus aligned to their triggers. Keep docs pickers nonmodal so they do not hide lazily hydrating siblings. Keep response headings free of inherited extra margins. Scope dependency filter styling to `data-object-search-input`, including schema popovers portaled to the body; focus stays inside the field, and touch fields retain the shared target and text sizes.
 - Import authored tabs from `@/components/ui/tabs`. Mixed panels retain a content inset; only a single code fence fills the frame. Keep long tab lists horizontally scrollable and long prose references wrapped. For bookmarked panels, use explicit native `TabsList`/`TabsTrigger` controls with `aria-controls` matching each panel ID; changing a panel ID alone leaves the generated control pointing at a nonexistent element.
@@ -79,8 +81,11 @@ Edit generated prose at its owner, then regenerate:
 | MCP operation catalog | Authorized operation definitions and generated OpenAPI | `bun run generate:mcp-operations` |
 | v2 route table | Canonical route definitions | `bun run generate:v2-route-table` |
 | Marked Agent streaming table | Streaming protocol metadata and `scripts/sync-agent-stream-docs.ts` | `bun run generate:agent-stream-docs` |
+| Integration references, icons, navigation inventory and public catalog | Block/tool/trigger and OAuth metadata; authored `MANUAL-CONTENT` regions; registered credential guides; `scripts/generate-docs.ts` | `bun run scripts/generate-docs.ts` |
 
 Do not hand-edit generated pages, JSON specifications, or marked generated regions. Preserve all argument, option, schema, authentication, and confirmation detail. CLI descriptions also feed command discovery; run the existing search-ranking checks after changing help copy. Validate rendered request examples against their canonical input contracts; schema validity alone may still leave a semantic error such as an invalid serialized workflow.
+
+Integration `MANUAL-CONTENT` regions are intentionally authored source: the generator reads and preserves them from the existing MDX. Edit generated descriptions in their block, tool, trigger, or OAuth owner. Edit fully authored credential guides registered in `content/integration-navigation.json` directly. Preserve action names, field names, scopes, conditional requirements and nested output paths. Token validation may verify identity without proving resource access, every permission, or future token validity; state what the actual validator checks. Preserve old heading anchors when standardizing shared generated headings. After regeneration, run it again and confirm no further changes; verify registered guides and all authored regions survive.
 
 ## Review checklist
 

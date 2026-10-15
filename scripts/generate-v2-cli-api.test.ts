@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   CLI_MANAGED_HEADERS,
@@ -11,6 +11,12 @@ import {
 } from './generate-v2-cli-api'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+let operationDocs: Awaited<ReturnType<typeof loadSummaries>>
+
+/** Load and transform the canonical contract graph once, outside individual assertion deadlines. */
+beforeAll(async () => {
+  operationDocs = await loadSummaries(workspaceKeyDenialMarkers())
+}, 30_000)
 
 describe('discriminated object request bodies', () => {
   const schema = z.discriminatedUnion('action', [
@@ -71,9 +77,8 @@ describe('request headers reaching the CLI as flags', () => {
 /**
  * Reads the denial sentences out of `openapi/shared.ts` as source text.
  *
- * The generator itself imports that module, but it resolves through the `@/`
- * alias, which the root vitest run has no resolver for. Parsing the literal
- * keeps the test bound to the same single source of truth: reword the sentence
+ * Parsing the literal keeps the expectation independent of the generator's
+ * module loader while bound to the same single source of truth: reword the sentence
  * and this recomputes the expected set, so a generator holding a stale copy of
  * it goes red instead of silently unmarking a family.
  */
@@ -107,12 +112,29 @@ describe('operations that refuse a workspace API key', () => {
    * pinned pair stayed green.
    */
   it('emits the marker for every operation the specs say refuses one', () => {
-    const marked = [...loadSummaries(workspaceKeyDenialMarkers()).values()].filter(
-      (doc) => doc.workspaceKeyUnsupported
-    )
+    const marked = [...operationDocs.values()].filter((doc) => doc.workspaceKeyUnsupported)
     expect(marked.length).toBeGreaterThan(0)
     expect(generatedSource().match(/workspaceKeyUnsupported: true/g)?.length ?? 0).toBe(
       marked.length
+    )
+  })
+})
+
+describe('unpublished Project documentation', () => {
+  it('retains runtime help and key restrictions without publishing Project paths', () => {
+    const projectList = operationDocs.get('GET /api/v2/projects/{projectId}/files')
+    expect(projectList?.summary).toBeTruthy()
+    expect(projectList?.description).toContain('OAuth scope:')
+    expect(projectList?.workspaceKeyUnsupported).toBe(true)
+    const publicSpec = JSON.parse(
+      readFileSync(path.join(ROOT, 'apps/docs/openapi-v2-files-audit.json'), 'utf8')
+    )
+    expect(publicSpec.info.description).not.toContain('Project')
+    expect(
+      publicSpec.tags.some((tag: { description: string }) => tag.description.includes('Project'))
+    ).toBe(false)
+    expect(Object.keys(publicSpec.paths).some((key) => key.startsWith('/api/v2/projects/'))).toBe(
+      false
     )
   })
 })

@@ -31,14 +31,12 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { type CleanupJobPayload, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { createCleanupBudgets } from '@/lib/cleanup/limits'
 import { beginFileArchiveCleanup, cleanupFileVersions } from '@/lib/file-retention'
 import { FILES_PER_QUERY } from '@/lib/file-retention/versions'
-import { authorizeProject } from '@/lib/projects/application/authorization'
-import { projectOperations } from '@/lib/projects/application/operations'
+import { loadProjectAccess } from '@/lib/projects/application/authorization'
 import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { processWorkspaceFileStorageCleanupsNow } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import { deleteWorkspaceFileVersionInTx } from '@/lib/uploads/contexts/workspace/file-version-store'
@@ -446,18 +444,7 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       const acquired = createDeferred<number>()
       const release = createDeferred<void>()
       const authority = db.transaction(async (tx) => {
-        await authorizeProject(
-          tx,
-          createSessionPrincipal({ userId: f.ownerId }),
-          projectOperations.get,
-          { projectId: f.projectId },
-          'hold'
-        )
-        await tx
-          .select({ id: workspace.id })
-          .from(workspace)
-          .where(eq(workspace.id, f.workspaceId))
-          .for('share')
+        await loadProjectAccess(tx, f.ownerId, { projectId: f.projectId })
         const result = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
         acquired.resolve(result[0].pid)
         await release.promise
@@ -750,13 +737,7 @@ describe('Project file retention follows the current payer in PostgreSQL', () =>
       const acquired = createDeferred<number>()
       const restore = createDeferred<void>()
       const authority = db.transaction(async (tx) => {
-        await authorizeProject(
-          tx,
-          createSessionPrincipal({ userId: f.ownerId }),
-          projectOperations.get,
-          { projectId: f.projectId },
-          'hold'
-        )
+        await loadProjectAccess(tx, f.ownerId, { projectId: f.projectId })
         await tx
           .select({ id: workspace.id })
           .from(workspace)

@@ -12,7 +12,7 @@ export const SupabaseBlock: BlockConfig = {
   description: 'Use Supabase database',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
+    'Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
   docsLink: 'https://docs.sim.ai/integrations/supabase',
   category: 'tools',
   integrationType: IntegrationType.Databases,

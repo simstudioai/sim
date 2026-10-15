@@ -66,7 +66,7 @@ export const CbInsightsBlock: BlockConfig = {
   name: 'CB Insights',
   description: 'Research private markets — firmographics, funding, and predictive scores',
   longDescription:
-    'Integrates the CB Insights API v2 into the workflow. Resolve companies to CB Insights IDs for free, search firmographics across markets and geographies, pull funding rounds, cap tables, investments, and exits, map business relationships, read leadership and board history, and retrieve the proprietary Mosaic Score, Commercial Maturity, and Exit Probability outlooks. Generate AI Scouting Reports, or ask ChatCBI directly. Which datasets answer depends on your CB Insights license.',
+    'Look up companies, retrieve firmographic and transaction data, map business relationships, read leadership records and score history, and generate Scouting Reports or ChatCBI answers. Supply client credentials; dataset access and credit use depend on your CB Insights license.',
   docsLink: 'https://docs.sim.ai/integrations/cbinsights',
   category: 'tools',
   integrationType: IntegrationType.Sales,

@@ -12,7 +12,6 @@ import type {
   KnowledgeAuthorizationContext,
   KnowledgeOrganizationAuthorizationContext,
 } from '@/lib/knowledge/application/authorization'
-import type { ChunkData } from '@/lib/knowledge/chunks/types'
 import {
   type ActiveKnowledgeConnectorReference,
   getActiveKnowledgeConnectorReference,
@@ -110,7 +109,8 @@ export type ActiveKnowledgeConnectorContext = ActiveKnowledgeResourceBaseContext
 
 export type ActiveKnowledgeChunkContext = ActiveKnowledgeDocumentContext & {
   chunkId: string
-  chunk: ChunkData
+  /** The full stored row: every tag slot keeps its column type, so date slots are `Date`. */
+  chunk: typeof embedding.$inferSelect
 }
 
 /**
@@ -392,7 +392,7 @@ export async function resolveActiveKnowledgeChunkContext(
   return {
     ...context,
     chunkId: chunk.id,
-    chunk: chunk as ChunkData,
+    chunk,
   }
 }
 

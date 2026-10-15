@@ -44,7 +44,7 @@ interface CleanupPayload {
 }
 
 /** Expired signatures stop new transfers, but a transfer already in progress may finish later. */
-function projectUploadCleanupAvailableAt(now = new Date()): Date {
+export function projectUploadCleanupAvailableAt(now = new Date()): Date {
   return new Date(now.getTime() + UPLOAD_URL_TTL_MS + CLOCK_SKEW_MS)
 }
 

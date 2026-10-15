@@ -11,9 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-Connect one QuickBooks Online company per credential. Create an app in the Intuit Developer Portal, register `https://<your-sim-host>/api/auth/oauth2/callback/quickbooks` as its redirect URI, then enter that app's client ID, client secret, and webhook verifier token in Sim and select its Sandbox or Production environment. Sim encrypts this app configuration on the credential and uses it for authorization, refresh, revocation, and webhook signature verification.
+Connect one QuickBooks Online company per credential.
+
+## Connect the Intuit app
+
+Create an app in the Intuit Developer Portal, register `https://<your-sim-host>/api/auth/oauth2/callback/quickbooks` as its redirect URI, then enter that app's client ID, client secret, and webhook verifier token in Sim and select its Sandbox or Production environment. Sim encrypts this app configuration on the credential and uses it for authorization, refresh, revocation, and webhook signature verification.
 
 During OAuth, choose the company that the workflow should access. Intuit returns the realm ID in the callback, and Sim verifies that the issued token can read CompanyInfo through that company-scoped API path before binding it to the credential, so you do not enter a realm ID or API host. The `CompanyInfo.Id` field is a separate entity ID and is not used as the realm ID.
+
+## Read and update records
 
 Master Data, Sales, and Purchasing transaction reads support **List** and **By ID** modes. List actions return at most one page. Use `nextStartPosition` in another workflow step when `hasMore` is true. Sim does not paginate, retry, or fetch related records automatically.
 
@@ -21,7 +27,11 @@ QuickBooks update actions require the record ID and its current `SyncToken`; pro
 
 Sandbox credentials call only Intuit's sandbox API and are suitable for disposable test data. Production credentials call the production API and affect the selected live company.
 
-QuickBooks triggers use Intuit's app-level webhook model. After adding a trigger and deploying the workflow once, copy the generated Webhook URL from the block into the matching Development or Production Webhooks settings for the same Intuit app. Enable the CloudEvents payload format and select every entity and operation needed by your deployed workflows. One Intuit endpoint can serve multiple connected companies; Sim verifies the raw-body `intuit-signature` with that app's encrypted verifier token and routes each event by both Intuit app and OAuth-derived realm ID.
+## Configure webhook triggers
+
+QuickBooks triggers use Intuit's [app-level webhook model](https://static.developer.intuit.com/output_html/qbo/docs/develop/webhooks/configure-webhooks.html). After adding a trigger and deploying the workflow once, copy the generated Webhook URL from the block into the matching Development or Production Webhooks settings for the same Intuit app. Enable the CloudEvents payload format and select every entity and operation needed by your deployed workflows. One Intuit endpoint can serve multiple connected companies; Sim verifies the raw-body `intuit-signature` with that app's encrypted verifier token and routes each event by both Intuit app and OAuth-derived realm ID.
+
+## Reports and documents
 
 Run Financial Report exposes verified financial statements, aging, balance, sales, and expense reports while preserving QuickBooks' native columns and nested rows. Advanced controls appear only where QuickBooks supports them. Use Read Master Data to discover customer, vendor, account, item, class, and department IDs for report filters. Intuit recommends report periods of six months or less for performance, though Sim does not forbid longer accounting periods.
 
@@ -29,11 +39,25 @@ Document actions can read attachment metadata, add one File or Note attachment, 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
+
+Sim requests these scopes when someone connects a QuickBooks account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/quickbooks` |
+| Client credentials | Entered in Sim when connecting an account, not set as environment variables |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `com.intuit.quickbooks.accounting` | Access and manage accounting data in the connected QuickBooks Online company |
+
+## Use the block [#usage-instructions]
 
 Connect one QuickBooks Online company to manage bounded master-data, sales, purchasing, receivables, payables, accounting, reports, transaction delivery, and document workflows.
-
-
 
 ## Actions
 
@@ -3119,9 +3143,11 @@ Download a QuickBooks file attachment as a stored Sim file
 | `size` | number | Downloaded file size in bytes |
 | `attachmentId` | string | Downloaded QuickBooks attachment ID |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### QuickBooks Account Events
 
@@ -3988,22 +4014,4 @@ Trigger when selected Vendor events occur in QuickBooks
 | `source` | string | Intuit event source |
 | `contentType` | string | Event content type, when provided |
 | `data` | json | Optional event data supplied by Intuit |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a QuickBooks account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/quickbooks` |
-| Client credentials | Entered in Sim when connecting an account, not set as environment variables |
-
-| Scope | Description |
-| ----- | ----------- |
-| `openid` | Standard authentication |
-| `profile` | Access profile information |
-| `email` | Access email address |
-| `com.intuit.quickbooks.accounting` | Access and manage accounting data in the connected QuickBooks Online company |
-
 

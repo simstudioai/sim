@@ -107,7 +107,7 @@ export const NotionBlock: BlockConfig = {
   description: 'Manage Notion pages',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
+    'Read or manage pages, databases, blocks, and comments. Query databases or search the connected content, and start workflows from supported Notion events.',
   docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,

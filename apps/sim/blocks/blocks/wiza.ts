@@ -20,7 +20,7 @@ export const WizaBlock: BlockConfig = {
   description: 'Find, enrich, and verify B2B contact data with Wiza',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.',
+    'Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.',
   docsLink: 'https://docs.sim.ai/integrations/wiza',
   category: 'tools',
   integrationType: IntegrationType.Sales,
