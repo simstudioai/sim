@@ -24,7 +24,6 @@ import {
   like,
   lt,
   ne,
-  not,
   notInArray,
   or,
   type SQL,
@@ -1022,7 +1021,10 @@ export async function revokeExpiredSimToolExecutions(input: {
       tx,
       and(
         sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`,
-        or(eq(copilotAsyncToolCalls.toolCallId, input.toolCallId), not(rerunnableSimExecution))
+        or(
+          eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+          sql`NOT (${rerunnableSimExecution})`
+        )
       )
     )
   )
@@ -1385,7 +1387,7 @@ export async function prepareWorkbenchAccess(
       and(
         sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`,
         /** This run was just verified to admit tools; every older run's admission just closed. */
-        not(and(eq(copilotAsyncToolCalls.runId, input.runId), interruptedSimExecution))
+        sql`NOT (${and(eq(copilotAsyncToolCalls.runId, input.runId), interruptedSimExecution)})`
       )
     )
     const previous = await tx
