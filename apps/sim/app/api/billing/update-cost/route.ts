@@ -82,8 +82,8 @@ function invalidBillingProtocolResponse(requestId: string, span: Span): NextResp
  * once it crosses the limit instead of at its next admission, with the card the worker writes
  * to its log. The payer is the attributed run's, or the one a direct-v1 run was admitted with.
  * A duplicate callback answers too: it is often a retry whose first answer was lost. An
- * admission is cached per payer and actor for the gate TTL and a refusal is always re-read, so
- * steady-state steps cost no ledger read. The charge is
+ * admission is cached per payer and actor (briefly once near the limit) and a refusal is always
+ * re-read, so most steps cost no ledger read. The charge is
  * already recorded when this runs; a gate that cannot answer reports not-exceeded and leaves the
  * refusal to the next step or re-check rather than ending a paying run on a database blip,
  * and so does a verdict read that outlasts {@link USAGE_STANDING_TIMEOUT_MS}. An exceeded

@@ -14,12 +14,20 @@ import {
   checkExecutionUsageLimits,
   checkIngestionUsageLimits,
   checkSearchUsageLimits,
+  NEAR_LIMIT_USAGE_GATE_TTL_MS,
   resetUsageGateCache,
   USAGE_GATE_SETTLE_TIMEOUT_MS,
   USAGE_GATE_TTL_MS,
 } from '@/lib/billing/core/usage-gate-cache'
 
 const mockCheck = billingAttributionMockFns.mockCheckAttributedUsageLimits
+
+/** `lru-cache` reads `performance.now()` and debounces it behind a real 1 ms timer. */
+async function advanceClockPast(ms: number): Promise<void> {
+  const start = performance.now()
+  vi.spyOn(performance, 'now').mockReturnValue(start + ms + 1)
+  await sleep(5)
+}
 
 const ATTRIBUTION: BillingAttributionSnapshot = {
   actorUserId: 'member-1',
@@ -79,10 +87,7 @@ describe('checkIngestionUsageLimits', () => {
     expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
     expect(mockCheck).toHaveBeenCalledTimes(1)
 
-    /** `lru-cache` reads `performance.now()` and debounces it behind a real 1 ms timer. */
-    const start = performance.now()
-    vi.spyOn(performance, 'now').mockReturnValue(start + USAGE_GATE_TTL_MS + 1)
-    await sleep(5)
+    await advanceClockPast(USAGE_GATE_TTL_MS)
     expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
     expect(mockCheck).toHaveBeenCalledTimes(2)
   })
@@ -210,5 +215,69 @@ describe('checkExecutionUsageLimits', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('admission lifetime by headroom', () => {
+  beforeEach(() => {
+    resetUsageGateCache()
+    mockCheck.mockReset()
+  })
+
+  it('re-reads a free-plan admission after the near-limit window, so spend past the limit is refused', async () => {
+    mockCheck
+      .mockResolvedValueOnce({ isExceeded: false, payerUsage: { currentUsage: 1, limit: 5 } })
+      .mockResolvedValueOnce({
+        isExceeded: true,
+        scope: 'payer',
+        message: 'over',
+        payerUsage: { currentUsage: 5.4, limit: 5 },
+      })
+    expect((await checkExecutionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
+    expect((await checkExecutionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
+    expect(mockCheck).toHaveBeenCalledTimes(1)
+
+    await advanceClockPast(NEAR_LIMIT_USAGE_GATE_TTL_MS)
+    expect((await checkExecutionUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+
+  it('re-reads a large pool in the last fifth of its limit', async () => {
+    mockCheck.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 900, limit: 1000 },
+    })
+    await checkExecutionUsageLimits(ATTRIBUTION)
+    await advanceClockPast(NEAR_LIMIT_USAGE_GATE_TTL_MS)
+    await checkExecutionUsageLimits(ATTRIBUTION)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+
+  it('re-reads when the acting member is near their cap though the pool has room', async () => {
+    mockCheck.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 100, limit: 1000 },
+      memberUsage: { currentUsage: 48, limit: 50 },
+    })
+    await checkSearchUsageLimits(ATTRIBUTION)
+    await advanceClockPast(NEAR_LIMIT_USAGE_GATE_TTL_MS)
+    await checkSearchUsageLimits(ATTRIBUTION)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
+  })
+
+  it('holds an admission with ample headroom for the full TTL', async () => {
+    mockCheck.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 100, limit: 1000 },
+      memberUsage: { currentUsage: 10, limit: null },
+    })
+    await checkExecutionUsageLimits(ATTRIBUTION)
+    await advanceClockPast(NEAR_LIMIT_USAGE_GATE_TTL_MS)
+    await checkExecutionUsageLimits(ATTRIBUTION)
+    expect(mockCheck).toHaveBeenCalledTimes(1)
+
+    await advanceClockPast(USAGE_GATE_TTL_MS)
+    await checkExecutionUsageLimits(ATTRIBUTION)
+    expect(mockCheck).toHaveBeenCalledTimes(2)
   })
 })
