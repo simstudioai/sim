@@ -1,6 +1,7 @@
 export { ChangelogEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/changelog-empty-state'
 export { DashboardEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/dashboard-empty-state'
 export { DocumentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/documents-empty-state'
+export { EnvironmentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/environments-empty-state'
 export { FilesEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/files-empty-state'
 export { KnowledgeEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/knowledge-empty-state'
 export { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/logs-empty-state'

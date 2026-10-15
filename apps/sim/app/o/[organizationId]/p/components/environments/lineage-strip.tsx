@@ -10,6 +10,7 @@ import { EnvironmentDetails } from '@/app/o/[organizationId]/p/components/enviro
 import { EnvironmentGraph } from '@/app/o/[organizationId]/p/components/environments/environment-graph'
 import type { EnvironmentColumn } from '@/app/o/[organizationId]/p/components/environments/mapping-model'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
+import { EnvironmentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { ForkWorkspaceModal } from '@/ee/workspace-forking/components/fork-workspace-modal/fork-workspace-modal'
 import { type ForkDirection, useUnlinkFork } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
@@ -32,6 +33,8 @@ interface LineageStripProps {
   onSync: (childId: string, direction: ForkDirection) => void
   /** Status shown over the canvas. */
   notice?: ReactNode
+  /** Holds the empty state's create chip while the fork gate is still loading. */
+  forkGatePending: boolean
 }
 
 /**
@@ -46,6 +49,7 @@ export function LineageStrip({
   manageableIds,
   onSync,
   notice,
+  forkGatePending,
 }: LineageStripProps) {
   const { billingEnabled } = useDeploymentShape()
   const { data: creationPolicy } = useWorkspaceCreationPolicy()
@@ -98,84 +102,92 @@ export function LineageStrip({
   }
 
   return (
-    <section aria-label='Environments' className='h-full min-h-0'>
-      <EnvironmentGraph
-        columns={columns}
-        selectedId={selected?.id ?? null}
-        onSelect={(id) => {
-          setRenaming(false)
-          setSelectedId(id)
-        }}
-        syncableIds={manageableIds}
-        onSync={onSync}
-        forkableIds={canCreateFork ? renameableIds : new Set()}
-        onFork={setForkSourceId}
-        notice={notice}
-        sheet={
-          selected ? (
-            <EnvironmentDetails
-              environment={selected}
-              parent={parent}
-              forkCount={forkCount}
-              onSync={canSync ? (direction) => onSync(selected.id, direction) : undefined}
-              pullInto={
-                parent
-                  ? undefined
-                  : columns
-                      .filter(
-                        (column) => column.parentId === selected.id && manageableIds.has(column.id)
-                      )
-                      .map((fork) => ({
-                        id: fork.id,
-                        label: fork.label,
-                        onSelect: () => onSync(fork.id, 'pull'),
-                      }))
-              }
-              renaming={renaming}
-              onRenamingChange={setRenaming}
-              onOpenChangelog={() =>
-                void setDestination({
-                  project: selected.id,
-                  pane: 'project',
-                  section: 'changelog',
-                  setting: null,
-                  search: null,
-                })
-              }
-              actions={[
-                ...(canCreateFork && isAdmin
-                  ? [{ label: 'Fork', onSelect: () => setForkSourceId(selected.id) }]
-                  : []),
-                ...(isAdmin
-                  ? [
-                      { label: 'Rename', focusesEditor: true, onSelect: () => setRenaming(true) },
-                      {
-                        label: 'Manage teammates',
-                        onSelect: () =>
-                          void setDestination({
-                            project: selected.id,
-                            pane: 'project',
-                            section: 'settings',
-                            setting: 'teammates',
-                            search: null,
-                          }),
-                      },
-                    ]
-                  : []),
-                ...(canSync && parent
-                  ? [
-                      {
-                        label: `Disconnect from ${parent.label}`,
-                        destructive: true,
-                        onSelect: () => setConfirmUnlink({ column: selected, parent }),
-                      },
-                    ]
-                  : []),
-              ]}
-            />
-          ) : null
-        }
-      />
+    <section aria-label='Environments' className='flex h-full min-h-0 flex-col'>
+      {columns.length === 1 ? (
+        <EnvironmentsEmptyState
+          onCreate={() => setForkSourceId(project.rootId)}
+          createDisabled={forkGatePending || !canCreateFork || !renameableIds.has(project.rootId)}
+        />
+      ) : (
+        <EnvironmentGraph
+          columns={columns}
+          selectedId={selected?.id ?? null}
+          onSelect={(id) => {
+            setRenaming(false)
+            setSelectedId(id)
+          }}
+          syncableIds={manageableIds}
+          onSync={onSync}
+          forkableIds={canCreateFork ? renameableIds : new Set()}
+          onFork={setForkSourceId}
+          notice={notice}
+          sheet={
+            selected ? (
+              <EnvironmentDetails
+                environment={selected}
+                parent={parent}
+                forkCount={forkCount}
+                onSync={canSync ? (direction) => onSync(selected.id, direction) : undefined}
+                pullInto={
+                  parent
+                    ? undefined
+                    : columns
+                        .filter(
+                          (column) =>
+                            column.parentId === selected.id && manageableIds.has(column.id)
+                        )
+                        .map((fork) => ({
+                          id: fork.id,
+                          label: fork.label,
+                          onSelect: () => onSync(fork.id, 'pull'),
+                        }))
+                }
+                renaming={renaming}
+                onRenamingChange={setRenaming}
+                onOpenChangelog={() =>
+                  void setDestination({
+                    project: selected.id,
+                    pane: 'project',
+                    section: 'changelog',
+                    setting: null,
+                    search: null,
+                  })
+                }
+                actions={[
+                  ...(canCreateFork && isAdmin
+                    ? [{ label: 'Fork', onSelect: () => setForkSourceId(selected.id) }]
+                    : []),
+                  ...(isAdmin
+                    ? [
+                        { label: 'Rename', focusesEditor: true, onSelect: () => setRenaming(true) },
+                        {
+                          label: 'Manage teammates',
+                          onSelect: () =>
+                            void setDestination({
+                              project: selected.id,
+                              pane: 'project',
+                              section: 'settings',
+                              setting: 'teammates',
+                              search: null,
+                            }),
+                        },
+                      ]
+                    : []),
+                  ...(canSync && parent
+                    ? [
+                        {
+                          label: `Disconnect from ${parent.label}`,
+                          destructive: true,
+                          onSelect: () => setConfirmUnlink({ column: selected, parent }),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            ) : null
+          }
+        />
+      )}
 
       <ForkWorkspaceModal
         open={forkSourceId !== null}

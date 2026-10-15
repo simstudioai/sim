@@ -48,11 +48,9 @@ export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
     ? null
     : !availability.available
       ? 'Forking is not available for this project.'
-      : edges.length === 0
-        ? 'This project has one environment. Create a fork to map resources between environments.'
-        : manageableEdges.length === 0
-          ? 'Syncing a fork needs admin access to both environments.'
-          : null
+      : manageableEdges.length === 0 && edges.length > 0
+        ? 'Syncing a fork needs admin access to both environments.'
+        : null
 
   return (
     <LineageStrip
@@ -61,6 +59,7 @@ export function EnvironmentsTab({ project }: EnvironmentsTabProps) {
       canCreateFork={availability.available && adminIds.size > 0}
       manageableIds={new Set(manageableEdges.map((edge) => edge.childId))}
       onSync={openSyncTab}
+      forkGatePending={gateLoading}
       notice={
         gateLoading ? (
           <Skeleton className='h-[18px] w-[240px]' />
