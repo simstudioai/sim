@@ -122,7 +122,7 @@ export function startAbandonedRunTakeover(): void {
 }
 
 /** Ends the scans and refuses every takeover not yet committed, including one in flight. */
-export function stopAbandonedRunTakeover(): void {
+function stopAbandonedRunTakeover(): void {
   clearInterval(timer)
   shutdown.abort()
 }
