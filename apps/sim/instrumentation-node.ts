@@ -416,7 +416,7 @@ export async function register() {
   startServiceUsageReplay()
 
   const { startAbandonedRunTakeover } = await import(
-    './lib/mothership/request/application/abandoned-runs'
+    '@/lib/mothership/request/application/abandoned-runs'
   )
   startAbandonedRunTakeover()
 }
