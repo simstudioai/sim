@@ -40,6 +40,9 @@ export function expandFileDownloadFolders(
   folders: readonly FolderNode[],
   displayPaths: ReadonlyMap<string, string>
 ): Set<string> {
+  const known = new Set(folders.map((folder) => folder.id))
+  if (input.folderIds.some((id) => !known.has(id)))
+    throw new OrchestrationError('not_found', 'Folder not found')
   const selected = new Set(input.folderIds)
   if (input.folderPaths?.length) {
     const byPath = new Map<string, string>()

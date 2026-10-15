@@ -14,6 +14,12 @@ const maps = {
 const projectBytes = '/api/projects/target-project/files/copied-photo/content'
 
 describe('selected copy references', () => {
+  it('preserves sentence punctuation while rewriting bare references', () => {
+    expect(
+      rewriteCopiedFileReferences('See /api/files/view/photo-1. Then sim:file/photo-1!', maps)
+    ).toBe(`See ${projectBytes}. Then sim:file/copied-photo!`)
+  })
+
   it('rewrites selected neutral identities without touching other IDs or resources', () => {
     const source = [
       '![photo](/api/files/view/photo-1)',

@@ -6,6 +6,7 @@ import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import { compareStrings } from '@sim/utils/string'
 import { and, asc, inArray, isNull, or } from 'drizzle-orm'
 import JSZip from 'jszip'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import type { DbTransaction } from '@/lib/db/types'
@@ -24,6 +25,7 @@ import {
   mapFileRecord,
 } from '@/lib/uploads/contexts/workspace'
 import {
+  getBoundWorkspaceFileSecretProvenanceByMetadata,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
@@ -161,7 +163,8 @@ async function snapshotSelection(
       file.folderId ? paths.get(file.folderId) : null,
     ]),
   })
-  return { files, paths, identity }
+  const provenance = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, files)
+  return { files, paths, identity, provenance }
 }
 
 const snapshotDownload = defineAuthorizedProjectFileUseCase<
@@ -184,7 +187,7 @@ interface PreparedDownload {
 }
 
 /** A bounded archive is published only after the selected tree and all rendered inputs remain current. */
-export const downloadProjectFileItems = defineAuthorizedProjectFileUseCase<
+const downloadProjectFileItemsUseCase = defineAuthorizedProjectFileUseCase<
   typeof projectFileOperations.downloadItems,
   DownloadProjectFileItemsInput,
   DownloadResult,
@@ -205,6 +208,12 @@ export const downloadProjectFileItems = defineAuthorizedProjectFileUseCase<
       )
       let remaining = MAX_ZIP_DOWNLOAD_BYTES
       for (const [index, file] of selection.files.entries()) {
+        await requireAdmittedContent(principal, {
+          kind: 'workspace-file',
+          id: file.id,
+          provenance: selection.provenance.get(file.id) ?? { status: 'unknown' },
+          view: 'opaque',
+        })
         let buffer: Buffer
         if (
           needsRenderedArtifact(file.contentType, file.originalName) ||
@@ -263,7 +272,15 @@ export const downloadProjectFileItems = defineAuthorizedProjectFileUseCase<
       secretProvenance: mergeWorkspaceFileSecretProvenance(...evidence),
     }
   },
-  afterSuccess: ({ result }) => reportWorkspaceFileDelivery(result.secretProvenance),
+  afterSuccess: async ({ principal, input, result }) => {
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: input.projectId,
+      provenance: result.secretProvenance,
+      view: 'opaque',
+    })
+    await reportWorkspaceFileDelivery(result.secretProvenance)
+  },
   projectAudit: ({ context, result }) => ({
     action: AuditAction.FILE_DOWNLOADED,
     resourceType: AuditResourceType.FILE,
@@ -276,8 +293,17 @@ export const downloadProjectFileItems = defineAuthorizedProjectFileUseCase<
   }),
 })
 
+/** HEAD validates the same selected resources and capability without preparing archive bytes. */
+export const downloadProjectFileItems = {
+  ...downloadProjectFileItemsUseCase,
+  async authorize(args: Parameters<typeof downloadProjectFileItemsUseCase.authorize>[0]) {
+    await snapshotDownload.execute(args)
+  },
+}
+
 interface SnapshotAssets {
   source: WorkspaceFileRow
+  provenance: Map<string, WorkspaceFileSecretProvenance>
   assets: { reference: string; file: WorkspaceFileRow }[]
 }
 
@@ -301,7 +327,12 @@ const snapshotMarkdownAssets = defineAuthorizedProjectFileUseCase<
     )
       throw new OrchestrationError('validation', 'Markdown snapshot is too large')
     const references = extractEmbeddedFileRefs(input.content, context.owner)
-    if (!references.ids.length && !references.keys.length) return { source, assets: [] }
+    if (!references.ids.length && !references.keys.length)
+      return {
+        source,
+        assets: [],
+        provenance: await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [source]),
+      }
     const rows = await tx
       .select()
       .from(workspaceFiles)
@@ -330,7 +361,11 @@ const snapshotMarkdownAssets = defineAuthorizedProjectFileUseCase<
       const file = byKey.get(reference)
       if (file) assets.push({ reference, file })
     }
-    return { source, assets }
+    return {
+      source,
+      assets,
+      provenance: await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [source, ...rows]),
+    }
   },
 })
 
@@ -352,6 +387,18 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
   operation: projectFileOperations.exportSnapshot,
   async prepare({ principal, input, context }) {
     const snapshot = await snapshotMarkdownAssets.execute({ principal, input })
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: snapshot.source.id,
+      provenance: mergeWorkspaceFileSecretProvenance(
+        snapshot.provenance.get(snapshot.source.id) ?? { status: 'unknown' },
+        input.secretProvenance ??
+          (principal.kind === 'resource_delegated'
+            ? { status: 'unknown' }
+            : { status: 'exact', entries: [] })
+      ),
+      view: 'opaque',
+    })
     const content = Buffer.from(input.content)
     const assets: MarkdownExportAsset[] = []
     const consumed: WorkspaceFileRow[] = [snapshot.source]
@@ -364,6 +411,12 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
         'Markdown export'
       )
       for (const asset of snapshot.assets) {
+        await requireAdmittedContent(principal, {
+          kind: 'workspace-file',
+          id: asset.file.id,
+          provenance: snapshot.provenance.get(asset.file.id) ?? { status: 'unknown' },
+          view: 'opaque',
+        })
         let buffer: Buffer
         try {
           buffer = await downloadFile({
@@ -425,8 +478,15 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
       ),
     }
   },
-  afterSuccess: ({ result }) =>
-    reportWorkspaceFileDelivery(result.secretProvenance, result.file.id),
+  afterSuccess: async ({ principal, result }) => {
+    await requireAdmittedContent(principal, {
+      kind: 'workspace-file',
+      id: result.file.id,
+      provenance: result.secretProvenance,
+      view: 'opaque',
+    })
+    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+  },
   projectAudit: ({ context, result }) => ({
     action: AuditAction.FILE_DOWNLOADED,
     resourceType: AuditResourceType.FILE,

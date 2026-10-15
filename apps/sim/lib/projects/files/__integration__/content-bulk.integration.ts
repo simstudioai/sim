@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   folder,
@@ -34,6 +35,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
+import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import {
   createProjectFile,
   readProjectFileContent,
@@ -159,6 +161,73 @@ async function rows(projectId: string) {
 }
 
 describe('Project file content against PostgreSQL and the local object store', () => {
+  check(
+    'copy selection ignores unrelated folders when the owner exceeds the selection limit',
+    async () => {
+      const { snapshotFileCopyInTx } = await import('@/lib/workspace-files/copy')
+      const f = await fixture()
+      const selected = generateId()
+      await db.insert(folder).values(
+        Array.from({ length: 5_001 }, (_, index) => ({
+          id: index === 0 ? selected : generateId(),
+          projectId: f.projectId,
+          resourceType: 'file' as const,
+          name: `folder-${index}`,
+          userId: f.ownerId,
+        }))
+      )
+      const result = await db.transaction((tx) =>
+        snapshotFileCopyInTx(tx, {
+          owner: { entityType: 'project', entityId: f.projectId },
+          fileIds: [],
+          folderIds: [selected],
+        })
+      )
+      expect(result.folders.map((item) => item.id)).toEqual([selected])
+      expect(result.files).toHaveLength(0)
+    }
+  )
+
+  check('copy retains committed bytes when COMMIT acknowledgement is lost', async () => {
+    const { copyFileItems } = await import('@/lib/workspace-files/application/copy-file-items')
+    const f = await fixture()
+    const source = await createProjectFile.execute({
+      principal: f.principal,
+      input: createInput(f.projectId, 'retained after lost acknowledgement'),
+    })
+    const original = db.transaction.bind(db)
+    vi.spyOn(db, 'transaction').mockImplementation(async (callback, config) => {
+      const result = await original(callback, config)
+      if (result && typeof result === 'object' && 'usage' in result && 'result' in result)
+        throw new Error('Lost COMMIT acknowledgement')
+      return result
+    })
+    await expect(
+      copyFileItems.execute({
+        principal: f.principal,
+        input: {
+          source: {
+            owner: { entityType: 'project', entityId: f.projectId },
+            fileIds: [source.file.id],
+            folderIds: [],
+          },
+          destination: { owner: { entityType: 'project', entityId: f.projectId }, folderId: null },
+        },
+      })
+    ).rejects.toThrow('Lost COMMIT acknowledgement')
+    vi.restoreAllMocks()
+    const copied = (await rows(f.projectId)).find((file) => file.id !== source.file.id)
+    if (!copied) throw new Error('Copy did not commit')
+    expect(await readFile(join(localStorageRoot, copied.key), 'utf8')).toBe(
+      'retained after lost acknowledgement'
+    )
+    const cleanup = await db
+      .select()
+      .from(outboxEvent)
+      .where(sql`${outboxEvent.payload}::text LIKE ${`%${copied.key}%`}`)
+    expect(cleanup).toHaveLength(0)
+  })
+
   check(
     'compound copy remaps selected page assets before staging and bills the actual rendered source bytes',
     async () => {
@@ -449,6 +518,99 @@ describe('Project file content against PostgreSQL and the local object store', (
 })
 
 describe('Project archive download and Markdown snapshot export', () => {
+  check('snapshot export refuses an opaque embedded asset before fetching it', async () => {
+    const { exportProjectFileSnapshot } = await import('@/lib/projects/files/application/downloads')
+    const f = await fixture()
+    const source = await createProjectFile.execute({
+      principal: f.principal,
+      input: createInput(f.projectId, '# source'),
+    })
+    const image = await createProjectFile.execute({
+      principal: f.principal,
+      input: {
+        ...createInput(f.projectId, 'image bytes'),
+        name: 'image.png',
+        contentType: 'image/png',
+      },
+    })
+    const principal: Principal = {
+      kind: 'resource_delegated',
+      serviceId: 'copilot',
+      subjectUserId: f.editorId,
+      audience: 'sim:project-files',
+      delegationId: generateId(),
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 30_000),
+      scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
+      invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+    }
+    const read = vi.spyOn(storage, 'downloadFile')
+    await expect(
+      observeContentDelivery(
+        {
+          async admit(sources) {
+            expect(sources.every((item) => item.view === 'opaque')).toBe(true)
+            return sources.map((item) => item.id !== image.file.id)
+          },
+        },
+        () =>
+          exportProjectFileSnapshot.execute({
+            principal,
+            input: {
+              projectId: f.projectId,
+              fileId: source.file.id,
+              content: `![image](sim:file/${image.file.id}?project=${f.projectId})`,
+              secretProvenance: { status: 'exact', entries: [] },
+            },
+          })
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  for (const phase of ['before-read', 'before-delivery'] as const) {
+    check(`Project archive opaque admission refuses ${phase}`, async () => {
+      const { downloadProjectFileItems } = await import(
+        '@/lib/projects/files/application/downloads'
+      )
+      const f = await fixture()
+      const { file } = await createProjectFile.execute({
+        principal: f.principal,
+        input: createInput(f.projectId, 'private bytes'),
+      })
+      const principal: Principal = {
+        kind: 'resource_delegated',
+        serviceId: 'copilot',
+        subjectUserId: f.editorId,
+        audience: 'sim:project-files',
+        delegationId: generateId(),
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 30_000),
+        scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
+        invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+      }
+      const read = vi.spyOn(storage, 'downloadFile')
+      let admissions = 0
+      await expect(
+        observeContentDelivery(
+          {
+            async admit(sources) {
+              admissions++
+              expect(sources.every((source) => source.view === 'opaque')).toBe(true)
+              return sources.map(() => phase === 'before-delivery' && admissions === 1)
+            },
+          },
+          () =>
+            downloadProjectFileItems.execute({
+              principal,
+              input: { projectId: f.projectId, fileIds: [file.id], folderIds: [] },
+            })
+        )
+      ).rejects.toMatchObject({ code: 'forbidden' })
+      expect(read).toHaveBeenCalledTimes(phase === 'before-read' ? 0 : 1)
+    })
+  }
+
   check(
     'Project recursive download retains nested paths, deduplicates selections, and excludes archived or foreign items',
     async () => {
@@ -907,6 +1069,52 @@ describe('Project ZIP extraction against PostgreSQL and local storage', () => {
       },
     })
   }
+
+  check('extraction retains committed bytes when COMMIT acknowledgement is lost', async () => {
+    const { extractProjectFile } = await import('@/lib/projects/files/application/extract')
+    const f = await fixture()
+    const source = await archive(f, { 'retained.txt': 'retained extracted bytes' })
+    const original = db.transaction.bind(db)
+    vi.spyOn(db, 'transaction').mockImplementation(async (callback, config) => {
+      const result = await original(callback, config)
+      if (result && typeof result === 'object' && 'usage' in result && 'result' in result)
+        throw new Error('Lost COMMIT acknowledgement')
+      return result
+    })
+    await expect(
+      extractProjectFile.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, fileId: source.file.id },
+      })
+    ).rejects.toThrow('Lost COMMIT acknowledgement')
+    vi.restoreAllMocks()
+    const child = (await rows(f.projectId)).find((file) => file.id !== source.file.id)
+    if (!child) throw new Error('Extraction did not commit')
+    expect(await readFile(join(localStorageRoot, child.key), 'utf8')).toBe(
+      'retained extracted bytes'
+    )
+    const cleanup = await db
+      .select()
+      .from(outboxEvent)
+      .where(sql`${outboxEvent.payload}::text LIKE ${`%${child.key}%`}`)
+    expect(cleanup).toHaveLength(0)
+  })
+
+  check('extraction rejects an overlong directory before staging a member', async () => {
+    const { extractProjectFile } = await import('@/lib/projects/files/application/extract')
+    const f = await fixture()
+    const source = await archive(f, { [`${'x'.repeat(256)}/entry.txt`]: 'content' })
+    const upload = vi.spyOn(storage, 'uploadFile')
+    await expect(
+      extractProjectFile.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, fileId: source.file.id },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(upload).not.toHaveBeenCalled()
+    expect(await folders(f.projectId)).toHaveLength(0)
+    expect(await rows(f.projectId)).toHaveLength(1)
+  })
 
   async function folders(projectId: string) {
     return db.select().from(folder).where(eq(folder.projectId, projectId))

@@ -72,16 +72,14 @@ function validateDeclaredBytes(bytes: number): void {
   }
 }
 
-async function executeDownloadWorkspaceFileItems({
-  input,
+async function requireDownloadCapability({
   context,
   principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.download,
   DownloadWorkspaceFileItemsInput,
   Awaited<ReturnType<typeof resolveDownloadContext>>
->): Promise<DownloadWorkspaceFileItemsResult> {
-  const selection = normalizeFileDownloadSelection(input)
+>) {
   /**
    * permission-group-enforced: files.bulk_download — one operation serves both
    * a single file and a whole folder tree, and only the archive is what the key
@@ -106,6 +104,18 @@ async function executeDownloadWorkspaceFileItems({
       )
     }
   }
+}
+
+async function executeDownloadWorkspaceFileItems({
+  input,
+  context,
+  principal,
+}: AuthorizedWorkspaceUseCaseContext<
+  typeof fileOperations.download,
+  DownloadWorkspaceFileItemsInput,
+  Awaited<ReturnType<typeof resolveDownloadContext>>
+>): Promise<DownloadWorkspaceFileItemsResult> {
+  const selection = normalizeFileDownloadSelection(input)
 
   const [files, folders] = await Promise.all([
     listWorkspaceFiles(context.workspaceId, { hydrateFolderPaths: false, throwOnError: true }),
@@ -147,13 +157,19 @@ async function executeDownloadWorkspaceFileItems({
   for (const file of filesToZip) {
     if (!needsRenderedArtifact(file.type, file.name)) continue
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
-    const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {
       const { buffer, contributingFiles, receipt } =
-        await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, { maxBytes: allowance })
+        await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
+          maxBytes: MAX_RENDERED_DOCUMENT_BYTES,
+        })
       if (!(await admitContributors(principal, context.workspaceId, contributingFiles, 'opaque'))) {
         filesToZip = filesToZip.filter((admitted) => admitted.id !== file.id)
         continue
+      }
+      if (buffer.length > remaining) {
+        validationError(
+          `The selected files exceed the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit once documents are rendered. Select fewer files.`
+        )
       }
       declaredBytes += file.size
       validateDeclaredBytes(declaredBytes)
@@ -167,9 +183,7 @@ async function executeDownloadWorkspaceFileItems({
       }
       if (error instanceof PayloadSizeLimitError) {
         validationError(
-          allowance === MAX_RENDERED_DOCUMENT_BYTES
-            ? `"${file.name}" renders to more than ${formatFileSize(MAX_RENDERED_DOCUMENT_BYTES)} and is too large to include in a zip; download it on its own instead.`
-            : `The selected files exceed the ${formatFileSize(MAX_ZIP_DOWNLOAD_BYTES)} download limit once documents are rendered. Select fewer files.`
+          `"${file.name}" renders to more than ${formatFileSize(MAX_RENDERED_DOCUMENT_BYTES)} and is too large to include in a zip; download it on its own instead.`
         )
       }
       if (!isDocNotReadyError(error)) throw error
@@ -231,9 +245,12 @@ async function executeDownloadWorkspaceFileItems({
       }))
     )
   )
-  await db.transaction(async (tx) => {
-    for (const receipt of receipts) await recheckFileReadReceipt(tx, receipt)
-  })
+  await db.transaction(
+    async (tx) => {
+      for (const receipt of receipts) await recheckFileReadReceipt(tx, receipt)
+    },
+    { isolationLevel: 'repeatable read', accessMode: 'read only' }
+  )
   const included = new Set(filesToZip.map((file) => file.id))
   return {
     excludedFileIds: selectedFiles.filter((file) => !included.has(file.id)).map((file) => file.id),
@@ -267,6 +284,7 @@ async function resolveDownloadContext({ input }: { input: DownloadWorkspaceFileI
 export const downloadWorkspaceFileItems = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.download,
   resolveContext: resolveDownloadContext,
+  authorizeResource: requireDownloadCapability,
   execute: executeDownloadWorkspaceFileItems,
   projectAudit({ result }) {
     return {

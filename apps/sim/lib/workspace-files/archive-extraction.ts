@@ -46,6 +46,11 @@ export async function stageFileArchive(
   try {
     for await (const entry of plan.entries(args.signal)) {
       args.signal.throwIfAborted()
+      if (entry.segments.slice(0, -1).some((segment) => segment.length > 255))
+        throw new OrchestrationError(
+          'validation',
+          'Archive folder names must be at most 255 characters'
+        )
       const name = entry.segments[entry.segments.length - 1]
       const restored = restoreSimPageSourceBuffer(name, entry.buffer)
       const content = restored?.buffer ?? entry.buffer
@@ -102,6 +107,15 @@ export async function commitFileArchiveInTx(
   if (!args.staged.entries.length) {
     throw new OrchestrationError('validation', 'No files could be unzipped from this archive')
   }
+  if (
+    args.staged.entries.some((entry) =>
+      entry.parentSegments.some((segment) => segment.length > 255)
+    )
+  )
+    throw new OrchestrationError(
+      'validation',
+      'Archive folder names must be at most 255 characters'
+    )
   const root = await createFileFolder(
     {
       owner: args.owner,

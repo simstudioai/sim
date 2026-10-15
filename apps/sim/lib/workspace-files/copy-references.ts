@@ -153,7 +153,12 @@ export function rewriteCopiedFileReferences(
       protectedEnd = absoluteReferenceEnd(content, start)
       continue
     }
-    const value = rewriteFileReference(reference, maps)
+    let value = rewriteFileReference(reference, maps)
+    if (value === null && !language && /[.,;:!?]+$/.test(reference)) {
+      const trimmed = reference.replace(/[.,;:!?]+$/, '')
+      const rewritten = rewriteFileReference(trimmed, maps)
+      if (rewritten !== null) value = rewritten + reference.slice(trimmed.length)
+    }
     if (value === null) continue
     replacements.push({ start, end: start + reference.length, value })
   }

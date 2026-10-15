@@ -2,6 +2,8 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { describeError, isPostgresCommitRejection } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import { maybeNotifyStorageLimitForBillingContext } from '@/lib/billing/storage/tracking'
 import {
@@ -41,6 +43,8 @@ import {
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
+
+const logger = createLogger('ProjectFileExtraction')
 
 interface ExtractProjectFileInput {
   projectId: string
@@ -158,6 +162,7 @@ export const extractProjectFile: AuthorizingUseCase<
             return stageFileArchive(plan, { owner: prepared.context.owner, userId, signal })
           }
         )
+        let callbackCompleted = false
         let committed
         try {
           committed = await db.transaction(async (tx) => {
@@ -181,9 +186,17 @@ export const extractProjectFile: AuthorizingUseCase<
             const usage = await accounting.mutation.applyDelta(staged.bytes)
             signal.throwIfAborted()
             await requireFileExtractionLeaseInTx(tx, lease)
+            callbackCompleted = true
             return { context, result, billing: accounting.billing, usage }
           })
         } catch (error) {
+          if (callbackCompleted && !isPostgresCommitRejection(error)) {
+            logger.error('Archive commit outcome is uncertain; retaining staged content', {
+              error: describeError(error),
+              fileId: file.id,
+            })
+            throw error
+          }
           try {
             await discardFileArchive(staged)
           } catch (cleanupError) {

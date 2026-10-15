@@ -163,7 +163,7 @@ export const unpublishedFileCopyOpenApiRoutes = [
       operationId: 'copyFileItems',
       summary: 'Copy File Items',
       description: `Copy selected files and folder trees between workspace or Project owners. Source read and destination write access are checked independently. Copies receive new identities and retain source secret provenance. Registration is atomic, with destination names resolved by the existing copy rules. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge', 'UnsupportedMediaType'],
       success: { description: 'New file and folder identities with their destination owner.' },
     }),
     {

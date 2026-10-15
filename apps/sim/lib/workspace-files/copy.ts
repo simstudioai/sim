@@ -2,7 +2,6 @@ import { folder, type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { and, asc, inArray, isNull, or } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
-import { collectDescendantFolderIdsFrom, indexFolderChildren } from '@/lib/folders/subtree'
 import {
   assertFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
@@ -65,29 +64,43 @@ export async function snapshotFileCopyInTx(
   if (!source.fileIds.length && !source.folderIds.length) {
     throw new OrchestrationError('validation', 'Copy requires a source selection')
   }
+  const loadFolders = (ids: readonly string[], descendants: boolean, limit: number) =>
+    tx
+      .select({
+        id: folder.id,
+        name: folder.name,
+        parentId: folder.parentId,
+        updatedAt: folder.updatedAt,
+      })
+      .from(folder)
+      .where(
+        and(
+          fileFolderOwnerCondition(source.owner),
+          isNull(folder.deletedAt),
+          inArray(descendants ? folder.parentId : folder.id, [...ids])
+        )
+      )
+      .orderBy(asc(folder.id))
+      .limit(limit)
   const candidates = source.folderIds.length
-    ? await tx
-        .select({
-          id: folder.id,
-          name: folder.name,
-          parentId: folder.parentId,
-          updatedAt: folder.updatedAt,
-        })
-        .from(folder)
-        .where(and(fileFolderOwnerCondition(source.owner), isNull(folder.deletedAt)))
-        .orderBy(asc(folder.id))
-        .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+    ? await loadFolders(source.folderIds, false, MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
     : []
-  requireBoundedSelection(candidates.length)
-  const byId = new Map(candidates.map((row) => [row.id, row]))
-  const children = indexFolderChildren(candidates)
-  const selectedFolders = new Set<string>()
-  for (const id of source.folderIds) {
-    if (!byId.has(id)) throw new OrchestrationError('not_found', 'Source folder not found')
-    selectedFolders.add(id)
-    for (const childId of collectDescendantFolderIdsFrom(children, id)) selectedFolders.add(childId)
+  const selectedFolders = new Set(candidates.map((row) => row.id))
+  if (source.folderIds.some((id) => !selectedFolders.has(id)))
+    throw new OrchestrationError('not_found', 'Source folder not found')
+  let frontier = [...selectedFolders]
+  while (frontier.length) {
+    requireBoundedSelection(selectedFolders.size)
+    const children = await loadFolders(frontier, true, MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+    frontier = []
+    for (const child of children) {
+      if (selectedFolders.has(child.id)) continue
+      selectedFolders.add(child.id)
+      candidates.push(child)
+      frontier.push(child.id)
+    }
+    requireBoundedSelection(selectedFolders.size)
   }
-  requireBoundedSelection(selectedFolders.size)
   const files = await tx
     .select()
     .from(workspaceFiles)

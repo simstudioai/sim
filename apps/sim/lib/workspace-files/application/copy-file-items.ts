@@ -2,6 +2,8 @@ import { isUtf8 } from 'node:buffer'
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { createLogger } from '@sim/logger'
+import { describeError, isPostgresCommitRejection } from '@sim/utils/errors'
 import { prepareFileAccountingInTx } from '@/lib/billing/storage/accounting'
 import { maybeNotifyStorageLimitForBillingContext } from '@/lib/billing/storage/tracking'
 import {
@@ -40,6 +42,8 @@ import {
 } from '@/lib/workspace-files/copy'
 import { rewriteCopiedFileReferences } from '@/lib/workspace-files/copy-references'
 import { lockFileDirectories } from '@/lib/workspace-files/locks'
+
+const logger = createLogger('FileCopy')
 
 /** Atomic source-read/destination-write copy; staging never holds authorization or accounting locks. */
 export const copyFileItems: AuthorizingUseCase<
@@ -89,6 +93,7 @@ export const copyFileItems: AuthorizingUseCase<
       })
     )
     let stagedBytes = 0
+    let callbackCompleted = false
     const committed = await (async () => {
       try {
         for (const source of prepared.snapshot.files) {
@@ -167,14 +172,23 @@ export const copyFileItems: AuthorizingUseCase<
             staged,
             identities,
           })
+          const usage = await accounting.mutation.applyDelta(stagedBytes)
+          callbackCompleted = true
           return {
             context,
             result,
             billing: accounting.billing,
-            usage: await accounting.mutation.applyDelta(stagedBytes),
+            usage,
           }
         })
       } catch (error) {
+        if (callbackCompleted && !isPostgresCommitRejection(error)) {
+          logger.error('Copy commit outcome is uncertain; retaining staged content', {
+            error: describeError(error),
+            owner: prepared.context.destination.owner,
+          })
+          throw error
+        }
         const cleanups = await Promise.allSettled(
           [...staged.values()].map(discardStagedFileContent)
         )

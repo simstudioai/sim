@@ -14,6 +14,7 @@ export const GET = defineInternalBinaryRoute({
   operation: downloadProjectFileItems.operation,
   rateLimit: internalRateLimits.none({ reason: 'Authenticated bounded Project archive download' }),
   errorPolicy: internalOrchestrationErrorPolicy,
+  headSafe: false,
   mapInput: ({ params, query }) => ({ projectId: params.id, ...query }),
   useCase: downloadProjectFileItems,
   present: presentProjectFileDownload,
