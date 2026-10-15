@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { OverflowText, toast } from '@sim/emcn'
+import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -55,10 +55,7 @@ import type {
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
-import {
-  useMarkMothershipChatRead,
-  useOrganizationMothershipChats,
-} from '@/hooks/queries/mothership-chats'
+import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
@@ -176,10 +173,6 @@ function OrganizationHomeContent({
     resources: chat.resources,
     addResource: chat.addResource,
   })
-  const { data: organizationChats } = useOrganizationMothershipChats(organization.id)
-  const chatTitle = organizationChats?.find(
-    (entry) => entry.id === (chat.resolvedChatId ?? chatId)
-  )?.name
   const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
   const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
   const savedDraft = useMothershipDraftsStore.getState().drafts
@@ -477,14 +470,6 @@ function OrganizationHomeContent({
   const hostLanding = hasChat ? undefined : landing?.(requestMode)
   const content = (
     <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,50%)]'>
-      {projectViewEnabled ? (
-        <header className='flex h-[calc(var(--resource-header-controls-height)+1px)] shrink-0 items-center gap-2 border-[var(--border)] border-b pr-[var(--chat-header-end-reserve,16px)] pl-4'>
-          <OverflowText
-            label={chatTitle || (lookupMode ? 'Search' : 'New chat')}
-            className='text-[var(--text-body)] text-small'
-          />
-        </header>
-      ) : null}
       {lookupMode ? (
         <SearchResultsView
           embedded

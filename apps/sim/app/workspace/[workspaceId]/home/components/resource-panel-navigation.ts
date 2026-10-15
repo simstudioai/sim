@@ -5,6 +5,8 @@ import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/type
 /** Navigation-only tabs share the strip without becoming agent resources. */
 export interface ResourcePanelNavigation {
   control?: ReactNode
+  /** Whether the control's own view, rather than a tab, fills the panel. */
+  controlActive: boolean
   tabs: TabStripItem[]
   active: boolean
   content: ReactNode

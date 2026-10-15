@@ -39,5 +39,8 @@ export const RESOURCE_HEADER_CLASSES = {
    */
   adjacentEndPosition:
     'right-[calc(var(--resource-header-end-inset)_+_var(--resource-header-toggle-hit-size)_+_1px)]',
+  /** The swell's band: its controls centre on the swell, below the band's top. */
+  swellEndPosition:
+    'right-[calc(var(--resource-header-end-inset)_+_var(--resource-header-toggle-hit-size)_+_1px)] md:top-3 md:right-[var(--resource-header-end-inset)] md:h-7',
   emptyAddOffset: '-translate-x-1.5',
 } as const

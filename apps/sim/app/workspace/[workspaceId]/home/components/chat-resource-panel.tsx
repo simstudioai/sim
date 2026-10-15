@@ -99,6 +99,14 @@ export function ChatResourcePanel({
     handleResourceResizeFocus,
     handleResourceInteraction,
   } = panel
+  const togglePanel = () => {
+    if (isResourceCollapsed) {
+      expandResource()
+      return
+    }
+    if (overlay) settle(0)
+    collapseResource()
+  }
   const summarize = useCallback(
     (message: string, filters: WorkspaceSearchFilters) => {
       if (onSummarize) onSummarize(message, filters)
@@ -125,15 +133,9 @@ export function ChatResourcePanel({
           : undefined
       }
       label='resource view'
+      swell={Boolean(navigation?.control)}
       activityCount={resourceActivityIds.size}
-      onToggle={() => {
-        if (isResourceCollapsed) {
-          expandResource()
-          return
-        }
-        if (overlay) settle(0)
-        collapseResource()
-      }}
+      onToggle={togglePanel}
       onResize={handleResourceResizePointerDown}
       onResizeKeyDown={handleResourceResizeKeyDown}
       onResizeFocus={handleResourceResizeFocus}
@@ -163,10 +165,12 @@ export function ChatResourcePanel({
               isAgentResponding={isSending}
               onSummarize={summarize}
               onUserInteraction={handleResourceInteraction}
+              onTogglePanel={togglePanel}
+              skipTransition={skipResourceTransition}
               className={cn(
                 skipResourceTransition && 'transition-none!',
                 overlay && 'absolute! inset-y-0 right-0',
-                isChatHidden && 'w-full! min-w-0! border-l-0!'
+                isChatHidden && 'w-full! min-w-0! border-l-0! md:w-full!'
               )}
             />
           </Suspense>

@@ -113,6 +113,7 @@ export function useProjectPane(
   })
   const navigation: ResourcePanelNavigation = {
     control: <ProjectControl active={showProject} onShow={() => select('project')} />,
+    controlActive: showProject,
     tabs,
     active: showProject || Boolean(activeTab),
     onSelect: select,

@@ -29,6 +29,7 @@ import {
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
+import { ChatPanelSwell } from '@/app/workspace/[workspaceId]/home/components/chat-panel-swell'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
@@ -123,6 +124,10 @@ interface MothershipViewProps {
   onSummarize: (message: string, filters: WorkspaceSearchFilters) => void
   /** Claims the current resource selection after direct panel interaction. */
   onUserInteraction?: () => void
+  /** With a navigation control, the panel opens and closes through the control's swell. */
+  onTogglePanel?: () => void
+  /** Moves the panel to its open or closed state without animating. */
+  skipTransition?: boolean
 }
 
 export const MothershipView = memo(
@@ -144,6 +149,8 @@ export const MothershipView = memo(
       isAgentResponding,
       onSummarize,
       onUserInteraction,
+      onTogglePanel,
+      skipTransition = false,
     }: MothershipViewProps,
     ref
   ) {
@@ -243,49 +250,77 @@ export const MothershipView = memo(
       activeFile?.type !== SIM_PAGE_CONTENT_TYPE
     // A test shows its source, its results, or both, like an HTML file; the viewer enforces edits.
     const isActivePreviewable = isActiveFilePreviewable || active?.type === 'test'
+    const swell = navigation?.control && onTogglePanel ? onTogglePanel : undefined
 
     return (
-      <ChatPanelContent
-        ref={ref}
-        collapsed={isCollapsed}
-        onInteraction={onUserInteraction}
-        className={className}
-      >
-        <div className='flex min-h-0 flex-1 flex-col'>
-          <ResourceTabs
-            navigation={navigation}
-            organizationId={organizationId}
-            allowBuildControls={allowBuildControls}
-            workspaceId={workspaceId}
-            desktopScopeId={desktopScopeId}
-            chatId={chatId}
-            resources={resources}
-            activeId={active ? getChatResourceSelectionId(active) : null}
-            activityIds={activityResourceIds}
-            actions={
-              !navigation && active && active.type !== 'search' && activeWorkspaceId ? (
-                <ResourceWorkspaceHost
-                  workspaceId={activeWorkspaceId}
-                  organizationId={organizationId}
-                  workflowId={active.type === 'workflow' ? active.id : undefined}
-                  isFileViewer={active.type === 'file'}
-                >
-                  <ResourceActions
-                    allowWorkspaceNavigation={!navigation}
-                    workspaceId={activeWorkspaceId}
-                    resource={active}
-                    downloadSourceRef={fileDownloadSourceRef}
-                  />
-                </ResourceWorkspaceHost>
-              ) : null
-            }
-            previewMode={!navigation && isActivePreviewable ? previewMode : undefined}
-            onCyclePreviewMode={!navigation && isActivePreviewable ? handleCyclePreview : undefined}
-            onRequestAddResourceOpen={requestAddResourceOpen}
-            onAddResourceClose={closeAddResource}
+      <>
+        {swell && navigation && (
+          <ChatPanelSwell
+            label='Project'
+            toggleLabel={`Expand resource view${
+              activityResourceIds?.size
+                ? `, ${activityResourceIds.size} resource${activityResourceIds.size === 1 ? '' : 's'} updated`
+                : ''
+            }`}
+            activityCount={activityResourceIds?.size ?? 0}
+            idle={!isCollapsed && !navigation.controlActive}
+            collapsed={isCollapsed}
+            instant={skipTransition}
+            onExpand={swell}
           />
-          <div className='relative min-h-0 flex-1 overflow-hidden'>
-            {/*
+        )}
+        <ChatPanelContent
+          ref={ref}
+          collapsed={isCollapsed}
+          swell={Boolean(swell)}
+          onInteraction={onUserInteraction}
+          className={className}
+        >
+          <div className='flex min-h-0 flex-1 flex-col'>
+            <ResourceTabs
+              navigation={navigation}
+              organizationId={organizationId}
+              allowBuildControls={allowBuildControls}
+              workspaceId={workspaceId}
+              desktopScopeId={desktopScopeId}
+              chatId={chatId}
+              resources={resources}
+              activeId={active ? getChatResourceSelectionId(active) : null}
+              activityIds={activityResourceIds}
+              actions={
+                !navigation && active && active.type !== 'search' && activeWorkspaceId ? (
+                  <ResourceWorkspaceHost
+                    workspaceId={activeWorkspaceId}
+                    organizationId={organizationId}
+                    workflowId={active.type === 'workflow' ? active.id : undefined}
+                    isFileViewer={active.type === 'file'}
+                  >
+                    <ResourceActions
+                      allowWorkspaceNavigation={!navigation}
+                      workspaceId={activeWorkspaceId}
+                      resource={active}
+                      downloadSourceRef={fileDownloadSourceRef}
+                    />
+                  </ResourceWorkspaceHost>
+                ) : null
+              }
+              previewMode={!navigation && isActivePreviewable ? previewMode : undefined}
+              onCyclePreviewMode={
+                !navigation && isActivePreviewable ? handleCyclePreview : undefined
+              }
+              onRequestAddResourceOpen={requestAddResourceOpen}
+              onAddResourceClose={closeAddResource}
+              onCollapse={swell}
+            />
+            <div
+              data-swell-card={swell ? '' : undefined}
+              className={cn(
+                'relative min-h-0 flex-1 overflow-hidden',
+                swell &&
+                  'md:absolute md:top-10 md:right-[calc(0.5rem*var(--swell-progress))] md:bottom-2 md:left-[calc(0.5rem*var(--swell-progress))] md:rounded-xl md:border md:border-[color-mix(in_srgb,var(--border)_calc(var(--swell-edge,1)*100%),transparent)] md:bg-[var(--surface-2)] md:[&>*]:min-w-[calc(var(--chat-panel-width)-18px)] md:[&>*]:opacity-[var(--swell-content-opacity,1)]'
+              )}
+            >
+              {/*
               The browser and terminal panels stay mounted while another
               resource is showing. Both are backed by state the renderer
               cannot cheaply rebuild — a live native view positioned from a
@@ -296,67 +331,70 @@ export const MothershipView = memo(
               screen": the browser reports no bounds and its native view hides
               itself, and the terminals stop being measured.
             */}
-            {persistentResources.map((resource) => {
-              const panelVisible = active?.type === resource.type
-              return (
-                <div
-                  key={`${desktopScopeId}:${resource.type}`}
-                  className={cn('absolute inset-0', !panelVisible && 'hidden')}
-                >
-                  {/*
+              {persistentResources.map((resource) => {
+                const panelVisible = active?.type === resource.type
+                return (
+                  <div
+                    key={`${desktopScopeId}:${resource.type}`}
+                    className={cn('absolute inset-0', !panelVisible && 'hidden')}
+                  >
+                    {/*
                   A hidden persistent panel can otherwise only INFER it is off
                   screen by measuring itself, which is enough to pause xterm and
                   hide the native view but not to switch off document-wide
                   observers the panel installs. The explicit flag lets it stand
                   those down while hidden.
                 */}
+                    <ScopedResourceContent
+                      workspaceId={resource.workspaceId ?? workspaceId}
+                      organizationId={organizationId}
+                      desktopScopeId={desktopScopeId}
+                      resource={resource}
+                      onSummarize={onSummarize}
+                      visible={panelVisible}
+                      onBrowserOverlayControllerChange={registerBrowserOverlayController}
+                    />
+                  </div>
+                )
+              })}
+              {active?.type === 'sources' && (
+                <SourcesResourceContent resource={active} chatId={chatId} />
+              )}
+              {active && active.type !== 'sources' && !isPersistentPanel(active) && (
+                <ActiveResourceFrame navigation={navigation} resource={active}>
                   <ScopedResourceContent
-                    workspaceId={resource.workspaceId ?? workspaceId}
+                    showHeader={Boolean(navigation)}
+                    onBrowse={navigation ? () => navigation.onBrowseResource(active) : undefined}
+                    onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
+                    workspaceId={activeWorkspaceId}
                     organizationId={organizationId}
                     desktopScopeId={desktopScopeId}
-                    resource={resource}
+                    resource={active}
                     onSummarize={onSummarize}
-                    visible={panelVisible}
-                    onBrowserOverlayControllerChange={registerBrowserOverlayController}
+                    downloadSourceRef={fileDownloadSourceRef}
+                    onTableViewContextChange={onTableViewContextChange}
+                    previewMode={isActivePreviewable ? previewMode : undefined}
+                    previewSession={previewForActive}
+                    isAgentResponding={isAgentResponding}
+                    previewContextKey={chatId}
+                    onNotFound={(resourceId) =>
+                      removeResource('log', resourceId, active.workspaceId)
+                    }
                   />
+                </ActiveResourceFrame>
+              )}
+              {navigation?.active && navigation.content}
+              {!active && !navigation?.active && (
+                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                  {workspaceId
+                    ? 'Click "+" above to add a resource'
+                    : 'Open a resource from the conversation'}
                 </div>
-              )
-            })}
-            {active?.type === 'sources' && (
-              <SourcesResourceContent resource={active} chatId={chatId} />
-            )}
-            {active && active.type !== 'sources' && !isPersistentPanel(active) && (
-              <ActiveResourceFrame navigation={navigation} resource={active}>
-                <ScopedResourceContent
-                  showHeader={Boolean(navigation)}
-                  onBrowse={navigation ? () => navigation.onBrowseResource(active) : undefined}
-                  onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
-                  workspaceId={activeWorkspaceId}
-                  organizationId={organizationId}
-                  desktopScopeId={desktopScopeId}
-                  resource={active}
-                  onSummarize={onSummarize}
-                  downloadSourceRef={fileDownloadSourceRef}
-                  onTableViewContextChange={onTableViewContextChange}
-                  previewMode={isActivePreviewable ? previewMode : undefined}
-                  previewSession={previewForActive}
-                  isAgentResponding={isAgentResponding}
-                  previewContextKey={chatId}
-                  onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
-                />
-              </ActiveResourceFrame>
-            )}
-            {navigation?.active && navigation.content}
-            {!active && !navigation?.active && (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                {workspaceId
-                  ? 'Click "+" above to add a resource'
-                  : 'Open a resource from the conversation'}
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </ChatPanelContent>
+        </ChatPanelContent>
+      </>
     )
   })
 )

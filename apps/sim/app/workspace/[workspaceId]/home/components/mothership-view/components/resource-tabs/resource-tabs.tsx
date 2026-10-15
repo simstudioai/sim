@@ -20,7 +20,7 @@ import {
   tabStripItemSelector,
   toast,
 } from '@sim/emcn'
-import { Columns3, Eye, Pencil } from '@sim/emcn/icons'
+import { Columns3, Eye, PanelLeft, Pencil, Plus } from '@sim/emcn/icons'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { useQueries } from '@tanstack/react-query'
 import { requestBrowserOmniboxFocus } from '@/lib/browser-agent/omnibox-focus'
@@ -226,6 +226,8 @@ interface ResourceTabsProps {
   actions?: ReactNode
   onRequestAddResourceOpen?: (open: () => void) => void
   onAddResourceClose?: () => Promise<void>
+  /** Set when the panel collapses through its swell; docks the collapse button before the control. */
+  onCollapse?: () => void
 }
 
 /**
@@ -252,6 +254,7 @@ export function ResourceTabs({
   actions,
   onRequestAddResourceOpen,
   onAddResourceClose,
+  onCollapse,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId, resources)
@@ -634,9 +637,30 @@ export function ResourceTabs({
         }}
         onTabDragStart={handleTabDragStart}
         variant='floating'
-        className={RESOURCE_HEADER_CLASSES.stripGeometry}
+        dividers={!onCollapse}
+        className={cn(
+          RESOURCE_HEADER_CLASSES.stripGeometry,
+          onCollapse &&
+            'transition-opacity duration-150 md:mt-3 md:group-data-[swell-hidden]/swell:pointer-events-none md:group-data-[swell-hidden]/swell:opacity-0 md:[--tab-strip-height:28px] md:[--tab-strip-inline-start:14px]'
+        )}
         {...(navigation
-          ? { onNew: navigation.onNew, newTabLabel: 'New tab' }
+          ? {
+              newTabControl: (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <TabStripAction
+                      variant='subtle'
+                      aria-label='New tab'
+                      onClick={navigation.onNew}
+                      className='text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
+                    >
+                      <Plus className='size-[14px]' />
+                    </TabStripAction>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom'>New tab</Tooltip.Content>
+                </Tooltip.Root>
+              ),
+            }
           : {
               newTabControl:
                 // Offered before the chat exists too: a resource opened while composing
@@ -659,7 +683,29 @@ export function ResourceTabs({
             })}
         // A bare fragment is always truthy, so the empty case has to be `null` or
         // the strip renders an empty trailing cluster.
-        startActions={navigation?.control}
+        startActions={
+          onCollapse ? (
+            <>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <TabStripAction
+                    variant='subtle'
+                    data-swell-dock=''
+                    onClick={onCollapse}
+                    aria-label='Collapse resource view'
+                    className='text-[var(--text-icon)] hover-hover:text-[var(--text-primary)] max-md:hidden'
+                  >
+                    <PanelLeft className='-scale-x-100 invisible size-[16px] group-data-[swell-docked]/swell:visible' />
+                  </TabStripAction>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='bottom'>Collapse</Tooltip.Content>
+              </Tooltip.Root>
+              {navigation?.control}
+            </>
+          ) : (
+            navigation?.control
+          )
+        }
         endActions={
           actions || previewToggle ? (
             <>

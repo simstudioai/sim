@@ -20,6 +20,8 @@ interface ChatPanelLayoutProps {
   chatHidden?: boolean
   /** Px the chat leaves for the panel while the panel overlays it (expanded or settling). */
   chatReserve?: number
+  /** The panel collapses through its swell (`ChatPanelSwell`) rather than the header toggle. */
+  swell?: boolean
   onToggleChat?: () => void
   label: string
   activityCount?: number
@@ -38,6 +40,7 @@ export function ChatPanelLayout({
   collapsed,
   chatHidden = false,
   chatReserve,
+  swell = false,
   onToggleChat,
   label,
   activityCount = 0,
@@ -61,13 +64,17 @@ export function ChatPanelLayout({
         RESOURCE_HEADER_CLASSES.layout,
         canToggleChat &&
           '[--resource-header-fixed-reserve:calc(var(--resource-header-end-inset)_+_2*var(--resource-header-toggle-hit-size)_+_2px)]',
-        collapsed && '[--chat-header-end-reserve:var(--resource-header-fixed-reserve)]'
+        collapsed &&
+          (swell
+            ? 'max-md:[--chat-header-end-reserve:var(--resource-header-fixed-reserve)]'
+            : '[--chat-header-end-reserve:var(--resource-header-fixed-reserve)]')
       )}
     >
       <div
         className={cn(
           'contents',
           overlaid && '[&>*]:mr-[var(--chat-panel-reserve)]',
+          swell && chatHidden && 'md:[&>*]:invisible',
           !collapsed && 'max-md:hidden'
         )}
         style={
@@ -96,7 +103,8 @@ export function ChatPanelLayout({
         className={cn(
           'z-30 max-md:w-[var(--resource-header-toggle-hit-size)] max-md:justify-center',
           RESOURCE_HEADER_CLASSES.overlay,
-          RESOURCE_HEADER_CLASSES.endPosition
+          RESOURCE_HEADER_CLASSES.endPosition,
+          swell && 'md:hidden'
         )}
       >
         <Button
@@ -132,7 +140,9 @@ export function ChatPanelLayout({
           className={cn(
             'z-30',
             RESOURCE_HEADER_CLASSES.overlay,
-            RESOURCE_HEADER_CLASSES.adjacentEndPosition
+            swell
+              ? RESOURCE_HEADER_CLASSES.swellEndPosition
+              : RESOURCE_HEADER_CLASSES.adjacentEndPosition
           )}
         >
           <Tooltip.Root>
@@ -167,6 +177,8 @@ interface ChatPanelContentProps {
   children: ReactNode
   ref?: Ref<HTMLDivElement>
   collapsed: boolean
+  /** Draws the panel as a card under a transparent tab band, for `ChatPanelSwell`. */
+  swell?: boolean
   className?: string
   onInteraction?: () => void
 }
@@ -179,6 +191,7 @@ export function ChatPanelContent({
   children,
   ref,
   collapsed,
+  swell = false,
   className,
   onInteraction,
 }: ChatPanelContentProps) {
@@ -194,6 +207,9 @@ export function ChatPanelContent({
         collapsed ? 'w-0 min-w-0 border-l-0 max-md:hidden' : 'w-1/2 border-l',
         '[--workspace-content-title-bar-inset:0px]',
         '[&>*]:min-w-[var(--chat-panel-width)] max-md:[&>*]:min-w-0',
+        swell &&
+          'group/swell md:w-[calc(var(--chat-panel-width)*var(--swell-progress))]! md:min-w-0! md:border-l-0 md:bg-transparent md:transition-none',
+        swell && (collapsed ? '[--swell-progress:0]' : '[--swell-progress:1]'),
         className
       )}
     >
