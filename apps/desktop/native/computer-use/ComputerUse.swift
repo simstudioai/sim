@@ -655,7 +655,8 @@ final class Driver {
                 throw ComputerError("unsupported_action", "This element cannot take keyboard focus. Type into a text field, text area, combo box or other focusable control, or click it first.")
             }
             if request.method == "input_sequence", p.activateFirst == true { try await activate(app) }
-            if !isFocused {
+            // Activation can move focus, so whether the editor holds it is read after activating.
+            if attribute(root, kAXFocusedUIElementAttribute).map({ CFEqual($0, element) }) != true {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
                 try await Task.sleep(for: .milliseconds(50))
             }
