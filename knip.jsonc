@@ -48,13 +48,23 @@
         // Generated contracts mirror their source of truth; regenerating them must not
         // trip the unused-export ratchet, and hand edits would be overwritten.
         "lib/mothership/generated/**": ["exports", "types", "duplicates"],
-        // Consumed only by the stacked Project file PRs: the rendered-content contracts by #9017,
-        // the client aliases by #9034. Remove each entry once its consumer merges.
+        // Client aliases consumed only by the stacked Project file PR #9034. Remove each entry once
+        // its consumer merges.
         "lib/api/contracts/projects.ts": ["types"],
-        "lib/api/contracts/project-files.ts": ["exports", "types"],
+        "lib/api/contracts/project-files.ts": ["types"],
         "lib/api/contracts/project-file-folders.ts": ["types"],
         "lib/api/contracts/project-file-lifecycle.ts": ["types"],
         "sandboxes/index.ts": ["files"],
+        "lib/api/contracts/file-copy.ts": ["exports", "types"],
+        "lib/api/contracts/file-copy-input.ts": ["exports", "types"],
+        // API contract conventions require named boundary schemas and wire aliases before client adoption.
+        "lib/api/contracts/project-file-downloads.ts": ["exports", "types"],
+        "lib/api/contracts/project-file-shares.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-shares.ts": ["exports", "types"],
+        "lib/api/contracts/project-file-extraction.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-downloads.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-extraction.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-search.ts": ["exports", "types"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],
         "lib/api/contracts/selectors/index.ts": ["files"],

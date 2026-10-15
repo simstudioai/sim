@@ -243,6 +243,17 @@ jobs:
         working-directory: packages/db
         run: bun run db:migrate
 
+      # JOBS=4 caps node-gyp parallelism as docker/app.Dockerfile does (laverdet/isolated-vm#428).
+      - name: Build native isolate addon for Project file rendering
+        if: matrix.group == 'project-files'
+        working-directory: apps/sim
+        env:
+          JOBS: 4
+        run: |
+          addon_dir="$(node -p 'require("node:path").dirname(require.resolve("isolated-vm/package.json", { paths: ["."] }))')"
+          cd "$addon_dir"
+          bun run install
+
       # No step timeout: the job's bound covers a hang without cutting a slow but healthy suite
       # short of writing its report.
       - name: Run end-to-end suites

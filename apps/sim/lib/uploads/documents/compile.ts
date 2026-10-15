@@ -2,8 +2,11 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { compareStrings } from '@sim/utils/string'
-import { ContentRefusedError, mustClassifyContent } from '@/lib/core/application'
+import { LRUCache } from 'lru-cache'
+import { ContentRefusedError } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
   executeInSandbox,
@@ -35,6 +38,7 @@ import {
 } from '@/lib/workspace-files/application/admit-file-content'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import type { SandboxTaskId } from '@/sandboxes/registry'
 
 const logger = createLogger('CopilotDocCompile')
@@ -55,7 +59,7 @@ const PYTHON_XLSX_SOURCE_MIME = 'text/x-python-xlsx'
 
 type DocEngine = 'node' | 'python'
 
-interface E2BDocFormat {
+export interface E2BDocFormat {
   ext: 'pptx' | 'docx' | 'pdf' | 'xlsx'
   engine: DocEngine
   formatName: 'PPTX' | 'DOCX' | 'PDF' | 'XLSX'
@@ -618,6 +622,101 @@ async function renderPreparedDocument(source: string, fmt: E2BDocFormat, inputs:
     : compileDocViaE2BPython(source, fmt, inputs)
 }
 
+/** Shared identity for owner-bound rendering and readers of its compiled artifacts. */
+export function fileDocumentCacheIdentity(
+  source: string,
+  format: E2BDocFormat,
+  sourceMime: string,
+  inputIdentity?: string
+): string {
+  return JSON.stringify({
+    sourceLanguage: getDocumentSourceLanguage(source, format, sourceMime),
+    renderer:
+      isDocSandboxEnabled && sourceMime !== 'text/x-pdflibjs' ? 'document-sandbox' : 'native',
+    inputs: inputIdentity ?? null,
+  })
+}
+
+/** Compiles a document against a fixed, authorized input manifest and canonical owner cache. */
+export async function compileFileDocument(args: {
+  owner: EditableFileOwner
+  sourceMime: string
+  source: string
+  fileName: string
+  inputs: readonly { fileId: string; contentType: string; content: Buffer }[]
+  inputIdentity?: string
+  maxBytes: number
+  signal?: AbortSignal
+}): Promise<CompiledDocResult> {
+  const fmt = await getE2BDocFormat(args.fileName)
+  if (!fmt) throw new DocCompileUserError(`Unsupported document format: ${args.fileName}`)
+  if (
+    args.inputs.length > MAX_REFERENCED_INPUTS ||
+    args.inputs.some((input) => input.content.length > MAX_STAGED_FILE_BYTES) ||
+    args.inputs.reduce((sum, input) => sum + input.content.length, 0) > MAX_STAGED_TOTAL_BYTES
+  ) {
+    throw new DocCompileUserError('Document inputs exceed the rendering limit')
+  }
+  const useDocumentSandbox = isDocSandboxEnabled && args.sourceMime !== 'text/x-pdflibjs'
+  const cacheIdentity = fileDocumentCacheIdentity(
+    args.source,
+    fmt,
+    args.sourceMime,
+    args.inputIdentity
+  )
+  const cached = await loadCompiledDoc(args.owner, args.source, fmt.ext, cacheIdentity, {
+    maxBytes: args.maxBytes,
+    signal: args.signal,
+  })
+  if (cached)
+    return {
+      buffer: cached,
+      artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, cacheIdentity),
+      contentType: fmt.contentType,
+      dependsOnReferencedFiles: args.inputs.length > 0,
+    }
+  let buffer: Buffer
+  if (useDocumentSandbox) {
+    buffer = await renderPreparedDocument(
+      args.source,
+      fmt,
+      args.inputs.map((input) => ({
+        path: `/home/user/inputs/${input.fileId}`,
+        content: input.content.toString('base64'),
+        encoding: 'base64' as const,
+      }))
+    )
+  } else {
+    const format = COMPILABLE_FORMATS[`.${fmt.ext}`]
+    if (!format || isSimdocDeckSource(args.source)) {
+      throw new DocCompileUserError('This document format requires the document sandbox')
+    }
+    const inputs = new Map(args.inputs.map((input) => [input.fileId, input]))
+    buffer = await runSandboxTask(
+      format.taskId,
+      { code: args.source },
+      {
+        ownerKey: `${args.owner.entityType}:${args.owner.entityId}`,
+        signal: args.signal,
+        resolvePreparedFile(fileId) {
+          const input = inputs.get(fileId)
+          if (!input)
+            throw new Error('Document requested a file outside its authorized input manifest')
+          return input
+        },
+      }
+    )
+  }
+  assertKnownSizeWithinLimit(buffer.length, args.maxBytes, 'compiled document')
+  await storeCompiledDoc(args.owner, args.source, fmt.ext, fmt.contentType, buffer, cacheIdentity)
+  return {
+    buffer,
+    artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, cacheIdentity),
+    contentType: fmt.contentType,
+    dependsOnReferencedFiles: args.inputs.length > 0,
+  }
+}
+
 // Template-clone scripts author against the simdoc Deck (pptx) / Doc (docx)
 // API. The prelude supplies input_path (staged workspace files) and
 // OUTPUT_PATH; the finalizer saves the expected variable (scripts never save
@@ -698,6 +797,38 @@ function cachedFromAdmittedVersions(
   })
 }
 
+/**
+ * Whether a cached build may be served to `principal`: every file it read is still at the version it
+ * read, and the principal's gate admits each one. Every principal is checked, not only a classified
+ * one, because the build's contributor identities travel with the bytes and a delivery receipt
+ * rejects a superseded one. A build whose input changed or was deleted compiles again.
+ */
+async function cachedBuildIsCurrent(
+  cached: CompiledDocCacheEntry,
+  workspaceId: string,
+  principal: Principal
+): Promise<boolean> {
+  const contributors = cached.contributingFiles ?? []
+  let resolution: ReferencedImageResolution
+  try {
+    resolution = await resolveReferencedFileIds(
+      workspaceId,
+      principal,
+      new Set(contributors.map((file) => file.fileId))
+    )
+  } catch (error) {
+    if (asOrchestrationError(error)?.code === 'not_found') return false
+    throw error
+  }
+  const records = resolution.images.map((image) => image.record)
+  if (!cachedFromAdmittedVersions(contributors, new Map(records.map((file) => [file.id, file])))) {
+    return false
+  }
+  const admitted = await admitWorkspaceFiles(principal, workspaceId, records, 'complete')
+  if (admitted.length !== records.length) throw new ContentRefusedError('workspace-file')
+  return true
+}
+
 async function compileDocInLegacySandbox(
   args: LegacyCompileArgs,
   fmt: E2BDocFormat
@@ -714,29 +845,11 @@ async function compileDocInLegacySandbox(
 
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
   const cached = compiledDocCache.get(cacheKey)
-  let cacheReadable = true
-  if (cached && args.filePrincipal && mustClassifyContent(args.filePrincipal)) {
-    const { images } = await resolveReferencedFileIds(
-      args.workspaceId,
-      args.filePrincipal,
-      new Set(cached.contributingFiles?.map((file) => file.fileId))
-    )
-    const records = images.map((image) => image.record)
-    cacheReadable = cachedFromAdmittedVersions(
-      cached.contributingFiles ?? [],
-      new Map(records.map((file) => [file.id, file]))
-    )
-    if (cacheReadable) {
-      const admitted = await admitWorkspaceFiles(
-        args.filePrincipal,
-        args.workspaceId,
-        records,
-        'complete'
-      )
-      if (admitted.length !== records.length) throw new ContentRefusedError('workspace-file')
-    }
-  }
-  if (cached && cacheReadable) {
+  if (
+    cached &&
+    (!args.filePrincipal ||
+      (await cachedBuildIsCurrent(cached, args.workspaceId, args.filePrincipal)))
+  ) {
     return {
       buffer: cached.buffer,
       contentType: fmt.contentType,
@@ -965,22 +1078,18 @@ export async function resolveServableDoc(
   }
 }
 
-const MAX_COMPILED_DOC_CACHE = 10
 interface CompiledDocCacheEntry {
   buffer: Buffer
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
-const compiledDocCache = new Map<string, CompiledDocCacheEntry>()
+const compiledDocCache = new LRUCache<string, CompiledDocCacheEntry>({ max: 10 })
 
 function compiledCacheSet(
   key: string,
   buffer: Buffer,
   contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
 ): void {
-  if (compiledDocCache.size >= MAX_COMPILED_DOC_CACHE) {
-    compiledDocCache.delete(compiledDocCache.keys().next().value as string)
-  }
   compiledDocCache.set(key, {
     buffer,
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),

@@ -139,6 +139,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/files/bulk-download/route'),
   },
   {
+    pattern: '/api/v2/files/copy',
+    load: () => import('@/app/api/v2/files/copy/route'),
+  },
+  {
     pattern: '/api/v2/files/folders',
     load: () => import('@/app/api/v2/files/folders/route'),
   },
@@ -475,12 +479,24 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/content/route'),
   },
   {
+    pattern: '/api/v2/projects/{projectId}/files/{fileId}/export',
+    load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/export/route'),
+  },
+  {
     pattern: '/api/v2/projects/{projectId}/files/{fileId}/metadata',
     load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/metadata/route'),
   },
   {
     pattern: '/api/v2/projects/{projectId}/files/{fileId}/restore',
     load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/restore/route'),
+  },
+  {
+    pattern: '/api/v2/projects/{projectId}/files/{fileId}/share',
+    load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/share/route'),
+  },
+  {
+    pattern: '/api/v2/projects/{projectId}/files/{fileId}/unzip',
+    load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/unzip/route'),
   },
   {
     pattern: '/api/v2/projects/{projectId}/files/{fileId}/versions',
@@ -505,6 +521,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/projects/[projectId]/files/archive/route'),
   },
   {
+    pattern: '/api/v2/projects/{projectId}/files/bulk-download',
+    load: () => import('@/app/api/v2/projects/[projectId]/files/bulk-download/route'),
+  },
+  {
     pattern: '/api/v2/projects/{projectId}/files/folders',
     load: () => import('@/app/api/v2/projects/[projectId]/files/folders/route'),
   },
@@ -519,6 +539,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/projects/{projectId}/files/move',
     load: () => import('@/app/api/v2/projects/[projectId]/files/move/route'),
+  },
+  {
+    pattern: '/api/v2/projects/{projectId}/files/search',
+    load: () => import('@/app/api/v2/projects/[projectId]/files/search/route'),
   },
   {
     pattern: '/api/v2/projects/{projectId}/files/uploads',

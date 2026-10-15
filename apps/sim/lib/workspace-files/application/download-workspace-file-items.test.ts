@@ -3,6 +3,7 @@ import {
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
 import {
   permissionGroupsResolveMock,
@@ -29,6 +30,8 @@ const {
   mockListWorkspaceFiles: mockListFiles,
   mockListWorkspaceFileFolders: mockListFolders,
 } = workspaceUploadsMockFns
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
@@ -59,6 +62,8 @@ const mockProvenance =
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
+import { MAX_ZIP_DOWNLOAD_BYTES } from '@/lib/workspace-files/limits'
+import { recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 const { mockResolveVerifiedUserAccessControlContext: mockAccessContext } =
   permissionGroupsResolveMockFns
@@ -107,6 +112,7 @@ function file(id: string, name: string, folderId: string | null = null, size = 1
 describe('downloadWorkspaceFileItems', () => {
   beforeEach(() => {
     events.length = 0
+    vi.mocked(recheckFileReadReceipt).mockResolvedValue({ status: 'exact', entries: [] })
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
       return workspace
@@ -144,7 +150,7 @@ describe('downloadWorkspaceFileItems', () => {
     )
 
     expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
-    expect(mockResolvePermission).toHaveBeenCalledOnce()
+    expect(mockResolvePermission).toHaveBeenCalledTimes(2)
     expect(mockProvenance).toHaveBeenCalledWith('ws-1', [
       expect.objectContaining({ fileId: 'f1', key: 'key-f1' }),
     ])
@@ -172,38 +178,42 @@ describe('downloadWorkspaceFileItems', () => {
     expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
   })
 
-  it('counts only the zipped files once a rendered document is left out', async () => {
-    mockListFiles.mockResolvedValue([
-      file('f1', 'clean.txt', null, 10),
-      { ...file('f2', 'report.docx', null, 25), type: 'text/x-generated-document' },
-    ])
-    mockIsGenerated.mockImplementation((type) => type === 'text/x-generated-document')
-    mockFetchServable.mockResolvedValue({
-      buffer: Buffer.from('rendered'),
-      contributingFiles: [{ fileId: 'c1', key: 'key-c1', context: 'workspace' }],
-    })
-    mockProvenance.mockImplementation(
-      async (_workspaceId: string, identities: readonly { fileId: string }[]) =>
-        new Map(
-          identities.map((identity) => [
-            identity.fileId,
-            identity.fileId === 'c1' ? { status: 'unknown' } : { status: 'exact', entries: [] },
-          ])
-        )
-    )
-    const result = await observeContentDelivery(secretFreeGate, () =>
-      downloadWorkspaceFileItems.execute({
-        principal: createDelegatedPrincipal({
-          subjectUserId: 'u1',
-          workspaceId: 'ws-1',
-          audience: 'sim:workspace-files',
-        }),
-        input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
+  it.each([10, MAX_ZIP_DOWNLOAD_BYTES])(
+    'counts only admitted bytes with %i streamed bytes',
+    async (streamedBytes) => {
+      mockListFiles.mockResolvedValue([
+        file('f1', 'clean.txt', null, streamedBytes),
+        { ...file('f2', 'report.docx', null, 25), type: 'text/x-generated-document' },
+      ])
+      mockIsGenerated.mockImplementation((type) => type === 'text/x-generated-document')
+      mockFetchServable.mockResolvedValue({
+        buffer: Buffer.from('rendered'),
+        contributingFiles: [{ fileId: 'c1', key: 'key-c1', context: 'workspace' }],
       })
-    )
-    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
-    expect(result.declaredBytes).toBe(10)
-  })
+      mockProvenance.mockImplementation(
+        async (_workspaceId: string, identities: readonly { fileId: string }[]) =>
+          new Map(
+            identities.map((identity) => [
+              identity.fileId,
+              identity.fileId === 'c1' ? { status: 'unknown' } : { status: 'exact', entries: [] },
+            ])
+          )
+      )
+      const result = await observeContentDelivery(secretFreeGate, () =>
+        downloadWorkspaceFileItems.execute({
+          principal: createDelegatedPrincipal({
+            subjectUserId: 'u1',
+            workspaceId: 'ws-1',
+            audience: 'sim:workspace-files',
+          }),
+          input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
+        })
+      )
+      expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+      expect(result.declaredBytes).toBe(streamedBytes)
+      expect(mockFetchServable.mock.calls[0][2].maxBytes).toBeGreaterThan(0)
+    }
+  )
 
   it('refuses a Chat archive whose every file its gate refuses', async () => {
     mockProvenance.mockResolvedValue(new Map([['f1', { status: 'unknown' }]]))
@@ -310,6 +320,27 @@ describe('downloadWorkspaceFileItems', () => {
     ).rejects.toMatchObject({ code: 'validation' })
   })
 
+  it('refuses refreshed unsafe provenance even after initial admission succeeds', async () => {
+    vi.mocked(recheckFileReadReceipt).mockResolvedValue({ status: 'unknown' })
+    await expect(
+      observeContentDelivery(secretFreeGate, () =>
+        downloadWorkspaceFileItems.execute({
+          principal: delegatedPrincipal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+        })
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(recheckFileReadReceipt).toHaveBeenCalled()
+  })
+
+  it('rejects an unknown folder in a mixed selection', async () => {
+    await expect(
+      downloadWorkspaceFileItems.execute({
+        principal,
+        input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: ['missing'] },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
   describe('permission-group capability', () => {
     beforeEach(() => {
       mockAccessContext.mockResolvedValue({
@@ -328,6 +359,15 @@ describe('downloadWorkspaceFileItems', () => {
       })
     })
 
+    it('refuses a HEAD authorization probe when bulk download is withheld', async () => {
+      await expect(
+        downloadWorkspaceFileItems.authorize({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
+        })
+      ).rejects.toMatchObject({ capability: 'files.bulk_download' })
+      expect(events).not.toContain('execute')
+    })
     it('refuses a folder archive when the group withholds files.bulk_download', async () => {
       await expect(
         downloadWorkspaceFileItems.execute({

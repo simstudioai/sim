@@ -113,6 +113,9 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
     })
     const shell = app
     const page = await shell.firstWindow()
+    const inputSession = await page.context().newCDPSession(page)
+    // Playwright otherwise keeps the document focused when its native window loses focus.
+    await inputSession.send('Emulation.setFocusEmulationEnabled', { enabled: false })
     page.on('pageerror', (error) => errors.push(error.message))
     page.on('crash', () => {
       rendererCrashed = true
@@ -253,40 +256,101 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
       'detach',
       'chat switch',
     ] as const) {
-      await check(`${interruption} keeps the previous saved width`, async () => {
+      const keepsDraggedWidth = interruption === 'capture loss' || interruption === 'blur'
+      await check(
+        `${interruption} keeps the ${keepsDraggedWidth ? 'dragged' : 'previous saved'} width`,
+        async () => {
+          const before = await page.evaluate(() => JSON.stringify(localStorage))
+          const rect = await beginDrag()
+          await page.mouse.move(rect.x + 100, rect.y + 100, { steps: 12 })
+          await expectWidth(598)
+          if (interruption === 'pointercancel') {
+            await divider.dispatchEvent('pointercancel', { pointerId: 1 })
+          } else if (interruption === 'capture loss') {
+            await divider.evaluate((element) => element.releasePointerCapture(1))
+            await page.mouse.move(rect.x + 100, rect.y + 100)
+          } else if (interruption === 'blur') {
+            await shell.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].blur())
+            await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(false)
+          } else if (interruption === 'chat switch') {
+            await page
+              .getByRole('button', { name: 'organization-chat-a', exact: true })
+              .evaluate((element: HTMLButtonElement) => element.click())
+            await expectWidth(560)
+          } else {
+            await page
+              .getByRole('button', { name: 'Settings', exact: true })
+              .evaluate((element: HTMLButtonElement) => element.click())
+            await expect(panel).toHaveCount(0)
+          }
+          if (keepsDraggedWidth) {
+            await expectWidth(598)
+            expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toBe(before)
+            if (interruption === 'blur') {
+              await shell.evaluate(({ app, BrowserWindow }) => {
+                app.focus({ steal: true })
+                BrowserWindow.getAllWindows()[0].focus()
+              })
+            }
+            await page.mouse.move(rect.x + 150, rect.y + 100)
+            await expectWidth(598)
+          }
+          await page.mouse.up()
+          if (interruption === 'chat switch') {
+            await page.getByRole('button', { name: 'workspace-chat-b', exact: true }).click()
+          }
+          if (interruption === 'detach') {
+            await page.getByRole('button', { name: 'Back', exact: true }).click()
+          }
+          await expectWidth(keepsDraggedWidth ? 598 : 698)
+          if (keepsDraggedWidth) {
+            await page.reload()
+            await page.getByRole('button', { name: 'workspace-chat-b', exact: true }).click()
+            await expectWidth(598)
+            await dragTo(698)
+          } else {
+            expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before)
+          }
+        }
+      )
+    }
+
+    for (const button of ['middle', 'right'] as const) {
+      await check(`${button}-button drags leave the panel width unchanged`, async () => {
         const before = await page.evaluate(() => JSON.stringify(localStorage))
-        const rect = await beginDrag()
+        await divider.hover({ position: { x: 4, y: 100 } })
+        const rect = await panel.boundingBox()
+        if (!rect) throw new Error('Missing panel bounds')
+        await page.mouse.down({ button })
         await page.mouse.move(rect.x + 100, rect.y + 100, { steps: 12 })
-        await expectWidth(598)
-        if (interruption === 'pointercancel') {
-          await divider.dispatchEvent('pointercancel', { pointerId: 1 })
-        } else if (interruption === 'capture loss') {
-          await divider.evaluate((element) => element.releasePointerCapture(1))
-          await page.mouse.move(rect.x + 101, rect.y + 100)
-        } else if (interruption === 'blur') {
-          await page.evaluate(() => window.dispatchEvent(new Event('blur')))
-        } else if (interruption === 'chat switch') {
-          await page
-            .getByRole('button', { name: 'organization-chat-a', exact: true })
-            .evaluate((element: HTMLButtonElement) => element.click())
-          await expectWidth(560)
-        } else {
-          await page
-            .getByRole('button', { name: 'Settings', exact: true })
-            .evaluate((element: HTMLButtonElement) => element.click())
-          await expect(panel).toHaveCount(0)
-        }
-        await page.mouse.up()
-        if (interruption === 'chat switch') {
-          await page.getByRole('button', { name: 'workspace-chat-b', exact: true }).click()
-        }
-        if (interruption === 'detach') {
-          await page.getByRole('button', { name: 'Back', exact: true }).click()
-        }
+        await page.mouse.up({ button })
         await expectWidth(698)
         expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before)
       })
     }
+
+    await check('a touch drag resizes the panel without becoming a scroll gesture', async () => {
+      const rect = await panel.boundingBox()
+      if (!rect) throw new Error('Missing panel bounds')
+      await inputSession.send('Emulation.setTouchEmulationEnabled', { enabled: true })
+      await inputSession.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: rect.x, y: rect.y + 100 }],
+      })
+      for (let offset = 10; offset <= 100; offset += 10) {
+        await inputSession.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ x: rect.x + offset, y: rect.y + 100 }],
+        })
+      }
+      await inputSession.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await inputSession.send('Emulation.setTouchEmulationEnabled', { enabled: false })
+      await expectWidth(598)
+      await page.reload()
+      await page.getByRole('button', { name: 'workspace-chat-b', exact: true }).click()
+      await expectWidth(598)
+      await dragTo(698)
+    })
 
     await check('a viewport change during a drag clamps the committed display width', async () => {
       await expectWidth(698)

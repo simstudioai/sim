@@ -5,11 +5,12 @@ REGISTRY="${1:?registry required}"
 REPOSITORY="${2:?repository required}"
 SOURCE_TAG="${3:?source tag required}"
 DEPLOY_TAG="${4:?deploy tag required}"
+RELEASE_TAG="${5:-}"
 : "${GITHUB_OUTPUT:?GitHub output file required}"
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PREVIOUS=$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG" --allow-missing)
 EPOCH=$(date +%s)
-docker buildx imagetools create -t "$REGISTRY/$REPOSITORY:$DEPLOY_TAG" "$REGISTRY/$REPOSITORY:$SOURCE_TAG"
+bash "$SCRIPT_DIR/promote-image.sh" "$REGISTRY" "$REPOSITORY" "$SOURCE_TAG" "$DEPLOY_TAG" "$RELEASE_TAG"
 DIGEST=$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG")
 CHANGED=true
 if [ "$DIGEST" = "$PREVIOUS" ]; then CHANGED=false; fi

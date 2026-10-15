@@ -38,6 +38,7 @@ export function createFileReadTransport(context: {
   transport: typeof fetch
   invocation: CopilotChatDelegationContext & { workspaceId: string }
   registry?: ResolvedSecretTraceRegistry
+  tracksWorkbenchDownloads?: boolean
 }): typeof fetch {
   const base = new URL(context.endpoint)
   const basePath = base.pathname.replace(/\/$/, '')
@@ -105,6 +106,7 @@ export function createFileReadTransport(context: {
           workspaceId: parsed.data.query.workspaceId,
           actorUserId: context.invocation.userId,
           unknown: 'taint',
+          destination: context.tracksWorkbenchDownloads ? 'workbench' : 'model',
         }),
         () =>
           downloadWorkspaceFileStream.execute({

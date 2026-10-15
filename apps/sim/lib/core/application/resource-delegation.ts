@@ -38,7 +38,7 @@ function isSelectionIds(value: unknown): value is string[] {
 }
 
 /** Validates the paired scope shared by delegation admission and the copy application boundary. */
-function isResourceFileCopyScope(scope: unknown): scope is ResourceFileCopyScope {
+export function isResourceFileCopyScope(scope: unknown): scope is ResourceFileCopyScope {
   if (!isRecordLike(scope) || scope.kind !== 'file_copy') return false
   const { source, destination } = scope
   return (

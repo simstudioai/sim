@@ -21,8 +21,8 @@ import {
 import { PayloadSizeLimitError, readStreamToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 import { internalFileErrorPolicies } from '@/lib/workspace-files/api'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 

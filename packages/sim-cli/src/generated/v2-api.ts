@@ -1820,6 +1820,67 @@ export type CompleteTableImportResponse = {
   data: CompleteTableImportResponseRef4
 }
 
+/** `POST /api/v2/files/copy` */
+export type CopyFileItemsQuery = Record<string, unknown>
+
+export type CopyFileItemsBody = {
+  source: {
+    owner: {
+      entityType: 'workspace' | 'project'
+      entityId: string
+    }
+    fileIds?: Array<string>
+    folderIds?: Array<string>
+  }
+  destination: {
+    owner: {
+      entityType: 'workspace' | 'project'
+      entityId: string
+    }
+    folderId?: string | null
+  }
+}
+
+export type CopyFileItemsResponse = {
+  data: {
+    files: Array<{
+      id: string
+      name: string
+      size: number
+      type: string
+      width?: number | null
+      height?: number | null
+      uploadedBy: string
+      folderId: string | null
+      folderPath?: string | null
+      deletedAt: string | null
+      uploadedAt: string
+      updatedAt: string
+      contentUpdatedAt: string | null
+      revision: string
+      owner: {
+        entityType: 'workspace' | 'project'
+        entityId: string
+      }
+    }>
+    folders: Array<{
+      id: string
+      userId: string
+      name: string
+      parentId: string | null
+      path: string
+      sortOrder: number
+      deletedAt: string | null
+      createdAt: string
+      updatedAt: string
+      owner: {
+        entityType: 'workspace' | 'project'
+        entityId: string
+      }
+    }>
+  }
+}
+
 /** `POST /api/v2/credentials/connections` */
 export type CreateCredentialConnectionQuery = Record<string, unknown>
 
@@ -5139,6 +5200,19 @@ export type DownloadFileVersionQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileVersionResponse = never
 
+/** `GET /api/v2/projects/[projectId]/files/bulk-download` */
+export type DownloadProjectFileItemsParams = {
+  projectId: string
+}
+
+export type DownloadProjectFileItemsQuery = {
+  fileIds?: string
+  folderIds?: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadProjectFileItemsResponse = never
+
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]` */
 export type DownloadRunFileParams = {
   workflowId: string
@@ -5368,6 +5442,21 @@ export type ExportKnowledgeBaseQuery = {
 
 /** Non-JSON response (`binary`). */
 export type ExportKnowledgeBaseResponse = never
+
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/export` */
+export type ExportProjectFileSnapshotParams = {
+  projectId: string
+  fileId: string
+}
+
+export type ExportProjectFileSnapshotQuery = Record<string, unknown>
+
+export type ExportProjectFileSnapshotBody = {
+  content: string
+}
+
+/** Non-JSON response (`binary`). */
+export type ExportProjectFileSnapshotResponse = never
 
 /** `GET /api/v2/workflows/[workflowId]/export` */
 export type ExportWorkflowParams = {
@@ -6594,6 +6683,30 @@ type GetProjectFileMetadataResponseRef0 = {
 
 export type GetProjectFileMetadataResponse = {
   data: GetProjectFileMetadataResponseRef0
+}
+
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/share` */
+export type GetProjectFileShareParams = {
+  projectId: string
+  fileId: string
+}
+
+export type GetProjectFileShareQuery = Record<string, unknown>
+
+type GetProjectFileShareResponseRef0 = {
+  id: string
+  token: string
+  url: string
+  isActive: boolean
+  resourceType: 'file' | 'folder'
+  resourceId: string
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+}
+
+export type GetProjectFileShareResponse = {
+  data: GetProjectFileShareResponseRef0 | null
 }
 
 /** `GET /api/v2/projects/[projectId]/files/uploads/[uploadId]` */
@@ -13514,6 +13627,53 @@ export type SearchKnowledgeResponse = {
   data: SearchKnowledgeResponseRef1
 }
 
+/** `GET /api/v2/projects/[projectId]/files/search` */
+export type SearchProjectFileContentParams = {
+  projectId: string
+}
+
+export type SearchProjectFileContentQuery = {
+  query: string
+  mode?: 'exact' | 'regex'
+  maxResults?: number
+  folderPaths?: string
+  includeSubfolders?:
+    | 'true'
+    | '1'
+    | 'yes'
+    | 'on'
+    | 'y'
+    | 'enabled'
+    | 'false'
+    | '0'
+    | 'no'
+    | 'off'
+    | 'n'
+    | 'disabled'
+}
+
+type SearchProjectFileContentResponseRef0 = {
+  results: Array<{
+    fileId: string
+    lineNumber: number
+    text: string
+  }>
+  count: number
+  truncated: boolean
+  complete: boolean
+  indexStatus: {
+    readyFiles: number
+    pendingFiles: number
+    failedFiles: number
+    skippedFiles: number
+    partialFiles: number
+  }
+}
+
+export type SearchProjectFileContentResponse = {
+  data: SearchProjectFileContentResponseRef0
+}
+
 /** `POST /api/v2/tables/[tableId]/rows/search` */
 export type SearchTableRowsParams = {
   tableId: string
@@ -13835,6 +13995,26 @@ type UnzipFileResponseRef0 = {
 
 export type UnzipFileResponse = {
   data: UnzipFileResponseRef0
+}
+
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/unzip` */
+export type UnzipProjectFileParams = {
+  projectId: string
+  fileId: string
+}
+
+export type UnzipProjectFileQuery = Record<string, unknown>
+
+type UnzipProjectFileResponseRef0 = UnzipProjectFileResponseRef1
+
+type UnzipProjectFileResponseRef1 = {
+  folderPath: string
+  extractedFileCount: number
+  skippedFileCount: number
+}
+
+export type UnzipProjectFileResponse = {
+  data: UnzipProjectFileResponseRef0
 }
 
 /** `PATCH /api/v2/credentials/[credentialId]` */
@@ -14520,6 +14700,37 @@ export type UpdateProjectFileFolderResponse = {
       entityId: string
     }
   }
+}
+
+/** `PATCH /api/v2/projects/[projectId]/files/[fileId]/share` */
+export type UpdateProjectFileShareParams = {
+  projectId: string
+  fileId: string
+}
+
+export type UpdateProjectFileShareQuery = Record<string, unknown>
+
+export type UpdateProjectFileShareBody = {
+  isActive: boolean
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+}
+
+type UpdateProjectFileShareResponseRef0 = {
+  id: string
+  token: string
+  url: string
+  isActive: boolean
+  resourceType: 'file' | 'folder'
+  resourceId: string
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+}
+
+export type UpdateProjectFileShareResponse = {
+  data: UpdateProjectFileShareResponseRef0
 }
 
 /** `PATCH /api/v2/tables/[tableId]/rows` */
@@ -16145,6 +16356,26 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe: 'Signed upload control token returned when the upload session was created.',
+      },
+    },
+  },
+  copyFileItems: {
+    method: 'POST',
+    path: '/api/v2/files/copy',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Copy File Items',
+    workspaceKeyUnsupported: true,
+    body: {
+      source: {
+        kind: 'object',
+        required: true,
+        describe: 'Selection to read under the source owner.',
+      },
+      destination: {
+        kind: 'object',
+        required: true,
+        describe: 'Destination requiring file write access.',
       },
     },
   },
@@ -17787,6 +18018,26 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  downloadProjectFileItems: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/bulk-download',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'binary',
+    summary: 'Download Project File Items',
+    workspaceKeyUnsupported: true,
+    query: {
+      fileIds: {
+        kind: 'string',
+        describe: 'File identifiers to include, comma-separated. At most 100 entries.',
+      },
+      folderIds: {
+        kind: 'string',
+        describe:
+          'Folder identifiers to include recursively, comma-separated. The resolved selection allows at most 100 files.',
+      },
+    },
+  },
   downloadRunFile: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]',
@@ -17966,6 +18217,26 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         describe:
           'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.',
+      },
+    },
+  },
+  exportProjectFileSnapshot: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/export',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'binary',
+    summary: 'Export Project File Snapshot',
+    workspaceKeyUnsupported: true,
+    body: {
+      content: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Visible Markdown snapshot to export. This does not replace the stored file or create a version.',
       },
     },
   },
@@ -18498,6 +18769,18 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Project File Metadata',
+    workspaceKeyUnsupported: true,
+  },
+  getProjectFileShare: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/share',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Get Project File Share',
     workspaceKeyUnsupported: true,
   },
   getProjectFileUpload: {
@@ -23185,6 +23468,53 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  searchProjectFileContent: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/search',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'json',
+    summary: 'Search Project File Content',
+    workspaceKeyUnsupported: true,
+    query: {
+      query: {
+        kind: 'string',
+        required: true,
+        describe: 'Regular expression, or exact text when `mode` is `exact`.',
+      },
+      mode: {
+        kind: 'enum',
+        values: ['exact', 'regex'] as const,
+        default: 'regex',
+        describe: 'How `query` is read.',
+      },
+      maxResults: { kind: 'integer', default: 50, describe: 'Maximum matching lines to return.' },
+      folderPaths: {
+        kind: 'string',
+        describe:
+          'Comma-separated folder paths within the Project. Omit to search the entire Project; index coverage applies to the selected folders.',
+      },
+      includeSubfolders: {
+        kind: 'enum',
+        values: [
+          'true',
+          '1',
+          'yes',
+          'on',
+          'y',
+          'enabled',
+          'false',
+          '0',
+          'no',
+          'off',
+          'n',
+          'disabled',
+        ] as const,
+        describe:
+          'Whether the scope descends into nested folders. Absent means yes. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected.',
+      },
+    },
+  },
   searchTableRows: {
     method: 'POST',
     path: '/api/v2/tables/[tableId]/rows/search',
@@ -23344,6 +23674,18 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
     },
+  },
+  unzipProjectFile: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/unzip',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Unzip Project File',
+    workspaceKeyUnsupported: true,
   },
   updateCredential: {
     method: 'PATCH',
@@ -23836,6 +24178,42 @@ export const V2_OPERATIONS = {
           'New parent folder identifier; null moves to the root, omission leaves the parent unchanged.',
       },
       sortOrder: { kind: 'integer', describe: 'New manual position; omit to leave unchanged.' },
+    },
+  },
+  updateProjectFileShare: {
+    method: 'PATCH',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/share',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Update Project File Share',
+    workspaceKeyUnsupported: true,
+    body: {
+      isActive: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        describe:
+          'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Literal password of 15 to 1024 characters. Kept when omitted; enabling password access without a supplied or stored password is rejected.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe:
+          'Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.',
+      },
     },
   },
   updateRowsByFilter: {

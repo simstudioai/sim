@@ -39,8 +39,13 @@ vi.mock('@/lib/uploads/documents/compiled-store', async (importOriginal) => ({
 }))
 
 import { type ContentDeliveryGate, observeContentDelivery } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
-import { collectReferencedFileIds, compileDoc } from '@/lib/uploads/documents/compile'
+import {
+  collectReferencedFileIds,
+  compileDoc,
+  compileFileDocument,
+} from '@/lib/uploads/documents/compile'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 const executeInSandboxMock = remoteSandboxMockFns.mockExecuteInSandbox
@@ -317,6 +322,44 @@ describe('collectReferencedFileIds', () => {
   })
 })
 
+function referencedFileVersion(at: string) {
+  const contentUpdatedAt = new Date(at)
+  return {
+    id: ID,
+    workspaceId: 'workspace-1',
+    name: 'reference.png',
+    key: `workspace/workspace-1/${ID}-reference.png`,
+    path: '/api/files/serve/reference.png',
+    size: 10,
+    type: 'image/png',
+    uploadedBy: 'user-1',
+    uploadedAt: contentUpdatedAt,
+    updatedAt: contentUpdatedAt,
+    contentUpdatedAt,
+    storageContext: 'workspace' as const,
+  }
+}
+
+/** A sandbox build that reads the referenced file through its broker, as the isolated VM does. */
+function buildReadingReferencedFile() {
+  runSandboxTaskMock.mockImplementation(
+    async (
+      _task: string,
+      _input: unknown,
+      options: { onWorkspaceFileAccess?: (identity: unknown) => void }
+    ) => {
+      const { file } = await readWorkspaceFileMetadataMock()
+      options.onWorkspaceFileAccess?.({
+        fileId: ID,
+        key: file.key,
+        context: 'workspace',
+        contentUpdatedAt: file.contentUpdatedAt,
+      })
+      return Buffer.from('%PDF-built')
+    }
+  )
+}
+
 describe('isolated-VM compile for Chat', () => {
   beforeEach(() => {
     setEnvFlags({ isDocSandboxEnabled: false })
@@ -333,39 +376,7 @@ describe('isolated-VM compile for Chat', () => {
         return sources.map(() => true)
       },
     }
-    const version = (at: string) => {
-      const contentUpdatedAt = new Date(at)
-      return {
-        id: ID,
-        workspaceId: 'workspace-1',
-        name: 'reference.png',
-        key: `workspace/workspace-1/${ID}-reference.png`,
-        path: '/api/files/serve/reference.png',
-        size: 10,
-        type: 'image/png',
-        uploadedBy: 'user-1',
-        uploadedAt: contentUpdatedAt,
-        updatedAt: contentUpdatedAt,
-        contentUpdatedAt,
-        storageContext: 'workspace' as const,
-      }
-    }
-    runSandboxTaskMock.mockImplementation(
-      async (
-        _task: string,
-        _input: unknown,
-        options: { onWorkspaceFileAccess?: (identity: unknown) => void }
-      ) => {
-        const { file } = await readWorkspaceFileMetadataMock()
-        options.onWorkspaceFileAccess?.({
-          fileId: ID,
-          key: file.key,
-          context: 'workspace',
-          contentUpdatedAt: file.contentUpdatedAt,
-        })
-        return Buffer.from('%PDF-built')
-      }
-    )
+    buildReadingReferencedFile()
     const compile = () =>
       observeContentDelivery(admitAll, () =>
         compileDoc({
@@ -376,7 +387,7 @@ describe('isolated-VM compile for Chat', () => {
         })
       )
     readWorkspaceFileMetadataMock.mockResolvedValue({
-      file: version('2026-08-05T00:00:00.000Z'),
+      file: referencedFileVersion('2026-08-05T00:00:00.000Z'),
       share: null,
     })
     await compile()
@@ -384,10 +395,105 @@ describe('isolated-VM compile for Chat', () => {
     expect(runSandboxTaskMock).toHaveBeenCalledOnce()
 
     readWorkspaceFileMetadataMock.mockResolvedValue({
-      file: version('2026-08-06T00:00:00.000Z'),
+      file: referencedFileVersion('2026-08-06T00:00:00.000Z'),
       share: null,
     })
     await compile()
     expect(runSandboxTaskMock).toHaveBeenCalledTimes(2)
   })
+})
+
+describe('isolated-VM compile for a session', () => {
+  beforeEach(() => {
+    setEnvFlags({ isDocSandboxEnabled: false })
+  })
+
+  const compile = (marker: string) =>
+    compileDoc({
+      source: `image = await getFileBase64('${ID}') // ${marker}`,
+      fileName: 'report.pdf',
+      workspaceId: 'workspace-1',
+      filePrincipal: FILE_PRINCIPAL,
+    })
+
+  it('rebuilds a cached build whose referenced file was edited, reporting the current version', async () => {
+    buildReadingReferencedFile()
+    readWorkspaceFileMetadataMock.mockResolvedValue({
+      file: referencedFileVersion('2026-08-05T00:00:00.000Z'),
+      share: null,
+    })
+    await compile('session-edited')
+    await compile('session-edited')
+    expect(runSandboxTaskMock).toHaveBeenCalledOnce()
+
+    const edited = referencedFileVersion('2026-08-06T00:00:00.000Z')
+    readWorkspaceFileMetadataMock.mockResolvedValue({ file: edited, share: null })
+    const rebuilt = await compile('session-edited')
+    expect(runSandboxTaskMock).toHaveBeenCalledTimes(2)
+    expect(rebuilt.contributingFiles).toEqual([
+      expect.objectContaining({ fileId: ID, contentUpdatedAt: edited.contentUpdatedAt }),
+    ])
+  })
+
+  it('rebuilds a cached build whose referenced file was deleted', async () => {
+    buildReadingReferencedFile()
+    readWorkspaceFileMetadataMock.mockResolvedValue({
+      file: referencedFileVersion('2026-08-05T00:00:00.000Z'),
+      share: null,
+    })
+    await compile('session-deleted')
+    readWorkspaceFileMetadataMock.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'File not found')
+    )
+    await compile('session-deleted')
+    expect(runSandboxTaskMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('compileFileDocument source engine', () => {
+  it('uses the JavaScript PDF task even with the document sandbox enabled', async () => {
+    setEnvFlags({ isDocSandboxEnabled: true })
+    loadCompiledDocMock.mockResolvedValue(null)
+    runSandboxTaskMock.mockResolvedValue(Buffer.from('%PDF-1.7'))
+    runSandboxTaskMock.mockClear()
+    executeInSandboxMock.mockClear()
+    const source = 'const doc = await PDFDocument.create()'
+    const result = await compileFileDocument({
+      owner: { entityType: 'project', entityId: ID },
+      source,
+      sourceMime: 'text/x-pdflibjs',
+      fileName: 'report.pdf',
+      inputs: [],
+      maxBytes: 1024,
+    })
+    expect(result.buffer.toString()).toBe('%PDF-1.7')
+    expect(runSandboxTaskMock).toHaveBeenCalledWith(
+      'pdf-generate',
+      { code: source },
+      expect.any(Object)
+    )
+    expect(executeInSandboxMock).not.toHaveBeenCalled()
+  })
+})
+
+it('separates cached PDF artifacts by effective source dialect', async () => {
+  setEnvFlags({ isDocSandboxEnabled: true })
+  const identities: string[] = []
+  loadCompiledDocMock.mockImplementation(async (_owner, _source, _ext, identity) => {
+    identities.push(identity)
+    return Buffer.from(identity.includes('javascript') ? '%PDF-JS' : '%PDF-Python')
+  })
+  const input = {
+    owner: { entityType: 'project' as const, entityId: ID },
+    source: 'shared source',
+    fileName: 'report.pdf',
+    inputs: [],
+    maxBytes: 1024,
+  }
+  const js = await compileFileDocument({ ...input, sourceMime: 'text/x-pdflibjs' })
+  const python = await compileFileDocument({ ...input, sourceMime: 'text/x-python' })
+  expect(js.buffer.toString()).toBe('%PDF-JS')
+  expect(python.buffer.toString()).toBe('%PDF-Python')
+  expect(js.artifactKey).not.toBe(python.artifactKey)
+  expect(identities[0]).not.toBe(identities[1])
 })

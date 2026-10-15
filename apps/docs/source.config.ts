@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
+import { remarkGfm } from 'fumadocs-core/mdx-plugins'
 import { defineConfig, defineDocs, frontmatterSchema } from 'fumadocs-mdx/config'
 import lastModified from 'fumadocs-mdx/plugins/last-modified'
 import { curlJsonBodyGrammar } from './lib/shiki-curl-json'
@@ -66,6 +67,22 @@ export default defineConfig({
     lastModified({ versionControl: async (file) => gitLastModified?.get(path.resolve(file)) }),
   ],
   mdxOptions: {
+    /**
+     * The processed markdown behind `.md` pages, `llms-full.txt`, and Copy page is serialized by
+     * remark-gfm, which by default pads every table cell to its column's widest cell — one long
+     * enum pads a whole table. `tablePipeAlign: false` keeps the table and drops the padding; it
+     * only affects serializing to markdown, never the rendered page.
+     */
+    remarkPlugins: (plugins) => {
+      if (!plugins.includes(remarkGfm)) {
+        throw new Error(
+          'The fumadocs-mdx preset no longer registers remarkGfm; reapply tablePipeAlign'
+        )
+      }
+      return plugins.map((plugin) =>
+        plugin === remarkGfm ? [remarkGfm, { tablePipeAlign: false }] : plugin
+      )
+    },
     /**
      * Shiki defaults to `github-light` / `github-dark`, whose blues and purples appear nowhere
      * in the product. These themes carry the platform's own token colors instead — see

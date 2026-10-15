@@ -9,6 +9,7 @@ import type { DbTransaction } from '@/lib/db/types'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS } from '@/lib/workspace-files/search/constants'
 import { lockFileSearchInputs } from '@/lib/workspace-files/search/index-state'
+import { lockFileSearchOwners } from '@/lib/workspace-files/search/owner-policy'
 import {
   fileSearchOwnerCondition,
   fileSearchOwnerFields,
@@ -18,7 +19,7 @@ import type { FileSearchDependencyIdentity } from '@/lib/workspace-files/search/
 import { configureFileSearchTransaction } from '@/lib/workspace-files/search/transaction'
 
 /** A renderer's private receipt; surfaces cannot supply it through a file contract. */
-interface FileSearchArtifactCompletion {
+export interface FileSearchArtifactCompletion {
   owner: EditableFileOwner
   file: { fileId: string; key: string; contentUpdatedAt: Date }
   dependencies: readonly FileSearchDependencyIdentity[]
@@ -82,7 +83,8 @@ async function isFileSearchArtifactCurrent(
 
 /**
  * Requeues search for a freshly rendered artifact unless its revision already uses it. The common
- * already-current case takes no locks; the locked requeue is bounded by a short lock timeout.
+ * already-current case takes no locks; the locked requeue, owner lock included, is bounded by a
+ * short lock timeout so a contended owner fails fast instead of stalling the read.
  */
 export async function requeueFileSearchForRenderedArtifact(
   input: FileSearchArtifactCompletion
@@ -92,6 +94,10 @@ export async function requeueFileSearchForRenderedArtifact(
   await db.transaction(async (tx) => {
     await configureFileSearchTransaction(tx, {
       lockTimeout: FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS,
+    })
+    // Held here under the short bound; the reentrant owner lock in the mark then returns at once.
+    await lockFileSearchOwners(tx, [owner], {
+      lockTimeoutMs: FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS,
     })
     await markFileSearchArtifactReadyInTx(tx, input)
   })

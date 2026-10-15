@@ -39,6 +39,7 @@ RUN groupadd -g 1001 pii && \
     chown -R pii:pii /app
 
 COPY --chown=pii:pii apps/pii/server.py ./
+COPY --chown=pii:pii --chmod=755 docker/pii-entrypoint.sh ./
 
 USER pii
 
@@ -63,7 +64,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
 # Worker count is env-driven so ONE image scales per task size: set PII_WORKERS to
 # the task's vCPU count (each worker loads the models independently, ~3 GB each, so
 # size task memory ≈ PII_WORKERS × 3 GB + overhead). Defaults to 1 for local/small.
-# `sh -c exec` expands the env var while keeping uvicorn as PID 1 for clean SIGTERM.
-# Quote the expansion so a malformed PII_WORKERS fails uvicorn arg-parsing rather
-# than being interpreted by the shell.
-CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port 5001 --workers \"${PII_WORKERS:-1}\""]
+CMD ["./pii-entrypoint.sh"]

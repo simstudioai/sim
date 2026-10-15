@@ -9,7 +9,7 @@ import {
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 
 const policies: FileOwnerAdapters<{
-  lock(tx: DbTransaction, entityId: string): Promise<void>
+  lock(tx: DbTransaction, entityId: string, timeoutMs?: number): Promise<void>
   tryLock(tx: DbTransaction, entityId: string): Promise<boolean>
 }> = {
   workspace: {
@@ -19,7 +19,7 @@ const policies: FileOwnerAdapters<{
     },
   },
   project: {
-    lock: lockProject,
+    lock: (tx, id, timeoutMs) => lockProject(tx, id, { timeoutMs }),
     tryLock: (tx, id) => tryAcquireAdvisoryXactLock(tx, 'file_search_dispatch', `project:${id}`),
   },
 }
@@ -28,7 +28,7 @@ const policies: FileOwnerAdapters<{
 export async function lockFileSearchOwners(
   tx: DbTransaction,
   owners: readonly EditableFileOwner[],
-  options: { skipBusy?: boolean } = {}
+  options: { skipBusy?: boolean; lockTimeoutMs?: number } = {}
 ): Promise<EditableFileOwner[]> {
   const ordered = [
     ...new Map(
@@ -44,7 +44,7 @@ export async function lockFileSearchOwners(
     if (options.skipBusy) {
       if (!(await policy.tryLock(tx, owner.entityId))) continue
     } else {
-      await policy.lock(tx, owner.entityId)
+      await policy.lock(tx, owner.entityId, options.lockTimeoutMs)
     }
     acquired.push(owner)
   }

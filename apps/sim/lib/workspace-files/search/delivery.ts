@@ -47,9 +47,9 @@ export function resolveFileSearchFolderScope(
 /**
  * Validates a private index snapshot against current rows after its caller authorizes the owner.
  * Each source is judged on its own: one that left the folder scope is listed in `outOfScope` for
- * the caller to drop, and one whose file, revision, or inputs changed since the search gets
- * `unknown` provenance so its stale preview is withheld. Only inputs of current sources are
- * returned for access checks.
+ * the caller to drop, and only one whose file, revision, and inputs are unchanged since the search
+ * is listed in `current`; any other has a stale preview to withhold. `classify` adds the merged
+ * provenance of each current source. Only inputs of current sources are returned for access checks.
  */
 export async function loadFileSearchDelivery(
   tx: DbTransaction,
@@ -67,6 +67,7 @@ export async function loadFileSearchDelivery(
     classify: boolean
   }
 ): Promise<{
+  current: Set<string>
   provenance: Map<string, WorkspaceFileSecretProvenance>
   outOfScope: Set<string>
   inputs: { fileId: string; fileContext: string }[]
@@ -190,6 +191,7 @@ export async function loadFileSearchDelivery(
     current.flatMap((source) => source.dependencies.map((input) => input.fileId))
   )
   return {
+    current: new Set(current.map((source) => source.identity.fileId)),
     provenance: sources,
     outOfScope,
     inputs: rows
