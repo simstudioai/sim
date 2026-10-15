@@ -25,6 +25,7 @@ const ObserveAfter = {
     .describe(
       "Every mutation returns fresh app state by default. Set includeScreenshot to true to include an image; otherwise no screenshot is captured. Observation failure never retries the action.",
     ),
+  includeScreenshot: z.boolean().optional().describe("Same as observeAfter.includeScreenshot."),
 };
 const InputSequenceStep = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("type_text"), text: z.string().max(32_000) }),
@@ -75,7 +76,11 @@ export const ComputerUseSchema = z.union([
   z.strictObject({
     action: z.literal("press_key"),
     ...ObserveAfter,
-    ...WindowTarget,
+    bundleId: BundleId,
+    snapshotId: SnapshotId,
+    windowId: WindowId.optional().describe(
+      "Window reference from that snapshot. Omit to send the key to the app's focused window.",
+    ),
     key: z.string().min(1).max(128).describe("One key or chord, such as Enter, Tab, Escape, or Cmd+A."),
   }),
   z.strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets }),

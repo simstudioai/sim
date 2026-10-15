@@ -6,6 +6,9 @@ nonisolated(unsafe) var cancellationRequested: sig_atomic_t = 0
 func checkCancellation() throws {
     if cancellationRequested != 0 { throw ComputerError("cancelled", "Computer-use operation was cancelled.") }
 }
+/// Set by every input path the moment it reaches the target app; a request that fails before then
+/// changed nothing, so its snapshot stays valid and the error reports `dispatchState: not_started`.
+nonisolated(unsafe) var inputDispatched = false
 
 struct ComputerError: Error {
     let code: String
@@ -43,6 +46,44 @@ func required<T>(_ value: T?, _ name: String) throws -> T {
 func axCheck(_ result: AXError) throws {
     guard result == .success else { throw ComputerError("accessibility_error", "Accessibility operation failed (\(result.rawValue)); observe the app again before retrying.") }
 }
+/// A press that opens a sheet, alert or modal panel holds the app's Accessibility reply until that UI
+/// is up, so for a press `cannotComplete` after the messaging timeout means the request was delivered.
+/// For a value or selection change the outcome is unknown: it counts as dispatched but still fails.
+func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIElement) -> AXError) throws {
+    AXUIElementSetMessagingTimeout(element, 2)
+    let result = operation(element)
+    if result == .cannotComplete { inputDispatched = true; if press { return } }
+    if result == .success { inputDispatched = true; return }
+    try axCheck(result)
+}
+/// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
+/// highlighted instead of running it. Return runs the highlighted item, as it would for a keyboard user.
+func completeMenuPress(_ item: AXUIElement, pid: pid_t) async throws {
+    let submenu = (attribute(item, kAXChildrenAttribute) as? [AXUIElement] ?? []).contains { attribute($0, kAXRoleAttribute) as? String == kAXMenuRole }
+    guard attribute(item, kAXRoleAttribute) as? String == kAXMenuItemRole, !submenu else { return }
+    try await Task.sleep(for: .milliseconds(250))
+    // An open menu is an on-screen window at the pop-up menu level; a menu that ran its item has none.
+    let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+    guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+          entries.contains(where: { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == menuLevel }) else { return }
+    try checkCancellation()
+    // Return runs whatever is highlighted, so it is sent only when this exact item is.
+    _ = AXUIElementSetAttributeValue(item, kAXSelectedAttribute as CFString, kCFBooleanTrue)
+    guard attribute(item, kAXSelectedAttribute) as? Bool == true else { return }
+    try checkCancellation()
+    try postKey(pid: pid, code: 36)
+}
+/// A menu item's keyboard shortcut in macOS notation, such as ⌥⌘N, so the agent can use real shortcuts.
+func menuShortcut(_ item: AXUIElement) -> String? {
+    guard let char = attribute(item, "AXMenuItemCmdChar") as? String, !char.isEmpty, char.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value != 0x7f }) else { return nil }
+    let modifiers = (attribute(item, "AXMenuItemCmdModifiers") as? NSNumber)?.intValue ?? 0
+    var text = ""
+    if modifiers & 4 != 0 { text += "⌃" }
+    if modifiers & 2 != 0 { text += "⌥" }
+    if modifiers & 1 != 0 { text += "⇧" }
+    if modifiers & 8 == 0 { text += "⌘" }
+    return text + char
+}
 func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?
     return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
@@ -64,6 +105,10 @@ func requireNonSecure(_ element: AXUIElement) throws {
 }
 func rectJSON(_ rect: CGRect) -> [String: Double] {
     ["x": rect.minX, "y": rect.minY, "width": rect.width, "height": rect.height]
+}
+func axActions(_ element: AXUIElement) -> [String] {
+    var names: CFArray?
+    return AXUIElementCopyActionNames(element, &names) == .success ? names as? [String] ?? [] : []
 }
 func elementRect(_ element: AXUIElement) -> CGRect? {
     guard let rawPosition = attribute(element, kAXPositionAttribute), CFGetTypeID(rawPosition) == AXValueGetTypeID(),
@@ -176,6 +221,9 @@ final class Snapshot {
     let created = Date()
     var elements: [String: AXUIElement] = [:]
     var windowFrames: [String: CGRect] = [:]
+    /// The Accessibility window behind each observed windowId, so input checks compare identity, not
+    /// just bounds that two windows can share.
+    var windowElements: [String: AXUIElement] = [:]
     var nodes: [[String: Any]] = []
     var truncated = false
     init(app: NSRunningApplication) { pid = app.processIdentifier; launchDate = app.launchDate }
@@ -222,7 +270,7 @@ final class Snapshot {
             if isMenu && !entry.menu && !entry.priority {
                 queue.append(AXTraversalEntry(element: element, parent: entry.parent, depth: entry.depth, menu: true, priority: false)); continue
             }
-            if isMenu {
+            if isMenu && !entry.priority {
                 guard menuCount < 80 else { truncated = true; continue }
                 menuCount += 1
             }
@@ -232,6 +280,7 @@ final class Snapshot {
             let isSecure = secure(element)
             var labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty }
             if labels.isEmpty { labels = [kAXPlaceholderValueAttribute, kAXHelpAttribute].compactMap { attribute(element, $0) as? String }.filter { !$0.isEmpty } }
+            if role == kAXMenuItemRole, let shortcut = menuShortcut(element) { labels.append(shortcut) }
             if !isSecure, !labels.isEmpty { node["label"] = String(labels.joined(separator: " ").prefix(1024)) }
             if !isSecure, let raw = attribute(element, kAXValueAttribute) {
                 if let value = raw as? String { node["value"] = String(value.prefix(2048)) }
@@ -253,10 +302,15 @@ final class Snapshot {
             if !isSecure, entry.depth < 64 {
                 let (children, childrenTruncated) = pagedElements(element, name: kAXChildrenAttribute, limit: 500)
                 truncated = truncated || childrenTruncated
-                for child in children { queue.append(AXTraversalEntry(element: child, parent: element, depth: entry.depth + 1, menu: isMenu, priority: false)) }
+                // An open menu is what the user is choosing from, so its items and their submenus come first.
+                let openMenu = isMenu && (entry.priority || role == kAXMenuRole && (elementRect(element)?.height ?? 0) > 0)
+                for child in children { queue.append(AXTraversalEntry(element: child, parent: element, depth: entry.depth + 1, menu: isMenu && !openMenu, priority: openMenu)) }
             } else if entry.depth >= 64 { truncated = true }
         }
         if queue.hasPending || queue.truncated { truncated = true }
+    }
+    func observedWindows() -> [(element: AXUIElement, frame: CGRect)] {
+        windowFrames.compactMap { id, frame in windowElements[id].map { ($0, frame) } }
     }
     func element(_ id: String?) throws -> AXUIElement {
         let id = try required(id, "elementId")
@@ -315,9 +369,10 @@ func parseKey(_ key: String) throws -> (CGKeyCode, CGEventFlags) {
     let parts = key.lowercased().split(separator: "+").map(String.init)
             guard let name = parts.last else { throw ComputerError("invalid_arguments", "Key is empty.") }
             var flags: CGEventFlags = []
-            for modifier in parts.dropLast() { switch modifier { case "cmd", "command": flags.insert(.maskCommand); case "shift": flags.insert(.maskShift); case "alt", "option": flags.insert(.maskAlternate); case "ctrl", "control": flags.insert(.maskControl); default: throw ComputerError("invalid_arguments", "Unknown key modifier.") } }
+            for modifier in parts.dropLast() { switch modifier { case "cmd", "command", "meta", "super": flags.insert(.maskCommand); case "shift": flags.insert(.maskShift); case "alt", "option", "opt": flags.insert(.maskAlternate); case "ctrl", "control": flags.insert(.maskControl); default: throw ComputerError("invalid_arguments", "Unknown key modifier.") } }
             let keys: [String: CGKeyCode] = ["a":0,"s":1,"d":2,"f":3,"h":4,"g":5,"z":6,"x":7,"c":8,"v":9,"b":11,"q":12,"w":13,"e":14,"r":15,"y":16,"t":17,"1":18,"2":19,"3":20,"4":21,"6":22,"5":23,"9":25,"7":26,"8":28,"0":29,"=":24,"-":27,"]":30,"[":33,"o":31,"u":32,"i":34,"p":35,"return":36,"enter":36,"l":37,"j":38,"'":39,";":41,"\\":42,",":43,"/":44,".":47,"`":50,"k":40,"n":45,"m":46,"tab":48,"space":49,"backspace":51,"escape":53,"delete":117,"left":123,"right":124,"down":125,"up":126,"home":115,"end":119,"pageup":116,"pagedown":121,"f1":122,"f2":120,"f3":99,"f4":118,"f5":96,"f6":97,"f7":98,"f8":100,"f9":101,"f10":109,"f11":103,"f12":111]
-            guard let code = keys[name] else { throw ComputerError("unsupported_key", "Unsupported key name.") }; return (code, flags)
+            let aliases = ["esc": "escape", "arrowleft": "left", "arrowright": "right", "arrowup": "up", "arrowdown": "down", "forwarddelete": "delete", "pgup": "pageup", "pgdn": "pagedown", "pgdown": "pagedown", "minus": "-", "equal": "=", "equals": "=", "comma": ",", "period": ".", "slash": "/", "semicolon": ";", "quote": "'", "backslash": "\\", "backtick": "`", "grave": "`", "leftbracket": "[", "rightbracket": "]"]
+            guard let code = keys[aliases[name] ?? name] else { throw ComputerError("unsupported_key", "Unsupported key name. Use names such as Enter, Tab, Escape, Backspace, Delete (forward delete), Left, PageUp, F5, or a single character, with Cmd/Shift/Alt/Ctrl modifiers.") }; return (code, flags)
 }
 func validateInputSteps(_ steps: [InputStep]) throws {
     guard (1...32).contains(steps.count) else { throw ComputerError("invalid_arguments", "Input sequence requires 1 to 32 steps.") }
@@ -338,7 +393,7 @@ func sendEditorKey(element: AXUIElement, pid: pid_t, code: CGKeyCode, flags: CGE
         var settable: DarwinBoolean = false
         if AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue, let value = attribute(element, kAXValueAttribute) as? String {
             var range = CFRange(location: 0, length: value.utf16.count)
-            if let selected = AXValueCreate(.cfRange, &range) { try axCheck(AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, selected)); return }
+            if let selected = AXValueCreate(.cfRange, &range) { try dispatchAX(element) { AXUIElementSetAttributeValue($0, kAXSelectedTextRangeAttribute as CFString, selected) }; return }
         }
     }
     try postKey(pid: pid, code: code, flags: flags)
@@ -347,25 +402,52 @@ func postKey(pid: pid_t, code: CGKeyCode, flags: CGEventFlags = [], text: String
     guard let source = CGEventSource(stateID: .privateState), let down = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: true), let up = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: false) else { throw ComputerError("input_failed", "Could not create keyboard event.") }
     down.flags = flags; up.flags = flags
     if let text { let chars = Array(text.utf16); chars.withUnsafeBufferPointer { down.keyboardSetUnicodeString(stringLength: chars.count, unicodeString: $0.baseAddress) } }
+    inputDispatched = true
     down.postToPid(pid); up.postToPid(pid)
 }
 func mapPoint(frame: CGRect, x: Double, y: Double) throws -> CGPoint {
     guard x.isFinite, y.isFinite, x >= 0, y >= 0, x < frame.width, y < frame.height else { throw ComputerError("invalid_coordinates", "Coordinates must lie within the selected window in points.") }
     return CGPoint(x: frame.minX + x, y: frame.minY + y)
 }
-func requireForegroundTarget(pid: pid_t, windowID: String, point: CGPoint, frame: CGRect) throws {
+func requireForegroundTarget(pid: pid_t, windowID: String, window: AXUIElement, point: CGPoint, frame: CGRect) throws {
     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw ComputerError("foreground_required", "Coordinate mouse input requires the target app in front. Call activate_app, then observe again.") }
     guard try windowRect(windowID, pid: pid) == frame else { throw ComputerError("stale_window", "Window moved during input; observe it again.") }
-    guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { throw ComputerError("window_unavailable", "Cannot verify the target window.") }
-    let top = entries.first { entry in
-        guard (entry[kCGWindowAlpha as String] as? Double ?? 0) > 0, let bounds = entry[kCGWindowBounds as String] as? [String: Any], let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary) else { return false }
-        return rect.contains(point)
+    guard let hit = elementAtPoint(point) else { throw ComputerError("window_occluded", "Cannot confirm which window receives this point; observe again before retrying.") }
+    var owner: pid_t = 0
+    guard AXUIElementGetPid(hit, &owner) == .success, owner == pid else { throw ComputerError("window_occluded", "The target point is covered by another app's window; bring the intended window forward and observe again.") }
+    // The point must belong to the observed window (its sheets and popovers report it as their window),
+    // to one of the app's dialogs or floating panels above it, or to an open menu, which has no window.
+    // Anything unconfirmed is refused.
+    if let rawWindow = attribute(hit, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() {
+        guard acceptsInput(unsafeBitCast(rawWindow, to: AXUIElement.self), observed: [(window, frame)]) else {
+            throw ComputerError("window_occluded", "Another of this app's windows covers the target point; observe that window and target it instead.")
+        }
+    } else if ![kAXMenuRole, kAXMenuItemRole, kAXMenuBarRole, kAXMenuBarItemRole].contains(attribute(hit, kAXRoleAttribute) as? String ?? "") {
+        throw ComputerError("window_occluded", "Cannot confirm which window receives this point; observe again before retrying.")
     }
-    guard let top, (top[kCGWindowNumber as String] as? NSNumber)?.stringValue == windowID else { throw ComputerError("window_occluded", "The target point is covered by another window; bring the intended window forward and observe again.") }
+}
+/// Whether input aimed at an observed window may go to `window`: the observed window itself, or one of
+/// the app's dialogs or floating panels above it. Another document window, or one whose kind cannot be
+/// read, is refused.
+func acceptsInput(_ window: AXUIElement, observed: [(element: AXUIElement, frame: CGRect)]) -> Bool {
+    if observed.contains(where: { CFEqual($0.element, window) && elementRect(window) == $0.frame }) { return true }
+    let auxiliary: Set<String> = [kAXDialogSubrole, kAXSystemDialogSubrole, kAXFloatingWindowSubrole, kAXSystemFloatingWindowSubrole]
+    return (attribute(window, kAXSubroleAttribute) as? String).map(auxiliary.contains) ?? false
+}
+/// The element that receives a click at a global point. Notification Center and the Dock keep
+/// full-screen click-through windows above every app, so the topmost window in the window list is not
+/// the click target; Accessibility hit-testing follows the window server's routing. Without an answer
+/// the target is unknown, and the caller refuses the input.
+func elementAtPoint(_ point: CGPoint) -> AXUIElement? {
+    let system = AXUIElementCreateSystemWide()
+    AXUIElementSetMessagingTimeout(system, 0.25)
+    var hit: AXUIElement?
+    guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &hit) == .success else { return nil }
+    return hit
 }
 final class CoordinateDispatch {
     private(set) var hasDispatched = false
-    func willDispatch() { hasDispatched = true }
+    func willDispatch() { hasDispatched = true; inputDispatched = true }
     func classify(_ error: ComputerError) -> ComputerError {
         ComputerError(error.code, error.message, dispatchState: hasDispatched ? nil : "not_started")
     }
@@ -376,9 +458,12 @@ func coordinateAction(_ operation: (CoordinateDispatch) async throws -> Void) as
     do { try await operation(dispatch) }
     catch let error as ComputerError { throw dispatch.classify(error) }
 }
-func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseButton, count: Int = 1, windowID: String? = nil, frame: CGRect? = nil, release: Bool = false, dispatch: CoordinateDispatch) throws {
+func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseButton, count: Int = 1, windowID: String? = nil, window: AXUIElement? = nil, frame: CGRect? = nil, release: Bool = false, dispatch: CoordinateDispatch) throws {
     guard let windowID, let frame else { throw ComputerError("invalid_window", "Mouse input requires an observed app window.") }
-    if !release { try requireForegroundTarget(pid: pid, windowID: windowID, point: point, frame: frame) }
+    if !release {
+        guard let window else { throw ComputerError("invalid_window", "Mouse input requires an observed app window.") }
+        try requireForegroundTarget(pid: pid, windowID: windowID, window: window, point: point, frame: frame)
+    }
     guard let source = CGEventSource(stateID: .privateState), let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: button) else { throw ComputerError("input_failed", "Could not create mouse event.") }
     event.setIntegerValueField(.mouseEventClickState, value: Int64(count))
     dispatch.willDispatch()
@@ -468,10 +553,16 @@ final class Driver {
             let app = try await appFor(p.bundleId, launch: true); let snapshot = Snapshot(app: app)
             let preferredFrame = try p.windowId.map { try windowRect($0, pid: app.processIdentifier) }
             try await snapshot.read(preferredWindowFrame: preferredFrame)
-            let axWindowFrames = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }.compactMap(elementRect)
+            let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
+            let axWindowFrames = axWindows.compactMap(elementRect)
             let windows = windowsFor(app.processIdentifier).prefix(100).compactMap { entry -> [String: Any]? in
                 guard let id = entry[kCGWindowNumber as String] as? NSNumber, let bounds = entry[kCGWindowBounds as String] as? [String: Any], let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0, axWindowFrames.contains(rect) else { return nil }
                 snapshot.windowFrames[id.stringValue] = rect
+                // Public APIs match a window-list entry to its Accessibility window only by bounds; when
+                // two windows share bounds that match is ambiguous, so neither gets an identity and
+                // input aimed at either is refused.
+                let matches = axWindows.filter { elementRect($0) == rect }
+                if matches.count == 1 { snapshot.windowElements[id.stringValue] = matches[0] }
                 var result: [String: Any] = ["windowId": id.stringValue, "title": entry[kCGWindowName as String] as? String ?? ""]
                 if let title = result["title"] as? String { result["title"] = String(title.prefix(4096)) }
                 result.merge(rectJSON(rect)) { _, new in new }; return result
@@ -504,33 +595,50 @@ final class Driver {
         try requireAccessibility()
         let app = try await appFor(p.bundleId); let bundle = try required(app.bundleIdentifier, "bundleId")
         guard let snapshot = snapshots[bundle], snapshot.id == p.snapshotId, snapshot.pid == app.processIdentifier, snapshot.launchDate == app.launchDate, Date().timeIntervalSince(snapshot.created) < 60 else { throw ComputerError("stale_snapshot", "Observe the app again before acting.") }
-        snapshots.removeValue(forKey: bundle)
+        inputDispatched = false
+        do {
+            let result = try await act(request, app: app, bundle: bundle, snapshot: snapshot)
+            snapshots.removeValue(forKey: bundle)
+            return result
+        } catch let error as ComputerError {
+            // Input that reached the app may have changed it, so only an untouched app keeps its references.
+            if inputDispatched { snapshots.removeValue(forKey: bundle); throw error }
+            throw ComputerError(error.code, error.message + (error.code == "stale_element" ? "" : " Nothing was sent to the app; this snapshot is still valid."), dispatchState: "not_started")
+        } catch {
+            snapshots.removeValue(forKey: bundle); throw error
+        }
+    }
+    func act(_ request: Request, app: NSRunningApplication, bundle: String, snapshot: Snapshot) async throws -> [String: Any] {
+        let p = request.params
         let pid = app.processIdentifier
         switch request.method {
         case "perform_action":
             let element = try snapshot.element(p.elementId); let action = try required(p.accessibilityAction, "accessibilityAction")
             var names: CFArray?; try axCheck(AXUIElementCopyActionNames(element, &names))
             guard (names as? [String] ?? []).contains(action) else { throw ComputerError("unsupported_action", "Action was not advertised by the selected element.") }
-            try axCheck(AXUIElementPerformAction(element, action as CFString))
+            try dispatchAX(element, press: true) { AXUIElementPerformAction($0, action as CFString) }
+            if action == kAXPressAction || action == kAXPickAction { try await completeMenuPress(element, pid: pid) }
         case "set_value":
             let element = try snapshot.element(p.elementId); let value = try required(p.value, "value")
             guard value.utf16.count <= 32000 else { throw ComputerError("invalid_arguments", "Value exceeds 32000 UTF-16 units.") }
             var writable: DarwinBoolean = false; try axCheck(AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &writable))
-            guard writable.boolValue else { throw ComputerError("unsupported_action", "This element does not support setting its value.") }
-            try axCheck(AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, value as CFString))
+            guard writable.boolValue else { throw ComputerError("unsupported_action", "This element does not support setting its value; click it and use type_text instead.") }
+            try dispatchAX(element) { AXUIElementSetAttributeValue($0, kAXValueAttribute as CFString, value as CFString) }
         case "click":
             let button = p.button ?? "left"; let count = p.clickCount ?? 1
             guard ["left", "right"].contains(button), (1...3).contains(count) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
-            if p.elementId != nil && button == "left" && count == 1 { try axCheck(AXUIElementPerformAction(try snapshot.element(p.elementId), kAXPressAction as CFString)) }
-            else {
+            if p.elementId != nil && button == "left" && count == 1, let element = try? snapshot.element(p.elementId), axActions(element).contains(kAXPressAction) {
+                try dispatchAX(element, press: true) { AXUIElementPerformAction($0, kAXPressAction as CFString) }
+                try await completeMenuPress(element, pid: pid)
+            } else {
                 try await coordinateAction { dispatch in
                     let position = try point(p, app: app, snapshot: snapshot); let mouse: CGMouseButton = button == "right" ? .right : .left
                     let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
                     let frame = try required(snapshot.windowFrames[windowID], "window frame")
                     for click in 1...count {
                         try checkCancellation()
-                        try postMouse(pid: pid, type: button == "right" ? .rightMouseDown : .leftMouseDown, point: position, button: mouse, count: click, windowID: windowID, frame: frame, dispatch: dispatch)
-                        try postMouse(pid: pid, type: button == "right" ? .rightMouseUp : .leftMouseUp, point: position, button: mouse, count: click, windowID: windowID, frame: frame, release: true, dispatch: dispatch)
+                        try postMouse(pid: pid, type: button == "right" ? .rightMouseDown : .leftMouseDown, point: position, button: mouse, count: click, windowID: windowID, window: snapshot.windowElements[windowID], frame: frame, dispatch: dispatch)
+                        try postMouse(pid: pid, type: button == "right" ? .rightMouseUp : .leftMouseUp, point: position, button: mouse, count: click, windowID: windowID, window: snapshot.windowElements[windowID], frame: frame, release: true, dispatch: dispatch)
                     }
                 }
             }
@@ -539,20 +647,41 @@ final class Driver {
             let steps = request.method == "type_text" ? [InputStep(action: "type_text", text: try required(p.text, "text"), key: nil)] : try required(p.steps, "steps")
             try validateInputSteps(steps)
             let root = AXUIElementCreateApplication(pid)
-            guard let rawWindow = attribute(element, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID(), let frame = elementRect(unsafeBitCast(rawWindow, to: AXUIElement.self)), let windowID = snapshot.windowFrames.first(where: { $0.value == frame })?.key else { throw ComputerError("window_unavailable", "Editor does not belong to an observed window.") }
-            guard [kAXTextAreaRole, kAXTextFieldRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") else { throw ComputerError("unsupported_action", "Input requires an observed text editor.") }
-            var editable: DarwinBoolean = false
-            guard AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &editable) == .success, editable.boolValue else { throw ComputerError("unsupported_action", "Observed editor is read-only.") }
+            // Keystrokes go to whatever holds keyboard focus, so the target is any focusable element
+            // (text fields, terminals, combo boxes, date fields, web editors), not only AX-writable ones.
+            var focusable: DarwinBoolean = false
+            let isFocused = attribute(root, kAXFocusedUIElementAttribute).map { CFEqual($0, element) } == true
+            guard isFocused || (AXUIElementIsAttributeSettable(element, kAXFocusedAttribute as CFString, &focusable) == .success && focusable.boolValue) else {
+                throw ComputerError("unsupported_action", "This element cannot take keyboard focus. Type into a text field, text area, combo box or other focusable control, or click it first.")
+            }
             if request.method == "input_sequence", p.activateFirst == true { try await activate(app) }
+            // Activation can move focus, so whether the editor holds it is read after activating.
             if attribute(root, kAXFocusedUIElementAttribute).map({ CFEqual($0, element) }) != true {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
                 try await Task.sleep(for: .milliseconds(50))
             }
+            /// Focus may land on the element itself or on an editor inside it, such as a combo box's field.
+            func holdsFocus(_ focused: CFTypeRef) -> Bool {
+                guard CFGetTypeID(focused) == AXUIElementGetTypeID() else { return false }
+                var current: AXUIElement? = unsafeBitCast(focused, to: AXUIElement.self)
+                for _ in 0..<8 {
+                    guard let candidate = current else { return false }
+                    if CFEqual(candidate, element) { return true }
+                    guard let parent = attribute(candidate, kAXParentAttribute), CFGetTypeID(parent) == AXUIElementGetTypeID() else { return false }
+                    current = unsafeBitCast(parent, to: AXUIElement.self)
+                }
+                return false
+            }
+            let observedWindows = snapshot.observedWindows()
             func validateFocus() throws {
                 try checkCancellation(); try requireNonSecure(element)
-                guard try windowRect(windowID, pid: pid) == frame else { throw ComputerError("stale_window", "Editor window geometry changed; observe again.") }
-                guard let current = attribute(root, kAXFocusedUIElementAttribute), CFEqual(current, element) else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
-                guard let focusedWindow = attribute(root, kAXFocusedWindowAttribute), CFEqual(focusedWindow, rawWindow) else { throw ComputerError("focus_changed", "The editor's exact window is not focused; remaining input was not dispatched. Observe again.") }
+                // The editor must still sit in an observed window (or a dialog above it) at the observed frame.
+                guard let rawWindow = attribute(element, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID(),
+                      acceptsInput(unsafeBitCast(rawWindow, to: AXUIElement.self), observed: observedWindows) else {
+                    throw ComputerError("stale_window", "The editor's window moved or is not an observed window; observe again.")
+                }
+                guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current) else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
+                if let focused = attribute(root, kAXFocusedUIElementAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { try requireNonSecure(unsafeBitCast(focused, to: AXUIElement.self)) }
             }
             // AX focus requests and app activation may settle asynchronously. Wait without
             // posting input or requesting focus again; every eventual input keeps the same guard.
@@ -594,10 +723,21 @@ final class Driver {
             }
             if request.method == "input_sequence" { return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false, "sequence": ["completedSteps": completed, "totalSteps": steps.count]] }
         case "press_key":
-            let windowId = try required(p.windowId, "windowId"); let frame = try windowRect(windowId, pid: pid)
-            guard snapshot.windowFrames[windowId] == frame else { throw ComputerError("stale_window", "Observe the target window again.") }
+            // Without a windowId the key goes to whichever observed window has focus.
+            let frame = try p.windowId.map { windowId in
+                let frame = try windowRect(windowId, pid: pid)
+                guard snapshot.windowFrames[windowId] == frame else { throw ComputerError("stale_window", "Observe the target window again.") }
+                return frame
+            }
             let root = AXUIElementCreateApplication(pid)
-            guard let rawWindow = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID(), elementRect(unsafeBitCast(rawWindow, to: AXUIElement.self)) == frame else { throw ComputerError("focus_failed", "Requested window is not the app's focused window.") }
+            // Keys go to the app's key window: the observed window, or a dialog, panel or popover above it,
+            // but never another document window the snapshot did not observe.
+            guard let rawWindow = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { throw ComputerError("focus_failed", "The app has no focused window to receive keys; click a window or call activate_app, then observe again.") }
+            let focusedWindow = unsafeBitCast(rawWindow, to: AXUIElement.self)
+            let targets: [(element: AXUIElement, frame: CGRect)]
+            if let windowId = p.windowId, let frame { targets = snapshot.windowElements[windowId].map { [($0, frame)] } ?? [] }
+            else { targets = snapshot.observedWindows() }
+            guard acceptsInput(focusedWindow, observed: targets) else { throw ComputerError("focus_failed", "Another document window has keyboard focus; observe that window and target it instead.") }
             if let focused = attribute(root, kAXFocusedUIElementAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { try requireNonSecure(unsafeBitCast(focused, to: AXUIElement.self)) }
             let (code, flags) = try parseKey(required(p.key, "key"))
             var selectedAll = false
@@ -606,7 +746,7 @@ final class Driver {
                 var settable: DarwinBoolean = false
                 if AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success, settable.boolValue, let value = attribute(element, kAXValueAttribute) as? String {
                     var range = CFRange(location: 0, length: value.utf16.count)
-                    if let selectedRange = AXValueCreate(.cfRange, &range) { try axCheck(AXUIElementSetAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, selectedRange)); selectedAll = true }
+                    if let selectedRange = AXValueCreate(.cfRange, &range) { try dispatchAX(element) { AXUIElementSetAttributeValue($0, kAXSelectedTextRangeAttribute as CFString, selectedRange) }; selectedAll = true }
                 }
             }
             if !selectedAll { try postKey(pid: pid, code: code, flags: flags) }
@@ -617,28 +757,30 @@ final class Driver {
                 guard let event = CGEvent(scrollWheelEvent2Source: CGEventSource(stateID: .privateState), units: .pixel, wheelCount: 2, wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) else { throw ComputerError("input_failed", "Could not create scroll event.") }
                 let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
                 let frame = try required(snapshot.windowFrames[windowID], "window frame")
-                try requireForegroundTarget(pid: pid, windowID: windowID, point: position, frame: frame)
+                try requireForegroundTarget(pid: pid, windowID: windowID, window: try required(snapshot.windowElements[windowID], "observed window"), point: position, frame: frame)
                 event.location = position; dispatch.willDispatch(); event.post(tap: .cghidEventTap)
             }
         case "drag":
             try await coordinateAction { dispatch in
                 let start = try point(p, app: app, snapshot: snapshot); let end = try point(p, app: app, snapshot: snapshot, end: true)
                 let windowID = try required(p.windowId, "windowId"); let frame = try required(snapshot.windowFrames[windowID], "window frame")
-                try postMouse(pid: pid, type: .leftMouseDown, point: start, button: .left, windowID: windowID, frame: frame, dispatch: dispatch)
+                try postMouse(pid: pid, type: .leftMouseDown, point: start, button: .left, windowID: windowID, window: snapshot.windowElements[windowID], frame: frame, dispatch: dispatch)
                 var lastPoint = start
-                defer { try? postMouse(pid: pid, type: .leftMouseUp, point: lastPoint, button: .left, windowID: windowID, frame: frame, release: true, dispatch: dispatch) }
+                defer { try? postMouse(pid: pid, type: .leftMouseUp, point: lastPoint, button: .left, windowID: windowID, window: snapshot.windowElements[windowID], frame: frame, release: true, dispatch: dispatch) }
                 try await Task.sleep(for: .milliseconds(10))
                 for step in 1...10 {
                     try checkCancellation()
                     let amount = CGFloat(step) / 10
                     let position = CGPoint(x: start.x + (end.x - start.x) * amount, y: start.y + (end.y - start.y) * amount)
-                    try postMouse(pid: pid, type: .leftMouseDragged, point: position, button: .left, windowID: windowID, frame: frame, dispatch: dispatch)
+                    try postMouse(pid: pid, type: .leftMouseDragged, point: position, button: .left, windowID: windowID, window: snapshot.windowElements[windowID], frame: frame, dispatch: dispatch)
                     lastPoint = position
                     try await Task.sleep(for: .milliseconds(10))
                 }
             }
         default: throw ComputerError("unknown_method", "Unknown method.")
         }
+        // Give the app a moment to render the result so the follow-up observation shows it.
+        try await Task.sleep(for: .milliseconds(200))
         return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false]
     }
 }
