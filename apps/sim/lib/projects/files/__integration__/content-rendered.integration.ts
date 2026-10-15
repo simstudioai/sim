@@ -143,6 +143,19 @@ async function fixture() {
   return { ...ids, principal: createSessionPrincipal({ userId: editorId }) }
 }
 
+/** File creation marks a revision pending, so a requeue check starts from no revision at all. */
+async function clearSearchRevision(fileId: string) {
+  await db.delete(workspaceFileSearchRevision).where(eq(workspaceFileSearchRevision.fileId, fileId))
+}
+
+async function searchRevision(fileId: string) {
+  const [revision] = await db
+    .select()
+    .from(workspaceFileSearchRevision)
+    .where(eq(workspaceFileSearchRevision.fileId, fileId))
+  return revision
+}
+
 function createInput(projectId: string, content = 'Project architecture') {
   return {
     projectId,
@@ -704,6 +717,7 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
         await released
       })
       await held
+      await clearSearchRevision(source.file.id)
       try {
         const rendered = await observeWorkspaceFileDelivery(
           async () => release(),
@@ -718,10 +732,7 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
         release()
         await concurrentReader
       }
-      const [revision] = await db
-        .select()
-        .from(workspaceFileSearchRevision)
-        .where(eq(workspaceFileSearchRevision.fileId, source.file.id))
+      const revision = await searchRevision(source.file.id)
       expect(revision?.status).toBe('pending')
       expect(revision?.sourceContentUpdatedAt).toEqual(source.file.contentUpdatedAt)
     }
@@ -755,6 +766,7 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
         await released
       })
       await held
+      await clearSearchRevision(source.file.id)
       try {
         const started = performance.now()
         const rendered = await readProjectFileArtifact.execute({
@@ -769,11 +781,7 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
         release()
         await concurrentReader
       }
-      const revisions = await db
-        .select()
-        .from(workspaceFileSearchRevision)
-        .where(eq(workspaceFileSearchRevision.fileId, source.file.id))
-      expect(revisions).toEqual([])
+      expect(await searchRevision(source.file.id)).toBeUndefined()
     }
   )
 

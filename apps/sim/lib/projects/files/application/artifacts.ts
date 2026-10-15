@@ -465,6 +465,7 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
     })
     await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
     const completion = renderedSearchArtifacts.get(result)
+    renderedSearchArtifacts.delete(result)
     if (completion) await requeueRenderedSearchArtifact(completion)
   },
 })
