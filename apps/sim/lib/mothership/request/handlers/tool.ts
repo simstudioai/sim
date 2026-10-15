@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
@@ -42,7 +43,11 @@ import {
   toolDeadlinePassed,
 } from '@/lib/mothership/request/tools/deadline'
 import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
-import { executeToolAndReport, failPendingToolCall } from '@/lib/mothership/request/tools/executor'
+import {
+  executeToolAndReport,
+  failPendingToolCall,
+  failUnstartedToolCall,
+} from '@/lib/mothership/request/tools/executor'
 import {
   runGatedToolExecution,
   TOOL_AWAITING_APPROVAL_STATUS,
@@ -509,6 +514,9 @@ function stampToolCallBlockEnd(
   }
 }
 
+/** How long a client wait lasts at least: enough to read a result the client already saved. */
+const STORED_RESULT_READ_MS = 5_000
+
 /**
  * The completion a client wait reports for a call Sim settled itself: whatever the settlement
  * left on the call, which is the desktop's own result when that landed first.
@@ -529,13 +537,15 @@ function settledClientCompletion(toolCall: ToolCallState): AsyncTerminalCompleti
 /**
  * Adopts the deadline recorded when the call was first handed (a takeover re-hands its parked
  * calls), so an approval or client wait gets only what remains of it. Server executions adopt it
- * from their own upsert. A recorded deadline that cannot be read counts as spent: the frame's
- * could be later than the one the worker is holding the call to.
+ * from their own upsert. A recorded deadline that cannot be read before the frame's runs out
+ * counts as spent: the frame's could be later than the one the worker is holding the call to.
  */
 async function adoptRecordedToolDeadline(toolCall: ToolCallState): Promise<void> {
   if (toolCall.deadlineAt === undefined) return
   try {
-    const recorded = (await getAsyncToolCall(toolCall.id))?.executionDeadlineAt
+    const recorded = (
+      await withinDeadline(() => getAsyncToolCall(toolCall.id), toolCall.deadlineAt)
+    )?.executionDeadlineAt
     if (recorded) toolCall.deadlineAt = recorded.getTime()
   } catch (error) {
     logger.warn('Could not read a tool call deadline; treating it as spent', {
@@ -967,10 +977,11 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const timeoutMs = capToToolDeadline(
-      options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS,
-      toolCall.deadlineAt,
-      Date.now()
+    const ownTimeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
+    // Even past its deadline a wait lasts long enough to read a result the client already saved.
+    const timeoutMs = Math.max(
+      capToToolDeadline(ownTimeoutMs, toolCall.deadlineAt, Date.now()),
+      Math.min(ownTimeoutMs, STORED_RESULT_READ_MS)
     )
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
@@ -985,14 +996,18 @@ async function dispatchToolExecution(
         const desktopDeviceId = isBackgroundDesktopToolCall(toolName, args)
           ? await resolveRunDesktopDevice(context)
           : null
-        if (toolDeadlinePassed(toolCall.deadlineAt, Date.now())) {
-          // An approval wait or a spent recorded deadline left no time: it never starts.
-          await failPendingToolCall(
+        // An approval wait or a spent recorded deadline left no time. Only a call nothing claimed
+        // provably never ran; a claimed one (a takeover re-hands calls) is read, then settled
+        // below as outcome unknown.
+        if (
+          toolDeadlinePassed(toolCall.deadlineAt, Date.now()) &&
+          (await failUnstartedToolCall(
             toolCallId,
             context,
             execContext,
             TOOL_DEADLINE_BEFORE_START_MESSAGE
-          )
+          ))
+        ) {
           completion = settledClientCompletion(toolCall)
         } else if (isWorkflowToolName(toolName)) {
           const race = await raceWorkflowToolClientPickup({

@@ -497,6 +497,25 @@ export async function failPendingToolCall(
 }
 
 /**
+ * Fails a call with `message` only while nothing has claimed it, so it provably never started.
+ * Reports whether that applied.
+ */
+export async function failUnstartedToolCall(
+  toolCallId: string,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  message: string
+): Promise<boolean> {
+  const toolCall = context.toolCalls.get(toolCallId)
+  if (!toolCall || toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return false
+  return settleAbandonedToolCall(toolCall, context, execContext, {
+    message,
+    data: { error: message, notStarted: true },
+    unclaimedOnly: true,
+  })
+}
+
+/**
  * What a desktop call that lost its result tells the model. Only a local read can be in flight
  * without a claim (an older desktop reads without claiming), and such a read may never have
  * started; anything the desktop claimed did start.

@@ -764,12 +764,48 @@ describe('sse-handlers tool lifecycle', () => {
       )
     }
 
-    it('never offers a client call whose deadline already passed', async () => {
+    it('never offers an unclaimed client call whose deadline already passed', async () => {
+      mothershipAsyncRunsMockFns.mockCompletePendingAsyncToolCall.mockImplementationOnce(
+        async (input) => ({ ...input })
+      )
       const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS)
       await Promise.allSettled(context.pendingToolPromises.values())
 
       expect(waitForClientToolCompletion).not.toHaveBeenCalled()
       expectFailedWith(onEvent, TOOL_DEADLINE_BEFORE_START_MESSAGE)
+    })
+
+    it('reads a claimed call past its deadline and reports its outcome as unknown', async () => {
+      const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS)
+      await Promise.allSettled(context.pendingToolPromises.values())
+
+      expect(waitForClientToolCompletion).toHaveBeenCalledOnce()
+      expectFailedWith(onEvent, TOOL_DEADLINE_EXCEEDED_MESSAGE)
+    })
+
+    it('counts the deadline as spent when its lookup outlasts it', async () => {
+      vi.useFakeTimers()
+      try {
+        mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockImplementationOnce(
+          () => new Promise(() => {})
+        )
+        const handled = sseHandlers.tool(
+          deadlineFrame(
+            TOOL_DEADLINE_SETTLE_MARGIN_MS + 2_000,
+            { toolCallId: 'stalled-1', toolName: 'browser_click', arguments: {} },
+            true
+          ),
+          context,
+          execContext,
+          { interactive: true }
+        )
+        await vi.advanceTimersByTimeAsync(2_000)
+        await handled
+
+        expect(context.toolCalls.get('stalled-1')?.deadlineAt).toBeLessThanOrEqual(Date.now())
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('fails a client call still unfinished at its deadline', async () => {

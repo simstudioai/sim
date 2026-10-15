@@ -111,6 +111,36 @@ describe('runFalQueue on a request that never finishes', () => {
     expect(fal.cancels()).toHaveLength(1)
   })
 
+  it('cancels a request its caller gave up on while submitting it', async () => {
+    const calls: string[] = []
+    let accept: (response: Response) => void = () => {}
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init: RequestInit = {}) => {
+        calls.push(`${init.method ?? 'GET'} ${url}`)
+        if (init.method === 'POST')
+          return new Promise<Response>((resolve, reject) => {
+            accept = resolve
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+              once: true,
+            })
+          })
+        return Promise.resolve(jsonResponse({ status: 'CANCELLATION_REQUESTED' }, 202))
+      })
+    )
+    const caller = new AbortController()
+    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', caller.signal).catch(
+      () => 'rejected'
+    )
+
+    await vi.advanceTimersByTimeAsync(0)
+    caller.abort(new Error('watchdog'))
+    accept(jsonResponse({ request_id: 'req-1', cancel_url: CANCEL_URL }))
+
+    expect(await generation).toBe('rejected')
+    expect(calls).toContain(`PUT ${CANCEL_URL}`)
+  })
+
   it('asks fal never to start the request past that ceiling', async () => {
     const fal = stubStuckFalQueue()
     const caller = new AbortController()

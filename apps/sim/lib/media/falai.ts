@@ -26,6 +26,11 @@ const POLL_INTERVAL_MS = 3000
  */
 const FAL_QUEUE_MAX_MS = 30 * 60 * 1000
 const FAL_CANCEL_TIMEOUT_MS = 5000
+/**
+ * The submit is never cut short by the caller: an interrupted POST fal may already have accepted
+ * would leave a generation running that nothing can cancel. It has its own bound instead.
+ */
+const FAL_SUBMIT_TIMEOUT_MS = 60_000
 
 /**
  * Resolves a hosted Fal.ai API key from the numbered env pool
@@ -124,7 +129,7 @@ async function submitAndPollFalQueue(
       'X-Fal-Request-Timeout': String(FAL_QUEUE_MAX_MS / 1000),
     },
     body: JSON.stringify(input),
-    signal: queueSignal,
+    signal: AbortSignal.timeout(FAL_SUBMIT_TIMEOUT_MS),
   })
   if (!createResponse.ok) {
     const err = await readResponseTextWithLimit(createResponse, {
