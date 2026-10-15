@@ -22,6 +22,7 @@ vi.mock('@/lib/mothership/persistence/tool-permission', async (importOriginal) =
 
 import { MothershipStreamV1ToolExecutor } from '@/lib/mothership/generated/mothership-stream-v1'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
+import { TOOL_DEADLINE_BEFORE_START_MESSAGE } from '@/lib/mothership/request/tools/deadline'
 import {
   runGatedToolExecution,
   toolCallNeedsApproval,
@@ -276,7 +277,7 @@ describe('runGatedToolExecution', () => {
 
       expect(settled).toBe(true)
       expect(await pending).toMatchObject({ status: 'error' })
-      expect(toolCall.error).toBe('Timed out waiting for the user to approve this tool.')
+      expect(toolCall.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
       expect(execute).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()

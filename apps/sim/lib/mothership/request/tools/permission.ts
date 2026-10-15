@@ -24,6 +24,8 @@ import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-sta
 import {
   capToToolDeadline,
   lastToolStartAt,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  toolDeadlinePassed,
   toolStartWindowClosed,
 } from '@/lib/mothership/request/tools/deadline'
 import type {
@@ -272,7 +274,9 @@ export function runGatedToolExecution(
         span.setAttribute(TraceAttr.ToolOutcome, MothershipStreamV1ToolOutcome.cancelled)
         const error = options.abortSignal?.aborted
           ? 'Stopped before the user approved this tool.'
-          : 'Timed out waiting for the user to approve this tool.'
+          : toolDeadlinePassed(lastToolStartAt(toolCall.deadlineAt), Date.now())
+            ? TOOL_DEADLINE_BEFORE_START_MESSAGE
+            : 'Timed out waiting for the user to approve this tool.'
         setTerminalToolCallState(toolCall, {
           status: MothershipStreamV1ToolOutcome.cancelled,
           output: { error },

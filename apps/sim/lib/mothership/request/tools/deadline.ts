@@ -43,10 +43,11 @@ export function lastToolStartAt(deadlineAt: number | undefined): number | undefi
 
 /**
  * Whether it is too late to start anything for the call: no handler, approval prompt, allowed
- * decision, server fallback or client pickup.
+ * decision, server fallback or client pickup. Exactly the minimum budget left still starts.
  */
 export function toolStartWindowClosed(deadlineAt: number | undefined, now: number): boolean {
-  return toolDeadlinePassed(lastToolStartAt(deadlineAt), now)
+  const lastStartAt = lastToolStartAt(deadlineAt)
+  return lastStartAt !== undefined && now > lastStartAt
 }
 
 /** The column value for a call's deadline. */

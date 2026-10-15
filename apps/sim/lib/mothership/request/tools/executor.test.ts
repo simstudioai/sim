@@ -724,6 +724,24 @@ describe('executeToolAndReport provenance isolation', () => {
     expect((await pending).status).toBe('error')
   })
 
+  it('starts a handler with exactly the minimum budget of its deadline left', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-15T12:00:00Z'))
+    executeTool.mockResolvedValue({ success: true, output: {} })
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 60_000,
+    }
+    await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(executeTool).toHaveBeenCalledOnce()
+  })
+
   it('does not start a handler with less than a minute of its deadline left', async () => {
     const tool: ToolCallState = {
       ...buildPendingToolCall(),
