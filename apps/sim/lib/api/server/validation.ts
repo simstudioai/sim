@@ -23,10 +23,11 @@ import {
 /**
  * Next.js buffers the client body for the proxy and *silently truncates* anything
  * past `experimental.proxyClientMaxBodySize` (default 10 MB), and `apps/sim/proxy.ts`
- * matches `/api/:path*`. A larger body therefore reaches the handler as a truncated
- * prefix, which fails JSON parsing — so an oversized request has to be rejected on
- * its declared size before it is read, or the truncation gets misreported as a
- * malformed body.
+ * matches every `/api` route except the few its matcher excludes (see
+ * {@link ParseRequestOptions.bypassesProxy}). A larger body therefore reaches the
+ * handler as a truncated prefix, which fails JSON parsing — so an oversized request
+ * has to be rejected on its declared size before it is read, or the truncation gets
+ * misreported as a malformed body.
  */
 const PROXY_CLIENT_MAX_BODY_BYTES = 10 * 1024 * 1024
 

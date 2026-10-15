@@ -75,6 +75,7 @@ import {
 } from '@/handlers/file-doc-store'
 import { evictSocketFromRoom, registerRoomEvictionHandler } from '@/handlers/room-eviction'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
+import { registerRoomPermissionPublisher } from '@/handlers/room-permission'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
@@ -404,7 +405,10 @@ async function persistRoom(name: string, room: FileDocRoom, final: boolean): Pro
     }
     try {
       const snapshot = await store.getStreamSnapshot(name, generation)
-      snapshotEditor = snapshot?.editor ?? null
+      /** Entries without an author (older relays, durable merges) keep workspace attribution local. */
+      snapshotEditor =
+        snapshot?.editor ??
+        (fileDocOwnerAdapter(room.owner).allowLocalSnapshotFallback ? localEditor : null)
       return snapshot?.docState ?? null
     } catch (streamError) {
       if (
@@ -1152,6 +1156,22 @@ function emitJoinError(
   })
 }
 
+/** Tells a socket its write capability only when it differs from what the socket last heard. */
+function publishWriteAccess(
+  socket: AuthenticatedSocket,
+  document: FileDocRoom,
+  permission: string | null
+): void {
+  const canWrite = permission === 'write' || permission === 'admin'
+  if (document.publishedCanWrite.get(socket.id) === canWrite) return
+  document.publishedCanWrite.set(socket.id, canWrite)
+  socket.emit(FILE_DOC_EVENTS.PERMISSION, {
+    fileId: document.fileId,
+    ...fileDocOwnerWireFields(document.owner),
+    canWrite,
+  } satisfies FileDocPermission)
+}
+
 /** Resolve read membership and publish the separate editing capability after authorization. */
 function resolveFileDocPermission(
   socket: AuthenticatedSocket,
@@ -1164,15 +1184,7 @@ function resolveFileDocPermission(
   const room = fileDocRoom(document)
   const accept = (permission: string | null) => {
     if (socketToRoomName.get(socket.id) !== name || fileDocRooms.get(name) !== document) return null
-    const canWrite = permission === 'write' || permission === 'admin'
-    if (document.publishedCanWrite.get(socket.id) !== canWrite) {
-      document.publishedCanWrite.set(socket.id, canWrite)
-      socket.emit(FILE_DOC_EVENTS.PERMISSION, {
-        fileId: document.fileId,
-        ...fileDocOwnerWireFields(document.owner),
-        canWrite,
-      } satisfies FileDocPermission)
-    }
+    publishWriteAccess(socket, document, permission)
     if (permission === null)
       evictSocketFromRoom(socket, room, 'Your access to this document has been revoked', io)
     return permission
@@ -1189,11 +1201,18 @@ function resolveFileDocPermission(
  * revocation and left the Socket.IO room). Scoped to the evicted room so a socket
  * that has since switched documents keeps the one it legitimately holds.
  */
-for (const type of [ROOM_TYPES.WORKSPACE_FILE_DOC, ROOM_TYPES.PROJECT_FILE_DOC])
+for (const type of [ROOM_TYPES.WORKSPACE_FILE_DOC, ROOM_TYPES.PROJECT_FILE_DOC]) {
   registerRoomEvictionHandler(type, (socketId, room, io) => {
     if (socketToRoomName.get(socketId) !== roomName(room)) return
     cleanupFileDocForSocket(socketId, io)
   })
+  registerRoomPermissionPublisher(type, (socket, room, permission) => {
+    const name = roomName(room)
+    const document = fileDocRooms.get(name)
+    if (document && socketToRoomName.get(socket.id) === name)
+      publishWriteAccess(socket, document, permission)
+  })
+}
 
 async function handleMessage(socket: AuthenticatedSocket, io: Server, data: unknown) {
   const name = socketToRoomName.get(socket.id)
@@ -1229,7 +1248,7 @@ async function handleMessage(socket: AuthenticatedSocket, io: Server, data: unkn
     } catch (error) {
       logger.warn('Dropping file-doc frame while its authorization is unavailable', {
         socketId: socket.id,
-        error,
+        error: getErrorMessage(error),
       })
       return
     }
@@ -1673,10 +1692,11 @@ export function setupWorkspaceFileDocHandlers(
         !socket.disconnected &&
         joinGeneration.get(socket.id) === generation &&
         fileDocRooms.get(name) === entry
-      const canRegisterJoin = () => {
-        if (!isCurrentJoin()) return false
+      /** The permission this admission is still current under, or `null` once it is not. */
+      const canRegisterJoin = (): string | null => {
+        if (!isCurrentJoin()) return null
         const permission = peekRoomPermission(userId, room)
-        if (satisfiesRoomMembership(permission ?? null, room.type)) return true
+        if (permission && satisfiesRoomMembership(permission, room.type)) return permission
         emitJoinError(
           socket,
           fileId,
@@ -1685,7 +1705,7 @@ export function setupWorkspaceFileDocHandlers(
           permission === undefined ? 'JOIN_FAILED' : 'ACCESS_DENIED',
           permission === undefined
         )
-        return false
+        return null
       }
       try {
         // A client is attached to a WHOLE document or to nothing. A room assembles itself from the
@@ -1838,7 +1858,8 @@ export function setupWorkspaceFileDocHandlers(
         socketToRoomName.set(socket.id, name)
         registered = true
         await changeMembership(() => socket.leave(`${name}:pending`))
-        if (!canRegisterJoin()) {
+        const admittedPermission = canRegisterJoin()
+        if (!admittedPermission) {
           if (isCurrentJoin() && socketToRoomName.get(socket.id) === name) {
             cleanupFileDocForSocket(socket.id, io)
             await leaveUnclaimedRoom(name)
@@ -1864,9 +1885,7 @@ export function setupWorkspaceFileDocHandlers(
           schemaVersion: FILE_DOC_SCHEMA_VERSION,
           ...fileDocOwnerWireFields(entry.owner),
           acknowledgedUpdates: true as const,
-          canWrite:
-            peekRoomPermission(userId, room) === 'write' ||
-            peekRoomPermission(userId, room) === 'admin',
+          canWrite: admittedPermission === 'write' || admittedPermission === 'admin',
         })
         // Server-authenticated roster → everyone in the room, including this joiner.
         broadcastFileDocPresence(io, name, entry)

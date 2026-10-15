@@ -42,6 +42,7 @@ import {
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
 import { FileDocInvalidatedError, getFileDocStore } from '@/handlers/file-doc-store'
+import { publishRoomPermission } from '@/handlers/room-permission'
 import * as permissions from '@/middleware/permissions'
 import {
   beginRoomPermissionRead,
@@ -684,6 +685,27 @@ describe('setupWorkspaceFileDocHandlers', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('publishes a re-validated permission only when it changes what the socket last heard', async () => {
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-sweep', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 8 })
+    await handlers[FILE_DOC_EVENTS.MESSAGE](awarenessFrame(8, 'Sweep').frame)
+    const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' } as const
+    const subscriber = socket as unknown as Parameters<typeof publishRoomPermission>[0]
+    const published = () =>
+      socket.emit.mock.calls
+        .filter(([event]) => event === FILE_DOC_EVENTS.PERMISSION)
+        .map(([, payload]) => (payload as { canWrite: boolean }).canWrite)
+
+    publishRoomPermission(subscriber, room, 'write')
+    publishRoomPermission(subscriber, room, 'write')
+    expect(published()).toEqual([true])
+
+    publishRoomPermission(subscriber, room, 'read')
+    publishRoomPermission(subscriber, room, 'read')
+    expect(published()).toEqual([true, false])
   })
 
   it('applies + fans out an agent-streamed frame (SYNC_NO_PERSIST) but never persists it', async () => {
