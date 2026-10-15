@@ -31,6 +31,7 @@ import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
 import {
   CUMULATIVE_COST_EPSILON,
   CumulativeUsageContextMismatchError,
+  CumulativeUsageInFlightError,
   getBillingPeriodUsageCost,
   getBillingPeriodUsageCostByUser,
   getBillingPeriodUsageCostWithSourceSubset,
@@ -245,7 +246,8 @@ describe('recordCumulativeUsage', () => {
     mockIsOrgScopedSubscription.mockReturnValue(true)
   })
 
-  const setupTx = (existingRow: Partial<typeof defaultExistingRow> | null) => {
+  /** `locked`: another attempt of the request holds its ledger lock. */
+  const setupTx = (existingRow: Partial<typeof defaultExistingRow> | null, locked = false) => {
     const resolvedExistingRow = existingRow ? { ...defaultExistingRow, ...existingRow } : null
     const limit = vi.fn().mockResolvedValue(resolvedExistingRow ? [resolvedExistingRow] : [])
     const where = vi.fn().mockReturnValue({ limit })
@@ -255,7 +257,8 @@ describe('recordCumulativeUsage', () => {
     const updateSet = vi.fn().mockReturnValue({ where: updateWhere })
     mockUpdate.mockReturnValue({ set: updateSet })
     const tx = {
-      execute: vi.fn().mockResolvedValue(undefined),
+      // The configure statement's result is unused; the try-lock reads `acquired`.
+      execute: vi.fn().mockResolvedValue([{ acquired: !locked }]),
       select,
       update: mockUpdate,
       insert: mockInsert, // recordUsage(tx) reuses the shared insert chain
@@ -288,6 +291,22 @@ describe('recordCumulativeUsage', () => {
       billingEntityId: 'workspace-org',
       billingEntityType: 'organization',
     })
+  })
+
+  it('refuses at once, writing nothing, while another attempt of the request holds its lock', async () => {
+    const { select } = setupTx(null, true)
+    await expect(
+      recordCumulativeUsage({
+        userId: 'user-1',
+        source: 'workspace-chat',
+        model: 'claude-opus-4.8',
+        cost: 0.4662453,
+        eventKey: 'update-cost:msg-1-billing',
+      })
+    ).rejects.toBeInstanceOf(CumulativeUsageInFlightError)
+    expect(select).not.toHaveBeenCalled()
+    expect(mockInsert).not.toHaveBeenCalled()
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 
   it('tops up to the higher cumulative and bills only the delta', async () => {

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import {
   billingAttributionMock,
   billingAttributionMockFns,
@@ -772,7 +773,8 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
           'x-sim-billing-request-id': billingRequestId,
           'x-sim-billing-account-decision': 'serialized-account-decision',
         }
-      )
+      ),
+      createRouteContext({})
     )
 
     expect(res.status).toBe(503)

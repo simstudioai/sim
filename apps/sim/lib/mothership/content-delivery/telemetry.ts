@@ -6,7 +6,7 @@ import {
   reportDurableSecretProvenanceRefusals,
 } from '@/lib/execution/durable-secret-provenance-telemetry'
 
-export type ContentRefusalReason = 'unknown' | 'opaque' | 'registry' | 'import'
+type ContentRefusalReason = 'unknown' | 'opaque' | 'registry' | 'import'
 
 export const CONTENT_SURFACE: Record<ContentSourceKind, DurableSecretProvenanceSurface> = {
   'workspace-file': 'workspace-file',
