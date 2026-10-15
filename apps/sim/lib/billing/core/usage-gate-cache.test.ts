@@ -5,7 +5,7 @@ import {
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
 import { sleep } from '@sim/utils/helpers'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
@@ -22,11 +22,28 @@ import {
 
 const mockCheck = billingAttributionMockFns.mockCheckAttributedUsageLimits
 
-/** `lru-cache` reads `performance.now()` and debounces it behind a real 1 ms timer. */
+/** Fakes `setTimeout` for {@link advanceClockPast}; install it before the cache is first read. */
+function useFakeTimeouts(): void {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+}
+
+/**
+ * Fires the cache's pending clock debounce before restoring real timers; dropped unfired, it would
+ * pin the module-level cache to this test's spied clock for every later test.
+ */
+function restoreRealTimers(): void {
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
+}
+
+/**
+ * `lru-cache` captures `performance` at load, so fake timers cannot move its clock: spy the clock
+ * forward, then fire the faked 1 ms timer behind which it debounces `performance.now()`.
+ */
 async function advanceClockPast(ms: number): Promise<void> {
   const start = performance.now()
   vi.spyOn(performance, 'now').mockReturnValue(start + ms + 1)
-  await sleep(5)
+  await vi.advanceTimersByTimeAsync(1)
 }
 
 const ATTRIBUTION: BillingAttributionSnapshot = {
@@ -82,14 +99,19 @@ describe('checkIngestionUsageLimits', () => {
   })
 
   it('keeps a refusal for the same bounded window, then reads fresh', async () => {
-    mockCheck.mockResolvedValueOnce({ isExceeded: true, scope: 'payer', message: 'over' })
-    expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
-    expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
-    expect(mockCheck).toHaveBeenCalledTimes(1)
+    useFakeTimeouts()
+    try {
+      mockCheck.mockResolvedValueOnce({ isExceeded: true, scope: 'payer', message: 'over' })
+      expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
+      expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(true)
+      expect(mockCheck).toHaveBeenCalledTimes(1)
 
-    await advanceClockPast(USAGE_GATE_TTL_MS)
-    expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
-    expect(mockCheck).toHaveBeenCalledTimes(2)
+      await advanceClockPast(USAGE_GATE_TTL_MS)
+      expect((await checkIngestionUsageLimits(ATTRIBUTION)).isExceeded).toBe(false)
+      expect(mockCheck).toHaveBeenCalledTimes(2)
+    } finally {
+      restoreRealTimers()
+    }
   })
 
   it('separates answers by actor, period, period source, payer and plan', async () => {
@@ -220,8 +242,13 @@ describe('checkExecutionUsageLimits', () => {
 
 describe('admission lifetime by headroom', () => {
   beforeEach(() => {
+    useFakeTimeouts()
     resetUsageGateCache()
     mockCheck.mockReset()
+  })
+
+  afterEach(() => {
+    restoreRealTimers()
   })
 
   it('re-reads a free-plan admission after the near-limit window, so spend past the limit is refused', async () => {

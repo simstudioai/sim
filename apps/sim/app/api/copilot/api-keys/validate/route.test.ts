@@ -6,6 +6,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
@@ -31,7 +32,6 @@ import {
   workspacesUtilsMock,
   workspacesUtilsMockFns,
 } from '@sim/testing/mocks/workspaces-utils.mock'
-import { sleep } from '@sim/utils/helpers'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -634,16 +634,22 @@ describe('validation lifecycle purposes', () => {
   })
 
   it('re-reads a direct-v1 account near its limit, so a continuation past it is refused', async () => {
-    mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 4.2, limit: 5 })
-    expect((await POST(request(body, directHeaders))).status).toBe(200)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 4.2, limit: 5 })
+      expect((await POST(request(body, directHeaders), createRouteContext({}))).status).toBe(200)
 
-    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 5.4, limit: 5 })
-    /** `lru-cache` reads `performance.now()` and debounces it behind a real 1 ms timer. */
-    const start = performance.now()
-    vi.spyOn(performance, 'now').mockReturnValue(start + NEAR_LIMIT_USAGE_GATE_TTL_MS + 1)
-    await sleep(5)
+      mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 5.4, limit: 5 })
+      /** `lru-cache` captures `performance` at load: spy its clock, then fire its 1 ms debounce. */
+      const start = performance.now()
+      vi.spyOn(performance, 'now').mockReturnValue(start + NEAR_LIMIT_USAGE_GATE_TTL_MS + 1)
+      await vi.advanceTimersByTimeAsync(1)
 
-    expect((await POST(request(body, directHeaders))).status).toBe(402)
+      expect((await POST(request(body, directHeaders), createRouteContext({}))).status).toBe(402)
+    } finally {
+      vi.runOnlyPendingTimers()
+      vi.useRealTimers()
+    }
   })
 
   it('admits a direct-v1 continuation whose usage cannot be read', async () => {
