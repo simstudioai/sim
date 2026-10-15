@@ -96,7 +96,9 @@ const WITHHELD_LABELS: Record<ContentSourceKind, readonly [string, string]> = {
 
 /**
  * Tells Chat's model what a result left out: a refused item is dropped from the page it was read
- * in, which otherwise reads exactly like an item that does not exist.
+ * in, which otherwise reads exactly like an item that does not exist. A refusal can be of the
+ * item (its provenance is unknown) or only of the view (an excerpt or raw bytes redaction cannot
+ * cover), so the note says it exists and claims nothing about other reads.
  */
 export function describeWithheldContent(
   withheld: ReadonlyMap<ContentSourceKind, number>
@@ -104,8 +106,8 @@ export function describeWithheldContent(
   const lines = [...withheld].map(([kind, count]) => {
     const [singular, plural] = WITHHELD_LABELS[kind]
     return count === 1
-      ? `Note: 1 ${singular} was withheld from this result because its secret provenance is unavailable. It exists; reading it again will not return it.`
-      : `Note: ${count} ${plural} were withheld from this result because their secret provenance is unavailable. They exist; reading them again will not return them.`
+      ? `Note: 1 ${singular} was withheld from this result because it could not be shown safely (its secret provenance is unknown, or this view of it cannot be redacted). It exists; do not treat it as missing.`
+      : `Note: ${count} ${plural} were withheld from this result because they could not be shown safely (their secret provenance is unknown, or this view of them cannot be redacted). They exist; do not treat them as missing.`
   })
   return lines.length > 0 ? lines.join('\n') : undefined
 }
