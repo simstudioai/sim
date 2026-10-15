@@ -409,14 +409,24 @@ func requireForegroundTarget(pid: pid_t, windowID: String, point: CGPoint, frame
     guard let hit = elementAtPoint(point) else { throw ComputerError("window_occluded", "Cannot confirm which window receives this point; observe again before retrying.") }
     var owner: pid_t = 0
     guard AXUIElementGetPid(hit, &owner) == .success, owner == pid else { throw ComputerError("window_occluded", "The target point is covered by another app's window; bring the intended window forward and observe again.") }
-    // The app's own sheets, popovers, panels and menus may sit above the observed window; another
-    // of its document windows may not.
+    // The point must belong to the observed window (its sheets and popovers report it as their window),
+    // to one of the app's dialogs or floating panels above it, or to an open menu, which has no window.
+    // Anything unconfirmed is refused.
     if let rawWindow = attribute(hit, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() {
-        let window = unsafeBitCast(rawWindow, to: AXUIElement.self)
-        guard elementRect(window) == frame || attribute(window, kAXSubroleAttribute) as? String != kAXStandardWindowSubrole else {
+        guard acceptsInput(unsafeBitCast(rawWindow, to: AXUIElement.self), observed: [frame]) else {
             throw ComputerError("window_occluded", "Another of this app's windows covers the target point; observe that window and target it instead.")
         }
+    } else if ![kAXMenuRole, kAXMenuItemRole, kAXMenuBarRole, kAXMenuBarItemRole].contains(attribute(hit, kAXRoleAttribute) as? String ?? "") {
+        throw ComputerError("window_occluded", "Cannot confirm which window receives this point; observe again before retrying.")
     }
+}
+/// Whether input aimed at an observed window may go to `window`: the observed window itself, or one of
+/// the app's dialogs or floating panels above it. Another document window, or one whose kind cannot be
+/// read, is refused.
+func acceptsInput(_ window: AXUIElement, observed: [CGRect]) -> Bool {
+    if let frame = elementRect(window), observed.contains(frame) { return true }
+    let auxiliary: Set<String> = [kAXDialogSubrole, kAXSystemDialogSubrole, kAXFloatingWindowSubrole, kAXSystemFloatingWindowSubrole]
+    return (attribute(window, kAXSubroleAttribute) as? String).map(auxiliary.contains) ?? false
 }
 /// The element that receives a click at a global point. Notification Center and the Dock keep
 /// full-screen click-through windows above every app, so the topmost window in the window list is not
@@ -702,9 +712,7 @@ final class Driver {
             // but never another document window the snapshot did not observe.
             guard let rawWindow = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { throw ComputerError("focus_failed", "The app has no focused window to receive keys; click a window or call activate_app, then observe again.") }
             let focusedWindow = unsafeBitCast(rawWindow, to: AXUIElement.self)
-            let focusedFrame = elementRect(focusedWindow)
-            let observed = frame.map { focusedFrame == $0 } ?? snapshot.windowFrames.values.contains { focusedFrame == $0 }
-            guard observed || attribute(focusedWindow, kAXSubroleAttribute) as? String != kAXStandardWindowSubrole else { throw ComputerError("focus_failed", "Another document window has keyboard focus; observe that window and target it instead.") }
+            guard acceptsInput(focusedWindow, observed: frame.map { [$0] } ?? Array(snapshot.windowFrames.values)) else { throw ComputerError("focus_failed", "Another document window has keyboard focus; observe that window and target it instead.") }
             if let focused = attribute(root, kAXFocusedUIElementAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { try requireNonSecure(unsafeBitCast(focused, to: AXUIElement.self)) }
             let (code, flags) = try parseKey(required(p.key, "key"))
             var selectedAll = false
