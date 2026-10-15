@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  fileSearchDispatchQueue,
   folder,
   idempotencyKey,
   member,
@@ -14,6 +15,7 @@ import {
   subscription,
   user,
   workspace,
+  workspaceFileSearchRevision,
   workspaceFiles,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
@@ -44,11 +46,13 @@ import {
 } from '@/lib/projects/files/application/previews'
 import { searchProjectFileContent } from '@/lib/projects/files/application/search'
 import { revertProjectFileVersion } from '@/lib/projects/files/application/versions'
+import { lockProjectShared } from '@/lib/projects/membership'
 import * as storageCleanup from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { compileFileDocument } from '@/lib/uploads/documents/compile'
 import * as heic from '@/lib/uploads/server/heic'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
+import { FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS } from '@/lib/workspace-files/search/constants'
 import * as searchDelivery from '@/lib/workspace-files/search/delivery'
 import * as searchRepository from '@/lib/workspace-files/search/repository'
 
@@ -306,6 +310,7 @@ describe('Project delivery admission', () => {
     }
     vi.spyOn(searchRepository, 'searchFileIndex').mockResolvedValue(prepared)
     vi.spyOn(searchDelivery, 'loadFileSearchDelivery').mockResolvedValue({
+      current: new Set(),
       provenance: new Map(),
       outOfScope: new Set(['moved']),
       inputs: [],
@@ -672,6 +677,130 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
   )
 
   check(
+    'a generated artifact read beside a concurrent Project reader completes and requeues search',
+    async () => {
+      const f = await fixture()
+      const source = await createProjectFile.execute({
+        principal: f.principal,
+        input: {
+          ...createInput(f.projectId, 'const title = "concurrent"'),
+          name: 'deck.pptx',
+          contentType: 'text/x-pptxgenjs',
+        },
+      })
+      const artifact = Buffer.from('PK\u0003\u0004document')
+      vi.spyOn(sandboxTask, 'runSandboxTask').mockResolvedValue(artifact)
+      let markHeld = () => {}
+      const held = new Promise<void>((resolve) => {
+        markHeld = resolve
+      })
+      let release = () => {}
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const concurrentReader = db.transaction(async (tx) => {
+        await lockProjectShared(tx, f.projectId)
+        markHeld()
+        await released
+      })
+      await held
+      try {
+        const rendered = await observeWorkspaceFileDelivery(
+          async () => release(),
+          () =>
+            readProjectFileArtifact.execute({
+              principal: f.principal,
+              input: { projectId: f.projectId, fileId: source.file.id, maxBytes: 1_000_000 },
+            })
+        )
+        expect(rendered.buffer).toEqual(artifact)
+      } finally {
+        release()
+        await concurrentReader
+      }
+      const [revision] = await db
+        .select()
+        .from(workspaceFileSearchRevision)
+        .where(eq(workspaceFileSearchRevision.fileId, source.file.id))
+      expect(revision?.status).toBe('pending')
+      expect(revision?.sourceContentUpdatedAt).toEqual(source.file.contentUpdatedAt)
+    }
+  )
+
+  check(
+    'a contended search requeue gives up within its short bound without failing the read',
+    async () => {
+      const f = await fixture()
+      const source = await createProjectFile.execute({
+        principal: f.principal,
+        input: {
+          ...createInput(f.projectId, 'const title = "contended"'),
+          name: 'deck.pptx',
+          contentType: 'text/x-pptxgenjs',
+        },
+      })
+      const artifact = Buffer.from('PK\u0003\u0004document')
+      vi.spyOn(sandboxTask, 'runSandboxTask').mockResolvedValue(artifact)
+      let markHeld = () => {}
+      const held = new Promise<void>((resolve) => {
+        markHeld = resolve
+      })
+      let release = () => {}
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const concurrentReader = db.transaction(async (tx) => {
+        await lockProjectShared(tx, f.projectId)
+        markHeld()
+        await released
+      })
+      await held
+      try {
+        const started = performance.now()
+        const rendered = await readProjectFileArtifact.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: source.file.id, maxBytes: 1_000_000 },
+        })
+        expect(rendered.buffer).toEqual(artifact)
+        expect(performance.now() - started).toBeLessThan(
+          FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS + 2_000
+        )
+      } finally {
+        release()
+        await concurrentReader
+      }
+      const revisions = await db
+        .select()
+        .from(workspaceFileSearchRevision)
+        .where(eq(workspaceFileSearchRevision.fileId, source.file.id))
+      expect(revisions).toEqual([])
+    }
+  )
+
+  check("a Project page embedding another owner's image is a missing input", async () => {
+    const f = await fixture()
+    for (const owner of [`workspace=${f.workspaceId}`, `project=${generateId()}`]) {
+      const page = await createProjectFile.execute({
+        principal: f.principal,
+        input: {
+          ...createInput(
+            f.projectId,
+            `---\ntitle: Design\n---\n\n![Diagram](sim:file/${generateId()}?${owner})`
+          ),
+          name: `${generateId()}.html`,
+          contentType: 'text/x-sim-page',
+        },
+      })
+      await expect(
+        readProjectFileArtifact.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: page.file.id, maxBytes: 1_000_000 },
+        })
+      ).rejects.toMatchObject({ code: 'not_found' })
+    }
+  })
+
+  check(
     'artifact source cannot import a foreign Project asset through a valid source-file capability',
     async () => {
       const { readProjectFileArtifact } = await import('@/lib/projects/files/application/artifacts')
@@ -846,6 +975,9 @@ afterAll(async () => {
       .where(
         sql`${outboxEvent.payload}::jsonb ->> 'key' LIKE ${`project/${f.projectId}/%`} OR ${outboxEvent.payload}::jsonb -> 'owner' ->> 'entityId' = ${f.projectId}`
       )
+    await db
+      .delete(fileSearchDispatchQueue)
+      .where(eq(fileSearchDispatchQueue.entityId, f.projectId))
     await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
     await db.delete(folder).where(eq(folder.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))
