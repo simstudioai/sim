@@ -11,7 +11,8 @@ const API_CATALOG_CONTENT_TYPE =
  * RFC 9727 API catalog: one machine-readable entry point to the v2 REST API, linking its OpenAPI
  * document (`service-desc`), reference docs (`service-doc`), and health endpoint (`status`) with
  * the RFC 8631 relations. The anchor is this deployment's own origin, so a self-hosted instance
- * describes itself; the OpenAPI document is the published contract every deployment serves.
+ * describes itself. The OpenAPI document is the one published contract; its `servers` names Sim
+ * Cloud, so a client of another deployment uses the anchor as its base URL, as the API docs say.
  * `Link: rel="api-catalog"` makes a HEAD request discoverable too (RFC 9727 §2).
  */
 export const GET = withRouteHandler(() => {

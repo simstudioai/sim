@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SIM_DOCS_URL } from '@sim/utils/site'
 
 /**
  * Exercises the public ownership challenge, host isolation, the RFC 9727 API catalog, and the
@@ -117,15 +118,15 @@ try {
       const { response, body } = await request(API_CATALOG_PATH, userAgent, baseUrl.host)
       assert.equal(response.status, 200)
       assert.equal(response.headers.get('content-type'), API_CATALOG_CONTENT_TYPE)
-      assert.match(
-        response.headers.get('link') ?? '',
-        /\/\.well-known\/api-catalog>; rel="api-catalog"$/
+      assert.equal(
+        response.headers.get('link'),
+        `<${baseUrl.origin}${API_CATALOG_PATH}>; rel="api-catalog"`
       )
       const [api] = JSON.parse(body).linkset
-      assert.equal(new URL(api.anchor).pathname, '/api/v2')
-      assert.equal(new URL(api['service-desc'][0].href).pathname, '/openapi.json')
-      const status = new URL(api.status[0].href)
-      const health = await request(status.pathname, 'Mozilla/5.0', baseUrl.host)
+      assert.equal(api.anchor, `${baseUrl.origin}/api/v2`)
+      assert.equal(api['service-desc'][0].href, `${SIM_DOCS_URL}/openapi.json`)
+      assert.equal(api.status[0].href, `${baseUrl.origin}/api/health`)
+      const health = await request(new URL(api.status[0].href).pathname, userAgent, baseUrl.host)
       assert.equal(health.response.status, 200, 'The catalog status link must resolve')
     })
   }
