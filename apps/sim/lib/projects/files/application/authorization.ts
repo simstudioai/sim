@@ -48,6 +48,8 @@ export interface ProjectFileAuthorizationContext {
   owner: { entityType: 'project'; entityId: string }
   canWrite: boolean
   visibleWorkspaceIds: readonly string[]
+  /** Set when authorization holds the Project exclusively, which storage accounting requires. */
+  projectLock?: 'exclusive'
   file?: WorkspaceFileRow
 }
 
@@ -257,11 +259,12 @@ export async function createProjectFileAuthorizer(
 
   return async (tx) => {
     requirePrincipal(principal, operation, input)
+    const exclusive = 'chargesStorage' in operation
     const access = await loadProjectAccess(
       tx,
       userId,
       { projectId: input.projectId },
-      'chargesStorage' in operation ? 'exclusive' : 'shared'
+      exclusive ? 'exclusive' : 'shared'
     )
     const context = await requireProjectFileOwnerRole(tx, principal, access, operation.access)
     let file: WorkspaceFileRow | undefined
@@ -293,6 +296,7 @@ export async function createProjectFileAuthorizer(
     await requireProjectFileOwnerCapabilities(tx, principal, access, operation.capability)
     return {
       ...context,
+      ...(exclusive ? { projectLock: 'exclusive' as const } : {}),
       ...(file ? { file } : {}),
     }
   }

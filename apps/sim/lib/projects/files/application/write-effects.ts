@@ -60,5 +60,7 @@ export async function prepareProjectFileAccounting(
   tx: DbTransaction,
   context: ProjectFileAuthorizationContext
 ) {
+  if (context.projectLock !== 'exclusive')
+    throw new Error('Project storage accounting needs a `chargesStorage` operation')
   return prepareFileAccountingInTx(tx, { entityType: 'project', entityId: context.projectId })
 }
