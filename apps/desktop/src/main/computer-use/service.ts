@@ -1,7 +1,8 @@
-import type {
-  ComputerUseActivity,
-  ComputerUseAppPermission,
-  ComputerUseStatus,
+import {
+  type ComputerUseActivity,
+  type ComputerUseAppPermission,
+  ComputerUseError,
+  type ComputerUseStatus,
 } from '@sim/desktop-bridge'
 import {
   type ComputerUseInput,
@@ -236,7 +237,20 @@ export class ComputerUseService {
       if ('snapshotId' in input) this.snapshots.delete(input.snapshotId)
       const params =
         'observeAfter' in input ? omit(input, ['action', 'observeAfter']) : omit(input, ['action'])
-      const result = await this.deps.native.request(input.action, params)
+      let result: ComputerUseResult
+      try {
+        result = await this.deps.native.request(input.action, params)
+      } catch (error) {
+        /** The helper keeps a snapshot nothing was sent through, so its ownership stays too. */
+        if (
+          owner &&
+          'snapshotId' in input &&
+          error instanceof ComputerUseError &&
+          error.details.dispatchState === 'not_started'
+        )
+          this.snapshots.set(input.snapshotId, owner)
+        throw error
+      }
       this.check(work)
       if (result.kind === 'state') this.rememberSnapshot(work, result, windowId)
       if (result.kind === 'action') {
