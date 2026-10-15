@@ -24,7 +24,7 @@ export async function updateOrganizationMemberRecord(input: {
   role: 'member' | 'admin' | 'owner'
   actorUserId: string
 }) {
-  return db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
     await acquireOrganizationUserMutationLocks(tx, {
       userId: input.userId,
       organizationIds: [input.organizationId],
@@ -49,8 +49,12 @@ export async function updateOrganizationMemberRecord(input: {
       member: { ...target, role: input.role },
       previousRole: target.role,
       changed: change.changed,
+      stoppedRuns: change.changed ? change.stoppedRuns : [],
     }
   })
+  const { stoppedRuns, ...result } = updated
+  deliverRunStops(stoppedRuns)
+  return result
 }
 
 export async function removeOrganizationMemberRecord(input: {

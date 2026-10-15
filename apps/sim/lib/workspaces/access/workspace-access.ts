@@ -4,7 +4,7 @@ import {
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
@@ -120,7 +120,8 @@ export type RevokeWorkspaceAccessResult =
   /**
    * `ownershipTransferred` is true when the departing user owned the workspace and it moved to
    * the billed account. `stoppedRuns` are the user's Chat runs there, stopped in this
-   * transaction when no access remains; deliver them with `deliverRunStops` after commit.
+   * transaction when no access remains (see {@link stopRunsWithoutWorkspaceAccessTx}); deliver
+   * them with `deliverRunStops` after commit.
    */
   | { revoked: true; ownershipTransferred: boolean; stoppedRuns: StoppedRun[] }
   /** Workspace IDs whose shared resources or ownership lack a successor; access remains unchanged. */
@@ -191,22 +192,33 @@ export async function revokeWorkspaceAccessTx(
 
   await revokeWorkspaceCredentialMembershipsTx(tx, params.workspaceId, params.userId)
   await removeWorkspaceSkillMembershipsTx(tx, params.workspaceId, params.userId)
-  /** An organization admin keeps derived access without the grant; only lost access ends runs. */
-  const [owner] = await tx
-    .select({ organizationId: workspace.organizationId })
-    .from(workspace)
-    .where(eq(workspace.id, params.workspaceId))
-  const stillHasAccess = await resolveEffectiveWorkspacePermission(
-    params.userId,
+  const stoppedRuns = await stopRunsWithoutWorkspaceAccessTx(tx, params.userId, [
     params.workspaceId,
-    owner?.organizationId ?? null,
-    tx
-  )
-  const stoppedRuns = stillHasAccess
-    ? []
-    : await stopLiveRunsTx(tx, { userId: params.userId, workspaceIds: [params.workspaceId] })
+  ])
 
   return { revoked: true, ownershipTransferred, stoppedRuns }
+}
+
+/**
+ * Stops the user's live Chat runs in each of these workspaces where they hold no effective
+ * access any more. An organization admin keeps derived access without an explicit grant, so
+ * withdrawing a grant or a role ends runs only where access actually ended.
+ */
+export async function stopRunsWithoutWorkspaceAccessTx(
+  tx: DbTransaction,
+  userId: string,
+  workspaceIds: string[]
+): Promise<StoppedRun[]> {
+  if (workspaceIds.length === 0) return []
+  const owners = await tx
+    .select({ id: workspace.id, organizationId: workspace.organizationId })
+    .from(workspace)
+    .where(inArray(workspace.id, workspaceIds))
+  const lost: string[] = []
+  for (const { id, organizationId } of owners) {
+    if (!(await resolveEffectiveWorkspacePermission(userId, id, organizationId, tx))) lost.push(id)
+  }
+  return stopLiveRunsTx(tx, { userId, workspaceIds: lost })
 }
 
 /** The permission a user currently holds on a workspace, if any. */

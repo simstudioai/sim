@@ -124,7 +124,12 @@ describe('reconcileUserProjection', () => {
     })
     mocks.addMember.mockResolvedValue('added')
     mocks.removeMember.mockResolvedValue('removed')
-    mocks.changeMemberRole.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
+    mocks.changeMemberRole.mockResolvedValue({
+      changed: true,
+      from: 'member',
+      to: 'admin',
+      stoppedRuns: [],
+    })
   })
 
   it('takes the organization and user locks before reading any grant', async () => {

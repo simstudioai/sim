@@ -77,7 +77,11 @@ import {
 } from '@/lib/mothership/request/session/abort'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { executeSimControl } from '@/lib/mothership/transport/control'
-import { removeOrganizationMemberRecord } from '@/lib/organizations/member-manager'
+import {
+  removeOrganizationMemberRecord,
+  updateOrganizationMemberRecord,
+} from '@/lib/organizations/member-manager'
+import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import { AccountDeletionBlockedError, deleteUserAccount } from '@/lib/users/account-deletion'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
@@ -524,6 +528,48 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     expect(revocation).toMatchObject({ revoked: true, stoppedRuns: [] })
     expect(await hasStop(run)).toBe(false)
     expect(await runControl(run)).toEqual(LIVE)
+  })
+
+  it('stops an organization admin’s runs once a demotion ends their derived access', async () => {
+    const ownerId = await seedUser()
+    const adminId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    await db
+      .insert(member)
+      .values({ id: generateId(), organizationId, userId: adminId, role: 'admin' })
+    const derived = await seedRun({ userId: adminId, workspaceId })
+    const granted = await seedRun({ userId: adminId, workspaceId: await seedWorkspace(ownerId) })
+    await grantWrite(adminId, granted.workspaceId ?? '')
+
+    await updateOrganizationMemberRecord({
+      organizationId,
+      userId: adminId,
+      role: 'member',
+      actorUserId: ownerId,
+    })
+
+    await expect.poll(pushedStops).toEqual([derived.streamId])
+    expect(await runControl(derived)).toEqual(STOPPED)
+    expect(await runControl(granted)).toEqual(LIVE)
+  })
+
+  it('records Stop when a directory withdraws an admin’s grant and then their admin role', async () => {
+    const ownerId = await seedUser()
+    const adminId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    await db
+      .insert(member)
+      .values({ id: generateId(), organizationId, userId: adminId, role: 'admin' })
+    await grantWrite(adminId, workspaceId)
+    const run = await seedRun({ userId: adminId, workspaceId })
+
+    await db.transaction(async (tx) => {
+      await revokeWorkspaceAccessTx(tx, { workspaceId, userId: adminId })
+      await changeMemberRoleTx(tx, { organizationId, userId: adminId, role: 'member' })
+    })
+
+    expect(await hasStop(run)).toBe(true)
+    expect(await runControl(run)).toEqual(STOPPED)
   })
 
   it('stops a removed organization member’s Assistant runs', async () => {
