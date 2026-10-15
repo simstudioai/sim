@@ -38,7 +38,7 @@ export function ChangelogLink({ href, children, className, ...props }: Changelog
   const content = (
     <>
       {icon ? (
-        <span aria-hidden='true' className='mr-1 inline-flex align-[-0.15em]'>
+        <span aria-hidden='true' className='flex size-4 shrink-0 items-center justify-center'>
           {integration ? (
             <IntegrationIcon
               as='span'
@@ -54,13 +54,14 @@ export function ChangelogLink({ href, children, className, ...props }: Changelog
           ) : null}
         </span>
       ) : null}
-      {children}
+      {icon ? <span className='min-w-0'>{children}</span> : children}
     </>
   )
   const linkClassName = cn(
-    isHeadingAnchor
-      ? 'text-inherit no-underline'
-      : 'text-[var(--text-primary)] underline decoration-[var(--border)] underline-offset-4 transition-colors hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-4',
+    'text-inherit no-underline',
+    icon && 'inline-flex max-w-full items-center gap-1 align-baseline',
+    !isHeadingAnchor && !icon && 'font-medium',
+    !isHeadingAnchor && 'focus-visible:outline-2 focus-visible:outline-offset-4',
     className
   )
 
