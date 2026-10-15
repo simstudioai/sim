@@ -1,7 +1,11 @@
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { mustClassifyContent } from '@/lib/core/application'
-import { type FileReadReceipt, recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
+import {
+  assertFileReadReceiptCurrent,
+  type FileReadReceipt,
+  recheckFileReadReceipt,
+} from '@/lib/workspace-files/read-receipt'
 
 /**
  * Recheck current application authority and byte identities before publishing; dispose rejected
@@ -14,11 +18,15 @@ export async function finishFileDelivery(input: {
   receipt: FileReadReceipt
   stream?: ReadableStream<Uint8Array>
 }) {
-  const readProvenance = mustClassifyContent(input.principal)
   try {
+    const classified = mustClassifyContent(input.principal)
     await input.authorize()
     return await db.transaction(
-      (tx) => recheckFileReadReceipt(tx, input.receipt, { readProvenance }),
+      async (tx) => {
+        if (classified) return recheckFileReadReceipt(tx, input.receipt)
+        await assertFileReadReceiptCurrent(tx, input.receipt)
+        return undefined
+      },
       { isolationLevel: 'repeatable read', accessMode: 'read only' }
     )
   } catch (error) {

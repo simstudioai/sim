@@ -23,7 +23,10 @@ import {
   observeContentDelivery,
 } from '@/lib/core/application'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
-import { recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
+import {
+  assertFileReadReceiptCurrent,
+  recheckFileReadReceipt,
+} from '@/lib/workspace-files/read-receipt'
 
 class FakeDocNotReadyError extends Error {}
 
@@ -214,7 +217,7 @@ describe('workspace file downloads', () => {
     ).rejects.toBeInstanceOf(ContentRefusedError)
   })
 
-  it('rechecks a session download whose rendered bytes embed other files', async () => {
+  it('rejects a session download whose files changed after authorization', async () => {
     mocks.getFile.mockResolvedValue(generatedDoc)
     mocks.fetchServable.mockResolvedValue({
       buffer: Buffer.from('%PDF-compiled'),
@@ -227,7 +230,7 @@ describe('workspace file downloads', () => {
         ],
       },
     })
-    vi.mocked(recheckFileReadReceipt).mockRejectedValueOnce(new Error('A file changed'))
+    vi.mocked(assertFileReadReceiptCurrent).mockRejectedValueOnce(new Error('A file changed'))
 
     await expect(downloadStream(generatedDoc.id)).rejects.toThrow('A file changed')
   })

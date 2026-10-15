@@ -33,16 +33,9 @@ export function createFileReadReceipt(
   })
 }
 
-/**
- * The application already holds current owner authority; reject stale bytes and read current
- * labels, unless the caller's admission never reads them.
- */
-export async function recheckFileReadReceipt(
-  tx: DbTransaction,
-  receipt: FileReadReceipt,
-  { readProvenance = true }: { readProvenance?: boolean } = {}
-) {
-  if (receipt.files.length === 0) return mergeWorkspaceFileSecretProvenance()
+/** Rejects stale bytes: every file the receipt names must still exist at the key and revision read. */
+export async function assertFileReadReceiptCurrent(tx: DbTransaction, receipt: FileReadReceipt) {
+  if (receipt.files.length === 0) return []
   const rows = await tx
     .select()
     .from(workspaceFiles)
@@ -67,7 +60,13 @@ export async function recheckFileReadReceipt(
     )
       throw new OrchestrationError('conflict', 'A file changed while preparing the download')
   }
-  if (!readProvenance) return undefined
+  return rows
+}
+
+/** The application already holds current owner authority; reject stale bytes and read current labels. */
+export async function recheckFileReadReceipt(tx: DbTransaction, receipt: FileReadReceipt) {
+  if (receipt.files.length === 0) return mergeWorkspaceFileSecretProvenance()
+  const rows = await assertFileReadReceiptCurrent(tx, receipt)
   const provenance = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, rows)
   return mergeWorkspaceFileSecretProvenance(...provenance.values())
 }
