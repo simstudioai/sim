@@ -143,7 +143,9 @@ export const POST = withRouteHandler(
         })
       }
       if (error instanceof ResumeWorkflowExecutionError) {
-        return NextResponse.json({ error: error.message }, { status: error.statusCode })
+        // Keep the status so a retryable 503 stays retryable; only the message is withheld.
+        const message = error.safeForPublicApi ? error.message : 'Internal server error'
+        return NextResponse.json({ error: message }, { status: error.statusCode })
       }
       throw error
     }

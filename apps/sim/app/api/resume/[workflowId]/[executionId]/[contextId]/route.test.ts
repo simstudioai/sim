@@ -513,12 +513,17 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
   })
 
   it.each([
-    { statusCode: 402, message: 'Member usage limit reached', retryable: false },
-    { statusCode: 429, message: 'Target concurrency full', retryable: true },
-    { statusCode: 503, message: 'Usage admission unavailable', retryable: true },
+    { statusCode: 402, message: 'Member usage limit reached', retryable: false, body: undefined },
+    { statusCode: 429, message: 'Target concurrency full', retryable: true, body: undefined },
+    {
+      statusCode: 503,
+      message: 'Usage admission unavailable',
+      retryable: true,
+      body: 'Internal server error',
+    },
   ])(
     'leaves the pause and queued input untouched when readmission returns $statusCode',
-    async ({ statusCode, message, retryable }) => {
+    async ({ statusCode, message, retryable, body }) => {
       mockPreprocessExecution.mockResolvedValueOnce({
         success: false,
         error: { statusCode, message, retryable },
@@ -528,7 +533,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       const response = await POST(request, context)
 
       expect(response.status).toBe(statusCode)
-      expect(await response.json()).toEqual({ error: message })
+      expect(await response.json()).toEqual({ error: body ?? message })
       expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
     }
   )
@@ -543,7 +548,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({
-      error: 'Paused execution billing attribution is missing or invalid',
+      error: 'Internal server error',
     })
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
@@ -576,7 +581,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({
-      error: 'Paused execution billing attribution does not match its workspace or actor',
+      error: 'Internal server error',
     })
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
@@ -593,7 +598,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({
-      error: 'Paused execution snapshot does not match the requested workflow or execution',
+      error: 'Internal server error',
     })
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
