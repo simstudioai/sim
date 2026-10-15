@@ -33,7 +33,11 @@ import { buildWorkspaceInventory } from '@/lib/mothership/chat/workspace-invento
 import { computeEntitlements } from '@/lib/mothership/entitlements'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import type { ChatRequest, ModelSelection } from '@/lib/mothership/generated/protocol'
+import {
+  type ChatRequest,
+  type ModelSelection,
+  TOOL_DEADLINE_CAPABILITY,
+} from '@/lib/mothership/generated/protocol'
 import type { VfsSnapshotV1 } from '@/lib/mothership/generated/vfs-snapshot-v1'
 import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
@@ -497,8 +501,12 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
         }
       : {}),
     // The mounted chat view executes client-routed workflow tools (run panel UX), so the
-    // UI declares that capability explicitly; headless callers omit or send [] and the
-    // server runs those tools immediately instead of waiting out the pickup grace.
-    clientCapabilities: isAssistant ? [] : ['workflow-tool-pickup'],
+    // UI declares that capability explicitly; headless callers omit it and the server runs
+    // those tools immediately. The deadline token is this server's own: it bounds every
+    // handed call by the deadline its frame names.
+    clientCapabilities: [
+      ...(isAssistant ? [] : ['workflow-tool-pickup']),
+      TOOL_DEADLINE_CAPABILITY,
+    ],
   }
 }

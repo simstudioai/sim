@@ -274,6 +274,27 @@ export interface StreamToolReplay {
   workspaceId?: string | undefined;
 }
 
+/**
+ * How long the worker waits for one handed tool call's result, measured from the hand-off.
+ * Sim converts it to an absolute deadline on receipt, persists it with the call (a takeover
+ * re-run inherits what remains) and settles the call, cancellation included, by
+ * `deadlineMs - TOOL_DEADLINE_SETTLE_MARGIN_MS`: approval wait, pickup, execution and lease
+ * extensions all fit inside it. Sim policy may only end a call sooner. Absent = the
+ * receiver's own bounds.
+ */
+export interface StreamToolDeadline {
+  deadlineMs?: number | undefined;
+}
+
+/**
+ * Room between Sim settling a call and the worker's own bound for it: Sim's resume-gate
+ * grace plus the time its result takes to reach the worker.
+ */
+export const TOOL_DEADLINE_SETTLE_MARGIN_MS = 90_000;
+
+/** The `clientCapabilities` token a Sim sends when it honors `StreamToolDeadline`. */
+export const TOOL_DEADLINE_CAPABILITY = "tool-deadline";
+
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
   desktop?: DesktopContext | undefined;
@@ -315,7 +336,8 @@ export interface ChatRequest extends StreamResponseReceipt {
    * empty array means "I pick up nothing", so sim-side dispatch must skip client-pickup
    * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
-   * this field still gets waited on). Known capability: "workflow-tool-pickup".
+   * this field still gets waited on). Known capability: "workflow-tool-pickup". Sim also
+   * declares its own {@link TOOL_DEADLINE_CAPABILITY} here.
    */
   clientCapabilities?: string[] | undefined;
   /**

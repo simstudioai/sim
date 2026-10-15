@@ -100,6 +100,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
+  DEADLINE_SIM_TOOL_MESSAGE,
   EXHAUSTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_MAX_ATTEMPTS,
 } from '@/lib/mothership/async-runs/execution-lease'
@@ -162,7 +163,14 @@ function frameFor(streamId: string, chatId: string) {
  * chat, and the tool's execution lease lapsed with no result recorded.
  */
 async function runAbandonedMidTool(
-  options: { attempts?: number; leaseLive?: boolean; toolName?: string; runId?: string } = {}
+  options: {
+    attempts?: number
+    leaseLive?: boolean
+    toolName?: string
+    runId?: string
+    /** Seconds left of the deadline the worker named when it first handed the call. */
+    deadlineInSeconds?: number
+  } = {}
 ) {
   const chatId = generateId()
   chatIds.push(chatId)
@@ -214,6 +222,11 @@ async function runAbandonedMidTool(
     .update(copilotAsyncToolCalls)
     .set({
       executionAttempts: options.attempts ?? 1,
+      ...(options.deadlineInSeconds === undefined
+        ? {}
+        : {
+            executionDeadlineAt: sql`clock_timestamp() + ${options.deadlineInSeconds} * interval '1 second'`,
+          }),
       ...(options.leaseLive
         ? {}
         : { executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` }),
@@ -238,6 +251,7 @@ async function runAbandonedMidTool(
         executor: 'sim',
         mode: 'async',
         arguments: TOOL_ARGS,
+        ...(options.deadlineInSeconds === undefined ? {} : { deadlineMs: 900_000 }),
       }),
       frame(4, 'run', {
         kind: 'checkpoint_pause',
@@ -274,6 +288,7 @@ async function storedTool(toolCallId: string) {
       attempts: copilotAsyncToolCalls.executionAttempts,
       ownerToken: copilotAsyncToolCalls.executionOwnerToken,
       error: copilotAsyncToolCalls.error,
+      deadlineAt: copilotAsyncToolCalls.executionDeadlineAt,
     })
     .from(copilotAsyncToolCalls)
     .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
@@ -491,6 +506,29 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     const tool = await storedTool(toolCallId)
     expect(tool.status).toBe('failed')
     expect(tool.attempts).toBe(SIM_TOOL_EXECUTION_MAX_ATTEMPTS)
+  })
+
+  it('fails an interrupted tool whose deadline leaves too little time to run it again', async () => {
+    const { streamId, runId, toolCallId } = await runAbandonedMidTool({ deadlineInSeconds: 30 })
+
+    await takeOverAbandonedRuns()
+
+    expect(await waitForTerminal(runId)).toBe('complete')
+    const result = resumedResult(streamId)
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result)).toContain(DEADLINE_SIM_TOOL_MESSAGE)
+    expect(await storedTool(toolCallId)).toMatchObject({ status: 'failed', attempts: 1 })
+  })
+
+  it('runs an interrupted tool again within what remains of its first deadline', async () => {
+    const { streamId, runId, toolCallId } = await runAbandonedMidTool({ deadlineInSeconds: 600 })
+    const recorded = (await storedTool(toolCallId)).deadlineAt
+
+    await takeOverAbandonedRuns()
+
+    expect(await waitForTerminal(runId)).toBe('complete')
+    expectResumedSuccess(streamId)
+    expect(await storedTool(toolCallId)).toMatchObject({ attempts: 2, deadlineAt: recorded })
   })
 
   /**

@@ -4957,6 +4957,12 @@ export const copilotAsyncToolCalls = pgTable(
     executionRevokedAt: timestamp('execution_revoked_at', { withTimezone: true }),
     /** Sim executions started for this call, counting each re-run after its owner died. */
     executionAttempts: integer('execution_attempts').notNull().default(0),
+    /**
+     * When Sim must have settled this call: the worker's wait from the frame, less the settle
+     * margin, fixed at first receipt. Every wait, execution and re-run of the call ends by it.
+     * Null when the frame named no deadline.
+     */
+    executionDeadlineAt: timestamp('execution_deadline_at', { withTimezone: true }),
     /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
     clientWorkflowExecutionId: text('client_workflow_execution_id'),
     sandboxProcesses: jsonb('sandbox_processes')

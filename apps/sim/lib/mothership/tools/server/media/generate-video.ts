@@ -107,6 +107,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         negativePrompt: params.negativePrompt,
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
+        signal: context.abortSignal,
       })
 
       await recordServiceCost('falai_video', result.cost.costDollars)
