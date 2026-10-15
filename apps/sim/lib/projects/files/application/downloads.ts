@@ -67,7 +67,7 @@ import {
 
 const logger = createLogger('ProjectFileDownloads')
 
-export interface DownloadProjectFileItemsInput extends ProjectFileTarget {
+interface DownloadProjectFileItemsInput extends ProjectFileTarget {
   fileIds: string[]
   folderIds: string[]
 }
