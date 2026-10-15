@@ -88,7 +88,8 @@ export function ProjectResourceBrowser({
   const [, setParams] = useQueryStates(projectPaneParsers, projectPaneOptions)
   const { addResource, selectResource } = useMothershipResources()
   const [query, setQuery] = useState('')
-  const [highlight, setHighlight] = useState(0)
+  /** -1 until an arrow key or the pointer picks a row, so nothing is highlighted at rest. */
+  const [highlight, setHighlight] = useState(-1)
   const [listElement, setListElement] = useState<HTMLDivElement | null>(null)
   const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
   const project = projects.find((candidate) => candidate.id === workspaceId)
@@ -98,7 +99,7 @@ export function ProjectResourceBrowser({
   })
   const needle = query.trim().toLowerCase()
   const browse = (workspace = '', type = '') => {
-    setHighlight(0)
+    setHighlight(-1)
     void setParams(
       (current) => ({
         tabs: current.tabs.map((entry) =>
@@ -207,7 +208,7 @@ export function ProjectResourceBrowser({
           }))
   const secondary = kind ? [] : mentioned.map((resource) => resourceEntry(resource))
   const entries = [...primary, ...secondary]
-  const active = Math.min(highlight, entries.length - 1)
+  const active = highlight < entries.length ? highlight : -1
   const moveHighlight = (next: number) => {
     setHighlight(next)
     listElement
@@ -221,7 +222,7 @@ export function ProjectResourceBrowser({
       moveHighlight((active + 1) % entries.length)
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
-      moveHighlight((active - 1 + entries.length) % entries.length)
+      moveHighlight(active <= 0 ? entries.length - 1 : active - 1)
     } else if (event.key === 'Enter') {
       event.preventDefault()
       entries[active]?.onSelect()
@@ -275,7 +276,7 @@ export function ProjectResourceBrowser({
             value={query}
             onChange={(event) => {
               setQuery(event.target.value)
-              setHighlight(0)
+              setHighlight(-1)
             }}
             onKeyDown={onSearchKeyDown}
             autoFocus
