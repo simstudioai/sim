@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { chromium } from '@playwright/test'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toArray, toRecord } from '@sim/utils/object'
+import JSZip from 'jszip'
 
 const required = (value: unknown): string => {
   assert.ok(typeof value === 'string' && value.length > 0, 'Missing delivery fixture setting')
@@ -115,6 +116,12 @@ await check(
         assert.match(response.headers.get('content-disposition') ?? '', /^attachment;/)
       if (!name.endsWith('.svg'))
         assert.match(response.headers.get('content-security-policy') ?? '', /default-src/)
+      const download = await request(`${prefix}/download?fileIds=${required(file.id)}`)
+      assert.equal(download.status, 200)
+      assert.match(download.headers.get('content-disposition') ?? '', /^attachment;/)
+      assert.match(download.headers.get('content-security-policy') ?? '', /default-src/)
+      const archive = await JSZip.loadAsync(await download.arrayBuffer())
+      assert.equal(await archive.file(required(file.name))?.async('string'), content)
       const head = await request(path, { method: 'HEAD' })
       assert.equal(head.status, 200)
       assert.equal(await head.text(), '')
@@ -186,7 +193,10 @@ await check(
       'text/x-pdflibjs',
       'throw new Error("HEAD must not compile")'
     )
-    for (const path of [`/api/v2/projects/${projectId}/files/${required(generated.id)}/content`]) {
+    for (const path of [
+      `/api/v2/projects/${projectId}/files/${required(generated.id)}/content`,
+      `/api/v2/projects/${projectId}/files/bulk-download?fileIds=${required(generated.id)}`,
+    ]) {
       const head = await request(path, { method: 'HEAD', headers }, true)
       assert.equal(head.status, 200)
       assert.equal(await head.text(), '')

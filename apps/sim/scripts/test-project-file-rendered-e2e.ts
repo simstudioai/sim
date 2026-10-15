@@ -150,6 +150,10 @@ function artifactPath(file: CreatedFile) {
   return `/api/projects/${file.projectId}/files/${file.id}/artifact`
 }
 
+function archivePath(file: CreatedFile) {
+  return `/api/v2/projects/${file.projectId}/files/bulk-download?fileIds=${encodeURIComponent(file.id)}`
+}
+
 async function create(
   ownerId: string,
   name: string,
@@ -308,6 +312,18 @@ try {
         }
       )
     }
+    await check('Personal-key bulk download returns the same compiled Office bytes', async () => {
+      const file = documents.get('docx')
+      const previous = rendered.get('docx')
+      assert.ok(file && previous, 'A successful initial render is required')
+      const response = await request('GET', archivePath(file))
+      assert.equal(response.status, 200)
+      assert.equal(response.headers.get('content-type')?.split(';')[0], 'application/zip')
+      const archive = await JSZip.loadAsync(response.buffer)
+      const entry = archive.file(file.name)
+      assert.ok(entry)
+      assert.deepEqual(await entry.async('nodebuffer'), previous)
+    })
     await check(
       'Same-ID asset content revision invalidates the compiled document cache',
       async () => {
@@ -345,6 +361,7 @@ try {
         sourceMimeTypes.docx
       )
       assert.equal((await request('GET', artifactPath(file), 'session')).status, 404)
+      assert.equal((await request('GET', archivePath(file))).status, 404)
     })
     await check(
       'Cached private document bytes still reject anonymous and workspace-key callers',
@@ -354,6 +371,8 @@ try {
         await readArtifact(file, 'docx')
         assert.equal((await request('GET', artifactPath(file), 'none')).status, 401)
         assert.equal((await request('GET', artifactPath(file), 'workspace')).status, 401)
+        assert.equal((await request('GET', archivePath(file), 'none')).status, 401)
+        assert.equal((await request('GET', archivePath(file), 'workspace')).status, 403)
       }
     )
     await check(
@@ -370,6 +389,7 @@ try {
         )
         archived.add(asset.id)
         assert.equal((await request('GET', artifactPath(file), 'session')).status, 404)
+        assert.equal((await request('GET', archivePath(file))).status, 404)
       }
     )
     await check(

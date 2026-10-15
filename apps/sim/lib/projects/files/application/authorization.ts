@@ -94,7 +94,7 @@ function requirePrincipal(
 }
 
 /** Rechecks canonical conversation ownership and authoring capability while authorization locks are held. */
-async function requireCurrentCopilotProjectInvocation(
+export async function requireCurrentCopilotProjectInvocation(
   tx: DbTransaction,
   principal: Extract<ProjectFilePrincipal, { kind: 'resource_delegated'; serviceId: 'copilot' }>,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
@@ -185,7 +185,7 @@ async function requireCurrentCopilotProjectInvocation(
 }
 
 /** Shared owner policy keeps compound copies subject to the same live Project edit rule. */
-async function requireProjectFileOwnerRole(
+export async function requireProjectFileOwnerRole(
   tx: DbTransaction,
   principal: ProjectFilePrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
@@ -215,7 +215,7 @@ async function requireProjectFileOwnerRole(
 }
 
 /** Credential and Files capability checks apply to every currently visible environment. */
-async function requireProjectFileOwnerCapabilities(
+export async function requireProjectFileOwnerCapabilities(
   tx: DbTransaction,
   principal: ProjectFilePrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,

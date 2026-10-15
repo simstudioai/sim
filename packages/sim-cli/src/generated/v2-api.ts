@@ -1820,6 +1820,67 @@ export type CompleteTableImportResponse = {
   data: CompleteTableImportResponseRef4
 }
 
+/** `POST /api/v2/files/copy` */
+export type CopyFileItemsQuery = Record<string, unknown>
+
+export type CopyFileItemsBody = {
+  source: {
+    owner: {
+      entityType: 'workspace' | 'project'
+      entityId: string
+    }
+    fileIds?: Array<string>
+    folderIds?: Array<string>
+  }
+  destination: {
+    owner: {
+      entityType: 'workspace' | 'project'
+      entityId: string
+    }
+    folderId?: string | null
+  }
+}
+
+export type CopyFileItemsResponse = {
+  data: {
+    files: Array<{
+      id: string
+      name: string
+      size: number
+      type: string
+      width?: number | null
+      height?: number | null
+      uploadedBy: string
+      folderId: string | null
+      folderPath?: string | null
+      deletedAt: string | null
+      uploadedAt: string
+      updatedAt: string
+      contentUpdatedAt: string | null
+      revision: string
+      owner: {
+        entityType: 'workspace' | 'project'
+        entityId: string
+      }
+    }>
+    folders: Array<{
+      id: string
+      userId: string
+      name: string
+      parentId: string | null
+      path: string
+      sortOrder: number
+      deletedAt: string | null
+      createdAt: string
+      updatedAt: string
+      owner: {
+        entityType: 'workspace' | 'project'
+        entityId: string
+      }
+    }>
+  }
+}
+
 /** `POST /api/v2/credentials/connections` */
 export type CreateCredentialConnectionQuery = Record<string, unknown>
 
@@ -5139,6 +5200,19 @@ export type DownloadFileVersionQuery = {
 /** Non-JSON response (`binary`). */
 export type DownloadFileVersionResponse = never
 
+/** `GET /api/v2/projects/[projectId]/files/bulk-download` */
+export type DownloadProjectFileItemsParams = {
+  projectId: string
+}
+
+export type DownloadProjectFileItemsQuery = {
+  fileIds?: string
+  folderIds?: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadProjectFileItemsResponse = never
+
 /** `GET /api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]` */
 export type DownloadRunFileParams = {
   workflowId: string
@@ -5368,6 +5442,21 @@ export type ExportKnowledgeBaseQuery = {
 
 /** Non-JSON response (`binary`). */
 export type ExportKnowledgeBaseResponse = never
+
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/export` */
+export type ExportProjectFileSnapshotParams = {
+  projectId: string
+  fileId: string
+}
+
+export type ExportProjectFileSnapshotQuery = Record<string, unknown>
+
+export type ExportProjectFileSnapshotBody = {
+  content: string
+}
+
+/** Non-JSON response (`binary`). */
+export type ExportProjectFileSnapshotResponse = never
 
 /** `GET /api/v2/workflows/[workflowId]/export` */
 export type ExportWorkflowParams = {
@@ -13884,6 +13973,26 @@ export type UnzipFileResponse = {
   data: UnzipFileResponseRef0
 }
 
+/** `POST /api/v2/projects/[projectId]/files/[fileId]/unzip` */
+export type UnzipProjectFileParams = {
+  projectId: string
+  fileId: string
+}
+
+export type UnzipProjectFileQuery = Record<string, unknown>
+
+type UnzipProjectFileResponseRef0 = UnzipProjectFileResponseRef1
+
+type UnzipProjectFileResponseRef1 = {
+  folderPath: string
+  extractedFileCount: number
+  skippedFileCount: number
+}
+
+export type UnzipProjectFileResponse = {
+  data: UnzipProjectFileResponseRef0
+}
+
 /** `PATCH /api/v2/credentials/[credentialId]` */
 export type UpdateCredentialParams = {
   credentialId: string
@@ -16195,6 +16304,26 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  copyFileItems: {
+    method: 'POST',
+    path: '/api/v2/files/copy',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'Copy File Items',
+    workspaceKeyUnsupported: true,
+    body: {
+      source: {
+        kind: 'object',
+        required: true,
+        describe: 'Selection to read under the source owner.',
+      },
+      destination: {
+        kind: 'object',
+        required: true,
+        describe: 'Destination requiring file write access.',
+      },
+    },
+  },
   createCredentialConnection: {
     method: 'POST',
     path: '/api/v2/credentials/connections',
@@ -17834,6 +17963,26 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  downloadProjectFileItems: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/bulk-download',
+    pathParams: ['projectId'] as const,
+    pathParamDocs: { projectId: 'Project identifier.' },
+    responseMode: 'binary',
+    summary: 'Download Project File Items',
+    workspaceKeyUnsupported: true,
+    query: {
+      fileIds: {
+        kind: 'string',
+        describe: 'File identifiers to include, comma-separated. At most 100 entries.',
+      },
+      folderIds: {
+        kind: 'string',
+        describe:
+          'Folder identifiers to include recursively, comma-separated. The resolved selection allows at most 100 files.',
+      },
+    },
+  },
   downloadRunFile: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/runs/[runId]/files/[fileId]',
@@ -18013,6 +18162,26 @@ export const V2_OPERATIONS = {
         kind: 'boolean',
         describe:
           'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.',
+      },
+    },
+  },
+  exportProjectFileSnapshot: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/export',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'binary',
+    summary: 'Export Project File Snapshot',
+    workspaceKeyUnsupported: true,
+    body: {
+      content: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Visible Markdown snapshot to export. This does not replace the stored file or create a version.',
       },
     },
   },
@@ -23438,6 +23607,18 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the archive.' },
     },
+  },
+  unzipProjectFile: {
+    method: 'POST',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/unzip',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Unzip Project File',
+    workspaceKeyUnsupported: true,
   },
   updateCredential: {
     method: 'PATCH',

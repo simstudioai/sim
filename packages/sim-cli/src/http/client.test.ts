@@ -419,15 +419,18 @@ describe('destructive operations are gated', () => {
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
     'completeProjectFileUpload',
+    'copyFileItems',
     'createProjectFile',
     'createProjectFileFolder',
     'createProjectFileUpload',
+    'exportProjectFileSnapshot',
     'getProjectFileUploadPartUrls',
     'moveProjectFileItems',
     'renameProjectFile',
     'restoreProjectFile',
     'restoreProjectFileFolder',
     'revertProjectFileVersion',
+    'unzipProjectFile',
     'updateProjectFileContent',
     'updateProjectFileFolder',
     /** These amend access or request history without discarding a resource. */

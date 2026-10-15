@@ -154,17 +154,27 @@ type InflateResult =
 const inflateEntryWithinCaps = (
   entry: JSZip.JSZipObject,
   remainingTotalBudget: number,
-  retain: boolean
+  retain: boolean,
+  signal?: AbortSignal
 ): Promise<InflateResult> =>
   new Promise((resolve, reject) => {
+    signal?.throwIfAborted()
     const chunks: Buffer[] = []
     let size = 0
     let settled = false
     const stream = entry.nodeStream() as Readable
 
+    const abort = () => {
+      if (settled) return
+      settled = true
+      stream.destroy()
+      reject(signal?.reason)
+    }
+    signal?.addEventListener('abort', abort, { once: true })
     const settle = (result: InflateResult) => {
       if (settled) return
       settled = true
+      signal?.removeEventListener('abort', abort)
       stream.destroy()
       resolve(result)
     }
@@ -187,6 +197,7 @@ const inflateEntryWithinCaps = (
     stream.on('error', () => {
       if (settled) return
       settled = true
+      signal?.removeEventListener('abort', abort)
       stream.destroy()
       // A stream error here means the entry's compressed data is corrupt or
       // truncated (it passed the central-directory parse) — surface it under the
@@ -258,6 +269,172 @@ function throwInflateCapError(reason: 'entry' | 'total', entryName: string): nev
   )
 }
 
+/** Derives a safe, human-readable extraction root from the archive name. */
+export function archiveFolderName(fileName: string): string {
+  const stripped = fileName
+    .replace(/\.zip$/i, '')
+    .normalize('NFC')
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .replace(/[/\\]/g, '-')
+    .trim()
+  return stripped && stripped !== '.' && stripped !== '..' ? stripped : 'archive'
+}
+
+export interface PreparedArchiveExtraction {
+  readonly entryCount: number
+  readonly skipped: number
+  readonly skippedUnsafePaths: readonly string[]
+  validateRootFolderSegments(segments: readonly string[]): void
+  entries(signal?: AbortSignal): AsyncGenerator<{ segments: readonly string[]; buffer: Buffer }>
+}
+
+/** Validates one bounded archive before any destination mutation or storage upload. */
+export async function prepareArchiveExtraction(
+  buffer: Buffer,
+  options: {
+    rootFolderSegments?: readonly string[]
+    includeRootFolder?: boolean
+    signal?: AbortSignal
+    maxMaterializedItems?: number
+    skipNoiseEntries?: boolean
+  } = {}
+): Promise<PreparedArchiveExtraction> {
+  const {
+    rootFolderSegments = [],
+    includeRootFolder = false,
+    signal,
+    maxMaterializedItems = MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS,
+    skipNoiseEntries = false,
+  } = options
+  assertCentralDirWithinCaps(buffer)
+
+  let zip: JSZip
+  try {
+    zip = await JSZip.loadAsync(buffer)
+  } catch {
+    throw new ArchiveError('invalid', 'Not a valid .zip archive.')
+  }
+
+  const realEntries = Object.values(zip.files).filter(
+    (entry) => !entry.dir && !isSymlinkEntry(entry)
+  )
+
+  // Resolve safe entries first so unsafe ones never count toward the size caps.
+  const safeEntries: Array<{ entry: JSZip.JSZipObject; segments: string[] }> = []
+  const skippedUnsafePaths: string[] = []
+  let skipped = 0
+  for (const entry of realEntries) {
+    const segments = sanitizeArchiveEntryPath(entry.name)
+    if (!segments) {
+      skippedUnsafePaths.push(entry.name)
+      skipped += 1
+      continue
+    }
+    if (skipNoiseEntries && isArchiveNoiseEntry(segments)) {
+      skipped += 1
+      continue
+    }
+    safeEntries.push({ entry, segments })
+  }
+
+  // The entry cap applies to what will actually be extracted — a macOS zip whose
+  // __MACOSX/ shadows are about to be dropped must not be rejected for them.
+  if (safeEntries.length > MAX_ARCHIVE_ENTRIES) {
+    throw new ArchiveError(
+      'too_many_entries',
+      `Archive has ${safeEntries.length} files; the maximum is ${MAX_ARCHIVE_ENTRIES}.`
+    )
+  }
+
+  const validateRootFolderSegments = (candidateRootFolderSegments: readonly string[]): void => {
+    for (const { entry, segments } of safeEntries) {
+      try {
+        buildFolderPath([...candidateRootFolderSegments, ...segments.slice(0, -1)])
+      } catch (error) {
+        if (!(error instanceof FolderPathError)) throw error
+        throw new ArchiveError(
+          'invalid',
+          `Archive contains an invalid folder path: ${error.message}`,
+          entry.name
+        )
+      }
+    }
+  }
+  validateRootFolderSegments(rootFolderSegments)
+
+  const impliedFolderPaths = new Set<string>()
+  for (const { segments } of safeEntries) {
+    let prefix = ''
+    for (let depth = 0; depth < segments.length - 1; depth += 1) {
+      prefix += `\0${segments[depth]}`
+      impliedFolderPaths.add(prefix)
+    }
+  }
+  /**
+   * Bounds the whole output tree, not just the file count: 1000 entries nested 64 deep imply
+   * far more folders than files, and nothing else caps folder creation. `includeRootFolder`
+   * contributes exactly one more folder when it runs.
+   */
+  const materializedItems =
+    safeEntries.length +
+    impliedFolderPaths.size +
+    (safeEntries.length > 0 && includeRootFolder ? 1 : 0)
+  if (materializedItems > maxMaterializedItems) {
+    throw new ArchiveError(
+      'too_many_entries',
+      `Archive would create ${materializedItems} files and folders; the maximum is ${maxMaterializedItems}.`
+    )
+  }
+
+  // Cheap declared-size fast-reject for honestly-declared archives.
+  let declaredTotal = 0
+  for (const { entry } of safeEntries) {
+    const declaredSize = readEntryUncompressedSize(entry)
+    if (declaredSize === undefined) continue
+    if (declaredSize > MAX_ARCHIVE_ENTRY_BYTES) throwInflateCapError('entry', entry.name)
+    declaredTotal += declaredSize
+    if (declaredTotal > MAX_ARCHIVE_TOTAL_BYTES) throwInflateCapError('total', entry.name)
+  }
+
+  // Pass 1 — validate: inflate every entry against the caps without retaining or
+  // persisting anything, so a lying header aborts before any upload happens.
+  let validatedTotal = 0
+  for (const { entry } of safeEntries) {
+    signal?.throwIfAborted()
+    const result = await inflateEntryWithinCaps(
+      entry,
+      MAX_ARCHIVE_TOTAL_BYTES - validatedTotal,
+      false,
+      signal
+    )
+    if (!result.ok) throwInflateCapError(result.reason, entry.name)
+    validatedTotal += result.size
+  }
+
+  return Object.freeze({
+    entryCount: safeEntries.length,
+    skipped,
+    skippedUnsafePaths: Object.freeze(skippedUnsafePaths),
+    validateRootFolderSegments,
+    async *entries(entrySignal = signal) {
+      let totalBytes = 0
+      for (const { entry, segments } of safeEntries) {
+        entrySignal?.throwIfAborted()
+        const result = await inflateEntryWithinCaps(
+          entry,
+          MAX_ARCHIVE_TOTAL_BYTES - totalBytes,
+          true,
+          entrySignal
+        )
+        if (!result.ok) throwInflateCapError(result.reason, entry.name)
+        if (!result.buffer) throw new Error('Archive entry bytes are unavailable')
+        totalBytes += result.size
+        yield { segments: Object.freeze(segments), buffer: result.buffer }
+      }
+    },
+  })
+}
+
 /**
  * Decompress an archive buffer into workspace files under `rootFolderSegments`
  * (default: the workspace root). Reuses the same caps and zip-slip / zip-bomb /
@@ -322,112 +499,17 @@ export async function decompressArchiveBufferToWorkspaceFiles(
     notifyWorkspaceChange = true,
   } = opts
 
-  assertCentralDirWithinCaps(buffer)
-
-  let zip: JSZip
-  try {
-    zip = await JSZip.loadAsync(buffer)
-  } catch {
-    throw new ArchiveError('invalid', 'Not a valid .zip archive.')
-  }
-
-  const realEntries = Object.values(zip.files).filter(
-    (entry) => !entry.dir && !isSymlinkEntry(entry)
-  )
-
-  // Resolve safe entries first so unsafe ones never count toward the size caps.
-  const safeEntries: Array<{ entry: JSZip.JSZipObject; segments: string[] }> = []
-  const skippedUnsafePaths: string[] = []
-  let skipped = 0
-  for (const entry of realEntries) {
-    const segments = sanitizeArchiveEntryPath(entry.name)
-    if (!segments) {
-      skippedUnsafePaths.push(entry.name)
-      skipped += 1
-      continue
-    }
-    if (skipNoiseEntries && isArchiveNoiseEntry(segments)) {
-      skipped += 1
-      continue
-    }
-    safeEntries.push({ entry, segments })
-  }
-
-  // The entry cap applies to what will actually be extracted — a macOS zip whose
-  // __MACOSX/ shadows are about to be dropped must not be rejected for them.
-  if (safeEntries.length > MAX_ARCHIVE_ENTRIES) {
-    throw new ArchiveError(
-      'too_many_entries',
-      `Archive has ${safeEntries.length} files; the maximum is ${MAX_ARCHIVE_ENTRIES}.`
-    )
-  }
-
-  const validateRootFolderSegments = (candidateRootFolderSegments: string[]): void => {
-    for (const { entry, segments } of safeEntries) {
-      try {
-        buildFolderPath([...candidateRootFolderSegments, ...segments.slice(0, -1)])
-      } catch (error) {
-        if (!(error instanceof FolderPathError)) throw error
-        throw new ArchiveError(
-          'invalid',
-          `Archive contains an invalid folder path: ${error.message}`,
-          entry.name
-        )
-      }
-    }
-  }
-  validateRootFolderSegments(rootFolderSegments)
-
-  const impliedFolderPaths = new Set<string>()
-  for (const { segments } of safeEntries) {
-    let prefix = ''
-    for (let depth = 0; depth < segments.length - 1; depth += 1) {
-      prefix += `\0${segments[depth]}`
-      impliedFolderPaths.add(prefix)
-    }
-  }
-  /**
-   * Bounds the whole output tree, not just the file count: 1000 entries nested 64 deep imply
-   * far more folders than files, and nothing else caps folder creation. `prepareRootFolder`
-   * contributes exactly one more folder when it runs.
-   */
-  const materializedItems =
-    safeEntries.length +
-    impliedFolderPaths.size +
-    (safeEntries.length > 0 && prepareRootFolder ? 1 : 0)
-  if (materializedItems > maxMaterializedItems) {
-    throw new ArchiveError(
-      'too_many_entries',
-      `Archive would create ${materializedItems} files and folders; the maximum is ${maxMaterializedItems}.`
-    )
-  }
-
-  // Cheap declared-size fast-reject for honestly-declared archives.
-  let declaredTotal = 0
-  for (const { entry } of safeEntries) {
-    const declaredSize = readEntryUncompressedSize(entry)
-    if (declaredSize === undefined) continue
-    if (declaredSize > MAX_ARCHIVE_ENTRY_BYTES) throwInflateCapError('entry', entry.name)
-    declaredTotal += declaredSize
-    if (declaredTotal > MAX_ARCHIVE_TOTAL_BYTES) throwInflateCapError('total', entry.name)
-  }
-
-  // Pass 1 — validate: inflate every entry against the caps without retaining or
-  // persisting anything, so a lying header aborts before any upload happens.
-  let validatedTotal = 0
-  for (const { entry } of safeEntries) {
-    signal?.throwIfAborted()
-    const result = await inflateEntryWithinCaps(
-      entry,
-      MAX_ARCHIVE_TOTAL_BYTES - validatedTotal,
-      false
-    )
-    if (!result.ok) throwInflateCapError(result.reason, entry.name)
-    validatedTotal += result.size
-  }
-
+  const prepared = await prepareArchiveExtraction(buffer, {
+    rootFolderSegments,
+    includeRootFolder: Boolean(prepareRootFolder),
+    signal,
+    maxMaterializedItems,
+    skipNoiseEntries,
+  })
+  const { validateRootFolderSegments, skipped } = prepared
+  const skippedUnsafePaths = [...prepared.skippedUnsafePaths]
   const resolvedRootFolderSegments =
-    safeEntries.length > 0 && prepareRootFolder
+    prepared.entryCount > 0 && prepareRootFolder
       ? await prepareRootFolder(validateRootFolderSegments)
       : rootFolderSegments
   // Re-check what the callback actually returned; identical segments were proven above.
@@ -447,14 +529,9 @@ export async function decompressArchiveBufferToWorkspaceFiles(
   const createdFolderIds: string[] = []
   const createdFiles: WorkspaceFileRecord[] = []
   const extracted: UserFile[] = []
-  let totalBytes = 0
   try {
-    for (const { entry, segments } of safeEntries) {
+    for await (const { segments, buffer: entryBuffer } of prepared.entries(signal)) {
       signal?.throwIfAborted()
-      const result = await inflateEntryWithinCaps(entry, MAX_ARCHIVE_TOTAL_BYTES - totalBytes, true)
-      if (!result.ok) throwInflateCapError(result.reason, entry.name)
-      totalBytes += result.size
-      const entryBuffer = result.buffer as Buffer
 
       const leafName = segments[segments.length - 1]
       const folderSegments = [...resolvedRootFolderSegments, ...segments.slice(0, -1)]
