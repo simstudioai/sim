@@ -27,7 +27,7 @@ Release membership comes from explicit PR references in the published release no
 
 - The deployed public block catalog exposes Oracle Database, Checkr, Shopify, Ramp, and Vanta without preview gating. Their public integration pages and guides resolve successfully.
 - Oracle Database requires version 12.1 or later and network access from the Sim runtime. Self-hosted installations require Node.js 24. Connection and SQL details remain in the linked guide.
-- Checkr requires the user's API key. Ramp and Vanta require their client ID and secret. The copy makes no claims about provider execution, connection success, or account permissions established by the image.
+- Checkr requires the user's API key. Ramp and Vanta require their client ID and secret. Existing Vanta workflows with inline credentials must create and select a saved credential before running again; the article links the setup guide. The copy makes no claims about provider execution, connection success, or account permissions established by the image.
 - The latest release's Project-file work and workflow tests remain gated or foundational; they are excluded. OCI, Fusion, and EPM infrastructure has no corresponding public integration block to announce here.
 - Routine dependency work, internal refactors, and the original narrow workflow-lint note remain in technical release history.
 
