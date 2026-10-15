@@ -46,7 +46,7 @@ import { searchProjectFileContent } from '@/lib/projects/files/application/searc
 import { revertProjectFileVersion } from '@/lib/projects/files/application/versions'
 import * as storageCleanup from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
 import * as storage from '@/lib/uploads/core/storage-service'
-import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
+import { compileFileDocument } from '@/lib/uploads/documents/compile'
 import * as heic from '@/lib/uploads/server/heic'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import * as searchDelivery from '@/lib/workspace-files/search/delivery'
@@ -705,6 +705,33 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
     }
   )
 
+  check('a source renamed during rendering is refused', async () => {
+    const { readProjectFileArtifact } = await import('@/lib/projects/files/application/artifacts')
+    const { renameProjectFile } = await import('@/lib/projects/files/application/lifecycle')
+    const f = await fixture()
+    const source = await createProjectFile.execute({
+      principal: f.principal,
+      input: {
+        ...createInput(f.projectId, 'const title = "test"'),
+        name: 'before.pptx',
+        contentType: 'text/x-pptxgenjs',
+      },
+    })
+    vi.spyOn(sandboxTask, 'runSandboxTask').mockImplementation(async () => {
+      await renameProjectFile.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, fileId: source.file.id, name: 'after.docx' },
+      })
+      return Buffer.from('PK\u0003\u0004document')
+    })
+    await expect(
+      readProjectFileArtifact.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, fileId: source.file.id, maxBytes: 1_000_000 },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
   check(
     'an asset changed during render cannot be delivered with stale provenance or source identity',
     async () => {
@@ -780,13 +807,15 @@ describe('Project rendered artifacts against PostgreSQL and private storage', ()
           },
         })
         const artifact = Buffer.from(`PK\u0003\u0004${marker}`)
-        await storeCompiledDoc(
-          { entityType: 'project', entityId: f.projectId },
+        vi.spyOn(sandboxTask, 'runSandboxTask').mockResolvedValue(artifact)
+        await compileFileDocument({
+          owner: { entityType: 'project', entityId: f.projectId },
           source,
-          'pptx',
-          mime,
-          artifact
-        )
+          sourceMime: 'text/x-pptxgenjs',
+          fileName: 'architecture.pptx',
+          inputs: [],
+          maxBytes: 1_000_000,
+        })
         prepared.push({ f, created, artifact })
       }
       for (const { f, created, artifact } of prepared) {

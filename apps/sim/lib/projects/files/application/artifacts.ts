@@ -85,6 +85,8 @@ function requireSameRevision(current: WorkspaceFileRow | undefined, expected: Wo
   if (
     !current ||
     current.key !== expected.key ||
+    current.originalName !== expected.originalName ||
+    current.contentType !== expected.contentType ||
     current.contentUpdatedAt.getTime() !== expected.contentUpdatedAt.getTime()
   ) {
     throw new OrchestrationError('conflict', 'A document source or input changed during rendering')

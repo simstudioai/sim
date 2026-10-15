@@ -640,19 +640,25 @@ export async function compileFileDocument(args: {
   ) {
     throw new DocCompileUserError('Document inputs exceed the rendering limit')
   }
-  const cached = await loadCompiledDoc(args.owner, args.source, fmt.ext, args.inputIdentity, {
+  const useDocumentSandbox = isDocSandboxEnabled && args.sourceMime !== 'text/x-pdflibjs'
+  const cacheIdentity = JSON.stringify({
+    sourceLanguage: getDocumentSourceLanguage(args.source, fmt, args.sourceMime),
+    renderer: useDocumentSandbox ? 'document-sandbox' : 'native',
+    inputs: args.inputIdentity ?? null,
+  })
+  const cached = await loadCompiledDoc(args.owner, args.source, fmt.ext, cacheIdentity, {
     maxBytes: args.maxBytes,
     signal: args.signal,
   })
   if (cached)
     return {
       buffer: cached,
-      artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, args.inputIdentity),
+      artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, cacheIdentity),
       contentType: fmt.contentType,
       dependsOnReferencedFiles: args.inputs.length > 0,
     }
   let buffer: Buffer
-  if (isDocSandboxEnabled && args.sourceMime !== 'text/x-pdflibjs') {
+  if (useDocumentSandbox) {
     buffer = await renderPreparedDocument(
       args.source,
       fmt,
@@ -684,17 +690,10 @@ export async function compileFileDocument(args: {
     )
   }
   assertKnownSizeWithinLimit(buffer.length, args.maxBytes, 'compiled document')
-  await storeCompiledDoc(
-    args.owner,
-    args.source,
-    fmt.ext,
-    fmt.contentType,
-    buffer,
-    args.inputIdentity
-  )
+  await storeCompiledDoc(args.owner, args.source, fmt.ext, fmt.contentType, buffer, cacheIdentity)
   return {
     buffer,
-    artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, args.inputIdentity),
+    artifactKey: compiledArtifactKey(args.owner, args.source, fmt.ext, cacheIdentity),
     contentType: fmt.contentType,
     dependsOnReferencedFiles: args.inputs.length > 0,
   }
