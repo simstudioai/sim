@@ -558,7 +558,11 @@ final class Driver {
             let windows = windowsFor(app.processIdentifier).prefix(100).compactMap { entry -> [String: Any]? in
                 guard let id = entry[kCGWindowNumber as String] as? NSNumber, let bounds = entry[kCGWindowBounds as String] as? [String: Any], let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0, axWindowFrames.contains(rect) else { return nil }
                 snapshot.windowFrames[id.stringValue] = rect
-                snapshot.windowElements[id.stringValue] = axWindows.first { elementRect($0) == rect }
+                // Public APIs match a window-list entry to its Accessibility window only by bounds; when
+                // two windows share bounds that match is ambiguous, so neither gets an identity and
+                // input aimed at either is refused.
+                let matches = axWindows.filter { elementRect($0) == rect }
+                if matches.count == 1 { snapshot.windowElements[id.stringValue] = matches[0] }
                 var result: [String: Any] = ["windowId": id.stringValue, "title": entry[kCGWindowName as String] as? String ?? ""]
                 if let title = result["title"] as? String { result["title"] = String(title.prefix(4096)) }
                 result.merge(rectJSON(rect)) { _, new in new }; return result
