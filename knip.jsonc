@@ -59,6 +59,8 @@
         "lib/api/contracts/file-copy-input.ts": ["exports", "types"],
         // API contract conventions require named boundary schemas and wire aliases before client adoption.
         "lib/api/contracts/project-file-downloads.ts": ["exports", "types"],
+        "lib/api/contracts/project-file-shares.ts": ["exports", "types"],
+        "lib/api/contracts/v2/project-file-shares.ts": ["exports", "types"],
         "lib/api/contracts/project-file-extraction.ts": ["exports", "types"],
         "lib/api/contracts/v2/project-file-downloads.ts": ["exports", "types"],
         "lib/api/contracts/v2/project-file-extraction.ts": ["exports", "types"],

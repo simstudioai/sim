@@ -491,6 +491,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/restore/route'),
   },
   {
+    pattern: '/api/v2/projects/{projectId}/files/{fileId}/share',
+    load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/share/route'),
+  },
+  {
     pattern: '/api/v2/projects/{projectId}/files/{fileId}/unzip',
     load: () => import('@/app/api/v2/projects/[projectId]/files/[fileId]/unzip/route'),
   },

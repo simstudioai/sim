@@ -1799,11 +1799,24 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Show a file’s share settings',
     fields: FILE_SHARE_FIELDS,
   },
+  getProjectFileShare: {
+    command: 'projects files share get',
+    describe: 'Show a Project file’s share settings',
+    fields: FILE_SHARE_FIELDS,
+  },
   // v2 folds share and unshare into one PATCH; `--is-active false` disables it,
   // so there is no separate unshare operation to expose.
   upsertFileShare: {
     command: 'files share set',
     describe: 'Enable or disable sharing for a file',
+    flags: {
+      allowedEmails: { list: true },
+    },
+    fields: FILE_SHARE_FIELDS,
+  },
+  updateProjectFileShare: {
+    command: 'projects files share set',
+    describe: 'Enable or disable sharing for a Project file',
     flags: {
       allowedEmails: { list: true },
     },

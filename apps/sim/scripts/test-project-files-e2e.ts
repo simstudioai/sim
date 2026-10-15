@@ -291,6 +291,66 @@ async function seed(name: string) {
   return { directory, projectId, workspaceId, foreignProjectId, cookie }
 }
 
+async function seedInline(fixture: Awaited<ReturnType<typeof seed>>) {
+  const image =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF9sAAAAASUVORK5CYII='
+  const create = async (
+    projectId: string,
+    name: string,
+    content: string,
+    contentType: string,
+    encoding: string
+  ) =>
+    toRecord(
+      (
+        await request(fixture.cookie, `/api/projects/${projectId}/files`, {
+          name,
+          content,
+          contentType,
+          encoding,
+        })
+      ).file
+    )
+  const ownImage = await create(fixture.projectId, 'own.png', image, 'image/png', 'base64')
+  const foreignImage = await create(
+    fixture.foreignProjectId,
+    'foreign.png',
+    image,
+    'image/png',
+    'base64'
+  )
+  const foreignPath = `/api/projects/${fixture.foreignProjectId}/files/${foreignImage.id}/content`
+  const doc = await create(
+    fixture.projectId,
+    'architecture.md',
+    `![own](sim:file/${ownImage.id}?project=${fixture.projectId})\n![foreign](${foreignPath})`,
+    'text/markdown',
+    'utf-8'
+  )
+  const share = toRecord(
+    (
+      await request(
+        fixture.cookie,
+        `/api/projects/${fixture.projectId}/files/${doc.id}/share`,
+        { isActive: true, authType: 'public' },
+        'PUT'
+      )
+    ).share
+  )
+  secrets.add(requiredString(share.token))
+  const path = join(fixture.directory, 'inline-source-fixture.json')
+  await writeFile(
+    path,
+    JSON.stringify({
+      projectId: fixture.projectId,
+      files: [{ owner: 'project', fileId: doc.id, imageId: ownImage.id, token: share.token }],
+      wrongOwner: { projectId: fixture.foreignProjectId, fileId: foreignImage.id },
+    }),
+    { mode: 0o600 }
+  )
+  return path
+}
+
 function interrupt() {
   interrupted = true
   void Promise.all(processes.map(stop)).catch(() => undefined)
@@ -303,6 +363,9 @@ const suites = [
   ['browser', 'PROJECT_FILE_BROWSER', 'test-project-file-browser-e2e.ts'],
   ['history', 'PROJECT_FILE_HISTORY', 'test-project-file-history-e2e.ts'],
   ['rendered', 'PROJECT_FILE_RENDERED', 'test-project-file-rendered-e2e.ts'],
+  ['public', 'PROJECT_FILE_PUBLIC', 'test-project-file-public-e2e.ts'],
+  ['sharing', 'PROJECT_FILE_SHARING', 'test-project-file-sharing-e2e.ts'],
+  ['inline-source', 'PROJECT_INLINE_SOURCE', 'test-project-file-inline-source-e2e.ts'],
   ['copy', 'FILE_COPY', 'test-file-copy-e2e.ts'],
   ['realtime', 'FILE_LIST_REALTIME', 'test-file-list-realtime-e2e.ts'],
 ] as const
@@ -357,6 +420,7 @@ try {
     assert.equal(interrupted, false, 'Acceptance run interrupted')
     await check(`Existing ${name} acceptance suite`, async () => {
       const fixture = await seed(name)
+      const fixturePath = name === 'inline-source' ? await seedInline(fixture) : undefined
       await run(
         `project-files-${name}`,
         ['bun', '--no-env-file', join('scripts', script)],
@@ -368,6 +432,7 @@ try {
           [`${prefix}_REPORT_PATH`]: join(reportDir, `project-files-${name}.json`),
           PROJECT_FILE_RENDERED_FOREIGN_PROJECT_ID: fixture.foreignProjectId,
           PROJECT_FILE_PUBLIC_WORKSPACE_ID: fixture.workspaceId,
+          PROJECT_INLINE_SOURCE_FIXTURE_PATH: fixturePath,
           FILE_COPY_WORKSPACE_ID: fixture.workspaceId,
           FILE_LIST_REALTIME_RELAY_URL: relay.origin,
         }

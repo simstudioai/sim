@@ -6685,6 +6685,30 @@ export type GetProjectFileMetadataResponse = {
   data: GetProjectFileMetadataResponseRef0
 }
 
+/** `GET /api/v2/projects/[projectId]/files/[fileId]/share` */
+export type GetProjectFileShareParams = {
+  projectId: string
+  fileId: string
+}
+
+export type GetProjectFileShareQuery = Record<string, unknown>
+
+type GetProjectFileShareResponseRef0 = {
+  id: string
+  token: string
+  url: string
+  isActive: boolean
+  resourceType: 'file' | 'folder'
+  resourceId: string
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+}
+
+export type GetProjectFileShareResponse = {
+  data: GetProjectFileShareResponseRef0 | null
+}
+
 /** `GET /api/v2/projects/[projectId]/files/uploads/[uploadId]` */
 export type GetProjectFileUploadParams = {
   projectId: string
@@ -14678,6 +14702,37 @@ export type UpdateProjectFileFolderResponse = {
   }
 }
 
+/** `PATCH /api/v2/projects/[projectId]/files/[fileId]/share` */
+export type UpdateProjectFileShareParams = {
+  projectId: string
+  fileId: string
+}
+
+export type UpdateProjectFileShareQuery = Record<string, unknown>
+
+export type UpdateProjectFileShareBody = {
+  isActive: boolean
+  authType?: 'public' | 'password' | 'email' | 'sso'
+  password?: string
+  allowedEmails?: Array<string>
+}
+
+type UpdateProjectFileShareResponseRef0 = {
+  id: string
+  token: string
+  url: string
+  isActive: boolean
+  resourceType: 'file' | 'folder'
+  resourceId: string
+  authType: 'public' | 'password' | 'email' | 'sso'
+  hasPassword: boolean
+  allowedEmails: Array<string>
+}
+
+export type UpdateProjectFileShareResponse = {
+  data: UpdateProjectFileShareResponseRef0
+}
+
 /** `PATCH /api/v2/tables/[tableId]/rows` */
 export type UpdateRowsByFilterParams = {
   tableId: string
@@ -18714,6 +18769,18 @@ export const V2_OPERATIONS = {
     },
     responseMode: 'json',
     summary: 'Get Project File Metadata',
+    workspaceKeyUnsupported: true,
+  },
+  getProjectFileShare: {
+    method: 'GET',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/share',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Get Project File Share',
     workspaceKeyUnsupported: true,
   },
   getProjectFileUpload: {
@@ -24111,6 +24178,42 @@ export const V2_OPERATIONS = {
           'New parent folder identifier; null moves to the root, omission leaves the parent unchanged.',
       },
       sortOrder: { kind: 'integer', describe: 'New manual position; omit to leave unchanged.' },
+    },
+  },
+  updateProjectFileShare: {
+    method: 'PATCH',
+    path: '/api/v2/projects/[projectId]/files/[fileId]/share',
+    pathParams: ['projectId', 'fileId'] as const,
+    pathParamDocs: {
+      projectId: 'Project identifier.',
+      fileId: 'File identifier within the Project.',
+    },
+    responseMode: 'json',
+    summary: 'Update Project File Share',
+    workspaceKeyUnsupported: true,
+    body: {
+      isActive: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use.',
+      },
+      authType: {
+        kind: 'enum',
+        values: ['public', 'password', 'email', 'sso'] as const,
+        describe:
+          'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.',
+      },
+      password: {
+        kind: 'string',
+        describe:
+          'Literal password of 15 to 1024 characters. Kept when omitted; enabling password access without a supplied or stored password is rejected.',
+      },
+      allowedEmails: {
+        kind: 'array',
+        describe:
+          'Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400.',
+      },
     },
   },
   updateRowsByFilter: {
