@@ -285,6 +285,10 @@ export function useMothershipResize(
       const cancelPointer = (event: PointerEvent) => {
         if (event.pointerId === pointerId) cancel()
       }
+      const complete = () => finish(true)
+      const completePointer = (event: PointerEvent) => {
+        if (event.pointerId === pointerId) complete()
+      }
       cleanupRef.current = cancel
 
       handle.addEventListener(
@@ -307,22 +311,14 @@ export function useMothershipResize(
         { signal }
       )
 
-      handle.addEventListener(
-        'pointerup',
-        (upEvent: PointerEvent) => {
-          if (upEvent.pointerId !== pointerId) return
-          finish(true)
-        },
-        { signal }
-      )
+      handle.addEventListener('pointerup', completePointer, { signal })
 
       // Browser fires pointercancel when it reclaims the gesture (scroll, palm rejection, etc.)
       // Without this, body cursor/userSelect and transition would be permanently stuck
       handle.addEventListener('pointercancel', cancelPointer, { signal })
-      handle.addEventListener('lostpointercapture', cancelPointer, { signal })
-      // A blur mid-drag (cmd-tab, window switch) would otherwise strand the
-      // body cursor/userSelect overrides with no pointerup coming
-      window.addEventListener('blur', cancel, { signal })
+      // Capture or focus can be lost before pointerup reaches the handle; retain the user's resize.
+      handle.addEventListener('lostpointercapture', completePointer, { signal })
+      window.addEventListener('blur', complete, { signal })
     },
     [desktopScopeId, rememberWidth]
   )
