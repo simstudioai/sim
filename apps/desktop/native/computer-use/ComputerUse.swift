@@ -106,6 +106,18 @@ func requireNonSecure(_ element: AXUIElement) throws {
 func rectJSON(_ rect: CGRect) -> [String: Double] {
     ["x": rect.minX, "y": rect.minY, "width": rect.width, "height": rect.height]
 }
+/// Whether keyboard focus is on `element` or an editor inside it, such as a combo box's field.
+func holdsFocus(_ focused: CFTypeRef, _ element: AXUIElement) -> Bool {
+    guard CFGetTypeID(focused) == AXUIElementGetTypeID() else { return false }
+    var current: AXUIElement? = unsafeBitCast(focused, to: AXUIElement.self)
+    for _ in 0..<8 {
+        guard let candidate = current else { return false }
+        if CFEqual(candidate, element) { return true }
+        guard let parent = attribute(candidate, kAXParentAttribute), CFGetTypeID(parent) == AXUIElementGetTypeID() else { return false }
+        current = unsafeBitCast(parent, to: AXUIElement.self)
+    }
+    return false
+}
 func axActions(_ element: AXUIElement) -> [String] {
     var names: CFArray?
     return AXUIElementCopyActionNames(element, &names) == .success ? names as? [String] ?? [] : []
@@ -656,7 +668,8 @@ final class Driver {
             } else {
                 try await coordinateAction { dispatch in
                     let position = try point(p, app: app, snapshot: snapshot); let mouse: CGMouseButton = button == "right" ? .right : .left
-                    let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
+                    // Coordinates are window-local to the requested (or selected) window; an element target uses its own.
+                    let windowID = try required(p.windowId ?? (p.elementId == nil ? snapshot.selectedWindowId : snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key), "windowId")
                     let frame = try required(snapshot.windowFrames[windowID], "window frame")
                     for click in 1...count {
                         try checkCancellation()
@@ -683,18 +696,6 @@ final class Driver {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
                 try await Task.sleep(for: .milliseconds(50))
             }
-            /// Focus may land on the element itself or on an editor inside it, such as a combo box's field.
-            func holdsFocus(_ focused: CFTypeRef) -> Bool {
-                guard CFGetTypeID(focused) == AXUIElementGetTypeID() else { return false }
-                var current: AXUIElement? = unsafeBitCast(focused, to: AXUIElement.self)
-                for _ in 0..<8 {
-                    guard let candidate = current else { return false }
-                    if CFEqual(candidate, element) { return true }
-                    guard let parent = attribute(candidate, kAXParentAttribute), CFGetTypeID(parent) == AXUIElementGetTypeID() else { return false }
-                    current = unsafeBitCast(parent, to: AXUIElement.self)
-                }
-                return false
-            }
             let observedWindows = snapshot.observedWindows()
             func validateFocus() throws {
                 try checkCancellation(); try requireNonSecure(element)
@@ -703,7 +704,7 @@ final class Driver {
                       acceptsInput(unsafeBitCast(rawWindow, to: AXUIElement.self), observed: observedWindows) else {
                     throw ComputerError("stale_window", "The editor's window moved or is not an observed window; observe again.")
                 }
-                guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current) else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
+                guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current, element) else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
                 if let focused = attribute(root, kAXFocusedUIElementAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { try requireNonSecure(unsafeBitCast(focused, to: AXUIElement.self)) }
             }
             // AX focus requests and app activation may settle asynchronously. Wait without
@@ -756,10 +757,17 @@ final class Driver {
             // A targeted key first moves keyboard focus to that element, as clicking into it would.
             if let elementId = p.elementId {
                 let element = try snapshot.element(elementId)
-                if attribute(root, kAXFocusedUIElementAttribute).map({ CFEqual($0, element) }) != true {
+                if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
                     try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
+                }
+                // Focus can settle asynchronously; the key is sent only once this element holds it.
+                var focused = false
+                for _ in 0..<10 {
+                    try checkCancellation()
+                    if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) == true { focused = true; break }
                     try await Task.sleep(for: .milliseconds(50))
                 }
+                guard focused else { throw ComputerError("focus_changed", "The element did not take keyboard focus; no key was sent. Observe again.") }
             }
             // Keys go to the app's key window: the observed window, or a dialog, panel or popover above it,
             // but never another document window the snapshot did not observe.
@@ -786,7 +794,8 @@ final class Driver {
                 let position = try point(p, app: app, snapshot: snapshot); let dx = p.deltaX ?? 0; let dy = p.deltaY ?? 0
                 guard dx.isFinite, dy.isFinite, abs(dx) <= 10000, abs(dy) <= 10000 else { throw ComputerError("invalid_arguments", "Scroll deltas exceed bounds.") }
                 guard let event = CGEvent(scrollWheelEvent2Source: CGEventSource(stateID: .privateState), units: .pixel, wheelCount: 2, wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) else { throw ComputerError("input_failed", "Could not create scroll event.") }
-                let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
+                // Coordinates are window-local to the requested (or selected) window; an element target uses its own.
+                let windowID = try required(p.windowId ?? (p.elementId == nil ? snapshot.selectedWindowId : snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key), "windowId")
                 let frame = try required(snapshot.windowFrames[windowID], "window frame")
                 try requireForegroundTarget(pid: pid, windowID: windowID, window: try required(snapshot.windowElements[windowID], "observed window"), point: position, frame: frame)
                 event.location = position; dispatch.willDispatch(); event.post(tap: .cghidEventTap)
