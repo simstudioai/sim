@@ -5,7 +5,7 @@ import type { DbTransaction } from '@/lib/db/types'
 import {
   assertFileFolderTarget,
   buildWorkspaceFileFolderPathMap,
-  createFileFolder,
+  createFileFolderRow,
   listFileFolders,
 } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
@@ -171,12 +171,11 @@ export async function commitFileCopyInTx(
   const targetFolderId = await assertFileFolderTarget(destination.owner, destination.folderId, tx)
   const pending = new Map(snapshot.folders.map((row) => [row.id, row]))
   const mapped = new Map<string, string>()
-  const folders: CopiedFileItems['folders'] = []
   while (pending.size) {
     let progressed = false
     for (const [id, source] of pending) {
       if (source.parentId && pending.has(source.parentId)) continue
-      const created = await createFileFolder(
+      const created = await createFileFolderRow(
         {
           owner: destination.owner,
           userId,
@@ -188,7 +187,6 @@ export async function commitFileCopyInTx(
         },
         tx
       )
-      folders.push(created)
       mapped.set(id, created.id)
       pending.delete(id)
       progressed = true
@@ -216,11 +214,15 @@ export async function commitFileCopyInTx(
       })
     )
   }
-  const paths = buildWorkspaceFileFolderPathMap(
-    await listFileFolders(destination.owner, undefined, tx)
-  )
+  const destinationFolders = await listFileFolders(destination.owner, undefined, tx)
+  const paths = buildWorkspaceFileFolderPathMap(destinationFolders)
+  const folderById = new Map(destinationFolders.map((folder) => [folder.id, folder]))
   return {
     files: createdFiles.map((file) => mapFileRecord(file, destination.owner, paths)),
-    folders,
+    folders: [...mapped.values()].map((id) => {
+      const folder = folderById.get(id)
+      if (!folder) throw new Error('Copied folder is missing from the destination')
+      return folder
+    }),
   }
 }

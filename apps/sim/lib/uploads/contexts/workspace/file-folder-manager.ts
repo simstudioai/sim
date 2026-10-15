@@ -679,11 +679,21 @@ export async function createWorkspaceFileFolder(
   return workspaceFolderRecord(folder)
 }
 
-/** Creates one folder under the caller's owner transaction and the shared hierarchy lock. */
+/** Creates one folder and hydrates its display path for single-item callers. */
 export async function createFileFolder<O extends EditableFileOwner>(
   params: CreateFileFolderParams<O>,
   tx: DbTransaction
 ): Promise<FileFolderRecord<O>> {
+  const inserted = await createFileFolderRow(params, tx)
+  const paths = buildWorkspaceFileFolderPathMap(await selectFileFolderPathRows(params.owner, tx))
+  return mapFileFolder(inserted, params.owner, paths)
+}
+
+/** Uses canonical folder validation and locking without rebuilding paths during a bulk mutation. */
+export async function createFileFolderRow<O extends EditableFileOwner>(
+  params: CreateFileFolderParams<O>,
+  tx: DbTransaction
+): Promise<typeof folderTable.$inferSelect> {
   const requestedName = normalizeWorkspaceFileItemName(params.name, 'Folder')
   await acquireFileFolderMutationLock(tx, params.owner)
   const parentId = await assertFileFolderTarget(params.owner, params.parentId, tx)
@@ -745,8 +755,7 @@ export async function createFileFolder<O extends EditableFileOwner>(
     if (getPostgresErrorCode(error) === '23505') throw new WorkspaceFileFolderConflictError(name)
     throw error
   }
-  const paths = buildWorkspaceFileFolderPathMap(await selectFileFolderPathRows(params.owner, tx))
-  return mapFileFolder(inserted, params.owner, paths)
+  return inserted
 }
 
 /**

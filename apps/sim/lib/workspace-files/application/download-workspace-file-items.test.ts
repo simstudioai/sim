@@ -63,6 +63,7 @@ const mockProvenance =
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 import { MAX_ZIP_DOWNLOAD_BYTES } from '@/lib/workspace-files/limits'
+import { recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 const { mockResolveVerifiedUserAccessControlContext: mockAccessContext } =
   permissionGroupsResolveMockFns
@@ -111,6 +112,7 @@ function file(id: string, name: string, folderId: string | null = null, size = 1
 describe('downloadWorkspaceFileItems', () => {
   beforeEach(() => {
     events.length = 0
+    vi.mocked(recheckFileReadReceipt).mockResolvedValue({ status: 'exact', entries: [] })
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
       return workspace
@@ -316,6 +318,19 @@ describe('downloadWorkspaceFileItems', () => {
         input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [], folderPaths: ['/Nope'] },
       })
     ).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  it('refuses refreshed unsafe provenance even after initial admission succeeds', async () => {
+    vi.mocked(recheckFileReadReceipt).mockResolvedValue({ status: 'unknown' })
+    await expect(
+      observeContentDelivery(secretFreeGate, () =>
+        downloadWorkspaceFileItems.execute({
+          principal: delegatedPrincipal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+        })
+      )
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(recheckFileReadReceipt).toHaveBeenCalled()
   })
 
   it('rejects an unknown folder in a mixed selection', async () => {

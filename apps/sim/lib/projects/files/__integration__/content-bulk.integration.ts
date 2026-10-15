@@ -162,6 +162,62 @@ async function rows(projectId: string) {
 
 describe('Project file content against PostgreSQL and the local object store', () => {
   check(
+    'folder tree copy hydrates destination paths once while preserving nested paths',
+    async () => {
+      const { copyFileItems } = await import('@/lib/workspace-files/application/copy-file-items')
+      const f = await fixture()
+      const root = await createProjectFileFolder.execute({
+        principal: f.principal,
+        input: { projectId: f.projectId, name: 'Root' },
+      })
+      await db.insert(folder).values(
+        Array.from({ length: 20 }, (_, index) => ({
+          id: generateId(),
+          projectId: f.projectId,
+          parentId: root.folder.id,
+          resourceType: 'file' as const,
+          name: `Child-${index}`,
+          userId: f.ownerId,
+        }))
+      )
+      const originalDebug = db.$client.options.debug
+      const queries: string[] = []
+      db.$client.options.debug = (_connection, query) => {
+        queries.push(query)
+      }
+      try {
+        const result = await copyFileItems.execute({
+          principal: f.principal,
+          input: {
+            source: {
+              owner: { entityType: 'project', entityId: f.projectId },
+              fileIds: [],
+              folderIds: [root.folder.id],
+            },
+            destination: {
+              owner: { entityType: 'workspace', entityId: f.workspaceId },
+              folderId: null,
+            },
+          },
+        })
+        expect(result.folders).toHaveLength(21)
+        const copiedRoot = result.folders.find((item) => item.parentId === null)
+        if (!copiedRoot) throw new Error('Copied root missing')
+        expect(result.folders.filter((item) => item.parentId === copiedRoot.id)).toHaveLength(20)
+        for (const item of result.folders.filter((item) => item.id !== copiedRoot.id))
+          expect(item.path).toBe(`${copiedRoot.path}/${item.name}`)
+        expect(
+          queries.filter((query) =>
+            query.startsWith('select "id", "name", "parent_id" from "folder"')
+          )
+        ).toHaveLength(0)
+      } finally {
+        db.$client.options.debug = originalDebug
+      }
+    }
+  )
+
+  check(
     'copy selection ignores unrelated folders when the owner exceeds the selection limit',
     async () => {
       const { snapshotFileCopyInTx } = await import('@/lib/workspace-files/copy')

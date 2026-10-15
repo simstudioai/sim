@@ -6,6 +6,7 @@ import {
   ContentRefusedError,
   capabilityGovernedPrincipalUserId,
 } from '@/lib/core/application'
+import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
@@ -16,6 +17,7 @@ import {
   loadWorkspaceFileOperationContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import { mergeWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import {
   formatFileSize,
@@ -245,12 +247,20 @@ async function executeDownloadWorkspaceFileItems({
       }))
     )
   )
-  await db.transaction(
+  const provenance = await db.transaction(
     async (tx) => {
-      for (const receipt of receipts) await recheckFileReadReceipt(tx, receipt)
+      const evidence = []
+      for (const receipt of receipts) evidence.push(await recheckFileReadReceipt(tx, receipt))
+      return mergeWorkspaceFileSecretProvenance(...evidence)
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' }
   )
+  await requireAdmittedContent(principal, {
+    kind: 'workspace-file',
+    id: context.workspaceId,
+    provenance,
+    view: 'opaque',
+  })
   const included = new Set(filesToZip.map((file) => file.id))
   return {
     excludedFileIds: selectedFiles.filter((file) => !included.has(file.id)).map((file) => file.id),
