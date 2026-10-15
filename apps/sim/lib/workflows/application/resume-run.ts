@@ -10,12 +10,7 @@ export interface ResumeWorkflowRunInput {
   runId: string
   contextId: string
   resumeInput: unknown
-  /**
-   * The calling surface's response contract. `legacy` may answer with a stream
-   * and polls async resumes by job id; `v2` answers JSON only, so a run that
-   * would stream is queued, and its async job id is derived from the resume
-   * entry so a retried dispatch is deduplicated.
-   */
+  /** The caller's response contract: `legacy` may stream; `v2` answers JSON only. */
   surface: 'legacy' | 'v2'
 }
 

@@ -49,7 +49,7 @@ function presentResumeResult(
         },
       })
     case 'sync':
-      /** This surface has always answered a failed run with a 400 error body, never a run payload. */
+      // Legacy contract: a failed run answers 400 with an error body, never a run payload.
       if (result.status === 'failed') {
         return NextResponse.json(
           { error: typeof result.error === 'string' ? result.error : 'Resume execution failed' },
@@ -97,36 +97,28 @@ export const POST = withRouteHandler(
       params: Promise<{ workflowId: string; executionId: string; contextId: string }>
     }
   ) => {
-    let principal
     try {
-      principal = await internalWorkflowSessionOrApiKeyAuth.authenticate(
+      const principal = await internalWorkflowSessionOrApiKeyAuth.authenticate(
         request,
         await context.params
       )
-    } catch (error) {
-      if (error instanceof InternalUnauthenticatedError) {
-        return NextResponse.json(withRequestId({ error: error.message }), { status: 401 })
+      setRequestAuth(describePrincipalAuth(principal))
+
+      const parsed = await parseRequest(resumeWorkflowExecutionContextContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { workflowId, executionId, contextId } = parsed.data.params
+
+      let payload: unknown = {}
+      try {
+        payload = await request.json()
+      } catch {
+        payload = {}
       }
-      throw error
-    }
-    setRequestAuth(describePrincipalAuth(principal))
+      const resumeInput =
+        typeof payload === 'object' && payload !== null && 'input' in payload
+          ? payload.input
+          : (payload ?? {})
 
-    const parsed = await parseRequest(resumeWorkflowExecutionContextContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { workflowId, executionId, contextId } = parsed.data.params
-
-    let payload: unknown = {}
-    try {
-      payload = await request.json()
-    } catch {
-      payload = {}
-    }
-    const resumeInput =
-      typeof payload === 'object' && payload !== null && 'input' in payload
-        ? payload.input
-        : (payload ?? {})
-
-    try {
       const result = await resumeWorkflowRun.execute({
         principal,
         input: {
@@ -140,6 +132,9 @@ export const POST = withRouteHandler(
       })
       return presentResumeResult(result, request)
     } catch (error) {
+      if (error instanceof InternalUnauthenticatedError) {
+        return NextResponse.json(withRequestId({ error: error.message }), { status: 401 })
+      }
       const projected = internalWorkflowErrorPolicies.concealRunAuthorization.project(error)
       if (projected) {
         return NextResponse.json(withRequestId(projected.body), {
