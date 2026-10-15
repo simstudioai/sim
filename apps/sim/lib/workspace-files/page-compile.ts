@@ -246,6 +246,14 @@ const FILE_RESOURCE_ROUTES: Record<
       : `/projects/${entityId}/files/${fileId}`,
 }
 
+/** A Project page embeds a file another owner holds; servers report it as a missing input. */
+export class ProjectPageForeignEmbedError extends Error {
+  constructor() {
+    super('Project pages can only embed files owned by the same Project')
+    this.name = 'ProjectPageForeignEmbedError'
+  }
+}
+
 function resolveSimFileLinks(html: string, owner: EditableFileOwner | undefined, baseUrl: string) {
   return html.replace(
     /\b(src|href)="sim:file\/([^"]+)"/g,
@@ -257,7 +265,7 @@ function resolveSimFileLinks(html: string, owner: EditableFileOwner | undefined,
         owner?.entityType === 'project' &&
         (parsed.owner?.entityType !== 'project' || parsed.owner.entityId !== owner.entityId)
       ) {
-        throw new Error('Project pages can only embed files owned by the same Project')
+        throw new ProjectPageForeignEmbedError()
       }
       const path = parsed.owner
         ? FILE_RESOURCE_ROUTES[parsed.owner.entityType](

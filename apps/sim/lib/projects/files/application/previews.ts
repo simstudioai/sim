@@ -2,7 +2,9 @@ import type { Principal } from '@sim/auth/principal'
 import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import type { DbTransaction } from '@/lib/db/types'
 import { getCsvPreviewSlice } from '@/lib/file-parsers/csv-preview-slice'
 import type {
@@ -12,16 +14,11 @@ import type {
 import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/application/authorized-use-case'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import {
-  buildWorkspaceFileFolderPathMap,
-  listFileFolders,
-  mapFileRecord,
-} from '@/lib/uploads/contexts/workspace'
-import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { downloadFileStream } from '@/lib/uploads/core/storage-service'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 
@@ -35,7 +32,11 @@ interface InlineInput {
 const resolveInlineRecord = defineAuthorizedProjectFileUseCase<
   typeof projectFileOperations.readInline,
   InlineInput,
-  { file: WorkspaceFileRow; secretProvenance: WorkspaceFileSecretProvenance | undefined }
+  {
+    file: WorkspaceFileRow
+    organizationId: string | null
+    secretProvenance: WorkspaceFileSecretProvenance | undefined
+  }
 >({
   operation: projectFileOperations.readInline,
   async execute({
@@ -65,7 +66,11 @@ const resolveInlineRecord = defineAuthorizedProjectFileUseCase<
       .limit(1)
     if (!file) throw new OrchestrationError('not_found', 'File not found')
     const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
-    return { file, secretProvenance: evidence.get(file.id) }
+    return {
+      file,
+      organizationId: context.organizationId,
+      secretProvenance: evidence.get(file.id),
+    }
   },
   afterSuccess: ({ principal, input, result }) =>
     requireAdmittedContent(principal, {
@@ -76,62 +81,47 @@ const resolveInlineRecord = defineAuthorizedProjectFileUseCase<
     }),
 })
 
-/** Resolves a private object under its Project before reading, then fences its current head again. */
-const readInlineFile = defineAuthorizedProjectFileUseCase({
-  operation: projectFileOperations.readInline,
-  async prepare({ principal, input }: { principal: Principal; input: InlineInput }) {
-    const { file } = await resolveInlineRecord.execute({ principal, input })
-    const content = await downloadFile({
-      key: file.key,
-      context: 'project',
-      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
-    })
-    return { file, content }
-  },
-  async execute({ context, tx, prepared }) {
-    if (!prepared) throw new Error('Inline file bytes are unavailable')
-    const [file] = await tx
-      .select()
-      .from(workspaceFiles)
-      .where(
-        and(
-          fileOwnerCondition(context.owner),
-          eq(workspaceFiles.id, prepared.file.id),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-      .for('share')
-      .limit(1)
-    if (
-      !file ||
-      file.key !== prepared.file.key ||
-      file.contentUpdatedAt.getTime() !== prepared.file.contentUpdatedAt.getTime()
-    )
-      throw new OrchestrationError('conflict', 'File changed while preparing its preview')
-    const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
-    const folders = file.folderId ? await listFileFolders(context.owner, { scope: 'all' }, tx) : []
-    return {
-      file: mapFileRecord(file, context.owner, buildWorkspaceFileFolderPathMap(folders)),
-      content: prepared.content,
-      secretProvenance: evidence.get(file.id),
-    }
-  },
-  async afterSuccess({ principal, result }) {
-    await requireAdmittedContent(principal, {
-      kind: 'workspace-file',
-      id: result.file.id,
-      provenance: result.secretProvenance ?? { status: 'unknown' },
-      view: 'opaque',
-    })
-    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
-  },
-})
+type ResolveInlineArgs = Parameters<typeof resolveInlineRecord.execute>[0]
 
-/** HEAD resolves the canonical image without fetching its bytes. */
+/**
+ * Streams a private object resolved under its Project, then fences its current head after storage
+ * opens. A key request names the exact immutable object it streamed, so it is content-addressed.
+ */
 export const readProjectInlineFile = {
-  ...readInlineFile,
-  async authorize(args: Parameters<typeof readInlineFile.authorize>[0]) {
+  operation: resolveInlineRecord.operation,
+  delegationAudience: resolveInlineRecord.delegationAudience,
+  /** HEAD resolves the canonical image without fetching its bytes. */
+  async authorize(args: ResolveInlineArgs) {
     await resolveInlineRecord.execute(args)
+  },
+  async execute(args: ResolveInlineArgs) {
+    const snapshot = await resolveInlineRecord.execute(args)
+    const stream = nodeReadableToWebStream(
+      await runWithOutboundOrganization(snapshot.organizationId, () =>
+        downloadFileStream({ key: snapshot.file.key, context: 'project' })
+      )
+    )
+    try {
+      const { file, secretProvenance } = await resolveInlineRecord.execute({
+        ...args,
+        input: { projectId: args.input.projectId, referenceFileId: snapshot.file.id },
+      })
+      if (
+        file.key !== snapshot.file.key ||
+        file.contentUpdatedAt.getTime() !== snapshot.file.contentUpdatedAt.getTime()
+      )
+        throw new OrchestrationError('conflict', 'File changed while preparing its preview')
+      await reportWorkspaceFileDelivery(secretProvenance, file.id)
+      return {
+        file: { id: file.id, name: file.originalName, type: file.contentType },
+        stream,
+        contentLength: getWorkspaceFileSize(file),
+        contentAddressed: args.input.key !== undefined,
+      }
+    } catch (error) {
+      await stream.cancel(error).catch(() => undefined)
+      throw error
+    }
   },
 }
 
@@ -144,29 +134,23 @@ interface CsvPreviewInput extends ProjectFileTarget {
 /** Reads only the bounded CSV slice and rejects head changes before exposing its rows. */
 export const readProjectFileCsvPreview = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readContent,
-  async prepare({
+  async prepareFromSnapshot({
     input,
-    context,
     principal,
   }: {
     principal: Principal
     input: CsvPreviewInput
-    context: ProjectFileAuthorizationContext
   }) {
-    const file = context.file
-    if (!file || file.key !== input.key) throw new OrchestrationError('not_found', 'File not found')
-    const { file: admitted } = await resolveInlineRecord.execute({
+    const { file, organizationId } = await resolveInlineRecord.execute({
       principal,
-      input: { projectId: input.projectId, referenceFileId: file.id, view: 'excerpt' },
+      input: { projectId: input.projectId, referenceFileId: input.fileId, view: 'excerpt' },
     })
-    if (
-      admitted.key !== file.key ||
-      admitted.contentUpdatedAt.getTime() !== file.contentUpdatedAt.getTime()
-    )
-      throw new OrchestrationError('conflict', 'File changed while preparing its preview')
+    if (file.key !== input.key) throw new OrchestrationError('not_found', 'File not found')
     return {
       file,
-      slice: await getCsvPreviewSlice({ key: file.key, context: 'project', signal: input.signal }),
+      slice: await runWithOutboundOrganization(organizationId, () =>
+        getCsvPreviewSlice({ key: file.key, context: 'project', signal: input.signal })
+      ),
     }
   },
   async execute({ input, context, tx, prepared }) {

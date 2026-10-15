@@ -4,17 +4,17 @@ import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 
 /** Images past this size stay as URL references rather than bloating the document. */
-const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024
+export const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024
 
 /**
  * Ceiling on everything a single document inlines. A per-image limit does not bound
  * the page on its own — N images each just under it still cost N times it. Images
  * that do not fit what is left keep their URL reference, exactly like an oversized one.
  */
-const MAX_INLINE_TOTAL_BYTES = 32 * 1024 * 1024
+export const MAX_INLINE_TOTAL_BYTES = 32 * 1024 * 1024
 
 /** Bounds metadata reads even when the page references many missing or empty images. */
-const MAX_INLINE_IMAGE_REFERENCES = 256
+export const MAX_INLINE_IMAGE_REFERENCES = 256
 
 const IMAGE_SRC =
   /src="[^"]*\/api\/(?:files\/view\/([^"]+)|projects\/([^/"]+)\/files\/([^/"]+)\/content)"/g

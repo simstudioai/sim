@@ -1,9 +1,14 @@
+import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileRow } from '@sim/db/schema'
 import { workspaceFiles } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
 import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import type { DbTransaction } from '@/lib/db/types'
 import type {
@@ -35,17 +40,34 @@ import {
 } from '@/lib/uploads/documents'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { getWorkspaceFileSize, MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
-import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import {
+  isSimPageSource,
+  ProjectPageForeignEmbedError,
+  SIM_PAGE_CONTENT_TYPE,
+} from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 import {
   collectSimPageFileReferences,
   inlineSimPageImages,
+  MAX_INLINE_IMAGE_BYTES,
+  MAX_INLINE_IMAGE_REFERENCES,
+  MAX_INLINE_TOTAL_BYTES,
 } from '@/lib/workspace-files/page-document.server'
 import { createFileReadReceipt, type FileReadReceipt } from '@/lib/workspace-files/read-receipt'
-import { markFileSearchArtifactReadyInTx } from '@/lib/workspace-files/search/artifact-ready'
+import {
+  type FileSearchArtifactCompletion,
+  requeueFileSearchForRenderedArtifact,
+} from '@/lib/workspace-files/search/artifact-ready'
+
+const logger = createLogger('ProjectFileArtifacts')
+
+/** Generated-document input limits; `compileFileDocument` enforces the same values on the bytes. */
+const MAX_DOCUMENT_INPUTS = 500
+const MAX_DOCUMENT_INPUT_BYTES = 25 * 1024 * 1024
+const MAX_DOCUMENT_INPUT_TOTAL_BYTES = 50 * 1024 * 1024
 
 type ProjectOwner = { entityType: 'project'; entityId: string }
 interface ArtifactInput extends ProjectFileTarget {
@@ -56,18 +78,21 @@ interface ArtifactInput extends ProjectFileTarget {
 }
 interface SourceSnapshot {
   file: WorkspaceFileRow
-  content: Buffer
+  owner: ProjectOwner
+  organizationId: string | null
+  secretProvenance: WorkspaceFileSecretProvenance | undefined
 }
-interface ArtifactManifest {
-  source: WorkspaceFileRow
-  dependencies: WorkspaceFileRow[]
+interface ArtifactPlan {
+  /** The decoded source, only for a page or generated document. */
+  source?: string
   pageHtml?: string
   generatedDocument: boolean
-  secretProvenance: WorkspaceFileSecretProvenance
+  dependencyIds: string[]
 }
 interface PreparedArtifact {
   artifactKey?: string
-  manifest: ArtifactManifest
+  source: WorkspaceFileRow
+  dependencies: WorkspaceFileRow[]
   buffer: Buffer
   contentType: string
   dependsOnReferencedFiles: boolean
@@ -80,6 +105,12 @@ interface ArtifactResult {
   secretProvenance: WorkspaceFileSecretProvenance
   receipt: FileReadReceipt
 }
+
+/**
+ * Search requeues carried from the commit to the post-commit phase. The requeue holds the Project
+ * exclusively, so it never runs inside the read's transaction, which holds the Project shared.
+ */
+const renderedSearchArtifacts = new WeakMap<ArtifactResult, FileSearchArtifactCompletion>()
 
 function requireSameRevision(current: WorkspaceFileRow | undefined, expected: WorkspaceFileRow) {
   if (
@@ -112,10 +143,96 @@ async function loadDependencies(tx: DbTransaction, owner: ProjectOwner, ids: str
   return rows
 }
 
+/** Classifies the source bytes and names the same-Project inputs its render reads. */
+async function planArtifact(
+  file: WorkspaceFileRow,
+  content: Buffer,
+  owner: ProjectOwner
+): Promise<ArtifactPlan> {
+  const pageCandidate =
+    file.contentType === SIM_PAGE_CONTENT_TYPE || file.originalName.toLowerCase().endsWith('.html')
+  const format = await getE2BDocFormat(file.originalName)
+  if (!pageCandidate && format === null) return { generatedDocument: false, dependencyIds: [] }
+  const source = content.toString('utf-8')
+  const page = pageCandidate && isSimPageSource(source)
+  let pageHtml: string | undefined
+  if (page) {
+    try {
+      pageHtml = renderSimPageDocument(source, { projectId: owner.entityId })
+    } catch (error) {
+      if (error instanceof ProjectPageForeignEmbedError)
+        throw new OrchestrationError('not_found', 'Document input not found')
+      throw error
+    }
+  }
+  const generatedDocument =
+    !page && format !== null && !isCompiledDocumentBuffer(file.originalName, content)
+  const references = pageHtml ? collectSimPageFileReferences(pageHtml) : []
+  if (references.some((reference) => reference.projectId && reference.projectId !== owner.entityId))
+    throw new OrchestrationError('not_found', 'Document input not found')
+  const dependencyIds = [
+    ...new Set(
+      pageHtml
+        ? references.map((reference) => reference.fileId)
+        : generatedDocument && format
+          ? collectReferencedFileIds(
+              source,
+              isDocSandboxEnabled
+                ? getDocumentSourceLanguage(source, format, file.contentType)
+                : 'javascript'
+            )
+          : []
+    ),
+  ]
+  if (dependencyIds.length > (pageHtml ? MAX_INLINE_IMAGE_REFERENCES : MAX_DOCUMENT_INPUTS))
+    throw new OrchestrationError('payload_too_large', 'Document exceeds the referenced input limit')
+  return { source, pageHtml, generatedDocument, dependencyIds }
+}
+
+/**
+ * Reads inputs with bounded fan-out. Declared sizes are checked before any read, and each read is
+ * capped at its declared size plus the unclaimed budget, so accurate rows never exceed the total.
+ */
+async function downloadDependencies(
+  dependencies: readonly WorkspaceFileRow[],
+  limits: { perFile: number; total: number },
+  signal?: AbortSignal
+) {
+  const declared = dependencies.map((dependency) => getWorkspaceFileSize(dependency))
+  for (const size of declared) assertKnownSizeWithinLimit(size, limits.perFile, 'document input')
+  const declaredTotal = declared.reduce((sum, size) => sum + size, 0)
+  assertKnownSizeWithinLimit(declaredTotal, limits.total, 'document inputs')
+  const unclaimed = limits.total - declaredTotal
+  const failed = new AbortController()
+  const abort = signal ? AbortSignal.any([signal, failed.signal]) : failed.signal
+  let received = 0
+  try {
+    return await mapWithConcurrency(
+      dependencies,
+      MATERIALIZE_CONCURRENCY,
+      async (dependency, index) => {
+        abort.throwIfAborted()
+        const content = await downloadFile({
+          key: dependency.key,
+          context: 'project',
+          maxBytes: Math.min(limits.perFile, declared[index] + unclaimed),
+          signal: abort,
+        })
+        received += content.length
+        assertKnownSizeWithinLimit(received, limits.total, 'document inputs')
+        return { fileId: dependency.id, contentType: dependency.contentType, content }
+      }
+    )
+  } catch (error) {
+    failed.abort(error)
+    throw error
+  }
+}
+
 const snapshotSource = defineAuthorizedProjectFileUseCase<
   typeof projectFileOperations.readArtifact,
   ArtifactInput,
-  { file: WorkspaceFileRow; secretProvenance: WorkspaceFileSecretProvenance | undefined }
+  SourceSnapshot
 >({
   operation: projectFileOperations.readArtifact,
   async execute({
@@ -129,7 +246,12 @@ const snapshotSource = defineAuthorizedProjectFileUseCase<
     const file = context.file
     if (!file) throw new OrchestrationError('not_found', 'File not found')
     const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
-    return { file, secretProvenance: evidence.get(file.id) }
+    return {
+      file,
+      owner: context.owner,
+      organizationId: context.organizationId,
+      secretProvenance: evidence.get(file.id),
+    }
   },
   afterSuccess: ({ principal, result }) =>
     requireAdmittedContent(principal, {
@@ -140,75 +262,130 @@ const snapshotSource = defineAuthorizedProjectFileUseCase<
     }),
 })
 
-const snapshotArtifact = defineAuthorizedProjectFileUseCase<
+/** Locks the named inputs against the unchanged source and admits their merged provenance before any input read. */
+const snapshotDependencies = defineAuthorizedProjectFileUseCase<
   typeof projectFileOperations.readArtifact,
-  ArtifactInput & { source: SourceSnapshot },
-  ArtifactManifest
+  ArtifactInput & { source: WorkspaceFileRow; dependencyIds: string[] },
+  { dependencies: WorkspaceFileRow[]; secretProvenance: WorkspaceFileSecretProvenance }
 >({
   operation: projectFileOperations.readArtifact,
   async execute({ input, context, tx }) {
-    requireSameRevision(context.file, input.source.file)
-    const source = input.source.content.toString('utf-8')
-    const page =
-      (input.source.file.contentType === SIM_PAGE_CONTENT_TYPE ||
-        input.source.file.originalName.toLowerCase().endsWith('.html')) &&
-      isSimPageSource(source)
-    const pageHtml = page
-      ? renderSimPageDocument(source, { projectId: context.projectId })
-      : undefined
-    const format = await getE2BDocFormat(input.source.file.originalName)
-    const generatedDocument =
-      !page &&
-      format !== null &&
-      !isCompiledDocumentBuffer(input.source.file.originalName, input.source.content)
-    const references = pageHtml ? collectSimPageFileReferences(pageHtml) : []
-    if (
-      references.some(
-        (reference) => reference.projectId && reference.projectId !== context.projectId
-      )
-    ) {
-      throw new OrchestrationError('not_found', 'Document input not found')
-    }
-    const ids = [
-      ...new Set(
-        pageHtml
-          ? references.map((reference) => reference.fileId)
-          : generatedDocument && format
-            ? collectReferencedFileIds(
-                source,
-                isDocSandboxEnabled
-                  ? getDocumentSourceLanguage(source, format, input.source.file.contentType)
-                  : 'javascript'
-              )
-            : []
-      ),
-    ]
-    if (ids.length > (pageHtml ? 256 : 500))
-      throw new OrchestrationError(
-        'payload_too_large',
-        'Document exceeds the referenced input limit'
-      )
-    const dependencies = await loadDependencies(tx, context.owner, ids)
+    requireSameRevision(context.file, input.source)
+    const dependencies = await loadDependencies(tx, context.owner, input.dependencyIds)
     const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [
-      input.source.file,
+      input.source,
       ...dependencies,
     ])
     return {
-      source: input.source.file,
       dependencies,
-      pageHtml,
-      generatedDocument,
       secretProvenance: mergeWorkspaceFileSecretProvenance(...evidence.values()),
     }
   },
-  afterSuccess: ({ principal, result }) =>
+  afterSuccess: ({ principal, input, result }) =>
     requireAdmittedContent(principal, {
       kind: 'workspace-file',
-      id: result.source.id,
+      id: input.source.id,
       provenance: result.secretProvenance,
       view: 'opaque',
     }),
 })
+
+async function renderArtifact(
+  principal: Principal,
+  input: ArtifactInput,
+  snapshot: SourceSnapshot,
+  signal?: AbortSignal
+): Promise<PreparedArtifact> {
+  const { file, owner } = snapshot
+  const artifact = await resolveDocumentRender(
+    file.originalName,
+    { maxBytes: input.maxBytes, signal },
+    async (): Promise<PreparedArtifact> => {
+      const content = await downloadFile({
+        key: file.key,
+        context: 'project',
+        maxBytes: input.maxBytes,
+        signal,
+      })
+      const plan = await planArtifact(file, content, owner)
+      const dependencies =
+        plan.dependencyIds.length === 0
+          ? []
+          : (
+              await snapshotDependencies.execute({
+                principal,
+                input: { ...input, source: file, dependencyIds: plan.dependencyIds },
+              })
+            ).dependencies
+      const inputs = await downloadDependencies(
+        dependencies,
+        plan.pageHtml
+          ? { perFile: MAX_INLINE_IMAGE_BYTES, total: MAX_INLINE_TOTAL_BYTES }
+          : { perFile: MAX_DOCUMENT_INPUT_BYTES, total: MAX_DOCUMENT_INPUT_TOTAL_BYTES },
+        signal
+      )
+      if (plan.pageHtml) {
+        const byId = new Map(inputs.map((input) => [input.fileId, input]))
+        const page = await inlineSimPageImages(
+          plan.pageHtml,
+          async ({ fileId }) => {
+            const asset = byId.get(fileId)
+            if (!asset) throw new OrchestrationError('not_found', 'Document input not found')
+            return { bytes: asset.content, contentType: asset.contentType, identity: fileId }
+          },
+          { strict: true }
+        )
+        const buffer = Buffer.from(page.html, 'utf-8')
+        assertKnownSizeWithinLimit(buffer.length, input.maxBytes, 'rendered page')
+        return {
+          source: file,
+          dependencies,
+          buffer,
+          contentType: 'text/html',
+          dependsOnReferencedFiles: inputs.length > 0,
+        }
+      }
+      if (plan.generatedDocument && plan.source !== undefined) {
+        const compiled = await compileFileDocument({
+          owner,
+          sourceMime: file.contentType,
+          source: plan.source,
+          fileName: file.originalName,
+          inputs,
+          inputIdentity: fileDocumentInputIdentity(owner, dependencies),
+          maxBytes: input.maxBytes,
+          signal,
+        })
+        return { source: file, dependencies, ...compiled }
+      }
+      return {
+        source: file,
+        dependencies,
+        buffer: content,
+        contentType: file.contentType,
+        dependsOnReferencedFiles: false,
+      }
+    }
+  )
+  const derivative = input.preview
+    ? await resolveServableImageBytes(artifact.buffer, file.key, { owner })
+    : null
+  if (derivative)
+    assertKnownSizeWithinLimit(derivative.buffer.length, input.maxBytes, 'image preview')
+  return { ...artifact, ...derivative }
+}
+
+/** Indexing is best effort: a contended or failed requeue never fails a delivered read. */
+async function requeueRenderedSearchArtifact(completion: FileSearchArtifactCompletion) {
+  try {
+    await requeueFileSearchForRenderedArtifact(completion)
+  } catch (error) {
+    logger.warn('Could not requeue file search for a rendered artifact', {
+      fileId: completion.file.fileId,
+      error: getErrorMessage(error),
+    })
+  }
+}
 
 /** Renders only source-owned dependencies, then rechecks the source, every input, and current authority. */
 export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
@@ -218,7 +395,7 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
   PreparedArtifact
 >({
   operation: projectFileOperations.readArtifact,
-  async prepare({ principal, input, context }) {
+  async prepareFromSnapshot({ principal, input, request }) {
     if (
       !Number.isSafeInteger(input.maxBytes) ||
       input.maxBytes <= 0 ||
@@ -226,109 +403,24 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
     ) {
       throw new OrchestrationError('validation', 'Invalid document byte limit')
     }
-    const { file } = await snapshotSource.execute({ principal, input })
-    const artifact = await resolveDocumentRender(
-      file.originalName,
-      { maxBytes: input.maxBytes },
-      async () => {
-        const content = await downloadFile({
-          key: file.key,
-          context: 'project',
-          maxBytes: input.maxBytes,
-        })
-        const manifest = await snapshotArtifact.execute({
-          principal,
-          input: { ...input, source: { file, content } },
-        })
-        let remaining = manifest.pageHtml ? 32 * 1024 * 1024 : 50 * 1024 * 1024
-        const inputs = []
-        for (const dependency of manifest.dependencies) {
-          const bytes = await downloadFile({
-            key: dependency.key,
-            context: 'project',
-            maxBytes: Math.min(remaining, manifest.pageHtml ? 8 * 1024 * 1024 : 25 * 1024 * 1024),
-          })
-          remaining -= bytes.length
-          inputs.push({
-            fileId: dependency.id,
-            contentType: dependency.contentType,
-            content: bytes,
-          })
-        }
-        if (manifest.pageHtml) {
-          const byId = new Map(inputs.map((input) => [input.fileId, input]))
-          const page = await inlineSimPageImages(
-            manifest.pageHtml,
-            async ({ fileId }) => {
-              const asset = byId.get(fileId)
-              if (!asset) throw new OrchestrationError('not_found', 'Document input not found')
-              return { bytes: asset.content, contentType: asset.contentType, identity: fileId }
-            },
-            { strict: true }
-          )
-          const buffer = Buffer.from(page.html, 'utf-8')
-          assertKnownSizeWithinLimit(buffer.length, input.maxBytes, 'rendered page')
-          return {
-            manifest,
-            buffer,
-            contentType: 'text/html',
-            dependsOnReferencedFiles: inputs.length > 0,
-          }
-        }
-        if (manifest.generatedDocument) {
-          const inputIdentity = fileDocumentInputIdentity(context.owner, manifest.dependencies)
-          const compiled = await compileFileDocument({
-            owner: context.owner,
-            sourceMime: file.contentType,
-            source: content.toString('utf-8'),
-            fileName: file.originalName,
-            inputs,
-            inputIdentity,
-            maxBytes: input.maxBytes,
-          })
-          return { manifest, ...compiled }
-        }
-        return {
-          manifest,
-          buffer: content,
-          contentType: file.contentType,
-          dependsOnReferencedFiles: false,
-        }
-      }
+    const snapshot = await snapshotSource.execute({ principal, input })
+    return runWithOutboundOrganization(snapshot.organizationId, () =>
+      renderArtifact(principal, input, snapshot, request?.signal)
     )
-    const derivative = input.preview
-      ? await resolveServableImageBytes(artifact.buffer, artifact.manifest.source.key, {
-          owner: context.owner,
-        })
-      : null
-    if (derivative)
-      assertKnownSizeWithinLimit(derivative.buffer.length, input.maxBytes, 'image preview')
-    return { ...artifact, ...derivative }
   },
   async execute({ input, context, tx, prepared }) {
     if (!prepared) throw new Error('Prepared document is unavailable')
-    requireSameRevision(context.file, prepared.manifest.source)
+    requireSameRevision(context.file, prepared.source)
     const dependencies = await loadDependencies(
       tx,
       context.owner,
-      prepared.manifest.dependencies.map((file) => file.id)
+      prepared.dependencies.map((file) => file.id)
     )
     const currentById = new Map(dependencies.map((file) => [file.id, file]))
-    for (const expected of prepared.manifest.dependencies)
+    for (const expected of prepared.dependencies)
       requireSameRevision(currentById.get(expected.id), expected)
     const source = context.file
     if (!source) throw new OrchestrationError('not_found', 'File not found')
-    if (prepared.artifactKey)
-      await markFileSearchArtifactReadyInTx(tx, {
-        owner: context.owner,
-        file: { fileId: source.id, key: source.key, contentUpdatedAt: source.contentUpdatedAt },
-        dependencies: dependencies.map((file) => ({
-          fileId: file.id,
-          key: file.key,
-          sourceContentUpdatedAt: file.contentUpdatedAt,
-        })),
-        artifactKey: prepared.artifactKey,
-      })
     const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [
       source,
       ...dependencies,
@@ -343,7 +435,7 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
     const folders = source.folderId
       ? await listFileFolders(context.owner, { scope: 'all' }, tx)
       : []
-    return {
+    const result = {
       file: mapFileRecord(source, context.owner, buildWorkspaceFileFolderPathMap(folders)),
       buffer: prepared.buffer,
       contentType: prepared.contentType,
@@ -351,6 +443,18 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
       secretProvenance,
       receipt: createFileReadReceipt(context.owner, [source, ...dependencies]),
     }
+    if (prepared.artifactKey)
+      renderedSearchArtifacts.set(result, {
+        owner: context.owner,
+        file: { fileId: source.id, key: source.key, contentUpdatedAt: source.contentUpdatedAt },
+        dependencies: dependencies.map((file) => ({
+          fileId: file.id,
+          key: file.key,
+          sourceContentUpdatedAt: file.contentUpdatedAt,
+        })),
+        artifactKey: prepared.artifactKey,
+      })
+    return result
   },
   async afterSuccess({ principal, result }) {
     await requireAdmittedContent(principal, {
@@ -360,5 +464,8 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
       view: 'opaque',
     })
     await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+    const completion = renderedSearchArtifacts.get(result)
+    renderedSearchArtifacts.delete(result)
+    if (completion) await requeueRenderedSearchArtifact(completion)
   },
 })
