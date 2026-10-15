@@ -23,7 +23,10 @@ import {
   observeContentDelivery,
 } from '@/lib/core/application'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
-import { recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
+import {
+  assertFileReadReceiptCurrent,
+  recheckFileReadReceipt,
+} from '@/lib/workspace-files/read-receipt'
 
 class FakeDocNotReadyError extends Error {}
 
@@ -212,6 +215,24 @@ describe('workspace file downloads', () => {
         () => downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: 'file-3' } })
       )
     ).rejects.toBeInstanceOf(ContentRefusedError)
+  })
+
+  it('rejects a session download whose files changed after authorization', async () => {
+    mocks.getFile.mockResolvedValue(generatedDoc)
+    mocks.fetchServable.mockResolvedValue({
+      buffer: Buffer.from('%PDF-compiled'),
+      contentType: 'application/pdf',
+      receipt: {
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        files: [
+          { id: generatedDoc.id, key: generatedDoc.key, revision: 1 },
+          { id: 'file-embedded', key: 'workspace/workspace-1/logo.png', revision: 1 },
+        ],
+      },
+    })
+    vi.mocked(assertFileReadReceiptCurrent).mockRejectedValueOnce(new Error('A file changed'))
+
+    await expect(downloadStream(generatedDoc.id)).rejects.toThrow('A file changed')
   })
 
   it('reads no provenance for a session download, which no gate classifies', async () => {

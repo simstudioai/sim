@@ -10,6 +10,15 @@ import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * GET /api/workspaces/[id]/files/inline?key=<cloudKey>|fileId=<id>
+ *
+ * Serves an embedded workspace image. A URL naming the exact storage object that was streamed is
+ * cached immutably (see {@link ReadWorkspaceInlineFileResult.contentAddressed}): a content write
+ * never rewrites an object, and every document render asks for each image at least twice (the
+ * editor's DOM, then its React node view) across two editor mounts, so revalidating re-downloaded
+ * every image on every open. A URL naming the file, whose bytes move as it is edited, revalidates.
+ */
 export const GET = defineInternalBinaryRoute({
   contract: getInlineWorkspaceFileContract,
   auth: internalSessionAuth,

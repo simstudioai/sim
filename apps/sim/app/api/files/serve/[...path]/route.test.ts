@@ -381,5 +381,36 @@ describe('File Serve API Route', () => {
       const response = await serveVersionedDoc(true)
       expect(response.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
     })
+
+    it('serves stored bytes under the type their extension names, not the recorded type', async () => {
+      mockResolveStoredFileContext.mockResolvedValue('workspace')
+      mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
+      mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
+      mockReadWorkspaceFileRecordByKey.mockResolvedValue({
+        file: {
+          id: 'file-1',
+          workspaceId: 'test-workspace-id',
+          name: 'export.csv',
+          key: 'workspace/test-workspace-id/export.csv',
+          type: 'application/vnd.ms-excel',
+          size: 3,
+          contentUpdatedAt: new Date('2026-09-06'),
+        },
+      })
+      fileUtilsServerMockFns.mockDownloadServableFileFromStorage.mockResolvedValue({
+        buffer: Buffer.from('a,b'),
+        contentType: 'application/vnd.ms-excel',
+      })
+
+      const response = await GET(
+        createMockRequest({
+          url: 'http://localhost:3000/api/files/serve/workspace/test-workspace-id/export.csv',
+        }),
+        createRouteContext({ path: ['workspace', 'test-workspace-id', 'export.csv'] })
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('text/csv')
+    })
   })
 })

@@ -56,6 +56,7 @@ async function executeReadWorkspaceInlineFile({
     await downloadFileStream({ key: file.key, context: 'workspace' })
   )
   const provenance = await finishFileDelivery({
+    principal,
     authorize: () => readWorkspaceInlineFile.authorize({ principal, input }),
     receipt: createFileReadReceipt({ entityType: 'workspace', entityId: context.workspaceId }, [
       { ...file, contentUpdatedAt: file.contentUpdatedAt ?? file.updatedAt },

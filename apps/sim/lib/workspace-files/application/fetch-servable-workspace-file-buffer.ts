@@ -20,6 +20,7 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
   filePrincipal: Principal,
   options: { maxBytes: number; signal?: AbortSignal; requestId?: string }
 ): Promise<ServableFile & { receipt: FileReadReceipt; dependsOnReferencedFiles: boolean }> {
+  const subjectUserId = resolvePrincipalSubjectUserId(filePrincipal)
   const result = await downloadServableFileFromStorage(
     {
       id: fileRecord.id,
@@ -35,8 +36,7 @@ export async function fetchAuthorizedServableWorkspaceFileBuffer(
     {
       ...options,
       filePrincipal,
-      ownerKey:
-        resolvePrincipalSubjectUserId(filePrincipal) ?? `workspace:${fileRecord.workspaceId}`,
+      ownerKey: subjectUserId ? `user:${subjectUserId}` : `workspace:${fileRecord.workspaceId}`,
     }
   )
   const artifactKey = result.artifactKey
