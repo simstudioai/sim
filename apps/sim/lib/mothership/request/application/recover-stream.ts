@@ -137,14 +137,15 @@ export const takeOverStreamRun = defineAuthorizedChatUseCase({
         principal.resourceScope?.chatId === context.chatId,
     },
   },
-  execute: ({ context }) => recoverStreamRun(context),
+  execute: ({ context, request }) => recoverStreamRun(context, request?.signal),
 })
 
 /**
  * Takes over the run when no controller holds its chat and none of its Sim tools is still
  * running, then drives it on from the worker's re-attach. Anything else returns the run as is.
+ * An aborted `admission` declines the run before its controller is claimed.
  */
-async function recoverStreamRun(context: StreamRunContext) {
+async function recoverStreamRun(context: StreamRunContext, admission?: AbortSignal) {
   const { run, chatId, userId, workspaceId, organizationId } = context
   if (isTerminalStreamStatus(run.status)) return run
   const saved = run.requestContext as Record<string, unknown> | null
@@ -211,6 +212,8 @@ async function recoverStreamRun(context: StreamRunContext) {
      */
     await revokeExhaustedSimToolExecutions(run.id)
     await assertChatStreamLease(lease)
+    /** The last point a shutting-down caller can still decline the run without owning it. */
+    admission?.throwIfAborted()
     if (
       !(await claimRunController({
         runId: run.id,

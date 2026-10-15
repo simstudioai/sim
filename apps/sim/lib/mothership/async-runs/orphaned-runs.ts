@@ -346,9 +346,9 @@ async function releaseChatLocks(fences: ChatLockFence[]): Promise<void> {
   )
 }
 
-async function readSweepCursor(): Promise<string | undefined> {
+async function readSweepCursor(key = SWEEP_CURSOR_KEY): Promise<string | undefined> {
   try {
-    return (await getRedisClient()?.get(SWEEP_CURSOR_KEY)) ?? undefined
+    return (await getRedisClient()?.get(key)) ?? undefined
   } catch (error) {
     logger.warn('Orphaned-run sweep cursor is unreadable; starting from the first run', {
       error: getErrorMessage(error),
@@ -357,12 +357,12 @@ async function readSweepCursor(): Promise<string | undefined> {
   }
 }
 
-async function writeSweepCursor(cursor: string | undefined): Promise<void> {
+async function writeSweepCursor(cursor: string | undefined, key = SWEEP_CURSOR_KEY): Promise<void> {
   try {
     const redis = getRedisClient()
     if (!redis) return
-    if (cursor) await redis.set(SWEEP_CURSOR_KEY, cursor, 'EX', SWEEP_CURSOR_TTL_SECONDS)
-    else await redis.del(SWEEP_CURSOR_KEY)
+    if (cursor) await redis.set(key, cursor, 'EX', SWEEP_CURSOR_TTL_SECONDS)
+    else await redis.del(key)
   } catch (error) {
     logger.warn('Orphaned-run sweep cursor could not be saved', { error: getErrorMessage(error) })
   }
@@ -489,19 +489,30 @@ export async function settleRunWithoutAccess(run: UnownedRun): Promise<boolean> 
  * worth checking yet.
  */
 const ABANDONED_RUN_IDLE_MS = 60_000
+/** Where the last takeover scan stopped, so live runs it skipped never hide the runs after them. */
+export const ABANDONED_RUN_CURSOR_KEY = 'copilot:abandoned-runs:scan-cursor'
 
 /**
  * Runs an interactive controller abandoned that a takeover can still resume: unfinished and
- * not stopped, saved with their recovery intent, idle for a minute but within the recovery window, and
- * with no controller holding their chat lock. Empty while the locks cannot be read, since then
- * no run is provably abandoned.
+ * not stopped, saved with their recovery intent, idle for a minute but within the recovery
+ * window, and with no controller holding their chat lock. Each scan examines at most
+ * `maxExamined` candidates, resuming after the last one the previous scan examined and wrapping
+ * to the first, so runs whose controller is alive cost one examination per pass and never
+ * crowd out an abandoned run. Empty while the locks cannot be read, since then no run is
+ * provably abandoned.
  */
-export async function findAbandonedRecoverableRuns(limit: number): Promise<UnownedRun[]> {
+export async function findAbandonedRecoverableRuns(
+  limit: number,
+  { pageSize = SWEEP_BATCH_SIZE, maxExamined = SWEEP_BATCH_SIZE } = {}
+): Promise<UnownedRun[]> {
   const abandoned: UnownedRun[] = []
-  let after: string | undefined
-  /** Pages past runs whose controller is alive, so they never crowd out an abandoned one. */
-  while (abandoned.length < limit) {
-    const candidates: UnownedRun[] = await db
+  const start = await readSweepCursor(ABANDONED_RUN_CURSOR_KEY)
+  let cursor = start
+  let wrapped = start === undefined
+  let examined = 0
+  while (abandoned.length < limit && examined < maxExamined) {
+    const size = Math.min(pageSize, maxExamined - examined)
+    const page: UnownedRun[] = await db
       .select(unownedRunColumns)
       .from(copilotRuns)
       .where(
@@ -512,23 +523,35 @@ export async function findAbandonedRecoverableRuns(limit: number): Promise<Unown
           idleFor(ABANDONED_RUN_IDLE_MS),
           not(idleFor(ORPHANED_RUN_GRACE_MS)),
           not(stopRequested),
-          after ? gt(copilotRuns.id, after) : undefined
+          cursor ? gt(copilotRuns.id, cursor) : undefined,
+          wrapped && start ? lte(copilotRuns.id, start) : undefined
         )
       )
       .orderBy(asc(copilotRuns.id))
-      .limit(SWEEP_BATCH_SIZE)
-    if (candidates.length === 0) break
-    after = candidates[candidates.length - 1].id
+      .limit(size)
+    let locked: Set<string>
     try {
-      const locked = await findStreamsHoldingChatLock(candidates)
-      abandoned.push(...candidates.filter((run) => !locked.has(run.streamId)))
+      locked = page.length > 0 ? await findStreamsHoldingChatLock(page) : new Set()
     } catch (error) {
       logger.warn('Chat stream ownership is unreadable; no run is taken over this round', {
         error: getErrorMessage(error),
       })
       return []
     }
-    if (candidates.length < SWEEP_BATCH_SIZE) break
+    for (const run of page) {
+      examined++
+      cursor = run.id
+      if (locked.has(run.streamId)) continue
+      abandoned.push(run)
+      if (abandoned.length === limit) break
+    }
+    if (abandoned.length < limit && page.length < size) {
+      /** The end of the table: wrap once to cover the runs before the starting point. */
+      cursor = undefined
+      if (wrapped) break
+      wrapped = true
+    }
   }
-  return abandoned.slice(0, limit)
+  await writeSweepCursor(cursor, ABANDONED_RUN_CURSOR_KEY)
+  return abandoned
 }

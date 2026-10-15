@@ -7,6 +7,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
  * duplicate-send path does, then answers the tool resume that follows.
  */
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
+import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
@@ -47,12 +48,13 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
     REDIS_URL: process.env.REDIS_URL,
     SIM_AGENT_API_URL: process.env.SIM_AGENT_API_URL,
   }
-  process.env.REDIS_URL = url
+  if (url) process.env.REDIS_URL = url
   process.env.SIM_AGENT_API_URL = `http://127.0.0.1:${port}`
   return { redisUrl: url, inheritedEnv, worker: Object.assign(worker, { server }) }
 })
 
 vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { db } from '@sim/db'
 import {
@@ -74,20 +76,32 @@ import {
   EXHAUSTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_MAX_ATTEMPTS,
 } from '@/lib/mothership/async-runs/execution-lease'
-import { REVOKED_RUN_ERROR } from '@/lib/mothership/async-runs/orphaned-runs'
+import {
+  ABANDONED_RUN_CURSOR_KEY,
+  findAbandonedRecoverableRuns,
+  REVOKED_RUN_ERROR,
+} from '@/lib/mothership/async-runs/orphaned-runs'
 import {
   claimToolExecution,
   claimWorkflowToolExecution,
+  prepareWorkbenchAccess,
+  recordSimSandboxProcess,
   revokeExhaustedSimToolExecutions,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
+import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { takeOverAbandonedRuns } from '@/lib/mothership/request/application/abandoned-runs'
+import {
+  RUN_TAKEOVER_AUDIENCE,
+  takeOverStreamRun,
+} from '@/lib/mothership/request/application/recover-stream'
 import {
   createProviderToolCallIdentity,
   scopeProviderToolCallId,
 } from '@/lib/mothership/request/go/tool-call-identity'
 import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
 
 const ownerId = generateId()
@@ -119,12 +133,12 @@ function frameFor(streamId: string, chatId: string) {
  * chat, and the tool's execution lease lapsed with no result recorded.
  */
 async function runAbandonedMidTool(
-  options: { attempts?: number; leaseLive?: boolean; toolName?: string } = {}
+  options: { attempts?: number; leaseLive?: boolean; toolName?: string; runId?: string } = {}
 ) {
   const chatId = generateId()
   chatIds.push(chatId)
   const streamId = generateId()
-  const runId = generateId()
+  const runId = options.runId ?? generateId()
   const request = { message: 'Run the report', userId, messageId: streamId, chatId, workspaceId }
   await db
     .insert(copilotChats)
@@ -304,6 +318,8 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
 
   beforeEach(async () => {
     worker.requests.length = 0
+    resetEnvFlagsMock()
+    await redis().del(ABANDONED_RUN_CURSOR_KEY)
     await db
       .insert(permissions)
       .values({
@@ -467,6 +483,107 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
         status: 'failed',
         error: EXHAUSTED_SIM_TOOL_MESSAGE,
       })
+    } finally {
+      await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+    }
+  })
+
+  it('reaches an abandoned run behind live ones, examining a bounded window per scan', async () => {
+    /** The lowest ids, so the scan meets the two live runs before the abandoned one. */
+    const ids = [1, 2, 3].map((n) => `00000000-0000-4000-8000-00000000000${n}`)
+    const live = [
+      await runAbandonedMidTool({ runId: ids[0] }),
+      await runAbandonedMidTool({ runId: ids[1] }),
+    ]
+    const abandoned = await runAbandonedMidTool({ runId: ids[2] })
+    for (const run of live) {
+      await redis().set(chatStreamLockKey(run.chatId), `${run.streamId}\nlive`, 'EX', 60)
+    }
+    try {
+      const bound = { pageSize: 2, maxExamined: 2 }
+      expect(await findAbandonedRecoverableRuns(1, bound)).toEqual([])
+      expect((await findAbandonedRecoverableRuns(1, bound)).map((run) => run.id)).toEqual([
+        abandoned.runId,
+      ])
+    } finally {
+      for (const run of [...live, abandoned]) {
+        await redis().del(chatStreamLockKey(run.chatId))
+        await db
+          .update(copilotRuns)
+          .set({ status: 'cancelled' })
+          .where(eq(copilotRuns.id, run.runId))
+      }
+    }
+  })
+
+  it("hands a re-run the earlier attempt's workbench commands to stop first", async () => {
+    const { chatId, runId, toolCallId } = await runAbandonedMidTool({ leaseLive: true })
+    const sessionKey = chatSandboxSessionKey(chatId)
+    try {
+      await recordSimSandboxProcess({
+        toolCallId,
+        runId,
+        userId,
+        ownerToken: 'dead-controller',
+        process: { id: 'earlier-command', sandboxId: 'sandbox-1', sessionKey },
+      })
+      await db
+        .update(copilotAsyncToolCalls)
+        .set({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      const successor = { toolCallId, runId, userId, ownerToken: 'successor' }
+      expect(await claimToolExecution(successor)).toEqual({ outcome: 'claimed' })
+      await recordSimSandboxProcess({
+        ...successor,
+        process: { id: 'own-command', sandboxId: 'sandbox-1', sessionKey },
+      })
+
+      const state = await prepareWorkbenchAccess({ ...successor, sessionKey })
+
+      expect(state.processes.map((process) => process.id)).toEqual(['earlier-command'])
+    } finally {
+      await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+    }
+  })
+
+  it('claims no run once its caller is shutting down', async () => {
+    const { chatId, streamId, runId, toolCallId } = await runAbandonedMidTool()
+    const before = await storedRun(runId)
+    const shutdown = new AbortController()
+    shutdown.abort()
+    const principal = createTrustedCopilotPrincipal(
+      { userId, workspaceId, chatId, delegationId: `test:${runId}` },
+      { audience: RUN_TAKEOVER_AUDIENCE, ttlMs: 60_000 }
+    )
+    try {
+      await expect(
+        takeOverStreamRun.execute({
+          principal,
+          input: { streamId },
+          request: { headers: new Headers(), signal: shutdown.signal },
+        })
+      ).rejects.toThrow()
+
+      expect(await storedRun(runId)).toEqual(before)
+      expect(requestsFor(streamId, '/api/mothership')).toHaveLength(0)
+      expect((await storedTool(toolCallId)).attempts).toBe(1)
+      expect(await redis().get(chatStreamLockKey(chatId))).toBeNull()
+    } finally {
+      await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+    }
+  })
+
+  it('leaves a run recoverable when its takeover fails for a reason other than access', async () => {
+    /** Hosted recovery refuses a run saved without its billing admission. */
+    setEnvFlags({ isHosted: true })
+    const { streamId, runId } = await runAbandonedMidTool()
+    const before = await storedRun(runId)
+    try {
+      await takeOverAbandonedRuns()
+
+      expect(await storedRun(runId)).toEqual(before)
+      expect(requestsFor(streamId, '/api/streams/explicit-abort')).toHaveLength(0)
+      expect(requestsFor(streamId, '/api/mothership')).toHaveLength(0)
     } finally {
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
     }

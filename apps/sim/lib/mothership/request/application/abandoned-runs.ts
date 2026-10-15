@@ -26,11 +26,13 @@ const DELEGATION_TTL_MS = 60_000
 
 let timer: ReturnType<typeof setInterval> | undefined
 let running = false
-let stopped = false
+/** Aborted on shutdown; a takeover checks it at its commit point, the controller claim. */
+const shutdown = new AbortController()
 
 /**
- * Resumes the run as its user, re-checking that user's current access. A user who may no
- * longer continue it gets the run settled as an error, and the worker is told to stop it.
+ * Resumes the run as its user. Only an authorization denial (the user may no longer reach the
+ * chat or continue it) settles the run as an error and stops the worker; any other refusal
+ * leaves it recoverable, as a failed reconnect does.
  */
 async function takeOver(run: UnownedRun): Promise<void> {
   const delegationId = `takeover:${run.id}`
@@ -45,27 +47,38 @@ async function takeOver(run: UnownedRun): Promise<void> {
       ? createTrustedCopilotPrincipal({ userId, workspaceId, chatId, delegationId }, delegation)
       : null
   if (!principal) return
+  const input = { streamId: run.streamId }
   try {
-    await takeOverStreamRun.execute({ principal, input: { streamId: run.streamId } })
+    await takeOverStreamRun.authorize({ principal, input })
   } catch (error) {
     const refusal = asOrchestrationError(error)?.code
     if (refusal !== 'forbidden' && refusal !== 'not_found') throw error
-    if (!(await settleRunWithoutAccess(run))) return
-    logger.info('Settled an abandoned run its user may no longer continue', {
-      runId: run.id,
-      streamId: run.streamId,
-    })
-    await requestExplicitStreamAbort({
-      streamId: run.streamId,
-      userId: run.userId,
-      chatId: run.chatId,
-    }).catch((abortError) =>
-      logger.warn('Worker stop for a settled abandoned run was not delivered', {
-        streamId: run.streamId,
-        error: getErrorMessage(abortError),
-      })
-    )
+    await settleWithoutAccess(run)
+    return
   }
+  await takeOverStreamRun.execute({
+    principal,
+    input,
+    request: { headers: new Headers(), signal: shutdown.signal },
+  })
+}
+
+async function settleWithoutAccess(run: UnownedRun): Promise<void> {
+  if (!(await settleRunWithoutAccess(run))) return
+  logger.info('Settled an abandoned run its user may no longer continue', {
+    runId: run.id,
+    streamId: run.streamId,
+  })
+  await requestExplicitStreamAbort({
+    streamId: run.streamId,
+    userId: run.userId,
+    chatId: run.chatId,
+  }).catch((error) =>
+    logger.warn('Worker stop for a settled abandoned run was not delivered', {
+      streamId: run.streamId,
+      error: getErrorMessage(error),
+    })
+  )
 }
 
 /**
@@ -78,7 +91,7 @@ export async function takeOverAbandonedRuns(): Promise<void> {
   running = true
   try {
     for (const run of await findAbandonedRecoverableRuns(TAKEOVER_BATCH_SIZE)) {
-      if (stopped) return
+      if (shutdown.signal.aborted) return
       await takeOver(run).catch((error) =>
         logger.warn('Abandoned run could not be taken over; a later round retries', {
           runId: run.id,
@@ -104,10 +117,12 @@ export function startAbandonedRunTakeover(): void {
     )
   }, TAKEOVER_INTERVAL_MS)
   timer.unref()
-  const stop = () => {
-    stopped = true
-    clearInterval(timer)
-  }
-  process.once('SIGTERM', stop)
-  process.once('SIGINT', stop)
+  process.once('SIGTERM', stopAbandonedRunTakeover)
+  process.once('SIGINT', stopAbandonedRunTakeover)
+}
+
+/** Ends the scans and refuses every takeover not yet committed, including one in flight. */
+export function stopAbandonedRunTakeover(): void {
+  clearInterval(timer)
+  shutdown.abort()
 }

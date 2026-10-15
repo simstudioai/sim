@@ -1144,7 +1144,9 @@ export async function recordSimSandboxProcess(
           throw new Error('Sandbox command admission is closed or unavailable')
         }
         const { id, sandboxId, sessionKey } = input.process
-        const entry = JSON.stringify({ [id]: { sandboxId, sessionKey, settled: false } })
+        const entry = JSON.stringify({
+          [id]: { sandboxId, sessionKey, settled: false, ownerToken: input.ownerToken },
+        })
         const [row] = await tx
           .update(copilotAsyncToolCalls)
           .set({
@@ -1297,7 +1299,7 @@ export async function prepareWorkbenchAccess(
       throw new Error('Workbench does not belong to this tool execution')
     }
     const [claim] = await tx
-      .select({ id: copilotAsyncToolCalls.id })
+      .select({ processes: copilotAsyncToolCalls.sandboxProcesses })
       .from(copilotAsyncToolCalls)
       .where(
         and(
@@ -1386,7 +1388,19 @@ export async function prepareWorkbenchAccess(
           )
         )
       )
-    const processes = previous.flatMap((row) =>
+    /**
+     * A re-run's earlier attempts may have left commands running on the remote workbench, which
+     * outlive the Sim process that started them; they are stopped like any earlier call's.
+     */
+    const earlierAttempts = {
+      toolCallId: input.toolCallId,
+      processes: Object.fromEntries(
+        Object.entries(claim.processes).filter(
+          ([, process]) => process.ownerToken !== input.ownerToken
+        )
+      ),
+    }
+    const processes = [...previous, earlierAttempts].flatMap((row) =>
       Object.entries(row.processes).flatMap(([id, process]) =>
         process.settled
           ? []

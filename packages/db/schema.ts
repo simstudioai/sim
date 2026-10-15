@@ -4960,7 +4960,13 @@ export const copilotAsyncToolCalls = pgTable(
     /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
     clientWorkflowExecutionId: text('client_workflow_execution_id'),
     sandboxProcesses: jsonb('sandbox_processes')
-      .$type<Record<string, { sandboxId: string; sessionKey: string; settled: boolean }>>()
+      /** `ownerToken` names the execution attempt that started the command. */
+      .$type<
+        Record<
+          string,
+          { sandboxId: string; sessionKey: string; settled: boolean; ownerToken?: string }
+        >
+      >()
       .notNull()
       .default({}),
     completedAt: timestamp('completed_at'),
