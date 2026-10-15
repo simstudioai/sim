@@ -7,9 +7,11 @@ import { MemoryScopeRequest } from "./memory-scope";
 import { RunControlRequest } from "./run-control";
 import { TaskWakeRequest, WorkflowWatchRequest } from "./tasks";
 
+const SimChannelId = z.string().regex(/^[a-f0-9]{64}$/);
+
 export const SimConnection = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("direct") }),
-  z.object({ mode: z.literal("checkpoint"), channelId: z.string().regex(/^[a-f0-9]{64}$/) }),
+  z.object({ mode: z.literal("checkpoint"), channelId: SimChannelId }),
 ]);
 export type SimConnection = z.infer<typeof SimConnection>;
 
@@ -51,9 +53,43 @@ export const SimControlResult = z.object({
 });
 export type SimControlResult = z.infer<typeof SimControlResult>;
 
-export const SimChannelPoll = z.object({ channelId: z.string().regex(/^[a-f0-9]{64}$/) });
+export type SimControlKind = SimControlOperation["kind"];
+/** Every kind this build's union parses: what a receiver declares in `accepts`. */
+export const SIM_CONTROL_KINDS: SimControlKind[] = SimControlOperation.options.map(
+  (option) => option.shape.kind.value,
+);
+
+/** The v1.0.0 kinds every receiver parses without declaring them. Frozen: a poll without
+ * `accepts` comes from a receiver that knows only these, so every later kind is negotiated. */
+export const SIM_CONTROL_BASELINE_KINDS = [
+  "run_control",
+  "workflow_status",
+  "wake",
+  "workspace_context",
+  "integration_catalog",
+] as const satisfies readonly SimControlKind[];
+export type BaselineSimControlKind = (typeof SIM_CONTROL_BASELINE_KINDS)[number];
+export type NegotiatedSimControlKind = Exclude<SimControlKind, BaselineSimControlKind>;
+
+/** Error code of the 501 answer for a kind the receiving Sim did not declare. */
+export const SIM_CONTROL_UNSUPPORTED = "sim_control_unsupported";
+
+/** `accepts` is free-form so a newer Sim's kinds never fail an older worker's poll. */
+export const SimChannelPoll = z.object({
+  channelId: SimChannelId,
+  accepts: z.array(z.string().min(1).max(64)).max(64).optional(),
+});
+/** The worker's typed batch; receivers parse `SimChannelBatchEnvelope` instead. */
 export const SimChannelBatch = z.object({ requests: z.array(SimControlRequest).max(16) });
-export const SimChannelReply = SimChannelPoll.extend({
+/** Receivers parse each request alone, so one unknown kind never poisons its batch-mates. */
+export const SimChannelBatchEnvelope = z.object({ requests: z.array(z.unknown()).max(16) });
+/** Enough of a request to answer it when its operation does not parse. */
+export const SimControlRequestHeader = z.object({
+  id: z.uuid(),
+  operation: z.object({ kind: z.string() }).optional().catch(undefined),
+});
+export const SimChannelReply = z.object({
+  channelId: SimChannelId,
   id: z.uuid(),
   result: SimControlResult,
 });
