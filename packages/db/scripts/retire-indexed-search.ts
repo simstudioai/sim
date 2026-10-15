@@ -186,7 +186,9 @@ async function main(): Promise<void> {
     }
     await checkHealth()
   }
-  const sql = postgres(rawUrl, {
+  // postgres.js forwards sslrootcert as a startup setting the server rejects; `ssl` sets TLS.
+  url.searchParams.delete('sslrootcert')
+  const sql = postgres(url.toString(), {
     port: Number(url.port || '5432'),
     ssl: hosted ? 'verify-full' : false,
     max: 1,
