@@ -243,9 +243,10 @@ export class ComputerUseService {
           ? { includeScreenshot: input.includeScreenshot }
           : {}),
       }
+      const fields: Record<string, unknown> = input
       const params = isMutation
-        ? omit(input, ['action', 'observeAfter', 'includeScreenshot'])
-        : omit(input, ['action'])
+        ? omit(fields, ['action', 'observeAfter', 'includeScreenshot'])
+        : omit(fields, ['action'])
       let result: ComputerUseResult
       try {
         result = await this.deps.native.request(input.action, params)
