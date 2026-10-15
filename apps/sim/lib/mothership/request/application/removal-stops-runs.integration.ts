@@ -5,6 +5,7 @@
  * records each Stop pushed to it.
  */
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,6 +47,7 @@ vi.mock('@/lib/auth', () => authMock)
 
 import { db } from '@sim/db'
 import {
+  copilotAsyncToolCalls,
   copilotChats,
   copilotRequestStops,
   copilotRuns,
@@ -57,12 +59,12 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
-import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { closeRedisConnection } from '@/lib/core/config/redis'
+import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { deleteCopilotChat, softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
 import { chatPubSub } from '@/lib/mothership/chat-status'
@@ -135,6 +137,7 @@ async function seedRun(
 ): Promise<SeededRun> {
   const chatId = generateId()
   const streamId = generateId()
+  testStreams.add(streamId)
   const runId = generateId()
   const scope =
     'workspaceId' in owner
@@ -154,6 +157,7 @@ async function seedRun(
     userId: owner.userId,
     streamId,
     status: 'active',
+    toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
     requestContext: { requestId: generateId(), controllerToken: `${streamId}\n${generateId()}` },
     ...scope,
   })
@@ -197,8 +201,59 @@ async function runStatus(run: SeededRun) {
   return row?.status
 }
 
-/** Stops the worker received; delivery runs after the removal returns. */
-const pushedStops = () => [...worker.stops].sort()
+/** This test's streams: a removal's delivery runs after it returns, and can outlive its test. */
+const testStreams = new Set<string>()
+
+/** The Stops the worker received for this test's runs. */
+const pushedStops = () => worker.stops.filter((streamId) => testStreams.has(streamId)).sort()
+
+/** The backend queued on a lock behind any of these, once one is. */
+async function lockWaiterBehind(...blockers: number[]) {
+  const pids = sql`ARRAY[${sql.join(
+    blockers.map((pid) => sql`${pid}::int`),
+    sql`, `
+  )}]`
+  let waiter: number | undefined
+  await expect
+    .poll(
+      async () => {
+        const [row] = await db.execute<{ pid: number }>(sql`
+          SELECT pid FROM pg_stat_activity WHERE datname = current_database()
+            AND wait_event_type = 'Lock' AND pid <> ALL(${pids})
+            AND pg_blocking_pids(pid) && ${pids} LIMIT 1
+        `)
+        waiter = row?.pid
+        return waiter
+      },
+      { interval: 5, timeout: 5000 }
+    )
+    .toBeDefined()
+  return waiter as number
+}
+
+/** Holds the chat row locked while `run` queues work behind it, then commits. */
+async function whileHolding<T>(chatId: string, run: (holder: number) => Promise<T>): Promise<T> {
+  const locked = createDeferred<number>()
+  const release = createDeferred<void>()
+  const holding = db.transaction(async (tx) => {
+    await tx
+      .select({ id: copilotChats.id })
+      .from(copilotChats)
+      .where(eq(copilotChats.id, chatId))
+      .for('update')
+    const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+    locked.resolve(backend.pid)
+    await release.promise
+  })
+  holding.catch(locked.reject)
+  const holder = await locked.promise
+  try {
+    return await run(holder)
+  } finally {
+    release.resolve()
+    await holding
+  }
+}
 
 const STOPPED = { status: 200, body: { stopped: true } }
 const LIVE = { status: 200, body: { stopped: false } }
@@ -214,7 +269,7 @@ afterAll(async () => {
 
 describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stops the run', () => {
   beforeEach(() => {
-    worker.stops.length = 0
+    testStreams.clear()
     worker.unreachable.clear()
   })
 
@@ -274,6 +329,26 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     expect(await runControl(run)).toEqual(STOPPED)
   })
 
+  it('cancels the client workflow a permanently deleted chat’s run started', async () => {
+    const ownerId = await seedUser()
+    const run = await seedRun(
+      { userId: ownerId, workspaceId: await seedWorkspace(ownerId) },
+      'copilot'
+    )
+    const executionId = generateId()
+    await db.insert(copilotAsyncToolCalls).values({
+      runId: run.runId,
+      toolCallId: generateId(),
+      toolName: 'run_workflow',
+      clientWorkflowExecutionId: executionId,
+      executionStartedAt: new Date(),
+    })
+
+    expect(await deleteCopilotChat({ chatId: run.chatId, userId: ownerId })).not.toBeNull()
+
+    await expect.poll(() => getRedisClient()?.exists(`execution:cancel:${executionId}`)).toBe(1)
+  })
+
   it('still stops the run when the worker cannot take the pushed Stop', async () => {
     const ownerId = await seedUser()
     const run = await seedRun({ userId: ownerId, workspaceId: await seedWorkspace(ownerId) })
@@ -281,7 +356,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
 
     expect(await softDeleteMothershipChat({ chatId: run.chatId, userId: ownerId })).not.toBeNull()
 
-    expect(worker.stops).toEqual([])
+    expect(pushedStops()).toEqual([])
     expect(await runControl(run)).toEqual(STOPPED)
   })
 
@@ -339,7 +414,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
 
     await expect(deleteUserAccount(departingId)).rejects.toBeInstanceOf(AccountDeletionBlockedError)
 
-    expect(worker.stops).toEqual([])
+    expect(pushedStops()).toEqual([])
     expect(await hasStop(run)).toBe(false)
     expect(await runControl(run)).toEqual(LIVE)
   })
@@ -472,15 +547,18 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     expect(await runControl(run)).toEqual(STOPPED)
   })
 
-  it('never leaves a run admitted while its chat is being deleted live', async () => {
-    const ownerId = await seedUser()
-    const workspaceId = await seedWorkspace(ownerId)
-    const principal = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
-    const outcomes = new Set<boolean>()
-    /** The delete starts progressively later, from before admission locks the chat to after it commits. */
-    for (let attempt = 0; attempt < 20; attempt++) {
+  /**
+   * Admission and deletion both write the chat row, so they serialize on its lock; holding it
+   * queues them in a chosen order, then releases them together.
+   */
+  it.each(['admission', 'deletion'] as const)(
+    'never leaves a run admitted while its chat is being deleted, when %s reaches the chat first',
+    async (first) => {
+      const ownerId = await seedUser()
+      const workspaceId = await seedWorkspace(ownerId)
       const chatId = generateId()
       const streamId = generateId()
+      testStreams.add(streamId)
       await db
         .insert(copilotChats)
         .values({ id: chatId, userId: ownerId, workspaceId, type: 'mothership' })
@@ -492,54 +570,67 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
       const lease = getLocalChatStreamLease(chatId, streamId)
       if (!lease) throw new Error('The admission needs its chat lease')
       const content = 'Summarize the quarter'
-      const admission = admitChatTurn
-        .execute({
-          principal,
-          input: {
-            chatId,
-            runId: generateId(),
-            executionId: generateId(),
-            requestId: generateId(),
-            message: { id: streamId, content },
-            recovery: {
-              kind: 'interactive_stream',
-              goRoute: '/api/mothership',
-              clientToolPickupExpected: false,
-              request: {
-                userId: ownerId,
-                chatId,
-                messageId: streamId,
-                workspaceId,
-                message: content,
+      const admit = () =>
+        admitChatTurn
+          .execute({
+            principal: createSessionPrincipal({ userId: ownerId, sessionId: generateId() }),
+            input: {
+              chatId,
+              runId: generateId(),
+              executionId: generateId(),
+              requestId: generateId(),
+              message: { id: streamId, content },
+              recovery: {
+                kind: 'interactive_stream',
+                goRoute: '/api/mothership',
+                clientToolPickupExpected: false,
+                request: {
+                  userId: ownerId,
+                  chatId,
+                  messageId: streamId,
+                  workspaceId,
+                  message: content,
+                },
               },
+              lease,
+              sendClaim,
+              notifyWorkspaceStatus: false,
             },
-            lease,
-            sendClaim,
-            notifyWorkspaceStatus: false,
-          },
-        })
-        .then(
-          () => true,
-          (error) => {
-            if (!(error instanceof OrchestrationError) || error.code !== 'not_found') throw error
-            return false
-          }
-        )
-        .finally(() => releasePendingChatStream(chatId, streamId, lease))
+          })
+          .then(
+            () => true,
+            (error) => {
+              if (!(error instanceof OrchestrationError) || error.code !== 'not_found') throw error
+              return false
+            }
+          )
+          .finally(() => releasePendingChatStream(chatId, streamId, lease))
+      const remove = () => softDeleteMothershipChat({ chatId, userId: ownerId })
 
-      const [admitted] = await Promise.all([
-        admission,
-        sleep(attempt * 20).then(() => softDeleteMothershipChat({ chatId, userId: ownerId })),
-      ])
-      outcomes.add(admitted)
+      const { admission, deletion } = await whileHolding(chatId, async (holder) => {
+        if (first === 'admission') {
+          const admission = admit()
+          const waiter = await lockWaiterBehind(holder)
+          const deletion = remove()
+          await lockWaiterBehind(holder, waiter)
+          return { admission, deletion }
+        }
+        const deletion = remove()
+        const waiter = await lockWaiterBehind(holder)
+        const admission = admit()
+        await lockWaiterBehind(holder, waiter)
+        return { admission, deletion }
+      })
 
+      const admitted = await admission
+      expect(await deletion).not.toBeNull()
       const run = { userId: ownerId, chatId, streamId, runId: '', workspaceId }
+      expect(admitted).toBe(first === 'admission')
       if (admitted) {
-        await expect.poll(pushedStops).toContain(streamId)
+        await expect.poll(pushedStops).toEqual([streamId])
         expect(await hasStop(run)).toBe(true)
       }
       expect(await runControl(run)).toEqual(STOPPED)
     }
-    expect([...outcomes].sort()).toEqual([false, true])
-  })
+  )
 })

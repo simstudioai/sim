@@ -135,6 +135,15 @@ describe('POST /api/copilot/chat/abort', () => {
     expect(mockAbortWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
   })
 
+  it('still cancels the run’s workflows when the abort marker cannot be written', async () => {
+    mockUnsettledWorkflows.mockResolvedValue(['client-execution'])
+    mockAbortActiveStream.mockRejectedValueOnce(new Error('redis unavailable'))
+    const response = await POST(abortRequest())
+    expect(response.status).toBe(200)
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalled()
+    expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
+  })
+
   it('does not signal workflows when the atomic Stop and admission closure cannot commit', async () => {
     mockRequestRunStop.mockRejectedValueOnce(new Error('database unavailable'))
     const response = await POST(abortRequest())

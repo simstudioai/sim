@@ -18,7 +18,7 @@ import {
   workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
@@ -781,8 +781,17 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
   let stoppedRuns: StoppedRun[] = []
-  /** Resolved while the account's settings still exist to route a superuser's runs. */
-  const mothershipBaseURL = await getMothershipBaseURL({ userId })
+  /**
+   * Resolved while the account's settings still exist to route a superuser's runs. It only
+   * routes the best-effort push, so a failed lookup falls back to the default endpoint.
+   */
+  const mothershipBaseURL = await getMothershipBaseURL({ userId }).catch((error) => {
+    logger.warn('Run routing for the deleted account could not be read', {
+      userId,
+      error: getErrorMessage(error),
+    })
+    return undefined
+  })
 
   await db.transaction(async (tx) => {
     /** Organization and Project gates precede workspace rows, which precede user FK barriers. */

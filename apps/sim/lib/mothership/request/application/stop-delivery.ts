@@ -4,11 +4,7 @@ import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
-import {
-  getUnsettledClientWorkflowExecutions,
-  getUnsettledStreamSandboxProcesses,
-  type StoppedRun,
-} from '@/lib/mothership/async-runs/repository'
+import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
 import {
   abortActiveStream,
   releasePendingChatStream,
@@ -58,32 +54,27 @@ export async function deliverRunStop(
     })
     return { settled: false }
   })
-  await abortActiveStream(streamId)
-  const cancelClientWorkflows = async () => {
-    const executionIds = await getUnsettledClientWorkflowExecutions(streamId, userId)
-    await Promise.all(
-      executionIds.map(async (executionId) => {
+  /** The Stop is durable already; a lost abort marker must not skip the cleanup below. */
+  try {
+    await abortActiveStream(streamId)
+  } catch (error) {
+    logger.warn('Stopped stream abort marker could not be written', {
+      streamId,
+      error: getErrorMessage(error),
+    })
+  }
+  const cancelClientWorkflows = () =>
+    Promise.all(
+      run.clientWorkflowExecutionIds.map(async (executionId) => {
         /** The execution route reserved these IDs before recording ownership; no client result is trusted. */
         abortManualExecution(executionId)
         await markExecutionCancelled(executionId)
       })
     )
-  }
-  const recoverCommands = async () => {
-    const signal = AbortSignal.timeout(8000)
-    const processes = await getUnsettledStreamSandboxProcesses(streamId, userId).catch((error) => {
-      logger.warn('Stopped stream sandbox ownership could not be read', {
-        streamId,
-        error: getErrorMessage(error),
-      })
-      return []
-    })
-    await recoverSandboxProcesses(processes, signal)
-  }
   const [settled, worker] = await Promise.all([
     waitForPendingChatStream(chatId, 8000, streamId),
     workerStop,
-    recoverCommands(),
+    recoverSandboxProcesses(run.sandboxProcesses, AbortSignal.timeout(8000)),
     cancelClientWorkflows().catch((error) => {
       logger.warn('Stopped stream workflow cancellation could not be delivered', {
         streamId,

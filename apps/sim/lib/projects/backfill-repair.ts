@@ -16,7 +16,6 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import type { Sql } from 'postgres'
 import { tryAcquireAdvisoryXactLocks } from '@/lib/db/advisory-locks'
-import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { archiveProjectWithLastEnvironment, splitForkProject } from '@/lib/projects/membership'
 import {
   archiveEnvironmentInTransaction,
@@ -118,6 +117,10 @@ export async function repairArchivedProjectEnvironment(
           archivedAt
         )
     }
+    /**
+     * Its Stop for live runs commits here; this operator script stays out of the delivery's
+     * module graph, so run control ends those runs on their next heartbeat.
+     */
     const archived = await archiveEnvironmentInTransaction(tx, repair.workspaceId, archivedAt)
     const tools = await tx
       .select({
@@ -140,7 +143,6 @@ export async function repairArchivedProjectEnvironment(
     }
     return result
   })
-  deliverRunStops(effects.stoppedRuns)
   await finishEnvironmentArchive(effects, requestId, { strictExternalCleanup: true })
   await completeProjectArchiveRepair(client, repair)
 }

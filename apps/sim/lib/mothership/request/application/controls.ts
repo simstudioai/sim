@@ -9,6 +9,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   areStreamToolExecutionsSettled,
   getLatestRunForStream,
+  getUnsettledClientWorkflowExecutions,
+  getUnsettledStreamSandboxProcesses,
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
@@ -147,12 +149,30 @@ export const abortRun = defineAuthorizedChatUseCase({
       { ...input, workspaceId, organizationId },
       run
     )
+    const [clientWorkflowExecutionIds, sandboxProcesses] = await Promise.all([
+      getUnsettledClientWorkflowExecutions(streamId, userId).catch((error) => {
+        logger.warn('Stopped stream workflow ownership could not be read', {
+          streamId,
+          error: getErrorMessage(error),
+        })
+        return []
+      }),
+      getUnsettledStreamSandboxProcesses(streamId, userId).catch((error) => {
+        logger.warn('Stopped stream sandbox ownership could not be read', {
+          streamId,
+          error: getErrorMessage(error),
+        })
+        return []
+      }),
+    ])
     const { settled, workerSettled } = await deliverRunStop({
       id: run.id,
       streamId,
       userId,
       chatId,
       desktopDeviceId: run.desktopDeviceId,
+      clientWorkflowExecutionIds,
+      sandboxProcesses,
     })
     if (!settled) return { aborted: true, settled: false, forceReleased: true }
     const toolsSettled = await areStreamToolExecutionsSettled(streamId, userId).catch((error) => {

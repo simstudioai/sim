@@ -312,17 +312,21 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
     TraceSpan.CopilotChatAbortActiveStream,
     { [TraceAttr.StreamId]: streamId },
     async (span) => {
-      await writeAbortMarker(streamId)
-      span.setAttribute(TraceAttr.CopilotAbortMarkerWritten, true)
-      const controller = activeStreams.get(streamId)
-      if (!controller) {
-        span.setAttribute(TraceAttr.CopilotAbortControllerFired, false)
-        return false
+      let fired = false
+      /** This process's controller stops even when the cross-process marker cannot be written. */
+      try {
+        await writeAbortMarker(streamId)
+        span.setAttribute(TraceAttr.CopilotAbortMarkerWritten, true)
+      } finally {
+        const controller = activeStreams.get(streamId)
+        if (controller) {
+          controller.abort(AbortReason.UserStop)
+          activeStreams.delete(streamId)
+          fired = true
+        }
+        span.setAttribute(TraceAttr.CopilotAbortControllerFired, fired)
       }
-      controller.abort(AbortReason.UserStop)
-      activeStreams.delete(streamId)
-      span.setAttribute(TraceAttr.CopilotAbortControllerFired, true)
-      return true
+      return fired
     }
   )
 }
