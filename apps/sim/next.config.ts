@@ -668,16 +668,30 @@ const nextConfig: NextConfig = {
     return redirects
   },
   async rewrites() {
-    return [
-      {
-        source: '/favicon.ico',
-        destination: '/icon.svg',
-      },
-      {
-        source: '/r/:shortCode',
-        destination: 'https://go.trybeluga.ai/:shortCode',
-      },
-    ]
+    return {
+      beforeFiles: [],
+      afterFiles: [
+        {
+          source: '/favicon.ico',
+          destination: '/icon.svg',
+        },
+        {
+          source: '/r/:shortCode',
+          destination: 'https://go.trybeluga.ai/:shortCode',
+        },
+      ],
+      /**
+       * Fallback rewrites run only after every page and dynamic route has failed to match, so
+       * this answers a Markdown client's 404 in Markdown without shadowing any real route.
+       */
+      fallback: [
+        {
+          source: '/:path*',
+          has: [{ type: 'header', key: 'accept', value: '.*text/markdown.*' }],
+          destination: '/markdown-not-found',
+        },
+      ],
+    }
   },
 }
 
