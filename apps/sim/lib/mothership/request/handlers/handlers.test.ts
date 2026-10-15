@@ -775,9 +775,9 @@ describe('sse-handlers tool lifecycle', () => {
     it('fails a client call still unfinished at its deadline', async () => {
       vi.useFakeTimers()
       try {
+        // The waiter gives up when its (deadline-capped) timeout ends, five seconds in.
         waitForClientToolCompletion.mockImplementationOnce(
-          ({ timeoutMs }: { timeoutMs: number }) =>
-            new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))
+          () => new Promise((resolve) => setTimeout(() => resolve(null), 5_000))
         )
         const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS + 5_000)
         await vi.advanceTimersByTimeAsync(5_000)
