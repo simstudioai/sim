@@ -21,6 +21,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   lt,
   ne,
   notInArray,
@@ -1591,7 +1592,23 @@ export async function claimWorkflowToolExecution(
                   )
                 ),
                 /** Only the server re-runs a workflow whose Sim executor died; no browser resumes it. */
-                executor === 'sim' ? interruptedSimExecution : undefined
+                executor === 'sim' ? interruptedSimExecution : undefined,
+                /**
+                 * A server claim whose claimant died before starting the execution. Starting is
+                 * fenced by `claimToolExecution`, so a claimant still alive and this one cannot
+                 * both run it: the second to start observes the first's result.
+                 */
+                executor === 'sim'
+                  ? and(
+                      like(copilotAsyncToolCalls.claimedBy, `${WORKFLOW_EXECUTION_CLAIM_PREFIX}%`),
+                      isNull(copilotAsyncToolCalls.executionStartedAt),
+                      isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+                      inArray(copilotAsyncToolCalls.status, [
+                        ASYNC_TOOL_STATUS.running,
+                        ASYNC_TOOL_STATUS.delivered,
+                      ])
+                    )
+                  : undefined
               )
             )
           )

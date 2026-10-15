@@ -588,4 +588,47 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
     }
   })
+
+  it('re-claims a server workflow claim whose claimant died before starting it, once', async () => {
+    const chatId = generateId()
+    chatIds.push(chatId)
+    const runId = generateId()
+    const streamId = generateId()
+    await db.insert(copilotChats).values({ id: chatId, userId, workspaceId, type: 'mothership' })
+    await db.insert(copilotRuns).values({
+      id: runId,
+      executionId: generateId(),
+      chatId,
+      userId,
+      workspaceId,
+      streamId,
+      status: 'paused_waiting_for_tool',
+      toolExecutionVersion: 2,
+    })
+    const toolCallId = scopeProviderToolCallId(
+      'workflow-call',
+      createProviderToolCallIdentity(runId)
+    )
+    await upsertAsyncToolCall({ runId, toolCallId, toolName: 'run_workflow', args: {} })
+    await db
+      .update(copilotAsyncToolCalls)
+      .set({ status: 'running' })
+      .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+    try {
+      /** The dead controller's server fallback claimed the call, then died before starting it. */
+      expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
+
+      expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'client')).toBeNull()
+      expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).not.toBeNull()
+      const successor = { toolCallId, runId, userId, ownerToken: 'successor' }
+      expect(await claimToolExecution(successor)).toEqual({ outcome: 'claimed' })
+      expect(await claimToolExecution({ ...successor, ownerToken: 'late-claimant' })).toEqual({
+        outcome: 'existing',
+      })
+      expect(await claimWorkflowToolExecution(toolCallId, generateId(), 'sim')).toBeNull()
+      expect(await storedTool(toolCallId)).toMatchObject({ attempts: 1, ownerToken: 'successor' })
+    } finally {
+      await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+    }
+  })
 })
