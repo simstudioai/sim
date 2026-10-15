@@ -274,6 +274,26 @@ function liveRunScopeCondition(scope: LiveRunScope): SQL | undefined {
   return eq(copilotRuns.userId, scope.userId)
 }
 
+/** Of these workspaces, the ones where the user still has an unfinished Chat run. */
+export async function findWorkspacesWithLiveRunsTx(
+  tx: DbTransaction,
+  userId: string,
+  workspaceIds: string[]
+): Promise<string[]> {
+  if (workspaceIds.length === 0) return []
+  const rows = await tx
+    .selectDistinct({ workspaceId: copilotRuns.workspaceId })
+    .from(copilotRuns)
+    .where(
+      and(
+        eq(copilotRuns.userId, userId),
+        inArray(copilotRuns.workspaceId, workspaceIds),
+        notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)
+      )
+    )
+  return rows.flatMap(({ workspaceId }) => (workspaceId ? [workspaceId] : []))
+}
+
 /**
  * Stops every unfinished run in `scope` inside the removal's own transaction, so Stop commits
  * exactly when the removal does: a restored chat cannot revive the run and a takeover never

@@ -71,8 +71,9 @@ export async function removeOrganizationMemberRecord(input: {
       .where(eq(user.id, input.userId))
       .limit(1)
     if (!external) throw new OrchestrationError('not_found', 'Member not found')
-    const removal = await removeExternalUserFromOrganizationWorkspaces(input)
-    deliverRunStops(removal.stoppedRuns ?? [])
+    /** The stopped runs are delivered, never returned to the response or audit. */
+    const { stoppedRuns, ...removal } = await removeExternalUserFromOrganizationWorkspaces(input)
+    deliverRunStops(stoppedRuns ?? [])
     if (!removal.success) {
       const message = removal.error || 'External workspace member not found'
       const code =
@@ -92,12 +93,12 @@ export async function removeOrganizationMemberRecord(input: {
       seatReduction: null,
     }
   }
-  const removal = await removeUserFromOrganization({
+  const { stoppedRuns, ...removal } = await removeUserFromOrganization({
     ...input,
     memberId: target.id,
     onError: 'throw',
   })
-  deliverRunStops(removal.stoppedRuns ?? [])
+  deliverRunStops(stoppedRuns ?? [])
   if (!removal.success) {
     const message = removal.error || 'Failed to remove user from organization'
     const code =

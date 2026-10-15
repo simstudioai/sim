@@ -7,7 +7,7 @@ import { vi } from 'vitest'
  * - `mockWithRunAdmissionLock` runs its `action` with an empty transaction object `{}` and returns
  *   its result (the advisory lock itself is not modelled).
  * - `mockGetClaimedWorkflowExecutionId` is a faithful port (strips the real `'workflow:'` claim prefix).
- * - `mockStopLiveRunsTx`, `mockGetUnsettledStreamSandboxProcesses`, `mockGetUnsettledClientWorkflowExecutions` and
+ * - `mockStopLiveRunsTx`, `mockFindWorkspacesWithLiveRunsTx`, `mockGetUnsettledStreamSandboxProcesses`, `mockGetUnsettledClientWorkflowExecutions` and
  *   `mockGetAsyncToolCalls` resolve `[]`.
  *
  * @example
@@ -23,6 +23,7 @@ export const mothershipAsyncRunsMockFns = {
   ),
   mockRequestRunStop: vi.fn(),
   mockStopLiveRunsTx: vi.fn(async () => []),
+  mockFindWorkspacesWithLiveRunsTx: vi.fn(async () => []),
   mockIsRunStopRequested: vi.fn(),
   mockCreateRunSegment: vi.fn(),
   mockInsertRunSegment: vi.fn(),
@@ -92,6 +93,7 @@ export const mothershipAsyncRunsMock = {
   withRunAdmissionLock: mothershipAsyncRunsMockFns.mockWithRunAdmissionLock,
   requestRunStop: mothershipAsyncRunsMockFns.mockRequestRunStop,
   stopLiveRunsTx: mothershipAsyncRunsMockFns.mockStopLiveRunsTx,
+  findWorkspacesWithLiveRunsTx: mothershipAsyncRunsMockFns.mockFindWorkspacesWithLiveRunsTx,
   isRunStopRequested: mothershipAsyncRunsMockFns.mockIsRunStopRequested,
   createRunSegment: mothershipAsyncRunsMockFns.mockCreateRunSegment,
   insertRunSegment: mothershipAsyncRunsMockFns.mockInsertRunSegment,

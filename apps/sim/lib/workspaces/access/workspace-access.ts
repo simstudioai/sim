@@ -7,7 +7,11 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import {
+  findWorkspacesWithLiveRunsTx,
+  type StoppedRun,
+  stopLiveRunsTx,
+} from '@/lib/mothership/async-runs/repository'
 import { lockProjectsForResourceDepartureTx } from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
@@ -209,11 +213,13 @@ export async function stopRunsWithoutWorkspaceAccessTx(
   userId: string,
   workspaceIds: string[]
 ): Promise<StoppedRun[]> {
-  if (workspaceIds.length === 0) return []
+  /** Access is checked only where a run could be ended, not across a whole organization. */
+  const withRuns = await findWorkspacesWithLiveRunsTx(tx, userId, workspaceIds)
+  if (withRuns.length === 0) return []
   const owners = await tx
     .select({ id: workspace.id, organizationId: workspace.organizationId })
     .from(workspace)
-    .where(inArray(workspace.id, workspaceIds))
+    .where(inArray(workspace.id, withRuns))
   const lost: string[] = []
   for (const { id, organizationId } of owners) {
     if (!(await resolveEffectiveWorkspacePermission(userId, id, organizationId, tx))) lost.push(id)
