@@ -101,7 +101,7 @@ describe('workspace member removal', () => {
     })
     mocks.role.mockResolvedValue('admin')
     mocks.orgAdmin.mockResolvedValue(false)
-    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: false, stoppedRuns: [] })
     mocks.removeOrg.mockResolvedValue({ success: true, removed: true })
     mocks.seats.mockResolvedValue({ changed: true })
     authMockFns.mockGetSession.mockResolvedValue({
@@ -131,7 +131,7 @@ describe('workspace member removal', () => {
 
   it('allows owner-only membership to transfer to the billing account', async () => {
     queueWorkspace({ ownerId: 'target', missingTarget: true })
-    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: true })
+    mocks.revoke.mockResolvedValue({ revoked: true, ownershipTransferred: true, stoppedRuns: [] })
     expect(await remove()).toMatchObject({ ownershipTransferred: true, removedUserRole: 'owner' })
   })
 

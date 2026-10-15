@@ -3555,8 +3555,11 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  /** Runs a turn whose import never settles, recording each leg's request body. */
-  function runImportTurn() {
+  /**
+   * Runs a turn whose import never settles, recording each leg's request body. `deadlineAt` is
+   * the deadline the worker named for the import, if any.
+   */
+  function runImportTurn(deadlineAt?: number) {
     const bodies: Record<string, unknown>[] = []
     let streamContext: StreamingContext | undefined
     mockForceFailHungToolCall.mockImplementation(
@@ -3577,6 +3580,7 @@ describe('runCopilotLifecycle', () => {
           id: 'tool-import',
           name: 'import_local_files',
           status: 'executing',
+          ...(deadlineAt === undefined ? {} : { deadlineAt }),
         })
         context.pendingToolPromises.set('tool-import', new Promise(() => {}))
         context.awaitingAsyncContinuation = {
@@ -3641,6 +3645,26 @@ describe('runCopilotLifecycle', () => {
       expect(turn.resumedWithLostImport()).toBe(true)
       expect(turn.forceFailures()).toEqual([
         'Pending tool execution has no live lease past its budget; force-failing',
+      ])
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('fails a renewed import at the deadline the worker named for it', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(50_000)
+      const turn = runImportTurn(Date.now() + 200_000)
+      // Its lease is renewed throughout, so only the deadline ends the wait.
+      await vi.advanceTimersByTimeAsync(229_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(turn.forceFailures()).toEqual([
+        'Pending tool execution reached the client tool result cap; force-failing',
       ])
     } finally {
       mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()

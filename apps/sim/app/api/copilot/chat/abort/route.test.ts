@@ -135,6 +135,30 @@ describe('POST /api/copilot/chat/abort', () => {
     expect(mockAbortWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
   })
 
+  it('still cancels the run’s workflows when the abort marker cannot be written', async () => {
+    mockUnsettledWorkflows.mockResolvedValue(['client-execution'])
+    mockAbortActiveStream.mockRejectedValueOnce(new Error('redis unavailable'))
+    const response = await POST(abortRequest())
+    expect(response.status).toBe(200)
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalled()
+    expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
+  })
+
+  it('signals the worker before the run’s workflow ownership has been read', async () => {
+    let releaseRead: (ids: string[]) => void = () => {}
+    mockUnsettledWorkflows.mockReturnValue(
+      new Promise<string[]>((resolve) => {
+        releaseRead = resolve
+      })
+    )
+    const response = POST(abortRequest())
+    await vi.waitFor(() => expect(mockRequestExplicitStreamAbort).toHaveBeenCalled())
+    expect(mockAbortActiveStream).toHaveBeenCalled()
+    releaseRead(['client-execution'])
+    expect((await response).status).toBe(200)
+    expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('client-execution')
+  })
+
   it('does not signal workflows when the atomic Stop and admission closure cannot commit', async () => {
     mockRequestRunStop.mockRejectedValueOnce(new Error('database unavailable'))
     const response = await POST(abortRequest())

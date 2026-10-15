@@ -110,6 +110,8 @@ export interface GenerateFalVideoParams {
   promptOptimizer?: boolean
   /** Optional start-frame image as a data URI; when set, routes to the model's image-to-video endpoint. */
   imageDataUri?: string
+  /** Ends the generation: the queued request is cancelled and every wait stops. */
+  signal?: AbortSignal
 }
 
 export interface GeneratedVideo {
@@ -171,13 +173,18 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
     input.prompt_optimizer = params.promptOptimizer
   }
 
-  const { requestId, data } = await runFalQueue(endpoint, input, apiKey)
+  const { requestId, data } = await runFalQueue(endpoint, input, apiKey, params.signal)
   const url = extractFalMediaUrl(data, ['video', 'output'])
   if (!url) throw new Error('No video URL in Fal.ai response')
 
   const videoNode = isRecordLike(data.video) ? data.video : undefined
-  const { buffer, contentType } = await downloadFalMedia(url)
-  const cost = await getFalAICostMetadata({ apiKey, endpointId: endpoint, requestId })
+  const { buffer, contentType } = await downloadFalMedia(url, params.signal)
+  const cost = await getFalAICostMetadata({
+    apiKey,
+    endpointId: endpoint,
+    requestId,
+    signal: params.signal,
+  })
 
   return {
     buffer,

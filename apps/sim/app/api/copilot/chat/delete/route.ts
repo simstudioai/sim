@@ -1,12 +1,10 @@
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deleteCopilotChat } from '@/lib/mothership/chat/deletion'
 import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 
@@ -45,10 +43,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const [deleted] = await db
-      .delete(copilotChats)
-      .where(and(eq(copilotChats.id, parsed.chatId), eq(copilotChats.userId, session.user.id)))
-      .returning({ workspaceId: copilotChats.workspaceId })
+    const deleted = await deleteCopilotChat({ chatId: parsed.chatId, userId: session.user.id })
 
     if (!deleted) {
       return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats, copilotRuns } from '@sim/db/schema'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { and, eq, notInArray, sql } from 'drizzle-orm'
+import { and, eq, isNull, notInArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 /**
@@ -63,11 +63,13 @@ export async function claimRunController(input: {
   recoveryBackoff: RecoveryBackoff
 }): Promise<boolean> {
   return db.transaction(async (tx) => {
-    await tx
+    /** A chat deleted before the claim has stopped its run: no controller adopts it. */
+    const [chat] = await tx
       .select({ id: copilotChats.id })
       .from(copilotChats)
-      .where(eq(copilotChats.id, input.chatId))
+      .where(and(eq(copilotChats.id, input.chatId), isNull(copilotChats.deletedAt)))
       .for('update')
+    if (!chat) return false
     const [run] = await tx
       .update(copilotRuns)
       .set({
