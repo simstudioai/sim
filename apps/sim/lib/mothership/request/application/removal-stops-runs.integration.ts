@@ -79,6 +79,7 @@ import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-l
 import { executeSimControl } from '@/lib/mothership/transport/control'
 import { removeOrganizationMemberRecord } from '@/lib/organizations/member-manager'
 import { AccountDeletionBlockedError, deleteUserAccount } from '@/lib/users/account-deletion'
+import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
 import { DELETE as deleteWorkspace } from '@/app/api/workspaces/[id]/route'
 
@@ -504,6 +505,25 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     expect(await runControl(removedRun)).toEqual(STOPPED)
     expect(await runControl(ownerRun)).toEqual(LIVE)
     expect(await runControl(elsewhere)).toEqual(LIVE)
+  })
+
+  it('keeps an organization admin’s run when only their explicit grant is withdrawn', async () => {
+    const ownerId = await seedUser()
+    const adminId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    await db
+      .insert(member)
+      .values({ id: generateId(), organizationId, userId: adminId, role: 'admin' })
+    await grantWrite(adminId, workspaceId)
+    const run = await seedRun({ userId: adminId, workspaceId })
+
+    const revocation = await db.transaction((tx) =>
+      revokeWorkspaceAccessTx(tx, { workspaceId, userId: adminId })
+    )
+
+    expect(revocation).toMatchObject({ revoked: true, stoppedRuns: [] })
+    expect(await hasStop(run)).toBe(false)
+    expect(await runControl(run)).toEqual(LIVE)
   })
 
   it('stops a removed organization member’s Assistant runs', async () => {

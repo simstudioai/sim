@@ -79,20 +79,47 @@ describe('organization run-control authorization', () => {
     await expect(readRunControl.execute({ principal: caller, input })).rejects.toThrow()
     expect(mocks.stopped).not.toHaveBeenCalled()
   })
-  it.each(['user', 'organization'] as const)(
-    'answers Stop without reading the owner state for a %s the chat does not belong to',
-    async (field) => {
+  it('answers Stop without reading the owner state for a user the chat does not belong to', async () => {
+    queueChat()
+    const caller = { ...principal(), subjectUserId: 'other' }
+    expect(await readRunControl.execute({ principal: caller, input })).toEqual({ stopped: true })
+    expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('rejects a delegation for another organization instead of answering Stop', async () => {
+    queueChat()
+    const caller = { ...principal(), organizationId: 'other' }
+    await expect(readRunControl.execute({ principal: caller, input })).rejects.toThrow(
+      'Organization delegation is no longer valid'
+    )
+    expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('rejects a delegation that expires while the request reads the chat instead of answering Stop', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
       queueChat()
-      const trusted = principal()
-      const caller = {
-        ...trusted,
-        ...(field === 'user' ? { subjectUserId: 'other' } : {}),
-        ...(field === 'organization' ? { organizationId: 'other' } : {}),
-      }
-      expect(await readRunControl.execute({ principal: caller, input })).toEqual({ stopped: true })
+      const caller = principal()
+      mocks.banned.mockImplementation(async () => {
+        vi.setSystemTime(caller.expiresAt.getTime() + 1)
+        return []
+      })
+      await expect(readRunControl.execute({ principal: caller, input })).rejects.toThrow(
+        'Organization delegation is no longer valid'
+      )
       expect(mocks.stopped).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
     }
-  )
+  })
+  it('lets a run continue when the member’s group withholds Copilot', async () => {
+    queueChat()
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      hideCopilot: true,
+    })
+    mocks.stopped.mockResolvedValue(false)
+    expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
+      stopped: false,
+    })
+  })
   it('answers Stop once organization membership ends or the run belongs to another organization', async () => {
     queueTableRows(copilotChats, [
       { userId: 'actor', organizationId: 'org-1', workspaceId: null, type: 'mothership' },

@@ -3,7 +3,14 @@ import type {
   OrganizationDelegatedPrincipal,
   Principal,
 } from '@sim/auth/principal'
-import { type AuthorizingUseCase, defineWorkspaceOperation } from '@/lib/core/application'
+import {
+  type AuthorizingUseCase,
+  DelegatedServiceAuthorizationError,
+  DelegatedWorkspaceAuthorizationError,
+  defineWorkspaceOperation,
+  PrincipalKindAuthorizationError,
+} from '@/lib/core/application'
+import { OrganizationDelegationAuthorizationError } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { getLatestRunForStream, isRunStopRequested } from '@/lib/mothership/async-runs/repository'
@@ -66,6 +73,19 @@ const readLiveRunControl = defineAuthorizedChatUseCase({
   },
 })
 
+/**
+ * A refusal of the caller's delegation itself (expired mid-request, or out of scope), which
+ * says nothing about whether the run may continue.
+ */
+function isCallerRefusal(error: OrchestrationError): boolean {
+  return (
+    error instanceof DelegatedWorkspaceAuthorizationError ||
+    error instanceof DelegatedServiceAuthorizationError ||
+    error instanceof PrincipalKindAuthorizationError ||
+    error instanceof OrganizationDelegationAuthorizationError
+  )
+}
+
 /** The worker asking about its own run: a copilot delegation for this chat, still in date. */
 function requireRunControlCaller(principal: Principal, input: RunControlRequest): void {
   if (principal.kind !== 'delegated' && principal.kind !== 'organization_delegated')
@@ -107,8 +127,12 @@ export const readRunControl: AuthorizingUseCase<
     try {
       return await readLiveRunControl.execute(args)
     } catch (error) {
-      const refusal = asOrchestrationError(error)?.code
-      if (refusal === 'not_found' || refusal === 'forbidden') return { stopped: true }
+      const refusal = asOrchestrationError(error)
+      if (
+        (refusal?.code === 'not_found' || refusal?.code === 'forbidden') &&
+        !isCallerRefusal(refusal)
+      )
+        return { stopped: true }
       throw error
     }
   },
