@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { env } from '@/lib/core/config/env'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   findAbandonedRecoverableRuns,
@@ -30,9 +32,10 @@ let running = false
 const shutdown = new AbortController()
 
 /**
- * Resumes the run as its user. Only an authorization denial (the user may no longer reach the
- * chat or continue it) settles the run as an error and stops the worker; any other refusal
- * leaves it recoverable, as a failed reconnect does.
+ * Resumes the run as its user. Only an access denial settles the run as an error and stops
+ * the worker: the authorization refusing the user or chat, or recovery finding the user's
+ * workspace access gone since. Any other refusal leaves it recoverable, as a failed reconnect
+ * does.
  */
 async function takeOver(run: UnownedRun): Promise<void> {
   const delegationId = `takeover:${run.id}`
@@ -56,11 +59,16 @@ async function takeOver(run: UnownedRun): Promise<void> {
     await settleWithoutAccess(run)
     return
   }
-  await takeOverStreamRun.execute({
-    principal,
-    input,
-    request: { headers: new Headers(), signal: shutdown.signal },
-  })
+  try {
+    await takeOverStreamRun.execute({
+      principal,
+      input,
+      request: { headers: new Headers(), signal: shutdown.signal },
+    })
+  } catch (error) {
+    if (!(asOrchestrationError(error) instanceof NoWorkspaceAccessError)) throw error
+    await settleWithoutAccess(run)
+  }
 }
 
 async function settleWithoutAccess(run: UnownedRun): Promise<void> {
@@ -90,6 +98,7 @@ export async function takeOverAbandonedRuns(): Promise<void> {
   if (running) return
   running = true
   try {
+    if (await isFeatureEnabled('mothership-abandoned-run-takeover-disabled')) return
     for (const run of await findAbandonedRecoverableRuns(TAKEOVER_BATCH_SIZE)) {
       if (shutdown.signal.aborted) return
       await takeOver(run).catch((error) =>

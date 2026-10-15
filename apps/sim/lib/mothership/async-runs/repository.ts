@@ -24,6 +24,7 @@ import {
   like,
   lt,
   ne,
+  not,
   notInArray,
   or,
   type SQL,
@@ -758,6 +759,18 @@ const interruptedSimExecution = and(
 )
 
 /**
+ * An interrupted execution a takeover may still run again: its run still admits tools. Another
+ * call's wait or workbench access must not revoke it as interrupted before that re-run.
+ */
+const rerunnableSimExecution = and(
+  interruptedSimExecution,
+  sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.tool_admission_closed_at IS NULL AND r.status NOT IN (${sql.join(
+    TERMINAL_RUN_STATUSES.map((status) => sql`${status}`),
+    sql`, `
+  )}))`
+)
+
+/**
  * Sim claims a call it is about to execute under an execution lease; a terminal result never
  * releases it. The claim takes a call's first execution, or re-runs one whose owner died
  * mid-execution: the new owner token fences the dead owner out, since its renewals and its
@@ -994,12 +1007,23 @@ export async function hasLiveSimToolExecution(runId: string): Promise<boolean> {
   return !!live
 }
 
-/** Revocation ends local execution authority; recorded remote commands remain independently unsettled. */
-export async function revokeExpiredSimToolExecutions(input: { runId: string; userId: string }) {
+/**
+ * Revocation ends local execution authority; recorded remote commands remain independently
+ * unsettled. The waiting call's own lapsed execution is revoked; another call's is spared while
+ * a takeover may still run it again.
+ */
+export async function revokeExpiredSimToolExecutions(input: {
+  runId: string
+  userId: string
+  toolCallId: string
+}) {
   return db.transaction((tx) =>
     revokeExpiredExecutions(
       tx,
-      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`
+      and(
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`,
+        or(eq(copilotAsyncToolCalls.toolCallId, input.toolCallId), not(rerunnableSimExecution))
+      )
     )
   )
 }
@@ -1358,7 +1382,11 @@ export async function prepareWorkbenchAccess(
       )
     await revokeExpiredExecutions(
       tx,
-      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`
+      and(
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`,
+        /** This run was just verified to admit tools; every older run's admission just closed. */
+        not(and(eq(copilotAsyncToolCalls.runId, input.runId), interruptedSimExecution))
+      )
     )
     const previous = await tx
       .select({
@@ -1393,6 +1421,20 @@ export async function prepareWorkbenchAccess(
      * A re-run's earlier attempts may have left commands running on the remote workbench, which
      * outlive the Sim process that started them; they are stopped like any earlier call's.
      */
+    /** A sibling awaiting its re-run has no live handler, but its dead attempt's commands may still run. */
+    const rerunnableSiblings = await tx
+      .select({
+        toolCallId: copilotAsyncToolCalls.toolCallId,
+        processes: copilotAsyncToolCalls.sandboxProcesses,
+      })
+      .from(copilotAsyncToolCalls)
+      .where(
+        and(
+          eq(copilotAsyncToolCalls.runId, input.runId),
+          ne(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+          interruptedSimExecution
+        )
+      )
     const earlierAttempts = {
       toolCallId: input.toolCallId,
       processes: Object.fromEntries(
@@ -1401,7 +1443,7 @@ export async function prepareWorkbenchAccess(
         )
       ),
     }
-    const processes = [...previous, earlierAttempts].flatMap((row) =>
+    const processes = [...previous, ...rerunnableSiblings, earlierAttempts].flatMap((row) =>
       Object.entries(row.processes).flatMap(([id, process]) =>
         process.settled
           ? []
@@ -1594,9 +1636,10 @@ export async function claimWorkflowToolExecution(
                 /** Only the server re-runs a workflow whose Sim executor died; no browser resumes it. */
                 executor === 'sim' ? interruptedSimExecution : undefined,
                 /**
-                 * A server claim whose claimant died before starting the execution. Starting is
-                 * fenced by `claimToolExecution`, so a claimant still alive and this one cannot
-                 * both run it: the second to start observes the first's result.
+                 * A server claim that never started, such as one whose claimant died between
+                 * claiming and starting. Nothing here checks the claimant is gone: what keeps
+                 * the call to one execution is `claimToolExecution`, the only start, so if the
+                 * earlier claimant is alive whichever starts second observes the first's result.
                  */
                 executor === 'sim'
                   ? and(

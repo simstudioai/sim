@@ -359,6 +359,11 @@ export function startAbortPoller(
 
   let lastHeartbeatAt = Date.now()
   let heartbeatOwnershipLost = false
+  const stopController = (message: string) => {
+    heartbeatOwnershipLost = true
+    abortController.abort(new StreamControllerSupersededError())
+    logger.warn(message, { chatId, streamId, ...(requestId ? { requestId } : {}) })
+  }
 
   return setInterval(() => {
     if (pollingStreams.has(streamId)) return
@@ -388,13 +393,7 @@ export function startAbortPoller(
         const owned = await extendLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
         lastHeartbeatAt = Date.now()
         if (!owned) {
-          heartbeatOwnershipLost = true
-          abortController.abort(new StreamControllerSupersededError())
-          logger.warn('Lost ownership of chat stream lock — stopping heartbeat', {
-            chatId,
-            streamId,
-            ...(requestId ? { requestId } : {}),
-          })
+          stopController('Lost ownership of chat stream lock — stopping heartbeat')
           return
         }
         await refreshBufferTtl(streamId).catch((error) => {
@@ -412,6 +411,9 @@ export function startAbortPoller(
           ...(requestId ? { requestId } : {}),
           error: toError(error).message,
         })
+        /** Unrenewed this long, the lock has lapsed and another controller may own the run. */
+        if (Date.now() - lastHeartbeatAt >= CHAT_STREAM_LOCK_TTL_SECONDS * 1000)
+          stopController('Chat stream lock lapsed while unrenewable — stopping this controller')
       }
     })()
   }, pollMs)

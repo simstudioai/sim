@@ -12,7 +12,7 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/attribution'
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation, NoWorkspaceAccessError } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -192,8 +192,7 @@ async function recoverStreamRun(context: StreamRunContext, admission?: AbortSign
         ? getUserEntityPermissions(userId, 'workspace', workspaceId)
         : Promise.resolve(undefined),
     ])
-    if (workspaceId && !userPermission)
-      throw new OrchestrationError('forbidden', 'Workspace access revoked')
+    if (workspaceId && !userPermission) throw new NoWorkspaceAccessError()
     /**
      * A ring that lost its head is treated like an expired one: the controller starts
      * from an empty context and re-attaches with an empty receipt, so the worker re-sends

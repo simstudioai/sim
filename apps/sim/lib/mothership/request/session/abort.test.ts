@@ -101,6 +101,32 @@ describe('startAbortPoller heartbeat', () => {
     }
   })
 
+  it('stops the controller once its lock lapsed while every renewal failed', async () => {
+    const controller = new AbortController()
+    const streamId = 'stream-partitioned'
+    const chatId = 'chat-partitioned'
+    redisConfigMockFns.mockExtendLock.mockRejectedValue(new Error('redis unreachable'))
+
+    const interval = startAbortPoller(streamId, controller, {
+      chatId,
+      lease: { key: `copilot:chat-stream-lock:${chatId}`, value: `${streamId}\ncontroller-1` },
+    })
+
+    try {
+      await vi.advanceTimersByTimeAsync(59_000)
+      expect(controller.signal.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(controller.signal.aborted).toBe(true)
+      expect(controller.signal.reason.name).toBe('StreamControllerSupersededError')
+      const attempts = redisConfigMockFns.mockExtendLock.mock.calls.length
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(redisConfigMockFns.mockExtendLock).toHaveBeenCalledTimes(attempts)
+    } finally {
+      clearInterval(interval)
+    }
+  })
+
   it('aborts the controller before clearing the marker so the marker is never observable as cleared while the signal is still unaborted', async () => {
     const controller = new AbortController()
     const streamId = 'stream-order-1'

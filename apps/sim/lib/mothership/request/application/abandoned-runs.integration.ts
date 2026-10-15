@@ -8,6 +8,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
  */
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
@@ -55,6 +56,19 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
 
 vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+/** Recovery's own workspace re-check, so a test can lose access after authorization passed. */
+const { workspacePermission } = vi.hoisted(() => ({ workspacePermission: { revoked: false } }))
+vi.mock('@/lib/workspaces/permissions/utils', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/lib/workspaces/permissions/utils')>()
+  return {
+    ...original,
+    getUserEntityPermissions: (...args: Parameters<typeof original.getUserEntityPermissions>) =>
+      workspacePermission.revoked
+        ? Promise.resolve(null)
+        : original.getUserEntityPermissions(...args),
+  }
+})
 
 import { db } from '@sim/db'
 import {
@@ -62,6 +76,8 @@ import {
   copilotChats,
   copilotMessages,
   copilotRuns,
+  member,
+  organization,
   permissions,
   user,
   workspace,
@@ -87,6 +103,7 @@ import {
   prepareWorkbenchAccess,
   recordSimSandboxProcess,
   revokeExhaustedSimToolExecutions,
+  revokeExpiredSimToolExecutions,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
 import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -107,6 +124,7 @@ import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
 const ownerId = generateId()
 const userId = generateId()
 const workspaceId = generateId()
+const organizationId = generateId()
 const chatIds: string[] = []
 const TOOL_NAME = 'get_credentials'
 const TOOL_ARGS = {}
@@ -310,6 +328,12 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       ownerId,
       billedAccountUserId: ownerId,
     })
+    await db
+      .insert(organization)
+      .values({ id: organizationId, name: 'Run takeover fixture', slug: organizationId })
+    await db
+      .insert(member)
+      .values({ id: generateId(), organizationId, userId: ownerId, role: 'owner' })
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: userId },
       session: { id: generateId() },
@@ -319,6 +343,8 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
   beforeEach(async () => {
     worker.requests.length = 0
     resetEnvFlagsMock()
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
+    workspacePermission.revoked = false
     await redis().del(ABANDONED_RUN_CURSOR_KEY)
     await db
       .insert(permissions)
@@ -339,6 +365,8 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     }
     await db.delete(permissions).where(eq(permissions.entityId, workspaceId))
+    await db.delete(member).where(eq(member.organizationId, organizationId))
+    await db.delete(organization).where(eq(organization.id, organizationId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     for (const id of [ownerId, userId]) await db.delete(user).where(eq(user.id, id))
     chatPubSub?.dispose()
@@ -630,5 +658,162 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     } finally {
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
     }
+  })
+
+  it('adopts nothing while the takeover kill switch is on', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+      async (flag) => flag === 'mothership-abandoned-run-takeover-disabled'
+    )
+    const { streamId, runId, toolCallId } = await runAbandonedMidTool()
+    const before = await storedRun(runId)
+    try {
+      await takeOverAbandonedRuns()
+
+      expect(await storedRun(runId)).toEqual(before)
+      expect(requestsFor(streamId, '/api/mothership')).toHaveLength(0)
+      expect((await storedTool(toolCallId)).attempts).toBe(1)
+    } finally {
+      await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+    }
+  })
+
+  it("spares a call awaiting its re-run when a sibling's wait or workbench access revokes", async () => {
+    const {
+      chatId,
+      runId,
+      toolCallId: interrupted,
+    } = await runAbandonedMidTool({ leaseLive: true })
+    const sessionKey = chatSandboxSessionKey(chatId)
+    const sibling = scopeProviderToolCallId('sibling-call', createProviderToolCallIdentity(runId))
+    try {
+      await recordSimSandboxProcess({
+        toolCallId: interrupted,
+        runId,
+        userId,
+        ownerToken: 'dead-controller',
+        process: { id: 'interrupted-command', sandboxId: 'sandbox-1', sessionKey },
+      })
+      await db
+        .update(copilotAsyncToolCalls)
+        .set({ executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` })
+        .where(eq(copilotAsyncToolCalls.toolCallId, interrupted))
+      await upsertAsyncToolCall({ runId, toolCallId: sibling, toolName: TOOL_NAME, args: {} })
+      const siblingOwner = { toolCallId: sibling, runId, userId, ownerToken: 'sibling' }
+      expect(await claimToolExecution(siblingOwner)).toEqual({ outcome: 'claimed' })
+
+      /** The re-handed sibling runs first: its wait and its workbench access both revoke. */
+      await revokeExpiredSimToolExecutions({ runId, userId, toolCallId: sibling })
+      const state = await prepareWorkbenchAccess({ ...siblingOwner, sessionKey })
+
+      expect(state.handlersPending).toBe(false)
+      expect(state.processes.map((process) => process.id)).toEqual(['interrupted-command'])
+      expect((await storedTool(interrupted)).status).toBe('running')
+      expect(
+        await claimToolExecution({
+          toolCallId: interrupted,
+          runId,
+          userId,
+          ownerToken: 'successor',
+        })
+      ).toEqual({ outcome: 'claimed' })
+    } finally {
+      await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+    }
+  })
+
+  it('settles the run as revoked when access is lost after authorization passed', async () => {
+    workspacePermission.revoked = true
+    const { streamId, runId, toolCallId } = await runAbandonedMidTool()
+
+    await takeOverAbandonedRuns()
+
+    const run = await storedRun(runId)
+    expect(run.status).toBe('error')
+    expect(run.error).toBe(REVOKED_RUN_ERROR)
+    expect(requestsFor(streamId, '/api/mothership')).toHaveLength(0)
+    expect(requestsFor(streamId, '/api/streams/explicit-abort')).toHaveLength(1)
+    expect((await storedTool(toolCallId)).attempts).toBe(1)
+  })
+
+  describe('an organization Assistant run', () => {
+    async function runAbandonedInOrganization() {
+      const chatId = generateId()
+      chatIds.push(chatId)
+      const streamId = generateId()
+      const runId = generateId()
+      const request = {
+        message: 'Find the report',
+        userId,
+        messageId: streamId,
+        chatId,
+        organizationId,
+        mode: 'assistant',
+      }
+      await db.insert(copilotChats).values({
+        id: chatId,
+        userId,
+        organizationId,
+        type: 'mothership',
+        conversationId: streamId,
+      })
+      await db.insert(copilotRuns).values({
+        id: runId,
+        executionId: generateId(),
+        chatId,
+        userId,
+        organizationId,
+        streamId,
+        status: 'active',
+        toolExecutionVersion: 2,
+        updatedAt: new Date(Date.now() - 120_000),
+        requestContext: {
+          requestId: generateId(),
+          controllerToken: `${streamId}\n${generateId()}`,
+          recovery: {
+            kind: 'interactive_stream',
+            request,
+            goRoute: '/api/mothership',
+            clientToolPickupExpected: false,
+          },
+        },
+      })
+      const frame = frameFor(streamId, chatId)
+      const text = 'Here is the report.'
+      worker.replies.set(streamId, {
+        '/api/mothership': [
+          frame(1, 'session', { kind: 'start' }),
+          frame(2, 'text', { channel: 'assistant', text, textOffset: 0 }),
+          frame(3, 'complete', { status: 'complete', textLength: text.length }),
+        ],
+      })
+      return { streamId, runId }
+    }
+
+    it('takes over a member’s run as that member', async () => {
+      await db.insert(member).values({ id: generateId(), organizationId, userId, role: 'member' })
+      const { streamId, runId } = await runAbandonedInOrganization()
+      try {
+        await takeOverAbandonedRuns()
+
+        expect(await waitForTerminal(runId)).toBe('complete')
+        expect(requestsFor(streamId, '/api/mothership')).toHaveLength(1)
+      } finally {
+        await db
+          .delete(member)
+          .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+      }
+    })
+
+    it('settles a removed member’s run as revoked', async () => {
+      const { streamId, runId } = await runAbandonedInOrganization()
+
+      await takeOverAbandonedRuns()
+
+      const run = await storedRun(runId)
+      expect(run.status).toBe('error')
+      expect(run.error).toBe(REVOKED_RUN_ERROR)
+      expect(requestsFor(streamId, '/api/mothership')).toHaveLength(0)
+      expect(requestsFor(streamId, '/api/streams/explicit-abort')).toHaveLength(1)
+    })
   })
 })
