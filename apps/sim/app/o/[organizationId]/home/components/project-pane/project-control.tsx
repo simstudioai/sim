@@ -16,7 +16,7 @@ import {
   Tooltip,
   useScrollEdges,
 } from '@sim/emcn'
-import { ChevronDown, Plus, Search } from '@sim/emcn/icons'
+import { Box, ChevronDown, Plus, Search } from '@sim/emcn/icons'
 import { useQueryStates } from 'nuqs'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { WORKSPACE_SEARCH_THRESHOLD } from '@/lib/workspaces/constants'
@@ -108,13 +108,13 @@ export function ProjectControl({ active, onShow }: ProjectControlProps) {
         aria-label={`Show ${name}`}
         onClick={onShow}
         className={cn(
-          'flex h-full items-center pl-[22px] text-small transition-[padding,background-color,color] duration-200 hover-hover:bg-[var(--surface-2)] hover-hover:text-[var(--text-primary)] focus-visible:bg-[var(--surface-2)] focus-visible:text-[var(--text-primary)] focus-visible:outline-none',
+          'flex h-full items-center text-small transition-[padding,background-color,color] duration-200 hover-hover:bg-[var(--surface-2)] hover-hover:text-[var(--text-primary)] focus-visible:bg-[var(--surface-2)] focus-visible:text-[var(--text-primary)] focus-visible:outline-none',
           active
-            ? 'pr-2'
-            : 'pr-[22px] group-focus-within/control:pr-2 group-hover/control:pr-2 group-has-[[data-state=open]]/control:pr-2'
+            ? 'pr-2 pl-[22px]'
+            : 'px-4 group-focus-within/control:pr-2 group-focus-within/control:pl-[22px] group-hover/control:pr-2 group-hover/control:pl-[22px] group-has-[[data-state=open]]/control:pr-2 group-has-[[data-state=open]]/control:pl-[22px]'
         )}
       >
-        <IdentityTile initial={name[0]} />
+        <Box className='size-[14px] shrink-0' />
         <span
           className={cn(
             'flex min-w-0 overflow-hidden transition-[max-width,margin,opacity] duration-200',

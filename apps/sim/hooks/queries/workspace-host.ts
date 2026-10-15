@@ -29,9 +29,16 @@ async function fetchWorkspaceHostContext(
  */
 export function useWorkspaceHostContextQuery(workspaceId: string) {
   return useQuery({
-    queryKey: workspaceHostKeys.detail(workspaceId),
-    queryFn: ({ signal }) => fetchWorkspaceHostContext(workspaceId, signal),
+    ...workspaceHostContextQueryOptions(workspaceId),
     enabled: Boolean(workspaceId),
-    staleTime: WORKSPACE_HOST_CONTEXT_STALE_TIME,
   })
+}
+
+export function workspaceHostContextQueryOptions(workspaceId: string) {
+  return {
+    queryKey: workspaceHostKeys.detail(workspaceId),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchWorkspaceHostContext(workspaceId, signal),
+    staleTime: WORKSPACE_HOST_CONTEXT_STALE_TIME,
+  }
 }

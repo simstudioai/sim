@@ -27,10 +27,8 @@ import { SettingsGuardedLink as Link } from '@/components/settings/settings-guar
 import { useProjectActions } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-actions'
 import type { ProjectDragProps } from '@/app/o/[organizationId]/components/organization-sidebar/components/projects-section/use-project-order'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
-import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
   useItemDrag,
   useItemRename,
@@ -42,7 +40,6 @@ interface ProjectRowProps {
   project: Project
   href: string
   active: boolean
-  railCollapsed: boolean
   drag: ProjectDragProps
   isAnyDragActive: boolean
 }
@@ -52,14 +49,7 @@ interface ProjectRowProps {
  * reveals the options menu, right-click opens the same menu, double-click
  * or Rename edits the name inline, drag reorders, and the menu pins or deletes the project.
  */
-export function ProjectRow({
-  project,
-  href,
-  active,
-  railCollapsed,
-  drag,
-  isAnyDragActive,
-}: ProjectRowProps) {
+export function ProjectRow({ project, href, active, drag, isAnyDragActive }: ProjectRowProps) {
   const actions = useProjectActions()
   const pinned = actions.isPinned(project)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -111,91 +101,88 @@ export function ProjectRow({
 
   return (
     <>
-      <SidebarTooltip label={project.name} enabled={railCollapsed}>
-        <div
-          className={cn(
-            chipVariants({ active: active || menuOpen, fullWidth: true }),
-            SIDEBAR_RAIL_CHIP_CLASS,
-            rowActionsGroupClass,
-            'group/project relative',
-            isDragging && 'opacity-50'
-          )}
-          draggable={!rename.isEditing && !railCollapsed}
-          onDragStart={handleDragStart}
-          onDragEnd={onDragEnd}
-          onDragOver={drag.onDragOver}
-          onDragLeave={drag.onDragLeave}
-          onDrop={drag.onDrop}
-          onContextMenu={handleContextMenu}
-        >
-          {drag.indicator && (
-            <span
-              aria-hidden
-              className={cn(
-                'pointer-events-none absolute right-1 left-1 h-[2px] rounded-full bg-[var(--brand-primary)]',
-                drag.indicator === 'before' ? '-top-[2px]' : '-bottom-[2px]'
-              )}
+      <div
+        className={cn(
+          chipVariants({ active: active || menuOpen, fullWidth: true }),
+          rowActionsGroupClass,
+          'group/project relative',
+          isDragging && 'opacity-50'
+        )}
+        draggable={!rename.isEditing}
+        onDragStart={handleDragStart}
+        onDragEnd={onDragEnd}
+        onDragOver={drag.onDragOver}
+        onDragLeave={drag.onDragLeave}
+        onDrop={drag.onDrop}
+        onContextMenu={handleContextMenu}
+      >
+        {drag.indicator && (
+          <span
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute right-1 left-1 h-[2px] rounded-full bg-[var(--brand-primary)]',
+              drag.indicator === 'before' ? '-top-[2px]' : '-bottom-[2px]'
+            )}
+          />
+        )}
+        {rename.isEditing ? (
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
+            <IdentityTile initial={project.name[0]} />
+            <input
+              ref={rename.inputRef}
+              value={rename.editValue}
+              onChange={(event) => rename.setEditValue(event.target.value)}
+              onKeyDown={rename.handleKeyDown}
+              onBlur={rename.handleInputBlur}
+              disabled={rename.isRenaming}
+              onClick={(event) => event.stopPropagation()}
+              className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
+              maxLength={100}
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              spellCheck={false}
             />
-          )}
-          {rename.isEditing ? (
-            <div className='flex min-w-0 flex-1 items-center gap-2'>
-              <IdentityTile initial={project.name[0]} />
-              <input
-                ref={rename.inputRef}
-                value={rename.editValue}
-                onChange={(event) => rename.setEditValue(event.target.value)}
-                onKeyDown={rename.handleKeyDown}
-                onBlur={rename.handleInputBlur}
-                disabled={rename.isRenaming}
-                onClick={(event) => event.stopPropagation()}
-                className='w-full min-w-0 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
-                maxLength={100}
-                autoComplete='off'
-                autoCorrect='off'
-                autoCapitalize='off'
-                spellCheck={false}
-              />
-            </div>
-          ) : (
-            <Link
-              href={href}
-              onClick={(event) => {
-                if (shouldPreventClickRef.current) {
-                  event.preventDefault()
-                  return
-                }
-              }}
-              onDoubleClick={(event) => {
+          </div>
+        ) : (
+          <Link
+            href={href}
+            onClick={(event) => {
+              if (shouldPreventClickRef.current) {
                 event.preventDefault()
-                if (project.canAdminister) rename.handleStartEdit()
-              }}
-              className='flex min-w-0 flex-1 items-center gap-2'
-            >
-              <IdentityTile initial={project.name[0]} />
-              <OverflowText
-                label={project.name}
-                className='sidebar-collapse-hide flex-1 text-[var(--text-body)]'
-                focusTarget='nearest-interactive'
-              />
-            </Link>
-          )}
-          {!railCollapsed && !rename.isEditing && (
-            <RowActions
-              open={menuOpen}
-              revealOnHover={!isAnyDragActive}
-              indicator={
-                pinned ? (
-                  <Pin className='size-[12px] text-[var(--text-icon)]' aria-label='Pinned' />
-                ) : undefined
+                return
               }
-            >
-              <SidebarRowAction aria-label='Project options' onClick={openMenuFromButton}>
-                <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
-              </SidebarRowAction>
-            </RowActions>
-          )}
-        </div>
-      </SidebarTooltip>
+            }}
+            onDoubleClick={(event) => {
+              event.preventDefault()
+              if (project.canAdminister) rename.handleStartEdit()
+            }}
+            className='flex min-w-0 flex-1 items-center gap-2'
+          >
+            <IdentityTile initial={project.name[0]} />
+            <OverflowText
+              label={project.name}
+              className='flex-1 text-[var(--text-body)]'
+              focusTarget='nearest-interactive'
+            />
+          </Link>
+        )}
+        {!rename.isEditing && (
+          <RowActions
+            open={menuOpen}
+            revealOnHover={!isAnyDragActive}
+            indicator={
+              pinned ? (
+                <Pin className='size-[12px] text-[var(--text-icon)]' aria-label='Pinned' />
+              ) : undefined
+            }
+          >
+            <SidebarRowAction aria-label='Project options' onClick={openMenuFromButton}>
+              <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
+            </SidebarRowAction>
+          </RowActions>
+        )}
+      </div>
 
       <DropdownMenu open={menuOpen} onOpenChange={(open) => !open && closeMenu()} modal={false}>
         <DropdownMenuTrigger asChild>

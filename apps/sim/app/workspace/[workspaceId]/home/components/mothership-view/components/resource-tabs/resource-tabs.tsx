@@ -1,5 +1,4 @@
 import {
-  type ComponentProps,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -20,7 +19,7 @@ import {
   tabStripItemSelector,
   toast,
 } from '@sim/emcn'
-import { Columns3, Eye, PanelLeft, Pencil, Plus } from '@sim/emcn/icons'
+import { PanelLeft, Plus } from '@sim/emcn/icons'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { useQueries } from '@tanstack/react-query'
 import { requestBrowserOmniboxFocus } from '@/lib/browser-agent/omnibox-focus'
@@ -41,10 +40,8 @@ import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/compo
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { useTerminalCloseConfirmation } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/use-terminal-close-confirmation'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import {
-  RESOURCE_HEADER_CLASSES,
-  RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { PreviewModeToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/preview-mode-toggle'
+import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import type {
   MothershipResource,
@@ -131,18 +128,6 @@ function buildMultiDragImage(
   if (!appendedAny) return null
   document.body.appendChild(container)
   return container
-}
-
-const PREVIEW_MODE_ICONS = {
-  editor: Columns3,
-  split: Eye,
-  preview: Pencil,
-} satisfies Record<PreviewMode, (props: ComponentProps<typeof Eye>) => ReactNode>
-
-const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
-  editor: 'Split Mode',
-  split: 'Preview Mode',
-  preview: 'Edit Mode',
 }
 
 /**
@@ -256,7 +241,6 @@ export function ResourceTabs({
   onAddResourceClose,
   onCollapse,
 }: ResourceTabsProps) {
-  const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId, resources)
   const {
     selectResource,
@@ -583,20 +567,7 @@ export function ResourceTabs({
 
   const previewToggle =
     previewMode && onCyclePreviewMode ? (
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <TabStripAction
-            variant='subtle'
-            onClick={onCyclePreviewMode}
-            aria-label='Cycle preview mode'
-          >
-            <PreviewModeIcon mode={previewMode} className={RESOURCE_TAB_ICON_CLASS} />
-          </TabStripAction>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>{PREVIEW_MODE_LABELS[previewMode]}</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      <PreviewModeToggle mode={previewMode} onCycle={onCyclePreviewMode} />
     ) : null
 
   return (

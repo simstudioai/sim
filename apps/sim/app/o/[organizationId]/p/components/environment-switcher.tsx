@@ -8,11 +8,13 @@ import {
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Branch, Check, ChevronDown } from '@sim/emcn/icons'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import type { ProjectSection } from '@/app/o/[organizationId]/p/routes'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { workspaceHostContextQueryOptions } from '@/hooks/queries/workspace-host'
 
 interface EnvironmentSwitcherProps {
   project: Project
@@ -26,6 +28,7 @@ interface EnvironmentSwitcherProps {
  */
 export function EnvironmentSwitcher({ project, section, onChange }: EnvironmentSwitcherProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { organization } = useOrganizationContext()
   if (project.environments.length <= 1)
     return (
@@ -33,8 +36,14 @@ export function EnvironmentSwitcher({ project, section, onChange }: EnvironmentS
         {project.environment}
       </Chip>
     )
+  /** Warms each environment's host on open, so picking one swaps the body without a skeleton. */
+  const prefetchEnvironments = (open: boolean) => {
+    if (!open) return
+    for (const environment of project.environments)
+      void queryClient.prefetchQuery(workspaceHostContextQueryOptions(environment.workspaceId))
+  }
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={prefetchEnvironments}>
       <DropdownMenuTrigger asChild>
         <Chip leftIcon={Branch} rightIcon={ChevronDown} aria-label='Switch environment'>
           {project.environment}

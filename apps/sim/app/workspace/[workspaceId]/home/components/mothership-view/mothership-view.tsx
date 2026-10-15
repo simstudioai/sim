@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, cn } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
@@ -38,6 +38,7 @@ import { SearchResourceContent } from '@/app/workspace/[workspaceId]/home/compon
 import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import { PreviewModeToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/preview-mode-toggle'
 import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -560,8 +561,8 @@ function ScopedResourceContent({
                     allowWorkspaceNavigation={false}
                   />
                 )}
-                {onCyclePreviewMode && (
-                  <Chip onClick={onCyclePreviewMode}>View: {props.previewMode}</Chip>
+                {onCyclePreviewMode && props.previewMode && (
+                  <PreviewModeToggle mode={props.previewMode} onCycle={onCyclePreviewMode} />
                 )}
               </>
             }

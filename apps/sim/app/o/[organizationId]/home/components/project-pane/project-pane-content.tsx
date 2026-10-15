@@ -8,7 +8,6 @@ import {
 import { ProjectView } from '@/app/o/[organizationId]/p/components/project-view'
 import { useProjects } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /** The pinned tab shows the organization until a project environment is selected. */
@@ -55,24 +54,18 @@ export function ProjectPaneContent() {
       </div>
     )
   return (
-    <ResourceWorkspaceHost
-      key={project.id}
-      workspaceId={project.id}
-      organizationId={organization.id}
-    >
-      <ProjectView
-        project={project}
-        section={params.section}
-        onBrowse={() =>
-          navigate({ section: 'resources', resourceKind: '', resourceDetail: '', pane: 'project' })
-        }
-        onSectionChange={(section) =>
-          navigate({ section, resourceKind: '', resourceDetail: '', pane: 'project' })
-        }
-        onEnvironmentChange={(workspaceId) =>
-          navigate({ project: workspaceId, resourceDetail: '', pane: 'project' })
-        }
-      />
-    </ResourceWorkspaceHost>
+    <ProjectView
+      project={project}
+      section={params.section}
+      onBrowse={() =>
+        navigate({ section: 'resources', resourceKind: '', resourceDetail: '', pane: 'project' })
+      }
+      onSectionChange={(section) =>
+        navigate({ section, resourceKind: '', resourceDetail: '', pane: 'project' })
+      }
+      onEnvironmentChange={(workspaceId) =>
+        navigate({ project: workspaceId, resourceDetail: '', pane: 'project' })
+      }
+    />
   )
 }

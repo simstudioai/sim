@@ -11,6 +11,7 @@ import type { Project } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { PROJECT_SECTIONS, type ProjectSection } from '@/app/o/[organizationId]/p/routes'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ChangelogEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 
 interface ProjectViewProps {
   project: Project
@@ -20,7 +21,7 @@ interface ProjectViewProps {
   onEnvironmentChange?: (workspaceId: string) => void
 }
 
-/** Project content shared by the pinned pane and compatibility routes. */
+/** The header stays mounted across environments; only the body loads the selected workspace. */
 export function ProjectView({
   project,
   section,
@@ -78,7 +79,9 @@ export function ProjectView({
         </nav>
       </header>
       <div className='min-h-0 flex-1 overflow-y-auto'>
-        <SectionBody project={project} section={section} onBrowse={onBrowse} />
+        <ResourceWorkspaceHost workspaceId={project.id} organizationId={organization.id}>
+          <SectionBody project={project} section={section} onBrowse={onBrowse} />
+        </ResourceWorkspaceHost>
       </div>
     </div>
   )
