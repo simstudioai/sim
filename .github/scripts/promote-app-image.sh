@@ -10,9 +10,7 @@ RELEASE_TAG="${5:-}"
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PREVIOUS=$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG" --allow-missing)
 EPOCH=$(date +%s)
-TAG_ARGS=(-t "$REGISTRY/$REPOSITORY:$DEPLOY_TAG")
-if [ -n "$RELEASE_TAG" ]; then TAG_ARGS+=(-t "$REGISTRY/$REPOSITORY:$RELEASE_TAG"); fi
-docker buildx imagetools create "${TAG_ARGS[@]}" "$REGISTRY/$REPOSITORY:$SOURCE_TAG"
+bash "$SCRIPT_DIR/promote-image.sh" "$REGISTRY" "$REPOSITORY" "$SOURCE_TAG" "$DEPLOY_TAG" "$RELEASE_TAG"
 DIGEST=$(bash "$SCRIPT_DIR/get-ecr-image-digest.sh" "$REPOSITORY" "$DEPLOY_TAG")
 CHANGED=true
 if [ "$DIGEST" = "$PREVIOUS" ]; then CHANGED=false; fi

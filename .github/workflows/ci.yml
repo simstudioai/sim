@@ -523,8 +523,7 @@ jobs:
           RELEASE_TAG=""
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
-            # Per-release alias the ECR lifecycle retains as prod rollback targets,
-            # independent of staging churn. Same imagetools call, so one list digest.
+            # ECR lifecycle retains release- aliases as prod rollback targets.
             RELEASE_TAG="release-${SOURCE_TAG}"
           elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
             ECR_TAG="dev"
@@ -548,9 +547,7 @@ jobs:
             if [ "$repo" = "$APP_REPO" ]; then
               bash .github/scripts/promote-app-image.sh "$REGISTRY" "$APP_REPO" "$SOURCE_TAG" "$ECR_TAG" "$RELEASE_TAG"
             else
-              TAG_ARGS=(-t "${REGISTRY}/${repo}:${ECR_TAG}")
-              if [ -n "$RELEASE_TAG" ]; then TAG_ARGS+=(-t "${REGISTRY}/${repo}:${RELEASE_TAG}"); fi
-              docker buildx imagetools create "${TAG_ARGS[@]}" "${REGISTRY}/${repo}:${SOURCE_TAG}"
+              bash .github/scripts/promote-image.sh "$REGISTRY" "$repo" "$SOURCE_TAG" "$ECR_TAG" "$RELEASE_TAG"
             fi
           done
 
