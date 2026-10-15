@@ -19,7 +19,12 @@ export function grepProjectFiles(
   context: AgentCliExecutionContext,
   projectId: string
 ) {
-  return executeGrep(invocation.positionals, invocation.flags, {
+  /** Files are a Project's only grep scope, so an omitted scope means files. */
+  const flags =
+    invocation.flags.scope === undefined
+      ? { ...invocation.flags, scope: 'files' }
+      : invocation.flags
+  return executeGrep(invocation.positionals, flags, {
     signal: context.signal,
     registry: context.resolvedSecretTraceRegistry,
     allowedScopes: ['files'],

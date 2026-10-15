@@ -81,10 +81,35 @@ function collectLeaves(command: Command, prefix: string[]): { path: string[]; co
   return children.flatMap((child) => collectLeaves(child, [...prefix, child.name()]))
 }
 
-const OPENAPI_DOCS: ReferenceDocument[] = fs
-  .readdirSync(path.join(ROOT, 'apps/docs'))
-  .filter((name) => /^openapi-v2-.*\.json$/.test(name))
-  .map((name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/docs', name), 'utf8')))
+/**
+ * Unpublished groups are documented in launch-ready definitions kept out of the public reference,
+ * so their response shapes come from those definitions, as the CLI's own `--help` text does.
+ */
+async function unpublishedOpenApiDocuments(): Promise<ReferenceDocument[]> {
+  const [
+    { generateOpenApiDocument },
+    { filesAuditOpenApiDocument },
+    { unpublishedProjectFileDocumentation },
+  ] = await Promise.all([
+    import(path.join(ROOT, 'scripts/openapi/generator.ts')),
+    import(path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/files-audit.ts')),
+    import(path.join(ROOT, 'apps/sim/lib/api/contracts/v2/openapi/unpublished-project-files.ts')),
+  ])
+  return [
+    generateOpenApiDocument({
+      ...filesAuditOpenApiDocument,
+      routes: unpublishedProjectFileDocumentation.routes,
+    }),
+  ]
+}
+
+const OPENAPI_DOCS: ReferenceDocument[] = [
+  ...fs
+    .readdirSync(path.join(ROOT, 'apps/docs'))
+    .filter((name) => /^openapi-v2-.*\.json$/.test(name))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(ROOT, 'apps/docs', name), 'utf8'))),
+  ...(await unpublishedOpenApiDocuments()),
+]
 
 /**
  * `METHOD path` of every route Sim refuses a Mothership caller, as the route inventory

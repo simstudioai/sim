@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
+import { fileCopyInputSchema } from '@/lib/api/contracts/file-copy-input'
 import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
@@ -43,7 +44,11 @@ export async function proxySandboxResourceRequest(
   const scope = await readSandboxResourceScope(token, request.headers.get('x-api-key'))
   if (!scope)
     return Response.json({ error: 'Sandbox tool execution is no longer active' }, { status: 403 })
-  if (path === v2CopyFileItemsContract.path)
+  /** Paired owners need the negotiated protocol; workspace-only copies keep the workspace route. */
+  if (
+    path === v2CopyFileItemsContract.path &&
+    (scope.fileOwnerProtocolVersion === 1 || !(await copiesWithinWorkspaces(request)))
+  )
     return proxySandboxFileCopyRequest(request, token, scope)
   const ownerHeader = request.headers.get('x-mothership-file-owner')
   let owner: FileOperationOwner | undefined
@@ -202,4 +207,20 @@ async function proxyAuthorizedSandboxRequest(
     statusText: response.statusText,
     headers: response.headers,
   })
+}
+
+/** A copy whose source and destination are both workspaces predates the file-owner protocol. */
+async function copiesWithinWorkspaces(request: Request): Promise<boolean> {
+  let body: unknown
+  try {
+    body = await request.clone().json()
+  } catch {
+    return false
+  }
+  const parsed = fileCopyInputSchema.safeParse(body)
+  return (
+    parsed.success &&
+    parsed.data.source.owner.entityType === 'workspace' &&
+    parsed.data.destination.owner.entityType === 'workspace'
+  )
 }

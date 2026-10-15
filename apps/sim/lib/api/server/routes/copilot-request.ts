@@ -94,7 +94,14 @@ export function copilotRouteAudience(
   operation: ApplicationOperation,
   useCase?: CopilotRouteUseCase
 ): string | undefined {
-  return useCase?.operation === operation ? useCase.delegationAudience || undefined : undefined
+  if (useCase?.operation !== operation) return undefined
+  /** An operation that names its delegated services but not Chat's is refused before minting. */
+  const services: readonly string[] | undefined =
+    'delegatedServices' in operation
+      ? (operation.delegatedServices as readonly string[])
+      : undefined
+  if (services && !services.includes('copilot')) return undefined
+  return useCase.delegationAudience || undefined
 }
 
 export function copilotRequestPrincipal(

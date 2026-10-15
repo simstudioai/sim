@@ -19,7 +19,10 @@ import {
   resolveProjectFileReference,
 } from '@/lib/projects/files/application'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace'
-import { MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import {
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { MAX_TEXT_EXTRACTION_BYTES, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
@@ -119,11 +122,7 @@ export async function readProjectFileForAgent(
       const type = mimeOf(artifact.contentType, file.name)
       const visual = explicitVisual || (!textRange && isDefaultVisual(type))
       /** Default visual selection uses the authorized artifact's MIME, not earlier discovery metadata. */
-      if (
-        visual &&
-        (artifact.secretProvenance.status !== 'exact' ||
-          artifact.secretProvenance.entries.length !== 0)
-      )
+      if (visual && hasPossibleSecrets(artifact.secretProvenance))
         throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
       result = await observePrivateFile(
         {
@@ -174,4 +173,12 @@ function mimeOf(contentType: string, name: string) {
 
 function isDefaultVisual(type: string) {
   return type.startsWith('image/') || type === 'application/pdf'
+}
+
+/** A rendered image would bypass text redaction, so only provenance known to hold no secret passes. */
+function hasPossibleSecrets(provenance: WorkspaceFileSecretProvenance) {
+  return (
+    provenance.status === 'unknown' ||
+    (provenance.status === 'exact' && provenance.entries.length > 0)
+  )
 }

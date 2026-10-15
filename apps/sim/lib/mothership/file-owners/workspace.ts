@@ -28,7 +28,11 @@ export const workspaceFileOwnerAdapter: CopilotFileOwnerAdapter = {
       owner: { entityType: 'workspace', entityId: target.owner.entityId },
       path: fileOwnerVfsPath(
         target.owner,
-        canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name })
+        canonicalWorkspaceFilePath({
+          folderPath: file.folderPath,
+          name: file.name,
+          prefix: file.vfsNamespace,
+        })
       ),
     }
   },

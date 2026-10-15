@@ -391,3 +391,22 @@ it('reconstructs Project authority from the admitted lease without borrowing its
   expect(response.status).toBe(200)
   expect(target).not.toHaveBeenCalled()
 })
+
+/** Workspace copies predate the file-owner protocol; only a negotiated lease routes paired owners. */
+it('keeps workspace file copies on the workspace route when the lease has no file-owner protocol', async () => {
+  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: undefined })
+  routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
+  fetcher.mockResolvedValue(Response.json({ data: { copied: [] } }))
+  const response = await proxySandboxResourceRequest(
+    request('/api/v2/files/copy', {
+      method: 'POST',
+      body: JSON.stringify({
+        source: { owner: { entityType: 'workspace', entityId: 'workspace' }, fileIds: ['file'] },
+        destination: { owner: { entityType: 'workspace', entityId: 'workspace' } },
+      }),
+    }),
+    token
+  )
+  expect(response.status).toBe(200)
+  expect(fetcher).toHaveBeenCalledOnce()
+})

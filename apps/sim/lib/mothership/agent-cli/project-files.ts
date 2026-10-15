@@ -9,6 +9,7 @@ import { readProjectFileForAgent } from '@/lib/mothership/agent-cli/project-file
 import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
 import { createProjectFileUploadTransport } from '@/lib/mothership/agent-cli/project-file-upload-transport'
 import { createProjectFileWriteTransport } from '@/lib/mothership/agent-cli/project-file-write-transport'
+import { readOnlyCliTransport } from '@/lib/mothership/agent-cli/read-only'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
@@ -69,15 +70,17 @@ export async function executeProjectFileCliRequest(
     return response
   }
   const resources: ResourceChange[] = []
+  const transport = createResourceEffectTransport(
+    endpoint,
+    createTracedCliTransport(endpoint, observed),
+    resources,
+    true
+  )
   const identity: EmbeddedCliIdentity = {
     endpoint,
     apiKey: 'mothership-in-process',
-    transport: createResourceEffectTransport(
-      endpoint,
-      createTracedCliTransport(endpoint, observed),
-      resources,
-      true
-    ),
+    /** Mutations are refused before the Project write and upload interceptors, as for workspaces. */
+    transport: context.readOnly ? readOnlyCliTransport(transport) : transport,
     ...(context.signal ? { signal: context.signal } : {}),
   }
   return executePreparedCliRequest(request, {

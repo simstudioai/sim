@@ -166,6 +166,87 @@ async function imageContent() {
   ).toString('base64')
 }
 
+check(
+  'Project files without recorded provenance stay readable, as workspace files do',
+  async () => {
+    const f = await fixture()
+    const { file } = await createProjectFile.execute({
+      principal: f.principal,
+      input: {
+        projectId: f.projectId,
+        name: 'legacy-notes.txt',
+        contentType: 'text/plain',
+        content: 'legacy-line',
+        encoding: 'utf-8',
+      },
+    })
+    // As stored when an unrecorded workspace file is copied into a Project.
+    await db
+      .update(workspaceFileSecretProvenance)
+      .set({ status: 'unrecorded', entries: [] })
+      .where(eq(workspaceFileSecretProvenance.fileId, file.id))
+    const result = await read(f.projectId, f.context, file.id)
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).text).toContain('legacy-line')
+    const grep = await read(f.projectId, f.context, 'legacy-line', {}, 'grep')
+    expect(grep.exitCode, grep.stderr).toBe(0)
+    expect(grep.stdout).toContain(':1: legacy-line')
+  }
+)
+
+check('Project grep searches files when no scope is given', async () => {
+  const f = await fixture()
+  const { file } = await createProjectFile.execute({
+    principal: f.principal,
+    input: {
+      projectId: f.projectId,
+      name: 'unscoped-notes.txt',
+      contentType: 'text/plain',
+      content: 'alpha\nunscoped-needle\nomega',
+      encoding: 'utf-8',
+    },
+  })
+  const result = await read(f.projectId, f.context, 'unscoped-needle', {}, 'grep')
+  expect(result.exitCode, result.stderr).toBe(0)
+  expect(result.stdout).toContain(`files/unscoped-notes.txt (${file.id}):2:`)
+})
+
+check('benchmark reference generation cannot create Project files', async () => {
+  const f = await fixture()
+  const name = `read-only-${generateId()}.txt`
+  const result = await runCli(
+    {
+      fileOwner: { entityType: 'project', entityId: f.projectId },
+      invocation: {
+        kind: 'cli',
+        argv: ['projects', 'files', 'create', f.projectId, '--name', name, '--content', 'x'],
+      },
+    },
+    { ...f.context, readOnly: true }
+  )
+  expect(result.exitCode).not.toBe(0)
+  expect(result.stdout + result.stderr).toContain('can only read')
+  const stored = () =>
+    db
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(eq(workspaceFiles.originalName, name))
+  expect(await stored()).toEqual([])
+  // The same command creates the file outside reference generation.
+  const created = await runCli(
+    {
+      fileOwner: { entityType: 'project', entityId: f.projectId },
+      invocation: {
+        kind: 'cli',
+        argv: ['projects', 'files', 'create', f.projectId, '--name', name, '--content', 'x'],
+      },
+    },
+    f.context
+  )
+  expect(created.exitCode, created.stderr).toBe(0)
+  expect(await stored()).toHaveLength(1)
+})
+
 check('Project grep matches public bytes while excluding classified secret text', async () => {
   const f = await fixture()
   const secret = 'synthetic-project-grep-canary'
