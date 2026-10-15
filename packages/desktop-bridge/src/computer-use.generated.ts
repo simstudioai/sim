@@ -33,7 +33,15 @@ const InputSequenceStep = z.discriminatedUnion("action", [
 ]);
 const ElementTarget = { bundleId: BundleId, snapshotId: SnapshotId, elementId: ElementId };
 const WindowTarget = { bundleId: BundleId, snapshotId: SnapshotId, windowId: WindowId };
-const PointTarget = { ...WindowTarget, x: Coordinate, y: Coordinate };
+const PointTarget = {
+  bundleId: BundleId,
+  snapshotId: SnapshotId,
+  windowId: WindowId.optional().describe(
+    "Window reference from that snapshot. Defaults to the window the snapshot selected.",
+  ),
+  x: Coordinate,
+  y: Coordinate,
+};
 const ClickOptions = {
   button: z.enum(["left", "right"]).optional(),
   clickCount: z.number().int().min(1).max(3).optional(),
@@ -43,12 +51,14 @@ const ScrollOffsets = {
     .number()
     .min(-10_000)
     .max(10_000)
-    .describe("Horizontal scroll distance in points; positive scrolls right, negative left."),
+    .optional()
+    .describe("Horizontal scroll distance in points; positive scrolls right, negative left. Defaults to 0."),
   deltaY: z
     .number()
     .min(-10_000)
     .max(10_000)
-    .describe("Vertical scroll distance in points; positive scrolls down, negative up."),
+    .optional()
+    .describe("Vertical scroll distance in points; positive scrolls down, negative up. Defaults to 0."),
 };
 
 /** Strict branches require an observed, unambiguous target before native input. */
@@ -81,6 +91,7 @@ export const ComputerUseSchema = z.union([
     windowId: WindowId.optional().describe(
       "Window reference from that snapshot. Omit to send the key to the app's focused window.",
     ),
+    elementId: ElementId.optional().describe("Focus this element from the snapshot before pressing the key."),
     key: z.string().min(1).max(128).describe("One key or chord, such as Enter, Tab, Escape, or Cmd+A."),
   }),
   z.strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets }),

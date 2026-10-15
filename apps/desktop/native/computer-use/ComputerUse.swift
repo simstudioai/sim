@@ -224,6 +224,8 @@ final class Snapshot {
     /// The Accessibility window behind each observed windowId, so input checks compare identity, not
     /// just bounds that two windows can share.
     var windowElements: [String: AXUIElement] = [:]
+    /// The window this observation selected; coordinate input without a windowId targets it.
+    var selectedWindowId: String?
     var nodes: [[String: Any]] = []
     var truncated = false
     init(app: NSRunningApplication) { pid = app.processIdentifier; launchDate = app.launchDate }
@@ -502,7 +504,7 @@ final class Driver {
             guard let frame = elementRect(try snapshot.element(elementId)) else { throw ComputerError("element_unavailable", "Element has no usable frame.") }
             return CGPoint(x: frame.midX, y: frame.midY)
         }
-        let windowId = try required(p.windowId, "windowId")
+        let windowId = try required(p.windowId ?? snapshot.selectedWindowId, "windowId")
         let frame = try windowRect(windowId, pid: app.processIdentifier)
         guard snapshot.windowFrames[windowId] == frame else { throw ComputerError("stale_window", "Window moved or changed; observe it again.") }
         let x = try required(end ? p.toX : p.x, end ? "toX" : "x"); let y = try required(end ? p.toY : p.y, end ? "toY" : "y")
@@ -579,6 +581,7 @@ final class Driver {
             }
             guard let selectedWindowId = p.windowId ?? focusedID ?? windows.first?["windowId"] as? String else { throw ComputerError("app_window_unavailable", "No accessible app window is available. Open a window, then observe the app again.") }
             guard snapshot.windowFrames[selectedWindowId] != nil else { throw ComputerError("window_unavailable", "Selected window does not belong to the app.") }
+            snapshot.selectedWindowId = selectedWindowId
             var result: [String: Any] = ["kind": "state", "windowId": selectedWindowId, "snapshotId": snapshot.id, "bundleId": app.bundleIdentifier!, "nodes": snapshot.nodes, "windows": windows, "truncated": snapshot.truncated]
             if p.includeScreenshot == true {
                 do {
@@ -730,6 +733,14 @@ final class Driver {
                 return frame
             }
             let root = AXUIElementCreateApplication(pid)
+            // A targeted key first moves keyboard focus to that element, as clicking into it would.
+            if let elementId = p.elementId {
+                let element = try snapshot.element(elementId)
+                if attribute(root, kAXFocusedUIElementAttribute).map({ CFEqual($0, element) }) != true {
+                    try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
+                    try await Task.sleep(for: .milliseconds(50))
+                }
+            }
             // Keys go to the app's key window: the observed window, or a dialog, panel or popover above it,
             // but never another document window the snapshot did not observe.
             guard let rawWindow = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { throw ComputerError("focus_failed", "The app has no focused window to receive keys; click a window or call activate_app, then observe again.") }
@@ -763,7 +774,7 @@ final class Driver {
         case "drag":
             try await coordinateAction { dispatch in
                 let start = try point(p, app: app, snapshot: snapshot); let end = try point(p, app: app, snapshot: snapshot, end: true)
-                let windowID = try required(p.windowId, "windowId"); let frame = try required(snapshot.windowFrames[windowID], "window frame")
+                let windowID = try required(p.windowId ?? snapshot.selectedWindowId, "windowId"); let frame = try required(snapshot.windowFrames[windowID], "window frame")
                 try postMouse(pid: pid, type: .leftMouseDown, point: start, button: .left, windowID: windowID, window: snapshot.windowElements[windowID], frame: frame, dispatch: dispatch)
                 var lastPoint = start
                 defer { try? postMouse(pid: pid, type: .leftMouseUp, point: lastPoint, button: .left, windowID: windowID, window: snapshot.windowElements[windowID], frame: frame, release: true, dispatch: dispatch) }
