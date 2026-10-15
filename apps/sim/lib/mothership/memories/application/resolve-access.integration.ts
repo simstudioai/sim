@@ -20,10 +20,10 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
-import { MemoryAccessResult } from '@/lib/mothership/generated/memory-access'
+import { MemoryNotesAccessResult } from '@/lib/mothership/generated/memory-notes-access'
 import {
-  MEMORY_ACCESS_AUDIENCE,
-  resolveMemoryAccess,
+  MEMORY_NOTES_ACCESS_AUDIENCE,
+  resolveMemoryNotesAccess,
 } from '@/lib/mothership/memories/application/resolve-access'
 import { executeSimControl } from '@/lib/mothership/transport/control'
 import { splitForkProject } from '@/lib/projects/membership'
@@ -45,7 +45,7 @@ const workspaceChatId = generateId()
 const organizationChatId = generateId()
 
 function principal(organizationChat = false) {
-  const options = { audience: MEMORY_ACCESS_AUDIENCE, ttlMs: 60_000 }
+  const options = { audience: MEMORY_NOTES_ACCESS_AUDIENCE, ttlMs: 60_000 }
   return organizationChat
     ? createTrustedOrganizationCopilotPrincipal(
         { userId: actorId, organizationId, chatId: organizationChatId, delegationId: generateId() },
@@ -156,7 +156,7 @@ it('denies every Project memory action on both transports when projects is disab
           chatId,
           ...(organizationChat ? { organizationId } : { workspaceId }),
         },
-        operation: { kind: 'memory_access', input },
+        operation: { kind: 'memory_notes_access', input },
       })
       expect(checkpoint.status).toBe(503)
       expect(JSON.parse(checkpoint.body)).toEqual({
@@ -170,7 +170,7 @@ it('keeps personal and workspace memories usable without Project context when pr
   featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
   for (const organizationChat of [false, true]) {
     for (const action of ['read', 'private_mutation'] as const) {
-      const personal = await resolveMemoryAccess.execute({
+      const personal = await resolveMemoryNotesAccess.execute({
         principal: principal(organizationChat),
         input: { target: { scope: 'personal' }, action },
       })
@@ -178,11 +178,11 @@ it('keeps personal and workspace memories usable without Project context when pr
         scope: 'personal',
         permissions: { read: true, privateMutation: true, sharedMutation: false },
       })
-      const result = await resolveMemoryAccess.execute({
+      const result = await resolveMemoryNotesAccess.execute({
         principal: principal(organizationChat),
         input: { target: { scope: 'workspace', workspaceId }, action },
       })
-      expect(MemoryAccessResult.parse(result).target).toEqual({
+      expect(MemoryNotesAccessResult.parse(result).target).toEqual({
         scope: 'workspace',
         id: workspaceId,
         name: 'Environment',
@@ -191,7 +191,7 @@ it('keeps personal and workspace memories usable without Project context when pr
       })
     }
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: principal(organizationChat),
         input: { target: { scope: 'workspace', workspaceId }, action: 'shared_mutation' },
       })
@@ -203,7 +203,7 @@ it('keeps personal and workspace memories usable without Project context when pr
     .where(and(eq(permissions.userId, actorId), eq(permissions.entityId, workspaceId)))
   try {
     for (const organizationChat of [false, true]) {
-      const result = await resolveMemoryAccess.execute({
+      const result = await resolveMemoryNotesAccess.execute({
         principal: principal(organizationChat),
         input: { target: { scope: 'workspace', workspaceId }, action: 'shared_mutation' },
       })
@@ -222,7 +222,7 @@ it('keeps personal and workspace memories usable without Project context when pr
 
 it('lets a read-only end user mutate private notes through either chat and keeps Project shared writes denied', async () => {
   for (const organizationChat of [false, true]) {
-    const result = await resolveMemoryAccess.execute({
+    const result = await resolveMemoryNotesAccess.execute({
       principal: principal(organizationChat),
       input: { target: { scope: 'workspace', workspaceId }, action: 'private_mutation' },
     })
@@ -234,7 +234,7 @@ it('lets a read-only end user mutate private notes through either chat and keeps
       currentProject: { id: projectId, permissions: { read: true, sharedMutation: false } },
     })
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: principal(organizationChat),
         input: { target: { scope: 'project', projectId }, action: 'shared_mutation' },
       })
@@ -248,7 +248,7 @@ it('does not turn write in one environment into shared Project write', async () 
     .set({ permissionType: 'write' })
     .where(and(eq(permissions.userId, actorId), eq(permissions.entityId, workspaceId)))
   try {
-    const result = await resolveMemoryAccess.execute({
+    const result = await resolveMemoryNotesAccess.execute({
       principal: principal(),
       input: { target: { scope: 'workspace', workspaceId }, action: 'shared_mutation' },
     })
@@ -263,7 +263,7 @@ it('does not turn write in one environment into shared Project write', async () 
       entityId: siblingId,
       permissionType: 'write',
     })
-    const shared = await resolveMemoryAccess.execute({
+    const shared = await resolveMemoryNotesAccess.execute({
       principal: principal(true),
       input: { target: { scope: 'project', projectId }, action: 'shared_mutation' },
     })
@@ -286,11 +286,11 @@ it('rejects wrong actor, audience, expired delegation and another workspace targ
     { ...principal(), audience: 'sim:workspaces' },
     { ...principal(), expiresAt: new Date(0) },
   ])
-    await expect(resolveMemoryAccess.execute({ principal: altered, input })).rejects.toBeInstanceOf(
-      Error
-    )
+    await expect(
+      resolveMemoryNotesAccess.execute({ principal: altered, input })
+    ).rejects.toBeInstanceOf(Error)
   await expect(
-    resolveMemoryAccess.execute({
+    resolveMemoryNotesAccess.execute({
       principal: principal(),
       input: { ...input, target: { scope: 'workspace', workspaceId: siblingId } },
     })
@@ -303,12 +303,12 @@ it('denies a lost scoped grant while personal-only organization context remains 
     .where(and(eq(permissions.userId, actorId), eq(permissions.entityId, workspaceId)))
   try {
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: principal(true),
         input: { target: { scope: 'project', projectId }, action: 'private_mutation' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    const result = await resolveMemoryAccess.execute({
+    const result = await resolveMemoryNotesAccess.execute({
       principal: principal(true),
       input: { target: { scope: 'personal' }, action: 'private_mutation' },
     })
@@ -353,7 +353,7 @@ it('applies the Files capability to shared Project writes without blocking priva
     organizationId,
   })
   try {
-    const result = await resolveMemoryAccess.execute({
+    const result = await resolveMemoryNotesAccess.execute({
       principal: principal(true),
       input: { target: { scope: 'project', projectId }, action: 'private_mutation' },
     })
@@ -363,7 +363,7 @@ it('applies the Files capability to shared Project writes without blocking priva
       sharedMutation: false,
     })
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: principal(true),
         input: { target: { scope: 'project', projectId }, action: 'shared_mutation' },
       })
@@ -393,13 +393,13 @@ it('rejects cross-organization authority and organization non-agent mode', async
   try {
     const otherPrincipal = { ...principal(true), organizationId: otherId }
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: otherPrincipal,
         input: { target: { scope: 'project', projectId }, action: 'read' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: otherPrincipal,
         input: { target: { scope: 'workspace', workspaceId }, action: 'read' },
       })
@@ -418,7 +418,7 @@ it('rejects cross-organization authority and organization non-agent mode', async
     .where(eq(copilotChats.id, organizationChatId))
   try {
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: principal(true),
         input: { target: { scope: 'project', projectId }, action: 'read' },
       })
@@ -457,7 +457,7 @@ it('serves the typed route using authenticated headers and rejects body identity
     )
     const response = await POST(request(input))
     expect(response.status).toBe(200)
-    expect(MemoryAccessResult.parse(await response.json())).toMatchObject({
+    expect(MemoryNotesAccessResult.parse(await response.json())).toMatchObject({
       success: true,
       version: 1,
       actor: { userId: actorId, chatId: workspaceChatId },
@@ -476,13 +476,13 @@ it('resolves detach to the new Project and rejects the former Project from the w
     return id
   })
   try {
-    const result = await resolveMemoryAccess.execute({
+    const result = await resolveMemoryNotesAccess.execute({
       principal: principal(),
       input: { target: { scope: 'workspace', workspaceId }, action: 'read' },
     })
     expect(result.target).toMatchObject({ currentProject: { id: detachedProject } })
     await expect(
-      resolveMemoryAccess.execute({
+      resolveMemoryNotesAccess.execute({
         principal: principal(),
         input: { target: { scope: 'project', projectId }, action: 'read' },
       })
@@ -515,12 +515,12 @@ it('uses identical current authority over checkpoint transport for workspace and
       expiresAt: Date.now() + 60_000,
       scope,
       operation: {
-        kind: 'memory_access',
+        kind: 'memory_notes_access',
         input: { target: { scope: 'workspace', workspaceId }, action: 'private_mutation' },
       },
     })
     expect(result.status).toBe(200)
-    expect(MemoryAccessResult.parse(JSON.parse(result.body))).toMatchObject({
+    expect(MemoryNotesAccessResult.parse(JSON.parse(result.body))).toMatchObject({
       actor: { userId: actorId, chatId: scope.chatId },
       target: { id: workspaceId, currentProject: projectsEnabled ? { id: projectId } : null },
     })
@@ -529,7 +529,7 @@ it('uses identical current authority over checkpoint transport for workspace and
       expiresAt: Date.now() + 60_000,
       scope,
       operation: {
-        kind: 'memory_access',
+        kind: 'memory_notes_access',
         input: { target: { scope: 'project', projectId }, action: 'shared_mutation' },
       },
     })

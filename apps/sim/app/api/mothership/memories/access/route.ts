@@ -1,4 +1,4 @@
-import { resolveMemoryAccessContract } from '@/lib/api/contracts/mothership-memories'
+import { resolveMemoryNotesAccessContract } from '@/lib/api/contracts/mothership-memories'
 import {
   defineInternalJsonRoute,
   internalOrchestrationErrorPolicy,
@@ -6,20 +6,20 @@ import {
 } from '@/lib/api/server/routes'
 import { internalCopilotAuth } from '@/lib/mothership/auth/internal'
 import {
-  MEMORY_ACCESS_AUDIENCE,
-  resolveMemoryAccess,
-  resolveMemoryAccessOperation,
+  MEMORY_NOTES_ACCESS_AUDIENCE,
+  resolveMemoryNotesAccess,
+  resolveMemoryNotesAccessOperation,
 } from '@/lib/mothership/memories/application/resolve-access'
 
 export const POST = defineInternalJsonRoute({
-  contract: resolveMemoryAccessContract,
-  auth: internalCopilotAuth(MEMORY_ACCESS_AUDIENCE, { organization: true }),
-  operation: resolveMemoryAccessOperation,
+  contract: resolveMemoryNotesAccessContract,
+  auth: internalCopilotAuth(MEMORY_NOTES_ACCESS_AUDIENCE, { organization: true }),
+  operation: resolveMemoryNotesAccessOperation,
   rateLimit: internalRateLimits.none({
     reason:
       'Private worker preflight rechecks live memory authority without reading or writing note content.',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ body }) => body,
-  useCase: resolveMemoryAccess,
+  useCase: resolveMemoryNotesAccess,
 })

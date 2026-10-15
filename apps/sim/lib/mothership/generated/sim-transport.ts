@@ -3,7 +3,7 @@
 
 import { z } from "zod";
 import { IntegrationCatalogRequest } from "./integration-catalog";
-import { MemoryAccessInput } from "./memory-access";
+import { MemoryNotesAccessInput } from "./memory-notes-access";
 import { MemoryScopeRequest } from "./memory-scope";
 import { RunControlRequest } from "./run-control";
 import { TaskWakeRequest, WorkflowWatchRequest } from "./tasks";
@@ -30,7 +30,7 @@ export type SimScope = z.infer<typeof SimScope>;
 
 /** Only idempotent controls use the idle channel; tool effects use the run event log. */
 export const SimControlOperation = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("memory_access"), input: MemoryAccessInput }),
+  z.object({ kind: z.literal("memory_notes_access"), input: MemoryNotesAccessInput }),
   z.object({ kind: z.literal("memory_scope"), input: MemoryScopeRequest }),
   z.object({ kind: z.literal("run_control"), input: RunControlRequest }),
   z.object({ kind: z.literal("workflow_status"), input: WorkflowWatchRequest }),

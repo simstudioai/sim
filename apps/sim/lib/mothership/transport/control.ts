@@ -14,8 +14,8 @@ import {
   readIntegrationCatalog,
 } from '@/lib/mothership/integrations/application/catalog'
 import {
-  MEMORY_ACCESS_AUDIENCE,
-  resolveMemoryAccess,
+  MEMORY_NOTES_ACCESS_AUDIENCE,
+  resolveMemoryNotesAccess,
 } from '@/lib/mothership/memories/application/resolve-access'
 import {
   MEMORY_SCOPE_AUDIENCE,
@@ -50,17 +50,17 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         },
         {
           audience:
-            operation.kind === 'memory_access'
-              ? MEMORY_ACCESS_AUDIENCE
+            operation.kind === 'memory_notes_access'
+              ? MEMORY_NOTES_ACCESS_AUDIENCE
               : operation.kind === 'memory_scope'
-              ? MEMORY_SCOPE_AUDIENCE
-              : operation.kind === 'integration_catalog'
-                ? INTEGRATION_CATALOG_AUDIENCE
-                : operation.kind === 'workspace_context'
-                  ? WORKSPACE_TARGET_AUDIENCE
-                  : operation.kind === 'run_control'
-                    ? RUN_CONTROL_AUDIENCE
-                    : TASK_DELEGATION_AUDIENCE,
+                ? MEMORY_SCOPE_AUDIENCE
+                : operation.kind === 'integration_catalog'
+                  ? INTEGRATION_CATALOG_AUDIENCE
+                  : operation.kind === 'workspace_context'
+                    ? WORKSPACE_TARGET_AUDIENCE
+                    : operation.kind === 'run_control'
+                      ? RUN_CONTROL_AUDIENCE
+                      : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
@@ -68,27 +68,27 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
         { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
         {
           audience:
-            operation.kind === 'memory_access'
-              ? MEMORY_ACCESS_AUDIENCE
+            operation.kind === 'memory_notes_access'
+              ? MEMORY_NOTES_ACCESS_AUDIENCE
               : operation.kind === 'memory_scope'
-              ? MEMORY_SCOPE_AUDIENCE
-              : operation.kind === 'integration_catalog'
-                ? INTEGRATION_CATALOG_AUDIENCE
-                : operation.kind === 'workspace_context'
-                  ? WORKSPACE_TARGET_AUDIENCE
-                  : operation.kind === 'run_control'
-                    ? RUN_CONTROL_AUDIENCE
-                    : TASK_DELEGATION_AUDIENCE,
+                ? MEMORY_SCOPE_AUDIENCE
+                : operation.kind === 'integration_catalog'
+                  ? INTEGRATION_CATALOG_AUDIENCE
+                  : operation.kind === 'workspace_context'
+                    ? WORKSPACE_TARGET_AUDIENCE
+                    : operation.kind === 'run_control'
+                      ? RUN_CONTROL_AUDIENCE
+                      : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
   try {
     switch (operation.kind) {
-      case 'memory_access':
+      case 'memory_notes_access':
         return {
           status: 200,
           body: JSON.stringify(
-            await resolveMemoryAccess.execute({ principal, input: operation.input })
+            await resolveMemoryNotesAccess.execute({ principal, input: operation.input })
           ),
         }
       case 'memory_scope':

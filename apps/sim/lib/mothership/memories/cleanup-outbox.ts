@@ -4,7 +4,10 @@ import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
 import { enqueueOutboxEvent, type OutboxHandlerRegistry } from '@/lib/core/outbox/service'
 import { SIM_AGENT_API_URL } from '@/lib/mothership/constants'
-import { MemoryCleanupInput, MemoryCleanupResult } from '@/lib/mothership/generated/memory-access'
+import {
+  MemoryCleanupInput,
+  MemoryCleanupResult,
+} from '@/lib/mothership/generated/memory-notes-access'
 import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'

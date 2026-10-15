@@ -1,4 +1,4 @@
-// GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/memory-access.ts
+// GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/memory-notes-access.ts
 // Regenerate with `bun run contracts:sync` in the worker.
 
 import { z } from "zod";
@@ -15,7 +15,7 @@ const projectSchema = z.strictObject({
   permissions: permissionsSchema,
 });
 
-export const MemoryAccessInput = z.strictObject({
+export const MemoryNotesAccessInput = z.strictObject({
   target: z.discriminatedUnion("scope", [
     z.strictObject({ scope: z.literal("personal") }),
     z.strictObject({ scope: z.literal("workspace"), workspaceId: z.uuid() }),
@@ -23,9 +23,9 @@ export const MemoryAccessInput = z.strictObject({
   ]),
   action: z.enum(["read", "private_mutation", "shared_mutation"]),
 });
-export type MemoryAccessInput = z.infer<typeof MemoryAccessInput>;
+export type MemoryNotesAccessInput = z.infer<typeof MemoryNotesAccessInput>;
 
-export const MemoryAccessResult = z.strictObject({
+export const MemoryNotesAccessResult = z.strictObject({
   success: z.literal(true),
   version: z.literal(1),
   actor: z.strictObject({ userId: z.string().min(1), chatId: z.uuid() }),
@@ -44,7 +44,7 @@ export const MemoryAccessResult = z.strictObject({
     }),
   ]),
 });
-export type MemoryAccessResult = z.infer<typeof MemoryAccessResult>;
+export type MemoryNotesAccessResult = z.infer<typeof MemoryNotesAccessResult>;
 
 export const MemoryCleanupInput = z.strictObject({
   version: z.literal(1),

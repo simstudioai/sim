@@ -16,9 +16,9 @@ import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/a
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import type {
-  MemoryAccessInput,
-  MemoryAccessResult,
-} from '@/lib/mothership/generated/memory-access'
+  MemoryNotesAccessInput,
+  MemoryNotesAccessResult,
+} from '@/lib/mothership/generated/memory-notes-access'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
@@ -32,9 +32,10 @@ import { lockWorkspaceProject } from '@/lib/projects/membership'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import { requireCurrentFileSubject } from '@/lib/workspace-files/application/subject'
 
-export const MEMORY_ACCESS_AUDIENCE = 'sim:memory-access'
-export const resolveMemoryAccessOperation = defineWorkspaceOperation({
+export const MEMORY_NOTES_ACCESS_AUDIENCE = 'sim:memory-access'
+export const resolveMemoryNotesAccessOperation = defineWorkspaceOperation({
   id: 'mothership.memories.resolve_access',
+  contentDelivery: 'none',
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
@@ -42,12 +43,13 @@ export const resolveMemoryAccessOperation = defineWorkspaceOperation({
   delegatedServices: ['copilot'],
 })
 const organizationOperation = defineOrganizationOperation({
-  id: resolveMemoryAccessOperation.id,
+  id: resolveMemoryNotesAccessOperation.id,
+  contentDelivery: resolveMemoryNotesAccessOperation.contentDelivery,
   minimumRole: 'member',
   capability: 'copilot.use',
   principalKinds: ['organization_delegated'],
   delegatedServices: ['copilot'],
-  delegationAudience: MEMORY_ACCESS_AUDIENCE,
+  delegationAudience: MEMORY_NOTES_ACCESS_AUDIENCE,
 })
 type MemoryPrincipal = SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal
 
@@ -88,7 +90,7 @@ async function projectAccess(
   chatId: string,
   projectId: string,
   scope: { organizationId: string | null; workspaceId?: string }
-): Promise<Extract<MemoryAccessResult['target'], { scope: 'project' }>> {
+): Promise<Extract<MemoryNotesAccessResult['target'], { scope: 'project' }>> {
   const access = await loadProjectAccess(tx, principal.subjectUserId, {
     projectId,
     ...(scope.organizationId ? { organizationId: scope.organizationId } : {}),
@@ -127,9 +129,14 @@ async function projectAccess(
 
 /** Current Sim authority only; Mothership must re-resolve before each read or mutation. */
 const resolveAccess = defineAuthorizedChatUseCase({
-  operation: resolveMemoryAccessOperation,
+  operation: resolveMemoryNotesAccessOperation,
   organizationOperation,
-  async resolveContext({ principal }: { principal: MemoryPrincipal; input: MemoryAccessInput }) {
+  async resolveContext({
+    principal,
+  }: {
+    principal: MemoryPrincipal
+    input: MemoryNotesAccessInput
+  }) {
     const chatId =
       principal.resourceScope && 'chatId' in principal.resourceScope
         ? principal.resourceScope.chatId
@@ -137,7 +144,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
     const now = Date.now()
     if (
       principal.serviceId !== 'copilot' ||
-      principal.audience !== MEMORY_ACCESS_AUDIENCE ||
+      principal.audience !== MEMORY_NOTES_ACCESS_AUDIENCE ||
       !chatId ||
       !Number.isFinite(principal.issuedAt.getTime()) ||
       !Number.isFinite(principal.expiresAt.getTime()) ||
@@ -150,11 +157,11 @@ const resolveAccess = defineAuthorizedChatUseCase({
   },
   authorizationOptions: {
     delegation: {
-      audience: MEMORY_ACCESS_AUDIENCE,
+      audience: MEMORY_NOTES_ACCESS_AUDIENCE,
       isWithinScope: (principal, context) => principal.resourceScope?.chatId === context.chatId,
     },
   },
-  async execute({ principal, context, input }): Promise<MemoryAccessResult> {
+  async execute({ principal, context, input }): Promise<MemoryNotesAccessResult> {
     return db.transaction(async (tx) => {
       await requireCurrentFileSubject(tx, principal)
       const [chat] = await tx
@@ -199,7 +206,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
         organizationId: chat.organizationId ?? origin?.organizationId ?? null,
         ...(chat.workspaceId ? { workspaceId: chat.workspaceId } : {}),
       }
-      let target: MemoryAccessResult['target']
+      let target: MemoryNotesAccessResult['target']
       if (input.target.scope === 'personal') {
         target = {
           scope: 'personal',
@@ -245,8 +252,8 @@ const resolveAccess = defineAuthorizedChatUseCase({
 })
 
 /** Authorization-only callers resolve the same requested target and permission as execution. */
-export const resolveMemoryAccess = {
-  operation: resolveMemoryAccessOperation,
+export const resolveMemoryNotesAccess = {
+  operation: resolveMemoryNotesAccessOperation,
   execute: resolveAccess.execute,
   async authorize(args: Parameters<typeof resolveAccess.execute>[0]): Promise<void> {
     await resolveAccess.execute(args)

@@ -1,9 +1,12 @@
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { MemoryAccessInput, MemoryAccessResult } from '@/lib/mothership/generated/memory-access'
+import {
+  MemoryNotesAccessInput,
+  MemoryNotesAccessResult,
+} from '@/lib/mothership/generated/memory-notes-access'
 
-export const resolveMemoryAccessContract = defineRouteContract({
+export const resolveMemoryNotesAccessContract = defineRouteContract({
   method: 'POST',
   path: '/api/mothership/memories/access',
-  body: MemoryAccessInput,
-  response: { mode: 'json', schema: MemoryAccessResult },
+  body: MemoryNotesAccessInput,
+  response: { mode: 'json', schema: MemoryNotesAccessResult },
 })
