@@ -290,7 +290,8 @@ def _analyze_many(
     )
 
 
-def _load_engines() -> None:
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     global analyzer, batch_analyzer, anonymizer, NER_ENTITIES, _BLANK_ARTIFACTS
     logger.info("building analyzer (spacy)")
     analyzer = build_analyzer()
@@ -318,11 +319,6 @@ def _load_engines() -> None:
         language: analyzer.nlp_engine.process_text("", language)
         for language in SUPPORTED_LANGUAGES
     }
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    _load_engines()
     yield
 
 
