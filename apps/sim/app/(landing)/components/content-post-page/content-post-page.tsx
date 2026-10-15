@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
+import { Avatar, AvatarFallback, AvatarImage, cn } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { FAQ } from '@/lib/content/faq'
@@ -140,7 +140,16 @@ export function ContentPostPage({
       <div className='mx-auto w-full max-w-[1728px] px-10 max-md:px-7 max-lg:px-8 max-xl:px-9'>
         <div className='border-[var(--border)] border-x'>
           <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
-            <div className='prose prose-lg max-w-none prose-blockquote:border-[var(--border-1)] prose-hr:border-[var(--border)] prose-headings:font-season prose-a:text-[var(--text-primary)] prose-blockquote:text-[var(--text-secondary)] prose-code:text-[var(--text-primary)] prose-headings:text-[var(--text-primary)] prose-li:text-[var(--text-body)] prose-p:text-[var(--text-body)] prose-strong:text-[var(--text-primary)] prose-headings:tracking-[-0.02em]'>
+            <div
+              className={cn(
+                'prose prose-lg max-w-none prose-headings:font-season prose-headings:tracking-[-0.02em]',
+                '[--tw-prose-body:var(--text-body)] [--tw-prose-headings:var(--text-primary)] [--tw-prose-lead:var(--text-body)]',
+                '[--tw-prose-bold:var(--text-primary)] [--tw-prose-bullets:var(--text-primary)] [--tw-prose-counters:var(--text-primary)] [--tw-prose-links:var(--text-primary)]',
+                '[--tw-prose-captions:var(--text-secondary)] [--tw-prose-hr:var(--border)] [--tw-prose-quote-borders:var(--border)] [--tw-prose-quotes:var(--text-secondary)]',
+                '[--tw-prose-code:var(--text-primary)] [--tw-prose-pre-bg:var(--surface-5)] [--tw-prose-pre-code:var(--text-primary)]',
+                '[--tw-prose-td-borders:var(--border)] [--tw-prose-th-borders:var(--border)]'
+              )}
+            >
               <Article />
               {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
             </div>
