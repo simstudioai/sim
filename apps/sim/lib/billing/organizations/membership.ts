@@ -60,7 +60,6 @@ import { isRetryableTransactionError } from '@/lib/db/transaction'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
-import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
@@ -545,6 +544,11 @@ export interface RemoveMemberResult {
     workspaceAccessRevoked: number
     pendingInvitationsCancelled: number
   }
+  /**
+   * Chat runs the change stopped in its transaction. The caller delivers their Stop with
+   * `deliverRunStops`: this module sits in page graphs that must not load that delivery.
+   */
+  stoppedRuns?: StoppedRun[]
 }
 
 export interface RemoveExternalWorkspaceAccessResult {
@@ -554,6 +558,11 @@ export interface RemoveExternalWorkspaceAccessResult {
   permissionGroupsRevoked: number
   credentialMembershipsRevoked: number
   pendingInvitationsCancelled: number
+  /**
+   * Chat runs the change stopped in its transaction. The caller delivers their Stop with
+   * `deliverRunStops`: this module sits in page graphs that must not load that delivery.
+   */
+  stoppedRuns?: StoppedRun[]
 }
 
 export type MembershipAdditionFailureCode =
@@ -1097,6 +1106,11 @@ export interface TransferOrganizationMemberResult {
   credentialMembershipsRevoked: number
   pendingInvitationsCancelled: number
   usageCaptured: number
+  /**
+   * Chat runs the change stopped in its transaction. The caller delivers their Stop with
+   * `deliverRunStops`: this module sits in page graphs that must not load that delivery.
+   */
+  stoppedRuns?: StoppedRun[]
 }
 
 /**
@@ -1122,7 +1136,7 @@ export async function transferUserBetweenOrganizations(
     }
   }
 
-  /** The source organization's runs this transfer ends, delivered once it commits. */
+  /** The source organization's runs this transfer ends. */
   let stoppedRuns: StoppedRun[] = []
   try {
     const transferResult = await withInvitationSafeOrganizationAccessMutation(
@@ -1288,9 +1302,8 @@ export async function transferUserBetweenOrganizations(
     // The transferred member's fallbacks must resolve to the destination org
     // immediately, and their sessions clamp to its policy — same treatment as
     // invite acceptance. Best-effort.
-    deliverRunStops(stoppedRuns)
     await applySessionPolicyToNewMember(params.userId, params.destinationOrganizationId)
-    return transferResult
+    return { ...transferResult, stoppedRuns }
   } catch (error) {
     logger.error('Failed to transfer organization member', { ...params, error })
     return { success: false, error: getErrorMessage(error), ...emptyResult }
@@ -1510,8 +1523,6 @@ export async function removeUserFromOrganization(
       return { success: true, removed: false, billingActions }
     }
 
-    deliverRunStops(result.stoppedRuns)
-
     billingActions.usageCaptured = result.usageCaptured
     billingActions.workspaceAccessRevoked = result.workspaceIdsToRevoke.length
     billingActions.pendingInvitationsCancelled = result.pendingInvitationsCancelled
@@ -1572,7 +1583,7 @@ export async function removeUserFromOrganization(
       }
     }
 
-    return { success: true, removed: true, billingActions }
+    return { success: true, removed: true, billingActions, stoppedRuns: result.stoppedRuns }
   } catch (error) {
     if (error instanceof WorkspaceBillingAccountRemovalError) {
       return { success: false, error: error.message, billingActions }
@@ -1599,7 +1610,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
   actorUserId?: string
 }): Promise<RemoveExternalWorkspaceAccessResult> {
   const { userId, organizationId } = params
-  /** The member's runs in the workspaces they lose, delivered once the removal commits. */
+  /** The member's runs in the workspaces they lose. */
   let stoppedRuns: StoppedRun[] = []
 
   try {
@@ -1722,8 +1733,6 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       }
     )
 
-    deliverRunStops(stoppedRuns)
-
     if (
       workspaceAccessRevoked === 0 &&
       permissionGroupsRevoked === 0 &&
@@ -1755,6 +1764,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       permissionGroupsRevoked,
       credentialMembershipsRevoked,
       pendingInvitationsCancelled,
+      stoppedRuns,
     }
   } catch (error) {
     if (error instanceof OrchestrationError || isRetryableTransactionError(error)) throw error

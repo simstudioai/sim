@@ -5,7 +5,7 @@
  * records each Stop pushed to it.
  */
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
-import { authMock } from '@sim/testing/mocks/auth.mock'
+import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
@@ -60,10 +60,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
-import {
-  removeExternalUserFromOrganizationWorkspaces,
-  removeUserFromOrganization,
-} from '@/lib/billing/organizations/membership'
+import { NextRequest } from 'next/server'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
@@ -76,9 +73,10 @@ import {
   releasePendingChatStream,
 } from '@/lib/mothership/request/session/abort'
 import { executeSimControl } from '@/lib/mothership/transport/control'
+import { removeOrganizationMemberRecord } from '@/lib/organizations/member-manager'
 import { AccountDeletionBlockedError, deleteUserAccount } from '@/lib/users/account-deletion'
-import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
+import { DELETE as deleteWorkspace } from '@/app/api/workspaces/[id]/route'
 
 const userIds: string[] = []
 const workspaceIds: string[] = []
@@ -357,9 +355,21 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
       workspaceId: await seedWorkspace(memberId),
     })
 
-    expect(await archiveWorkspace(archived, { requestId: generateId() })).toMatchObject({
-      archived: true,
+    await seedWorkspace(ownerId)
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: ownerId },
+      session: { id: generateId() },
     })
+
+    const response = await deleteWorkspace(
+      new NextRequest(`http://localhost/api/workspaces/${archived}`, {
+        method: 'DELETE',
+        body: '{}',
+      }),
+      { params: Promise.resolve({ id: archived }) }
+    )
+
+    expect(response.status).toBe(200)
 
     await expect.poll(pushedStops).toEqual([ownerRun.streamId, memberRun.streamId].sort())
     expect(await runControl(ownerRun)).toEqual(STOPPED)
@@ -395,22 +405,14 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     await db
       .insert(organization)
       .values({ id: organizationId, name: 'Run removal fixture', slug: organizationId })
-    const memberRowId = generateId()
     await db.insert(member).values([
       { id: generateId(), organizationId, userId: ownerId, role: 'owner' },
-      { id: memberRowId, organizationId, userId: memberId, role: 'member' },
+      { id: generateId(), organizationId, userId: memberId, role: 'member' },
     ])
     const removedRun = await seedRun({ userId: memberId, organizationId })
     const ownerRun = await seedRun({ userId: ownerId, organizationId })
 
-    expect(
-      await removeUserFromOrganization({
-        userId: memberId,
-        organizationId,
-        memberId: memberRowId,
-        skipBillingLogic: true,
-      })
-    ).toMatchObject({ success: true, removed: true })
+    await removeOrganizationMemberRecord({ organizationId, userId: memberId, actorUserId: ownerId })
 
     await expect.poll(pushedStops).toEqual([removedRun.streamId])
     expect(await runControl(removedRun)).toEqual(STOPPED)
@@ -450,9 +452,11 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
       workspaceId: await seedWorkspace(externalId),
     })
 
-    expect(
-      await removeExternalUserFromOrganizationWorkspaces({ userId: externalId, organizationId })
-    ).toMatchObject({ success: true, workspaceAccessRevoked: 1 })
+    await removeOrganizationMemberRecord({
+      organizationId,
+      userId: externalId,
+      actorUserId: ownerId,
+    })
 
     await expect.poll(pushedStops).toEqual([removedRun.streamId])
     expect(await runControl(removedRun)).toEqual(STOPPED)

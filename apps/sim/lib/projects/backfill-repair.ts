@@ -16,6 +16,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import type { Sql } from 'postgres'
 import { tryAcquireAdvisoryXactLocks } from '@/lib/db/advisory-locks'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { archiveProjectWithLastEnvironment, splitForkProject } from '@/lib/projects/membership'
 import {
   archiveEnvironmentInTransaction,
@@ -139,6 +140,7 @@ export async function repairArchivedProjectEnvironment(
     }
     return result
   })
+  deliverRunStops(effects.stoppedRuns)
   await finishEnvironmentArchive(effects, requestId, { strictExternalCleanup: true })
   await completeProjectArchiveRepair(client, repair)
 }

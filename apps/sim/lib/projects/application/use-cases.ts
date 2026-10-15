@@ -7,6 +7,7 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   type AuthorizedProject,
   authorizeProject,
@@ -209,6 +210,7 @@ export const archiveProject: OperationUseCase<
         ],
         result.context.record.organizationId ?? undefined
       )
+    deliverRunStops(result.effects.flatMap((environment) => environment.stoppedRuns))
     await finishProjectArchive(result.effects, `project:${input.projectId}`)
     return { id: input.projectId, archived: true }
   },

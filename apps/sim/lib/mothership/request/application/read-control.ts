@@ -74,7 +74,9 @@ function requireRunControlCaller(principal: Principal, input: RunControlRequest)
   const chatScope =
     principal.kind === 'delegated'
       ? (principal.resourceScope?.chatId ?? input.chatId)
-      : principal.resourceScope.chatId
+      : principal.serviceId === 'copilot'
+        ? principal.resourceScope.chatId
+        : undefined
   if (
     principal.serviceId !== 'copilot' ||
     principal.audience !== RUN_CONTROL_AUDIENCE ||

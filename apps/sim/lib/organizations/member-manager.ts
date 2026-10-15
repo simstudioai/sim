@@ -10,6 +10,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import { changeMemberRoleTx } from '@/lib/organizations/members/lifecycle'
 import { findOrganizationMemberRecord } from '@/lib/organizations/queries'
@@ -67,6 +68,7 @@ export async function removeOrganizationMemberRecord(input: {
       .limit(1)
     if (!external) throw new OrchestrationError('not_found', 'Member not found')
     const removal = await removeExternalUserFromOrganizationWorkspaces(input)
+    deliverRunStops(removal.stoppedRuns ?? [])
     if (!removal.success) {
       const message = removal.error || 'External workspace member not found'
       const code =
@@ -91,6 +93,7 @@ export async function removeOrganizationMemberRecord(input: {
     memberId: target.id,
     onError: 'throw',
   })
+  deliverRunStops(removal.stoppedRuns ?? [])
   if (!removal.success) {
     const message = removal.error || 'Failed to remove user from organization'
     const code =

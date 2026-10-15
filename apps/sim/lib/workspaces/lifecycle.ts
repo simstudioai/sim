@@ -22,7 +22,6 @@ import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
-import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   archiveProjectWithLastEnvironment,
   lockWorkspaceProjectExclusive,
@@ -42,7 +41,10 @@ export interface EnvironmentArchiveEffects {
   workspaceId: string
   workflows: { id: string; serverIds: string[] }[]
   serverIds: string[]
-  /** Chat runs the archive stopped, delivered once it commits. */
+  /**
+   * Chat runs the archive stopped. The caller delivers their Stop with `deliverRunStops`:
+   * this module sits in page graphs that must not load that delivery.
+   */
   stoppedRuns: StoppedRun[]
 }
 
@@ -56,6 +58,8 @@ interface ArchiveWorkspaceResult {
   workspaceName?: string
   /** The Project archived with its last active environment, for the caller's audit. */
   archivedProject?: { id: string; name: string }
+  /** Chat runs the archive stopped; see {@link EnvironmentArchiveEffects}. */
+  stoppedRuns: StoppedRun[]
 }
 
 export async function archiveWorkspace(
@@ -65,7 +69,7 @@ export async function archiveWorkspace(
   const workspaceRecord = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
 
   if (!workspaceRecord) {
-    return { archived: false }
+    return { archived: false, stoppedRuns: [] }
   }
 
   /** Retrying deletion also archives children left active by an older or incomplete deletion. */
@@ -91,7 +95,7 @@ export async function archiveWorkspace(
         : undefined,
     }
   })
-  if (!outcome) return { archived: false }
+  if (!outcome) return { archived: false, stoppedRuns: [] }
 
   logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
 
@@ -101,6 +105,7 @@ export async function archiveWorkspace(
     archived: !workspaceRecord.archivedAt,
     workspaceName: workspaceRecord.name,
     archivedProject: outcome.archivedProject,
+    stoppedRuns: outcome.effects.stoppedRuns,
   }
 }
 
@@ -152,7 +157,6 @@ export async function finishEnvironmentArchive(
   options: { strictExternalCleanup?: boolean } = {}
 ): Promise<void> {
   const { workspaceId } = effects
-  deliverRunStops(effects.stoppedRuns)
   try {
     const cleanupErrors: unknown[] = []
     await mapWithConcurrency(effects.workflows, ARCHIVE_NOTIFICATION_CONCURRENCY, (row) =>

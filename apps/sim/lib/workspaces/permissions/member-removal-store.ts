@@ -152,6 +152,7 @@ export async function removeWorkspaceMemberRecord(
           /** Leaving a workspace must not sign the leaver out of Sim. */
           ...(spareSessionId ? { spareSessionId } : {}),
         })
+        deliverRunStops(removal.stoppedRuns ?? [])
 
         if (removal.success && removal.removed) {
           organizationRemoval = true
