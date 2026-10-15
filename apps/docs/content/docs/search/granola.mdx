@@ -1,34 +1,37 @@
 ---
 title: Granola
-description: Find meeting notes and read source transcripts with each member’s Granola account
+description: Find meeting notes and read available transcripts from Granola
 ---
 
-Granola live Search uses **Member accounts** through Granola’s official MCP service. Results are limited to the connected person’s current access and their **active Granola workspace**.
+Granola Search uses **Member accounts** through the official MCP service. It searches content your account can access in your active Granola workspace.
 
 ## Connect
 
-1. An admin enables **Granola** under **Settings → Sources**, using **Member accounts**.
-2. Each teammate opens **Integrations → Granola → Connect** and completes Granola authorization.
-3. Search with a focused natural-language question about a meeting topic.
+1. An admin adds **Granola → Member accounts** in **Settings → Sources**.
+2. Each teammate opens **Integrations → Granola → Connect** and authorizes their account.
+3. Ask a focused question such as `What did we decide about the enterprise launch?`, then read a result.
 
-Sim uses the fixed endpoint `https://mcp.granola.ai/mcp` and each member’s managed OAuth grant. A shared API key cannot substitute for this personal connection.
+Sim uses `https://mcp.granola.ai/mcp` with each member's managed OAuth grant. A shared API key cannot replace this connection. If meetings are missing, check the account and switch to the intended workspace in Granola; MCP follows the active workspace.
 
-## Query guidance
+## Queries and dates
 
-Ask focused questions, such as `What decisions did we make about the enterprise launch?` or `Which customer meetings discussed audit logs?`. Granola uses semantic meeting queries; GitHub qualifiers and Gmail search operators do not apply.
+Granola uses semantic meeting queries. Ask about one topic, such as `Which customer meetings discussed audit logs?`, without Gmail operators or GitHub qualifiers.
 
-Use `startDate` and `endDate` for a meeting-date range. A query without terms uses Granola’s meeting listing. When the server offers only preset ranges, Sim lists the **last 30 days** and applies the exact date filters to those meetings. Older meetings are outside that listing window; use a focused question to look for them, subject to your plan and access. If the server advertises custom date-range parameters, Sim uses them instead. An explicit native `project` can contain a meeting UUID to narrow a question to that meeting when Granola advertises this capability.
+Use `startDate` and `endDate` for meeting dates. Without terms, Sim uses a meeting listing. When the server offers only preset ranges, it lists the last 30 days and filters those meetings to the requested dates. Older meetings need a focused question, subject to plan and access. If custom ranges are advertised, Sim uses them. Native `project` can scope a question to a meeting UUID when the server exposes that capability.
 
-There is no verified continuation cursor. Narrow the topic or meeting dates for additional coverage. Date ranges describe meetings, not note modification times. Sim does not invent modification timestamps when Granola omits them.
+There is no verified continuation cursor. Narrow the topic or dates for more coverage. Meeting dates are not note modification times; Sim does not invent missing timestamps.
 
-## Source quality and coverage
+## Notes and transcript evidence
 
-Granola’s query tool can return a generated answer. Sim uses that answer only to locate explicit meeting references, then fetches those meetings’ source notes before returning passages. Generated answers without verifiable references are reported as limited coverage with no source evidence. Each search hydrates at most 10 meetings and reports that the selection is not exhaustive.
+Granola can return a generated answer. Sim uses it to locate explicit meeting references, then fetches the source notes. Answers without verifiable references return limited coverage with no source evidence. Each search retrieves source notes for at most ten meetings and is not exhaustive.
 
-Notes can contain AI-generated summaries and private notes. Read a result to request the underlying transcript before quoting spoken words. If transcripts are unavailable, the result says so; it does not present notes as verbatim speech. Large notes and transcripts are visibly marked when truncated.
+Notes can contain AI summaries and private notes. Read the underlying transcript before quoting speech. If a transcript is unavailable, the result says so. Large notes and transcripts are bounded and marked when truncated.
 
-Granola’s plan and workspace controls apply. The Basic plan limits note access to the last 30 days; transcript access requires a paid plan and may be disabled by an Enterprise administrator. MCP follows the active Granola workspace, so switch workspaces in Granola if expected meetings are missing.
+Basic plan note access is limited to the last 30 days. Transcripts require a paid plan and can be disabled by an Enterprise administrator. Workspace controls and provider quotas still apply. [Granola's current access rules](https://docs.granola.ai/help-center/sharing/integrations/mcp).
 
-Sim discovers and validates the current MCP tool schemas, permits only fixed read operations, and rechecks the member’s grant before each call. Unexpected response formats fail visibly. Exact tool capabilities can change; an authenticated connection is required to inspect the current server’s schemas.
+Sim permits fixed read operations, validates advertised schemas, and rechecks the current grant before calls. Unexpected formats fail explicitly; exact capabilities depend on the authenticated server's current tools.
 
-See the [Granola MCP guide](https://docs.granola.ai/help-center/sharing/integrations/mcp) for current access and plan details.
+## Related docs
+
+- [Connect your account](/search/connect-your-account)
+- [Granola MCP guide](https://docs.granola.ai/help-center/sharing/integrations/mcp)

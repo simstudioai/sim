@@ -83,7 +83,7 @@ interface GmailModifyV2Response {
 export const gmailArchiveV2Tool: InternalToolConfig<GmailMarkReadParams, GmailModifyV2Response> = {
   id: 'gmail_archive_v2',
   name: 'Gmail Archive',
-  description: 'Archive a Gmail message (remove from inbox). Returns API-aligned fields only.',
+  description: 'Archive a Gmail message (remove from inbox).',
   version: '2.0.0',
   oauth: gmailArchiveTool.oauth,
   params: gmailArchiveTool.params,

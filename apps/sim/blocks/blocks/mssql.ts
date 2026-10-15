@@ -69,8 +69,7 @@ export const MSSQLBlock: BlockConfig = {
   type: 'mssql',
   name: 'Microsoft SQL Server',
   description: 'Connect to Microsoft SQL Server database',
-  longDescription:
-    'Integrate Microsoft SQL Server into the workflow. Can query, insert, update, delete, execute raw T-SQL, and introspect schemas.',
+  longDescription: 'Query, insert, update, delete, execute raw T-SQL, and introspect schemas.',
   docsLink: 'https://docs.sim.ai/integrations/mssql',
   category: 'tools',
   integrationType: IntegrationType.Databases,

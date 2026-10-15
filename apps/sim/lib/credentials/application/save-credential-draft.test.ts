@@ -14,7 +14,7 @@ const hoisted = vi.hoisted(() => ({
   createDraft: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 vi.mock('@/lib/credentials/connect-draft', () => ({

@@ -18,7 +18,7 @@ vi.mock('@/lib/webhooks/providers', () => ({
   getProviderHandler: mockGetProviderHandler,
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 import {
   cleanupExternalWebhook,

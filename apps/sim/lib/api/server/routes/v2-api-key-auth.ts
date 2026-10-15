@@ -16,7 +16,7 @@ import {
   type OAuthAccessTokenOptions,
   verifyOAuthAccessToken,
 } from '@/lib/auth/oauth-access-token'
-import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/billing-attribution'
+import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
@@ -120,7 +120,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
     .limit(1)
   const row = requireValidRow(candidate)
 
-  await updateApiKeyLastUsed(row.id)
+  updateApiKeyLastUsed(row.id)
   logger.debug('Authenticated v2 API key', { keyId: row.id, keyType: row.type })
 
   if (row.type === 'personal') {

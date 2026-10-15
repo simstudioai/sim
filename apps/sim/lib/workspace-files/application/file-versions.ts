@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
+import { mustClassifyContent } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import { getServePathPrefix } from '@/lib/uploads'
@@ -18,28 +19,27 @@ import {
   getBoundWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   workspaceFileSecretProvenanceFromSnapshot,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
   getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   type WorkspaceFileVersionRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { hasObjectNotFoundCause } from '@/lib/uploads/core/errors'
+} from '@/lib/uploads/contexts/workspace/file-version-store'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize } from '@/lib/uploads/utils/file'
+import {
+  requireAdmittedWorkspaceFile,
+  workspaceFileProvenanceIdentity,
+} from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import {
   type DownloadWorkspaceFileStreamResult,
   streamWorkspaceFileRecord,
 } from '@/lib/workspace-files/application/download-workspace-file'
-import {
-  hasWorkspaceFileDeliveryObserver,
-  reportWorkspaceFileDelivery,
-  requireCopilotWorkspaceFileDeliveryObserver,
-} from '@/lib/workspace-files/application/file-delivery-observer'
-import { parseWorkspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { resolveWorkspaceFileVersionWrite } from '@/lib/workspace-files/application/file-version-write'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { prepareOwnedFileContentWrite } from '@/lib/workspace-files/application/owned-file-content'
@@ -48,7 +48,14 @@ import {
   type ReadWorkspaceFileTextInput,
   type ReadWorkspaceFileTextResult,
 } from '@/lib/workspace-files/application/read-workspace-file-text'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import {
+  type AuthoredFileVersion,
+  projectFileVersionAuthors,
+} from '@/lib/workspace-files/application/version-authors'
+import {
+  assertFileVersionRevision,
+  readFileVersionObject,
+} from '@/lib/workspace-files/application/version-content'
 
 const logger = createLogger('WorkspaceFileVersions')
 
@@ -68,7 +75,8 @@ export interface ListWorkspaceFileVersionsInput extends FileVersionTarget {
 }
 
 export interface ListWorkspaceFileVersionsResult {
-  versions: WorkspaceFileVersionRecord[]
+  revision?: string
+  versions: AuthoredFileVersion[]
   nextKeys: CursorKey[] | null
 }
 
@@ -83,7 +91,7 @@ export interface ReadWorkspaceFileVersionTextResult extends ReadWorkspaceFileTex
   version: WorkspaceFileVersionRecord
 }
 
-export interface DownloadWorkspaceFileVersionResult extends DownloadWorkspaceFileStreamResult {
+interface DownloadWorkspaceFileVersionResult extends DownloadWorkspaceFileStreamResult {
   version: WorkspaceFileVersionRecord
 }
 
@@ -125,35 +133,19 @@ async function loadVersion(
 }
 
 async function readVersionSecretProvenance(
+  principal: Principal,
   file: WorkspaceFileRecord,
   version: WorkspaceFileVersionRecord
 ): Promise<WorkspaceFileSecretProvenance | undefined> {
-  if (!hasWorkspaceFileDeliveryObserver()) return undefined
+  if (!mustClassifyContent(principal)) return undefined
   if (version.isCurrent) {
-    return getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
-      fileId: file.id,
-      key: file.key,
-      context: file.storageContext ?? 'workspace',
-      contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-    })
+    return getBoundWorkspaceFileSecretProvenance(
+      file.workspaceId,
+      workspaceFileProvenanceIdentity(file)
+    )
   }
   const snapshot = await getWorkspaceFileVersionProvenance(file.id, version.version, version.key)
   return snapshot ? workspaceFileSecretProvenanceFromSnapshot(snapshot) : { status: 'unknown' }
-}
-
-/**
- * Runs a read of a version's stored object, answering 404 when the object is gone — retention or a
- * delete can remove a superseded version between loading its row and reading its bytes.
- */
-async function readVersionObject<T>(version: number, read: () => Promise<T>): Promise<T> {
-  try {
-    return await read()
-  } catch (error) {
-    if (hasObjectNotFoundCause(error)) {
-      throw new OrchestrationError('not_found', `Version ${version} not found`)
-    }
-    throw error
-  }
 }
 
 /**
@@ -191,7 +183,11 @@ export const listWorkspaceFileVersions = defineAuthorizedWorkspaceFileUseCase({
       limit: input.limit,
       after: input.after,
     })
-    return { versions, nextKeys }
+    return {
+      versions: await projectFileVersionAuthors(versions),
+      nextKeys,
+      ...workspaceFileRevisionField(file),
+    }
   },
 })
 
@@ -220,12 +216,11 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
     principal,
     request,
   }): Promise<ReadWorkspaceFileVersionTextResult> {
-    requireCopilotWorkspaceFileDeliveryObserver(principal)
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
     const fileAtVersion = recordAtVersion(file, version)
-    const secretProvenance = await readVersionSecretProvenance(file, version)
-    const result = await readVersionObject(version.version, () =>
+    const secretProvenance = await readVersionSecretProvenance(principal, file, version)
+    const result = await readFileVersionObject(version.version, () =>
       extractWorkspaceFileRecordText(
         fileAtVersion,
         input,
@@ -238,15 +233,21 @@ export const readWorkspaceFileVersionText = defineAuthorizedWorkspaceFileUseCase
   },
 })
 
-export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase({
+const downloadVersion = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.downloadVersion,
   resolveContext: ({ principal, input }: { principal: Principal; input: FileVersionRef }) =>
     resolveActiveWorkspaceFileContext({ ...input, ownedFilePrincipal: principal }),
   async execute({ input, context, principal }): Promise<DownloadWorkspaceFileVersionResult> {
     const file = await loadActiveFile(context)
     const version = await loadVersion(file, input.version)
-    await reportWorkspaceFileDelivery(await readVersionSecretProvenance(file, version))
-    const result = await readVersionObject(version.version, () =>
+    await requireAdmittedWorkspaceFile(
+      principal,
+      file.workspaceId,
+      file,
+      'complete',
+      await readVersionSecretProvenance(principal, file, version)
+    )
+    const result = await readFileVersionObject(version.version, () =>
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )
     return { ...result, file, version }
@@ -265,6 +266,19 @@ export const downloadWorkspaceFileVersion = defineAuthorizedWorkspaceFileUseCase
     },
   }),
 })
+
+/** Historical HEAD checks the retained version without opening its storage object. */
+export const downloadWorkspaceFileVersion = {
+  ...downloadVersion,
+  async authorize(args: Parameters<typeof downloadVersion.authorize>[0]) {
+    await downloadVersion.authorize(args)
+    const context = await resolveActiveWorkspaceFileContext({
+      ...args.input,
+      ownedFilePrincipal: args.principal,
+    })
+    await loadVersion(await loadActiveFile(context), args.input.version)
+  },
+}
 
 async function executeRevertWorkspaceFileVersion({
   input,
@@ -286,22 +300,11 @@ async function executeRevertWorkspaceFileVersion({
       `The current version is ${current.version}, not ${input.expectedCurrentVersion}`
     )
   }
-  /*
-   * Checked before the no-op branch below: a caller that named content which has since changed
-   * must hear about it, not be told there was nothing to do.
-   */
-  const expectedContentAt = input.expectedRevision
-    ? parseWorkspaceFileRevision(input.expectedRevision, context.fileId)
-    : undefined
-  if (
-    expectedContentAt &&
-    (file.contentUpdatedAt ?? file.updatedAt).getTime() !== expectedContentAt.getTime()
-  ) {
-    throw new OrchestrationError(
-      'conflict',
-      'The file changed since the revision you read; re-read it before reverting'
-    )
-  }
+  const expectedContentAt = assertFileVersionRevision(
+    file,
+    input.expectedRevision,
+    'The file changed since the revision you read; re-read it before reverting'
+  )
   const target = await loadVersion(file, input.version)
   if (target.isCurrent) {
     return { file, version: target, reverted: false, revertedFrom: current.version }
@@ -314,7 +317,7 @@ async function executeRevertWorkspaceFileVersion({
   }
 
   const [content, provenance] = await Promise.all([
-    readVersionObject(target.version, () =>
+    readFileVersionObject(target.version, () =>
       fetchWorkspaceFileBuffer(recordAtVersion(file, target), {
         maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       })

@@ -16,7 +16,7 @@ import {
 } from '@/lib/api/contracts/v1/workflows'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { serializeZodIssues } from '@/lib/api/server'
-import { collectStrippedWorkspaceBindings } from '@/lib/workflows/credentials/credential-extractor'
+import { collectStrippedWorkspaceBindings } from '@/lib/workflows/credentials/extractor'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   type PerformCreateWorkflowParams,

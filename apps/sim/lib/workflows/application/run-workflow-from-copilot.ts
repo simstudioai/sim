@@ -4,7 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -254,6 +254,7 @@ async function executeCopilotRun(params: {
   }
 }): Promise<ExecutionResult> {
   if (
+    params.principal.kind === 'resource_delegated' ||
     params.principal.kind === 'organization_delegated' ||
     params.principal.kind === 'slack_app' ||
     params.principal.kind === 'slack_installation' ||

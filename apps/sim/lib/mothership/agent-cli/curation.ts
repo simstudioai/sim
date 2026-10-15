@@ -16,7 +16,7 @@ import { withToolBindingHints } from '@/lib/mothership/agent-cli/tool-binding-hi
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import type { AgentCliRawResult } from '@/lib/mothership/generated/agent-cli'
 import { createToolAccessGate } from '@/lib/permission-groups/operation-access'
-import { getBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { inputFormatValueSchema } from '@/lib/workflows/input-format-schema'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 

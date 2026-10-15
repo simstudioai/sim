@@ -12,6 +12,7 @@ import {
   type AsyncCompletionData,
   type AsyncConfirmationStatus,
   type AsyncTerminalStatus,
+  DESKTOP_TOOL_CLAIM_OWNER,
   getTerminalConfirmationStatus,
   isDeliveredAsyncStatus,
   isTerminalAsyncStatus,
@@ -42,7 +43,7 @@ import {
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import {
   getDesktopToolClaimOwner,
-  isDesktopToolCall,
+  isBackgroundDesktopToolCall,
   isNativeDesktopTool,
 } from '@/lib/mothership/tools/desktop-tools'
 import {
@@ -86,6 +87,36 @@ function acknowledgeSettledToolCall(
     [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
   })
   return createConfirmationResponse(toolCallId, settledStatus, 'Tool call was already settled')
+}
+
+/**
+ * A workflow result for a call that is already settled — a retried delivery, or one that lost to
+ * the server recording the execution's outcome first — answers with the stored outcome when it is
+ * for the same execution. Nothing is written or published again.
+ */
+function acknowledgeSettledWorkflowToolCall(
+  span: Span,
+  toolCallId: string,
+  settledStatus: AsyncTerminalStatus,
+  settledResult: unknown,
+  submittedExecutionId: string | undefined
+): NextResponse {
+  const executionId = getWorkflowToolCompletionExecutionId(settledResult)
+  if (executionId && submittedExecutionId !== undefined && submittedExecutionId !== executionId) {
+    span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+    return createNotFoundResponse('Completed workflow execution not found')
+  }
+
+  const terminalStatus = getTerminalConfirmationStatus(settledStatus)
+  span.setAttributes({
+    [TraceAttr.ToolConfirmationStatus]: terminalStatus,
+    [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
+  })
+  return createConfirmationResponse(
+    toolCallId,
+    terminalStatus,
+    getWorkflowToolCompletionMessage(terminalStatus)
+  )
 }
 
 /**
@@ -210,7 +241,10 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
-        if (run.desktopDeviceId && isDesktopToolCall(existing.toolName, toRecord(existing.args))) {
+        if (
+          run.desktopDeviceId &&
+          isBackgroundDesktopToolCall(existing.toolName, toRecord(existing.args))
+        ) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
           return NextResponse.json(
             {
@@ -227,28 +261,12 @@ export const POST = withRouteHandler((req: NextRequest) => {
           : undefined
 
         if (isWorkflowTool && isTerminalAsyncStatus(existing.status)) {
-          const executionId = getWorkflowToolCompletionExecutionId(existing.result)
-          if (
-            executionId &&
-            submittedExecutionId !== undefined &&
-            submittedExecutionId !== executionId
-          ) {
-            span.setAttribute(
-              TraceAttr.CopilotConfirmOutcome,
-              CopilotConfirmOutcome.ToolCallNotFound
-            )
-            return createNotFoundResponse('Completed workflow execution not found')
-          }
-
-          const terminalStatus = getTerminalConfirmationStatus(existing.status)
-          span.setAttributes({
-            [TraceAttr.ToolConfirmationStatus]: terminalStatus,
-            [TraceAttr.CopilotConfirmOutcome]: CopilotConfirmOutcome.Delivered,
-          })
-          return createConfirmationResponse(
+          return acknowledgeSettledWorkflowToolCall(
+            span,
             toolCallId,
-            terminalStatus,
-            getWorkflowToolCompletionMessage(terminalStatus)
+            existing.status,
+            existing.result,
+            submittedExecutionId
           )
         }
 
@@ -317,6 +335,16 @@ export const POST = withRouteHandler((req: NextRequest) => {
         ) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return heldByAnotherReporterResponse()
+        }
+
+        if (
+          existing.toolName === 'computer' &&
+          (status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
+            (existing.status === ASYNC_TOOL_STATUS.running &&
+              existing.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.computer))
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Claimed computer tool call not found')
         }
 
         let effectiveStatus = status
@@ -429,7 +457,16 @@ export const POST = withRouteHandler((req: NextRequest) => {
           projected.data,
           {
             ...(isWorkflowTool && executionId ? { executionId } : {}),
-            ...(isPreclaimNativeTerminalOutcome ? { guard: { kind: 'pending' } as const } : {}),
+            ...(isPreclaimNativeTerminalOutcome
+              ? { guard: { kind: 'pending' } as const }
+              : existing.toolName === 'computer'
+                ? {
+                    guard: {
+                      kind: 'claimed',
+                      claimedBy: DESKTOP_TOOL_CLAIM_OWNER.computer,
+                    } as const,
+                  }
+                : {}),
           }
         )
 
@@ -444,10 +481,18 @@ export const POST = withRouteHandler((req: NextRequest) => {
               )
             : updateOutcome
 
-        if (reconciledOutcome === 'conflict' && !isWorkflowTool) {
+        if (reconciledOutcome === 'conflict') {
           const settled = await getAsyncToolCall(toolCallId).catch(() => null)
           if (settled && isTerminalAsyncStatus(settled.status)) {
-            return acknowledgeSettledToolCall(span, toolCallId, settled.status)
+            return isWorkflowTool
+              ? acknowledgeSettledWorkflowToolCall(
+                  span,
+                  toolCallId,
+                  settled.status,
+                  settled.result,
+                  submittedExecutionId
+                )
+              : acknowledgeSettledToolCall(span, toolCallId, settled.status)
           }
         }
 
@@ -462,7 +507,7 @@ export const POST = withRouteHandler((req: NextRequest) => {
             toolCallId,
             status: effectiveStatus,
             internalStatus: effectiveStatus,
-            message: projected.message,
+            completionMessage: projected.message,
           })
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.UpdateFailed)
           // DB write failed — 500, not 400. 400 is a client-shape error.

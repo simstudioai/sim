@@ -7,7 +7,6 @@ import {
   type GoogleGenAI,
   type Interactions,
   type Part,
-  type Schema,
   type ThinkingConfig,
   type ToolConfig,
 } from '@google/genai'
@@ -21,11 +20,11 @@ import {
   captureProviderConversationStep,
   recordProviderConversationToolError,
 } from '@/providers/conversation-history'
+import { applyGeminiResponseFormat } from '@/providers/gemini/config'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import { priceGeminiTokens, splitGeminiTokens, splitGeminiUsage } from '@/providers/gemini/usage'
 import {
   checkForForcedToolUsage,
-  cleanSchemaForGemini,
   convertToGeminiFormat,
   convertUsageMetadata,
   createReadableStreamFromGeminiStream,
@@ -53,7 +52,7 @@ import type {
 } from '@/providers/types'
 import {
   isDeepResearchModel,
-  isGemini3Model,
+  isGemini3OrLaterModel,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -362,19 +361,14 @@ function buildNextConfig(
   if (allForcedToolsUsed && request.responseFormat) {
     nextConfig.tools = undefined
     nextConfig.toolConfig = undefined
-    if (isGemini3Model(model)) {
-      logger.info('Gemini 3: Stripping tools after forced tool execution, schema already set')
-    } else {
-      nextConfig.responseMimeType = 'application/json'
-      nextConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-      logger.info('Using structured output for final response after tool execution')
-    }
+    logger.info('Using structured output for final response after tool execution')
   } else if (state.currentToolConfig) {
     nextConfig.toolConfig = state.currentToolConfig
   } else {
     nextConfig.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } }
   }
 
+  applyGeminiResponseFormat(nextConfig, request.responseFormat, model)
   return nextConfig
 }
 
@@ -1006,27 +1000,12 @@ export async function executeGeminiRequest(
       geminiConfig.systemInstruction = systemInstruction
     }
 
-    // Handle response format
-    if (request.responseFormat && !tools?.length) {
-      geminiConfig.responseMimeType = 'application/json'
-      geminiConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-      logger.info('Using Gemini native structured output format')
-    } else if (request.responseFormat && tools?.length && isGemini3Model(model)) {
-      geminiConfig.responseMimeType = 'application/json'
-      geminiConfig.responseJsonSchema = request.responseFormat.schema
-      logger.info('Using Gemini 3 structured output with tools (responseJsonSchema)')
-    } else if (request.responseFormat && tools?.length) {
-      logger.warn(
-        'Gemini 2 does not support responseFormat with tools. Structured output will be applied after tool execution.'
-      )
-    }
-
-    // Gemini 3.x takes thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
+    // Gemini 3 and later take thinkingLevel directly; Gemini 2.5-series rejects it and needs thinkingBudget.
     // includeThoughts is required for thought parts to appear; it is requested
     // only on agent-events runs so legacy runs keep the pre-agent-events payload.
     if (request.thinkingLevel && request.thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
-      if (isGemini3Model(model)) {
+      if (isGemini3OrLaterModel(model)) {
         thinkingConfig.thinkingLevel = mapToThinkingLevel(request.thinkingLevel)
       } else {
         thinkingConfig.thinkingBudget = mapToThinkingBudget(model, request.thinkingLevel)
@@ -1034,7 +1013,7 @@ export async function executeGeminiRequest(
       geminiConfig.thinkingConfig = thinkingConfig
     } else if (
       request.thinkingLevel === 'none' &&
-      !isGemini3Model(model) &&
+      !isGemini3OrLaterModel(model) &&
       supportsDisablingGemini25Thinking(model)
     ) {
       // Omitting thinkingConfig falls back to the API's dynamic default (ON for gemini-2.5-flash),
@@ -1087,17 +1066,19 @@ export async function executeGeminiRequest(
       }
     }
 
+    applyGeminiResponseFormat(geminiConfig, request.responseFormat, model)
+
     const initialCallTime = Date.now()
     /**
      * Gemini 2 cannot combine responseSchema with tools, so structured output
      * is applied on a final schema-configured request after tools settle — the
      * silent path does this; the live loop would break as soon as a turn has
-     * no calls and skip the schema. Gemini 3 carries responseJsonSchema
-     * alongside tools, so its live loop keeps structured output.
+     * no calls and skip the schema. Gemini 3 and later carry responseJsonSchema
+     * alongside automatic tools, or apply it after forced calls settle.
      */
     const hasActiveTools = Boolean(geminiConfig.tools?.length)
     const responseFormatNeedsFinalPass =
-      Boolean(request.responseFormat) && hasActiveTools && !isGemini3Model(model)
+      Boolean(request.responseFormat) && hasActiveTools && !isGemini3OrLaterModel(model)
     const liveToolLoopSupported = !responseFormatNeedsFinalPass
     const shouldStream = request.stream && !hasActiveTools
 
@@ -1262,10 +1243,7 @@ export async function executeGeminiRequest(
         tools: undefined,
         toolConfig: undefined,
       }
-      if (request.responseFormat && !isGemini3Model(model)) {
-        finalConfig.responseMimeType = 'application/json'
-        finalConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-      }
+      applyGeminiResponseFormat(finalConfig, request.responseFormat, model)
 
       const finalStartTime = Date.now()
       const finalResponsePayload = await prepareConversationGeneration(request, 'gemini', {

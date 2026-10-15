@@ -36,7 +36,7 @@ const { mockDispatchSync } = vi.hoisted(() => ({
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 import { GET } from '@/app/api/knowledge/connectors/sync/route'
 

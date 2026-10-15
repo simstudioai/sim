@@ -9,7 +9,7 @@ import {
   TEXT_PREVIEW_SIZE_MESSAGE,
 } from '@/lib/uploads/client/text-content'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { resolveMediaMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveMediaMimeType } from '@/lib/uploads/utils/file'
 import {
   useWorkspaceFileBinary,
   useWorkspaceFileContent,
@@ -142,10 +142,11 @@ interface FileViewerProps {
    */
   collaborative?: boolean
   /**
-   * Called (debounced) with the markdown document's leading-heading text while the file is still
-   * untitled, so the caller can name the file after it. Only wired for the editable markdown editor.
+   * Called with the file id and the markdown document's leading-heading text once the user finishes
+   * that heading while the file is still untitled, so the caller can name the file after it. Only wired
+   * for the editable markdown editor.
    */
-  onDeriveTitleFromHeading?: (headingText: string) => void
+  onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   /**
    * Let an open markdown file claim Cmd/Ctrl+F for find-in-document. Set wherever the file is the
    * whole pane the user is reading — the Files page, the mothership file view, the public share

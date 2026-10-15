@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { env, envNumber } from '@/lib/core/config/env'
 import type { ConversationUsageTotal } from '@/lib/memory/conversation-types'
-import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { StreamingExecution } from '@/executor/types'
 import {
@@ -259,7 +259,8 @@ export async function executeProviderRequest(
         providerId,
         request.model,
         request.workspaceId,
-        request.apiKey
+        request.apiKey,
+        request.abortSignal
       )
       resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
       isBYOK = result.isBYOK

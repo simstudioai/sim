@@ -1,7 +1,8 @@
+import { ContentRefusedError, redactBeforeCutting } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliFlags } from '@/lib/mothership/agent-cli/types'
 import { agentCliOk } from '@/lib/mothership/agent-cli/types'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { parseFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { decodeFileVisual } from '@/lib/workspace-files/decode-file-visual'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
@@ -15,6 +16,8 @@ export async function observePrivateFile(
     path: string
     source: 'sandbox' | 'upload' | 'knowledge'
     contentType?: string
+    /** The bytes hold secrets whose text redaction a rendered image would bypass. */
+    hasRecordedSecrets?: boolean
     knowledge?: {
       documentId: string
       knowledgeBaseId: string
@@ -38,6 +41,9 @@ export async function observePrivateFile(
   const textRange = options.offset !== undefined || options.limit !== undefined
   const visual = flags.render !== undefined || flags.pages !== undefined
   if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
+    if (file.hasRecordedSecrets) {
+      throw new ContentRefusedError('workspace-file')
+    }
     const decoded = await decodeFileVisual({
       buffer: file.buffer,
       name: file.name,
@@ -71,8 +77,15 @@ export async function observePrivateFile(
   if (format) {
     const parsed = await parseFileText(file.buffer, format, file.name)
     const truncated = parsed.metadata?.truncated === true
+    const ranged = options.offset !== undefined || options.limit !== undefined
     const { text, lineRange } = sliceFileTextLines(
-      parsed.content,
+      ranged
+        ? await redactBeforeCutting(
+            undefined,
+            parsed.content,
+            file.source === 'knowledge' ? 'knowledge-document' : 'workspace-file'
+          )
+        : parsed.content,
       options.offset,
       options.limit,
       truncated

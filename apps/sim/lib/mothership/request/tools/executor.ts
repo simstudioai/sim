@@ -1,4 +1,5 @@
 import { browserToolRendererTimeoutMs, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import { COMPUTER_USE_TOOL_TIMEOUT_MS } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName, resolveRunWaitMs } from '@sim/terminal-protocol'
 import { toError } from '@sim/utils/errors'
@@ -29,7 +30,6 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { ArtifactObservations } from '@/lib/mothership/generated/observations'
 import {
   ApplyFileEdit,
   CreateWorkflow,
@@ -74,6 +74,7 @@ import {
   measureWithheldContent,
 } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import { toolStatusOutput } from '@/lib/mothership/request/tools/status-output'
 import {
   maybeWriteOutputToTable,
   maybeWriteReadCsvToTable,
@@ -88,7 +89,11 @@ import {
   type ToolCallState,
 } from '@/lib/mothership/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/mothership/tool-executor'
-import { isDesktopToolCall, isLocalReadToolCall } from '@/lib/mothership/tools/desktop-tools'
+import {
+  isBackgroundDesktopToolCall,
+  isDesktopToolCall,
+  isLocalReadToolCall,
+} from '@/lib/mothership/tools/desktop-tools'
 import { withSandboxResourceScope } from '@/lib/mothership/tools/sandbox-resources'
 import { isMcpTool } from '@/executor/constants'
 
@@ -96,17 +101,6 @@ const logger = createLogger('CopilotSseToolExecution')
 
 function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
   return result !== undefined && Object.hasOwn(result, 'output')
-}
-
-/** Visual bytes reach the model through durable tool results, not the bounded UI replay stream. */
-function toolStatusOutput(output: unknown): unknown {
-  if (!isRecordLike(output)) return output
-  const observations = ArtifactObservations.safeParse(output.observations)
-  if (!observations.success) return output
-  return {
-    ...output,
-    observations: observations.data.map(({ data: _data, ...metadata }) => metadata),
-  }
 }
 
 interface ToolResultSpanSummary {
@@ -269,8 +263,13 @@ export function pendingToolWaitBudgetMs(
 ): number {
   if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
   const executableName = toolCall?.execName ?? toolCall?.name
-  if (desktopDeviceId && executableName && isDesktopToolCall(executableName, toolCall?.params))
+  if (
+    desktopDeviceId &&
+    executableName &&
+    isBackgroundDesktopToolCall(executableName, toolCall?.params)
+  )
     return CLIENT_TOOL_RESULT_TIMEOUT_MS
+  if (executableName === 'computer') return COMPUTER_USE_TOOL_TIMEOUT_MS
   if (executableName && isCurrentBrowserToolName(executableName)) {
     return browserToolRendererTimeoutMs(executableName, toolCall?.params)
   }

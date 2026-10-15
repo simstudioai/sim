@@ -24,7 +24,12 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
-import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
+import {
+  getOrCreateOauthRow,
+  loadPreregisteredClient,
+  McpOauthRedirectRequired,
+  SimMcpOauthProvider,
+} from '@/lib/mcp/oauth'
 import type { McpOauthCredentials } from '@/lib/mcp/oauth/coordinated-fetch'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
@@ -164,6 +169,7 @@ type ServerStatusUpdate = { discoveryStartedAt?: Date } & (
 function isOauthAuthorizationError(error: unknown, authType: McpServerConfig['authType']): boolean {
   return (
     error instanceof McpOauthAuthorizationRequiredError ||
+    error instanceof McpOauthRedirectRequired ||
     (authType === 'oauth' && error instanceof UnauthorizedError)
   )
 }

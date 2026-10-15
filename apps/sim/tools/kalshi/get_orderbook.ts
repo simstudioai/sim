@@ -96,7 +96,7 @@ export const kalshiGetOrderbookV2Tool: ToolConfig<
   id: 'kalshi_get_orderbook_v2',
   name: 'Get Market Orderbook from Kalshi V2',
   description:
-    'Retrieve the orderbook (yes and no bids) for a specific market (V2 - includes depth and fp fields)',
+    'Retrieve the orderbook (yes and no bids) for a specific market with depth and fixed-point fields',
   version: '2.0.0',
 
   params: {

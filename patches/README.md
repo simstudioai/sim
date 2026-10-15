@@ -89,3 +89,43 @@ rich-text mode, preserving the chart document's untrusted-markup boundary.
 `apps/sim/lib/charts/tooltip.test.ts` exercises actual ECharts tooltip rendering,
 font overrides, generated tokens, and box sizing. Remove this patch when an
 upstream release provides equivalent font handling and these tests pass.
+
+# Next.js application Vary preservation
+
+`next@16.4.0` replaces application `Vary` values when the Node App Page handler
+sets its router cache dimensions. The docs proxy's `Vary: Accept` therefore
+vanishes from the final HTML response, allowing downstream caches to confuse
+HTML with negotiated Markdown.
+
+The pinned patch applies the merging semantics of [upstream PR #98104](https://github.com/vercel/next.js/pull/98104)
+at Next's native Node outgoing-header merger, which is used before the bundled
+App Page handler. Both published CommonJS and ESM entry points preserve existing
+Vary fields and add later fields without case-sensitive duplicates. Wildcards
+remain intact, and native header validation still rejects invalid values.
+
+Vary writes become cumulative across Node server responses in both the docs and
+Sim workspaces; explicit header removal, cookie handling, other headers, router
+selection, cache lifetimes, and authentication are unchanged. Edge SSR and direct
+handlers outside Next's Node server are outside this patch's scope.
+
+The `docs content negotiation` CI workflow builds and serves the actual docs,
+then runs `apps/docs/scripts/test-negotiation-e2e.ts`. Its HTTP checks verify
+HTML → Markdown → HTML at one URL, `Vary: Accept` on both representations, and
+preservation of Next's router dimensions. It uploads a JSON report and server
+log. The HTML checks fail with the unpatched dependency even when the proxy
+already sets `Vary: Accept`. `test:headers:e2e` exercises the actual CommonJS and
+ESM mergers over loopback HTTP for string/array fields, mixed casing, wildcards,
+invalid values, other-header replacement, and middleware cookies. Its checks
+fail independently when the merge or validation guard is removed. CI uploads
+both reports.
+
+To repeat against a running production docs server:
+
+```bash
+DOCS_E2E_BASE_URL=http://127.0.0.1:3001 \
+DOCS_NEGOTIATION_REPORT_PATH=/tmp/docs-negotiation.json \
+bun run --cwd apps/docs test:negotiation:e2e
+```
+
+Remove the patch when upgrading to a release with equivalent Vary preservation,
+and retain the HTTP regression check.

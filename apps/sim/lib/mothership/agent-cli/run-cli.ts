@@ -1,6 +1,6 @@
 import { type EmbeddedCliIdentity, runEmbeddedCli } from 'sim/embed'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
-import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
 import type { SessionFileObserver } from '@/lib/execution/remote-sandbox/session-file-observer'
 import { openSessionFileSnapshot } from '@/lib/execution/remote-sandbox/session-file-snapshot'
 import {

@@ -6,7 +6,7 @@ import {
 } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
-import * as collabState from '@/lib/collab-doc/collab-state'
+import * as collabState from '@/lib/collab-doc/state'
 
 const {
   mockGetWorkspaceFile,
@@ -23,10 +23,10 @@ beforeEach(() => {
   vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
 })
 
-import type { CachedCollabDocState, PreparedCollabDocState } from '@/lib/collab-doc/collab-state'
 import { applyMarkdownToYDoc, markdownToYDoc, yDocToFileMarkdown } from '@/lib/collab-doc/converter'
 import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
 import { persistFileDoc } from '@/lib/collab-doc/persist'
+import type { CachedCollabDocState, PreparedCollabDocState } from '@/lib/collab-doc/state'
 
 const VERSION = new Date('2026-01-01T00:00:00.000Z')
 

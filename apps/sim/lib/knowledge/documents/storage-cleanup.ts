@@ -16,7 +16,7 @@ import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/stora
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadataByIdentity, getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { headProviderObject, uploadStorageProvider } from '@/lib/uploads/upload-session/provider'
-import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
+import { extractStorageKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('KnowledgeStorageCleanup')
 const ENQUEUE_BATCH_SIZE = 100

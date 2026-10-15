@@ -479,7 +479,7 @@ function extractWorkspaceIdFromExecutionKey(key: string): string | null {
 }
 
 /**
- * Controllable mock functions for `@/lib/uploads/utils/file-utils`.
+ * Controllable mock functions for `@/lib/uploads/utils/file`.
  *
  * The real module is pure, so every default is a faithful port of the real helper
  * (tables included). Override per test only where the unit under test must see a
@@ -692,11 +692,11 @@ export const fileUtilsMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/uploads/utils/file-utils`. Constants are the real values.
+ * Static mock module for `@/lib/uploads/utils/file`. Constants are the real values.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+ * vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
  * ```
  */
 export const fileUtilsMock = {

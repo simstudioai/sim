@@ -1,10 +1,10 @@
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { readToolActivity } from '@/lib/mothership/tools/activity'
 import {
   resolveNamedCliToolDisplayTitle,
   type ToolResourceContext,
 } from '@/lib/mothership/tools/client/resource-display'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   resolveIntegrationToolDisplayTitle,
   resolveStreamingToolDisplayTitle,

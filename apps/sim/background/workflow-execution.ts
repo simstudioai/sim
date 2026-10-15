@@ -14,7 +14,7 @@ import {
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {

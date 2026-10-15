@@ -3,7 +3,6 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type ForkCopyableKind, forkCopyableKindSchema } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
-import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
 import {
   type ForkReference,
   type ForkReferenceResolver,
@@ -18,6 +17,7 @@ import {
   listForkCopyableSourceResources,
   loadForkCopyableResourceLabels,
 } from '@/lib/workflows/references/resources'
+import { toScannerBlocks } from '@/lib/workflows/references/scan'
 import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
 import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
 import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'

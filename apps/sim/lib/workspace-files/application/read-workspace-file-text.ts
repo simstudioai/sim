@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import { redactBeforeCutting } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isSupportedFileType } from '@/lib/file-parsers'
@@ -9,22 +10,18 @@ import {
   fetchWorkspaceFileBuffer,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
-import {
-  getBoundWorkspaceFileSecretProvenance,
-  type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   formatFileSize,
   getFileExtension,
   MAX_TEXT_EXTRACTION_BYTES,
   needsRenderedArtifact,
-} from '@/lib/uploads/utils/file-utils'
-import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+} from '@/lib/uploads/utils/file'
 import {
-  hasWorkspaceFileDeliveryObserver,
-  reportWorkspaceFileDelivery,
-  requireCopilotWorkspaceFileDeliveryObserver,
-} from '@/lib/workspace-files/application/file-delivery-observer'
+  requireAdmittedContributors,
+  requireAdmittedWorkspaceFile,
+} from '@/lib/workspace-files/application/admit-file-content'
+import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
 import {
@@ -47,8 +44,6 @@ export interface ReadWorkspaceFileTextInput {
   offset?: number
   /** How many lines to return from `offset`. Absent reads to the end. */
   limit?: number
-  /** Private classification for runtime consumers, omitted from ordinary API reads. */
-  includeSecretProvenance?: boolean
   /** Internal agent reads can decode plain source files identified by their MIME type. */
   allowPlainText?: boolean
 }
@@ -74,7 +69,6 @@ export interface ReadWorkspaceFileTextResult {
     /** False when extraction was truncated, so `totalLines` is not the file's end. */
     totalLinesExact: boolean
   }
-  secretProvenance?: WorkspaceFileSecretProvenance
 }
 
 /**
@@ -115,7 +109,6 @@ async function executeReadWorkspaceFileText({
 >): Promise<ReadWorkspaceFileTextResult> {
   const signal = request?.signal
   signal?.throwIfAborted()
-  requireCopilotWorkspaceFileDeliveryObserver(principal)
   return extractWorkspaceFileRecordText(context.file, input, principal, signal)
 }
 
@@ -125,25 +118,18 @@ async function executeReadWorkspaceFileText({
  */
 export async function extractWorkspaceFileRecordText(
   file: WorkspaceFileRecord,
-  input: Pick<
-    ReadWorkspaceFileTextInput,
-    'maxBytes' | 'offset' | 'limit' | 'allowPlainText' | 'includeSecretProvenance'
-  >,
+  input: Pick<ReadWorkspaceFileTextInput, 'maxBytes' | 'offset' | 'limit' | 'allowPlainText'>,
   principal: Principal,
   signal?: AbortSignal,
   sourceProvenance?: WorkspaceFileSecretProvenance
 ): Promise<ReadWorkspaceFileTextResult> {
-  const secretProvenance =
-    sourceProvenance ??
-    (input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
-      ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
-          fileId: file.id,
-          key: file.key,
-          context: file.storageContext ?? 'workspace',
-          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
-        })
-      : undefined)
-  await reportWorkspaceFileDelivery(secretProvenance)
+  await requireAdmittedWorkspaceFile(
+    principal,
+    file.workspaceId,
+    file,
+    'complete',
+    sourceProvenance
+  )
 
   const extension = input.allowPlainText
     ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))
@@ -165,22 +151,33 @@ export async function extractWorkspaceFileRecordText(
    * is what the name promises, so it is what gets parsed. Matches the download
    * path, which resolves the same artifact for the same reason.
    */
-  const content = needsRenderedArtifact(file.type, file.name)
-    ? (
-        await resolveRenderedWorkspaceArtifact(file, principal, {
-          maxBytes,
-          signal,
-          tooLargeMessage: (limit) =>
-            `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
-        })
-      ).buffer
-    : await readSourceBuffer(file, maxBytes, signal)
+  let content: Buffer
+  if (needsRenderedArtifact(file.type, file.name)) {
+    const rendered = await resolveRenderedWorkspaceArtifact(file, principal, {
+      maxBytes,
+      signal,
+      tooLargeMessage: (limit) =>
+        `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
+    })
+    await requireAdmittedContributors(
+      principal,
+      file.workspaceId,
+      rendered.contributingFiles,
+      'complete'
+    )
+    content = rendered.buffer
+  } else {
+    content = await readSourceBuffer(file, maxBytes, signal)
+  }
   const parsed = await parseFileText(content, extension, file.name, signal)
   const metadata = parsed.metadata ?? {}
 
   const truncated = metadata.truncated === true
+  const ranged = input.offset !== undefined || input.limit !== undefined
   const { text, lineRange } = sliceFileTextLines(
-    parsed.content,
+    ranged
+      ? await redactBeforeCutting(principal, parsed.content, 'workspace-file')
+      : parsed.content,
     input.offset,
     input.limit,
     truncated
@@ -193,7 +190,6 @@ export async function extractWorkspaceFileRecordText(
     degraded: metadata.degraded === true,
     degradedReason: metadata.degraded === true ? (metadata.warning ?? null) : null,
     byteCount: content.byteLength,
-    ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
     ...(lineRange ? { lineRange } : {}),
   }
 }

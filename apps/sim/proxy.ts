@@ -1,3 +1,7 @@
+import {
+  LANDING_INTEGRATION_SLUGS,
+  LANDING_SLUG_BY_DOCS_SLUG,
+} from '@sim/deployment-config/integration-docs'
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -327,6 +331,21 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   return null
 }
 
+/**
+ * Docs integration slugs (`google_drive`, `microsoft_ad`) are not landing slugs (`google-drive`,
+ * `azure-ad`), yet reach the landing site through hand-written and search-indexed links. Redirect a
+ * known docs slug to its landing page through the catalog mapping instead of serving a 404.
+ */
+function handleIntegrationSlugRedirect(request: NextRequest): NextResponse | null {
+  const slug = /^\/integrations\/([^/]+)\/?$/.exec(request.nextUrl.pathname)?.[1]
+  if (!slug || LANDING_INTEGRATION_SLUGS.has(slug)) return null
+  const landingSlug = LANDING_SLUG_BY_DOCS_SLUG.get(slug)
+  if (!landingSlug) return null
+  const url = request.nextUrl.clone()
+  url.pathname = `/integrations/${landingSlug}`
+  return NextResponse.redirect(url, 308)
+}
+
 export function proxy(request: NextRequest) {
   const url = request.nextUrl
 
@@ -395,6 +414,9 @@ export function proxy(request: NextRequest) {
     return applyIndexingPolicy(request, response)
   }
 
+  const integrationSlugRedirect = handleIntegrationSlugRedirect(request)
+  if (integrationSlugRedirect) return applyIndexingPolicy(request, integrationSlugRedirect)
+
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
   if (invitationRedirect) return applyIndexingPolicy(request, invitationRedirect)
 
@@ -402,8 +424,6 @@ export function proxy(request: NextRequest) {
   if (securityBlock) return applyIndexingPolicy(request, securityBlock)
 
   const response = NextResponse.next()
-  response.headers.set('Vary', 'User-Agent')
-
   response.headers.set('Content-Security-Policy', generateRuntimeCSP())
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
@@ -449,9 +469,10 @@ export const config = {
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes
-    // Runtime CORS. The desktop's raw upload routes are left out: running the proxy makes Next
-    // buffer the body, cutting it off at its 10 MB proxy limit, and those bodies are whole files.
-    '/api/((?!desktop/tool/(?:import|file)$).*)',
+    // Runtime CORS. The desktop's raw upload routes and the realtime relay's document persist are
+    // left out: running the proxy makes Next buffer the body, cutting it off at its 10 MB proxy
+    // limit, and those bodies are whole files or document snapshots.
+    '/api/((?!desktop/tool/(?:import|file)$|internal/project-file-doc/[^/]+/[^/]+/persist$).*)',
     // Next's image optimizer fetches public editorial images without a User-Agent.
     '/((?!api/|api$|_next/static|_next/image|(?:blog|changelog)/.*\\.(?:avif|gif|jpe?g|png|svg|webp)$|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],

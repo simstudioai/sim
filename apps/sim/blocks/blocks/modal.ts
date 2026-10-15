@@ -11,7 +11,7 @@ export const ModalBlock: BlockConfig = {
   name: 'Modal',
   description: 'Call deployed Modal functions and endpoints',
   longDescription:
-    'Integrate Modal into your workflow to reach the serverless compute you already run there. Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, generate completions from a model served by a Modal Endpoint, and list the models a token can reach.',
+    'Invoke a deployed Web Function or Server over HTTPS with proxy-token auth, generate completions from a model served by a Modal Endpoint, and list the models a token can reach.',
   docsLink: 'https://docs.sim.ai/integrations/modal',
   category: 'tools',
   integrationType: IntegrationType.AI,

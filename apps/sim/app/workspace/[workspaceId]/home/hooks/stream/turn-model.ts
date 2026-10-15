@@ -14,12 +14,12 @@ import { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { CallIntegrationTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
-import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
   CONTEXT_COMPACTION_DISPLAY_TITLE,
   normalizeToolActivityDescription,
   refineStreamingCliToolName,
-} from '@/lib/mothership/tools/tool-display'
+} from '@/lib/mothership/tools/display'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 
 /**
  * The single deterministic model of one assistant turn, derived purely from the

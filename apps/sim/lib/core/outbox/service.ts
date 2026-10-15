@@ -89,9 +89,13 @@ export interface DeferredOutboxHandlerResult {
    * budget. False is reserved for waits on an internal dependency whose own
    * outbox row independently reaches completed or dead-letter, and for
    * bounded continuation after durable progress (`continueOutboxHandler`),
-   * or external polling with a separately persisted, finite poll allowance.
+   * external polling with a separately persisted, finite poll allowance, or a
+   * periodic bounded storage inventory that discovers objects arriving after
+   * the finite retirement cleanup has completed.
    */
   consumeAttempt?: boolean
+  /** Reset consecutive failures only after a complete successful recurring sweep. */
+  resetAttempts?: boolean
 }
 
 export function deferOutboxHandler(
@@ -1009,7 +1013,10 @@ async function scheduleDeferred(
   event: typeof outboxEvent.$inferSelect,
   result: DeferredOutboxHandlerResult
 ): Promise<'pending' | 'dead_letter' | 'lease_lost'> {
-  const nextAttempts = event.attempts + (result.consumeAttempt === false ? 0 : 1)
+  const nextAttempts =
+    result.resetAttempts && result.consumeAttempt === false
+      ? 0
+      : event.attempts + (result.consumeAttempt === false ? 0 : 1)
   if (result.consumeAttempt !== false && nextAttempts >= event.maxAttempts) {
     const updated = await updateIfLeaseHeld(event, {
       attempts: nextAttempts,

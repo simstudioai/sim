@@ -86,6 +86,8 @@
     "check:unused-exports": "bun run scripts/check-unused-exports.ts",
     "check:explicit-any": "bun run scripts/check-explicit-any.ts",
     "check:file-names": "bun run scripts/check-file-names.ts",
+    "check:source-conventions": "bun run scripts/check-source-conventions.ts",
+    "check:test-types": "bun run scripts/check-test-types.ts",
     "desktop-bridge-contract:update": "bun run scripts/check-desktop-bridge-contract.ts --update",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
@@ -210,6 +212,7 @@
     "drizzle-kit@0.31.10": "patches/drizzle-kit@0.31.10.patch",
     "postgres@3.4.9": "patches/postgres@3.4.9.patch",
     "oracledb@7.0.1": "patches/oracledb@7.0.1.patch",
-    "echarts@6.1.0": "patches/echarts@6.1.0.patch"
+    "echarts@6.1.0": "patches/echarts@6.1.0.patch",
+    "next@16.4.0": "patches/next@16.4.0.patch"
   }
 }

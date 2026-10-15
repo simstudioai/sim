@@ -213,6 +213,18 @@ export function stripJsonComments(text: string): string {
   return out.replace(/,(\s*[}\]])/g, '$1')
 }
 
+/** V8's excerpt of the input: `Unexpected token 's', "…{"key": sk_l"... is not valid JSON`. */
+const QUOTED_INPUT_EXCERPT = /,\s*(?:\.\.\.)?".*"(?:\.\.\.)?\s+is not valid JSON$/s
+
+/**
+ * A parse failure's message without the clipped excerpt of the input V8 quotes in it. The message
+ * reaches Chat as the read's error, where redaction matches whole secrets only, so an excerpt cut
+ * through a secret would carry the part that survived the cut.
+ */
+function describeSyntaxError(error: unknown): string {
+  return getErrorMessage(error, 'Unknown error').replace(QUOTED_INPUT_EXCERPT, '')
+}
+
 function parseJsonContent(buffer: Uint8Array): FileParseResult {
   const decoded = decodeTextBuffer(buffer)
   try {
@@ -226,7 +238,7 @@ function parseJsonContent(buffer: Uint8Array): FileParseResult {
     if (lenient) return lenient
     throw new FileParserError(
       'invalid_format',
-      `Invalid JSON: ${getErrorMessage(error, 'Unknown error')}`,
+      `Invalid JSON: ${describeSyntaxError(error)}`,
       error
     )
   }
@@ -282,7 +294,7 @@ function parseJsonLinesContent(buffer: Uint8Array): FileParseResult {
     } catch (error) {
       throw new FileParserError(
         'invalid_format',
-        `Invalid JSONL on line ${lineNumber}: ${line.slice(0, 100)}`,
+        `Invalid JSONL on line ${lineNumber}: ${describeSyntaxError(error)}`,
         error
       )
     }

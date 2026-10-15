@@ -8,7 +8,7 @@ import { useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
@@ -332,7 +332,7 @@ function OrganizationHomeContent({
     )
 
   const content = (
-    <div className='flex h-full min-h-0 @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,100%)]'>
+    <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)] md:min-w-[min(480px,50%)]'>
       {hasChat ? (
         <MothershipChat
           onViewSources={(messageId, requestId) =>

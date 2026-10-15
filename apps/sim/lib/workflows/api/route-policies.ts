@@ -22,8 +22,8 @@ import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-ke
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
-import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
-import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
+import { WorkflowImportError } from '@/lib/workflows/application/import-error'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 import { WorkspaceOperationConflict } from '@/lib/workspaces/operations/receipts'
 import {
   v2CaughtOrchestrationError,
@@ -103,7 +103,7 @@ async function authenticateWorkflowApiKey(rawApiKey: string): Promise<WorkflowAp
   if (!result.success || !result.keyId || !result.keyType) {
     throw new InternalUnauthenticatedError('Unauthorized')
   }
-  await updateApiKeyLastUsed(result.keyId)
+  updateApiKeyLastUsed(result.keyId)
 
   if (result.keyType === 'workspace') {
     if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')

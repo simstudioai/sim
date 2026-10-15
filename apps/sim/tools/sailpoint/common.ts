@@ -1,5 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
+import { STANDARD_LIMIT_MAX } from '@/lib/internal/sailpoint/schema'
 import type { ToolConfig, ToolOutputProperty } from '@/tools/types'
 
 /** Credentials shared by every SailPoint Identity Security Cloud operation. */
@@ -154,7 +155,7 @@ export function normalizeStringList(
 export function validatePagination(
   limit: number | undefined,
   offset: number | undefined,
-  maxLimit = 250
+  maxLimit = STANDARD_LIMIT_MAX
 ): void {
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 0 || limit > maxLimit)) {
     throw new Error(`Limit must be an integer between 0 and ${maxLimit}`)

@@ -1,11 +1,11 @@
 import { SentryIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildMetricAlertOutputs,
   buildSentryExtraFields,
   sentrySetupInstructions,
   sentryTriggerOptions,
 } from '@/triggers/sentry/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const sentryMetricAlertTrigger: TriggerConfig = {

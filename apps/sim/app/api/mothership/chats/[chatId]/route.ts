@@ -20,8 +20,9 @@ import {
   type LiveTurnSnapshot,
   readLiveTurnSnapshot,
 } from '@/lib/mothership/chat/live-turn-snapshot'
-import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
+import { compactToolCallParams, normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
+import { decodeTranscriptCursor } from '@/lib/mothership/chat/transcript-cursor'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -43,9 +44,22 @@ export const GET = withRouteHandler(
       const paramsResult = await parseRequest(getMothershipChatContract, request, context)
       if (!paramsResult.success) return paramsResult.response
       const { chatId } = paramsResult.data.params
+      const { window, from } = paramsResult.data.query
+      const fromPosition = from ? decodeTranscriptCursor(from) : null
+      if (from && !fromPosition) {
+        return NextResponse.json({ success: false, error: 'Invalid cursor' }, { status: 400 })
+      }
 
-      const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, { principal })
-      if (!chat || chat.type !== 'mothership') {
+      const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, {
+        principal,
+        type: 'mothership',
+        window: fromPosition
+          ? { kind: 'from', position: fromPosition }
+          : window === 'latest'
+            ? { kind: 'latest' }
+            : undefined,
+      })
+      if (!chat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
@@ -83,7 +97,7 @@ export const GET = withRouteHandler(
         messages: normalizedMessages,
         activeStreamId: liveStreamId,
         ...(liveTurnSnapshot ? { streamSnapshot: liveTurnSnapshot } : {}),
-      })
+      }).map(compactToolCallParams)
 
       return NextResponse.json({
         success: true,
@@ -95,6 +109,8 @@ export const GET = withRouteHandler(
           activeStreamId: liveStreamId,
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           effort: chat.effort,
+          olderCursor: chat.olderCursor,
+          windowStartCursor: chat.windowStartCursor,
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
           // Events stay out of the payload (the resume endpoint replays them),

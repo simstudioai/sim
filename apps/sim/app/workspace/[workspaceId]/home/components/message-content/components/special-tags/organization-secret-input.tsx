@@ -3,7 +3,7 @@
 import { createContext, type ReactNode, useContext } from 'react'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { ApiClientError } from '@/lib/api/client/errors'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOptionalOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {

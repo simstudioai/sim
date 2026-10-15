@@ -36,12 +36,12 @@ import { findActiveFolder, resolveRestoredFolderId } from '@/lib/folders/queries
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessProvider } from '@/lib/knowledge/access/types'
-import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import {
   ACTIVE_KNOWLEDGE_BASE_REFERENCE_FIELDS,
   type ActiveKnowledgeBaseReference,
   toActiveKnowledgeBaseReference,
-} from '@/lib/knowledge/knowledge-base-reference'
+} from '@/lib/knowledge/active-base-reference'
+import { mirrorsSourceAcls } from '@/lib/knowledge/connectors/access-modes'
 import { type KnowledgeReadAccess, knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
 import type {
@@ -1136,7 +1136,9 @@ export async function restoreKnowledgeBase(
     try {
       await db.transaction(async (tx) => {
         if (kb.organizationId) await lockOrganizationSearchApproval(tx, kb.organizationId)
-        await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
+        await tx.execute(
+          sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR NO KEY UPDATE`
+        )
 
         attemptedRestoreName = await generateRestoreName(kb.name, async (candidate) => {
           if (!kb.workspaceId) return false

@@ -22,7 +22,7 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
+import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/operations-error'
 import { POST } from '@/app/api/v2/workflows/[workflowId]/operations/route'
 
 const WORKFLOW_ID = 'workflow-1'

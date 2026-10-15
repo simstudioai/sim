@@ -11,63 +11,39 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Telegram](https://telegram.org) is a secure, cloud-based messaging platform that enables fast and reliable communication across devices. With its powerful Bot API, Telegram provides a robust framework for automated messaging and integration.
-
-With the Telegram integration in Sim, you can:
-
-- **Send messages**: Send text messages to Telegram chats, groups, or channels
-- **Delete messages**: Remove previously sent messages from a chat
-- **Send photos**: Share images with optional captions
-- **Send videos**: Share video files with optional captions
-- **Send audio**: Share audio files with optional captions
-- **Send animations**: Share GIF animations with optional captions
-- **Send documents**: Share files of any type with optional captions
-
-In Sim, the Telegram integration enables your agents to send messages and rich media to Telegram chats as part of automated workflows. This is ideal for automated notifications, alerts, content distribution, and interactive bot experiences.
+Use [Telegram](https://telegram.org)'s Bot API to send messages, photos, videos, audio, animations, documents, locations, contacts, or polls. Message actions also edit, forward, copy, pin, delete, and react; chat actions retrieve chat or member details and show status indicators.
 
 ## Start workflows from Telegram messages
 
-This video shows webhook setup and triggering a workflow from an incoming Telegram message.
+1. Send `/newbot` to [BotFather](https://t.me/BotFather) in Telegram and copy the bot token.
+2. Add a Telegram trigger to your workflow and enter **Bot Token**.
+3. Deploy the workflow. Sim registers the generated webhook URL with Telegram.
+4. Send a message to the bot and inspect the workflow run. The trigger returns message and sender data, including the source chat ID.
 
-<iframe
-  width="100%"
-  height="400"
-  src="https://www.youtube.com/embed/9oKcJtQ0_IM"
-  title="Start a Sim workflow from a Telegram message"
-  loading="lazy"
-  frameBorder="0"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-></iframe>
+Telegram registers one webhook per bot. Registering it elsewhere redirects delivery, so use a separate bot when workflows need independent webhook destinations. See the [Telegram bot tutorial](https://core.telegram.org/bots/tutorial).
+
+The [webhook setup video](https://www.youtube.com/embed/9oKcJtQ0_IM) also demonstrates starting a run from an incoming message.
 
 ## Send messages to a Telegram group
 
-This video shows the Telegram block configuration for sending workflow updates to a group.
+1. Add the bot to the group and grant the permissions needed by the action.
+2. Obtain the group's numeric chat ID from a bot message update, such as the trigger's `message.raw.chat.id`. Group IDs can be negative.
+3. Add a Telegram action block, select **Send Message**, and set **Bot Token**, **Chat ID**, and **Message**.
+4. Run the workflow and verify the message in the group.
 
-<iframe
-  width="100%"
-  height="400"
-  src="https://www.youtube.com/embed/AG55LpUreGI"
-  title="Send messages to a Telegram group from Sim"
-  loading="lazy"
-  frameBorder="0"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-></iframe>
+The [group messaging video](https://www.youtube.com/embed/AG55LpUreGI) demonstrates the block configuration. Bot privacy settings affect which group messages Telegram delivers; receiving a command addressed to the bot can help verify the trigger before changing those settings.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Telegram into the workflow. Send, edit, forward, copy, pin, and delete messages; send media, locations, contacts, and polls; react to messages; show chat actions; and look up chat and member info. Can be used in trigger mode to start a workflow when a message is sent to a chat.
-
-
+Send, edit, forward, copy, pin, or delete messages; send media, locations, contacts, and polls; set reactions and chat actions; and inspect chats and members. Bot messages and events can start workflows.
 
 ## Actions
 
 ### Telegram Send Message
 
-Send messages to Telegram channels or users through the Telegram Bot API. Enables direct communication and notifications with message tracking and chat confirmation.
+Send a text message through the Telegram Bot API. Markdown is converted to Telegram HTML before sending; the response includes the sent message and recipient chat.
 
 #### Input
 
@@ -84,16 +60,16 @@ Send messages to Telegram channels or users through the Telegram Bot API. Enable
 | `message` | string | Success or error message |
 | `data` | object | Telegram message data |
 |   ↳ `message_id` | number | Unique Telegram message identifier |
-|   ↳ `from` | object | Chat information |
-|     ↳ `id` | number | Chat ID |
-|     ↳ `is_bot` | boolean | Whether the chat is a bot or not |
-|     ↳ `first_name` | string | Chat username \(if available\) |
-|     ↳ `username` | string | Chat title \(for groups and channels\) |
-|   ↳ `chat` | object | Information about the bot that sent the message |
-|     ↳ `id` | number | Bot user ID |
-|     ↳ `first_name` | string | Bot first name |
-|     ↳ `username` | string | Bot username |
-|     ↳ `type` | string | chat type private or channel |
+|   ↳ `from` | object | Sender information |
+|     ↳ `id` | number | Sender user ID |
+|     ↳ `is_bot` | boolean | Whether the sender is a bot |
+|     ↳ `first_name` | string | Sender first name |
+|     ↳ `username` | string | Sender username, when available |
+|   ↳ `chat` | object | Recipient chat information |
+|     ↳ `id` | number | Recipient chat ID |
+|     ↳ `first_name` | string | Chat first name, for private chats |
+|     ↳ `username` | string | Chat username, when available |
+|     ↳ `type` | string | Chat type: private, group, supergroup, or channel |
 |   ↳ `date` | number | Unix timestamp when message was sent |
 |   ↳ `text` | string | Text content of the sent message |
 
@@ -665,7 +641,7 @@ Get information about a member of a Telegram chat through the Telegram Bot API.
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Telegram Webhook
 

@@ -15,11 +15,9 @@ Use [Stripe](https://stripe.com/) in Sim to manage payment intents, customers, s
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrates Stripe into the workflow. Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Can be used in trigger mode to trigger a workflow when a Stripe event occurs.
-
-
+Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Supported Stripe events can start workflows.
 
 ## Actions
 
@@ -32,7 +30,7 @@ Create a new Payment Intent to process a payment
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
-| `amount` | number | Yes | Amount in cents \(e.g., 2000 for $20.00\) |
+| `amount` | number | Yes | Amount in the currency’s smallest unit \(e.g., 2000 for 20.00 USD\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
 | `customer` | string | No | Customer ID to associate with this payment |
 | `payment_method` | string | No | Payment method ID |
@@ -176,7 +174,7 @@ Update an existing Payment Intent
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
-| `amount` | number | No | Updated amount in cents |
+| `amount` | number | No | Updated amount in the currency’s smallest unit |
 | `currency` | string | No | Three-letter ISO currency code |
 | `customer` | string | No | Customer ID |
 | `description` | string | No | Updated description |
@@ -241,7 +239,7 @@ Update an existing Payment Intent
 
 ### Stripe Confirm Payment Intent
 
-Confirm a Payment Intent to complete the payment
+Confirm a Payment Intent and inspect its resulting status. Confirmation can require further action or asynchronous processing before payment succeeds.
 
 #### Input
 
@@ -318,7 +316,7 @@ Capture an authorized Payment Intent
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Payment Intent ID \(e.g., pi_1234567890\) |
-| `amount_to_capture` | number | No | Amount to capture in cents \(defaults to full amount\) |
+| `amount_to_capture` | number | No | Amount to capture in the currency’s smallest unit \(defaults to the full amount\) |
 
 #### Output
 
@@ -2494,7 +2492,7 @@ Create a new charge to process a payment
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
-| `amount` | number | Yes | Amount in cents \(e.g., 2000 for $20.00\) |
+| `amount` | number | Yes | Amount in the currency’s smallest unit \(e.g., 2000 for 20.00 USD\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
 | `customer` | string | No | Customer ID to associate with this charge |
 | `source` | string | No | Payment source ID \(e.g., card token or saved card ID\) |
@@ -2572,7 +2570,7 @@ Capture an uncaptured charge
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Charge ID \(e.g., ch_1234567890\) |
-| `amount` | number | No | Amount to capture in cents \(defaults to full amount\) |
+| `amount` | number | No | Amount to capture in the currency’s smallest unit \(defaults to the full amount\) |
 
 #### Output
 
@@ -2772,7 +2770,7 @@ Create a new price for a product
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `product` | string | Yes | Product ID \(e.g., prod_1234567890\) |
 | `currency` | string | Yes | Three-letter ISO currency code \(e.g., usd, eur\) |
-| `unit_amount` | number | No | Amount in cents \(e.g., 1000 for $10.00\) |
+| `unit_amount` | number | No | Amount in the currency’s smallest unit \(e.g., 1000 for 10.00 USD\) |
 | `recurring` | json | No | Recurring billing configuration \(interval: day/week/month/year\) |
 | `metadata` | json | No | Set of key-value pairs |
 | `billing_scheme` | string | No | Billing scheme \(per_unit or tiered\) |
@@ -2924,7 +2922,7 @@ List all Events
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Stripe Webhook
 

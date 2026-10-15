@@ -168,7 +168,7 @@ export const v2CredentialProviderSchema = z
   ])
   .meta({
     id: 'V2CredentialProvider',
-    title: 'Credential Provider',
+    title: 'Credential provider',
     description: 'An OAuth or service-account connection method available to a workspace.',
   })
 export type V2CredentialProvider = z.output<typeof v2CredentialProviderSchema>
@@ -377,7 +377,7 @@ export const v2CredentialConnectionAuthorizationSchema = z
   })
   .meta({
     id: 'V2CredentialConnectionAuthorization',
-    title: 'Credential Connection Authorization',
+    title: 'Credential connection authorization',
     description: 'A short-lived browser entrypoint for an OAuth connection flow.',
   })
 export type V2CredentialConnectionAuthorization = z.output<

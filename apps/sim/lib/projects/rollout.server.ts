@@ -8,6 +8,11 @@ class ProjectUnavailableError extends HttpError {
   }
 }
 
+/** Project rollout is a global switch; it never varies by organization or user. */
+export function isProjectsEnabled(): Promise<boolean> {
+  return isFeatureEnabled('projects')
+}
+
 export async function requireProjectApiEnabled(): Promise<void> {
-  if (!(await isFeatureEnabled('projects'))) throw new ProjectUnavailableError()
+  if (!(await isProjectsEnabled())) throw new ProjectUnavailableError()
 }

@@ -15,11 +15,23 @@ Use [Box](https://www.box.com/) to manage files and folders, search content, and
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.
+Sim requests these scopes when someone connects a Box account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/box` |
+| Environment variables | `BOX_CLIENT_ID`, `BOX_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `root_readwrite` | Read and write all files and folders in Box account |
+| `sign_requests.readwrite` | Create and manage Box Sign e-signature requests |
+
+## Use the block [#usage-instructions]
+
+Manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.
 
 ## Actions
 
@@ -469,19 +481,5 @@ Resend a Box Sign request to signers who have not yet signed
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Success confirmation message |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Box account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/box` |
-| Environment variables | `BOX_CLIENT_ID`, `BOX_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `root_readwrite` | Read and write all files and folders in Box account |
-| `sign_requests.readwrite` | Create and manage Box Sign e-signature requests |
 
 

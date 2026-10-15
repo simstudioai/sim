@@ -163,6 +163,86 @@ describe('live organization Search MCP', () => {
   )
 })
 
+describe('batched document reads', () => {
+  const readResult = (documentId: string) => ({
+    documentId,
+    knowledgeBaseId: '',
+    knowledgeBaseName: 'Drive',
+    documentName: documentId,
+    sourceUrl: `https://example.com/${documentId}`,
+    connectorType: 'google_drive',
+    chunks: [],
+    hasMore: false,
+    next: null,
+  })
+  const parsedBody = (result: CallToolResult) => {
+    const [part] = result.content
+    if (part?.type !== 'text') throw new Error('Expected a text result')
+    return JSON.parse(part.text) as { documents: Record<string, unknown>[] }
+  }
+
+  it('reports an unreadable document in its place and returns the others', async () => {
+    create()
+    mocks.liveRead.mockImplementation(async ({ input }: { input: { documentId: string } }) => {
+      if (input.documentId === 'gone') throw new OrchestrationError('not_found', 'Document moved')
+      if (input.documentId === 'broken') throw new Error('private backend detail')
+      return readResult(input.documentId)
+    })
+    const result = await call('read_document', { documentIds: ['a', 'gone', 'broken', 'b'] })
+    expect(result.isError).toBeUndefined()
+    expect(parsedBody(result).documents).toEqual([
+      expect.objectContaining({ documentId: 'a', title: 'a' }),
+      { documentId: 'gone', error: 'Document moved' },
+      { documentId: 'broken', error: 'Unable to read this document. Please try again.' },
+      expect.objectContaining({ documentId: 'b', title: 'b' }),
+    ])
+  })
+
+  it('charges the rate limit once per distinct document', async () => {
+    create()
+    mocks.liveRead.mockImplementation(async ({ input }: { input: { documentId: string } }) =>
+      readResult(input.documentId)
+    )
+    await call('read_document', { documentIds: ['a', 'b', 'a'] })
+    expect(mocks.rateLimit).toHaveBeenCalledWith(request, auth, expect.anything(), 2)
+    expect(mocks.liveRead).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads at most five documents from providers at once, in request order', async () => {
+    create()
+    let inFlight = 0
+    let peak = 0
+    mocks.liveRead.mockImplementation(async ({ input }: { input: { documentId: string } }) => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      const laterFinishesFirst = 10 - Number(input.documentId.slice('doc-'.length))
+      for (let tick = 0; tick < laterFinishesFirst; tick++) await Promise.resolve()
+      inFlight--
+      return readResult(input.documentId)
+    })
+    const ids = Array.from({ length: 10 }, (_, index) => `doc-${index}`)
+    const result = await call('read_document', { documentIds: ids })
+    expect(peak).toBe(5)
+    expect(parsedBody(result).documents.map((document) => document.documentId)).toEqual(ids)
+  })
+
+  it('reads nothing when the batch exceeds the remaining rate limit', async () => {
+    create()
+    mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
+    expect((await call('read_document', { documentIds: ['a', 'b'] })).isError).toBe(true)
+    expect(mocks.liveRead).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [{ documentId: 'a', documentIds: ['b'] }],
+    [{}],
+    [{ documentIds: ['a'], startOffset: 8000 }],
+  ])('rejects ambiguous read input %j', (input) => {
+    create()
+    expect(() => mocks.configs.get('read_document')?.inputSchema.parse(input)).toThrow()
+  })
+})
+
 describe('organization Search MCP tools', () => {
   it('does not return content denied by the canonical document ACL operation', async () => {
     create()

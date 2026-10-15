@@ -42,8 +42,6 @@ export function useStartSlackCredentialGroupConfiguration() {
     )) => {
       const scope = resourceScopeFromOwner({ workspaceId, organizationId })
       if (scope.kind === 'organization') {
-        if (!body.appId || !body.teamId)
-          throw new Error('Slack App ID and workspace ID are required')
         return requestJson(startOrganizationSlackConfigurationContract, {
           params: { id: scope.organizationId, groupId: credentialGroupId },
           body: {

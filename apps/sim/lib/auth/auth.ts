@@ -74,7 +74,6 @@ import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
 import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { configuredSsoPlugin } from '@/lib/auth/sso/plugin'
-import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
   authorizeSubscriptionReference,
@@ -86,8 +85,10 @@ import {
   releaseCheckoutAdmission,
   resolveCheckoutReferenceId,
 } from '@/lib/billing/checkout-admission'
+import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
 import {
   getOrganizationIdForSubscriptionReference,
+  sendPlanWelcomeEmail,
   syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
@@ -97,8 +98,12 @@ import {
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
-import { isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
+import { isEnterprise, isLegacyPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import {
+  didSubscriptionPriceChange,
+  getPlans,
+  resolvePlanFromStripeSubscription,
+} from '@/lib/billing/plans'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -175,6 +180,26 @@ import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
 const logger = createLogger('Auth')
+
+/**
+ * A Stripe price that maps to no catalog plan leaves the stored plan in place. That is expected
+ * for enterprise (priced per customer) and for a legacy plan still on the price it was sold at;
+ * a catalog plan, or a legacy plan moved to a new price, means a price env var is missing or wrong.
+ */
+function logUnresolvedStripePlan(
+  hook: 'onSubscriptionComplete' | 'onSubscriptionUpdate',
+  details: { subscriptionId: string; dbPlan: string | null; priceId: string | undefined },
+  priceChanged: boolean
+): void {
+  if (isEnterprise(details.dbPlan) || (isLegacyPlan(details.dbPlan) && !priceChanged)) {
+    logger.info(`[${hook}] Off-catalog Stripe price; keeping the stored plan`, details)
+    return
+  }
+  logger.error(
+    `[${hook}] Could not resolve plan from Stripe price; keeping the stored plan — check env var configuration`,
+    details
+  )
+}
 
 function buildSsoAdmissionErrorUrl(code: string, callbackLocation?: string | null): string {
   const callbackUrl =
@@ -440,6 +465,16 @@ export const auth = betterAuth({
           if (user.banned) {
             await disableUserResources(user.id)
           }
+        },
+      },
+      /**
+       * The admin plugin's `/admin/remove-user` deletes the user row through Better Auth, so its
+       * usage rows cascade away without `deleteUserAccount`. Better Auth runs this once the delete
+       * commits, which is when the stored reporting prefixes that counted them must be discarded.
+       */
+      delete: {
+        after: async () => {
+          await invalidateReportingUsagePrefixes()
         },
       },
     },
@@ -1543,9 +1578,10 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.error(
-                    '[onSubscriptionComplete] Could not resolve plan from Stripe price — check env var configuration',
-                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
+                  logUnresolvedStripePlan(
+                    'onSubscriptionComplete',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId },
+                    false
                   )
                 }
 
@@ -1622,17 +1658,6 @@ export const auth = betterAuth({
                 const { priceId, planFromStripe, isTeamPlan, isAnnual } =
                   resolvePlanFromStripeSubscription(stripeSubscription)
 
-                if (priceId && !planFromStripe) {
-                  logger.warn(
-                    '[onSubscriptionUpdate] Could not determine plan from Stripe price ID',
-                    {
-                      subscriptionId: subscription.id,
-                      priceId,
-                      dbPlan: subscription.plan,
-                    }
-                  )
-                }
-
                 const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
                   subscription.referenceId
                 )
@@ -1651,9 +1676,10 @@ export const auth = betterAuth({
                 })
 
                 if (!planFromStripe) {
-                  logger.error(
-                    '[onSubscriptionUpdate] Could not resolve plan from Stripe price — org creation may be skipped for team upgrades',
-                    { subscriptionId: subscription.id, dbPlan: subscription.plan }
+                  logUnresolvedStripePlan(
+                    'onSubscriptionUpdate',
+                    { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId },
+                    didSubscriptionPriceChange(stripeSubscription, event.data.previous_attributes)
                   )
                 }
 

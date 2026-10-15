@@ -42,7 +42,7 @@ export const BufferBlock: BlockConfig = {
   name: 'Buffer',
   description: 'Schedule and publish social media posts across connected channels',
   longDescription:
-    'Integrate Buffer into your workflow. Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.',
+    'Create, schedule, edit, and delete posts across connected social channels (Instagram, LinkedIn, X, Facebook, TikTok, and more), attach images or videos, browse channel settings, check daily limits and post metrics, and capture content ideas using the Buffer API.',
   docsLink: 'https://docs.sim.ai/integrations/buffer',
   category: 'tools',
   integrationType: IntegrationType.Marketing,

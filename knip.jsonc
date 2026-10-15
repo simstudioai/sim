@@ -39,7 +39,8 @@
         "app/(landing)/integrations/data/landing-content.ts",
         // Mirrored from the sibling worker's contracts:sync, not app-owned.
         "lib/mothership/generated/account.ts",
-        "lib/mothership/generated/local-files.ts"
+        "lib/mothership/generated/local-files.ts",
+        "lib/mothership/generated/computer-use.ts"
       ],
       // Required/discoverable barrels whose children have direct live imports.
       // Ignore only the barrel file finding, so it cannot keep dead children alive.
@@ -47,7 +48,13 @@
         // Generated contracts mirror their source of truth; regenerating them must not
         // trip the unused-export ratchet, and hand edits would be overwritten.
         "lib/mothership/generated/**": ["exports", "types", "duplicates"],
-        "sandbox-tasks/index.ts": ["files"],
+        // Consumed only by the stacked Project file PRs: the rendered-content contracts by #9017,
+        // the client aliases by #9034. Remove each entry once its consumer merges.
+        "lib/api/contracts/projects.ts": ["types"],
+        "lib/api/contracts/project-files.ts": ["exports", "types"],
+        "lib/api/contracts/project-file-folders.ts": ["types"],
+        "lib/api/contracts/project-file-lifecycle.ts": ["types"],
+        "sandboxes/index.ts": ["files"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],
         "lib/api/contracts/selectors/index.ts": ["files"],
@@ -76,7 +83,15 @@
       // Live test spawns this path with cwd=MSHIP_WORKER_ROOT (a sibling repo).
       "ignoreUnresolved": ["tools/probes/src/controller-run-read.ts"]
     },
-    "apps/realtime": { "includeEntryExports": false, "entry": ["src/bootstrap.ts"] },
+    "apps/realtime": {
+      "includeEntryExports": false,
+      "entry": [
+        "src/bootstrap.ts",
+        // Integration mode discovers these suites and setup by filename.
+        "src/**/*.integration.ts",
+        "vitest.integration.setup.ts"
+      ]
+    },
     "apps/desktop": {
       "includeEntryExports": false,
       // scripts/build.ts and e2e/updater.spec.ts supply these to esbuild by path; the nested
@@ -88,7 +103,9 @@
         "src/renderer/*/index.tsx",
         "scripts/*.ts",
         "e2e/fixtures/updater.ts",
-        "e2e/fixtures/worker-restart.ts"
+        "e2e/fixtures/worker-restart.ts",
+        // The native permission test launches this Electron fixture by filename.
+        "native/computer-use/tests/electron-fixture/*.cjs"
       ],
       // ensure-pty-prebuilds.ts assembles these package names for universal builds.
       "ignoreDependencies": ["@lydell/node-pty-darwin-arm64", "@lydell/node-pty-darwin-x64"]
@@ -114,7 +131,11 @@
     // Generated, so its export surface is not ratcheted either.
     "packages/desktop-bridge": {
       "entry": ["contract-snapshot.ts"],
-      "ignoreIssues": { "contract-snapshot.ts": ["exports", "types", "duplicates"] }
+      "ignoreIssues": {
+        "contract-snapshot.ts": ["exports", "types", "duplicates"],
+        // Mirrored from Mothership; hand edits are overwritten by contracts:sync.
+        "src/computer-use.generated.ts": ["exports", "types", "duplicates"]
+      }
     },
     "packages/sim-cli": {
       "includeEntryExports": false,

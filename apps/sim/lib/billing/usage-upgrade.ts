@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { UsageUpgradePayload } from '@/lib/api/contracts/subscription'
-import type { AttributedUsageLimitsResult } from '@/lib/billing/core/billing-attribution'
+import type { AttributedUsageLimitsResult } from '@/lib/billing/core/attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { isEnterprise, isPaid } from '@/lib/billing/plan-helpers'

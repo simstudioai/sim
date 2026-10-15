@@ -20,7 +20,7 @@ export const semrushDomainAdHistoryTool: ToolConfig<
   id: 'semrush_domain_ad_history',
   name: 'Semrush Domain Ad History',
   description:
-    'List a domain past Google Ads placements month by month, with the copy used each time.',
+    'List a domain’s past Google Ads placements month by month, with the copy used each time.',
   version: '1.0.0',
 
   params: {

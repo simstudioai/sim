@@ -294,10 +294,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     const contexts = handoff.contexts ?? []
     for (const context of contexts) handleContextAdd(context)
     addMothershipContexts(contexts)
-    // `handleContextAdd` is a body function, so it is a new value every render;
-    // listing it would re-run this drain on every render. Omitted deliberately to
-    // keep it one-shot — and harmless either way, since `consume` clears the entry
-    // atomically and any re-run would find nothing.
+    // `handleContextAdd` is omitted: it is a new function every render.
   }, [chatId, workspaceId, prepareResourceViewForAgentTurn, sendMessage])
 
   function resolveResourceFromContext(
@@ -415,7 +412,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   return (
     <ChatResourcePanel workspaceId={workspaceId} chat={chat} panel={panel}>
-      <div className='relative flex h-full @max-[960px]/chat-panel:min-w-0 min-w-0 flex-1 flex-col md:min-w-[min(480px,100%)]'>
+      <div className='relative flex h-full min-w-0 flex-1 flex-col md:min-w-[min(480px,50%)]'>
         {showEmptyState && (
           <div
             className={cn(

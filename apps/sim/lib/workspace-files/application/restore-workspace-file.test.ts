@@ -12,7 +12,7 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 import { restoreWorkspaceFileOperation } from '@/lib/workspace-files/application/restore-workspace-file'
 

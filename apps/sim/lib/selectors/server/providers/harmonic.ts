@@ -4,7 +4,7 @@ import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import type { ServerSelectorKey } from '@/lib/selectors/manifest'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
 import { resolveSelectorCredentialBundle } from '@/lib/selectors/server/providers/credential-bundle'
-import { selectorProviderStatusError } from '@/lib/selectors/server/providers/provider-http'
+import { selectorProviderStatusError } from '@/lib/selectors/server/providers/http'
 import {
   detailSelectorResult,
   type ExecuteServerSelectorArgs,

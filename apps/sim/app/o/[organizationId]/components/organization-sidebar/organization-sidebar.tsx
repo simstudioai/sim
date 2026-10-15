@@ -22,7 +22,7 @@ import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organ
 import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
   HelpModal,
   isNavItemActive,
@@ -55,6 +55,10 @@ interface OrganizationChatsProps
   organizationId: string
 }
 
+interface OrganizationSidebarProps {
+  benchmarkEnabled?: boolean
+}
+
 function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps) {
   const { chats, isLoading } = useOrganizationChats(organizationId)
   return (
@@ -69,7 +73,9 @@ function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps)
  * the desktop hover-peek all behave identically. Collapse and peek state come from
  * the chrome through {@link useSidebarChrome}.
  */
-export const OrganizationSidebar = memo(function OrganizationSidebar() {
+export const OrganizationSidebar = memo(function OrganizationSidebar({
+  benchmarkEnabled = false,
+}: OrganizationSidebarProps) {
   const { isCollapsed: railCollapsed, isPeeking, onToggle: toggleCollapsed } = useSidebarChrome()
   /** The peek card always renders the expanded layout, whatever the rail's state. */
   const isCollapsed = railCollapsed && !isPeeking
@@ -90,7 +96,12 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
 
   const isMac = isMacPlatform()
   const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
-  const navItems = buildOrganizationNavItems(organization.id, searchAccess.memberScoped, canUseHome)
+  const navItems = buildOrganizationNavItems(
+    organization.id,
+    searchAccess.memberScoped,
+    canUseHome,
+    benchmarkEnabled
+  )
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 

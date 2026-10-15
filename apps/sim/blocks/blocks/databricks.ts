@@ -52,7 +52,7 @@ export const DatabricksBlock: BlockConfig = {
   description: 'Run SQL, manage jobs, and ask Genie agents on Databricks',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Ask Genie spaces (Genie agents) questions in natural language and get back answers, the generated SQL, result rows, and charts, continuing a conversation across follow-ups, or run Genie agent mode for multi-step research reports. Requires a Personal Access Token and workspace host URL.',
+    'Run SQL against Databricks warehouses, trigger and monitor job runs, inspect clusters, and retrieve run output. Ask questions of a Genie space, continue a conversation, or run Genie agent research. Supply a personal access token and workspace host URL.',
   docsLink: 'https://docs.sim.ai/integrations/databricks',
   category: 'tools',
   integrationType: IntegrationType.Databases,

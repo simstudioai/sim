@@ -1,5 +1,5 @@
 import { generateId } from '@sim/utils/id'
-import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import { isInternalFileUrl, parseInternalFileUrl } from '@/lib/uploads/utils/file'
 import type { InputFormatFieldState } from '@/lib/workflows/input-format-schema'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'

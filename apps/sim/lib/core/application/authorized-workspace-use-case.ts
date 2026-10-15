@@ -1,6 +1,7 @@
 import { type AuditActionType, type AuditResourceTypeValue, recordAudit } from '@sim/audit'
 import type { Principal, PrincipalAuditAttribution } from '@sim/auth/principal'
 import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { runDeclaredContentOperation } from '@/lib/core/application/content-delivery'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeWorkspaceOperation,
@@ -214,27 +215,30 @@ export function defineAuthorizedWorkspaceUseCase<
     async execute(args) {
       const executionContext = await authorizePhase(args)
       const { principal, context, request } = executionContext
-      return runWithOutboundOrganization(context.workspaceOrganizationId, async () => {
-        const result = await withinAuthorizedWorkspaceOperation(() =>
-          definition.execute(executionContext)
-        )
-        const resultContext = { ...executionContext, result }
-        const projectedAudit = definition.projectAudit?.(resultContext)
-        if (projectedAudit !== undefined) {
-          const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
-          if (auditEntries.length > 0) {
-            recordProjectedUseCaseAuditEntries(
-              definition.operation,
-              context.workspaceId,
-              principal,
-              request,
-              auditEntries
-            )
+      return runWithOutboundOrganization(context.workspaceOrganizationId, () =>
+        runDeclaredContentOperation(
+          definition.operation,
+          principal,
+          () => withinAuthorizedWorkspaceOperation(() => definition.execute(executionContext)),
+          async (result) => {
+            const resultContext = { ...executionContext, result }
+            const projectedAudit = definition.projectAudit?.(resultContext)
+            if (projectedAudit !== undefined) {
+              const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
+              if (auditEntries.length > 0) {
+                recordProjectedUseCaseAuditEntries(
+                  definition.operation,
+                  context.workspaceId,
+                  principal,
+                  request,
+                  auditEntries
+                )
+              }
+            }
+            await definition.afterSuccess?.(resultContext)
           }
-        }
-        await definition.afterSuccess?.(resultContext)
-        return result
-      })
+        )
+      )
     },
   }
 }

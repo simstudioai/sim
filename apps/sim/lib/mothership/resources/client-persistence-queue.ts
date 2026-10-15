@@ -122,6 +122,26 @@ export class ResourcePersistenceQueue {
   }
 
   /**
+   * Forgets a write that would add back a resource the server has already
+   * removed on its own, so neither a later flush nor the projection over
+   * server history resurrects it. A removal the user queued still runs, and a
+   * write already in flight is left to its own bookkeeping.
+   */
+  discardUpsert(
+    type: MothershipResource['type'],
+    id: string,
+    scopeId: string,
+    workspaceId?: string
+  ): void {
+    const key = this.getKey(scopeId, type, id, workspaceId)
+    if (this.pendingRemovals.has(key) || this.inFlight.has(key)) return
+    this.desiredUpdates.delete(key)
+    this.failedKeys.delete(key)
+    this.pendingKeys.delete(key)
+    this.persistedKeys.delete(key)
+  }
+
+  /**
    * Whether a pending write would change which resources the chat holds — an
    * add the server has not accepted yet, or a delete that has not landed.
    *

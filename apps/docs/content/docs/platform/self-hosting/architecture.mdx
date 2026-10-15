@@ -1,112 +1,116 @@
 ---
 title: Architecture
-description: Every service Sim runs, what it depends on, and where state lives
+description: Services, dependencies, request paths, and durable state in a self-hosted deployment
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
-Understanding what runs where makes every other operational decision — scaling, backup, network policy, upgrades — straightforward.
+Sim runs an app, a realtime server, PostgreSQL, Redis, and a scheduler. This page shows their dependencies and the state you need to preserve.
 
 ## Services
 
-| Service | Image | Port | Stateless | Required |
+| Service | Image | Port | State | Required |
 |---|---|---|---|---|
-| **app** | `ghcr.io/simstudioai/simstudio` | 3000 | Only with object storage configured | Yes |
-| **realtime** | `ghcr.io/simstudioai/realtime` | 3002 | Yes | Yes |
-| **migrations** | `ghcr.io/simstudioai/migrations` | — | Yes (runs once) | Yes |
-| **postgresql** | `pgvector/pgvector:pg17` | 5432 | **No** | Yes |
-| **redis** | `redis:7-alpine` | 6379 | Mostly | Yes past one replica; bundled by default |
-| **cron** | `ghcr.io/simstudioai/cron` (Compose) / `curlimages/curl` (CronJobs) | — | Yes | Yes, unless you disable scheduled jobs |
-| **pii** | `ghcr.io/simstudioai/pii` | 5001 | Yes | Optional |
-| **ollama** | `ollama/ollama` | 11434 | **No** (model cache) | Optional |
-| **telemetry** | `otel/opentelemetry-collector-contrib` | 4317/4318 | Yes | Optional |
+| **app** | `ghcr.io/simstudioai/simstudio` | 3000 | Local uploads unless shared storage is configured | Yes |
+| **realtime** | `ghcr.io/simstudioai/realtime` | 3002 | In-flight collaboration state | Yes |
+| **migrations** | `ghcr.io/simstudioai/migrations` | — | One-shot schema and data migrations | Yes |
+| **postgresql** | `pgvector/pgvector:pg17` | 5432 | Durable application data | Yes |
+| **redis** | `redis:7-alpine` | 6379 | Cache, coordination, and live events | Bundled by default; required across replicas |
+| **cron** | `ghcr.io/simstudioai/cron` (Compose) / `curlimages/curl` (Kubernetes) | — | None | Required for scheduled work |
+| **pii** | `ghcr.io/simstudioai/pii` | 5001 | None | Optional |
+| **ollama** | `ollama/ollama` | 11434 | Model cache | Optional |
+| **telemetry** | `otel/opentelemetry-collector-contrib` | 4317/4318 | None | Optional |
 
-### app
+### App
 
-The Next.js application: the editor UI, every API route, and the workflow execution engine. Workflow runs happen **inside the app process** by default, using an isolated-vm sandbox, which is why memory rather than CPU is the constraining resource. The chart requests 4 Gi and caps the app at 8 Gi; `docker-compose.prod.yml` sets only an 8 GB limit, with no reservation. Configuring a remote sandbox provider (E2B or Daytona) moves code execution out of the process; see [Security](/platform/self-hosting/security).
+The Next.js app serves the workflow builder, API routes, and workflow orchestration. Local JavaScript runs in Node child workers using isolated-vm inside the app container. The app and those workers share the container's memory budget. The Helm chart requests 4 GiB and limits the app to 8 GiB; `docker-compose.prod.yml` sets an 8 GB memory limit without a reservation.
 
-Any replica can serve any request **once object storage is configured**. Until then the app writes uploads to its own container filesystem, which makes it stateful — see [Where state lives](#where-state-lives). Scale it horizontally only after reading [Scaling & HA](/platform/self-hosting/scaling) for the Redis, storage, and connection-pool prerequisites.
+E2B or Daytona moves supported code execution to a remote sandbox. `TRIGGER_DEV_ENABLED` routes asynchronous jobs to Trigger.dev; the default deployment uses database-backed jobs. See [Sandboxes](/platform/self-hosting/sandboxes) for the provider and image requirements.
 
-### realtime
+Any replica can serve files once shared object storage is configured. Before adding replicas, configure storage, Redis, and database connection capacity as described in [Scaling and high availability](/platform/self-hosting/scaling).
 
-A Bun Socket.IO server handling collaborative editing, live execution updates, and collaborative documents. Clients connect at `/socket.io`.
+### Realtime
 
-It shares the database and `BETTER_AUTH_SECRET` with the app (Better Auth's shared-database-session pattern), so it authenticates the same users without a separate login.
+The Bun Socket.IO server carries collaborative editing, live execution updates, and collaborative documents. Clients connect at `/socket.io`.
+
+Realtime shares PostgreSQL and `BETTER_AUTH_SECRET` with the app, using Better Auth's shared-database-session pattern. It authenticates the same accounts without a separate login.
 
 <Callout type="warn">
-  Scaling realtime past one replica **requires** `REDIS_URL` — the Socket.IO Redis adapter is what carries events between pods. Without it, two users on different pods silently stop seeing each other's edits.
+  More than one realtime replica requires `REDIS_URL`. The Socket.IO Redis adapter carries events between replicas; without it, members connected to different pods do not see each other's edits.
 </Callout>
 
-### migrations
+A realtime server must exist for editing and live updates. Set `realtime.enabled: false` in Helm only when `app.env.SOCKET_SERVER_URL` points to a realtime instance you run separately.
 
-Applies Drizzle schema migrations, then exits. In Docker Compose it is a one-shot service; in Kubernetes it is an **init container on the app Deployment**, so migrations run before any app pod becomes ready and re-run (as a no-op) on every rollout.
+### Migrations
 
-Migrations are forward-only. See [Upgrades](/platform/self-hosting/upgrades).
+The migrator applies Drizzle SQL and registered data migrations, then exits. Compose runs it as a one-shot service. Helm runs it as an app init container, so migrations complete before that app pod starts. Later pods and rollouts run the migrator again; already-applied migrations are skipped.
 
-### postgresql
+Migrations are forward-only. See [Upgrades](/platform/self-hosting/upgrades) for backup and rollback procedures.
 
-PostgreSQL 17 with the **pgvector** extension, which is required — knowledge base embeddings are stored and searched as vectors. The `pgvector/pgvector:pg17` image ships it; a managed instance needs the extension enabled (Sim's migrations issue `CREATE EXTENSION` automatically where permissions allow).
+### PostgreSQL
 
-This holds essentially all durable state: workflows, runs, logs, users, organizations, credentials, knowledge base chunks and embeddings, and table data.
+Sim requires PostgreSQL with the pgvector extension for knowledge base embeddings. The bundled image uses PostgreSQL 17 and includes pgvector. On managed PostgreSQL, make the extension available; migrations issue `CREATE EXTENSION` where permissions allow.
 
-### redis
+PostgreSQL holds workflows, runs, logs, accounts, organizations, credentials, knowledge base chunks and embeddings, table data, and upload-session state.
 
-Backs pub/sub, the Socket.IO adapter, the idempotency store, execution progress markers, distributed execution limits, and the CLI-auth approval store. The idempotency store and execution progress markers fall back to Postgres or in-process state. The pairing-code approval store has no fallback, so API-key login through pairing requires Redis. OAuth login uses a separate path. Pub/sub falls back to a **process-local** emitter, which is fine on one replica and drops every cross-pod event on more than one. See [Redis](/platform/self-hosting/redis).
+### Redis
 
-### cron
+Redis carries live events and stores shared coordination state. Some stores fall back to PostgreSQL or process-local state, but cross-pod collaboration has no local fallback. CLI API-key pairing also requires Redis, even with one replica; OAuth login uses a separate path. See [Redis](/platform/self-hosting/redis) for the full fallback matrix.
 
-Scheduled jobs call internal endpoints — schedule execution, polling triggers, webhook-subscription renewal, connector syncs, outbox processing, data drains, workspace file-search dispatch, table row TTL cleanup, inbox-entitlement reconciliation, and sandbox-image cleanup. Kubernetes runs them as CronJobs; Docker Compose runs them from a single supercronic service. Same paths, same schedules. See [Background Jobs](/platform/self-hosting/background-jobs).
+### Scheduler
+
+Scheduled workflows, polling triggers, connector syncs, subscription renewal, and maintenance jobs call authenticated app endpoints. Helm provides CronJobs; Compose provides a supercronic service. See [Background jobs](/platform/self-hosting/background-jobs) for the shipped inventory and the additional upload-session cleanup schedule operators must configure.
+
+### Optional Chat service
+
+The chart can also render the optional `copilot` service, its separate PostgreSQL database, and its migration job. These are separate from the app and workflow database. Enabling them requires the service's image, license, credentials, and database configuration; see the chart's `copilot` values and [reference architectures](/platform/self-hosting/reference-architectures).
 
 ## Where state lives
 
-Three places once the deployment is configured for production. Everything else is disposable.
-
 | Store | Contents | Backup |
 |---|---|---|
-| **PostgreSQL** | All application data | `pg_dump` / managed snapshots + PITR |
-| **Object storage** | Uploaded files, KB documents, execution outputs, avatars, logos | Bucket versioning + lifecycle |
-| **Secrets** | `ENCRYPTION_KEY`, `API_ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, `CRON_SECRET` | Secret manager |
+| **PostgreSQL** | Application data, including any separately enabled Chat-service database | `pg_dump`, managed snapshots, and point-in-time recovery |
+| **Object storage** | Files, knowledge base documents, execution outputs, avatars, and logos | Bucket versioning and lifecycle policies |
+| **Secrets** | `ENCRYPTION_KEY`, `API_ENCRYPTION_KEY`, `BETTER_AUTH_SECRET`, `INTERNAL_API_SECRET`, `CRON_SECRET` | Secret manager and separate recovery copies |
 
 <Callout type="error">
-  **Object storage is not configured by default, and the fallback is not durable.** Sim only uses S3, Azure Blob, or GCS when the corresponding variables are set (`S3_BUCKET_NAME` + `AWS_REGION`, `AZURE_STORAGE_CONTAINER_NAME` + credentials, or `GCS_BUCKET_NAME`). With none set it writes uploads to a directory inside the app container — and neither `docker-compose.prod.yml` nor the Helm chart mounts a volume there. Files are lost when the container is recreated and are invisible to other replicas. Configure [object storage](/platform/self-hosting/object-storage) before storing anything you care about, and before scaling past one replica.
+  Neither the production Compose file nor the Helm chart mounts a volume for local uploads. Without configured cloud storage or your own volume, recreating the app container loses those files. Local files are also invisible to other replicas. Configure [object storage](/platform/self-hosting/object-storage) before storing durable files or scaling.
 </Callout>
 
 <Callout type="error">
-  `ENCRYPTION_KEY` is not recoverable and not derivable. It encrypts workspace and personal environment variables, stored provider API keys, MCP OAuth credentials, and deployment/chat secrets at rest — a database restore paired with a *different* key yields a working app in which none of that can be decrypted. Back it up separately from the database, and never rotate it casually.
+  Back up `ENCRYPTION_KEY` separately from PostgreSQL. A database restore with a different key cannot decrypt workspace and personal environment variables, stored provider keys, MCP OAuth credentials, or deployment/chat secrets. Recovery requires the original key or re-encryption before rotation.
 </Callout>
 
-Redis is a cache and message bus. Losing it drops in-flight live updates; it does not lose committed data.
+Redis is a cache and message bus, not the owner of committed application data. Losing it interrupts in-flight coordination and live updates; completed data remains in PostgreSQL and object storage.
 
 ## Request paths
 
-**Editor / API** — browser → ingress/reverse proxy → app:3000 → Postgres, Redis, object storage.
+| Traffic | Path |
+|---|---|
+| Editor / API | Browser → ingress or reverse proxy → app:3000 → PostgreSQL, Redis, storage |
+| Collaboration | Browser → ingress → realtime:3002 (`/socket.io`, WebSocket upgrade) → Redis → other realtime pods |
+| Cloud upload | Browser → app opens upload session → signed transfer instructions → browser uploads directly to storage → app verifies completion and records metadata |
+| Local upload | Browser → app opens upload session → bytes stream through `/api/v2/uploads/...` to local disk |
+| Workflow execution | Manual, API, webhook, or schedule trigger → app enqueues or orchestrates run → local code workers or remote sandbox → results/logs to PostgreSQL, progress markers to Redis |
+| Background work | Scheduler → `Authorization: Bearer $CRON_SECRET` → internal app endpoint |
 
-**Collaboration** — browser → ingress → realtime:3002 (`/socket.io`, WebSocket upgrade) → Redis pub/sub → other realtime pods. The proxy must pass upgrade headers and allow long-lived idle connections; see [Networking](/platform/self-hosting/networking).
-
-**File upload (object storage configured)** — browser asks the app to open an upload session → app returns signed transfer instructions → browser sends the bytes **directly to object storage** (one `PUT` up to 50 MB, multipart parts above that) → browser tells the app the session is complete and the app records metadata. This is why buckets need a CORS policy naming your Sim origin. Downloads are proxied back through the app.
-
-**File upload (local disk)** — the same upload session opens, but the transfer instructions point back at the app's own `/api/v2/uploads/...` endpoints instead of a bucket, so the bytes stream through the app. No CORS configuration is involved, and no bucket is used.
-
-**Workflow execution** — trigger (manual, API, webhook, or schedule) → app enqueues or runs inline → isolated-vm sandbox → results and logs to Postgres, progress markers to Redis.
-
-**Background work** — CronJob → `Authorization: Bearer $CRON_SECRET` → app endpoint → same execution path.
+Cloud uploads use a single `PUT` through 50 MiB and multipart above that. Local uploads use a single `PUT` through 8 MiB and multipart above that. Cloud buckets need CORS for the Sim origin and must be reachable from browsers; downloads are proxied through the app. Local uploads need no bucket CORS configuration.
 
 ## Network boundaries
 
 | From | To | Purpose |
 |---|---|---|
-| Internet | app:3000, realtime:3002 | Users |
-| app, realtime | postgresql:5432 | Data |
-| app, realtime | redis:6379 | Pub/sub, cache |
-| app | Object storage endpoint | Files (server side) |
-| **Browser** | **Object storage endpoint** | Presigned uploads — must be publicly reachable |
-| app | Model provider APIs, integration APIs, SMTP/email provider | Outbound |
-| cron | app:3000 (internal Service / compose network) | Scheduled triggers |
+| Internet | app:3000, realtime:3002 | Browser/API traffic |
+| App, realtime | PostgreSQL:5432, Redis:6379 | Data and coordination |
+| App | Object-storage endpoint | Storage operations and proxied downloads |
+| Browser | Object-storage endpoint | Signed uploads |
+| App | Model/integration APIs and email provider | Outbound calls |
+| Scheduler | Internal app:3000 | Scheduled work |
 
-The chart's optional NetworkPolicy blocks cloud metadata endpoints (`169.254.169.254`) by default but allows ingress from any pod in the cluster unless you scope `networkPolicy.ingressFrom`. See [Security](/platform/self-hosting/security).
+The proxy must support WebSocket upgrades, streams, and long-lived connections. The chart's optional NetworkPolicy excludes cloud metadata addresses from broad egress, but its default ingress peer is broad. Configure the actual peers and managed-datastore paths before enabling it.
 
-<FAQ items={[
-  { question: "Can I run the app without the realtime service?", answer: "A realtime server must exist — it carries collaborative editing and live execution updates, and the editor degrades badly without one. You can set realtime.enabled=false in the chart, but only when pointing app.env.SOCKET_SERVER_URL at a realtime instance you run yourself."},
-  { question: "Does workflow execution run in a separate worker process?", answer: "By default, no — executions run inside the app process using an isolated-vm sandbox, which is why the app has an 8 Gi memory limit. Setting E2B_ENABLED or SANDBOX_PROVIDER=daytona moves user code to a remote sandbox, and TRIGGER_DEV_ENABLED routes async jobs to Trigger.dev; otherwise the database-backed job queue is used."},
-]} />
+## Related docs
+
+- [Reference architectures](/platform/self-hosting/reference-architectures)
+- [Networking](/platform/self-hosting/networking)
+- [Security and hardening](/platform/self-hosting/security)

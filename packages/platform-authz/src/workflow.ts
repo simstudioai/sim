@@ -76,7 +76,10 @@ interface LockStatus {
   lockedFolderId: string | null
 }
 
-async function getFolderLockStatus(folderId: string | null): Promise<LockStatus> {
+async function getFolderLockStatus(
+  folderId: string | null,
+  executor: Pick<typeof db, 'select'> = db
+): Promise<LockStatus> {
   if (!folderId) {
     return {
       locked: false,
@@ -93,7 +96,7 @@ async function getFolderLockStatus(folderId: string | null): Promise<LockStatus>
 
   while (currentFolderId && !visited.has(currentFolderId)) {
     visited.add(currentFolderId)
-    const [folder] = await db
+    const [folder] = await executor
       .select({
         id: folderTable.id,
         parentId: folderTable.parentId,
@@ -177,8 +180,16 @@ export async function assertWorkflowMutable(workflowId: string): Promise<void> {
   }
 }
 
-export async function assertFolderMutable(folderId: string | null): Promise<void> {
-  const status = await getFolderLockStatus(folderId)
+/**
+ * Throws {@link FolderLockedError} when the folder or an ancestor is locked. A caller inside a
+ * transaction passes its handle as `executor`, so the ancestry walk reads on the connection the
+ * transaction already holds instead of checking a second one out of the pool.
+ */
+export async function assertFolderMutable(
+  folderId: string | null,
+  executor: Pick<typeof db, 'select'> = db
+): Promise<void> {
+  const status = await getFolderLockStatus(folderId, executor)
   if (status.locked) {
     throw new FolderLockedError(
       status.inheritedLocked ? 'Folder is locked by an ancestor folder' : 'Folder is locked'

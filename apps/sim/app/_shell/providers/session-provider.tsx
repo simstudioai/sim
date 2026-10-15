@@ -4,7 +4,7 @@ import type React from 'react'
 import { createContext, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import {
   type AppSession,
   extractSessionDataFromAuthClientResult,

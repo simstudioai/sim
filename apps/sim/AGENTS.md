@@ -9,6 +9,7 @@ Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds
 - Styling and emcn chrome, UI copy, settings pages: `sim-styling.md`, `sim-ui-copy.md`, `sim-settings-pages.md`
 - URL state, list and menu order, caching: `sim-url-state.md`, `sim-list-ordering.md`, `sim-caching.md`
 - Tools, blocks, triggers: `sim-integrations.md`; isolated-vm sandbox worker: `sim-sandbox.md`
+- Anything that returns stored file, run-file, knowledge or table content to Chat: `sim-content-delivery.md`
 - Tests: `sim-testing.md` and the `test-audit` skill
 - Landing pages: `app/(landing)/CLAUDE.md`, `landing-seo-geo.md`, `constitution.md` (product language)
 

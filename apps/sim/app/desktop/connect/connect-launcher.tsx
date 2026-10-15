@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Chip } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { client } from '@/lib/auth/auth-client'
+import { client } from '@/lib/auth/client'
 import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 import { DesktopHandoffShell } from '@/app/desktop/components/desktop-handoff-shell'
 

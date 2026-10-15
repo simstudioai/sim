@@ -19,6 +19,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { toNumberOrNull } from '@sim/utils/coerce'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
@@ -65,7 +66,7 @@ vi.mock('@/connectors/registry.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
@@ -80,7 +81,7 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import * as connectorTokens from '@/lib/knowledge/connectors/access-token'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import {
   beginListingCheckpoint,
   listingFingerprint,
@@ -104,7 +105,7 @@ import {
 import { createContentSyncLease, createMemberSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import * as documentService from '@/lib/knowledge/documents/service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { ConnectorConfig, ExternalDocument, SyncResult } from '@/connectors/types'
 
@@ -150,7 +151,7 @@ describe('durable source and member cycles in PostgreSQL', () => {
     }))
   })
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(user).where(eq(user.id, ids.aliceId))
     await db.delete(user).where(eq(user.id, ids.bobId))
     await rm(fixture.storageRoot, { recursive: true, force: true })
@@ -1007,7 +1008,10 @@ describe('durable source and member cycles in PostgreSQL', () => {
         hardDelete.mockRestore()
       }
     }
-    /** Plans a window statement from freshly analyzed statistics, returning the document rows it read. */
+    /**
+     * Plans a window statement from freshly analyzed statistics, returning the document rows it
+     * read and the scans that read them, so a statement over the bound names the plan behind it.
+     */
     const explainWalk = async (query: string, params: Parameters<typeof db.$client.unsafe>[1]) => {
       const [explained] = await db.$client.begin(async (tx) => {
         await tx.unsafe('ANALYZE document')
@@ -1017,17 +1021,16 @@ describe('durable source and member cycles in PostgreSQL', () => {
         const plan = toRecord(node)
         return [plan, ...toArray(plan.Plans).flatMap(nodes)]
       }
-      const plan = nodes(toRecord(toArray(explained['QUERY PLAN'])[0]).Plan)
-      return plan
+      const scans = nodes(toRecord(toArray(explained['QUERY PLAN'])[0]).Plan)
         .filter((node) => node['Relation Name'] === 'document')
-        .reduce(
-          (total, node) =>
-            total +
+        .map((node) => ({
+          scan: `${node['Node Type']}${node['Index Name'] ? ` on ${node['Index Name']}` : ''}`,
+          read:
             ((toNumberOrNull(node['Actual Rows']) ?? 0) +
               (toNumberOrNull(node['Rows Removed by Filter']) ?? 0)) *
-              (toNumberOrNull(node['Actual Loops']) ?? 1),
-          0
-        )
+            (toNumberOrNull(node['Actual Loops']) ?? 1),
+        }))
+      return { read: scans.reduce((total, { read }) => total + read, 0), scans }
     }
     /**
      * Every window statement reads at most one window of documents, whichever connector index
@@ -1039,7 +1042,8 @@ describe('durable source and member cycles in PostgreSQL', () => {
     ) => {
       expect(walked.length).toBeGreaterThan(0)
       for (const { query, params } of walked) {
-        expect(await explainWalk(query, params), query).toBeLessThanOrEqual(
+        const { read, scans } = await explainWalk(query, params)
+        expect(read, `${query}\n${JSON.stringify(scans, null, 2)}`).toBeLessThanOrEqual(
           RECONCILIATION_WINDOW_SIZE
         )
       }

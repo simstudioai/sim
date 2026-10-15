@@ -17,14 +17,12 @@ import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/typ
  * per page from the normalized `copilot_messages` table, so `messages` is the
  * ordered list of message `content` objects rather than the DB column.
  *
- * `planArtifact` is omitted too: the column still exists only until a
- * follow-up migration can safely drop it, and nothing writes it any more, so
- * draining it would ship a dead field to every export consumer. External
- * conversation bindings are internal routing metadata and are not exported.
+ * External conversation bindings are internal routing metadata and are not
+ * exported.
  */
 type CopilotChatRow = Omit<
   typeof copilotChats.$inferSelect,
-  'messages' | 'planArtifact' | 'externalConversationKey' | 'externalConversationMetadata'
+  'memorySpaceId' | 'messages' | 'externalConversationKey' | 'externalConversationMetadata'
 > & {
   messages: unknown[]
 }
@@ -100,9 +98,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
         const transcriptSizes = await tx
           .select({
             chatId: copilotMessages.chatId,
-            bytes: sql<number>`sum(octet_length(row_to_json(${copilotMessages})::text))`.mapWith(
-              Number
-            ),
+            bytes: sql<number>`sum(octet_length(${copilotMessages.content}::text))`.mapWith(Number),
           })
           .from(copilotMessages)
           .where(messageCondition)

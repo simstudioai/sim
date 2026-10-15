@@ -11,6 +11,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -29,6 +30,7 @@ interface ArchiveWorkflowOptions {
   requestId: string
   notifySocket?: boolean
   archivedAt?: Date
+  strictExternalCleanup?: boolean
 }
 
 async function notifyWorkflowArchived(workflowId: string, requestId: string): Promise<void> {
@@ -54,7 +56,8 @@ async function notifyWorkflowArchived(workflowId: string, requestId: string): Pr
 
 async function cleanupExternalWebhooksForWorkflow(
   workflowId: string,
-  requestId: string
+  requestId: string,
+  strict = false
 ): Promise<void> {
   try {
     const { cleanupExternalWebhook } = await import('@/lib/webhooks/provider-subscriptions')
@@ -73,8 +76,11 @@ async function cleanupExternalWebhooksForWorkflow(
 
     for (const webhookData of webhooksToCleanup) {
       try {
-        await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId)
+        await cleanupExternalWebhook(webhookData.webhook, webhookData.workflow, requestId, {
+          throwOnError: strict,
+        })
       } catch (error) {
+        if (strict) throw error
         logger.warn(
           `[${requestId}] Failed to cleanup external webhook ${webhookData.webhook.id} for workflow ${workflowId}`,
           { error }
@@ -82,6 +88,7 @@ async function cleanupExternalWebhooksForWorkflow(
       }
     }
   } catch (error) {
+    if (strict) throw error
     logger.warn(`[${requestId}] Error during external webhook cleanup for workflow ${workflowId}`, {
       error,
     })
@@ -302,8 +309,26 @@ export async function disableUserResources(userId: string): Promise<void> {
     .from(workspace)
     .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
+  const failures: { workspaceId: string; error: unknown }[] = []
+  // Sequential: environments of one Project contend on its exclusive lock.
   for (const row of ownedWorkspaces) {
-    await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
+    try {
+      await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
+    } catch (error) {
+      failures.push({ workspaceId: row.id, error })
+    }
+  }
+  if (failures.length > 0) {
+    logger.error(`[${requestId}] Failed to archive workspaces for banned user ${userId}`, {
+      failures: failures.map(({ workspaceId, error }) => ({
+        workspaceId,
+        error: getErrorMessage(error),
+      })),
+    })
+    throw new AggregateError(
+      failures.map((failure) => failure.error),
+      `Failed to archive ${failures.length} of ${ownedWorkspaces.length} workspaces for banned user ${userId}`
+    )
   }
 
   logger.info(
@@ -406,11 +431,22 @@ export async function finishWorkflowArchive(
     await notifyWorkflowArchived(workflowId, options.requestId)
   }
 
-  await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)
+  await cleanupExternalWebhooksForWorkflow(
+    workflowId,
+    options.requestId,
+    options.strictExternalCleanup
+  )
 
   if (workspaceId && mcpPubSub) {
     for (const serverId of new Set(serverIds)) {
-      mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      try {
+        mcpPubSub.publishWorkflowToolsChanged({ serverId, workspaceId })
+      } catch (error) {
+        logger.warn(
+          `[${options.requestId}] MCP tools-changed publish failed for server ${serverId}`,
+          { error }
+        )
+      }
     }
   }
 }

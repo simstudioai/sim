@@ -17,6 +17,8 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -50,14 +52,18 @@ import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-events'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
-import { createDocumentRecords, createSingleDocument } from '@/lib/knowledge/documents/service'
+import {
+  createDocumentRecords,
+  createSingleDocument,
+  hardDeleteDocuments,
+} from '@/lib/knowledge/documents/service'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { uploadKnowledgeArtifact } from '@/lib/knowledge/documents/storage-upload'
 import {
   deleteWorkspaceFile,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
@@ -86,6 +92,42 @@ async function sourceFile(
       notifyWorkspaceChange: false,
     }
   )
+}
+
+/**
+ * Runs `work` while another transaction holds `FOR KEY SHARE` on the knowledge base row, as an
+ * in-flight embedding insert does through its foreign key, and requires it to settle well before
+ * that holder's idle timeout would release the lock.
+ */
+async function settlesWhileKeyShareHeld<T>(knowledgeBaseId: string, work: () => Promise<T>) {
+  const release = createDeferred<void>()
+  const acquired = createDeferred<void>()
+  const holding = db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL idle_in_transaction_session_timeout = '15s'`)
+    await tx
+      .select({ id: knowledgeBase.id })
+      .from(knowledgeBase)
+      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      .for('key share')
+    acquired.resolve()
+    await release.promise
+  })
+  await acquired.promise
+  const running = Promise.allSettled([work()])
+  let settled = false
+  void running.then(() => {
+    settled = true
+  })
+  try {
+    await expect.poll(() => settled, { interval: 5, timeout: 5000 }).toBe(true)
+    const [outcome] = await running
+    if (outcome.status === 'rejected') throw outcome.reason
+    return outcome.value
+  } finally {
+    release.resolve()
+    await holding
+    await running
+  }
 }
 
 /** Drains real audit writes before asserting persisted rows, including duplicates from one operation. */
@@ -130,7 +172,7 @@ afterAll(async () => {
   for (const ids of fixtures) {
     await db.delete(auditLog).where(eq(auditLog.workspaceId, ids.workspaceId))
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }
@@ -228,6 +270,33 @@ describe('durable workspace file import', () => {
       vi.stubEnv('DB_TX_TRIPWIRE', tripwire)
     }
   })
+
+  it.each(['single', 'bulk'] as const)(
+    '%s admission and hard delete commit while an embedding holds the KB key-share lock',
+    async (mode) => {
+      const ids = await seed()
+      const source = await sourceFile(ids, 'ordinary source bytes')
+      const input = {
+        filename: source.name,
+        fileUrl: `/api/files/serve/${encodeURIComponent(source.key)}?context=workspace`,
+        fileSize: source.size,
+        mimeType: source.type,
+      }
+      const documentIds = await settlesWhileKeyShareHeld(ids.knowledgeBaseId, async () =>
+        mode === 'single'
+          ? [(await createSingleDocument(input, ids.knowledgeBaseId, generateId(), ids.aliceId)).id]
+          : (
+              await createDocumentRecords([input], ids.knowledgeBaseId, generateId(), ids.aliceId)
+            ).map((created) => created.documentId)
+      )
+      expect(documentIds).toHaveLength(1)
+      expect(
+        await settlesWhileKeyShareHeld(ids.knowledgeBaseId, () =>
+          hardDeleteDocuments(documentIds, generateId())
+        )
+      ).toBe(1)
+    }
+  )
 
   it('indexes the admitted snapshot after the source was deleted and temporary access would have expired', async () => {
     const ids = await seed()

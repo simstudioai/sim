@@ -30,7 +30,7 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
 
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/file-parsers', () => fileParsersMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock('@/lib/internal/mistral/operations', () => ({
   executeMistralParse: mockExecuteMistralParse,
 }))
@@ -40,8 +40,8 @@ import { waitForProviderAdmission } from '@/lib/core/rate-limiter/provider-admis
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { MistralOperationError } from '@/lib/internal/mistral/errors'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
+import { processDocument } from '@/lib/knowledge/documents/processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 
 const mockParseBuffer = fileParsersMockFns.mockParseBuffer

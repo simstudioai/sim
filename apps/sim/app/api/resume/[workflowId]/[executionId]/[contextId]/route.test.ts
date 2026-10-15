@@ -51,9 +51,13 @@ vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
+import { executeResumeWorkflow } from '@/lib/workflows/executor/resume-execution'
 import { POST } from '@/app/api/resume/[workflowId]/[executionId]/[contextId]/route'
+import { attachExecutionResult, buildBlockExecutionError } from '@/executor/utils/errors'
+import type { SerializedBlock } from '@/serializer/types'
 
-const { mockEnqueueOrStartResume, mockGetPausedExecutionDetail } = humanInTheLoopManagerMockFns
+const { mockEnqueueOrStartResume, mockGetPausedExecutionDetail, mockStartResumeExecution } =
+  humanInTheLoopManagerMockFns
 const { mockGetWorkspaceBilledAccountUserId: mockGetCurrentPayer } = workspacesUtilsMockFns
 const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 const mockResolveRunContext = workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext
@@ -410,6 +414,102 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
       expect.objectContaining({ resumeExecutionId: 'resume-execution-1' }),
       expect.objectContaining({ jobId: 'resume-execution:resume-entry-1' })
     )
+  })
+
+  describe('a synchronous resume whose run fails', () => {
+    const STARTED_RESUME = {
+      status: 'started',
+      resumeExecutionId: 'resume-execution-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution: { id: 'paused-execution-1' },
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    }
+
+    /** The shape the engine throws when a block fails mid-run: block context plus the partial result. */
+    function inBandRunFailure() {
+      const conditionBlock = {
+        id: 'condition-1',
+        metadata: { id: 'condition', name: 'Route' },
+      } as SerializedBlock
+      const error = buildBlockExecutionError({
+        block: conditionBlock,
+        error: new Error('Condition evaluation failed'),
+      })
+      attachExecutionResult(error, {
+        success: false,
+        output: { partial: true },
+        error: error.message,
+        logs: [],
+        metadata: {
+          startTime: '2026-08-05T00:00:00.000Z',
+          endTime: '2026-08-05T00:00:01.000Z',
+          duration: 1000,
+        },
+      })
+      return error
+    }
+
+    function resumeOnV2Surface() {
+      return executeResumeWorkflow({
+        workflowId: WORKFLOW_ID,
+        executionId: EXECUTION_ID,
+        contextId: CONTEXT_ID,
+        workspaceId: WORKSPACE_ID,
+        userId: 'current-api-key-user',
+        resumeInput: { approved: true },
+        isApiCaller: true,
+        pollingSurface: 'v2',
+        allowStreaming: false,
+      })
+    }
+
+    beforeEach(() => {
+      mockEnqueueOrStartResume.mockResolvedValueOnce(STARTED_RESUME)
+    })
+
+    it('settles an in-band failure as a failed run with a classified error', async () => {
+      mockStartResumeExecution.mockRejectedValueOnce(inBandRunFailure())
+
+      await expect(resumeOnV2Surface()).resolves.toEqual({
+        kind: 'sync',
+        executionId: 'resume-execution-1',
+        success: false,
+        status: 'failed',
+        output: { partial: true },
+        error: 'Route: Condition evaluation failed',
+        structuredError: {
+          message: 'Condition evaluation failed',
+          code: 'BLOCK_EXECUTION_FAILED',
+          blockId: 'condition-1',
+          blockName: 'Route',
+          blockType: 'condition',
+        },
+        metadata: {
+          startTime: '2026-08-05T00:00:00.000Z',
+          endTime: '2026-08-05T00:00:01.000Z',
+          duration: 1000,
+        },
+      })
+    })
+
+    it('still throws a failure that produced no run', async () => {
+      const infrastructureFailure = new Error('Run buffer unavailable')
+      mockStartResumeExecution.mockRejectedValueOnce(infrastructureFailure)
+
+      await expect(resumeOnV2Surface()).rejects.toBe(infrastructureFailure)
+    })
+
+    it('keeps the legacy route answering an in-band failure with its 400 error body', async () => {
+      mockStartResumeExecution.mockRejectedValueOnce(inBandRunFailure())
+      const { request, context } = makeRequest()
+
+      const response = await POST(request, context)
+
+      expect(response.status).toBe(400)
+      expect(await response.json()).toEqual({ error: 'Route: Condition evaluation failed' })
+    })
   })
 
   it.each([

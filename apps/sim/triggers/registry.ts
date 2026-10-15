@@ -217,6 +217,24 @@ import {
 } from '@/triggers/emailbison'
 import { fathomNewMeetingTrigger, fathomWebhookTrigger } from '@/triggers/fathom'
 import { firefliesTranscriptionCompleteTrigger } from '@/triggers/fireflies'
+import {
+  fivetranConnectionFailureTrigger,
+  fivetranConnectionSuccessfulTrigger,
+  fivetranCreateConnectorTrigger,
+  fivetranDeleteConnectorTrigger,
+  fivetranEditConnectorTrigger,
+  fivetranForceUpdateConnectorTrigger,
+  fivetranPauseConnectorTrigger,
+  fivetranResumeConnectorTrigger,
+  fivetranResyncConnectorTrigger,
+  fivetranResyncTableTrigger,
+  fivetranSyncEndTrigger,
+  fivetranSyncStartTrigger,
+  fivetranTransformationFailedTrigger,
+  fivetranTransformationStartTrigger,
+  fivetranTransformationSucceededTrigger,
+  fivetranWebhookTrigger,
+} from '@/triggers/fivetran'
 import { genericWebhookTrigger } from '@/triggers/generic'
 import {
   githubIssueClosedTrigger,
@@ -802,6 +820,22 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   gitlab_comment: gitlabCommentTrigger,
   gitlab_webhook: gitlabWebhookTrigger,
   fireflies_transcription_complete: firefliesTranscriptionCompleteTrigger,
+  fivetran_connection_failure: fivetranConnectionFailureTrigger,
+  fivetran_connection_successful: fivetranConnectionSuccessfulTrigger,
+  fivetran_create_connector: fivetranCreateConnectorTrigger,
+  fivetran_delete_connector: fivetranDeleteConnectorTrigger,
+  fivetran_edit_connector: fivetranEditConnectorTrigger,
+  fivetran_force_update_connector: fivetranForceUpdateConnectorTrigger,
+  fivetran_pause_connector: fivetranPauseConnectorTrigger,
+  fivetran_resume_connector: fivetranResumeConnectorTrigger,
+  fivetran_resync_connector: fivetranResyncConnectorTrigger,
+  fivetran_resync_table: fivetranResyncTableTrigger,
+  fivetran_sync_end: fivetranSyncEndTrigger,
+  fivetran_sync_start: fivetranSyncStartTrigger,
+  fivetran_transformation_failed: fivetranTransformationFailedTrigger,
+  fivetran_transformation_start: fivetranTransformationStartTrigger,
+  fivetran_transformation_succeeded: fivetranTransformationSucceededTrigger,
+  fivetran_webhook: fivetranWebhookTrigger,
   fathom_new_meeting: fathomNewMeetingTrigger,
   fathom_webhook: fathomWebhookTrigger,
   gmail_poller: gmailPollingTrigger,

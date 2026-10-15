@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { defineOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { createDetachedTouch } from '@/lib/core/utils/background'
 import {
   type CredentialUserAuditEntry,
   defineAuthorizedCredentialUserUseCase,
@@ -53,10 +54,20 @@ import {
 import {
   chatViewDesktopLeaseOwnerToken,
   getDesktopExecutorClaimOwner,
-  isDesktopToolCall,
+  isBackgroundDesktopToolCall,
 } from '@/lib/mothership/tools/desktop-tools'
 
 const logger = createLogger('DesktopExecutor')
+
+/**
+ * An inbox poll never waits on its `lastSeenAt` write or stacks one behind another. Not debounced
+ * in-process: the offline check reads `lastSeenAt`, and the write's own SQL guard already bounds
+ * how often it lands.
+ */
+const touchDeviceLastSeen = createDetachedTouch({
+  label: 'desktop device last seen',
+  write: touchDesktopDevice,
+})
 
 type DeviceInput = { deviceId: string }
 
@@ -169,10 +180,10 @@ export const listDesktopInbox = defineAuthorizedCredentialUserUseCase({
     input: DeviceInput
   }): Promise<{ items: DesktopInboxEntry[] }> {
     await requireBoundDevice(principal, input.deviceId)
+    touchDeviceLastSeen(input.deviceId)
     const [rows] = await Promise.all([
       listDesktopInboxRows({ deviceId: input.deviceId, userId: principal.userId }),
       markDesktopPresent(input.deviceId),
-      touchDesktopDevice(input.deviceId),
     ])
     return { items: classifyDesktopInbox(rows) }
   },
@@ -277,7 +288,7 @@ export const claimDesktopTool = defineAuthorizedCredentialUserUseCase({
     )
     if (!call) throw new OrchestrationError('not_found', 'Desktop tool call not found')
     const args = isPlainRecord(call.args) ? call.args : {}
-    if (!isDesktopToolCall(call.toolName, args))
+    if (!isBackgroundDesktopToolCall(call.toolName, args))
       throw new OrchestrationError('forbidden', 'Tool call is not authorized for desktop execution')
     if (call.toolName === 'import_local_files') {
       if (typeof args.targetWorkspaceId !== 'string')

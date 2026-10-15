@@ -28,14 +28,14 @@ import { useRouter } from 'next/navigation'
 import { DashboardResource } from '@/components/dashboards/dashboard-resource'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 import { prefersInPlaceNavigation } from '@/lib/desktop'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import {
   FileViewer,
   type PreviewMode,

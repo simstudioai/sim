@@ -615,7 +615,8 @@ test.describe('browser tools', () => {
       /button "Allow" \[ref=(\d+)\]/
     )?.[1]
     expect(allow, JSON.stringify(popup.result)).toBeTruthy()
-    expect((await execute('browser_click', { elementId: Number(allow) })).ok).toBe(true)
+    const allowed = await execute('browser_click', { elementId: Number(allow) })
+    expect(allowed.ok, allowed.error).toBe(true)
 
     await expect.poll(dataset).toMatchObject({ connected: 'granted' })
     await expect

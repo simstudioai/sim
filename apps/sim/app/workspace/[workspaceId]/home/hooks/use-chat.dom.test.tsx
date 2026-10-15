@@ -20,6 +20,7 @@
  */
 
 import { type ReactNode, act as reactAct, StrictMode, useEffect, useState } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
@@ -59,11 +60,11 @@ vi.mock('@/lib/mothership/tools/client/local-filesystem', () => ({
 vi.mock('@/lib/mothership/tools/client/browser-tool-execution', () => ({
   executeBrowserToolOnClient: mockExecuteBrowserToolOnClient,
 }))
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.unmock('@/stores/execution/store')
 vi.unmock('@/stores/terminal')
 vi.unmock('@/stores/terminal/console/store')
-vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils', () => ({
+vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution', () => ({
   executeWorkflowWithFullLogging: mockExecuteWorkflow,
 }))
 
@@ -90,6 +91,7 @@ import {
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
@@ -748,6 +750,190 @@ describe('useChat remount send recovery', () => {
       expect(getResult().isSending).toBe(false)
     }
   )
+
+  describe('a tab the server removed while the client was still adding it', () => {
+    const chat: MothershipChatHistory = {
+      id: 'chat-removed-file',
+      title: 'Files',
+      messages: [],
+      activeStreamId: null,
+      resources: [],
+    }
+
+    /**
+     * Streams a turn that opens a file tab without an effect (the client
+     * persists it), then the server's own removal of that file as an effect.
+     * Later turns only complete. The removal is held until `addSent` resolves,
+     * so the client's own write for the add has started by then. Returns each
+     * send's resource attachments.
+     */
+    function streamAddThenServerRemoval(addSent: Promise<void>): unknown[] {
+      const sentAttachments: unknown[] = []
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        const sent = JSON.parse(String(init.body))
+        sentAttachments.push(sent.resourceAttachments)
+        const envelope = { v: 1 as const, ts: '', stream: { streamId: sent.userMessageId } }
+        const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
+        const complete: PersistedStreamEventEnvelope = {
+          ...envelope,
+          seq: 3,
+          type: 'complete',
+          payload: { status: 'complete' },
+        }
+        const events: PersistedStreamEventEnvelope[] =
+          sentAttachments.length === 1
+            ? [
+                {
+                  ...envelope,
+                  seq: 1,
+                  type: 'resource',
+                  payload: { op: 'upsert', resource: file },
+                },
+                {
+                  ...envelope,
+                  seq: 2,
+                  type: 'resource',
+                  payload: { op: 'remove', resource: file, effectId: 'remove-deleted-file' },
+                },
+                complete,
+              ]
+            : [complete]
+        const encoder = new TextEncoder()
+        const body = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            const [first, ...rest] = events
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(first)}\n\n`))
+            if (rest.length > 0) {
+              await addSent
+              // One macrotask lets a write that already failed settle in the queue.
+              await sleep(0)
+            }
+            for (const event of rest) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+            }
+            controller.close()
+          },
+        })
+        return new Response(body, {
+          headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chat.id },
+        })
+      })
+      return sentAttachments
+    }
+
+    /**
+     * Resource writes the hook sent, as `METHOD id`, and a promise that
+     * resolves once the first add has been sent.
+     */
+    function recordResourceWrites(persist: () => Promise<unknown>): {
+      writes: string[]
+      addSent: Promise<void>
+    } {
+      const writes: string[] = []
+      const addSent = createDeferred<void>()
+      mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
+        if (contract.path !== '/api/mothership/chat/resources') return { chats: [] }
+        const { body } = input as { body: { resource?: { id: string }; resourceId?: string } }
+        writes.push(`${contract.method} ${body.resource?.id ?? body.resourceId}`)
+        if (contract.method !== 'POST') return { resources: [] }
+        addSent.resolve()
+        return persist()
+      })
+      return { writes, addSent: addSent.promise }
+    }
+
+    it('drops a failed add without re-posting it or deleting server-side', async () => {
+      const { writes, addSent } = recordResourceWrites(async () => {
+        throw new Error('Persist failed')
+      })
+      const sentAttachments = streamAddThenServerRemoval(addSent)
+      const { getResult } = renderUseChatInChat(chat.id, chat)
+
+      await act(async () => {
+        await getResult().sendMessage('Export the report, then delete it')
+      })
+      const writesBeforeRemoval = [...writes]
+      await act(async () => {
+        queryClient.setQueryData(mothershipChatKeys.detail(chat.id), { ...chat })
+        await sleep(0)
+      })
+      await act(async () => {
+        await getResult().sendMessage('What is open?')
+      })
+
+      expect(writesBeforeRemoval).not.toContain('DELETE deleted-file')
+      expect(writes).toEqual(writesBeforeRemoval)
+      expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
+      expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
+    })
+
+    it('drops a failed add when the removal arrives in a reconnect replay', async () => {
+      const { writes } = recordResourceWrites(async () => {
+        throw new Error('Persist failed')
+      })
+      const file = { type: 'file' as const, id: 'deleted-file', title: 'report.csv' }
+      const sentAttachments: unknown[] = []
+      let streamId = ''
+      vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/api/mothership/chat/stream')) {
+          const removal: PersistedStreamEventEnvelope = {
+            v: 1,
+            ts: '',
+            stream: { streamId },
+            seq: 2,
+            type: 'resource',
+            payload: { op: 'remove', resource: file, effectId: 'remove-deleted-file' },
+          }
+          const opened: PersistedStreamEventEnvelope = {
+            ...removal,
+            seq: 1,
+            payload: { op: 'upsert', resource: file },
+          }
+          return Response.json({
+            success: true,
+            events: [opened, removal].map((event) => ({ eventId: event.seq, streamId, event })),
+            status: 'complete',
+          })
+        }
+        if (url !== '/api/mothership/chat' || init?.method !== 'POST') {
+          return fetchStub(input, init)
+        }
+        const sent = JSON.parse(String(init.body))
+        sentAttachments.push(sent.resourceAttachments)
+        streamId = sent.userMessageId
+        const envelope = { v: 1 as const, ts: '', stream: { streamId } }
+        const events: PersistedStreamEventEnvelope[] =
+          sentAttachments.length === 1
+            ? [{ ...envelope, seq: 1, type: 'resource', payload: { op: 'upsert', resource: file } }]
+            : [{ ...envelope, seq: 1, type: 'complete', payload: { status: 'complete' } }]
+        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+          headers: { 'Content-Type': 'text/event-stream', 'x-mothership-chat-id': chat.id },
+        })
+      })
+      const { getResult } = renderUseChatInChat(chat.id, chat)
+
+      await act(async () => {
+        await getResult().sendMessage('Export the report, then delete it')
+      })
+      await waitFor(() => !getResult().isSending)
+      const writesBeforeRemoval = [...writes]
+      await act(async () => {
+        queryClient.setQueryData(mothershipChatKeys.detail(chat.id), { ...chat })
+        await sleep(0)
+      })
+      await act(async () => {
+        await getResult().sendMessage('What is open?')
+      })
+
+      expect(writes).toEqual(writesBeforeRemoval)
+      expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
+      expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
+    })
+  })
 
   it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {
     const shape = resolveDeploymentShape()
@@ -4946,7 +5132,9 @@ describe('useChat remount send recovery', () => {
    * saves the turn. A transcript read in that gap is the server's in-flight copy;
    * the tab must read again rather than keep it (live ids, the finished stream
    * still listed as running) until something else happens to refetch. That holds
-   * when the save is slow, and when a follow-up is queued but not yet sent.
+   * when the save is slow, and when a follow-up is queued but not yet sent. While
+   * it waits it polls only the stream status, so however slow the save, the
+   * transcript is read twice: the in-flight copy and the saved one.
    */
   it.each([
     { label: 'right after the first read', unsavedReads: 1, heldFollowUp: false },
@@ -4969,13 +5157,22 @@ describe('useChat remount send recovery', () => {
         let streamId: string | undefined
         let completed = false
         let detailReads = 0
+        /** Reads of either kind the server answers before the save lands. */
+        let readsBeforeSave = unsavedReads
+        const isSaved = () => readsBeforeSave-- <= 0
         mockRequestJson.mockImplementation((contract: AnyApiRouteContract) => {
+          if (contract.path === '/api/mothership/chats/[chatId]/stream-status') {
+            return Promise.resolve({
+              success: true,
+              activeStreamId: completed && !isSaved() ? (streamId ?? null) : null,
+            })
+          }
           if (contract.path !== '/api/mothership/chats/[chatId]') {
             return Promise.resolve({ chats: [] })
           }
           if (!completed) return Promise.resolve({ chat: history })
           detailReads++
-          if (detailReads <= unsavedReads && streamId) {
+          if (!isSaved() && streamId) {
             return Promise.resolve({
               chat: {
                 ...history,
@@ -5051,7 +5248,7 @@ describe('useChat remount send recovery', () => {
           queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
             ?.activeStreamId
         ).toBeNull()
-        expect(detailReads).toBe(unsavedReads + 1)
+        expect(detailReads).toBe(2)
         expect(getResult().isSending).toBe(false)
       } finally {
         vi.useRealTimers()

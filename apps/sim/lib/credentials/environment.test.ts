@@ -18,7 +18,7 @@ const { mockLockPersonalEnvMap } = vi.hoisted(() => ({
   mockLockPersonalEnvMap: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
 
 vi.mock('@/lib/credentials/env-locks', () => ({
   lockPersonalEnvMap: mockLockPersonalEnvMap,

@@ -4,6 +4,7 @@ import type {
   NativeSearchQuery,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import type { TextMatch } from '@/lib/sim-search/live/text-match'
 
 export interface LiveAccount {
   id: string
@@ -81,6 +82,8 @@ export interface NativeClient {
       googleService?: 'sheets'
       /** Reuse this client's earlier response to the same GET instead of requesting it again. */
       memo?: boolean
+      /** Cancels this request alongside the client's own signal. */
+      signal?: AbortSignal
     }
   ): Promise<unknown>
   text(path: string, query?: Record<string, string>): Promise<string>
@@ -94,4 +97,11 @@ export interface NativeSearchInput {
   native?: NativeSearchQuery
   limit: number
   scopes: readonly string[]
+  /** How a plain query's words must match; providers without full-text search ignore it. */
+  textMatch?: TextMatch
+  /**
+   * Cancels this search's provider requests alongside the client's own signal. Honored by the
+   * providers that run the any-term fallback, so its budget stops the request itself.
+   */
+  signal?: AbortSignal
 }

@@ -10,6 +10,7 @@ import { getSession } from '@/lib/auth'
 import { changeWorkspaceStoragePayerInTx } from '@/lib/billing/storage/payer-transfer'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
+import { presentWorkspace } from '@/lib/workspaces/response'
 
 const logger = createLogger('WorkspaceByIdAPI')
 
@@ -51,7 +52,7 @@ export const GET = withRouteHandler(
 
     return NextResponse.json({
       workspace: {
-        ...workspaceDetails,
+        ...presentWorkspace(workspaceDetails),
         permissions: userPermission,
       },
     })
@@ -216,7 +217,7 @@ export const PATCH = withRouteHandler(
 
       return NextResponse.json({
         workspace: {
-          ...updatedWorkspace,
+          ...(updatedWorkspace ? presentWorkspace(updatedWorkspace) : {}),
           permissions: userPermission,
         },
       })

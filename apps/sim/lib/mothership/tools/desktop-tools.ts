@@ -15,19 +15,29 @@ import { isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 export type DesktopToolClaimOwner =
   (typeof DESKTOP_TOOL_CLAIM_OWNER)[keyof typeof DESKTOP_TOOL_CLAIM_OWNER]
 
-/** The tools that run through the desktop app by name alone; local VFS reads also depend on args. */
-export const NAMED_DESKTOP_TOOL_NAMES = [
+/** The background runner supports these named tools; local VFS reads also depend on args. */
+export const NAMED_BACKGROUND_DESKTOP_TOOL_NAMES = [
   ...CURRENT_BROWSER_TOOL_NAMES,
   TERMINAL_TOOL_NAME,
   'import_local_files',
   'read_local_file',
 ] as const
 
-const DESKTOP_TOOL_NAMES: ReadonlySet<string> = new Set(NAMED_DESKTOP_TOOL_NAMES)
+const BACKGROUND_DESKTOP_TOOL_NAMES: ReadonlySet<string> = new Set(
+  NAMED_BACKGROUND_DESKTOP_TOOL_NAMES
+)
 
 /** Whether a call runs through the desktop app, including VFS reads of a granted local folder. */
 export function isDesktopToolCall(toolName: string, args: Record<string, unknown> | undefined) {
-  return DESKTOP_TOOL_NAMES.has(toolName) || isUserLocalVfsToolCall(toolName, args)
+  return toolName === 'computer' || isBackgroundDesktopToolCall(toolName, args)
+}
+
+/** Computer use stays with its native chat-view authorization; the background runner has no app driver. */
+export function isBackgroundDesktopToolCall(
+  toolName: string,
+  args: Record<string, unknown> | undefined
+): boolean {
+  return BACKGROUND_DESKTOP_TOOL_NAMES.has(toolName) || isUserLocalVfsToolCall(toolName, args)
 }
 
 /**
@@ -37,6 +47,7 @@ export function isDesktopToolCall(toolName: string, args: Record<string, unknown
 export function getDesktopToolClaimOwner(toolName: string): DesktopToolClaimOwner | undefined {
   if (isCurrentBrowserToolName(toolName)) return DESKTOP_TOOL_CLAIM_OWNER.browser
   if (isTerminalToolName(toolName)) return DESKTOP_TOOL_CLAIM_OWNER.terminal
+  if (toolName === 'computer') return DESKTOP_TOOL_CLAIM_OWNER.computer
   if (toolName === 'import_local_files') return DESKTOP_TOOL_CLAIM_OWNER.files
   return undefined
 }

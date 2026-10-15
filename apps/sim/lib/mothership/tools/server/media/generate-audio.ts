@@ -13,9 +13,8 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/mothership/tools/server/model-input'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
-import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
@@ -99,11 +98,16 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
             reference: samplePath,
           }
         )
-        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: sample })
+
         const { content: sampleBuffer } = await executeCopilotFileUseCase(
           context,
           readWorkspaceFileContent,
-          { fileId: sample.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_MEDIA_BYTES },
+          {
+            fileId: sample.id,
+            assertedWorkspaceId: workspaceId,
+            maxBytes: MAX_MEDIA_BYTES,
+            contentView: 'opaque',
+          },
           { fileId: sample.id }
         )
         const sampleMime = sample.type || 'audio/mpeg'

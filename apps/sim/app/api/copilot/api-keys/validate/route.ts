@@ -25,7 +25,7 @@ import {
   resolveOrganizationBillingAttribution,
   serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import {
   readMidRunAccountUsageVerdict,
   readMidRunUsageVerdict,

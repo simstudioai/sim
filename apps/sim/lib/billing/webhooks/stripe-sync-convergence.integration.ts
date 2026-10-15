@@ -1053,8 +1053,11 @@ describe('Team activation', () => {
         workspaceIdsToAttach: [],
       })
     )
-    await cancelling.untilBlocking()
-    cancelling.release()
+    try {
+      await cancelling.untilBlocking()
+    } finally {
+      cancelling.release()
+    }
     await cancelling.done
     await expect(activating).resolves.toMatchObject({ success: true })
     expect((await storedSubscription(subscriptionId)).cancelAtPeriodEnd).toBe(false)
@@ -1098,8 +1101,11 @@ describe('operator retry', () => {
     )
     await writing.locked
     const requeuing = requeueFromAdminApi(pauseSync)
-    await writing.untilBlocking()
-    writing.release()
+    try {
+      await writing.untilBlocking()
+    } finally {
+      writing.release()
+    }
 
     await expect(Promise.all([writing.done, requeuing])).resolves.toBeDefined()
     await deliverUnrelatedUpdate(pro.stripeSubscriptionId)
@@ -1145,8 +1151,11 @@ describe('operator retry', () => {
       timing: 'period_end',
       actor,
     })
-    await writing.untilBlocking()
-    writing.release()
+    try {
+      await writing.untilBlocking()
+    } finally {
+      writing.release()
+    }
 
     await expect(Promise.all([writing.done, retrying])).resolves.toBeDefined()
     expect((await storedSubscription(org.subscriptionId)).cancelAtPeriodEnd).toBe(true)

@@ -1,6 +1,10 @@
 import { findCause, getErrorMessage } from '@sim/utils/errors'
 
-/** A failure whose operation may already have produced externally visible side effects. */
+/**
+ * A failure that block retries must not repeat: either the operation may already have produced
+ * externally visible side effects, or it failed on deterministic configuration (such as an invalid
+ * model fallback) that a retry would only fail again.
+ */
 export class NonRetryableExecutionError extends Error {
   readonly retryable = false as const
 

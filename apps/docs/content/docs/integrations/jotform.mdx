@@ -19,23 +19,21 @@ The integration authenticates with a Jotform API key, created under **Account Se
 
 An API key is only valid on the host that issued it. Use the **Region** field to match where the account lives: `us` (default), `eu` for EU data residency accounts, or `hipaa` for HIPAA-compliant accounts. A key used against the wrong host returns an authentication error.
 
-Jotform enforces a daily API call limit that varies by plan. Schedule high-frequency polling with that budget in mind — or prefer a webhook, which costs no API calls at all.
+Jotform enforces a daily API call limit that varies by plan. Schedule high-frequency polling with that budget in mind — or prefer a webhook, to reduce polling calls. Sim still makes API calls to register and manage webhook subscriptions.
 
-## A note on question IDs
+## Question IDs [#a-note-on-question-ids]
 
 Submissions are keyed by question ID, not by label. Run **List Questions** on a form first to map each label to its `qid`; those IDs are what **Create Submission** and **Update Submission** expect. Multi-field questions such as full name or address accept either a nested object (`{"3": {"first": "Bart", "last": "Simpson"}}`) or the shorthand Jotform documents (`{"3_first": "Bart"}`).
 
 ## Folders and labels
 
-Jotform has deprecated its folder endpoints in favor of labels. This integration implements labels only; if you have existing automations built on folder IDs, migrate them to the label operations.
+[Jotform has deprecated its folder endpoints](https://api.jotform.com/docs/) in favor of labels. This integration implements labels only; if you have existing automations built on folder IDs, migrate them to the label operations.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate Jotform into your workflow to list and read form submissions with their answers resolved to question labels, build and edit forms and their questions, create shareable reports, register submission webhooks, and check account usage.
-
-
 
 ## Actions
 
@@ -1162,7 +1160,7 @@ Update account settings such as name, email, website, company, industry, or time
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Jotform Webhook
 

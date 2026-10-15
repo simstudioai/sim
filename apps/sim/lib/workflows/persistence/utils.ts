@@ -258,9 +258,9 @@ export async function materializeDeploymentState(
     deploymentVersionId: version.id,
   }
 
-  if (options.cache !== false) {
-    deployedStateCache.set(version.id, { workflowId, state: deployedState })
-  }
+  if (options.cache === false) return deployedState
+  /** The cached entry is shared, so each caller gets its own copy. */
+  deployedStateCache.set(version.id, { workflowId, state: deployedState })
   return structuredClone(deployedState)
 }
 

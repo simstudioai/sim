@@ -17,10 +17,7 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { checkUsageStatus as checkResolvedUsageStatus } from '@/lib/billing/calculations/usage-monitor'
-import {
-  type BillingAttributionSnapshot,
-  toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+import { type BillingAttributionSnapshot, toBillingContext } from '@/lib/billing/core/attribution'
 import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import {
   getHighestPriorityPersonalSubscription,

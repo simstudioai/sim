@@ -1,29 +1,24 @@
 ---
 title: Condition
-description: The Condition block branches a workflow on boolean expressions, with no model call.
+description: Choose a branch by evaluating JavaScript boolean expressions.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import {
-  BlockPreview,
-  WorkflowPreview,
-  CONDITION_MODERATE_WORKFLOW,
-  CONDITION_ONBOARD_WORKFLOW,
-  CONDITION_ROUTE_WORKFLOW,
-} from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
+import { BlockPreview, WorkflowPreview, CONDITION_ROUTE_WORKFLOW, CONDITION_MODERATE_WORKFLOW } from '@/components/workflow-preview'
 
-The **Condition block** branches a workflow on boolean expressions. It checks each branch in order and runs the path of the first one that is true, with no model call. When you want a model to decide the route, use a [Router](/workflows/blocks/router) instead.
+The **Condition block** checks branches in order and follows the first true expression. It makes no model call. Use a [Router](/workflows/blocks/router) when the decision depends on understanding intent or unstructured text.
 
 <BlockPreview type="condition" />
 
+## Route by priority
+
+<WorkflowPreview workflow={CONDITION_ROUTE_WORKFLOW} />
+
+Check `<start.priority> === 'high'` in the **if** branch. Connect that port to escalation and **else** to a standard reply.
+
 ## Configuration
 
-### Conditions
-
-A list of branches: an **if**, any number of **else if** rows, and a final **else**. Each branch holds a JavaScript expression that evaluates to true or false, and connects to its own path. Sim checks them top to bottom and takes the first branch that is true; the **else** branch runs when none match.
-
-Reference an earlier output inside an expression with a [connection tag](/workflows/connections):
+**Conditions** contains an **if** branch, optional **else if** branches, and **else**. Each expression uses JavaScript operators and methods and connects to its own path. Put specific checks before general ones: the first match wins.
 
 ```javascript
 <agent.score> > 75
@@ -31,7 +26,9 @@ Reference an earlier output inside an expression with a [connection tag](/workfl
 <user.email>.endsWith('@company.com') && <user.plan> === 'pro'
 ```
 
-Read an [environment variable](/workflows/variables#environment-variables) with `{{KEY}}`:
+Comparisons, logical operators, string/array methods, math, and Date comparisons work in expressions. Move lengthy logic to a [Function](/workflows/blocks/function) and branch on its result.
+
+[Environment variables](/workflows/variables#environment-variables) use `{{KEY}}`:
 
 ```javascript
 {{MAX_RETRIES}} === 3
@@ -39,48 +36,34 @@ Read an [environment variable](/workflows/variables#environment-variables) with 
 {{TIER}} === 'pro'
 ```
 
-Numbers, booleans, and `null` compare as literals. Every other value is bound as a string, so an apostrophe, quote, or newline inside a secret cannot change what the expression means.
-
-<Callout type="info">
-If an expression throws, for example because it reads a field that is not there, the block errors and the run follows the [error path](/workflows/connections) if one is connected. Guard missing values with optional chaining (`?.`) or a null check.
-</Callout>
+Numbers, booleans, and `null` compare as literals here. Other environment values are bound as strings, so quotes or newlines inside a secret cannot become expression code. This differs from [Function placeholders](/workflows/blocks/function#placeholders-are-always-strings), which always remain strings.
 
 ## Outputs
 
-| Output | What it is |
+| Reference | Value |
 | --- | --- |
-| `<condition.conditionResult>` | The boolean result of the branch that matched |
-| `<condition.selectedOption>` | The id of the matched branch |
-| `<condition.selectedPath>` | The destination block the workflow routed to |
+| `<condition.conditionResult>` | `true` for a matching expression; `false` when else is selected or no branch matches |
+| `<condition.selectedOption>` | Selected branch ID, or `null` if none |
+| `<condition.selectedPath>` | Destination object containing `blockId`, `blockType`, and `blockTitle`, or `null` when no destination is connected |
 
-## Examples
+Only the chosen path runs. A reference to a known block on a skipped path has no output.
 
-### Route a support ticket by priority
+## Errors and unmatched input
 
-<WorkflowPreview workflow={CONDITION_ROUTE_WORKFLOW} />
+Connect **else** to handle input that matches no expression. An unconnected else path ends without an error. A final `true` expression is another catch-all when you deliberately omit else.
 
-The Condition checks `<start.priority>` and runs one downstream path. The other does not run, so a reference to a block on the path that did not run comes back empty.
+<Callout type="warn">
+An expression that throws fails the block. Guard missing values with optional chaining (`?.`) or a null check, and connect the error port when the workflow should recover.
+</Callout>
 
-### Moderate content by score
+## Gate on a model score
 
 <WorkflowPreview workflow={CONDITION_MODERATE_WORKFLOW} />
 
-An Agent scores the content, and the Condition publishes it or blocks it on `<moderate.toxicity>`.
+Give the Agent a Response Format containing numeric `toxicity`, then check `<moderate.toxicity> > 0.7`. The high-score branch blocks the content; else sends it to the publishing endpoint. The same pattern can route accounts by a structured `tier` field.
 
-### Branch onboarding by account tier
+## Related docs
 
-<WorkflowPreview workflow={CONDITION_ONBOARD_WORKFLOW} />
-
-A Function reads the account, and the Condition sends enterprise accounts through guided setup and everyone else through the quick start.
-
-## Best Practices
-
-- **Order branches from specific to general.** The first true branch wins, so put narrow checks before catch-alls.
-- **Always give unmatched runs a path.** Connect the **else** branch, or make the last condition `true`, so nothing dead-ends silently.
-- **Keep expressions simple.** Short boolean checks are easy to read and debug. Do heavy logic in a [Function](/workflows/blocks/function) block first and branch on its result.
-- **Guard missing values.** Use optional chaining (`?.`) or a null check so an absent field does not throw.
-
-<FAQ items={[
-  { question: "What happens if no condition matches?", answer: "The workflow follows the else branch. If the else branch is not connected to a downstream block, that path ends gracefully without an error. Add a final condition of simply true to guarantee a match." },
-  { question: "What JavaScript features can I use in condition expressions?", answer: "Standard operators and methods: comparisons (===, !==, >, <), logical operators (&&, ||, !), string methods (.includes(), .endsWith(), .toLowerCase()), array methods (.includes(), .length), math, and Date comparisons. Reference block outputs with <blockName.output> syntax." },
-]} />
+- [Router](/workflows/blocks/router)
+- [Function](/workflows/blocks/function)
+- [Connections](/workflows/connections)

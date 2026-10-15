@@ -7,7 +7,7 @@ import {
   internalCredentialErrorPolicy,
   internalPersonalCredentialConnectionErrorPolicy,
 } from '@/lib/credentials/api/route-policies'
-import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import { CredentialProviderOperationError } from '@/lib/credentials/application/crud'
 import {
   OAuthDisconnectLimitError,
   OAuthDisconnectPartialFailureError,

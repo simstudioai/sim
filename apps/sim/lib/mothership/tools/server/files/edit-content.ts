@@ -12,7 +12,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
+import { toAnchoredContentEdit } from '@/lib/mothership/tools/server/files/anchored-edit'
+import { getE2BDocFormat } from '@/lib/uploads/documents/compile'
 import { updateWorkspaceFileContent } from '@/lib/workspace-files/application/update-workspace-file-content'
+import { applyWorkspaceFileContentEdit, EditContentError } from '@/lib/workspace-files/edit-content'
 import {
   collectSimPageDiagnostics,
   HAND_WRITTEN_PAGE_MESSAGE,
@@ -20,9 +23,8 @@ import {
   isSimPageSource,
   SIM_PAGE_CONTENT_TYPE,
 } from '@/lib/workspace-files/page-compile'
-import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
-import { waitForLatestFileIntent } from './file-intent-store'
+import { waitForLatestFileIntent } from './intent-store'
 import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
@@ -164,96 +166,15 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
               ? existing.split(search).join(content)
               : existing.slice(0, firstIdx) + content + existing.slice(firstIdx + search.length)
           } else if (intent.edit.strategy === 'anchored') {
-            const lines = existing.split('\n')
-            const defaultOccurrence = intent.edit.occurrence ?? 1
-
-            const findAnchorLine = (
-              anchor: string,
-              occurrence = defaultOccurrence,
-              afterIndex = -1
-            ): { index: number; error?: string } => {
-              const trimmed = anchor.trim()
-              let count = 0
-              for (let i = afterIndex + 1; i < lines.length; i++) {
-                if (lines[i].trim() === trimmed) {
-                  count++
-                  if (count === occurrence) return { index: i }
-                }
-              }
-              if (count === 0) {
-                return {
-                  index: -1,
-                  error: `Anchor line not found in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
-                }
-              }
-              return {
-                index: -1,
-                error: `Anchor line occurrence ${occurrence} not found (only ${count} match${count > 1 ? 'es' : ''}) in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
-              }
-            }
-
-            if (intent.edit.mode === 'replace_between') {
-              if (!intent.edit.before_anchor || !intent.edit.after_anchor) {
-                return {
-                  success: false,
-                  message: 'replace_between requires before_anchor and after_anchor',
-                }
-              }
-              const before = findAnchorLine(intent.edit.before_anchor)
-              if (before.error) return { success: false, message: `Patch failed: ${before.error}` }
-              const after = findAnchorLine(
-                intent.edit.after_anchor,
-                defaultOccurrence,
-                before.index
-              )
-              if (after.error) return { success: false, message: `Patch failed: ${after.error}` }
-              if (after.index <= before.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: after_anchor must appear after before_anchor in the file',
-                }
-              }
-              const newLines = [
-                ...lines.slice(0, before.index + 1),
-                ...content.split('\n'),
-                ...lines.slice(after.index),
-              ]
-              finalContent = newLines.join('\n')
-            } else if (intent.edit.mode === 'insert_after') {
-              if (!intent.edit.anchor) {
-                return { success: false, message: 'insert_after requires anchor' }
-              }
-              const found = findAnchorLine(intent.edit.anchor)
-              if (found.error) return { success: false, message: `Patch failed: ${found.error}` }
-              const newLines = [
-                ...lines.slice(0, found.index + 1),
-                ...content.split('\n'),
-                ...lines.slice(found.index + 1),
-              ]
-              finalContent = newLines.join('\n')
-            } else if (intent.edit.mode === 'delete_between') {
-              if (!intent.edit.start_anchor || !intent.edit.end_anchor) {
-                return {
-                  success: false,
-                  message: 'delete_between requires start_anchor and end_anchor',
-                }
-              }
-              const start = findAnchorLine(intent.edit.start_anchor)
-              if (start.error) return { success: false, message: `Patch failed: ${start.error}` }
-              const end = findAnchorLine(intent.edit.end_anchor, defaultOccurrence, start.index)
-              if (end.error) return { success: false, message: `Patch failed: ${end.error}` }
-              if (end.index <= start.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: end_anchor must appear after start_anchor in the file',
-                }
-              }
-              const newLines = [...lines.slice(0, start.index), ...lines.slice(end.index)]
-              finalContent = newLines.join('\n')
-            } else {
+            const anchored = toAnchoredContentEdit(intent.edit, content)
+            if ('error' in anchored) return { success: false, message: anchored.error }
+            try {
+              finalContent = applyWorkspaceFileContentEdit(existing, anchored.edit)
+            } catch (error) {
+              if (!(error instanceof EditContentError)) throw error
               return {
                 success: false,
-                message: `Unknown anchored patch mode: "${intent.edit.mode}"`,
+                message: `Patch failed in "${fileRecord.name}": ${error.message}`,
               }
             }
           } else {

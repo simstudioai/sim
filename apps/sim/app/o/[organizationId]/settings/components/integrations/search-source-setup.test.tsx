@@ -80,7 +80,7 @@ const mocks = vi.hoisted(() => ({
   connectorsQuery: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useUpdateSearchIntegration: () => ({ mutate: mocks.updateSearchIntegration }),
@@ -280,7 +280,7 @@ async function openSyncFrequency() {
 }
 
 function menuItem(label: string): HTMLElement {
-  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+  const match = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')).find(
     (node) => node.textContent?.trim() === label
   )
   expect(match, `Menu item ${label}`).toBeDefined()

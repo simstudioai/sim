@@ -10,8 +10,8 @@ import {
   agentCliFail,
 } from '@/lib/mothership/agent-cli/types'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
-import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { decodeFileVisual } from '@/lib/workspace-files/decode-file-visual'
 

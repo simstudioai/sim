@@ -17,7 +17,39 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
 })
 
 export const liveSearchMcpSchema = searchWorkspaceInputSchema.strict()
-export const readLiveDocumentMcpSchema = readDocumentInputSchema.strict()
+/** Documents one read_document call may read; each counts as one read against the rate limit. */
+const MAX_MCP_READ_DOCUMENTS = 10
+
+export const readLiveDocumentMcpSchema = readDocumentInputSchema
+  .extend({
+    documentId: readDocumentInputSchema.shape.documentId.optional(),
+    documentIds: z
+      .array(readDocumentInputSchema.shape.documentId)
+      .min(1)
+      .max(MAX_MCP_READ_DOCUMENTS)
+      .optional()
+      .describe(
+        `Up to ${MAX_MCP_READ_DOCUMENTS} document IDs returned by search, read together from the beginning. Use instead of documentId.`
+      ),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (Boolean(input.documentId) === Boolean(input.documentIds))
+      context.addIssue({
+        code: 'custom',
+        path: ['documentId'],
+        message: 'Pass either documentId or documentIds.',
+      })
+    if (
+      input.documentIds &&
+      (input.startChunkIndex !== undefined || input.startOffset !== undefined)
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['documentIds'],
+        message: 'Continue a document with documentId and its next offsets, not documentIds.',
+      })
+  })
 
 export const chatSearchMcpSchema = workspaceSearchFiltersSchema
   .extend({

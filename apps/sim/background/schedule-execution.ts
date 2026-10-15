@@ -15,7 +15,7 @@ import { and, eq, isNull, ne, type SQL, sql } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { classifyTransientAdmissionFailure } from '@/lib/core/admission/transient-failure'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import {

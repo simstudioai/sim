@@ -19,7 +19,7 @@ import {
 } from '@/lib/api/contracts/upload-sessions'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
-import { getFileContentType } from '@/lib/uploads/utils/file-utils'
+import { getFileContentType } from '@/lib/uploads/utils/file'
 
 interface UploadWorkspaceFileSessionParams {
   workspaceId: string

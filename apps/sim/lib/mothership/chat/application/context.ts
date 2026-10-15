@@ -6,7 +6,7 @@ import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export type ChatOwnerContext =
   | (WorkspaceAuthorizationContext & { organizationId?: undefined })
@@ -27,6 +27,7 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
       organizationId: copilotChats.organizationId,
       type: copilotChats.type,
       mode: conversationModeSelection,
+      memorySpaceId: copilotChats.memorySpaceId,
     })
     .from(copilotChats)
     .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
@@ -52,6 +53,8 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
     ...owner,
     chatId,
     userId: chat.userId,
+    type: chat.type,
     mode: chat.mode,
+    memorySpaceId: chat.memorySpaceId ?? null,
   }
 }

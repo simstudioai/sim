@@ -26,7 +26,7 @@ import type {
   StoredObjectInfo,
   UploadFileOptions,
 } from '@/lib/uploads/shared/types'
-import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('StorageService')
 let localStorageSetup: Promise<typeof import('@/lib/uploads/core/setup.server')> | undefined

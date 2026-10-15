@@ -43,7 +43,7 @@ export const stripeCreatePriceTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Amount in cents (e.g., 1000 for $10.00)',
+      description: 'Amount in the currency’s smallest unit (e.g., 1000 for 10.00 USD)',
     },
     recurring: {
       type: 'json',

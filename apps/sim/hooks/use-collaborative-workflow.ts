@@ -24,7 +24,7 @@ import { isEqual } from 'es-toolkit'
 import { useShallow } from 'zustand/react/shallow'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { WORKFLOW_EXTERNAL_UPDATE_EVENT } from '@/lib/workflows/external-update'
 import {
   type WorkflowSearchSubflowFieldId,

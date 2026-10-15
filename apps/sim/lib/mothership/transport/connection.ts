@@ -4,8 +4,8 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import type { SimConnection } from '@/lib/mothership/generated/sim-transport'
 
 /** Server-owned topology; no browser or model input chooses a callback destination. */
-export function getSimConnection(): SimConnection {
-  const mode = env.MOTHERSHIP_SIM_TRANSPORT ?? (isHosted ? 'direct' : 'checkpoint')
+export function getSimConnection(override?: SimConnection['mode']): SimConnection {
+  const mode = override ?? env.MOTHERSHIP_SIM_TRANSPORT ?? (isHosted ? 'direct' : 'checkpoint')
   if (mode === 'direct') return { mode }
   return {
     mode,

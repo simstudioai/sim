@@ -3,11 +3,8 @@ import type {
   MicrosoftAdListSignInsResponse,
 } from '@/tools/microsoft_ad/types'
 import { SIGN_IN_OUTPUT_PROPERTIES } from '@/tools/microsoft_ad/types'
-import {
-  assertGraphNextPageUrlForCollection,
-  buildGraphCollectionUrl,
-} from '@/tools/microsoft_ad/utils'
-import { getGraphNextPageUrl } from '@/tools/sharepoint/utils'
+import { buildGraphCollectionUrl } from '@/tools/microsoft_ad/utils'
+import { assertGraphNextPageUrlForCollection, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listSignInsTool: ToolConfig<

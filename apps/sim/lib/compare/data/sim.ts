@@ -1,6 +1,16 @@
+import {
+  INTEGRATION_ACTION_COUNT_LABEL,
+  INTEGRATION_COUNT_LABEL,
+  INTEGRATION_REACH,
+  INTEGRATION_TRIGGER_COUNT_LABEL,
+} from '@sim/deployment-config/integration-claims'
+import { INTEGRATION_TOTALS } from '@sim/deployment-config/integration-totals'
+import { formatLowerBound } from '@sim/utils/formatting'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+
+const CONNECTOR_COUNT_LABEL = formatLowerBound(Object.keys(CONNECTOR_META_REGISTRY).length)
 
 /**
  * Sim's own profile, for use as the constant left-hand column on every
@@ -101,14 +111,12 @@ export const simProfile: CompetitorProfile = {
   limitations: [
     {
       title: 'Smaller integration catalog than the largest generalist automation platforms',
-      description:
-        "Sim ships 266 first-party blocks and roughly 3,900 underlying tool actions. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger raw app counts. Sim's MCP support lets teams add custom integrations beyond the built-in catalog.",
-      shortDescription:
-        "266 blocks and ~3,900 tool actions, versus Zapier and Pipedream's larger raw app counts.",
+      description: `Sim's catalog covers ${INTEGRATION_REACH}. Platforms like Zapier (9,000+ apps) or Pipedream (3,000+ apps) list larger app counts. Sim's MCP and API blocks reach any HTTP API outside the built-in catalog.`,
+      shortDescription: `${INTEGRATION_COUNT_LABEL} integrations, versus Zapier and Pipedream's larger app counts.`,
       source: {
-        url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
-        label: 'Sim codebase: BLOCK_REGISTRY count',
-        asOf: '2026-07-08',
+        url: `${SITE_URL}/integrations`,
+        label: 'Sim integration catalog',
+        asOf: '2026-10-13',
       },
     },
     {
@@ -238,7 +246,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workflows/diff/diff-engine.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/workflows/diff/engine.ts',
             label: 'Sim codebase: WorkflowDiffEngine',
             asOf: '2026-07-02',
           },
@@ -397,9 +405,8 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       knowledgeBaseRag: {
-        value:
-          'Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus 51 connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload',
-        shortValue: 'Hybrid vector + full-text search, 11 file formats, 51 connectors',
+        value: `Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus ${CONNECTOR_COUNT_LABEL} connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload`,
+        shortValue: `Hybrid vector + full-text search, 11 file formats, ${CONNECTOR_COUNT_LABEL} connectors`,
         confidence: 'verified',
         sources: [
           {
@@ -414,7 +421,7 @@ export const simProfile: CompetitorProfile = {
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/connectors/registry.ts',
-            label: 'Sim codebase: connector registry (51 connectors)',
+            label: 'Sim codebase: connector registry',
             asOf: '2026-07-08',
           },
         ],
@@ -512,7 +519,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/handlers/agent/agent-handler.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/executor/handlers/agent/handler.ts',
             label: 'Sim codebase: agent tool resolution (pre-wired only)',
             asOf: '2026-07-02',
           },
@@ -623,15 +630,16 @@ export const simProfile: CompetitorProfile = {
     },
     integrations: {
       integrationCount: {
-        value: `${INTEGRATION_COUNT_LABEL} integrations counting individual API actions, built from 266 first-party blocks and roughly 3,900 underlying tool actions`,
-        detail: `Sim's landing page cites the "${INTEGRATION_COUNT_LABEL} integrations" figure; the block/tool-action counts are the same integration surface measured at a different level of granularity.`,
-        shortValue: `${INTEGRATION_COUNT_LABEL} integrations (266 blocks, ~3,900 tool actions)`,
+        value: `${INTEGRATION_COUNT_LABEL} integrations (apps and services) exposing ${INTEGRATION_ACTION_COUNT_LABEL} actions and ${INTEGRATION_TRIGGER_COUNT_LABEL} triggers, plus MCP and API blocks for any other HTTP API`,
+        detail:
+          'An integration is one app or service, the same unit other platforms count; actions are the individual operations an agent can call on it.',
+        shortValue: INTEGRATION_REACH,
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/blocks/registry-maps.ts',
-            label: 'Sim codebase: BLOCK_REGISTRY',
-            asOf: '2026-07-08',
+            url: `${SITE_URL}/integrations`,
+            label: 'Sim integration catalog',
+            asOf: '2026-10-13',
           },
           {
             url: 'https://docs.sim.ai/tools',
@@ -646,10 +654,8 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       triggerTypes: {
-        value:
-          'Webhook, schedule/cron, chat, REST API, and event-based triggers for 61 apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff',
-        shortValue:
-          'Webhook, cron, chat, REST API, 61 app triggers, plus a diff-aware Tables trigger',
+        value: `Webhook, schedule/cron, chat, REST API, and event-based triggers for ${INTEGRATION_TOTALS.integrationsWithTriggers} apps (Slack, Gmail, GitHub, Stripe, etc.), plus a native row-level trigger on Sim Tables that fires on insert/update with an optional column watch-list and emits a before/after diff`,
+        shortValue: `Webhook, cron, chat, REST API, ${INTEGRATION_TOTALS.integrationsWithTriggers} app triggers, plus a diff-aware Tables trigger`,
         confidence: 'verified',
         sources: [
           {
@@ -1040,10 +1046,10 @@ export const simProfile: CompetitorProfile = {
       },
       thirdPartyVetting: {
         value:
-          "Yes: every one of Sim's 266 blocks is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
+          "Yes: every integration in Sim's catalog is first-party authored and code-reviewed through the standard pull-request process in the main Sim repository; there is no public marketplace where an arbitrary third party can publish and have other users install executable tool code without going through Sim's own review",
         detail:
           "Custom code steps run inside Sim's own isolated-vm sandbox rather than as an installable third-party skill package, so the supply-chain trust boundary is Sim's codebase review, not an open registry.",
-        shortValue: 'All 266 blocks are first-party authored and code-reviewed',
+        shortValue: 'Every integration is first-party authored and code-reviewed',
         confidence: 'verified',
         sources: [
           {
@@ -1260,14 +1266,14 @@ export const simProfile: CompetitorProfile = {
       },
       academy: {
         value:
-          'Yes: Sim Academy is a dedicated structured-learning section of the docs site, separate from reference documentation and the API reference',
-        shortValue: 'Sim Academy: dedicated structured-learning docs section',
+          'No: Sim provides product documentation and API reference guides without a dedicated academy or certification program',
+        shortValue: 'Product docs and API reference; no dedicated academy',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/academy',
-            label: 'Sim Docs: Academy',
-            asOf: '2026-07-02',
+            url: 'https://docs.sim.ai/introduction',
+            label: 'Sim Documentation',
+            asOf: '2026-10-13',
           },
         ],
       },

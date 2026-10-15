@@ -19,7 +19,7 @@ import {
 } from '@/lib/execution/remote-sandbox/build-errors'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
-import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import type { SandboxSpec } from '@/lib/execution/remote-sandbox/spec'
 import {
   SANDBOX_BASE_RELEASE_REFRESH_CODE,
   type SandboxImageBuild,

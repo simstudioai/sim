@@ -28,6 +28,7 @@ const COMPLETE_LIST_OPERATIONS: ReadonlySet<V2OperationName> = new Set([
   'listOrganizationMembers',
   'listOrganizationWorkspaces',
   'listFiles',
+  'listProjectFiles',
   'listKnowledgeBases',
   'listKnowledgeConnectors',
   'listMcpServers',
@@ -162,13 +163,19 @@ function addFieldOption(
     return
   }
 
-  const documented = `${describeField(flag, descriptor, name, field)}${
+  const fieldDescription = `${describeField(flag, descriptor, name, field)}${
     capsAFilter &&
     field === 'limit' &&
     (descriptor.kind === 'number' || descriptor.kind === 'integer')
       ? NON_PAGINATED_LIMIT_HINT
       : ''
   }`
+
+  const effectiveDefault = flag.requestDefault ?? descriptor.default
+  const documented =
+    effectiveDefault !== undefined && !/\bdefault(?:s|ing)?\b/i.test(fieldDescription)
+      ? `${fieldDescription}${/[.!?]$/.test(fieldDescription) ? '' : '.'} Defaults to ${JSON.stringify(effectiveDefault)}.`
+      : fieldDescription
 
   if (descriptor.kind === 'boolean' || flag.boolean) {
     const booleanDoc = withoutWireVocabulary(documented)

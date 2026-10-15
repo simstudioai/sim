@@ -20,7 +20,7 @@ import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspac
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
-import { throwCredentialMutationFailure } from '@/lib/credentials/application/credential-crud'
+import { throwCredentialMutationFailure } from '@/lib/credentials/application/crud'
 import {
   listCredentialProviderCatalog,
   requireAvailableOAuthCredentialProvider,

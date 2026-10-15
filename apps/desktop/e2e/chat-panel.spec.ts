@@ -289,22 +289,20 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
     }
 
     await check('a viewport change during a drag clamps the committed display width', async () => {
-      await page.getByRole('button', { name: 'Resize container' }).click()
-      await expectWidth(520)
+      await expectWidth(698)
       const rect = await beginDrag()
       await page.mouse.move(rect.x + 20, rect.y + 100, { steps: 12 })
-      await expectWidth(500)
+      await expectWidth(678)
       await shell.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].setContentSize(300, 400)
+        BrowserWindow.getAllWindows()[0].setContentSize(500, 400)
       )
-      await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(600)
+      await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(1000)
       await page.mouse.up()
-      await expectWidth(480)
+      await expectWidth(520)
       await shell.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0].setContentSize(720, 400)
       )
-      await expectWidth(500)
-      await page.getByRole('button', { name: 'Resize container' }).click()
+      await expectWidth(678)
       await dragTo(698)
     })
 

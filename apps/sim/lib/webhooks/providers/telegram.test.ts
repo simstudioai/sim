@@ -9,7 +9,7 @@ import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mo
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 import { telegramHandler } from '@/lib/webhooks/providers/telegram'
 import type { AuthContext, SubscriptionContext } from '@/lib/webhooks/providers/types'

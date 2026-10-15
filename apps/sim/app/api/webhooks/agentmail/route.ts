@@ -185,13 +185,20 @@ export const POST = withRouteHandler(async (req: Request) => {
     const emailMessageId = message.message_id
     const inReplyTo = message.in_reply_to || null
 
+    // Message ids are sender-controlled and shared with every recipient of a mail,
+    // so a task is only ever matched inside the workspace that owns this inbox.
     const [existingResult, isAllowed, recentCount, parentTaskResult, isEntitled] =
       await Promise.all([
         emailMessageId
           ? db
               .select({ id: mothershipInboxTask.id })
               .from(mothershipInboxTask)
-              .where(eq(mothershipInboxTask.emailMessageId, emailMessageId))
+              .where(
+                and(
+                  eq(mothershipInboxTask.workspaceId, result.id),
+                  eq(mothershipInboxTask.emailMessageId, emailMessageId)
+                )
+              )
               .limit(1)
           : Promise.resolve([]),
         isSenderAllowed(fromEmail, result.id),
@@ -200,7 +207,12 @@ export const POST = withRouteHandler(async (req: Request) => {
           ? db
               .select({ chatId: mothershipInboxTask.chatId })
               .from(mothershipInboxTask)
-              .where(eq(mothershipInboxTask.responseMessageId, inReplyTo))
+              .where(
+                and(
+                  eq(mothershipInboxTask.workspaceId, result.id),
+                  eq(mothershipInboxTask.responseMessageId, inReplyTo)
+                )
+              )
               .limit(1)
           : Promise.resolve([]),
         hasWorkspaceInboxAccess(result.id),

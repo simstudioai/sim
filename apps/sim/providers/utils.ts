@@ -2,7 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type OpenAI from 'openai'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/env-flags'
@@ -1491,7 +1491,8 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
-export function isGemini3Model(model: string): boolean {
+/** Accepts bare Gemini IDs, google/ or vertex/ prefixes, and Google publisher resource names. */
+export function isGemini3OrLaterModel(model: string): boolean {
   const normalized = model
     .toLowerCase()
     .replace(/^vertex\//, '')
@@ -1499,7 +1500,7 @@ export function isGemini3Model(model: string): boolean {
       /^(?:google\/|(?:projects\/[^/]+\/locations\/[^/]+\/)?publishers\/google\/models\/)/,
       ''
     )
-  return normalized.startsWith('gemini-3')
+  return Number(normalized.match(/^gemini-(\d+)(?:[.-]|$)/)?.[1]) >= 3
 }
 
 /**

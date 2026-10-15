@@ -1,8 +1,8 @@
 import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import type { OcrRequestPolicy } from '@/lib/knowledge/documents/ocr-request-policy'
 import { buildLargestFittingPdfChunk } from '@/lib/knowledge/documents/pdf-ocr-chunking'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
 
 async function createSourcePdf(pageCount: number): Promise<PDFDocument> {
   const pdf = await PDFDocument.create()

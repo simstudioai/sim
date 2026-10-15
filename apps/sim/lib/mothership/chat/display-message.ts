@@ -1,6 +1,6 @@
 import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
-import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import { isStoredAssistantMessage } from '@/lib/mothership/chat/live-message-id'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   copyPersistedMessageContext,
@@ -14,7 +14,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
-import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
+import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
 import {
   type ChatContextKind,
   type ChatMessage,
@@ -216,7 +216,7 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
   }
 
   if (msg.contentBlocks && msg.contentBlocks.length > 0) {
-    const stored = msg.role === 'assistant' && !isLiveAssistantMessageId(msg.id)
+    const stored = isStoredAssistantMessage(msg)
     const displayBlocks = msg.contentBlocks
       .map((block) => toDisplayBlock(block, stored))
       .filter((block): block is ContentBlock => !!block)

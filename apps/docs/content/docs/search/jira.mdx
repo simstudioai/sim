@@ -1,47 +1,48 @@
 ---
 title: Jira
-description: Search Jira Cloud issues through each member's account
+description: Search Jira Cloud issues using your own account
 ---
 
-Jira uses **Member accounts**. Each person connects their own Jira Cloud account, and Search calls Jira with that person's OAuth grant. There is no Jira service-account mode or admin project filter in live Search.
+Jira Search finds Cloud issues with your personal OAuth grant. It uses **Member accounts**, with no service mode or admin project filter. Jira Server and Data Center are not supported by this adapter.
 
-## Set up Jira
+## Connect
 
-1. An organization admin opens **Settings → Sources → Add source → Jira** and adds it.
-2. Each teammate opens **Integrations → Jira → Connect** and authorizes their own Atlassian account.
-3. Search for a known issue or ask the assistant a question about it. There is no project-setup or indexing step after authorization.
+1. An admin adds **Jira** in **Settings → Sources → Add source**.
+2. Each teammate selects **Integrations → Jira → Connect** and authorizes their Atlassian account.
+3. Search a known issue, or ask Sim about it. Read the result and follow its Jira link.
 
-Hosted Sim supplies the OAuth app. Self-hosted deployments must configure the app below. Use Jira Cloud; Jira Server and Data Center are not supported by this live adapter.
+No project setup or indexing is needed after authorization. Sim Cloud supplies the OAuth app where available; self-hosted deployments configure their app below.
 
-## What Search does
+## Queries and issue reads
 
-Sim resolves the connected account's accessible Atlassian sites, sends JQL to Jira's search API, and returns issue summaries and descriptions. Reading a result fetches the issue and the comments returned by Jira with the same account. Jira enforces project permissions, issue security, and app-access restrictions on these requests.
+Sim resolves your accessible Atlassian sites and sends Jira Query Language (JQL) to the search API. Ask Sim to narrow a query by project, status, dates, or another supported field. These are per-query filters, not source settings.
 
-The assistant can use JQL to narrow a question to a project, status, date, or other supported field. This is a per-query filter, not an organization source configuration. Search checks up to four accessible sites by default. A native query can select a specific cloud site ID and follow its continuation cursor.
+Search returns summaries and descriptions. Reads fetch the issue and available comments with the same account. Jira enforces project permissions, issue security, and app-access restrictions. Bounded responses may omit comments; open Jira for the full discussion.
 
-Changes become visible when Jira's own search reflects them. Sim does not crawl issue attachments or retain an indexed copy of issue content. Bounded API responses may omit additional comments; open the source for the full issue.
+Search checks up to four accessible sites by default. A native query can select a cloud site ID and follow its continuation cursor. Changes follow Jira's search freshness. Live Search does not crawl attachments or retain an indexed issue copy, and does not edit issues. The shared account connection can request broader workflow permissions.
 
 ## Troubleshooting
 
-| Problem | What to check |
+| Problem | Check |
 | --- | --- |
-| Jira is missing | Ask an organization admin to add Jira in Sources. |
-| Connected, but no issue | Open it with the connected Jira account; check issue security, project permissions, site selection, and the JQL query. |
-| Project is visible but its issues are unavailable | Check Atlassian app-access or data-security restrictions. Seeing a project does not guarantee the app can read its issues. |
-| Reconnect | Authorize the appropriate account and grant the requested scopes. |
-| OAuth popup does not open | Allow popups for Sim and retry Connect. |
-| Invalid callback | Check the deployment OAuth app and exact scheme, host, port, and callback path. |
-
-Search does not edit issues. Sim's shared account connection may request additional permissions for workflow actions.
+| Jira missing | Ask an admin to add it in **Sources**. |
+| Issue missing | Check the connected account's access, issue security, project permissions, site, and JQL. |
+| Project visible, issues unavailable | Check app-access/data-security restrictions; project visibility does not grant issue access. |
+| **Reconnect** needed | Authorize the intended account with requested scopes. |
+| Popup blocked | Allow popups and retry **Connect**. |
+| Invalid callback | Check the deployment app and exact callback scheme, host, port, and path. |
 
 ## Self-hosted operator setup
 
-Configure one shared Jira OAuth app for the deployment:
+Follow [Atlassian OAuth setup](/platform/self-hosting/integrations-oauth#atlassian) for the full Jira scope set, including Service Management, Assets, **User Identity API → read:me**, `offline_access`, and **Distribution**. Set `JIRA_CLIENT_ID` and `JIRA_CLIENT_SECRET`, verify `NEXT_PUBLIC_APP_URL`, and register:
 
-1. In the [Atlassian developer console](https://developer.atlassian.com/console/myapps/), select or create an **OAuth 2.0 integration**.
-2. Under **Authorization → OAuth 2.0 (3LO)**, add `https://<your-sim-domain>/api/auth/oauth2/callback/jira` as a callback.
-3. Under **Permissions**, add **Jira API** and configure the full `jira` scope list from [Sim's OAuth configuration](https://github.com/simstudioai/sim/blob/staging/apps/sim/lib/oauth/oauth.ts), including its Jira Service Management and Assets scopes. Add **User Identity API → read:me**. Sim requests `offline_access` for refresh tokens; Search uses only read operations, but this shared app also supports workflow actions.
-4. Enable sharing under **Distribution**. Set `JIRA_CLIENT_ID` and `JIRA_CLIENT_SECRET` from the app's **Settings**, verify `NEXT_PUBLIC_APP_URL`, and restart Sim.
-5. Connect from **Integrations** and select the configured site. After changing the OAuth client or requested scopes, update the organization’s provider configuration and have affected teammates reconnect.
+```text
+https://<your-sim-domain>/api/auth/oauth2/callback/jira
+```
 
-The callback must match Sim's scheme, hostname, port, and path exactly. If only the app owner can connect, check **Distribution**. See the [Atlassian OAuth guide](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/) and [Sim deployment reference](/platform/self-hosting/integrations-oauth).
+Search reads only, but the shared app also supports workflows. If only the app owner can connect, check **Distribution**. After client/scope changes, update the organization's saved provider configuration and reconnect affected members.
+
+## Related docs
+
+- [Atlassian OAuth guide](https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/)
+- [Connect your account](/search/connect-your-account)

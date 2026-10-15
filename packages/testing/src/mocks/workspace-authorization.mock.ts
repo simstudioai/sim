@@ -120,6 +120,7 @@ export const workspaceAuthorizationMockFns = {
         case 'personal_api_key':
         case 'oauth_access_token':
           return principal.userId ?? null
+        case 'resource_delegated':
         case 'organization_delegated':
           return principal.subjectUserId ?? null
         case 'delegated':

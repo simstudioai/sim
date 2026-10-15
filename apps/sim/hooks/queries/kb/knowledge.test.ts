@@ -5,7 +5,7 @@ import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 

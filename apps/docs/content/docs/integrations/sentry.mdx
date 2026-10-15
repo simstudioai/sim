@@ -15,11 +15,9 @@ Use [Sentry](https://sentry.io/) to read and update issues, inspect events, mana
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.
-
-
+Monitor issues, manage projects, track events, and coordinate releases across your applications.
 
 ## Actions
 
@@ -668,7 +666,7 @@ List all teams in a Sentry organization. Useful for discovering the team slug re
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Sentry Error Created
 
@@ -687,7 +685,7 @@ Trigger workflow when a new error event is created in Sentry
 | `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
 | `installation` | json | Installation object containing the integration installation uuid |
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
-| `error` | object | error output from the tool |
+| `error` | object |  |
 |   ↳ `event_id` | string | Unique event ID |
 |   ↳ `issue_id` | string | ID of the issue this error belongs to |
 |   ↳ `issue_url` | string | API URL of the issue |
@@ -738,7 +736,7 @@ Trigger workflow when a Sentry issue alert rule fires
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
 | `event` | json | The event that triggered the alert rule |
 | `triggered_rule` | string | Label of the alert rule that was triggered |
-| `issue_alert` | object | issue_alert output from the tool |
+| `issue_alert` | object |  |
 |   ↳ `title` | string | Alert rule name |
 |   ↳ `settings` | json | Alert rule action settings \(name/value pairs\) |
 
@@ -762,7 +760,7 @@ Trigger workflow when a new issue is created in Sentry
 | `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
 | `installation` | json | Installation object containing the integration installation uuid |
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `shortId` | string | Short human-readable issue ID |
 |   ↳ `shareId` | string | Share ID for the issue |
@@ -791,7 +789,7 @@ Trigger workflow when a new issue is created in Sentry
 |   ↳ `assignedTo` | json | Assignee \(user or team\), or null |
 |   ↳ `annotations` | json | Issue annotations |
 |   ↳ `metadata` | json | Issue metadata \(title, type, value, sdk, severity\) |
-|   ↳ `project` | object | project output from the tool |
+|   ↳ `project` | object |  |
 |     ↳ `id` | string | Project ID |
 |     ↳ `name` | string | Project name |
 |     ↳ `slug` | string | Project slug |
@@ -821,7 +819,7 @@ Trigger workflow when an issue is resolved in Sentry
 | `action` | string | The action that triggered the webhook \(e.g., created, resolved, triggered\) |
 | `installation` | json | Installation object containing the integration installation uuid |
 | `actor` | json | Who triggered the webhook \(user, the integration application, or Sentry\) |
-| `issue` | object | issue output from the tool |
+| `issue` | object |  |
 |   ↳ `id` | string | Issue ID |
 |   ↳ `shortId` | string | Short human-readable issue ID |
 |   ↳ `shareId` | string | Share ID for the issue |
@@ -850,7 +848,7 @@ Trigger workflow when an issue is resolved in Sentry
 |   ↳ `assignedTo` | json | Assignee \(user or team\), or null |
 |   ↳ `annotations` | json | Issue annotations |
 |   ↳ `metadata` | json | Issue metadata \(title, type, value, sdk, severity\) |
-|   ↳ `project` | object | project output from the tool |
+|   ↳ `project` | object |  |
 |     ↳ `id` | string | Project ID |
 |     ↳ `name` | string | Project name |
 |     ↳ `slug` | string | Project slug |

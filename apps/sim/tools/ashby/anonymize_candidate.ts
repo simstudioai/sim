@@ -25,7 +25,7 @@ export const anonymizeCandidateTool: ToolConfig<
   id: 'ashby_anonymize_candidate',
   name: 'Ashby Anonymize Candidate',
   description:
-    'Strips personally identifiable information from a candidate in Ashby. This does not delete the candidate - the record and its applications remain, with the PII removed. Ashby exposes no candidate deletion endpoint; true deletion is UI-only, restricted by role, and limited to a 10-day window. Requires the candidatesWrite permission.',
+    'Remove personally identifiable information from an Ashby candidate while retaining the candidate record and its applications. This operation does not delete the candidate. Requires the candidatesWrite permission.',
   version: '1.0.0',
 
   params: {

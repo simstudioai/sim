@@ -26,9 +26,9 @@ vi.mock('@/lib/internal/sap-concur/client', () => ({
   invokeSapConcurMultipart: mockInvokeMultipart,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
   docNotReadyResponse: () => null,

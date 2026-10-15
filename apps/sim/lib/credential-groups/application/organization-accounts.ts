@@ -52,6 +52,7 @@ import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availab
 export const organizationAccountOperations = {
   read: defineOrganizationOperation({
     id: 'organization_accounts.read',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -60,6 +61,7 @@ export const organizationAccountOperations = {
   }),
   ensure: defineOrganizationOperation({
     id: 'organization_accounts.ensure',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -68,6 +70,7 @@ export const organizationAccountOperations = {
   }),
   update: defineOrganizationOperation({
     id: 'organization_accounts.update',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -76,6 +79,7 @@ export const organizationAccountOperations = {
   }),
   connect: defineOrganizationOperation({
     id: 'organization_accounts.connect',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',

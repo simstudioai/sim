@@ -7,7 +7,7 @@ export const SecretsManagerBlock: BlockConfig = {
   name: 'AWS Secrets Manager',
   description: 'Connect to AWS Secrets Manager',
   longDescription:
-    'Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, delete, describe, tag, untag, restore, and rotate secrets.',
+    'Retrieve, create, update, list, delete, describe, tag, untag, restore, and rotate secrets.',
   docsLink: 'https://docs.sim.ai/integrations/secrets_manager',
   category: 'tools',
   integrationType: IntegrationType.Security,

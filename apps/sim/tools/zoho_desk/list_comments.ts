@@ -1,11 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { ZohoDeskListCommentsParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_COMMENT_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
-  requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -70,7 +70,7 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       if (params.limit !== undefined) query.set('limit', String(params.limit))
       if (params.sortBy) query.set('sortBy', params.sortBy)
       const qs = query.toString()
-      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/comments${qs ? `?${qs}` : ''}`
+      return `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'Ticket ID')}/comments${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),

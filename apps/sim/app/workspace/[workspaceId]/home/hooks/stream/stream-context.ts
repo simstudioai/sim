@@ -22,7 +22,10 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
+import {
+  type MothershipChatHistory,
+  refreshMothershipChatDetail,
+} from '@/hooks/queries/mothership-chats'
 
 /** Minimum spacing between text-driven snapshot flushes (see flushText). */
 const MIN_TEXT_FLUSH_INTERVAL_MS = 50
@@ -83,6 +86,8 @@ export interface StreamLoopState {
   scheduledTextFlushFrame: number | null
   /** Trailing timer for the min-interval text-flush gate (see flushText). */
   scheduledTextFlushTimer: ReturnType<typeof setTimeout> | null
+  /** Chats a batch replay recovered resources for, reloaded once by its terminal flush. */
+  deferredChatDetailRefreshes: Set<string>
 }
 
 export interface StreamEventScope {
@@ -116,8 +121,13 @@ export interface StreamLoopDeps {
     resourceId: string,
     workspaceId?: string
   ) => void
+  /** Drops a queued client write that would re-add a resource the server already removed. */
+  discardPendingResourceUpsert: (
+    resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
+  ) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
+  startClientComputerTool: (id: string, args: Record<string, unknown>, ts?: string) => void
   startClientBrowserTool: (
     id: string,
     name: string,
@@ -198,7 +208,10 @@ export interface StreamLoopOps {
   isStale: () => boolean
   flush: () => void
   flushText: () => void
-  /** Real flush that bypasses `deferFlushes` — the batch-replay terminal flush. */
+  /**
+   * Real flush that bypasses `deferFlushes` — the batch-replay terminal flush — then
+   * reloads each chat the replay recovered resources for.
+   */
   forceFlush: () => void
 }
 
@@ -234,6 +247,7 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     browserAgentRunIds: new Set(),
     scheduledTextFlushFrame: null,
     scheduledTextFlushTimer: null,
+    deferredChatDetailRefreshes: new Set(),
   }
 
   if (preserveState) {
@@ -371,7 +385,13 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       flushAndStamp()
     },
     flushText,
-    forceFlush: flush,
+    forceFlush: () => {
+      flush()
+      for (const chatId of state.deferredChatDetailRefreshes) {
+        refreshMothershipChatDetail(deps.queryClient, chatId)
+      }
+      state.deferredChatDetailRefreshes.clear()
+    },
   }
 
   return { state, ops, deps }

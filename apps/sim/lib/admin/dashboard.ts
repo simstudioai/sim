@@ -56,7 +56,7 @@ import {
   parseWorkflowExecutionTimeoutSeconds,
   resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds,
 } from '@/lib/billing/execution-timeout-defaults'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   acquireOrganizationMutationLock,

@@ -12,6 +12,7 @@ import {
   workspaceUploadsMock,
   workspaceUploadsMockFns,
 } from '@sim/testing/mocks/workspace-uploads.mock'
+import { toRecord } from '@sim/utils/object'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -41,7 +42,7 @@ vi.mock('@/lib/billing/storage', () => billingStorageMock)
 /**
  * Stands in for the workspace-files barrel, which pulls the whole file manager.
  * The real `generateWorkspaceFileKey` and its name budget are measured in
- * `contexts/workspace/workspace-file-manager.test.ts`, so the purposes that key
+ * `contexts/workspace/file-manager.test.ts`, so the purposes that key
  * through it are deliberately absent from the sidecar-bounds sweep below.
  */
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
@@ -147,11 +148,11 @@ describe('upload sessions', () => {
     expect(mockCreatePutTransfer).toHaveBeenCalledWith(
       expect.objectContaining({ key: FINAL_KEY, uploadId: 'upload-1' })
     )
-    const inserted = dbChainMockFns.values.mock.calls[0][0]
+    const inserted = toRecord(dbChainMockFns.values.mock.calls[0][0])
     expect(inserted.tokenHash).toBe(sha256Hex(created.uploadToken))
     expect(inserted.tokenHash).not.toBe(created.uploadToken)
     expect(inserted.finalKey).toBe(FINAL_KEY)
-    expect(inserted.metadata.authBinding).toEqual({
+    expect(toRecord(inserted.metadata).authBinding).toEqual({
       version: 1,
       workspaceId: WORKSPACE_ID,
       principal: createSessionPrincipal(),
@@ -300,7 +301,7 @@ describe('upload sessions', () => {
         },
       },
     })
-    const metadata = dbChainMockFns.values.mock.calls[0][0].metadata
+    const metadata = toRecord(toRecord(dbChainMockFns.values.mock.calls[0][0]).metadata)
     expect(metadata.folderId).toBe('folder')
     expect(Object.hasOwn(metadata, WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY)).toBe(false)
   })
@@ -352,7 +353,7 @@ describe('upload sessions', () => {
       ...extra,
     } as Parameters<typeof createUploadSession>[0])
 
-    const { finalKey } = dbChainMockFns.values.mock.calls[0][0]
+    const { finalKey } = dbChainMockFns.values.mock.calls[0][0] as UploadSessionRecord
     const lastComponent = finalKey.slice(finalKey.lastIndexOf('/') + 1)
     expect(
       Buffer.byteLength(`${lastComponent}${LOCAL_UPLOAD_METADATA_SUFFIX}`, 'utf-8')

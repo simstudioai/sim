@@ -16,6 +16,12 @@ const HEADER_LINE = /^[A-Z][A-Za-z-]{1,15}: .*$/
  */
 const WORD_CHARACTER =
   /(?![\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}\p{sc=Thai}])[\p{L}\p{N}_]/u
+const WORD_RUN = new RegExp(`(?:${WORD_CHARACTER.source})+`, 'gu')
+
+/** The words of a text, split where a run of `WORD_CHARACTER`s ends. */
+export function textWords(text: string): string[] {
+  return text.match(WORD_RUN) ?? []
+}
 
 /**
  * The document text without the header block some connectors prefix (the

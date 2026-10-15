@@ -100,7 +100,8 @@ export async function getAccessControlConfig(): Promise<AccessControlConfig> {
       environment: env.APPCONFIG_ENVIRONMENT as string,
       profile: ACCESS_CONTROL_PROFILE,
     },
-    parseConfig
+    parseConfig,
+    { shareWithTriggerRuns: true }
   )
 
   return value ?? fromEnv()

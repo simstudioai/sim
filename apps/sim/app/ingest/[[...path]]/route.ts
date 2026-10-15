@@ -57,6 +57,10 @@ async function handler(request: NextRequest) {
       headers: responseHeaders,
     })
   } catch (error) {
+    if (request.signal.aborted) {
+      logger.info('Client closed PostHog proxy request', { method: request.method })
+      return new NextResponse(null, { status: 499 })
+    }
     logger.error('PostHog proxy error', {
       url,
       method: request.method,

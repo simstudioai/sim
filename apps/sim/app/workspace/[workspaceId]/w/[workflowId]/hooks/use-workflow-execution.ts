@@ -6,7 +6,6 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
   type AgentStreamToolCall,
@@ -36,15 +35,15 @@ import type {
 } from '@/lib/workflows/executor/execution-events'
 import { collectInputFormatFiles, isFileFieldType } from '@/lib/workflows/input-format'
 import {
-  extractTriggerMockPayload,
-  selectBestTrigger,
-  triggerNeedsMockPayload,
-} from '@/lib/workflows/triggers/trigger-utils'
-import {
   resolveStartCandidates,
   StartBlockPath,
   TriggerUtils,
 } from '@/lib/workflows/triggers/triggers'
+import {
+  extractTriggerMockPayload,
+  selectBestTrigger,
+  triggerNeedsMockPayload,
+} from '@/lib/workflows/triggers/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { getRunFromBlockDependencyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block'
 import {
@@ -60,7 +59,7 @@ import {
   addExecutionErrorConsoleEntry as sharedAddExecutionErrorConsoleEntry,
   handleExecutionCancelledConsole as sharedHandleExecutionCancelledConsole,
   handleExecutionErrorConsole as sharedHandleExecutionErrorConsole,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import { getBlock } from '@/blocks'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -400,7 +399,6 @@ function createAgentStreamChrome({ executionIdRef, updateConsole }: AgentStreamC
 }
 
 export function useWorkflowExecution() {
-  const { workspaceId: routeWorkspaceId } = useParams<{ workspaceId: string }>()
   const hydrationWorkspaceId = useWorkflowRegistry((s) => s.hydration.workspaceId)
   const queryClient = useQueryClient()
   const currentWorkflow = useCurrentWorkflow()
@@ -729,7 +727,7 @@ export function useWorkflowExecution() {
     async (workflowInput?: unknown, enableDebug = false) => {
       if (!activeWorkflowId) return
 
-      const scopedWorkspaceId = routeWorkspaceId ?? hydrationWorkspaceId ?? undefined
+      const scopedWorkspaceId = hydrationWorkspaceId ?? undefined
       const cachedWorkflows = scopedWorkspaceId ? getWorkflows(scopedWorkspaceId) : []
       const activeWorkflow = cachedWorkflows.find((w) => w.id === activeWorkflowId)
 

@@ -39,7 +39,7 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@sim/workflow-persistence/load', () => ({

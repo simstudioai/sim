@@ -5,7 +5,7 @@ import {
   billingUsageGateCacheMockFns,
 } from '@sim/testing/mocks/billing-usage-gate-cache.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/billing-attribution'
+import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/attribution'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { BillingLimitError } from '@/lib/mothership/request/go/stream'

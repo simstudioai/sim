@@ -11,46 +11,33 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[CB Insights](https://www.cbinsights.com/) is a private-market intelligence platform. Its API v2 exposes both the underlying firmographic and transaction record — companies, investors, funding rounds, cap tables, exits, business relationships, leadership — and the proprietary models CB Insights layers on top of it: the Mosaic Score, Commercial Maturity, and Exit Probability.
+[CB Insights](https://www.cbinsights.com/) provides company, investor, funding, cap-table, exit, relationship, and leadership data. Use its Mosaic Score, Commercial Maturity, and Exit Probability operations to retrieve scores, supporting signals, and history. Exit Probability includes a comparable-company mean and ratio. Cap-table history includes issuance and conversion prices, liquidation preferences, participation rights, and anti-dilution terms.
 
-**Why CB Insights?**
-- **Predictive, not just descriptive:** Mosaic Score, Commercial Maturity, and Exit Probability are scored models with published methodologies, and each returns the signals behind it rather than a bare number.
-- **Peer-relative by default:** Exit probabilities come with the mean for comparable companies and a ratio to it, so a score can be read against its cohort instead of in isolation.
-- **Depth on terms:** Cap table history carries issuance and conversion prices, liquidation preference, participation rights, and anti-dilution provisions — detail that rarely survives into aggregated datasets.
-- **Free identity resolution:** The organization lookup never charges credits, so your own records can be matched to CB Insights IDs before you spend anything.
+## Credentials and access
 
-**Using CB Insights in Sim**
+Obtain a client ID and secret from your CB Insights Customer Success Manager. Sim exchanges them for a short-lived bearer token automatically. Most data operations consume credits; access depends on your license for Firmographics, Financial Transactions, Business Relationships, Management and Board, Outlook, or Scouting Reports. Check your entitlements before building a workflow around a dataset.
 
-This integration covers every non-streaming v2 endpoint. Authentication is a client-credential exchange — Sim trades your client ID and secret for a short-lived bearer token on your behalf and refreshes it automatically, so there is no token to manage in the workflow.
+## Working with company data
 
-**Key benefits of using CB Insights in Sim:**
-- **Credit-aware enrichment:** Resolve companies with the free **Look Up Organizations** operation first, confirm the match, then spend credits only on the records you actually want.
-- **Bulk over per-record:** The `List` operations cover up to 100 organizations in a single call — use them instead of looping the single-organization equivalents when refreshing a table.
-- **Score history, not just a snapshot:** Mosaic, Commercial Maturity, and Exit Probability each have a history operation, so a trend can be read rather than a point value.
-- **Relationship mapping:** **Get Strategy Map** returns the companies connected to an organization grouped by category, with the partnerships, investments, and acquisitions that link them.
-- **AI on tap:** **Get Scouting Report** writes a full company analysis, **Ask ChatCBI** answers questions with sources, and **Retrieve Context** returns the raw structured records for your own model to reason over.
+Use **Look Up Organizations** to match names or websites to CB Insights IDs before requesting paid data. The lookup is described as credit-free by the integration's endpoint contract; confirm current credit terms with CB Insights. Multi-organization **List** operations accept up to 100 organizations per call.
 
-**Before you start**
+**Get Strategy Map** groups connected companies by category and includes their partnerships, investments, and acquisitions. **Get Scouting Report** generates company analysis, **Ask ChatCBI** answers questions with sources, and **Retrieve Context** supplies structured records for another model.
 
-Client credentials come from your CB Insights Customer Success Manager rather than a self-serve settings page. **Most operations consume credits, and which datasets answer at all depends on your license** — Firmographics, Financial Transactions, Business Relationships, Management and Board, Outlook, and Scouting Reports are separately licensed. An operation outside your entitlement returns an error from CB Insights rather than partial data.
+When `incompleteRoundType` identifies a pending round, all exit probabilities are suppressed to zero; a rumored round suppresses only the matching exit type. These zeroes indicate suppression rather than low predicted probability. Multi-organization responses can omit organizations with no data; compare returned IDs with your input before processing the result.
 
-Two behaviors are worth knowing before you build against them. A **pending or rumored funding round zeroes the exit probabilities** rather than omitting them, so a `0` alongside a set `incompleteRoundType` means "suppressed", not "unlikely". And on every multi-organization operation, **an organization with no data is omitted from the response** rather than returned empty — treat a missing ID as "no data", not as a failure.
-
-The two streaming endpoints (`chatcbichunked` and `scoutingreportstream`) are intentionally not exposed; they deliver incremental JSON chunks, and the non-streaming operations here return the same content in one piece. Note that a Scouting Report can take several minutes to generate.
+The streaming endpoints `chatcbichunked` and `scoutingreportstream` are not exposed. Use the non-streaming operations for a complete response. A Scouting Report can take several minutes to generate.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrates the CB Insights API v2 into the workflow. Resolve companies to CB Insights IDs for free, search firmographics across markets and geographies, pull funding rounds, cap tables, investments, and exits, map business relationships, read leadership and board history, and retrieve the proprietary Mosaic Score, Commercial Maturity, and Exit Probability outlooks. Generate AI Scouting Reports, or ask ChatCBI directly. Which datasets answer depends on your CB Insights license.
-
-
+Look up companies, retrieve firmographic and transaction data, map business relationships, read leadership records and score history, and generate Scouting Reports or ChatCBI answers. Supply client credentials; dataset access and credit use depend on your CB Insights license.
 
 ## Actions
 
 ### CB Insights Look Up Organizations
 
-Resolve company names or websites to CB Insights organization IDs. This endpoint never charges credits, so use it to match your own records before spending credits on the data endpoints.
+Resolve company names or websites to CB Insights organization IDs. The integration contract describes lookup as credit-free; confirm current credit terms with CB Insights before requesting paid datasets.
 
 #### Input
 
@@ -140,7 +127,7 @@ Retrieve the funding rounds one organization has received, its cap table history
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `limit` | number | No | Rows to return in a single response, 1-100 |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
 
@@ -164,7 +151,7 @@ Retrieve the rounds in which one organization invested in another, with AI-gener
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `limit` | number | No | Rows to return in a single response, 1-100 |
 | `nextPageToken` | string | No | Continuation token from a previous response; omit for the first page |
 
@@ -187,7 +174,7 @@ Retrieve exit rounds for companies this organization invested in before the exit
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
 
@@ -205,7 +192,7 @@ Retrieve one organization's partnerships, client/vendor relationships, and licen
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
 
@@ -223,7 +210,7 @@ Retrieve an organization's leadership team and board members with their educatio
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `titleIds` | json | No | CB Insights person title IDs to filter the people returned, e.g. \[50, 75\] |
 
 #### Output
@@ -243,7 +230,7 @@ Retrieve an organization's current Mosaic Score, Commercial Maturity level, and 
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
 
@@ -263,7 +250,7 @@ Retrieve the estimated window in which an organization is likely to raise its ne
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
 
@@ -285,7 +272,7 @@ Retrieve reported and estimated revenue by calendar year for one organization, w
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
 
@@ -306,7 +293,7 @@ Retrieve an organization's historical Mosaic Scores — overall plus the managem
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2024-01-01 and within the last 24 months. Defaults to the later of one year ago and 2024-01-01. |
 
 #### Output
@@ -329,7 +316,7 @@ Retrieve an organization's historical Commercial Maturity levels, tracking how i
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2024-07-25 and within 24 months of endDate. Defaults to the later of one year ago and 2024-07-25. |
 | `endDate` | string | No | Latest date to return, as YYYY-MM-DD. Must be on or after 2024-07-25 and within 24 months of startDate. Defaults to today. |
 
@@ -349,7 +336,7 @@ Retrieve an organization's historical two-year IPO and M&A exit probabilities, e
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 | `startDate` | string | No | Earliest date to return, as YYYY-MM-DD. Must be on or after 2025-02-25 and within 24 months of endDate. Defaults to the later of one year ago and 2025-02-25. |
 | `endDate` | string | No | Latest date to return, as YYYY-MM-DD. Must be on or after 2025-02-25 and within 24 months of startDate. Defaults to today. |
 
@@ -371,7 +358,7 @@ Retrieve the companies related to an organization, grouped into industry categor
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
 
@@ -391,7 +378,7 @@ Generate an AI-written Scouting Report on a private company covering its busines
 | --------- | ---- | -------- | ----------- |
 | `clientId` | string | Yes | CB Insights API client ID, exchanged for a bearer token before each call |
 | `clientSecret` | string | Yes | CB Insights API client secret, exchanged for a bearer token before each call |
-| `orgId` | number | Yes | CB Insights organization ID of an active company. Resolve a name or website to one with Look Up Organizations, which never charges credits. |
+| `orgId` | number | Yes | CB Insights organization ID of an active company. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights. |
 
 #### Output
 

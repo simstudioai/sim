@@ -47,7 +47,7 @@ Read these files completely before editing:
 - `apps/sim/lib/api/server/routes/internal-json-route.ts`
 - `apps/sim/lib/api/server/routes/v2-json-route.ts`
 - `apps/sim/lib/auth/internal-delegation.ts`
-- `apps/sim/lib/mothership/application/application-adapter.ts`
+- `apps/sim/lib/mothership/application/adapter.ts`
 - `apps/sim/lib/mothership/auth/application-delegation.ts`
 
 Use the file domain only as a representative golden slice:

@@ -116,17 +116,11 @@ export const v2McpServerSchema = z
     enabled: mcpServerSchema.shape.enabled.describe(
       'Whether the server tools are available to workflows.'
     ),
-    /**
-     * These three are written only by a real discovery. Registration's one
-     * outbound touch is the auth-type probe, which classifies the endpoint and
-     * never records a connection, so registration leaves all three at their
-     * defaults rather than asserting a connection nothing has verified.
-     */
     connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
-      'Result of the most recent connection attempt. Registration and re-registration establish no connection — the auth-type probe they may send does not count as one — so a server begins, and returns to, `disconnected` until a tool discovery runs.'
+      'Result of the most recent tool connection attempt. New registrations start `disconnected`; re-registration resets this state only when connection inputs change. Authentication probes do not establish a tool connection. Tool discovery updates this state.'
     ),
     lastError: mcpServerSchema.shape.lastError.describe(
-      'Message from the most recent failed connection, or null when absent. A re-registration clears it, since the configuration it described no longer applies.'
+      'Message from the most recent failed tool connection, or null when absent. Successful discovery or re-registration with changed connection inputs clears it.'
     ),
     toolCount: mcpServerSchema.shape.toolCount.describe(
       'Number of tools discovered on the server.'
@@ -135,7 +129,7 @@ export const v2McpServerSchema = z
       'ISO 8601 timestamp of the most recent tool-list refresh.'
     ),
     lastConnected: mcpServerSchema.shape.lastConnected.describe(
-      'ISO 8601 timestamp of the most recent successful connection. Absent until the server completes one; registering a server does not set it.'
+      'ISO 8601 timestamp of the most recent successful tool connection. Absent until one succeeds, or after re-registration changes connection inputs.'
     ),
     createdAt: mcpServerSchema.shape.createdAt.describe(
       'ISO 8601 timestamp when the server was registered.'
@@ -230,7 +224,7 @@ export const v2CreateMcpServerBodySchema = z
     authType: mcpAuthTypeSchema
       .optional()
       .describe(
-        'Authentication method. When omitted, and no `headers` are sent, registration probes the endpoint once to classify it, falling back to `headers` when the probe fails or the server does not advertise OAuth. A server publishing RFC 9728 metadata is therefore stored as `oauth`, and headers configured afterwards will not authenticate — send this field explicitly to pin the method.'
+        'Authentication method. On creation, omission without `headers` probes once: an OAuth challenge selects `oauth`, an unauthenticated success selects `none`, and other outcomes fall back to `headers`. An OAuth client ID selects `oauth` when the method is omitted. Set explicitly to use headers with a server advertising OAuth; adding headers later does not change the saved method.'
       ),
     /** Write-only. Reads expose `hasHeaders` and `headerNames` instead. */
     headers: v2McpServerHeadersSchema

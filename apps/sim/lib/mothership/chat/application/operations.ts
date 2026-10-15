@@ -16,6 +16,7 @@ export const mothershipChatOperations = {
     id: 'mothership.chats.list',
     ...workspacePolicy,
     capability: 'none',
+    contentDelivery: 'none',
   }),
   restore: Object.freeze({
     // permission-group-exempt: restoring and listing a user's own chats preserves workspace access policy.
@@ -23,10 +24,12 @@ export const mothershipChatOperations = {
       id: 'mothership.chats.restore',
       ...workspacePolicy,
       capability: 'none',
+      contentDelivery: 'none',
     }),
     // permission-group-exempt: restoring and listing a user's own chats preserves workspace access policy.
     organizationOperation: defineOrganizationOperation({
       id: 'mothership.chats.restore',
+      contentDelivery: 'none',
       minimumRole: 'member',
       principalKinds: ['session', 'organization_delegated'],
       delegationAudience: 'sim:settings',

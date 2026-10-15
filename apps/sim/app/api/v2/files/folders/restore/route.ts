@@ -1,8 +1,8 @@
 import { v2RestoreFileFolderContract } from '@/lib/api/contracts/v2/files'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { restoreWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/folders'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { restoreWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { toWorkspaceFileFolderPathView } from '@/lib/workspace-files/folder-display-path'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

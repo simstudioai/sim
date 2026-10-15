@@ -11,24 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Calendly](https://calendly.com/) is a popular scheduling automation platform that helps you book meetings, events, and appointments with ease. With Calendly, teams and individuals can streamline scheduling, reduce back-and-forth emails, and automate tasks around events.
+Use [Calendly](https://calendly.com/) to read account information, event types, scheduled events, and invitees. The actions also book or cancel meetings, create single-use scheduling links, mark invitees as no-shows, and inspect availability and organization membership. Configure a personal access token for the selected operation. **Book Meeting** requires a paid Calendly plan; see [Calendly’s booking requirements](https://developer.calendly.com/api-docs/calendly-api/scheduled-events/create-event-invitee).
 
-With the Sim Calendly integration, your agents can:
-
-- **Retrieve information about your account and scheduled events**: Use tools to fetch user info, event types, and scheduled events for analysis or automation.
-- **Manage event types and scheduling**: Access and list available event types for users or organizations, retrieve details about specific event types, and monitor scheduled meetings and invitee data.
-- **Automate follow-ups and workflows**: When users schedule, reschedule, or cancel meetings, Sim agents can automatically trigger corresponding workflows—such as sending reminders, updating CRMs, or notifying participants.
-- **Integrate easily using webhooks**: Set up Sim workflows to respond to real-time Calendly webhook events, including when invitees schedule, cancel, or interact with routing forms.
-
-Whether you want to automate meeting prep, manage invites, or run custom workflows in response to scheduling activity, the Calendly tools in Sim give you flexible and secure access. Unlock new automation by reacting instantly to scheduling changes—streamlining your team's operations and communications.
+Webhook subscriptions require a paid plan and the permissions for their user or organization scope. Switch to trigger mode to start workflows when an invitee schedules or cancels an event or submits a routing form. Pass the event data to follow-up steps, such as preparing a meeting brief, updating a CRM, or notifying participants.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Calendly into your workflow. Manage event types, scheduled events, invitees, and webhooks. Can also trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.
-
-
+Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.
 
 ## Actions
 
@@ -692,7 +683,7 @@ Retrieve the submissions of a routing form, including answers and routing result
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Calendly Invitee Canceled
 
@@ -712,7 +703,7 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 | `event` | string | Event type \(invitee.created or invitee.canceled\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `uri` | string | Invitee URI |
 |   ↳ `email` | string | Invitee email address |
 |   ↳ `name` | string | Invitee full name |
@@ -722,7 +713,7 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
 |   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
-|   ↳ `tracking` | object | tracking output from the tool |
+|   ↳ `tracking` | object |  |
 |     ↳ `utm_campaign` | string | UTM campaign parameter |
 |     ↳ `utm_source` | string | UTM source parameter |
 |     ↳ `utm_medium` | string | UTM medium parameter |
@@ -775,7 +766,7 @@ Trigger workflow when someone schedules a new event on Calendly
 | `event` | string | Event type \(invitee.created or invitee.canceled\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `uri` | string | Invitee URI |
 |   ↳ `email` | string | Invitee email address |
 |   ↳ `name` | string | Invitee full name |
@@ -785,7 +776,7 @@ Trigger workflow when someone schedules a new event on Calendly
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
 |   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
-|   ↳ `tracking` | object | tracking output from the tool |
+|   ↳ `tracking` | object |  |
 |     ↳ `utm_campaign` | string | UTM campaign parameter |
 |     ↳ `utm_source` | string | UTM source parameter |
 |     ↳ `utm_medium` | string | UTM medium parameter |
@@ -838,7 +829,7 @@ Trigger workflow when someone submits a Calendly routing form
 | `event` | string | Event type \(routing_form_submission.created\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `uri` | string | Routing form submission URI |
 |   ↳ `routing_form` | string | Routing form URI |
 |   ↳ `submitter` | object | Submitter details |
@@ -847,7 +838,7 @@ Trigger workflow when someone submits a Calendly routing form
 |     ↳ `name` | string | Submitter full name |
 |   ↳ `submitter_type` | string | Type of submitter |
 |   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
-|   ↳ `tracking` | object | tracking output from the tool |
+|   ↳ `tracking` | object |  |
 |     ↳ `utm_campaign` | string | UTM campaign parameter |
 |     ↳ `utm_source` | string | UTM source parameter |
 |     ↳ `utm_medium` | string | UTM medium parameter |

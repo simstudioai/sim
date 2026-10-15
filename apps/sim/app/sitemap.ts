@@ -12,7 +12,10 @@ import {
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
-import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
+import {
+  MODEL_PROVIDERS_WITH_CATALOGS,
+  MODEL_PROVIDERS_WITH_MODELS,
+} from '@/app/(landing)/models/utils'
 
 /** One sitemap entry per author, timestamped by their most recently updated post. */
 function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute.Sitemap {
@@ -189,10 +192,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const integrationPages: MetadataRoute.Sitemap = INTEGRATIONS.map((integration) => ({
     url: `${baseUrl}/integrations/${integration.slug}`,
-    lastModified: integrationsUpdatedAt,
+    lastModified: new Date(`${integration.updatedAt}T00:00:00Z`),
   }))
 
-  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) => {
+  // Reseller pages (Bedrock, Vertex, Azure, ...) list reseller-specific prices and model IDs, so
+  // they are indexed alongside the first-party pages rather than folded into them.
+  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_MODELS.flatMap((provider) => {
     if (provider.models.length === 0) return []
     return [
       {
@@ -204,7 +209,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ]
   })
 
-  const modelEntries: MetadataRoute.Sitemap = ALL_CATALOG_MODELS.map((model) => ({
+  const modelEntries: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_MODELS.flatMap(
+    (provider) => provider.models
+  ).map((model) => ({
     url: `${baseUrl}${model.href}`,
     lastModified: new Date(model.pricing.updatedAt),
   }))

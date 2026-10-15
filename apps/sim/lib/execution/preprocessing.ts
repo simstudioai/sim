@@ -11,7 +11,7 @@ import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
   resolveSystemBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
@@ -769,7 +769,7 @@ export async function preprocessExecution(
                 statusCode: 402,
                 // An unreadable ledger fails closed; that is no verdict on the payer, so senders retry.
                 ...(usageCheck.reason === 'usage_unavailable'
-                  ? {}
+                  ? { retryable: true }
                   : { code: ADMISSION_REJECTION_CODE.USAGE_LIMIT_EXCEEDED }),
               },
             },

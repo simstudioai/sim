@@ -5,18 +5,24 @@ import {
 } from '@sim/db/schema'
 import { and, asc, eq, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
+import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import {
   FILE_SEARCH_CANDIDATE_PAGE_SIZE,
   FILE_SEARCH_CANDIDATE_PROBE_SIZE,
 } from '@/lib/workspace-files/search/constants'
 import type { CompiledFileSearchPattern } from '@/lib/workspace-files/search/pattern'
+import {
+  currentFileSearchDependencies,
+  fileSearchOwnerCondition,
+  searchableFileCondition,
+} from '@/lib/workspace-files/search/scope'
 import { buildMatchExpression } from '@/lib/workspace-files/search/sql-pattern'
 
 export interface FileSearchCandidate {
   fileId: string
   fileName: string
   fileKey: string
-  ownerUserId: string
+  ownerUserId: string | null
   contentUpdatedAt: Date
   buildId: string
   ordinal: number
@@ -25,7 +31,7 @@ export interface FileSearchCandidate {
 }
 
 interface CandidateScope {
-  workspaceId: string
+  owner: EditableFileOwner
   pattern: CompiledFileSearchPattern
   folderPredicate?: SQL
 }
@@ -58,7 +64,7 @@ function candidatePredicate(pattern: CompiledFileSearchPattern): SQL {
 /** Bounded unordered probe avoids sorting all matching text for broad queries. */
 export async function probeFileSearchCandidates(
   tx: DbTransaction,
-  { workspaceId, pattern, folderPredicate }: CandidateScope
+  { owner, pattern, folderPredicate }: CandidateScope
 ): Promise<FileSearchCandidate[]> {
   const probe = tx
     .select({
@@ -77,7 +83,7 @@ export async function probeFileSearchCandidates(
       workspaceFileSearchRevision,
       and(
         eq(workspaceFileSearchRevision.buildId, workspaceFileSearchChunk.buildId),
-        eq(workspaceFileSearchRevision.workspaceId, workspaceId),
+        fileSearchOwnerCondition(workspaceFileSearchRevision, owner),
         eq(workspaceFileSearchRevision.status, 'ready')
       )
     )
@@ -90,9 +96,9 @@ export async function probeFileSearchCandidates(
     )
     .where(
       and(
-        eq(workspaceFileSearchChunk.workspaceId, workspaceId),
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, 'workspace'),
+        fileSearchOwnerCondition(workspaceFileSearchChunk, owner),
+        searchableFileCondition(owner),
+        currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner),
         isNull(workspaceFiles.deletedAt),
         folderPredicate,
         candidatePredicate(pattern)
@@ -100,16 +106,17 @@ export async function probeFileSearchCandidates(
     )
     .limit(FILE_SEARCH_CANDIDATE_PROBE_SIZE + 1)
     .as('probe')
-  return tx
+  const rows = await tx
     .select()
     .from(probe)
     .orderBy(asc(probe.fileName), asc(probe.fileId), asc(probe.lineStart), asc(probe.ordinal))
+  return rows
 }
 
 /** A parameterized build scan preserves file order and can stop after one candidate page. */
 export async function readOrderedFileSearchCandidates(
   tx: DbTransaction,
-  { workspaceId, pattern, folderPredicate }: CandidateScope,
+  { owner, pattern, folderPredicate }: CandidateScope,
   after?: CandidateCursor
 ): Promise<FileSearchCandidate[]> {
   /** OFFSET 0 preserves the ordered file input instead of flattening into a global text scan. */
@@ -127,15 +134,15 @@ export async function readOrderedFileSearchCandidates(
       workspaceFileSearchRevision,
       and(
         eq(workspaceFileSearchRevision.fileId, workspaceFiles.id),
-        eq(workspaceFileSearchRevision.workspaceId, workspaceId),
+        fileSearchOwnerCondition(workspaceFileSearchRevision, owner),
         eq(workspaceFileSearchRevision.sourceContentUpdatedAt, workspaceFiles.contentUpdatedAt),
         eq(workspaceFileSearchRevision.status, 'ready')
       )
     )
     .where(
       and(
-        eq(workspaceFiles.workspaceId, workspaceId),
-        eq(workspaceFiles.context, 'workspace'),
+        searchableFileCondition(owner),
+        currentFileSearchDependencies(workspaceFileSearchRevision.buildId, owner),
         isNull(workspaceFiles.deletedAt),
         folderPredicate,
         after
@@ -157,7 +164,7 @@ export async function readOrderedFileSearchCandidates(
     .where(
       and(
         eq(workspaceFileSearchChunk.buildId, files.buildId),
-        eq(workspaceFileSearchChunk.workspaceId, workspaceId),
+        fileSearchOwnerCondition(workspaceFileSearchChunk, owner),
         candidatePredicate(pattern),
         after
           ? sql`(${files.fileName}, ${files.fileId}, ${workspaceFileSearchChunk.lineStart}) > (${after.name}, ${after.id}, ${after.lineStart})`
@@ -167,7 +174,7 @@ export async function readOrderedFileSearchCandidates(
     .orderBy(asc(workspaceFileSearchChunk.lineStart), asc(workspaceFileSearchChunk.ordinal))
     .limit(FILE_SEARCH_CANDIDATE_PAGE_SIZE)
     .as('chunks')
-  return tx
+  const rows = await tx
     .select({
       fileId: files.fileId,
       fileName: files.fileName,
@@ -183,4 +190,5 @@ export async function readOrderedFileSearchCandidates(
     .innerJoinLateral(chunks, sql`true`)
     .orderBy(asc(files.fileName), asc(files.fileId), asc(chunks.lineStart), asc(chunks.ordinal))
     .limit(FILE_SEARCH_CANDIDATE_PAGE_SIZE)
+  return rows
 }

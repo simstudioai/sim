@@ -12,6 +12,7 @@ import {
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import { v2RateLimits } from '@/lib/api/server/routes/v2-json-route'
 import { afterResponse } from '@/lib/core/utils/after-response'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
@@ -26,10 +27,36 @@ import {
 import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { toolError } from '@/lib/mcp/tool-result'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
+import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('KnowledgeMcp')
+/** Provider reads one read_document call runs at once, however many documents it names. */
+const READ_DOCUMENT_CONCURRENCY = 5
+
+/** The message a caller may see for an expected failure; undefined for an internal error. */
+async function callerErrorMessage(error: unknown): Promise<string | undefined> {
+  if (error instanceof LiveReadError) return error.message
+  const response = v2CaughtOrchestrationError(error)
+  if (!response) return undefined
+  const body: unknown = await response.json()
+  return isPlainRecord(body) && isPlainRecord(body.error) && typeof body.error.message === 'string'
+    ? body.error.message
+    : undefined
+}
+
+/** One read_document result in the shape the tool returns it. */
+function projectReadResult(result: Awaited<ReturnType<typeof readLiveDocument.execute>>) {
+  const { knowledgeBaseId: _knowledgeBaseId, knowledgeBaseName: _name, ...document } = result
+  return {
+    ...document,
+    title: result.documentName,
+    citationId: liveCitationId(result.documentId),
+    citationUrl: result.sourceUrl,
+  }
+}
+
 interface KnowledgeMcpContext {
   organizationId: string
   request: NextRequest
@@ -42,13 +69,13 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
   const principal = auth.principal
   const server = new McpServer({ name: 'Sim Search', version: '1.0.0' })
 
-  const execute: KnowledgeMcpToolRunner = async (toolName, operation, toolSignal, run) => {
+  const execute: KnowledgeMcpToolRunner = async (toolName, operation, toolSignal, run, cost) => {
     const startedAt = performance.now()
     const signal = AbortSignal.any([request.signal, toolSignal])
     let outcome: SearchMcpActivityInput['outcome'] = 'error'
     try {
       signal.throwIfAborted()
-      const limited = await v2RateLimits.publicApi.enforce(request, auth, operation)
+      const limited = await v2RateLimits.publicApi.enforce(request, auth, operation, cost)
       signal.throwIfAborted()
       if (limited) {
         outcome = 'rate_limited'
@@ -67,17 +94,8 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
       return result
     } catch (error) {
       if (signal.aborted) outcome = 'cancelled'
-      const response = v2CaughtOrchestrationError(error)
-      if (response) {
-        const body: unknown = await response.json()
-        if (
-          isPlainRecord(body) &&
-          isPlainRecord(body.error) &&
-          typeof body.error.message === 'string'
-        ) {
-          return toolError(body.error.message)
-        }
-      }
+      const message = await callerErrorMessage(error)
+      if (message) return toolError(message)
       logger.error('Knowledge MCP operation failed', { operation: operation.id, error })
       return toolError('Unable to complete this operation. Please try again.')
     } finally {
@@ -109,7 +127,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Search',
       description:
-        'Search this organization’s sources through their live APIs, within your access and the admin’s source settings. Use source and date filters to narrow results, or nativeQueries for provider queries and pagination. Inspect live.accounts for provider status and continuation cursors, and live.guidance for query syntax. Results are candidates, not proof of complete coverage. Use read_document with the exact returned documentId for context and cite citationUrl when available.',
+        'Search this organization’s sources through their live APIs, within your access and the admin’s source settings. Use source and date filters to narrow results, or nativeQueries for provider queries and pagination. Results carry a passage around their match where the source provides text. Inspect live.accounts for provider status and continuation cursors, and live.guidance for query syntax. Results are candidates, not proof of complete coverage. When a passage does not answer the question, use read_document with the exact returned documentId, and cite citationUrl when available.',
       inputSchema: liveSearchMcpSchema,
       annotations: KNOWLEDGE_MCP_READ_ONLY,
     },
@@ -157,38 +175,61 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Read document',
       description:
-        'Read a live document using the exact documentId returned by search. Access and the admin’s source settings are checked again on every read. When hasMore is true, pass next.startChunkIndex and next.startOffset with the same documentId to continue. Cite citationUrl when available.',
+        'Read live documents using the exact document IDs returned by search: documentId for one, or documentIds to read several in one call rather than one call each. Access and the admin’s source settings are checked again on every read. When a document’s hasMore is true, pass its next.startChunkIndex and next.startOffset with the same documentId to continue. Cite citationUrl when available.',
       inputSchema: readLiveDocumentMcpSchema,
       annotations: KNOWLEDGE_MCP_READ_ONLY,
     },
-    async (raw: unknown, extra: { signal: AbortSignal }) =>
-      execute(
+    async (raw: unknown, extra: { signal: AbortSignal }) => {
+      const parsed = readLiveDocumentMcpSchema.safeParse(raw)
+      const batch =
+        parsed.success && parsed.data.documentIds ? [...new Set(parsed.data.documentIds)] : []
+      return execute(
         'read_document',
         knowledgeOperations.readDocument,
         extra.signal,
         async (registry, signal) => {
-          const input = readLiveDocumentMcpSchema.parse(raw)
-          const result = await readLiveDocument.execute({
-            principal,
-            input: { ...input, organizationId, resultSecretRegistry: registry, signal },
-            request,
-          })
-          const {
-            knowledgeBaseId: _knowledgeBaseId,
-            knowledgeBaseName: _name,
-            ...document
-          } = result
-          return projectResult(
-            {
-              ...document,
-              title: result.documentName,
-              citationId: liveCitationId(result.documentId),
-              citationUrl: result.sourceUrl,
-            },
-            registry
+          if (!parsed.success) throw parsed.error
+          const { documentId, documentIds: _documentIds, ...options } = parsed.data
+          const read = (id: string) =>
+            readLiveDocument.execute({
+              principal,
+              input: {
+                ...options,
+                documentId: id,
+                organizationId,
+                resultSecretRegistry: registry,
+                signal,
+              },
+              request,
+            })
+          if (documentId) return projectResult(projectReadResult(await read(documentId)), registry)
+          /** One unreadable document leaves the others; each failure is reported in its place. */
+          const documents = await mapWithConcurrency(
+            batch,
+            READ_DOCUMENT_CONCURRENCY,
+            async (id) => {
+              try {
+                return projectReadResult(await read(id))
+              } catch (error) {
+                signal.throwIfAborted()
+                const message = await callerErrorMessage(error)
+                if (!message)
+                  logger.error('Knowledge MCP batched read failed', {
+                    operation: knowledgeOperations.readDocument.id,
+                    error,
+                  })
+                return {
+                  documentId: id,
+                  error: message ?? 'Unable to read this document. Please try again.',
+                }
+              }
+            }
           )
-        }
+          return projectResult({ documents }, registry)
+        },
+        Math.max(1, batch.length)
       )
+    }
   )
 
   server.registerTool(
@@ -196,7 +237,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Chat',
       description:
-        'Ask the Sim Assistant to answer a question using your accessible organization sources. Returns an answer with citations and starts a new private conversation. Use source, modifiedAfter, or documentIds to narrow the evidence. No web search or source changes. Use search instead when you need raw passages.',
+        'Ask the Sim Assistant to research a question in your accessible organization sources and write a cited answer. It runs its own multi-step search, so it usually takes 30 to 60 seconds and returns a synthesized answer rather than the sources. To answer a question yourself, use search and read_document, which return sources in seconds; use chat only when the user asks for the Sim Assistant’s answer. Starts a new private conversation. Use source, modifiedAfter, or documentIds to narrow the evidence. No web search or source changes.',
       inputSchema: chatSearchMcpSchema,
       annotations: {
         readOnlyHint: false,

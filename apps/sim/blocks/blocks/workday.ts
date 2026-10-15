@@ -7,7 +7,7 @@ export const WorkdayBlock: BlockConfig = {
   name: 'Workday',
   description: 'Manage workers, hiring, onboarding, and HR operations in Workday',
   longDescription:
-    'Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.',
+    'Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.',
   docsLink: 'https://docs.sim.ai/integrations/workday',
   category: 'tools',
   integrationType: IntegrationType.HR,

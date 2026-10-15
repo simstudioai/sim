@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import {
   SIM_TOOL_EXECUTION_HEARTBEAT_MS,
   SimToolExecutionLeaseLostError,

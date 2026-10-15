@@ -1,8 +1,8 @@
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/file-folder-manager'
+import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { encodeVfsPathSegments, encodeVfsSegment } from '@/lib/vfs/path'
 import {
   admitCreateWorkspaceFile,
@@ -11,8 +11,8 @@ import {
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { updateWorkspaceFileContentFromBuffer } from '@/lib/workspace-files/application/update-workspace-file-content'
+import { parseWorkspaceFileCreatePath } from '@/lib/workspace-files/file-path'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { parseWorkspaceFileCreatePath } from '@/lib/workspace-files/workspace-file-path'
 
 export interface WriteWorkspaceFileBufferByPathInput {
   workspaceId: string

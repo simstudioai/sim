@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { user, workflow, workspace, workspaceOperationReceipt } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -25,7 +26,7 @@ describe('workspace receipts against PostgreSQL', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Workflow sync fixture',
       ownerId: userId,
@@ -33,7 +34,7 @@ describe('workspace receipts against PostgreSQL', () => {
     })
   })
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await db.$client.end()
   })

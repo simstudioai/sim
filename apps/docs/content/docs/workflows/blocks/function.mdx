@@ -1,16 +1,66 @@
 ---
 title: Function
-description: The Function block runs your JavaScript, Python, or Shell code as a step and returns what it produces.
+description: Run JavaScript, Python, or Shell code and return values or files.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Tab, Tabs } from '@/components/ui/tabs'
 import { BlockPreview, WorkflowPreview, FUNCTION_RESHAPE_WORKFLOW, FUNCTION_VALIDATE_WORKFLOW } from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
 
 The **Function block** runs your own JavaScript, Python, or Shell code as one step of a workflow. Use it to reshape a value, run a calculation, call a CLI, or add logic no other block covers.
 
 <BlockPreview type="function" />
+
+## Reshape an API response
+
+<WorkflowPreview workflow={FUNCTION_RESHAPE_WORKFLOW} />
+
+Fetch a response with an `items` array of user records, then return only active IDs:
+
+```javascript
+const data = <api.data>;
+return data.items.filter((item) => item.active).map((item) => item.id);
+```
+
+Later blocks read `<extract.result>` for a Function named **Extract**.
+
+## Language and runtime
+
+JavaScript without imports runs in the local isolated VM unless a special file-path reference requires a remote mount. JavaScript with `import` or `require`, Python, and Shell run in the configured remote provider. Local VM workers run within the Sim app container on self-hosted deployments.
+
+| Feature | JavaScript | Python | Shell |
+| --- | --- | --- | --- |
+| **Execution** | Local without imports or file-path mounts; remote otherwise | Always remote | Always remote |
+| **Return a value** | `return { … }` | Assign `__sim_result__ = { … }` | Print `__SIM_RESULT__={…}` |
+| **HTTP requests** | `fetch()` built in | `requests` or `httpx` | `curl` or an installed CLI |
+| **Best for** | quick transforms and JSON | scripts, data science, charts, complex math | CLI workflows and system utilities |
+
+Python and Shell require a remote sandbox. They are enabled by default on sim.ai;
+on a self-hosted instance, build and configure the provider's dedicated
+[Function base](/platform/enterprise/self-hosted) first. Python can return plots as images; you can also write image files under `/tmp/sim/outputs`.
+
+If no remote provider is configured, JavaScript without `import` or `require`
+continues to run in Sim's local isolated VM. Missing E2B or Daytona configuration
+does not disable that path. Remote-only code fails with an explicit configuration
+error; Sim does not reinterpret Python or Shell as JavaScript.
+
+The dedicated Function base has the same runtime and universal package contract
+on E2B and Daytona. It includes this data-science stack; use a workspace sandbox
+when another dependency must be present:
+
+- **Data and graphs:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `networkx`
+- **ML and NLP:** `scikit-learn`, `gensim`, `nltk`, `spacy`, `textblob`
+- **Plots and images:** `matplotlib`, `seaborn`, `plotly`, `bokeh`, `kaleido`, `pillow`, `opencv-python`, `scikit-image`, `imageio`, `tifffile`
+- **Audio:** `librosa`, `soundfile`
+- **Web, parsing, and files:** `requests`, `beautifulsoup4`, `lxml`, `openpyxl`, `xlrd`, `python-docx`, `xmltodict`, `PyYAML`, `tomlkit`, `simplejson`, `orjson`, `SQLAlchemy`
+- **Math:** `sympy`
+- **Application helpers:** `rich`, `typer`, `click`, `tqdm`, `Jinja2`, `pydantic`, `python-dateutil`, `pytz`, `psutil`, `filetype`, `python-slugify`, `parsedatetime`, `pytimeparse`
+- **Generic CLIs:** `jq`, `yq`, `csvkit`, `zx`, `xmlstarlet`, `httpie`, `ripgrep`, `fd`, `bat`, `sqlite3`, `tar`, `gzip`, `bzip2`, ZIP/XZ/7z, media/image tools, and standard network utilities
+
+Vendor and service clients such as AWS CLI and GitHub CLI are not part of the
+universal base. Add them through the managed catalog. Database clients such as
+PostgreSQL, MySQL, and Redis can be added as system packages when available from
+the configured Debian repositories.
 
 ## Configuration
 
@@ -101,12 +151,16 @@ Sim supplies the rendered heredoc privately while preserving the quoted delimite
 | Output | What it is |
 | --- | --- |
 | `<function.result>` | The value your code returns (object, array, string, number, …) |
-| `<function.stdout>` | Anything printed with `console.log()` or `print()` |
+| `<function.stdout>` | Captured `console.log()`, `print()`, or Shell output, subject to the diagnostic limits below |
 | `<function.files>` | Files your code wrote to `/tmp/sim/outputs`, ready to attach or upload |
+
+Local JavaScript stdout is truncated after 200,000 characters by default, with a `[stdout truncated]` marker. Operators can change that default with `IVM_MAX_STDOUT_CHARS`.
+
+Remote execution has a separate 10 MiB combined process-output budget for stdout, stderr, result text, and structured error text. Exceeding it fails the block. Export large remote results as files under `/tmp/sim/outputs`; the separate 20-file and 50 MiB export limits still apply.
 
 ## Files
 
-**Reading.** Reference a file's `path` and it is mounted for you:
+**Reading.** Use an indexed file reference ending in `.path` to mount the file under `/tmp/sim/inputs`:
 
 ```python
 import pandas as pd
@@ -115,7 +169,7 @@ frame = pd.read_csv(<gmail.attachments[0].path>)
 frame.describe().to_csv('/tmp/sim/outputs/summary.csv')
 ```
 
-`.path` resolves to the file's location on the sandbox filesystem, so any language
+`.path` is a special Function reference, not a field stored on the file object. It resolves to the file's location on the sandbox filesystem, so any language
 can open it — pandas, ffmpeg, a CLI. It is the counterpart to `.base64`, which
 inlines the contents instead and works only in JavaScript. Both appear in the
 reference dropdown next to `.name` and `.size`.
@@ -125,69 +179,20 @@ reference dropdown next to `.name` and `.size`.
 attach them to an email, upload them to storage, or save them to the workspace with
 the File block. There is nothing to turn on.
 
-The one exception is a call that names an explicit `outputSandboxPath`. That asks
-for particular paths to be exported and answers with that export's own result, so
-the output directory is not harvested alongside it — choose one or the other rather
-than expecting both in the same run.
+The separate Function tool supports explicit `outputSandboxPath` exports. That tool option exports only the named paths and disables automatic directory harvesting for the call; it is not a field on the Function block.
 
-<Callout type="info">
 Referencing `.path` runs the block in the remote sandbox, since the local
 JavaScript VM has no filesystem — expect the slower start of a remote run even for
 plain JavaScript. Referencing the file itself (`<gmail.attachments[0]>`, `.name`,
-`.url`) does not, and stays local. Up to 20 files come back per run, 50MB total,
+`.url`) does not, and stays local. Up to 20 files come back per run, 50 MiB total,
 nested no more than 11 directories deep; a run that exceeds any of these fails
 rather than returning part of what your code wrote.
-</Callout>
 
 <Callout type="warn">
 Returned files live with the execution rather than in your workspace, and a text
 file containing a resolved secret value is refused rather than returned — there is
-nowhere on an execution file to record that it carries one. Write such a file to a
-workspace path instead, or keep the secret out of the output.
+nowhere on an execution file to record that it carries one. Keep secrets out of execution-file exports. For an explicitly authorized persistent destination, use a compatible workspace File action; the separate Function tool also has workspace output controls.
 </Callout>
-
-## Language
-
-JavaScript without imports runs in a fast local sandbox. JavaScript with `import` or `require`, Python, and Shell run in the configured remote sandbox provider.
-
-| Feature | JavaScript | Python | Shell |
-| --- | --- | --- | --- |
-| **Execution** | Local when there are no imports; remote with imports | Always remote | Always remote |
-| **Return a value** | `return { … }` | Assign `__sim_result__ = { … }` | Print `__SIM_RESULT__={…}` |
-| **HTTP requests** | `fetch()` built in | `requests` or `httpx` | `curl` or an installed CLI |
-| **Best for** | quick transforms and JSON | scripts, data science, charts, complex math | CLI workflows and system utilities |
-
-<Callout type="info">
-Python and Shell require a remote sandbox. They are enabled by default on sim.ai;
-on a self-hosted instance, build and configure the provider's dedicated
-[Function base](/platform/enterprise/self-hosted) first. Any Python figures you
-generate are captured as images automatically.
-</Callout>
-
-<Callout type="info">
-If no remote provider is configured, JavaScript without `import` or `require`
-continues to run in Sim's local isolated VM. Missing E2B or Daytona configuration
-does not disable that path. Remote-only code fails with an explicit configuration
-error; Sim does not reinterpret Python or Shell as JavaScript.
-</Callout>
-
-The dedicated Function base has the same runtime and universal package contract
-on E2B and Daytona. It includes this data-science stack; use a workspace sandbox
-when another dependency must be present:
-
-- **Data and graphs:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `networkx`
-- **ML and NLP:** `scikit-learn`, `gensim`, `nltk`, `spacy`, `textblob`
-- **Plots and images:** `matplotlib`, `seaborn`, `plotly`, `bokeh`, `kaleido`, `pillow`, `opencv-python`, `scikit-image`, `imageio`, `tifffile`
-- **Audio:** `librosa`, `soundfile`
-- **Web, parsing, and files:** `requests`, `beautifulsoup4`, `lxml`, `openpyxl`, `xlrd`, `python-docx`, `xmltodict`, `PyYAML`, `tomlkit`, `simplejson`, `orjson`, `SQLAlchemy`
-- **Math:** `sympy`
-- **Application helpers:** `rich`, `typer`, `click`, `tqdm`, `Jinja2`, `pydantic`, `python-dateutil`, `pytz`, `psutil`, `filetype`, `python-slugify`, `parsedatetime`, `pytimeparse`
-- **Generic CLIs:** `jq`, `yq`, `csvkit`, `zx`, `xmlstarlet`, `httpie`, `ripgrep`, `fd`, `bat`, `sqlite3`, `tar`, `gzip`, `bzip2`, ZIP/XZ/7z, media/image tools, and standard network utilities
-
-Vendor and service clients such as AWS CLI and GitHub CLI are not part of the
-universal base. Add them through the managed catalog. Database clients such as
-PostgreSQL, MySQL, and Redis can be added as system packages when available from
-the configured Debian repositories.
 
 ## Sandboxes
 
@@ -236,8 +241,7 @@ Then open the block's advanced options and choose the sandbox under **Sandbox**.
 
 The default and custom behavior is intentionally explicit:
 
-- **JavaScript without imports** stays in the local isolated runtime for speed and
-  ignores the sandbox selection.
+- **JavaScript without imports or file-path mounts** stays in the local isolated runtime and ignores the sandbox selection.
 - **JavaScript with `import` or `require`** runs remotely. With no selection it
   uses the Function base; with a sandbox it gets that sandbox's npm packages and
   system packages and managed CLI tools.
@@ -249,12 +253,10 @@ When a Function block next loads its sandbox options, a successful lookup that
 confirms its selected sandbox was deleted clears that selection. Fetch or auth
 failures leave the workflow unchanged.
 
-<Callout type="info">
 Two sandboxes with the same language, dependency list, system packages, and managed
 CLI tools share one build, so duplicating a set costs nothing. Editing any part of
 that install specification starts a new build. Runs already in flight keep using
 the old one. Deleting a sandbox frees its build once nothing else uses it.
-</Callout>
 
 ### Build status
 
@@ -298,8 +300,8 @@ and adds to its execution time:
 
 ```bash
 set -euo pipefail
-python -m pip install --quiet csvkit
-csvcut -n /tmp/input.csv
+python -m pip install --quiet humanize
+python -c "import humanize; print(humanize.intcomma(1234567))"
 ```
 
 Use a custom sandbox instead when reproducibility or startup time matters. Put
@@ -307,7 +309,7 @@ ordinary Debian utilities in **System packages**; use the managed selector only
 for one of its specialized installers. Arbitrary install commands are not saved
 in a sandbox specification.
 
-### What is allowed
+### Dependency restrictions
 
 Dependency fields accept package names and version specifiers only. URLs, `git+`
 references, `-e`, local paths, `--index-url`, and npm aliases are rejected, with
@@ -318,20 +320,23 @@ System packages use Debian coordinates in the form
 shell syntax are rejected. A sandbox may declare up to 50 dependencies, 50 system
 packages, and 10 managed CLI tools.
 
-## Scoping secrets for agent tools
+## Secret access for Agent tools
 
-When a Function block is used as an Agent tool, its code can read every workspace
-secret by default — both `{{MY_SECRET}}` and `environmentVariables['MY_SECRET']`.
-Prefer `{{MY_SECRET}}` when the value may appear in execution logs. A successful
-double-brace substitution always activates
-[execution-trace masking](/platform/credentials#execution-log-protection). A direct
+When a Function block is used as an Agent tool, **All secrets** lets its code read
+all secrets available in that run's resolved environment, using either
+`{{MY_SECRET}}` or `environmentVariables['MY_SECRET']`. The execution's identity,
+workspace access, and secret grants determine which secrets are available.
+Prefer `{{MY_SECRET}}` when the value may appear in execution logs. For protected secrets, a successful
+double-brace substitution activates
+[execution-trace masking](/platform/credentials#execution-log-protection). A recognized direct
 `environmentVariables['MY_SECRET']` read activates it too, but only when Sim can
 recognize the read in the code beforehand — a name built at runtime, or a file that
 reassigns `environmentVariables` itself, is not recognized. See
 [the recognition limits](/platform/credentials#execution-log-protection).
 
-To narrow that, set **Secret access** to *Selected secrets* in the block's
-tool configuration and pick the names the code may read. Two things change:
+To narrow that, set **Secret access** to **Selected secrets** in the block's
+tool configuration and pick the names the code may read. Selecting a name does
+not grant access to an otherwise unavailable secret. Two things change:
 
 - Only those secrets are injected. `{{OTHER_SECRET}}` no longer resolves either.
 - The selected **names** are added to the tool's description, so the model knows
@@ -340,29 +345,27 @@ tool configuration and pick the names the code may read. Two things change:
   exact secret value, the Agent model receives `{{NAME}}` in its place. The raw
   runtime result and local side effects are not rewritten.
 
-Leaving the default (*All secrets*) resolves the list at run time, so a secret
-added next month is included automatically.
+Secrets marked **Unredacted** follow their configured visibility policy. See the credentials reference before changing it.
+
+Leaving the default (**All secrets**) resolves the available list at run time, so
+a newly added secret is included when the execution has access to it.
 
 ## Examples
 
-### Reshape an API response
-
-<WorkflowPreview workflow={FUNCTION_RESHAPE_WORKFLOW} />
-
-The Function reads `<api.data>`, returns just the field the rest of the workflow needs, and exposes it as `<extract.result>`.
-
-### Validate input before writing
+### Normalize input before writing
 
 <WorkflowPreview workflow={FUNCTION_VALIDATE_WORKFLOW} />
 
-The Function sanitizes the form input and returns the clean value, which the API block sends as its body.
+The Function trims the name and email, lowercases the email, and returns the object that the API block sends as its body. Add validation before the write when the destination requires a particular format.
 
-### A worked example: loyalty score
+### Calculate a loyalty score
+
+The Start input `customer` is an object containing `name`, `purchaseHistory` (records with `amount`), `accountAge` in days, and `supportTickets` with `total` and `resolved`.
 
 <Tabs items={['JavaScript', 'Python']}>
   <Tab value="JavaScript">
 ```javascript title="loyalty-calculator.js"
-const { purchaseHistory, accountAge, supportTickets } = <agent>;
+const { purchaseHistory, accountAge, supportTickets } = <start.customer>;
 
 const totalSpent = purchaseHistory.reduce((sum, p) => sum + p.amount, 0);
 const purchaseFrequency = accountAge > 0 ? purchaseHistory.length / (accountAge / 365) : 0;
@@ -374,7 +377,7 @@ const supportScore = ticketRatio * 30;
 const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
 
 return {
-  customer: <agent.name>,
+  customer: <start.customer.name>,
   loyaltyScore,
   loyaltyTier: loyaltyScore >= 80 ? 'Platinum' : loyaltyScore >= 60 ? 'Gold' : 'Silver',
 };
@@ -403,9 +406,8 @@ def calculate_loyalty(data):
         "loyaltyTier": tier,
     }
 
-
 if __name__ == "__main__":
-    __sim_result__ = calculate_loyalty(<agent>)
+    __sim_result__ = calculate_loyalty(<start.customer>)
 ```
   </Tab>
 </Tabs>
@@ -425,21 +427,18 @@ const chunk = await sim.files.readTextChunk(file, { offset: 0, length: 1024 * 10
 const bytes = await sim.files.readBase64Chunk(file, { offset: 0, length: 1024 * 1024 });
 ```
 
-`sim.files.readText`, `readBase64`, and the `…Chunk` variants stream from execution storage under memory caps. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data, write the result to a file or table with `outputPath`, `outputSandboxPath`, or `outputTable` instead of returning the whole payload inline.
+`sim.files.readText`, `readBase64`, and the `…Chunk` variants stream from execution storage under memory caps. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data in a remote Function block, write files under `/tmp/sim/outputs` and pass them to a compatible File or Table action. The separate Function tool exposes `outputPath`, `outputSandboxPath`, and `outputTable` for explicit persistence; those are not builder fields.
 
-<Callout type="warn">
 The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and Shell do not support them yet.
-</Callout>
 
-## Best Practices
+## Errors and timeout
 
-{/* Keep the error-path guidance below prominent: fewer than 1% of deployed workflows connect an error port (platform data, 2026-06) — under-adopted, not under-needed. */}
+An uncaught error follows the connected error port or fails the run. Catch an error only when your code can return a meaningful recovery result. `console.log()`, `print()`, and ordinary Shell output appear in `stdout` and the run logs.
 
-- **Keep each function focused.** One transform per block is easier to read, test, and debug.
-- **Handle errors.** Wrap risky code in `try`/`catch` and return a clear message, or let it throw to the error path.
-- **Reference only what you need.** Pull a narrow field rather than a whole large object to keep values out of the request body.
-- **Use stdout to debug.** `console.log()`, `print()`, and ordinary shell output land in `<function.stdout>` and the run logs.
+Function uses the workflow's remaining execution time when a deadline exists. Without a workflow deadline, it still has a fallback timeout of 300,000 ms (5 minutes) by default, configurable through `EXECUTION_TIMEOUT_FREE`. An explicit internal timeout can replace that fallback or shorten the workflow budget; it cannot extend the workflow deadline. There is no separate timeout field in the current block editor. Exceeding the budget terminates execution and reports a block error.
 
-<FAQ items={[
-  { question: "Is there a timeout for Function block execution?", answer: "Yes, a configurable execution timeout. If your code exceeds it, the run is terminated and the block reports an error. Keep this in mind for external calls or heavy processing." },
-]} />
+## Related docs
+
+- [Passing files](/files/passing-files)
+- [Sandbox setup](/platform/self-hosting/sandboxes)
+- [Credentials and execution-log protection](/platform/credentials#execution-log-protection)

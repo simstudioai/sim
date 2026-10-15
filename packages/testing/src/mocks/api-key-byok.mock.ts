@@ -18,7 +18,7 @@ export const apiKeyByokMockFns = {
     async (
       _workspaceId: string | undefined | null,
       _providerId: string,
-      _options?: { failClosed?: boolean }
+      _options?: { signal?: AbortSignal }
     ): Promise<unknown> => null
   ),
   mockGetApiKeyWithBYOK: vi.fn(),

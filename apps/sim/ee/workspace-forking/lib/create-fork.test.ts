@@ -1,4 +1,4 @@
-import { projectWorkspace, workspace } from '@sim/db/schema'
+import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { workflowsPersistenceUtilsMock } from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import {
@@ -96,7 +96,7 @@ vi.mock('@/ee/workspace-forking/lib/remap/fork-bootstrap', () => ({
   createForkBootstrapTransform: vi.fn(() => (subBlocks: unknown) => subBlocks),
   createForkBlockTypeTransform: vi.fn(() => (blockType: string) => blockType),
 }))
-vi.mock('@/lib/workflows/references/reference-scan', () => ({
+vi.mock('@/lib/workflows/references/scan', () => ({
   collectReferencedDocumentIds: vi.fn(() => new Set<string>()),
   collectReferencedFileFolderPaths: mockCollectReferencedFileFolderPaths,
 }))
@@ -140,8 +140,8 @@ function forkParams(selection?: {
 describe('createFork storage headroom gate', () => {
   beforeEach(() => {
     resetDbChainMock()
-    queueTableRows(projectWorkspace, [{ projectId: 'project-source' }])
-    queueTableRows(projectWorkspace, [
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
     ])
     /**
@@ -215,8 +215,8 @@ describe('createFork storage headroom gate', () => {
 
   it('refuses when the parent changed organizations after the policy was captured', async () => {
     resetDbChainMock()
-    queueTableRows(projectWorkspace, [{ projectId: 'project-source' }])
-    queueTableRows(projectWorkspace, [
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
     ])
     /**
@@ -243,8 +243,8 @@ describe('createFork storage headroom gate', () => {
    */
   it('gives the child the source workspace personal API-key and fork-sync policies', async () => {
     resetDbChainMock()
-    queueTableRows(projectWorkspace, [{ projectId: 'project-source' }])
-    queueTableRows(projectWorkspace, [
+    queueTableRows(workspace, [{ projectId: 'project-source' }])
+    queueTableRows(workspace, [
       { project: { id: 'project-source', organizationId: null, archivedAt: null } },
     ])
     queueTableRows(workspace, [{ organizationId: null, forkSyncNewWorkflowsExcluded: true }])

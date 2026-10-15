@@ -86,7 +86,8 @@ export async function getBlockVisibility(
         environment: env.APPCONFIG_ENVIRONMENT as string,
         profile: BLOCK_VISIBILITY_PROFILE,
       },
-      parseVisibilityConfig
+      parseVisibilityConfig,
+      { shareWithTriggerRuns: true }
     )) ?? {}
 
   const needsAdmin =

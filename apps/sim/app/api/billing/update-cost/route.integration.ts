@@ -25,7 +25,7 @@ vi.mock('@/lib/mothership/request/http', async (importOriginal) => ({
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   serializeAccountBillingDecisionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { claimTerminalPeriod } from '@/lib/billing/cycle-close'
 import { POST } from '@/app/api/billing/update-cost/route'
 

@@ -24,8 +24,8 @@ import {
   retryEnterpriseProvisioning,
 } from '@/lib/billing/enterprise-provisioning'
 import { parseWorkflowExecutionTimeoutSeconds } from '@/lib/billing/execution-timeout-defaults'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { createOrganizationWithOwnerTx } from '@/lib/billing/organizations/create-organization'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import {
   enqueueOutboxEvent,
   type OutboxHandler,

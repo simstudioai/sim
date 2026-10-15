@@ -12,8 +12,18 @@ import { useProvidersStore } from '@/stores/providers'
  * never describe the same field differently.
  */
 
+/** Credential-kind gate authored by the block, preserved for non-editor clients. */
+export type CatalogCredentialCondition = NonNullable<SubBlockConfig['reactiveCondition']>
+
+export function copyCredentialCondition(
+  condition: CatalogCredentialCondition
+): CatalogCredentialCondition {
+  return { watchFields: [...condition.watchFields], requiredType: condition.requiredType }
+}
+
 /** One selectable option on a dropdown, combobox, or multi-select field. */
 export interface CatalogSubBlockOption {
+  reactiveCondition?: CatalogCredentialCondition
   id: string
   label?: string
   /** Whether the option renders with an icon. The icon component itself is never published. */
@@ -66,6 +76,7 @@ export interface CatalogSubBlock {
   hidden?: boolean
   /** The condition under which the field applies at all. */
   condition?: CatalogCondition
+  reactiveCondition?: CatalogCredentialCondition
   options?: CatalogSubBlockOption[]
   min?: number
   max?: number
@@ -316,6 +327,8 @@ export function resolveSubBlockOptions(
     const projected: CatalogSubBlockOption = { id: String(option.id) }
     if (typeof option.label === 'string') projected.label = option.label
     if (option.icon) projected.hasIcon = true
+    if (option.reactiveCondition)
+      projected.reactiveCondition = copyCredentialCondition(option.reactiveCondition)
     normalized.push(projected)
   }
 
@@ -352,6 +365,8 @@ export function projectSubBlock(subBlock: SubBlockConfig): CatalogSubBlock {
   assignDefined(projected, 'placeholder', subBlock.placeholder)
   assignDefined(projected, 'mode', subBlock.mode)
   assignDefined(projected, 'hidden', subBlock.hidden)
+  if (subBlock.reactiveCondition)
+    projected.reactiveCondition = copyCredentialCondition(subBlock.reactiveCondition)
   assignDefined(projected, 'canonicalParamId', subBlock.canonicalParamId)
   assignDefined(projected, 'defaultValue', subBlock.defaultValue)
   assignDefined(projected, 'min', subBlock.min)

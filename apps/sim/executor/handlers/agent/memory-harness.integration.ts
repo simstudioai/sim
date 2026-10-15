@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as schema from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
+import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { sql } from 'drizzle-orm'
@@ -64,6 +65,7 @@ vi.mock('@/lib/api-key/byok', () => ({
 import {
   memory,
   memorySecretProvenance,
+  project,
   resumeQueue,
   workflow,
   workflowExecutionLogs,
@@ -73,15 +75,15 @@ import {
 } from '@sim/db/schema'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { StorageService } from '@/lib/uploads'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
 import {
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
   initializeWorkspaceFileSecretProvenanceInTx,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { insertImmutableFileMetadata } from '@/lib/uploads/server/metadata'
 import { readWorkspaceFileRecordByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
-import { AgentBlockHandler } from '@/executor/handlers/agent/agent-handler'
+import { AgentBlockHandler } from '@/executor/handlers/agent/handler'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
 import type { ExecutionContext, StreamingExecution, UserFile } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -326,18 +328,21 @@ describe('Agent memory through PostgreSQL, storage, and provider transports', ()
       memorySecretProvenance,
       workspaceFiles,
       workspaceFileSecretProvenance,
+      project,
       workspace,
       workflow,
       workflowExecutionLogs,
       resumeQueue,
     ])
       await createTable(table)
-    await fixture.database.insert(workspace).values({
-      id: scope.workspaceId,
-      name: 'Attachment harness',
-      ownerId: scope.userId,
-      billedAccountUserId: scope.userId,
-    })
+    await fixture.database.transaction((tx) =>
+      insertWorkspaceFixture(tx, {
+        id: scope.workspaceId,
+        name: 'Attachment harness',
+        ownerId: scope.userId,
+        billedAccountUserId: scope.userId,
+      })
+    )
     await fixture.database.insert(workflow).values({
       id: scope.workflowId,
       workspaceId: scope.workspaceId,

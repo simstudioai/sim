@@ -27,6 +27,7 @@ import {
 /** permission-group-exempt: members are checked below; admins retain access to manage the directory setting. */
 export const readOrganizationRosterOperation = defineOrganizationOperation({
   id: 'organization.members.roster',
+  contentDelivery: 'none',
   minimumRole: 'member',
   capability: 'none',
   principalKinds: ['session', 'organization_delegated'],

@@ -62,6 +62,9 @@ best match rather than repeating similar searches, then run
 === END AGENT COMMAND DISCOVERY ===
 `
 
+/** Executable but unpublished until launch, so kept out of `--help` and `sim cli` search. */
+const UNPUBLISHED_GROUPS: ReadonlySet<string> = new Set(['projects'])
+
 /** The root's own value-taking options, which consume the token after them. */
 const ROOT_VALUE_FLAGS: ReadonlySet<string> = new Set([
   '-P',
@@ -148,7 +151,13 @@ function addVersionOption(program: Command): void {
  * release.
  */
 export function buildProgram(
-  options: { version?: boolean; helpText?: string; program?: Command; env?: NodeJS.ProcessEnv } = {}
+  options: {
+    version?: boolean
+    helpText?: string
+    program?: Command
+    env?: NodeJS.ProcessEnv
+    hostCommands?: boolean
+  } = {}
 ): Command {
   const env = options.env ?? process.env
   const program = options.program ?? new Command()
@@ -164,21 +173,27 @@ export function buildProgram(
     .addOption(
       new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
     )
-  for (const command of [
-    loginCommand,
-    logoutCommand,
-    whoamiCommand,
-    profilesCommand,
-    configureCommand,
-  ])
-    program.addCommand(command())
-  const update = updateCommand()
-  program.addCommand(update)
-  program.addCommand(telemetryCommand())
+  if (options.hostCommands !== false) {
+    for (const command of [
+      loginCommand,
+      logoutCommand,
+      whoamiCommand,
+      profilesCommand,
+      configureCommand,
+    ])
+      program.addCommand(command())
+    const update = updateCommand()
+    program.addCommand(update)
+    program.addCommand(telemetryCommand())
+    program.hook('preAction', async (_program, command) => {
+      if (command === update) return
+      await announceUpdateIfAvailable()
+    })
+  }
   program.addCommand(cliCommand())
 
   for (const command of buildGeneratedCommands()) {
-    program.addCommand(command)
+    program.addCommand(command, { hidden: UNPUBLISHED_GROUPS.has(command.name()) })
   }
 
   attachCredentialCommands(program)
@@ -189,11 +204,6 @@ export function buildProgram(
   program.addHelpText('beforeAll', ({ command }) =>
     detectCodingAgent(env) !== undefined && command.commands.length > 0 ? AGENT_DISCOVERY_NOTE : ''
   )
-
-  program.hook('preAction', async (_program, command) => {
-    if (command === update) return
-    await announceUpdateIfAvailable()
-  })
 
   refuseHelpAfterUnknownCommand(program)
   assertNoReservedProgramFlags(program)

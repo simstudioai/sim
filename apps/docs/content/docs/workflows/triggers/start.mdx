@@ -1,61 +1,81 @@
 ---
-title: Start Trigger
-description: The Start block is the default trigger — it collects typed inputs and runs the workflow from the editor, an API call, or chat.
+title: Start trigger
+description: Define typed inputs for editor, API, and deployed chat runs.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Image } from '@/components/ui/image'
+import { Tab, Tabs } from '@/components/ui/tabs'
 
-The **Start block** is the default trigger for a workflow. It defines the inputs the workflow takes and runs it from three surfaces with the same shape: a manual run in the editor, an [API deployment](/workflows/deployment/api), and a [chat deployment](/workflows/deployment/chat).
+**Start** is the default entry point on a new workflow. It accepts editor input, API input, and deployed chat messages. Keep it when those callers should share the same downstream logic; add other triggers for events or schedules.
 
-<div className="flex justify-center">
-  <Image src="/static/start.png" alt="Start block with Input Format fields" width={500} height={209} className="my-6" />
-</div>
+## Input format
 
-<Callout type="info">
-Every workflow starts with a Start block in the trigger slot. Keep it when one entry point should serve editor, API, and chat runs. Swap in a [Webhook](/workflows/triggers/webhook) or [Schedule](/workflows/triggers/schedule) trigger when the workflow should only run on an event or a timer.
-</Callout>
+Open Start's **Inputs** and add fields. Each field has a name, type, description, and optional default value.
 
-## Input Format
-
-Define the fields the workflow accepts. Each field has a name and a type — `string`, `number`, `boolean`, `object`, `array`, or `files` — and becomes available downstream as `<start.fieldName>`. A `customerId` field reads as `<start.customerId>`.
-
-- Give a field a **default value** to prefill the manual-run form and supply a fallback when the caller omits it or sends `null`. A supplied value, including an empty string, overrides the default.
-- **File** fields accept uploads from both chat and API callers.
-- Reorder fields to control how they appear in the editor form.
-
-## Outputs
-
-The fields you define, plus conversation context when the workflow runs from chat:
-
-| Output | What it is |
+| Setting | Behavior |
 | --- | --- |
-| `<start.fieldName>` | Each Input Format field, by name |
-| `<start.input>` | The latest user message (chat only) |
-| `<start.conversationId>` | The active session id (chat only) |
-| `<start.files>` | Chat attachments (chat only) |
+| Name | Downstream reference, such as `<start.customerId>` |
+| Type | `string`, `number`, `boolean`, `object`, `array`, or a file field (`file[]` / `files`) |
+| Description | Explains the input; also supplies the default MCP parameter description |
+| Default value | Prefills editor runs and supplies a fallback when input is omitted or `null` |
+| Order | Controls the editor form's field order |
+
+A supplied value overrides the default, including an empty string. Sim coerces supported primitive values; an invalid declared number or boolean can fail the run at input validation. Add an early Condition when your workflow needs stricter validation, such as a nonempty customer ID.
 
 ## Per entry point
 
 <Tabs items={['Editor run', 'API', 'Chat']}>
   <Tab>
-    **Run** renders the Input Format as a form, prefilled with any default values, so you can retest without retyping. Submitting runs the workflow, and the values land on `<start.fieldName>`. File fields upload straight into `<start.fieldName>`.
+    Click **Run** to fill the form created from Inputs. Defaults prefill it; submitting sends those values to `<start.fieldName>`. File fields accept uploads into their named output.
   </Tab>
   <Tab>
-    The Input Format becomes the JSON request body. Each field is part of the body, and Sim coerces primitive types on the way in. File fields expect objects that reference uploaded files, so upload first, then invoke the workflow.
+    Put fields inside the API request's `input` value:
+
+    ```json
+    {
+      "input": {
+        "customerId": 4821,
+        "message": "Please check my order"
+      }
+    }
+    ```
+
+    These values are available as `<start.customerId>` and `<start.message>`. File fields use uploaded-file metadata: upload the file first, then invoke the workflow. See [API deployment](/workflows/deployment/api).
   </Tab>
   <Tab>
-    The Start block binds to the active conversation: the latest message fills `<start.input>`, the session id is `<start.conversationId>`, and attachments appear on `<start.files>`, alongside any Input Format fields. Extra structured context passed in at launch merges into the matching `<start.fieldName>` outputs.
+    Deployed chat supplies the latest message in `<start.input>`, the conversation ID in `<start.conversationId>`, and attachments in `<start.files>`. Custom fields use their declared defaults unless the execution surface supplies a matching value.
+
+    The public chat POST accepts `input`, `conversationId`, and `files`, plus its authentication fields; it is not a general structured-input launch API. Configure [Agent Memory](/workflows/blocks/agent#memory) if later messages should use prior conversation context.
   </Tab>
 </Tabs>
 
+## Outputs
+
+These examples use a block named Start:
+
+| Reference | Value |
+| --- | --- |
+| `<start.fieldName>` | A named input field |
+| `<start.input>` | Built-in input, including the latest message for Chat |
+| `<start.conversationId>` | Supplied conversation ID, commonly from Chat |
+| `<start.files>` | Supplied attachments normalized for the run |
+
+The built-in fields are not restricted to Chat; they are populated when the caller or configured input supplies them. Start also passes through supported additional runtime fields. Check the output panel rather than assuming a missing field is populated.
+
+### Run metadata
+
+In advanced mode, enable **Add run metadata** to expose trusted server-built identity and run context under `<start.metadata>`: `subject`, `workspaceId`, `workflowId`, `executionId`, `executionType`, `executionMode`, and `startTime`.
+
+The subject identifies the authenticated Sim user, chat email, or supported external identity without exposing credentials. When enabled, `metadata` is reserved; a caller cannot replace it with its own value. Execution-control field names are also reserved and rejected as Start outputs.
+
 ## Multiple triggers
 
-A workflow can have more than one trigger. When you click **Run** in the editor, Sim runs the highest-priority one: the **Start** trigger first, then a [Schedule](/workflows/triggers/schedule), then external triggers (webhooks and integrations). So a workflow with both a Start and a Webhook runs from Start when you click Run. Running an external trigger by hand instead generates a mock payload from its expected shape, so downstream blocks can resolve their references while you test.
+A workflow can have several trigger blocks. When the editor chooses among alternatives on the same path, Start takes priority, followed by Schedule and external triggers. Choose an external trigger explicitly when testing that entry point; its expected output shape can supply a mock payload.
 
-## Best Practices
+The v2 manual API requires `run.entry.blockId` when several triggers are runnable. If you request a mock payload, do not also supply `input`. Each execution begins at its selected trigger; deployment is required for automatic events, while editor runs test the draft.
 
-- **Use Start as the single entry point** when one workflow serves both API and chat callers.
-- **Prefer named fields over raw JSON.** Typed Input Format fields are coerced automatically and read by name downstream.
-- **Validate early.** Add a [Condition](/workflows/blocks/condition) right after Start when certain fields are required for the run to succeed.
+## Related docs
+
+- [API deployment](/workflows/deployment/api)
+- [Chat deployment](/workflows/deployment/chat)
+- [Webhook](/workflows/triggers/webhook)
+- [Schedule](/workflows/triggers/schedule)

@@ -4,7 +4,7 @@ import {
 } from '@sim/testing/mocks/file-utils-server.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 const { mockResolveFileInputToUrl } = fileUtilsServerMockFns
 

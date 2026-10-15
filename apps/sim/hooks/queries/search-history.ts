@@ -6,7 +6,7 @@ import {
   type RecordSearchHistoryBody,
   recordSearchHistoryContract,
 } from '@/lib/api/contracts/knowledge/search-history'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 
 export const SEARCH_HISTORY_STALE_TIME = 30_000
 export const searchHistoryKeys = {

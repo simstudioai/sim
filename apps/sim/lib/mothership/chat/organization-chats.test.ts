@@ -1,4 +1,11 @@
-import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { settings, user } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
   knowledgeAvailabilityMock,
@@ -207,10 +214,12 @@ describe('organization Build admission', () => {
     async ({ role, billing, denied, allowed }) => {
       authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role })
       permissionConfig.mockResolvedValue({ disableWorkspaceCreation: denied })
-      setEnvFlags({ isBillingEnabled: billing })
+      setEnvFlags({ isBillingEnabled: billing, isMothershipBenchmarkEnabled: true })
       dbChainMockFns.returning.mockResolvedValue([{ id: 'new-chat' }])
       for (const mode of ['agent', 'plan'] as const) {
         for (const operation of [authorizeOrganizationChat, createOrganizationChat]) {
+          queueTableRows(user, [{ role: 'admin' }])
+          queueTableRows(settings, [{ superUserModeEnabled: true }])
           const result = operation.execute({
             principal: session,
             input: { organizationId: 'org-1', mode },

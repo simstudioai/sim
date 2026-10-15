@@ -24,6 +24,10 @@ function openapiPluginBadgeLeft() {
     name: 'fumadocs:openapi-badge-left',
     enforce: 'pre' as const,
     transformPageTree: {
+      folder(node: { name: React.ReactNode }) {
+        if (node.name === 'Mcp servers') node.name = 'MCP servers'
+        return node
+      },
       file(
         this: {
           storage: {

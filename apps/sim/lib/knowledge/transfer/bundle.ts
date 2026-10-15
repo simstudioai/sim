@@ -36,7 +36,7 @@ import {
   MAX_KNOWLEDGE_BUNDLE_DOCUMENTS,
   SUPPORTED_FIELD_TYPES,
 } from '@/lib/knowledge/constants'
-import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
+import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/processing-error'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
 

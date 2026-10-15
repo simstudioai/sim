@@ -1,5 +1,5 @@
 import { truncate } from '@sim/utils/string'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import type { FileContentResponse, GetFileContentParams } from '@/tools/github/types'
 import type { ToolConfig } from '@/tools/types'
 

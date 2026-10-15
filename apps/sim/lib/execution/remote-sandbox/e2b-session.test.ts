@@ -50,7 +50,7 @@ import {
   e2bProvider,
   stopE2BSessionProcess,
 } from '@/lib/execution/remote-sandbox/e2b'
-import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 
 setEnv({ E2B_API_KEY: 'test', MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-template' })
 
@@ -331,6 +331,7 @@ describe('E2B session recovery', () => {
   })
 
   it('searches paused workbenches and all pages before choosing the canonical session', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now())
     let pages = 2
     list.mockReturnValue({
       nextItems,

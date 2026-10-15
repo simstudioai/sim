@@ -10,7 +10,7 @@ import {
 } from '@/lib/internal/tool-operations/file-result'
 import { ZoomOperationError } from '@/lib/internal/zoom/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
+import { getExtensionFromMimeType } from '@/lib/uploads/utils/file'
 import type { ZoomGetMeetingRecordingsParams } from '@/tools/zoom/types'
 
 const logger = createLogger('ZoomOperations')

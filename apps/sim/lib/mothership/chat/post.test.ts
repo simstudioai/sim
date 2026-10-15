@@ -141,7 +141,7 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
@@ -873,6 +873,32 @@ describe('handleUnifiedChatPost', () => {
       expect(requestPayload?.effort).toBe(runs)
       expect(requestPayload?.modelSelection).toEqual(modelSelection)
       expect(admitTurn.mock.calls[0][0].input.effortChoice).toBe(sent && runs)
+    }
+  )
+
+  it.each([false, true])(
+    'defaults Plan admission to Opus Medium with model selection %s',
+    async (advanced) => {
+      flags.models.mockResolvedValue(advanced)
+      flags.plan.mockResolvedValue(true)
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Plan this automation',
+            workspaceId: 'ws-1',
+            mode: 'plan',
+          }),
+        })
+      )
+      expect(response.status).toBe(200)
+      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'plan',
+          effort: 'medium',
+          modelSelection: { model: 'claude-opus-5-5', fastMode: false },
+        })
+      )
     }
   )
 

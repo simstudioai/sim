@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, projectWorkspace, workspace } from '@sim/db/schema'
+import { permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -11,11 +11,11 @@ import { requireForkProject } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
 import {
   collectReferencedDocumentIds,
   collectReferencedFileFolderPaths,
-} from '@/lib/workflows/references/reference-scan'
-import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
+} from '@/lib/workflows/references/scan'
 import { WORKSPACE_OPERATION_OBSERVE_EVENT } from '@/lib/workspaces/operations/outbox-events'
 import {
   findWorkspaceOperationReceipt,
@@ -303,6 +303,7 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
 
     await tx.insert(workspace).values({
       id: childWorkspaceId,
+      projectId: parentProject.id,
       name: childName,
       ownerId: userId,
       organizationId: policy.organizationId,
@@ -315,11 +316,6 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       createdAt: now,
       updatedAt: now,
     })
-
-    if (parentProject)
-      await tx
-        .insert(projectWorkspace)
-        .values({ projectId: parentProject.id, workspaceId: childWorkspaceId })
 
     const sourcePermissions = await tx
       .select({ userId: permissions.userId, permissionType: permissions.permissionType })

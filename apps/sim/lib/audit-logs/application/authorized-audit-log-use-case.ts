@@ -24,7 +24,7 @@ import {
 } from '@/lib/core/orchestration/types'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface AuthorizedAuditLogContext {
   organizationId: string

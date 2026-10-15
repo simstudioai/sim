@@ -6,7 +6,8 @@ import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import { preciseTimestampText } from '@/lib/api/list-query'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ConversationMode,
@@ -18,9 +19,19 @@ import {
   authorizeOrganizationChatCancellation,
 } from '@/lib/mothership/chat/organization-chats'
 import {
+  type PersistedFileAttachment,
   type PersistedMessage,
   stripToolResultOutput,
 } from '@/lib/mothership/chat/persisted-message'
+import { detoastedMessageContent, textMessageContent } from '@/lib/mothership/chat/text-transcript'
+import {
+  encodeTranscriptCursor,
+  type TranscriptPosition,
+  transcriptAtOrAfter,
+  transcriptBefore,
+} from '@/lib/mothership/chat/transcript-cursor'
+import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
+import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import {
   assertActiveWorkspaceAccess,
@@ -81,26 +92,176 @@ const copilotChatLegacyDetailColumns = {
   config: copilotChats.config,
 } as const
 
+/** Canonical transcript order; `NULLS LAST` sorts a not-yet-sequenced row after sequenced ones. */
+const TRANSCRIPT_ORDER = [
+  sql`${copilotMessages.seq} asc nulls last`,
+  asc(copilotMessages.createdAt),
+  asc(copilotMessages.id),
+]
+
+const TRANSCRIPT_ORDER_DESC = [
+  sql`${copilotMessages.seq} desc nulls first`,
+  desc(copilotMessages.createdAt),
+  desc(copilotMessages.id),
+]
+
+/**
+ * A message as the chat UI receives it: the stored `display_content` projection when the
+ * message has one, so a transcript read never detoasts the full tool-call params.
+ */
+const displayMessageContent = sql<unknown>`coalesce(${copilotMessages.displayContent}, ${copilotMessages.content})`
+
+/**
+ * Each element of a message's `content -> field` array as `alias(value, ordinal)`, for a
+ * lateral join that reads one array of every message instead of whole transcripts. A
+ * message whose field is missing or not an array contributes nothing.
+ */
+function messageArrayElements(field: string, alias: string): SQL {
+  const array = sql`${copilotMessages.content} -> ${field}::text`
+  return sql`jsonb_array_elements(
+    case when jsonb_typeof(${array}) = 'array' then ${array} else '[]'::jsonb end
+  ) with ordinality as ${sql.identifier(alias)}(value, ordinal)`
+}
+
 /**
  * Load a chat's transcript from the normalized `copilot_messages` table in
  * canonical order (`seq` first, then `created_at`/`id` as a deterministic
  * tiebreak; `NULLS LAST` so any not-yet-sequenced row sorts after sequenced
  * ones). Each row's `content` is the full message object — identical in shape
  * to a legacy JSONB array element — so the downstream normalize/transcript
- * pipeline is unchanged.
+ * pipeline is unchanged. `projection: 'display'` reads the chat UI's projection
+ * instead, whose tool-call params arrive already compacted wherever it is stored.
  */
-export async function loadCopilotChatMessages(chatId: string): Promise<PersistedMessage[]> {
+export async function loadCopilotChatMessages(
+  chatId: string,
+  options?: { projection?: 'display' }
+): Promise<PersistedMessage[]> {
   const rows = await db
-    .select({ content: copilotMessages.content })
+    .select({
+      content: options?.projection === 'display' ? displayMessageContent : copilotMessages.content,
+    })
     .from(copilotMessages)
     .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
-    .orderBy(
-      sql`${copilotMessages.seq} asc nulls last`,
-      asc(copilotMessages.createdAt),
-      asc(copilotMessages.id)
-    )
+    .orderBy(...TRANSCRIPT_ORDER)
   // Also strip on read: rows written before the backfill still carry outputs.
   return rows.map((row) => stripToolResultOutput(row.content as PersistedMessage))
+}
+
+/** Messages in the newest window the chat UI opens on. */
+export const TRANSCRIPT_PAGE_SIZE = 50
+
+/** Messages per page of older history, which the chat UI loads in the background. */
+const TRANSCRIPT_OLDER_PAGE_SIZE = 200
+
+/**
+ * Which part of a transcript to read:
+ * - `latest`: the newest {@link TRANSCRIPT_PAGE_SIZE} messages, cut to start at a user message.
+ * - `from`: every message at or after `position`, so a reload extends what the reader holds.
+ * - `before`: up to {@link TRANSCRIPT_OLDER_PAGE_SIZE} messages before `position`, cut to start
+ *   at a user message.
+ */
+type TranscriptWindow =
+  | { kind: 'latest' }
+  | { kind: 'from'; position: TranscriptPosition }
+  | { kind: 'before'; position: TranscriptPosition }
+
+interface TranscriptPage {
+  messages: PersistedMessage[]
+  /** Where the page before this one ends, or null when this page reaches the first message. */
+  olderCursor: string | null
+  /** The first message of this page, to read it again extended with newer messages. */
+  windowStartCursor: string | null
+}
+
+/**
+ * One window of a chat's transcript in the chat UI's projection, in one read: the limit sits
+ * above the ordered index scan, so only the window's rows are detoasted however long the chat
+ * is. A page reading backwards starts at a user message whenever older messages exist, so a
+ * turn is never split across pages; it holds every message when the window has no user message.
+ */
+async function loadCopilotChatTranscriptPage(
+  chatId: string,
+  window: TranscriptWindow
+): Promise<TranscriptPage> {
+  const live = and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt))
+  const columns = {
+    id: copilotMessages.id,
+    seq: copilotMessages.seq,
+    createdAt: preciseTimestampText(copilotMessages.createdAt),
+    role: copilotMessages.role,
+    content: displayMessageContent,
+  }
+
+  let rows: Array<TranscriptPosition & { role: string; content: unknown }>
+  let hasOlder: boolean
+  if (window.kind === 'from') {
+    const [page, older] = await Promise.all([
+      db
+        .select(columns)
+        .from(copilotMessages)
+        .where(and(live, transcriptAtOrAfter(window.position)))
+        .orderBy(...TRANSCRIPT_ORDER),
+      db
+        .select({ id: copilotMessages.id })
+        .from(copilotMessages)
+        .where(and(live, transcriptBefore(window.position)))
+        .limit(1),
+    ])
+    rows = page
+    hasOlder = older.length > 0
+  } else {
+    const limit = window.kind === 'latest' ? TRANSCRIPT_PAGE_SIZE : TRANSCRIPT_OLDER_PAGE_SIZE
+    const newestFirst = await db
+      .select(columns)
+      .from(copilotMessages)
+      .where(window.kind === 'before' ? and(live, transcriptBefore(window.position)) : live)
+      .orderBy(...TRANSCRIPT_ORDER_DESC)
+      .limit(limit + 1)
+    hasOlder = newestFirst.length > limit
+    rows = newestFirst.slice(0, limit).reverse()
+    const firstUser = rows.findIndex((row) => row.role === 'user')
+    if (hasOlder && firstUser > 0) rows = rows.slice(firstUser)
+  }
+
+  const first = rows[0]
+  const windowStart = first
+    ? { seq: first.seq, createdAt: first.createdAt, id: first.id }
+    : window.kind === 'latest'
+      ? null
+      : window.position
+  const windowStartCursor = windowStart ? encodeTranscriptCursor(windowStart) : null
+  return {
+    messages: rows.map((row) => stripToolResultOutput(row.content as PersistedMessage)),
+    olderCursor: hasOlder ? windowStartCursor : null,
+    windowStartCursor,
+  }
+}
+
+/**
+ * File attachments on a chat's live messages whose `id` or `filename` equals `name`, in
+ * transcript order. Reads only the matching `fileAttachments` entries instead of
+ * materializing the whole transcript. The SQL text comparison admits a superset of the
+ * strict match, which is re-applied here so a non-string `id` never matches its spelling.
+ */
+export async function loadChatFileAttachmentsNamed(
+  chatId: string,
+  name: string
+): Promise<PersistedFileAttachment[]> {
+  const rows = await db
+    .select({ attachment: sql<PersistedFileAttachment>`file_attachment.value` })
+    .from(copilotMessages)
+    .crossJoinLateral(messageArrayElements('fileAttachments', 'file_attachment'))
+    .where(
+      and(
+        eq(copilotMessages.chatId, chatId),
+        isNull(copilotMessages.deletedAt),
+        sql`(file_attachment.value ->> 'id' = ${name} or file_attachment.value ->> 'filename' = ${name})`
+      )
+    )
+    .orderBy(...TRANSCRIPT_ORDER, sql`file_attachment.ordinal`)
+  return rows
+    .map((row) => row.attachment)
+    .filter((attachment) => attachment.id === name || attachment.filename === name)
 }
 
 /**
@@ -113,14 +274,7 @@ export async function loadChatMcpServerIds(chatId: string): Promise<string[]> {
   const rows = await db
     .select({ serverId: sql<string>`mcp_context.value ->> 'serverId'` })
     .from(copilotMessages)
-    .crossJoinLateral(
-      sql`jsonb_array_elements(
-        case when jsonb_typeof(${copilotMessages.content} -> 'contexts') = 'array'
-          then ${copilotMessages.content} -> 'contexts'
-          else '[]'::jsonb
-        end
-      ) with ordinality as mcp_context(value, ordinal)`
-    )
+    .crossJoinLateral(messageArrayElements('contexts', 'mcp_context'))
     .where(
       and(
         eq(copilotMessages.chatId, chatId),
@@ -130,12 +284,7 @@ export async function loadChatMcpServerIds(chatId: string): Promise<string[]> {
         sql`mcp_context.value ->> 'serverId' <> ''`
       )
     )
-    .orderBy(
-      sql`${copilotMessages.seq} asc nulls last`,
-      asc(copilotMessages.createdAt),
-      asc(copilotMessages.id),
-      sql`mcp_context.ordinal`
-    )
+    .orderBy(...TRANSCRIPT_ORDER, sql`mcp_context.ordinal`)
   return [...new Set(rows.map((row) => row.serverId))]
 }
 
@@ -203,7 +352,7 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
     try {
       await organizationAuthorization.execute({
         principal,
-        input: { organizationId: chat.organizationId },
+        input: { organizationId: chat.organizationId, mode: chat.mode },
       })
     } catch (error) {
       const code = asOrchestrationError(error)?.code
@@ -235,6 +384,14 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
       return null
     }
   }
+
+  if (
+    !chat.organizationId &&
+    chat.mode === 'plan' &&
+    organizationAuthorization !== authorizeOrganizationChatCancellation &&
+    !(await isPlanModeEnabled(userId))
+  )
+    return null
 
   return chat
 }
@@ -308,7 +465,7 @@ export async function getAccessibleCopilotChat(
   const authorized = await authorizeCopilotChatRow(chat, chatId, userId, options?.principal)
   if (!authorized) return null
 
-  const messages = await loadCopilotChatMessages(chatId)
+  const messages = await loadCopilotChatMessages(chatId, { projection: 'display' })
   return { ...authorized, messages }
 }
 
@@ -333,22 +490,61 @@ async function getAccessibleCopilotChatDetail(
 }
 
 /**
- * Load a copilot chat with the conversation transcript and resources after
- * authorization, omitting copilot-only TOAST-able fields (`previewYaml`,
- * `config`) and unused metadata (`model`, `pinned`, `lastSeenAt`). Use this for
- * the mothership chat detail endpoint — every column read here is consumed
- * downstream, and dropping the others avoids per-request detoast overhead.
+ * Load a copilot chat with its transcript (whole, or the `window` asked for) and resources after
+ * authorization, omitting copilot-only TOAST-able fields (`previewYaml`, `config`) and unused
+ * metadata (`model`, `pinned`, `lastSeenAt`). Messages arrive in the chat UI's projection, so
+ * this serves the mothership chat detail endpoint. A chat whose type differs from `type` is null
+ * before its transcript is read.
  */
 export async function getAccessibleCopilotChatWithMessages(
   chatId: string,
   userId: string,
-  options?: { principal?: Principal }
-): Promise<CopilotChatDetailRow | null> {
+  options?: {
+    principal?: Principal
+    type?: CopilotChatDetail['type']
+    window?: TranscriptWindow
+  }
+): Promise<(CopilotChatDetailRow & Omit<TranscriptPage, 'messages'>) | null> {
   const chat = await getAccessibleCopilotChatDetail(chatId, userId, options?.principal)
+  if (!chat || (options?.type && chat.type !== options.type)) return null
+
+  if (!options?.window) {
+    const messages = await loadCopilotChatMessages(chatId, { projection: 'display' })
+    return { ...chat, messages, olderCursor: null, windowStartCursor: null }
+  }
+  const page = await loadCopilotChatTranscriptPage(chatId, options.window)
+  return { ...chat, ...page }
+}
+
+/**
+ * Up to {@link TRANSCRIPT_OLDER_PAGE_SIZE} messages of a chat before `position`, as stored for
+ * the chat UI (`display_content` when present). The caller authorizes the read.
+ */
+export function loadCopilotChatMessagesBefore(
+  chatId: string,
+  position: TranscriptPosition
+): Promise<TranscriptPage> {
+  return loadCopilotChatTranscriptPage(chatId, { kind: 'before', position })
+}
+
+/**
+ * The chat {@link getAccessibleCopilotChatWithMessages} loads, with each message reduced to
+ * its role and text ({@link textMessageContent}) for a reader that quotes the transcript.
+ */
+export async function getAccessibleCopilotChatWithTextMessages(
+  chatId: string,
+  userId: string
+): Promise<CopilotChatDetailRow | null> {
+  const chat = await getAccessibleCopilotChatDetail(chatId, userId)
   if (!chat) return null
 
-  const messages = await loadCopilotChatMessages(chatId)
-  return { ...chat, messages }
+  const rows = await db
+    .select({ content: textMessageContent(['role', 'content']) })
+    .from(copilotMessages)
+    .crossJoinLateral(detoastedMessageContent)
+    .where(and(eq(copilotMessages.chatId, chatId), isNull(copilotMessages.deletedAt)))
+    .orderBy(...TRANSCRIPT_ORDER)
+  return { ...chat, messages: rows.map((row) => row.content) }
 }
 
 /**
@@ -454,20 +650,23 @@ export async function resolveOrCreateChat(params: {
   }
 
   const now = new Date()
-  const [newChat] = await db
-    .insert(copilotChats)
-    .values({
-      userId,
-      ...(workflowId ? { workflowId } : {}),
-      ...(workspaceId ? { workspaceId } : {}),
-      ...(organizationId ? { organizationId } : {}),
-      config: { conversationMode: mode ?? (organizationId ? 'assistant' : 'agent') },
-      type: type ?? (organizationId ? 'mothership' : 'copilot'),
-      title: title ?? null,
-      model,
-      lastSeenAt: now,
-    })
-    .returning(copilotChatDetailColumns)
+  const [newChat] = await db.transaction(async (tx) =>
+    tx
+      .insert(copilotChats)
+      .values({
+        memorySpaceId: await selectedMemorySpaceForNewChat(userId, organizationId, workspaceId, tx),
+        userId,
+        ...(workflowId ? { workflowId } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
+        ...(organizationId ? { organizationId } : {}),
+        config: { conversationMode: mode ?? (organizationId ? 'assistant' : 'agent') },
+        type: type ?? (organizationId ? 'mothership' : 'copilot'),
+        title: title ?? null,
+        model,
+        lastSeenAt: now,
+      })
+      .returning(copilotChatDetailColumns)
+  )
 
   if (!newChat) {
     logger.warn('Failed to create new copilot chat row', { userId, workflowId, workspaceId })

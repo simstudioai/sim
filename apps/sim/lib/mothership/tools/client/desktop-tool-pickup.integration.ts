@@ -6,6 +6,7 @@
  * persisted and dispatched by the production stream handlers, the desktop claims it through the
  * authorize route and reports through the confirm route.
  */
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -33,6 +34,7 @@ import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { StreamEvent, StreamingContext } from '@/lib/mothership/request/types'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const APP_ORIGIN = 'http://localhost:3000'
 /** Longer than the pickup grace, far shorter than the budget the call used to wait out. */
@@ -119,13 +121,15 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
       },
     }
     const options = { timeout: TURN_WAIT_MS, desktopClaimsLocalReads }
-    await prePersistClientExecutableToolCall(event, context, options)
-    await sseHandlers.tool(
-      event,
-      context,
-      { userId, chatId, workspaceId, workflowId: generateId() },
-      options
-    )
+    const executionContext = {
+      userId,
+      chatId,
+      workspaceId,
+      workflowId: generateId(),
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
+    }
+    await prePersistClientExecutableToolCall(event, context, options, executionContext)
+    await sseHandlers.tool(event, context, executionContext, options)
     const answer = context.pendingToolPromises.get(toolCallId)
     if (!answer) throw new Error('The desktop call was not dispatched to a client waiter')
     return { toolCallId, answer }
@@ -141,7 +145,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Desktop pickup fixture',
       ownerId: userId,
@@ -173,7 +177,7 @@ describe.runIf(Boolean(redisUrl))('a desktop tool call nobody picks up', () => {
 
   afterAll(async () => {
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
   })
 

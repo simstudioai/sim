@@ -15,17 +15,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Clay into the workflow. Can populate a table with data.
-
-
+Send structured records to a Clay table through its webhook URL.
 
 ## Actions
 
 ### Clay Populate
 
-Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation.
+Send structured JSON data to a Clay table webhook and return its response and HTTP metadata.
 
 #### Input
 
@@ -44,7 +42,7 @@ Populate Clay with data from a JSON file. Enables direct communication and notif
 |   ↳ `status` | number | HTTP status code |
 |   ↳ `statusText` | string | HTTP status text |
 |   ↳ `headers` | object | Response headers from Clay |
-|   ↳ `timestamp` | string | ISO timestamp when webhook was received |
+|   ↳ `timestamp` | string | ISO timestamp recorded when the webhook response was processed |
 |   ↳ `contentType` | string | Content type of the response |
 
 

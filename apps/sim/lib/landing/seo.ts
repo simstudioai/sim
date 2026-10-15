@@ -21,6 +21,8 @@ interface LandingMetadataInput {
   imageAlt?: string
   /** Twitter card image alt text. Defaults to {@link imageAlt}. */
   twitterImageAlt?: string
+  /** RSS feed path advertised through `<link rel="alternate">`, e.g. "/changelog.xml". */
+  feedPath?: string
 }
 
 /**
@@ -40,6 +42,7 @@ export function buildLandingMetadata({
   keywords,
   imageAlt,
   twitterImageAlt,
+  feedPath,
 }: LandingMetadataInput): Metadata {
   const url = `${SITE_URL}${path}`
   const ogAlt = imageAlt ?? title
@@ -78,6 +81,7 @@ export function buildLandingMetadata({
     alternates: {
       canonical: url,
       languages: { 'en-US': url, 'x-default': url },
+      ...(feedPath ? { types: { 'application/rss+xml': `${SITE_URL}${feedPath}` } } : {}),
     },
     robots: {
       index: true,

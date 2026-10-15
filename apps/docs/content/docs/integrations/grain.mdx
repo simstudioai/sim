@@ -11,31 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Grain](https://grain.com/) is a modern platform for capturing, storing, and sharing meeting recordings, transcripts, highlights, and AI-powered summaries. Grain enables teams to turn conversations into actionable insights and keep everyone aligned on key moments from meetings.
+Use [Grain](https://grain.com/) to list, search, and retrieve meeting recordings, transcripts, highlights, AI summaries, participants, and related metadata. Filter meetings by the inputs available on the selected action.
 
-With Grain, you can:
-
-- **Access searchable recordings and transcripts**: Find and review every meeting by keyword, participant, or topic.
-- **Share highlights and clips**: Capture important moments and share short video/audio highlights across your team or workflows.
-- **Get AI-generated summaries**: Automatically produce meeting summaries, action items, and key insights using Grain’s advanced AI.
-- **Organize meetings by team or type**: Tag and categorize recordings for easy access and reporting.
-
-The Sim Grain integration empowers your agents to:
-
-- List, search, and retrieve meeting recordings and details by flexible filters (datetime, participant, team, etc).
-- Access AI summaries, participants, highlights, and other metadata for meetings to power automations or analysis.
-- Trigger workflows whenever new meetings are processed, summaries are generated, or highlights are created via Grain webhooks.
-- Easily bridge Grain data into other tools or notify teammates the moment something important happens in a meeting.
-
-Whether you want to automate follow-up actions, keep records of important conversations, or surface insights across your organization, Grain and Sim make it easy to connect meeting intelligence to your workflows.
+Grain webhook triggers can start workflows when meeting data, summaries, or highlights are available. Use the returned meeting content to prepare follow-up actions or pass it to another integration.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.
-
-
+Access meeting recordings, transcripts, highlights, and AI-generated summaries. Trigger workflows based on Grain webhook events.
 
 ## Actions
 
@@ -247,7 +231,7 @@ Delete a webhook by ID (v2 API)
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Grain All Events
 
@@ -286,7 +270,7 @@ Trigger when a new highlight/clip is created in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Highlight UUID |
 |   ↳ `recording_id` | string | Parent recording UUID |
 |   ↳ `text` | string | Highlight title/description |
@@ -339,7 +323,7 @@ Trigger when a highlight/clip is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Highlight UUID |
 |   ↳ `recording_id` | string | Parent recording UUID |
 |   ↳ `text` | string | Highlight title/description |
@@ -371,7 +355,7 @@ Trigger when a new recording is added in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Recording UUID |
 |   ↳ `title` | string | Recording title |
 |   ↳ `start_datetime` | string | ISO8601 start timestamp |
@@ -425,7 +409,7 @@ Trigger when a recording is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Recording UUID |
 |   ↳ `title` | string | Recording title |
 |   ↳ `start_datetime` | string | ISO8601 start timestamp |
@@ -458,7 +442,7 @@ Trigger when a new story is created in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Story UUID |
 |   ↳ `title` | string | Story title |
 |   ↳ `url` | string | URL to view in Grain |
@@ -504,7 +488,7 @@ Trigger when a story is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | object | data output from the tool |
+| `data` | object |  |
 |   ↳ `id` | string | Story UUID |
 |   ↳ `title` | string | Story title |
 |   ↳ `url` | string | URL to view in Grain |

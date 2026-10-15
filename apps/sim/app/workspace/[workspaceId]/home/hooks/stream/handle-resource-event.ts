@@ -24,7 +24,11 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import {
+  type MothershipChatHistory,
+  mothershipChatKeys,
+  refreshMothershipChatDetail,
+} from '@/hooks/queries/mothership-chats'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -33,6 +37,47 @@ type ResourceEvent = Extract<
   PersistedStreamEventEnvelope,
   { type: typeof MothershipStreamV1EventType.resource }
 >
+
+/**
+ * Applies a resource effect the server already wrote into the chat's stored
+ * resources to both the tab strip and the cached chat detail. Mirroring it
+ * keeps a later hydration from restoring the pre-effect list without reloading
+ * the whole transcript; only a detail read already in flight, which may predate
+ * the effect, is restarted.
+ */
+function applyResourceEffect(
+  ctx: StreamLoopContext,
+  update: (resources: MothershipResource[]) => MothershipResource[]
+): void {
+  const { queryClient, setResources, chatIdRef } = ctx.deps
+  setResources(update)
+  const chatId = chatIdRef.current
+  if (!chatId) return
+  const queryKey = mothershipChatKeys.detail(chatId)
+  queryClient.setQueryData<MothershipChatHistory>(
+    queryKey,
+    (current) => current && { ...current, resources: update(current.resources) }
+  )
+  if (queryClient.isFetching({ queryKey, exact: true }) > 0) {
+    // A read with no cached data yet would dedupe a refetch onto itself, so it
+    // is cancelled first; `revert: false` keeps the effect written above.
+    void queryClient
+      .cancelQueries({ queryKey, exact: true }, { revert: false })
+      .then(() => queryClient.refetchQueries({ queryKey, exact: true }))
+  }
+}
+
+/**
+ * Recovery reloads the current panel state from the stored chat instead of
+ * repeating historical focus commands. A batch replay reloads once at its
+ * terminal flush; a reconnected live tail coalesces its reloads.
+ */
+function refreshRecoveredChatResources(ctx: StreamLoopContext): void {
+  const chatId = ctx.deps.chatIdRef.current
+  if (!chatId) return
+  if (ctx.deps.options.deferFlushes) ctx.state.deferredChatDetailRefreshes.add(chatId)
+  else refreshMothershipChatDetail(ctx.deps.queryClient, chatId)
+}
 
 /**
  * Applies a streamed resource upsert/remove to the mothership resource list,
@@ -130,9 +175,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       }
     }
     if (payload.replay || ctx.deps.options.deferFlushes) {
-      const chatId = ctx.deps.chatIdRef.current
-      if (chatId)
-        void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
+      refreshRecoveredChatResources(ctx)
       return
     }
     if (ctx.deps.citedSourcesEnabled) return
@@ -160,11 +203,15 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     notifyWorkflowExternalUpdate(payload.resource.id)
   }
   if (payload.op === 'refresh') return
-  if (payload.effectId || payload.replay || ctx.deps.options.deferFlushes) {
-    /** Recovery refetches current panel state instead of repeating historical focus commands. */
-    const chatId = ctx.deps.chatIdRef.current
-    if (chatId) void queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(chatId) })
-    if (payload.replay || ctx.deps.options.deferFlushes) return
+  if (payload.op === 'remove' && payload.effectId) {
+    // The server applied this removal before publishing it, so a client add
+    // still queued for the resource must not restore it, live or on recovery.
+    const { type, id } = payload.resource
+    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: payload.resource.workspaceId })
+  }
+  if (payload.replay || ctx.deps.options.deferFlushes) {
+    refreshRecoveredChatResources(ctx)
+    return
   }
   if (payload.op === 'clear_view') {
     const pinStore = useTableViewPinStore.getState()
@@ -172,7 +219,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     if (pendingPin?.viewId === payload.resource.viewId) {
       pinStore.consume(payload.resource.id, pendingPin.seq)
     }
-    setResources((current) =>
+    const unpin = (current: MothershipResource[]) =>
       current.map((resource) => {
         if (
           (resource.workspaceId ?? chatWorkspaceId) !== workspaceId ||
@@ -184,7 +231,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
         const { viewId: _view, ...unpinned } = resource
         return unpinned
       })
-    )
+    if (payload.effectId) applyResourceEffect(ctx, unpin)
+    else setResources(unpin)
     return
   }
   // A saved view the agent just created or edited: the table opens on it, and
@@ -208,7 +256,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (payload.op === MothershipStreamV1ResourceOp.remove) {
     const resourceType = resource.type
     if (payload.effectId) {
-      setResources((current) =>
+      applyResourceEffect(ctx, (current) =>
         current.filter((item) => getChatResourceKey(item) !== getChatResourceKey(resource))
       )
       ctx.deps.setActiveResourceId((current) =>
@@ -263,7 +311,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       ? !resourcesRef.current.some((r) => getChatResourceKey(r) === getChatResourceKey(resource))
       : addResource(resourceUpdate)
   if (payload.effectId) {
-    setResources((current) => {
+    applyResourceEffect(ctx, (current) => {
       const previous = current.find(
         (item) => getChatResourceKey(item) === getChatResourceKey(resource)
       )

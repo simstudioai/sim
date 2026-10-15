@@ -12,7 +12,7 @@ import {
   logProjectionSubjectUserId,
   resolveLogFieldProjection,
 } from '@/lib/logs/projection'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const authorizedListLogsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: logOperations.list,

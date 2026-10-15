@@ -57,7 +57,7 @@ import {
 } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
@@ -75,7 +75,7 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
-import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
@@ -165,10 +165,10 @@ vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -181,7 +181,7 @@ vi.mock('@/executor/utils/credential-token', () => ({
     mockResolveExecutorCredentialToken(...args),
 }))
 
-vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
+vi.mock('@/executor/handlers/workflow/tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
 
@@ -195,7 +195,7 @@ const mockRegistryTools: Record<string, any> = {
   stripe_list_subscriptions: stripeListSubscriptionsTool,
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
-  github_search_issues_v2: searchIssuesV2Tool,
+  github_search_users_v2: searchUsersV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -423,7 +423,7 @@ vi.mock('@/tools/utils.server', async (importOriginal) => {
 import type { QueryClient } from '@tanstack/react-query'
 import { adoptToolFailure, classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
-import { ApiBlockHandler } from '@/executor/handlers/api/api-handler'
+import { ApiBlockHandler } from '@/executor/handlers/api/handler'
 import { buildBlockExecutionError } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
@@ -6268,6 +6268,58 @@ describe('Hosted Key Injection', () => {
     cleanupEnvVars()
   })
 
+  it('stops before provider dispatch and billing when BYOK resolution fails', async () => {
+    setEnvFlags({ isHosted: true })
+    mockGetBYOKKey.mockRejectedValueOnce(new Error('BYOK credentials unavailable'))
+    mockRateLimiterFns.acquireKey.mockResolvedValue({
+      success: true,
+      key: 'platform-fixture-key',
+      keyIndex: 0,
+      envVarName: 'TEST_HOSTED_KEY',
+    })
+    const request = vi.fn(async () => jsonResponse({ ok: true }))
+    vi.stubGlobal('fetch', request)
+    tools.test_byok_failure = {
+      id: 'test_byok_failure',
+      name: 'BYOK fixture',
+      description: 'Credential failure fixture',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: { type: 'per_request', cost: 0.005 },
+        rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+    const metered = vi.fn(async () => {})
+    try {
+      const result = await observeServiceCosts(metered, () =>
+        executeTool(
+          'test_byok_failure',
+          {},
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              copilotToolExecution: true,
+            }),
+          }
+        )
+      )
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('BYOK credentials unavailable')
+      expect(request).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(metered).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_byok_failure')
+      resetEnvFlagsMock()
+    }
+  })
+
   it('should not inject hosted key when tool has no hosting config', async () => {
     const mockTool = {
       id: 'test_no_hosting',
@@ -7369,24 +7421,24 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
       requestMode: 'assistant' as const,
     },
   })
-  it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
+  it('executes the existing user lookup tool using the selected personal OAuth account', async () => {
     const { getToolMetadata } = await import('@/tools/metadata')
-    expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
-      id: 'github_search_issues_v2',
+    expect(getToolMetadata('github_search_users_v2')).toMatchObject({
+      id: 'github_search_users_v2',
       params: { apiKey: { required: true } },
     })
     const params = {
       credentialId: 'own-account',
-      q: 'repo:simstudioai/sim is:pr author:icecrasher321',
+      q: 'icecrasher321 in:login',
     }
-    const result = await executeTool('github_search_issues_v2', params, options())
+    const result = await executeTool('github_search_users_v2', params, options())
     expect(result.success, result.error).toBe(true)
     expect(result.output).toMatchObject({ total_count: 137, incomplete_results: false })
     expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialId: 'own-account',
         userId: 'person',
-        toolId: 'github_search_issues_v2',
+        toolId: 'github_search_users_v2',
         copilotExecutionContext: expect.objectContaining({ organizationId: 'org' }),
       })
     )
@@ -7402,8 +7454,8 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('rejects model-supplied credentials before resolving any account or requesting GitHub', async () => {
     const result = await executeTool(
-      'github_search_issues_v2',
-      { credentialId: 'own-account', q: 'is:pr', apiKey: 'injected-admin-token' },
+      'github_search_users_v2',
+      { credentialId: 'own-account', q: 'icecrasher321', apiKey: 'injected-admin-token' },
       options()
     )
     expect(result.success).toBe(false)

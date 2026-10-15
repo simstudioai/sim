@@ -156,6 +156,22 @@ function toastStateReducer(state: ToastState, action: ToastStateAction): ToastSt
   }
 }
 
+/**
+ * Front-to-back paint order for the stack: newest first, except that ongoing
+ * status toasts — persistent and without an action, like "Reconnecting..." —
+ * sit behind every other toast. A collapsed stack shows only the front card
+ * whole, so a status that arrives later would otherwise hide an earlier
+ * toast's action until the stack is expanded.
+ */
+export function orderToastStack(toasts: readonly ToastData[]): ToastData[] {
+  const isOngoingStatus = (toast: ToastData) => toast.duration <= 0 && !toast.action
+  const newestFirst = [...toasts].reverse()
+  return [
+    ...newestFirst.filter((toast) => !isOngoingStatus(toast)),
+    ...newestFirst.filter(isOngoingStatus),
+  ]
+}
+
 type ToastInput = {
   message: string
   description?: string
@@ -706,7 +722,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     [dismissToast, dismissAllToasts]
   )
 
-  const ordered = [...toasts].reverse()
+  const ordered = orderToastStack(toasts)
   const frontHeight = heights[ordered[0]?.id ?? ''] ?? ESTIMATED_TOAST_HEIGHT
   let cumulative = 0
   const layout = ordered.map((toast, index) => {

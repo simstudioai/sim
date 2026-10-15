@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/contracts/v2/files'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'

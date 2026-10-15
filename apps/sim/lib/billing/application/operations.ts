@@ -40,6 +40,7 @@ export const billingOperations = {
   // permission-group-exempt: a personal account reading its own plan and balance; permission groups scope a workspace, not the billing account that owns it
   readStatus: defineBillingReadOperation({
     id: 'billing.status.read',
+    contentDelivery: 'none',
     oauthScope: 'api:read',
     capability: 'none',
     accountScope: 'personal_self',
@@ -50,6 +51,7 @@ export const billingOperations = {
   // permission-group-exempt: the same personal billing account reading its own usage records; no group key names it
   listLogs: defineBillingReadOperation({
     id: 'billing.logs.list',
+    contentDelivery: 'none',
     oauthScope: 'api:read',
     capability: 'none',
     accountScope: 'personal_self',
@@ -66,6 +68,7 @@ export const copilotBillingOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
@@ -74,6 +77,7 @@ export const copilotBillingOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'deny',
     capability: 'copilot.use',
+    contentDelivery: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),

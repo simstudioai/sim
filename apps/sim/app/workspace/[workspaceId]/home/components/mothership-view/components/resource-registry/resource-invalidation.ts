@@ -3,7 +3,7 @@ import type { MothershipResourceType } from '@/lib/mothership/resources/types'
 import { dashboardKeys } from '@/hooks/queries/dashboards'
 import { deploymentKeys, invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { logKeys } from '@/hooks/queries/logs'
-import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { mothershipChatKeys, refreshMothershipChatDetail } from '@/hooks/queries/mothership-chats'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
@@ -59,7 +59,7 @@ const RESOURCE_INVALIDATORS: Record<
   },
   task: (qc, wId, id) => {
     invalidate(qc, mothershipChatKeys.workspaceLists(wId))
-    if (id) invalidate(qc, mothershipChatKeys.detail(id))
+    if (id) refreshMothershipChatDetail(qc, id)
   },
   log: (qc, wId, id) => {
     invalidate(qc, [...logKeys.lists(), wId])

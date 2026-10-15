@@ -22,6 +22,7 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -43,7 +44,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
@@ -55,7 +56,7 @@ import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import { persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { googleWorkspaceDomain } from '@/connectors/google-drive/directory'
 import { googleDriveConnector } from '@/connectors/google-drive/google-drive'
 import type { ExternalDocument } from '@/connectors/types'
@@ -251,7 +252,7 @@ describe.skipIf(!keyPath || !folderId || !ownerEmail)(
               }
             })
           }
-          await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+          await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
           await db.delete(user).where(eq(user.id, ids.aliceId))
           await db.delete(user).where(eq(user.id, ids.bobId))
         }

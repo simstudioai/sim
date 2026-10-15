@@ -42,7 +42,7 @@ export const PI_SEARCH_TRUNCATED_MESSAGE =
  * number in the Pi block docs (`workflows/blocks/pi.mdx`), so change both.
  *
  * Scope is one **block execution**, not one workflow run: the counter lives in the tool spec, and
- * both adapters build a fresh spec per execution (`buildPiSearchToolSpec` from `pi-handler.ts`, and
+ * both adapters build a fresh spec per execution (`buildPiSearchToolSpec` from `pi/handler.ts`, and
  * one extension load per CLI invocation). A Pi block inside a Loop or Parallel therefore gets this
  * many searches *per iteration*. That is deliberate — a shared ceiling would fail late iterations of
  * a legitimate fan-out — but it means the worst-case spend for a run is this times the iteration

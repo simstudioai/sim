@@ -34,8 +34,8 @@ vi.mock('@/lib/internal/outlook/client', () => ({
   },
 }))
 vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'
 import { executeOutlookGetAttachment, executeOutlookSend } from '@/lib/internal/outlook/operations'

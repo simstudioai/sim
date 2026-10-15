@@ -12,7 +12,7 @@ import {
 import {
   listCredentialMembersUseCase,
   upsertCredentialMemberUseCase,
-} from '@/lib/credentials/application/credential-members'
+} from '@/lib/credentials/application/members'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 

@@ -29,8 +29,8 @@ import {
   getExtensionFromMimeType,
   getFileExtension,
   getMimeTypeFromExtension,
-} from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+} from '@/lib/uploads/utils/file'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { MAX_FILE_SIZE, sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'

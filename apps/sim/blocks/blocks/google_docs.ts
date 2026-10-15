@@ -14,7 +14,7 @@ export const GoogleDocsBlock: BlockConfig = {
   description: 'Read, write, create, and edit documents',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Google Docs into the workflow. Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.',
+    'Read, write, and create documents, insert text, tables, images, and page breaks, find and replace text, and apply text styling.',
   docsLink: 'https://docs.sim.ai/integrations/google_docs',
   category: 'tools',
   integrationType: IntegrationType.Documents,

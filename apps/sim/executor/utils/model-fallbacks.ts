@@ -6,6 +6,7 @@ import {
   isWholeEnvVarReference,
   normalizeFallbackModels,
 } from '@/lib/workflows/blocks/fallback-models'
+import { providerRequiresFamilyCredentials } from '@/blocks/utils'
 import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { SerializedBlock } from '@/serializer/types'
@@ -22,6 +23,22 @@ export const PROVIDER_FAMILY_CREDENTIAL_FIELDS = [
   'bedrockSecretKey',
   'bedrockRegion',
 ] as const
+
+/**
+ * Refuses a fallback on another provider that needs a Vertex credential, Bedrock keys, or an
+ * Azure endpoint: those fields exist only for the primary's provider family.
+ */
+export function assertFallbackFamilyCredentials(
+  candidateProviderId: string,
+  primaryProviderId: string
+): void {
+  if (
+    candidateProviderId !== primaryProviderId &&
+    providerRequiresFamilyCredentials(candidateProviderId)
+  ) {
+    throw new Error('Fallback requires credentials from a different provider family')
+  }
+}
 
 /** Validates stored key references before admitting their resolved values to a provider. */
 export function getModelFallbacks(

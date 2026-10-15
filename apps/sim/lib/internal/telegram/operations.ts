@@ -6,9 +6,9 @@ import {
   createInternalToolFileResult,
   type InternalToolFileResult,
 } from '@/lib/internal/tool-operations/file-result'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import type { TelegramSendDocumentResponse } from '@/tools/telegram/types'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'

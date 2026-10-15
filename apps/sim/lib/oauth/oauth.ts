@@ -20,6 +20,7 @@ import {
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
+  FivetranIcon,
   GithubIcon,
   GmailIcon,
   GoogleAdsIcon,
@@ -1416,6 +1417,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'ramp',
+  },
+  fivetran: {
+    name: 'Fivetran',
+    icon: FivetranIcon,
+    services: {
+      fivetran: {
+        name: 'Fivetran',
+        description: 'Manage Fivetran connections, syncs, and transformations.',
+        providerId: 'fivetran',
+        serviceAccountProviderId: 'fivetran-service-account',
+        authType: 'service_account',
+        icon: FivetranIcon,
+        baseProviderIcon: FivetranIcon,
+        scopes: [],
+      },
+    },
+    defaultService: 'fivetran',
   },
   vanta: {
     name: 'Vanta',

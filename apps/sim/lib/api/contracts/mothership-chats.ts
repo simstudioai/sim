@@ -425,6 +425,10 @@ export const getMothershipChatResponseSchema = z.object({
       createdAt: z.union([z.string(), z.date()]).nullable().optional(),
       updatedAt: z.union([z.string(), z.date()]).nullable().optional(),
       streamSnapshot: mothershipChatStreamSnapshotSchema.optional(),
+      /** Where the messages before this window end; null or absent when the window starts the chat. */
+      olderCursor: z.string().nullable().optional(),
+      /** This window's first message, for a reload that extends it with newer messages. */
+      windowStartCursor: z.string().nullable().optional(),
     })
     .passthrough(),
 })
@@ -458,13 +462,59 @@ export const mothershipExecuteContract = defineRouteContract({
   },
 })
 
+const transcriptCursorSchema = z.string().min(1).max(512)
+
+/**
+ * Which messages a chat read returns: `window=latest` for the newest messages, `from` for every
+ * message at or after a cursor; neither returns the whole transcript.
+ */
+const getMothershipChatQuerySchema = z.object({
+  window: z.literal('latest').optional(),
+  from: transcriptCursorSchema.optional(),
+})
+
 export const getMothershipChatContract = defineRouteContract({
   method: 'GET',
   path: '/api/mothership/chats/[chatId]',
   params: mothershipChatParamsSchema,
+  query: getMothershipChatQuerySchema,
   response: {
     mode: 'json',
     schema: getMothershipChatResponseSchema,
+  },
+})
+
+/** A page of the messages before `before` in a chat, oldest first. */
+export const listMothershipChatOlderMessagesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/messages',
+  params: mothershipChatParamsSchema,
+  query: z.object({ before: transcriptCursorSchema }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      messages: z.array(z.unknown()),
+      olderCursor: z.string().nullable(),
+    }),
+  },
+})
+
+/**
+ * The chat's live stream, without its transcript: what a tab polls while it
+ * waits for a finished turn to be saved, so each check costs a row and a lock
+ * lookup instead of the whole conversation.
+ */
+export const getMothershipChatStreamStatusContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mothership/chats/[chatId]/stream-status',
+  params: mothershipChatParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      activeStreamId: z.string().nullable(),
+    }),
   },
 })
 

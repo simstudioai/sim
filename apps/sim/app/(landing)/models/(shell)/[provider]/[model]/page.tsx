@@ -26,8 +26,9 @@ import {
 const baseUrl = SITE_URL
 
 /**
- * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
- * `loading.tsx` with a 200 status first.
+ * Unknown params 404 before rendering when this route is prerendered. The production image renders
+ * every route dynamically, so there the page's own `notFound()` is what 404s - which is why no
+ * `loading.tsx` may wrap this segment: its Suspense boundary commits a 200 before `notFound()` runs.
  */
 export const dynamicParams = false
 
@@ -35,6 +36,14 @@ export async function generateStaticParams() {
   return MODEL_PROVIDERS_WITH_MODELS.flatMap((provider) =>
     provider.models.map((model) => ({ provider: provider.slug, model: model.slug }))
   )
+}
+
+/**
+ * Model name qualified by its reseller ("Claude Opus 4.7 on AWS Bedrock"), so a reseller's page is
+ * distinguishable from the first-party page for the same model in titles and the H1.
+ */
+function hostedModelName(provider: { name: string; isReseller: boolean }, displayName: string) {
+  return provider.isReseller ? `${displayName} on ${provider.name}` : displayName
 }
 
 export async function generateMetadata({
@@ -50,8 +59,10 @@ export async function generateMetadata({
     return {}
   }
 
+  const pageName = hostedModelName(provider, model.displayName)
+
   return {
-    title: `${model.displayName} Pricing, Context Window, and Features`,
+    title: `${pageName} Pricing, Context Window, and Features`,
     description: `${model.displayName} by ${provider.name}: pricing, cached input cost, output cost, context window, and capability support. Explore the full generated model page on Sim.`,
     keywords: [
       model.displayName,
@@ -65,14 +76,14 @@ export async function generateMetadata({
     // og:image/twitter:image come from the sibling opengraph-image.tsx -
     // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
-      title: `${model.displayName} Pricing, Context Window, and Features | Sim`,
+      title: `${pageName} Pricing, Context Window, and Features | Sim`,
       description: `${model.displayName} by ${provider.name}: pricing, context window, and model capability details.`,
       url: `${baseUrl}${model.href}`,
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${model.displayName} | Sim`,
+      title: `${pageName} | Sim`,
       description: model.summary,
     },
     alternates: {
@@ -170,7 +181,7 @@ export default async function ModelPage({
                 id='model-heading'
                 className='text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
               >
-                {model.displayName}
+                {hostedModelName(provider, model.displayName)}
               </h1>
             </div>
           </div>

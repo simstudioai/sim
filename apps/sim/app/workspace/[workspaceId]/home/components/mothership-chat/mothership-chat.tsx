@@ -22,6 +22,7 @@ import {
 } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { inter } from '@/app/_styles/fonts/inter/inter'
@@ -132,9 +133,9 @@ const OVERSCAN = 6
 
 /**
  * How close to the bottom (px) the transcript must be to count as pinned for
- * re-pinning across container resizes. Covers the fractional sub-pixel gap a
- * DPR-scaled `scrollTop` can leave, without capturing a user who deliberately
- * scrolled up.
+ * re-pinning across container resizes and older messages loading in above.
+ * Covers the fractional sub-pixel gap a DPR-scaled `scrollTop` can leave,
+ * without capturing a user who deliberately scrolled up.
  */
 const PIN_THRESHOLD = 2
 /**
@@ -729,6 +730,32 @@ export function MothershipChat({
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) =>
     item.index !== lastIndex && item.start < (instance.scrollElement?.scrollTop ?? 0)
 
+  /**
+   * Older messages load in above the newest window while the chat is open, pushing every row
+   * below them down. A viewport at the bottom is re-pinned to the last row, which also keeps a
+   * landing scroll aimed at it rather than at the index it had before the insert; any other
+   * viewport moves down by the inserted height and keeps showing what the user was reading.
+   */
+  const firstRowKeyRef = useRef<string | undefined>(undefined)
+  const firstRowKey = rowKeyByIndex[0]
+  useLayoutEffect(() => {
+    const previousFirstRowKey = firstRowKeyRef.current
+    firstRowKeyRef.current = firstRowKey
+    if (!previousFirstRowKey || previousFirstRowKey === firstRowKey) return
+    const shiftedIndex = rowKeyByIndex.indexOf(previousFirstRowKey)
+    const shifted = shiftedIndex > 0 ? virtualizer.measurementsCache[shiftedIndex] : undefined
+    const first = virtualizer.measurementsCache[0]
+    const scrollElement = scrollElementRef.current
+    if (!shifted || !first || !scrollElement) return
+    const inserted = shifted.start - first.start
+    const { scrollTop, scrollHeight, clientHeight } = scrollElement
+    if (scrollHeight - inserted - scrollTop - clientHeight <= PIN_THRESHOLD) {
+      virtualizer.scrollToIndex(lastIndex, { align: 'end' })
+    } else {
+      virtualizer.scrollToOffset(scrollTop + inserted)
+    }
+  }, [firstRowKey, lastIndex, rowKeyByIndex, virtualizer])
+
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
   const messageQueueRef = useRef(messageQueue)
@@ -844,7 +871,7 @@ export function MothershipChat({
         className={cn(
           'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
           layout === 'mothership-view' &&
-            '@max-[960px]/chat-panel:mt-[var(--resource-header-controls-height)] @max-[960px]/chat-panel:h-auto @max-[960px]/chat-panel:flex-1',
+            'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
           inter.className,
           className
         )}
@@ -939,6 +966,7 @@ export function MothershipChat({
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
+            <ComputerUseActivity />
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}

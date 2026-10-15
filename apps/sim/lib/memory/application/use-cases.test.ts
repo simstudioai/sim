@@ -7,7 +7,7 @@ import {
   workspaceContextMockFns,
 } from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 
 const hoisted = vi.hoisted(() => ({
   readBoundProvenance: vi.fn(),
@@ -21,14 +21,14 @@ vi.mock('@/lib/memory/conversation-store', () => ({
 
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/memory/secret-provenance', () => ({
   readBoundMemorySecretProvenance: hoisted.readBoundProvenance,
   replaceMemorySecretProvenanceInTx: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 
 import { listMemoriesUseCase } from '@/lib/memory/application/use-cases'
 import type { PlainMemoryReadBudget } from '@/lib/memory/read-budget'

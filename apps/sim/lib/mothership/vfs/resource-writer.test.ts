@@ -25,12 +25,9 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
   admitCreateWorkspaceFile: hoisted.admitCreateWorkspaceFile,
 }))
 
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-folder-manager',
-  () => workspaceFileFoldersMock
-)
+vi.mock('@/lib/uploads/contexts/workspace/file-folder-manager', () => workspaceFileFoldersMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/workspace-files/application/write-workspace-file-by-path', () => ({
   createWorkspaceFileBufferByPath: hoisted.createWorkspaceFileBufferByPath,

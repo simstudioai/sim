@@ -13,7 +13,7 @@ import {
   readSsoRequirement,
   type SsoRequirement,
   setSsoRequirement,
-} from '@/lib/auth/sso/application/sso-requirement'
+} from '@/lib/auth/sso/application/requirement'
 
 const present = (requirement: SsoRequirement) => ({ success: true as const, data: requirement })
 

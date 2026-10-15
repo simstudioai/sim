@@ -18,6 +18,7 @@ import {
   workspaceBYOKKeys,
   workspaceFiles,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createLogger, LogLevel } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
@@ -32,7 +33,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
@@ -52,7 +53,7 @@ import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { grantKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { processDocument } from '@/lib/knowledge/documents/processor'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
@@ -107,7 +108,7 @@ describe.skipIf(!credentialsFile)('real embedding and scanned PDF providers', ()
         .from(workspaceFiles)
         .where(eq(workspaceFiles.workspaceId, ids.workspaceId))
       for (const file of files) await deleteFile({ key: file.key, context: 'knowledge-base' })
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
     if (fixtureStorage.root) await rm(fixtureStorage.root, { recursive: true, force: true })

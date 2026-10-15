@@ -1,10 +1,11 @@
-import { copilotChats, member } from '@sim/db/schema'
+import { copilotChats, member, settings, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
@@ -28,10 +29,14 @@ const useCase = { operation: organizationSecretOperations.mount, execute: mocks.
 beforeEach(() => {
   vi.resetAllMocks()
   resetDbChainMock()
+  setEnvFlags({ isMothershipBenchmarkEnabled: true })
+  queueTableRows(user, [{ role: 'admin' }])
+  queueTableRows(settings, [{ superUserModeEnabled: true }])
   mocks.config.mockResolvedValue(null)
   queueTableRows(member, [{ role: 'admin' }])
   queueTableRows(copilotChats, [{ id: 'chat' }])
 })
+afterAll(resetEnvFlagsMock)
 describe('Build and Plan Generic Secrets delegation', () => {
   it.each(['agent', 'plan'])(
     'binds the actor, chat, and organization for %s before entering the registered operation',

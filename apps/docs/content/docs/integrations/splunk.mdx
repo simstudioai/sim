@@ -11,25 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Splunk](https://www.splunk.com/) indexes machine data — logs, metrics, and events — and makes it searchable with SPL, its search processing language. Teams use it for operational monitoring, incident investigation, and security analytics, with saved searches and alerts watching for conditions on a schedule.
+Use [Splunk](https://www.splunk.com/) with a bearer token to search logs, metrics, and events in Splunk Enterprise or Splunk Cloud. **Run Search** returns a synchronous result; for longer searches, create a job, inspect its status, page through its results, and cancel it when needed.
 
-With the Splunk integration in Sim, you can:
-
-- **Run searches**: Execute an SPL search synchronously and get its results in a single call
-- **Run long searches as jobs**: Create a search job, check its status, page through its results, and cancel it
-- **Use saved searches**: List and get saved searches, and dispatch one on demand
-- **Inspect alerts**: List fired alerts and get the fired instances of a specific alert
-- **Explore the instance**: List indexes and installed apps
-
-In Sim, the Splunk integration enables your agents to investigate and act on operational data. An agent can run a search when an incident opens, dispatch a saved search to reproduce a known query, page through a large job's results, and read fired alerts to decide what to escalate. It works against both Splunk Enterprise and Splunk Cloud, authenticating with a bearer token.
+Saved-search actions list, read, and dispatch existing searches. Alert actions inspect fired alerts and their instances. Index and app lookups help identify the data and configuration available to the credential.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Splunk Enterprise or Splunk Cloud into workflows. Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.
-
-
+Run SPL searches synchronously or as asynchronous jobs, fetch results, dispatch saved searches, and inspect fired alerts and indexes.
 
 ## Actions
 

@@ -7,8 +7,8 @@ import { SelectorContextUnavailableError } from '@/lib/selectors/server/errors'
 import type { SelectorManifestEntry, SelectorScope } from '@/lib/selectors/types'
 import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
-import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export type WorkspaceSelectorApplicationContext = (
   | ActiveWorkflowApplicationContext

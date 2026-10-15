@@ -185,7 +185,7 @@ describe('workflow export -> import round trip', () => {
    * The round trip is deliberately NOT lossless, and these assertions exist so that stops being a
    * surprise. `sanitizeForExport` passes `redactOpaqueCredentialInputs`, which withholds whole
    * `table` values and every parameter of a tool with no authoritative codec metadata — see the
-   * trade recorded on `OPAQUE_CREDENTIAL_BEARING_TYPES` in `credential-extractor`.
+   * trade recorded on `OPAQUE_CREDENTIAL_BEARING_TYPES` in `credentials/extractor`.
    *
    * Both classes carry secrets no per-field rule can find (a bearer token pasted into a header
    * cell, a key in a custom tool's params) and both also carry ordinary configuration, which goes

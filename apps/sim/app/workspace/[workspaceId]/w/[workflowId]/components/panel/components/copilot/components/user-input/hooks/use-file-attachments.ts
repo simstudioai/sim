@@ -19,7 +19,7 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
-import { resolveFileType } from '@/lib/uploads/utils/file-utils'
+import { resolveFileType } from '@/lib/uploads/utils/file'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,

@@ -27,16 +27,12 @@ Explicit empty strings, nulls, and empty arrays can be supplied through **Body O
 For webhooks, automatic registration requires API v2, an API token, and the workspace slug. Manual setup requires the webhook signing secret; it does not require an API token or workspace slug. On instances using API v1, create a webhook in Plane's settings and configure its signing secret in Sim. The trigger tables mark only unconditional requirements as required. Project-filtered legacy deletion events that omit their project cannot be matched and are skipped.
 
 The knowledge connector reads API v1 to include full descriptions. It preserves existing documents when a listing is capped and disables automatic deletion reconciliation because offset listings can shift during concurrent changes. Project pages require an edition that exposes the pages API.
-
-In Sim, the Plane block lets your agents triage work, plan delivery, and keep project knowledge available.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect Plane Cloud or a self-hosted Plane instance. API v2 is the default; choose API v1 for Community Edition or older instances. Actions with a current successor are consolidated. Unsupported version-specific inputs fail explicitly. Manage work items, projects, cycles, modules, states, labels, comments, links, attachments, pages, and webhooks. API v1 compatibility is available within supported current actions.
-
-
 
 ## Actions
 
@@ -4312,7 +4308,7 @@ Update a work item in Plane. Supports API v1 compatibility.
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Plane All Events
 

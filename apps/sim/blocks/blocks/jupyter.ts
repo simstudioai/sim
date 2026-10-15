@@ -38,7 +38,7 @@ export const JupyterBlock = {
   sunset: { status: 'legacy', replacedBy: 'jupyter_v2' },
   description: 'Manage files, notebooks, kernels, and sessions on a Jupyter server',
   longDescription:
-    'Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.',
+    'Browse, read, create, upload, rename, copy, and delete files and notebooks; start, stop, restart, and interrupt kernels; and manage sessions that bind notebooks to kernels.',
   docsLink: 'https://docs.sim.ai/integrations/jupyter',
   category: 'tools',
   integrationType: IntegrationType.DevOps,

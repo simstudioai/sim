@@ -103,7 +103,7 @@ interface GoogleCalendarGetV2Response {
 export const getV2Tool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetV2Response> = {
   id: 'google_calendar_get_v2',
   name: 'Google Calendar Get Event',
-  description: 'Get a specific event from Google Calendar. Returns API-aligned fields only.',
+  description: 'Get a specific event from Google Calendar.',
   version: '2.0.0',
   oauth: getTool.oauth,
   params: getTool.params,

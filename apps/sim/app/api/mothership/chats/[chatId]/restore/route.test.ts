@@ -24,7 +24,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 

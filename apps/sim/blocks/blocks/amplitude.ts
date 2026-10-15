@@ -15,7 +15,7 @@ export const AmplitudeBlock: BlockConfig = {
   name: 'Amplitude',
   description: 'Track events and query analytics from Amplitude',
   longDescription:
-    'Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.',
+    'Track events, identify users and groups, search for users, query analytics, analyze funnels and retention, and retrieve revenue data.',
   docsLink: 'https://docs.sim.ai/integrations/amplitude',
   category: 'tools',
   integrationType: IntegrationType.Analytics,

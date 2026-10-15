@@ -15,11 +15,9 @@ Use [Greenhouse](https://www.greenhouse.com/) to read candidates, jobs, applicat
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.
-
-
+List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.
 
 ## Actions
 
@@ -497,7 +495,7 @@ Lists all interview stages for a specific job in Greenhouse
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Greenhouse Candidate Hired
 
@@ -517,17 +515,17 @@ Trigger workflow when a candidate is hired
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Current stage ID |
 |       ↳ `name` | string | Current stage name |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -538,11 +536,11 @@ Trigger workflow when a candidate is hired
 |       ↳ `recruiter` | json | Assigned recruiter |
 |       ↳ `coordinator` | json | Assigned coordinator |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
-|     ↳ `source` | object | source output from the tool |
+|     ↳ `source` | object |  |
 |       ↳ `id` | number | Source ID |
 |       ↳ `name` | string | Source name when provided by Greenhouse |
 |       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
-|     ↳ `offer` | object | offer output from the tool |
+|     ↳ `offer` | object |  |
 |       ↳ `id` | number | Offer ID |
 |       ↳ `version` | number | Offer version |
 |       ↳ `starts_at` | string | Offer start date |
@@ -570,18 +568,18 @@ Trigger workflow when a candidate is rejected
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status \(rejected\) |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `rejected_at` | string | When the candidate was rejected |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Stage ID where rejected |
 |       ↳ `name` | string | Stage name where rejected |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -613,18 +611,18 @@ Trigger workflow when a candidate changes interview stages
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Current stage ID |
 |       ↳ `name` | string | Current stage name |
 |       ↳ `interviews` | json | Interviews in this stage |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -633,7 +631,7 @@ Trigger workflow when a candidate changes interview stages
 |       ↳ `email_addresses` | json | Email addresses |
 |       ↳ `phone_numbers` | json | Phone numbers |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
-|     ↳ `source` | object | source output from the tool |
+|     ↳ `source` | object |  |
 |       ↳ `id` | number | Source ID |
 |       ↳ `name` | string | Source name when provided by Greenhouse |
 |       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
@@ -660,8 +658,8 @@ Trigger workflow when a new job is created
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `job` | object | job output from the tool |
+| `payload` | object |  |
+|   ↳ `job` | object |  |
 |     ↳ `id` | number | Job ID |
 |     ↳ `name` | string | Job title |
 |     ↳ `requisition_id` | string | Requisition ID |
@@ -697,8 +695,8 @@ Trigger workflow when a job is updated
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `job` | object | job output from the tool |
+| `payload` | object |  |
+|   ↳ `job` | object |  |
 |     ↳ `id` | number | Job ID |
 |     ↳ `name` | string | Job title |
 |     ↳ `requisition_id` | string | Requisition ID |
@@ -734,17 +732,17 @@ Trigger workflow when a new application is submitted
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
-|   ↳ `application` | object | application output from the tool |
+| `payload` | object |  |
+|   ↳ `application` | object |  |
 |     ↳ `id` | number | Application ID |
 |     ↳ `status` | string | Application status |
 |     ↳ `prospect` | boolean | Whether the applicant is a prospect |
 |     ↳ `applied_at` | string | When the application was submitted |
 |     ↳ `url` | string | Application URL in Greenhouse |
-|     ↳ `current_stage` | object | current_stage output from the tool |
+|     ↳ `current_stage` | object |  |
 |       ↳ `id` | number | Current stage ID |
 |       ↳ `name` | string | Current stage name |
-|     ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `candidate` | object |  |
 |       ↳ `id` | number | Candidate ID |
 |       ↳ `first_name` | string | First name |
 |       ↳ `last_name` | string | Last name |
@@ -755,7 +753,7 @@ Trigger workflow when a new application is submitted
 |       ↳ `phone_numbers` | json | Phone numbers |
 |       ↳ `tags` | json | Candidate tags |
 |     ↳ `jobs` | json | Associated jobs \(array\) |
-|     ↳ `source` | object | source output from the tool |
+|     ↳ `source` | object |  |
 |       ↳ `id` | number | Source ID |
 |       ↳ `name` | string | Source name when provided by Greenhouse |
 |       ↳ `public_name` | string | Public-facing source name when provided by Greenhouse |
@@ -784,7 +782,7 @@ Trigger workflow when a new offer is created
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | number | Offer ID |
 |   ↳ `application_id` | number | Associated application ID |
 |   ↳ `job_id` | number | Associated job ID |

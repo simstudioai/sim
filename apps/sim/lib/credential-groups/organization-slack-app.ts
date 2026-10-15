@@ -6,7 +6,19 @@ import {
   decryptCredentialGroupProviderConfiguration,
   encryptCredentialGroupProviderConfiguration,
 } from '@/lib/credential-groups/provider-configuration'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+
+/**
+ * Serializes an organization's Slack member setup with Slack Search's installation writes, so a
+ * bot can never be added or rebound under a member setup that already checked the installations.
+ * Install, rebind, enable, disable and admin removal all take it, first, before any Slack app or
+ * workspace lock. Slack revocations, which must never wait on setup, and the cascade from
+ * deleting a bot credential skip it: they only withdraw a bot, which member setup tolerates.
+ */
+export async function lockOrganizationSlackApp(tx: DbTransaction, organizationId: string) {
+  await acquireAdvisoryXactLock(tx, 'slack_org_app', `slack-org-app:${organizationId}`)
+}
 
 /** Called with canonical, authorized organization scope by the app setup use case. */
 export async function loadOrganizationSlackMemberApps(

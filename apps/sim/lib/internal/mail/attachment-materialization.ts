@@ -3,9 +3,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
+import { processFilesToUserFiles } from '@/lib/uploads/utils/file'
+import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file.server'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
-import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
-import { downloadServableFilesWithinBudget } from '@/lib/uploads/utils/file-utils.server'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 const logger = createLogger('MailAttachmentMaterialization')

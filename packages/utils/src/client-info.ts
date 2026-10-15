@@ -254,6 +254,7 @@ export function resolveClientInfo(
 const INTERNAL_AUTH_KINDS: ReadonlySet<string> = new Set([
   'internal_jwt',
   'delegated',
+  'resource_delegated',
   'organization_delegated',
   'system',
 ])

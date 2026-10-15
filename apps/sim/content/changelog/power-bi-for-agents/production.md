@@ -14,7 +14,7 @@ The entry links to `/integrations/power-bi` and the matching docs guide at `/int
 
 Captured October 7, 2026, from the actual local self-hosted app based on staging commit `684b228623`, using a dedicated sample workspace. Asset: `/changelog/power-bi-query-v1.jpg`, 1440×900.
 
-The screenshot shows the Power BI block and a synthetic DAX query using sample sales table and column names. The account, workspace, and model selectors are intentionally unconnected. No Microsoft account was connected and no query or refresh was executed. The article explicitly describes a configuration example, not a successful provider call. Do not add a results screen without a real authorized connection and a verified run.
+The screenshot shows the Power BI block and a synthetic DAX query using sample sales table and column names. The account, workspace, and model selectors are intentionally unconnected. No Microsoft account was connected and no query or refresh was executed. The article explains supported actions and a suggested use case; the image depicts configuration. Do not add a results screen without a real authorized connection and a verified run.
 
 The sample demonstrates where the query is configured. Actual table and column names must match the reader's model. The setup guide describes organizational accounts, delegated connection requirements, permission limits, and unsupported actions.
 
@@ -33,3 +33,9 @@ Email body:
 > Sim's Power BI integration can query semantic models, inspect reports, and request refreshes. Use the returned rows in a briefing or follow-up. See the configuration example and Microsoft connection requirements: https://www.sim.ai/changelog/power-bi-for-agents
 
 These are drafts, not sent announcements.
+
+## Editorial revision
+
+Revised October 12, 2026, to clarify supported behavior and include selected changes from the same technical release where useful. Every public sentence describes a capability, a meaningful change, or necessary access information. Original dates, release references, RSS identities, and reviewed media are preserved. The `updated` timestamp records the substantive revision. Browser and CI evidence belongs in the revision PR.
+
+Additional v0.9.12 coverage: [You.com, #8584](https://github.com/simstudioai/sim/pull/8584) and [Lucid/Notion browsing, #8579](https://github.com/simstudioai/sim/pull/8579). The technical release includes both; current setup guides establish the supported operations and account requirements.
