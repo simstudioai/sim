@@ -919,6 +919,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
 })
 
 afterAll(async () => {
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
   for (const f of fixtures) {
     await db.delete(idempotencyKey).where(sql`${idempotencyKey.key} LIKE ${`%${f.projectId}%`}`)
