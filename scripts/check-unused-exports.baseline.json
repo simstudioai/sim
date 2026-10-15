@@ -5091,7 +5091,6 @@
   "apps/sim/lib/uploads/utils/validation.ts#isValidPng",
   "apps/sim/lib/url-state/index.ts#SortDefault",
   "apps/sim/lib/users/account-deletion.ts#AccountDeletionBlockedError",
-  "apps/sim/lib/vfs/path.ts#VfsPathError",
   "apps/sim/lib/webhooks/deployed-urls.ts#resolveDeployedWebhookUrl",
   "apps/sim/lib/webhooks/env-resolver.ts#normalizeWebhookProviderConfig",
   "apps/sim/lib/webhooks/execution-principal.ts#normalizeWebhookPrincipalProvider",
