@@ -13,6 +13,7 @@ import {
   ACCESS_REVALIDATION_SWEEP_INTERVAL_MS,
   startAccessRevalidationSweep,
 } from '@/access-revalidation'
+import { registerRoomPermissionPublisher } from '@/handlers/room-permission'
 import type { IRoomManager, UserPresence } from '@/rooms'
 
 interface FakeSocket {
@@ -131,6 +132,8 @@ describe('access-revalidation sweep', () => {
   })
 
   it('keeps a downgraded reader subscribed and reports the loss of write access', async () => {
+    const publish = vi.fn()
+    registerRoomPermissionPublisher('workspace-file-doc', publish)
     const socket = makeSocket('sock-1', 'user-1', 'workspace-file-doc:file-1')
     socket.rooms.add('table:t-1')
     const manager = makeManager([socket])
@@ -139,20 +142,23 @@ describe('access-revalidation sweep', () => {
     await sweep.runOnce()
     sweep.stop()
     expect(socket.leave).not.toHaveBeenCalled()
-    expect(socket.emit).toHaveBeenCalledWith('file-doc-permission', {
-      fileId: 'file-1',
-      canWrite: false,
-    })
+    expect(publish).toHaveBeenCalledWith(
+      socket,
+      { type: 'workspace-file-doc', id: 'file-1' },
+      'read'
+    )
   })
 
   it('retains a document subscription for retry when authorization is unavailable', async () => {
+    const publish = vi.fn()
+    registerRoomPermissionPublisher('workspace-file-doc', publish)
     const socket = makeSocket('sock-1', 'user-1', 'workspace-file-doc:file-1')
     mockResolveRole.mockRejectedValue(new Error('database unavailable'))
     const sweep = startAccessRevalidationSweep(makeManager([socket]))
     await sweep.runOnce()
     sweep.stop()
     expect(socket.leave).not.toHaveBeenCalled()
-    expect(socket.emit).not.toHaveBeenCalledWith('file-doc-permission', expect.anything())
+    expect(publish).not.toHaveBeenCalled()
   })
 
   it('evicts only the revoked socket, not co-members of the room', async () => {

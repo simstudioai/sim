@@ -62,6 +62,9 @@ best match rather than repeating similar searches, then run
 === END AGENT COMMAND DISCOVERY ===
 `
 
+/** Executable but unpublished until launch, so kept out of `--help` and `sim cli` search. */
+const UNPUBLISHED_GROUPS: ReadonlySet<string> = new Set(['projects'])
+
 /** The root's own value-taking options, which consume the token after them. */
 const ROOT_VALUE_FLAGS: ReadonlySet<string> = new Set([
   '-P',
@@ -190,7 +193,7 @@ export function buildProgram(
   program.addCommand(cliCommand())
 
   for (const command of buildGeneratedCommands()) {
-    program.addCommand(command)
+    program.addCommand(command, { hidden: UNPUBLISHED_GROUPS.has(command.name()) })
   }
 
   attachCredentialCommands(program)

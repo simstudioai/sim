@@ -42,6 +42,7 @@ import {
   setupWorkspaceFileDocHandlers,
 } from '@/handlers/file-doc'
 import { FileDocInvalidatedError, getFileDocStore } from '@/handlers/file-doc-store'
+import { publishRoomPermission } from '@/handlers/room-permission'
 import * as permissions from '@/middleware/permissions'
 import {
   beginRoomPermissionRead,
@@ -640,6 +641,93 @@ describe('setupWorkspaceFileDocHandlers', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('publishes write access to a socket only when it changes, not on every frame', async () => {
+    // A distinct user/file: role decisions recorded under fake timers outlive this test.
+    vi.useFakeTimers()
+    try {
+      const { io } = createIo()
+      const { socket, handlers } = setup('socket-capability', io, { userId: 'user-capability' })
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-capability', clientId: 7 })
+      await vi.advanceTimersByTimeAsync(0)
+      const presence = awarenessFrame(7, 'Capability').frame
+      const sendFrames = async () => {
+        for (let sent = 0; sent < 3; sent++) {
+          void handlers[FILE_DOC_EVENTS.MESSAGE](presence)
+          await vi.advanceTimersByTimeAsync(0)
+        }
+      }
+      const published = () =>
+        socket.emit.mock.calls
+          .filter(([event]) => event === FILE_DOC_EVENTS.PERMISSION)
+          .map(([, payload]) => (payload as { canWrite: boolean }).canWrite)
+      const changeRole = async (workspacePermission: 'read' | 'write') => {
+        mockAuthorizeRoom.mockResolvedValue({
+          allowed: true,
+          status: 200,
+          workspaceId: 'ws-1',
+          workspacePermission,
+        })
+        await vi.advanceTimersByTimeAsync(ROLE_REVALIDATION_TTL_MS + 1_000)
+      }
+
+      await sendFrames()
+      expect(published()).toEqual([true])
+
+      await changeRole('read')
+      await sendFrames()
+      expect(published()).toEqual([true, false])
+
+      await changeRole('write')
+      await sendFrames()
+      expect(published()).toEqual([true, false, true])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('tells an admitted writer it can write even if its cached role lapses before the reply', async () => {
+    // A distinct user/file: role decisions recorded under fake timers outlive this test.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const { io } = createIo()
+      const data: Record<string, unknown> = {}
+      // Registration records presence just before the reply; expire the role cache right there.
+      Object.defineProperty(data, 'fileDocPresence', {
+        set: () => vi.setSystemTime(Date.now() + ROLE_REVALIDATION_TTL_MS + 1),
+      })
+      const { socket, handlers } = setup('socket-lapse', io, { userId: 'user-lapse', data })
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-lapse', clientId: 9 })
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_SUCCESS,
+        expect.objectContaining({ fileId: 'file-lapse', canWrite: true })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('publishes a re-validated permission only when it changes what the socket last heard', async () => {
+    const { io } = createIo()
+    const { socket, handlers } = setup('socket-sweep', io)
+    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 8 })
+    await handlers[FILE_DOC_EVENTS.MESSAGE](awarenessFrame(8, 'Sweep').frame)
+    const room = { type: ROOM_TYPES.WORKSPACE_FILE_DOC, id: 'file-1' } as const
+    const subscriber = socket as unknown as Parameters<typeof publishRoomPermission>[0]
+    const published = () =>
+      socket.emit.mock.calls
+        .filter(([event]) => event === FILE_DOC_EVENTS.PERMISSION)
+        .map(([, payload]) => (payload as { canWrite: boolean }).canWrite)
+
+    publishRoomPermission(subscriber, room, 'write')
+    publishRoomPermission(subscriber, room, 'write')
+    expect(published()).toEqual([true])
+
+    publishRoomPermission(subscriber, room, 'read')
+    publishRoomPermission(subscriber, room, 'read')
+    expect(published()).toEqual([true, false])
   })
 
   it('applies + fans out an agent-streamed frame (SYNC_NO_PERSIST) but never persists it', async () => {

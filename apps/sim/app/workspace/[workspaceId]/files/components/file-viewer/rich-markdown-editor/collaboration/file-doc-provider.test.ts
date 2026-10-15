@@ -649,6 +649,27 @@ describe('FileDocProvider', () => {
     }
   })
 
+  it('sends an in-flight update once while the relay restates write access around each frame', async () => {
+    vi.useFakeTimers()
+    try {
+      const { provider, doc, emit, fire } = createProvider(true)
+      doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+      acceptJoin(fire, doc.clientID, 'doc-1')
+      emit.mockClear()
+
+      doc.getText('default').insert(0, 'awaiting acknowledgement')
+      await vi.advanceTimersByTimeAsync(UPDATE_BATCH_TEST_WINDOW_MS)
+      for (let frame = 0; frame < 5; frame++) {
+        fire(FILE_DOC_EVENTS.PERMISSION, { fileId: 'file-1', canWrite: true })
+      }
+
+      expect(emit.mock.calls.filter(([event]) => event === FILE_DOC_EVENTS.UPDATE)).toHaveLength(1)
+      provider.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rejoins before retrying an update rejected because the room membership went stale', async () => {
     vi.useFakeTimers()
     try {

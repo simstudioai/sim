@@ -75,6 +75,7 @@ import {
 } from '@/handlers/file-doc-store'
 import { evictSocketFromRoom, registerRoomEvictionHandler } from '@/handlers/room-eviction'
 import { resolveRoomJoinAuth } from '@/handlers/room-join-auth'
+import { registerRoomPermissionPublisher } from '@/handlers/room-permission'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { peekRoomPermission, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
@@ -150,6 +151,8 @@ interface FileDocRoom {
   /** socketId → (clientId → its presence ownership). A socket owns one entry per collaborative provider
    * it mounted for this file (see {@link FileDocPresenceOwner}); an empty inner map is never kept. */
   owners: Map<string, Map<number, FileDocPresenceOwner>>
+  /** socketId → the write capability last sent to it, so per-frame checks publish only a change. */
+  publishedCanWrite: Map<string, boolean>
   /**
    * The in-flight server seed for this room, or `null`. Concurrent joins await THIS promise rather
    * than each starting a fetch — and, unlike a "started" boolean, awaiting it is what lets a second
@@ -402,7 +405,10 @@ async function persistRoom(name: string, room: FileDocRoom, final: boolean): Pro
     }
     try {
       const snapshot = await store.getStreamSnapshot(name, generation)
-      snapshotEditor = snapshot?.editor ?? null
+      /** Entries without an author (older relays, durable merges) keep workspace attribution local. */
+      snapshotEditor =
+        snapshot?.editor ??
+        (fileDocOwnerAdapter(room.owner).allowLocalSnapshotFallback ? localEditor : null)
       return snapshot?.docState ?? null
     } catch (streamError) {
       if (
@@ -461,7 +467,11 @@ async function persistRoom(name: string, room: FileDocRoom, final: boolean): Pro
     const docState = await captureState()
     if (!docState) return // nothing seeded/authoritative to persist yet
     if (!(await store.isDocumentGenerationCurrent(name, generation))) return
-    if (!snapshotEditor) return
+    if (!snapshotEditor) {
+      // The claimed window must not strand the edits; a later flush may find an author.
+      if (!final && fileDocRooms.get(name) === room) schedulePersist(name, room)
+      return
+    }
     const result = await fileDocOwnerAdapter(room.owner).persist(
       room,
       snapshotEditor,
@@ -1043,6 +1053,7 @@ function getOrCreateRoom(io: Server, target: FileDocTarget): FileDocRoom {
     doc,
     awareness,
     owners: new Map(),
+    publishedCanWrite: new Map(),
     seeding: null,
     lastEditorUserId: null,
     edited: false,
@@ -1149,6 +1160,22 @@ function emitJoinError(
   })
 }
 
+/** Tells a socket its write capability only when it differs from what the socket last heard. */
+function publishWriteAccess(
+  socket: AuthenticatedSocket,
+  document: FileDocRoom,
+  permission: string | null
+): void {
+  const canWrite = permission === 'write' || permission === 'admin'
+  if (document.publishedCanWrite.get(socket.id) === canWrite) return
+  document.publishedCanWrite.set(socket.id, canWrite)
+  socket.emit(FILE_DOC_EVENTS.PERMISSION, {
+    fileId: document.fileId,
+    ...fileDocOwnerWireFields(document.owner),
+    canWrite,
+  } satisfies FileDocPermission)
+}
+
 /** Resolve read membership and publish the separate editing capability after authorization. */
 function resolveFileDocPermission(
   socket: AuthenticatedSocket,
@@ -1161,11 +1188,7 @@ function resolveFileDocPermission(
   const room = fileDocRoom(document)
   const accept = (permission: string | null) => {
     if (socketToRoomName.get(socket.id) !== name || fileDocRooms.get(name) !== document) return null
-    socket.emit(FILE_DOC_EVENTS.PERMISSION, {
-      fileId: document.fileId,
-      ...fileDocOwnerWireFields(document.owner),
-      canWrite: permission === 'write' || permission === 'admin',
-    } satisfies FileDocPermission)
+    publishWriteAccess(socket, document, permission)
     if (permission === null)
       evictSocketFromRoom(socket, room, 'Your access to this document has been revoked', io)
     return permission
@@ -1182,11 +1205,18 @@ function resolveFileDocPermission(
  * revocation and left the Socket.IO room). Scoped to the evicted room so a socket
  * that has since switched documents keeps the one it legitimately holds.
  */
-for (const type of [ROOM_TYPES.WORKSPACE_FILE_DOC, ROOM_TYPES.PROJECT_FILE_DOC])
+for (const type of [ROOM_TYPES.WORKSPACE_FILE_DOC, ROOM_TYPES.PROJECT_FILE_DOC]) {
   registerRoomEvictionHandler(type, (socketId, room, io) => {
     if (socketToRoomName.get(socketId) !== roomName(room)) return
     cleanupFileDocForSocket(socketId, io)
   })
+  registerRoomPermissionPublisher(type, (socket, room, permission) => {
+    const name = roomName(room)
+    const document = fileDocRooms.get(name)
+    if (document && socketToRoomName.get(socket.id) === name)
+      publishWriteAccess(socket, document, permission)
+  })
+}
 
 async function handleMessage(socket: AuthenticatedSocket, io: Server, data: unknown) {
   const name = socketToRoomName.get(socket.id)
@@ -1216,7 +1246,16 @@ async function handleMessage(socket: AuthenticatedSocket, io: Server, data: unkn
     }
     const decoder = decoding.createDecoder(bytes)
     const messageType = decoding.readVarUint(decoder)
-    const permission = await resolveFileDocPermission(socket, io, name)
+    let permission: string | null
+    try {
+      permission = await resolveFileDocPermission(socket, io, name)
+    } catch (error) {
+      logger.warn('Dropping file-doc frame while its authorization is unavailable', {
+        socketId: socket.id,
+        error: getErrorMessage(error),
+      })
+      return
+    }
     if (permission === null) return
     const canWrite = permission === 'write' || permission === 'admin'
     if (messageType === FILE_DOC_MESSAGE_TYPE.SYNC) {
@@ -1460,6 +1499,7 @@ export function cleanupFileDocForSocket(socketId: string, io: Server, endOfLife 
   // caret via its awareness removal.
   const clientMap = room.owners.get(socketId)
   room.owners.delete(socketId)
+  room.publishedCanWrite.delete(socketId)
   clearFileDocPresence(io, socketId, name)
   if (clientMap !== undefined && clientMap.size > 0) {
     // Fires the awareness `update` handler with a non-socket origin → the removals
@@ -1656,10 +1696,11 @@ export function setupWorkspaceFileDocHandlers(
         !socket.disconnected &&
         joinGeneration.get(socket.id) === generation &&
         fileDocRooms.get(name) === entry
-      const canRegisterJoin = () => {
-        if (!isCurrentJoin()) return false
+      /** The permission this admission is still current under, or `null` once it is not. */
+      const canRegisterJoin = (): string | null => {
+        if (!isCurrentJoin()) return null
         const permission = peekRoomPermission(userId, room)
-        if (satisfiesRoomMembership(permission ?? null, room.type)) return true
+        if (permission && satisfiesRoomMembership(permission, room.type)) return permission
         emitJoinError(
           socket,
           fileId,
@@ -1668,7 +1709,7 @@ export function setupWorkspaceFileDocHandlers(
           permission === undefined ? 'JOIN_FAILED' : 'ACCESS_DENIED',
           permission === undefined
         )
-        return false
+        return null
       }
       try {
         // A client is attached to a WHOLE document or to nothing. A room assembles itself from the
@@ -1788,6 +1829,7 @@ export function setupWorkspaceFileDocHandlers(
           awarenessProtocol.removeAwarenessStates(entry.awareness, [clientId], null)
           if (clientMap.size === 0) {
             entry.owners.delete(otherSid)
+            entry.publishedCanWrite.delete(otherSid)
             socketToRoomName.delete(otherSid)
             clearFileDocPresence(io, otherSid, name)
             io.in(otherSid).socketsLeave(name)
@@ -1820,7 +1862,8 @@ export function setupWorkspaceFileDocHandlers(
         socketToRoomName.set(socket.id, name)
         registered = true
         await changeMembership(() => socket.leave(`${name}:pending`))
-        if (!canRegisterJoin()) {
+        const admittedPermission = canRegisterJoin()
+        if (!admittedPermission) {
           if (isCurrentJoin() && socketToRoomName.get(socket.id) === name) {
             cleanupFileDocForSocket(socket.id, io)
             await leaveUnclaimedRoom(name)
@@ -1832,6 +1875,8 @@ export function setupWorkspaceFileDocHandlers(
           roomName: name,
           user: { socketId: socket.id, userId, userName, avatarUrl },
         }
+        /** Co-mounted providers learn from the next frame whether this admission changed access. */
+        entry.publishedCanWrite.delete(socket.id)
 
         // Name the document this room holds, so a client that still carries a DIFFERENT one (its room
         // outlived by a document rebuilt in its place) can refuse to merge instead of unioning two
@@ -1844,9 +1889,7 @@ export function setupWorkspaceFileDocHandlers(
           schemaVersion: FILE_DOC_SCHEMA_VERSION,
           ...fileDocOwnerWireFields(entry.owner),
           acknowledgedUpdates: true as const,
-          canWrite:
-            peekRoomPermission(userId, room) === 'write' ||
-            peekRoomPermission(userId, room) === 'admin',
+          canWrite: admittedPermission === 'write' || admittedPermission === 'admin',
         })
         // Server-authenticated roster → everyone in the room, including this joiner.
         broadcastFileDocPresence(io, name, entry)

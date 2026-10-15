@@ -168,6 +168,25 @@ describe('v2 single-file routes', () => {
     )
   })
 
+  it('downloads an attachment with its stored type and name, without sniffing', async () => {
+    mocks.download.mockResolvedValueOnce({
+      file: fileRecord({ name: 'notes' }),
+      stream: new Blob(['<p>notes</p>']).stream(),
+      contentType: 'text/html',
+      contentLength: 12,
+    })
+
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
+      context
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('text/html')
+    expect(response.headers.get('Content-Disposition')).toBe('attachment; filename="notes"')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+  })
+
   it('conceals cross-workspace download authorization', async () => {
     mocks.download.mockRejectedValue(new NoWorkspaceAccessError())
 

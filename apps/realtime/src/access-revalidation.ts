@@ -1,11 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
-import { FILE_DOC_EVENTS, type FileDocPermission } from '@sim/realtime-protocol/file-doc'
 import {
   isProjectRoom,
   parseRoomName,
-  projectFileDocTarget,
   ROOM_TYPES,
   type RoomRef,
   type RoomType,
@@ -17,6 +15,7 @@ import {
   runRoomEvictionHandler,
   setEvictionCleanupSink,
 } from '@/handlers/room-eviction'
+import { publishRoomPermission } from '@/handlers/room-permission'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { ROLE_REVALIDATION_TTL_MS, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
@@ -331,20 +330,7 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
         ])
         // {@link SCAN_TIMED_OUT} is the only symbol this race can yield; matching on
         // the type narrows it out of the permission comparison below.
-        if (
-          typeof role !== 'symbol' &&
-          (room.type === ROOM_TYPES.PROJECT_FILE_DOC || room.type === ROOM_TYPES.WORKSPACE_FILE_DOC)
-        ) {
-          const target =
-            room.type === ROOM_TYPES.PROJECT_FILE_DOC
-              ? projectFileDocTarget(room)
-              : { fileId: room.id }
-          if (target)
-            socket.emit(FILE_DOC_EVENTS.PERMISSION, {
-              ...target,
-              canWrite: role === 'write' || role === 'admin',
-            } satisfies FileDocPermission)
-        }
+        if (typeof role !== 'symbol') publishRoomPermission(socket, room, role)
         if (typeof role === 'symbol') {
           logger.warn(
             `Authorization check timed out for user ${userId} on ${name}; skipping this pass`

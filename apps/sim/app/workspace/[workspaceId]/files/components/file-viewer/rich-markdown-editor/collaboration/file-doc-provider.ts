@@ -1098,8 +1098,10 @@ export class FileDocProvider extends ObservableV2<FileDocProviderEvents> {
 
   private handlePermission = (data: FileDocPermission) => {
     if (!this.matchesTarget(data) || data.fileId !== this.fileId) return
+    // The relay restates access around every frame; only a regrant resends, never a confirmation.
+    const regranted = data.canWrite && !this.canWrite
     this.setCanWrite(data.canWrite)
-    if (data.canWrite) this.sendInFlightUpdate()
+    if (regranted) this.sendInFlightUpdate()
   }
 
   private setCanWrite(canWrite: boolean) {

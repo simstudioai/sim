@@ -336,6 +336,19 @@ function RichMarkdownSurface({
           : 1,
     }))
   }, [file.id, previewContextKey])
+  /** A relay older than read membership rejects a read-only member, who then reads the file locally. */
+  const [localReadOnly, setLocalReadOnly] = useState<{
+    fileId: string
+    previewContextKey?: string
+  } | null>(null)
+  const collaborationDeclined =
+    !canEdit &&
+    localReadOnly?.fileId === file.id &&
+    localReadOnly.previewContextKey === previewContextKey
+  const declineCollaboration = useCallback(
+    () => setLocalReadOnly({ fileId: file.id, previewContextKey }),
+    [file.id, previewContextKey]
+  )
 
   const {
     content,
@@ -390,9 +403,10 @@ function RichMarkdownSurface({
         />
       )}
       <LoadedRichMarkdownEditor
-        key={`${file.id}:${previewContextKey ?? ''}:${collaborationGeneration}`}
+        key={`${file.id}:${previewContextKey ?? ''}:${collaborationDeclined ? 'local' : collaborationGeneration}`}
         recoveringCollaboration={collaborationGeneration > 0}
         onWriteAccessLost={resetCollaboration}
+        onReadOnlyJoinRejected={declineCollaboration}
         file={file}
         workspaceId={workspaceId}
         content={content}
@@ -406,7 +420,7 @@ function RichMarkdownSurface({
         streamOperation={streamOperation}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         disableTagging={disableTagging}
-        collaborative={collaborative}
+        collaborative={collaborative && !collaborationDeclined}
         onChange={setDraftContent}
         onSaveShortcut={saveImmediately}
         downloadSourceRef={downloadSourceRef}
@@ -422,6 +436,7 @@ function RichMarkdownSurface({
 interface LoadedRichMarkdownEditorProps {
   recoveringCollaboration?: boolean
   onWriteAccessLost?: () => void
+  onReadOnlyJoinRejected?: () => void
   file: WorkspaceFileRecord
   workspaceId: string
   /** The live content from the engine — grows as the agent streams, then settles to the saved doc. */
@@ -479,6 +494,7 @@ function lockSettled(content: string): SettledContent {
 export function LoadedRichMarkdownEditor({
   recoveringCollaboration = false,
   onWriteAccessLost,
+  onReadOnlyJoinRejected,
   file,
   workspaceId,
   content,
@@ -983,6 +999,9 @@ export function LoadedRichMarkdownEditor({
       const synced = provider.synced
       const seeded = config.get(FILE_DOC_SEED.flag) === true
       const fatal = provider.joinError?.retryable === false
+      if (fatal && !canEdit && provider.joinError?.code === 'ACCESS_DENIED') {
+        onReadOnlyJoinRejected?.()
+      }
       setReady(
         isCollabReady({ synced, seeded, fatal }),
         fatal,
@@ -1006,7 +1025,7 @@ export function LoadedRichMarkdownEditor({
       // ungate it while the doc is unready.
       onClientAutosaveChange(false)
     }
-  }, [collaboration, editor, onClientAutosaveChange])
+  }, [collaboration, editor, onClientAutosaveChange, canEdit, onReadOnlyJoinRejected])
 
   /**
    * Owns editability for the collaborative lifecycle: `useEditor`'s `editable` is only the initial

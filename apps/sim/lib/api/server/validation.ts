@@ -14,22 +14,59 @@ import {
 } from '@/lib/api/server/blank-query-values'
 import { nulByteValidationError } from '@/lib/api/server/nul-bytes'
 import { env } from '@/lib/core/config/env'
-import { PROXY_CLIENT_MAX_BODY_BYTES } from '@/lib/core/config/request-limits'
 import {
   assertContentLengthWithinLimit,
   isPayloadSizeLimitError,
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 
-/** Ordinary JSON keeps its existing cap; larger authorized routes opt in explicitly. */
+/**
+ * Next.js buffers the client body for the proxy and *silently truncates* anything
+ * past `experimental.proxyClientMaxBodySize` (default 10 MB), and `apps/sim/proxy.ts`
+ * matches every `/api` route except the few its matcher excludes (see
+ * {@link ParseRequestOptions.bypassesProxy}). A larger body therefore reaches the
+ * handler as a truncated prefix, which fails JSON parsing — so an oversized request
+ * has to be rejected on its declared size before it is read, or the truncation gets
+ * misreported as a malformed body.
+ */
+const PROXY_CLIENT_MAX_BODY_BYTES = 10 * 1024 * 1024
+
+/**
+ * Default upper bound on the JSON request body that contract routes will read
+ * and parse into memory. Without a cap an unauthenticated caller could buffer a
+ * large body before schema validation runs. Override per-route via
+ * `ParseRequestOptions.maxBodyBytes`.
+ *
+ * Falls back to 50 MB if the env value is missing or non-numeric so a misconfig
+ * can never silently disable the cap (a NaN limit would never reject), then
+ * clamps to {@link PROXY_CLIENT_MAX_BODY_BYTES} because the app can never
+ * actually receive more than the proxy forwards.
+ */
 export const DEFAULT_MAX_JSON_BODY_BYTES = Math.min(
   Number.parseInt(env.API_MAX_JSON_BODY_BYTES, 10) || 50 * 1024 * 1024,
-  10 * 1024 * 1024
+  PROXY_CLIENT_MAX_BODY_BYTES
 )
 
-/** Reject before Next's proxy truncates the body and turns an oversize request into malformed JSON. */
-function clampToProxyLimit(maxBytes: number): number {
-  return Math.min(maxBytes, PROXY_CLIENT_MAX_BODY_BYTES)
+/**
+ * Clamps a per-route body cap to {@link PROXY_CLIENT_MAX_BODY_BYTES}.
+ *
+ * A route that raises `maxBodyBytes` above the proxy ceiling cannot actually
+ * receive a body that large: the proxy truncates the stream, the handler parses
+ * a prefix, and the caller gets `400 "Request body must be valid JSON"` for a
+ * request whose only fault was its size. Clamping at the point of use turns that
+ * into an accurate `413`; nothing that succeeds today changes, because a body
+ * over the ceiling already fails — just less honestly.
+ *
+ * Consequence worth keeping in view: `MAX_WORKSPACE_FILE_INLINE_BODY_BYTES`
+ * (70 MB) exists so a 50 MiB file can be sent inline as base64, and that ceiling
+ * stays unreachable until `experimental.proxyClientMaxBodySize` is raised in
+ * `apps/sim/next.config.ts`. Raising it changes the memory profile of every
+ * `/api` route, so it is a separate decision — this clamp only makes the limit
+ * that is actually in force report itself correctly. A route the proxy matcher
+ * excludes is never buffered, so it declares `bypassesProxy` and keeps its own cap.
+ */
+function clampToProxyLimit(maxBytes: number, bypassesProxy = false): number {
+  return bypassesProxy ? maxBytes : Math.min(maxBytes, PROXY_CLIENT_MAX_BODY_BYTES)
 }
 
 export interface ValidationErrorBody {
@@ -66,6 +103,11 @@ export interface ParseRequestOptions {
    * a value above what the proxy forwards is clamped — see {@link clampToProxyLimit}.
    */
   maxBodyBytes?: number
+  /**
+   * The route is excluded from the `apps/sim/proxy.ts` matcher, so Next never buffers or
+   * truncates its body and {@link maxBodyBytes} applies unclamped.
+   */
+  bypassesProxy?: boolean
   /** Treat an absent or whitespace-only body as `undefined` before contract validation. */
   optionalJsonBody?: boolean
   /**
@@ -141,7 +183,8 @@ async function readJsonBodyWithLimit(request: Request, maxBytes: number): Promis
 export async function parseJsonBody(
   request: Request,
   invalidJson: ParseRequestOptions['invalidJson'] = 'response',
-  maxBytes: number = DEFAULT_MAX_JSON_BODY_BYTES
+  maxBytes: number = DEFAULT_MAX_JSON_BODY_BYTES,
+  bypassesProxy = false
 ): Promise<
   | { success: true; data: unknown }
   | {
@@ -150,7 +193,7 @@ export async function parseJsonBody(
       response: NextResponse<{ error: string }>
     }
 > {
-  const limit = clampToProxyLimit(maxBytes)
+  const limit = clampToProxyLimit(maxBytes, bypassesProxy)
   try {
     return { success: true, data: await readJsonBodyWithLimit(request, limit) }
   } catch (error) {
@@ -182,7 +225,8 @@ export async function parseJsonBody(
  */
 export async function parseOptionalJsonBody(
   request: Request,
-  maxBytes: number = DEFAULT_MAX_JSON_BODY_BYTES
+  maxBytes: number = DEFAULT_MAX_JSON_BODY_BYTES,
+  bypassesProxy = false
 ): Promise<
   | { success: true; data: unknown }
   | {
@@ -191,7 +235,7 @@ export async function parseOptionalJsonBody(
       response: NextResponse<{ error: string }>
     }
 > {
-  const limit = clampToProxyLimit(maxBytes)
+  const limit = clampToProxyLimit(maxBytes, bypassesProxy)
   try {
     assertContentLengthWithinLimit(request.headers, limit, REQUEST_BODY_LABEL)
 
@@ -273,8 +317,13 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
   let body: unknown
   if (shouldReadJsonBody(contract)) {
     const parsedBody = options?.optionalJsonBody
-      ? await parseOptionalJsonBody(request, options.maxBodyBytes)
-      : await parseJsonBody(request, options?.invalidJson, options?.maxBodyBytes)
+      ? await parseOptionalJsonBody(request, options.maxBodyBytes, options.bypassesProxy)
+      : await parseJsonBody(
+          request,
+          options?.invalidJson,
+          options?.maxBodyBytes,
+          options?.bypassesProxy
+        )
     if (!parsedBody.success) {
       if (
         options?.invalidJsonResponse &&

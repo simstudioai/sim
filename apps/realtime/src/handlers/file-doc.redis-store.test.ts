@@ -20,9 +20,10 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import type { IRoomManager } from '@/rooms'
 
-const { mockAuthorizeRoom, mockFetchFileDocSeed } = vi.hoisted(() => ({
+const { mockAuthorizeRoom, mockFetchFileDocSeed, mockFetchFileDocPersist } = vi.hoisted(() => ({
   mockAuthorizeRoom: vi.fn(),
   mockFetchFileDocSeed: vi.fn(),
+  mockFetchFileDocPersist: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: mockAuthorizeRoom }))
@@ -30,7 +31,7 @@ vi.mock('@sim/platform-authz/rooms', () => ({ authorizeRoom: mockAuthorizeRoom }
 vi.mock('@/handlers/file-doc-app', () => ({
   fetchFileDocSeed: mockFetchFileDocSeed,
   fetchFileDocMerge: vi.fn(),
-  fetchFileDocPersist: vi.fn().mockResolvedValue({ status: 'persisted', version: 1 }),
+  fetchFileDocPersist: mockFetchFileDocPersist,
 }))
 
 /** One in-memory Redis backing per test — only the stream/lock ops the store actually uses. */
@@ -269,6 +270,7 @@ describe('file-doc join readiness (shared store enabled)', () => {
       workspacePermission: 'write',
     })
     mockFetchFileDocSeed.mockResolvedValue(null)
+    mockFetchFileDocPersist.mockResolvedValue({ status: 'persisted', version: 2 })
   })
 
   afterEach(() => {
@@ -325,5 +327,50 @@ describe('file-doc join readiness (shared store enabled)', () => {
 
     expect(mockFetchFileDocSeed).not.toHaveBeenCalled()
     expect(statesDeliveredTo(socket)).toEqual(['seeded by the writer that held the lock'])
+  })
+
+  it('persists unattributed stream state under the local editor when the last collaborator leaves', async () => {
+    backing.kv.set(`filedoc:generation:${ROOM_NAME}`, 'doc-1')
+    backing.kv.set(`filedoc:syncver:${ROOM_NAME}`, '1')
+    const doc = new Y.Doc()
+    doc.getText(FIELD).insert(0, 'AAA')
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.flag, true)
+    doc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-1')
+    backing.streams.set(STREAM_KEY, [
+      {
+        id: `${++backing.seq}-0`,
+        message: { u: Buffer.from(Y.encodeStateAsUpdate(doc)).toString('base64'), g: 'doc-1' },
+      },
+    ])
+    const afterSeed = Y.encodeStateVector(doc)
+    doc.getText(FIELD).insert(0, 'BBB')
+    const edit = Y.encodeStateAsUpdate(doc, afterSeed)
+    doc.destroy()
+
+    const { handlers } = setup('socket-1', sockets)
+    await handlers[FILE_DOC_EVENTS.JOIN]({
+      fileId: FILE_ID,
+      clientId: 1,
+      schemaVersion: FILE_DOC_SCHEMA_VERSION,
+    })
+    const acknowledge = vi.fn()
+    await (handlers[FILE_DOC_EVENTS.UPDATE] as (...args: unknown[]) => Promise<void>)(
+      { fileId: FILE_ID, docId: 'doc-1', updateId: 'update-1', update: edit },
+      acknowledge
+    )
+    await vi.waitFor(() =>
+      expect(acknowledge).toHaveBeenCalledWith({ status: 'accepted', updateId: 'update-1' })
+    )
+
+    cleanupFileDocForSocket('socket-1', createIo(sockets), true)
+    await vi.waitFor(() =>
+      expect(mockFetchFileDocPersist).toHaveBeenCalledWith(
+        'ws-1',
+        FILE_ID,
+        'user-1',
+        expect.any(Uint8Array),
+        1
+      )
+    )
   })
 })
