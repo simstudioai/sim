@@ -128,10 +128,7 @@ function OrganizationHomeContent({
   const [, setPaneParams] = useQueryStates(projectPaneParsers)
   const onResourceSelected = useCallback(() => {
     if (!projectViewEnabled) return
-    void setPaneParams((current) => ({
-      pane: null,
-      tabs: current.tabs.filter((tab) => tab.kind !== 'browse' || tab.id !== current.pane),
-    }))
+    void setPaneParams({ pane: null })
   }, [projectViewEnabled, setPaneParams])
   const requestMode =
     selectedMode ??

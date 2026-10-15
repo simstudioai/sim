@@ -5,6 +5,7 @@ import { Skeleton } from '@sim/emcn'
 import { BlockVisibilityLoader } from '@/app/workspace/[workspaceId]/providers/block-visibility-loader'
 import { CustomBlocksLoader } from '@/app/workspace/[workspaceId]/providers/custom-blocks-loader'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
+import { SearchDataLoader } from '@/app/workspace/[workspaceId]/providers/search-data-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
 import {
   useOptionalWorkspaceHostContext,
@@ -75,6 +76,7 @@ function LoadedResourceWorkspaceHost({
             <ProviderModelsLoader workspaceId={workspaceId} />
             <CustomBlocksLoader workspaceId={workspaceId} />
             <BlockVisibilityLoader workspaceId={workspaceId} />
+            <SearchDataLoader />
             {children}
           </WorkflowScopeSync>
         ) : (

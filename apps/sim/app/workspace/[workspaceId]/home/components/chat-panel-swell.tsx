@@ -338,7 +338,7 @@ export function ChatPanelSwell({
       ref={layerRef}
       className={cn(
         'pointer-events-none absolute inset-0 max-md:hidden',
-        idle ? '[--swell-fill:var(--surface-6)]' : '[--swell-fill:var(--text-body)]'
+        idle ? '[--swell-fill:var(--surface-4)]' : '[--swell-fill:var(--text-body)]'
       )}
     >
       <svg aria-hidden='true' className='absolute inset-0 z-[5] size-full overflow-visible'>
