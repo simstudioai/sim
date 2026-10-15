@@ -277,6 +277,7 @@ export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
           const inputIdentity = fileDocumentInputIdentity(context.owner, manifest.dependencies)
           const compiled = await compileFileDocument({
             owner: context.owner,
+            sourceMime: file.contentType,
             source: content.toString('utf-8'),
             fileName: file.originalName,
             inputs,

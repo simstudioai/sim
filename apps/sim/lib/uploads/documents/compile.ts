@@ -623,6 +623,7 @@ async function renderPreparedDocument(source: string, fmt: E2BDocFormat, inputs:
 /** Compiles a document against a fixed, authorized input manifest and canonical owner cache. */
 export async function compileFileDocument(args: {
   owner: EditableFileOwner
+  sourceMime: string
   source: string
   fileName: string
   inputs: readonly { fileId: string; contentType: string; content: Buffer }[]
@@ -651,7 +652,7 @@ export async function compileFileDocument(args: {
       dependsOnReferencedFiles: args.inputs.length > 0,
     }
   let buffer: Buffer
-  if (isDocSandboxEnabled) {
+  if (isDocSandboxEnabled && args.sourceMime !== 'text/x-pdflibjs') {
     buffer = await renderPreparedDocument(
       args.source,
       fmt,

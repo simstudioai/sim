@@ -59,6 +59,7 @@ vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
 
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
+import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
@@ -204,11 +205,19 @@ function runCli(invocation: CliInvocation, trace = registry()) {
 const invocation = { userId: 'reader', workspaceId: 'workspace', chatId: 'chat' }
 
 /** Chat's CLI transport as every invocation composes it: the registry gate around the routes. */
-function readTransport(trace = registry()): typeof fetch {
+function readTransport(trace = registry(), tracked = true): typeof fetch {
   const transport = createAgentCliTransport({
     endpoint: 'https://sim.test',
     invocation,
     registry: trace,
+    files: tracked
+      ? createWorkbenchFileProvenance({
+          userId: 'reader',
+          workspaceId: 'workspace',
+          sessionKey: 'chat',
+          resolvedSecretTraceRegistry: trace,
+        })
+      : undefined,
     resources: [],
     observeReads: true,
   })
@@ -427,6 +436,16 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
         inspectToolResultForCopilot({ success: true, output }, trace, 'sim_cli').result
       )
     ).not.toContain(content)
+  })
+
+  it('refuses opaque protected downloads without workbench provenance tracking', async () => {
+    classify('exact', revision, [
+      { name: 'FILE_SECRET', encryptedValue: 'fixture-ciphertext', sourceUserId: 'reader' },
+    ])
+    const response = await readTransport(registry(), false)(fileRequest())
+    expect(response.status).toBe(403)
+    expect(await response.text()).not.toContain(content)
+    expect(mocks.stream).not.toHaveBeenCalled()
   })
 
   it('imports encrypted file provenance into a fresh registry before model projection', async () => {

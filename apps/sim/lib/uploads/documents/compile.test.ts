@@ -40,7 +40,11 @@ vi.mock('@/lib/uploads/documents/compiled-store', async (importOriginal) => ({
 
 import { type ContentDeliveryGate, observeContentDelivery } from '@/lib/core/application'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
-import { collectReferencedFileIds, compileDoc } from '@/lib/uploads/documents/compile'
+import {
+  collectReferencedFileIds,
+  compileDoc,
+  compileFileDocument,
+} from '@/lib/uploads/documents/compile'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 const executeInSandboxMock = remoteSandboxMockFns.mockExecuteInSandbox
@@ -389,5 +393,31 @@ describe('isolated-VM compile for Chat', () => {
     })
     await compile()
     expect(runSandboxTaskMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('compileFileDocument source engine', () => {
+  it('uses the JavaScript PDF task even with the document sandbox enabled', async () => {
+    setEnvFlags({ isDocSandboxEnabled: true })
+    loadCompiledDocMock.mockResolvedValue(null)
+    runSandboxTaskMock.mockResolvedValue(Buffer.from('%PDF-1.7'))
+    runSandboxTaskMock.mockClear()
+    executeInSandboxMock.mockClear()
+    const source = 'const doc = await PDFDocument.create()'
+    const result = await compileFileDocument({
+      owner: { entityType: 'project', entityId: ID },
+      source,
+      sourceMime: 'text/x-pdflibjs',
+      fileName: 'report.pdf',
+      inputs: [],
+      maxBytes: 1024,
+    })
+    expect(result.buffer.toString()).toBe('%PDF-1.7')
+    expect(runSandboxTaskMock).toHaveBeenCalledWith(
+      'pdf-generate',
+      { code: source },
+      expect.any(Object)
+    )
+    expect(executeInSandboxMock).not.toHaveBeenCalled()
   })
 })

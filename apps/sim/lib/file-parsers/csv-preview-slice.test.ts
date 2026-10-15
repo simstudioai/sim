@@ -81,3 +81,37 @@ describe('getCsvPreviewSlice', () => {
     expect(destroySpy).toHaveBeenCalled()
   })
 })
+
+it('rejects an oversized streamed record before consuming the entire file', async () => {
+  let chunksRead = 0
+  const source = Readable.from(
+    (async function* () {
+      yield Buffer.from('header\n"')
+      for (let i = 0; i < 1000; i++) {
+        chunksRead++
+        yield Buffer.alloc(16 * 1024, 'x')
+      }
+    })()
+  )
+  mockDownloadFileStream.mockResolvedValue(source)
+  await expect(getCsvPreviewSlice(args)).rejects.toMatchObject({ code: 'CSV_MAX_RECORD_SIZE' })
+  expect(chunksRead).toBeLessThan(30)
+  expect(source.destroyed).toBe(true)
+})
+
+it('bounds bytes consumed even when blank records produce no preview rows', async () => {
+  let chunksRead = 0
+  const source = Readable.from(
+    (async function* () {
+      yield Buffer.from('header\n')
+      for (let i = 0; i < 1000; i++) {
+        chunksRead++
+        yield Buffer.alloc(64 * 1024, '\n')
+      }
+    })()
+  )
+  mockDownloadFileStream.mockResolvedValue(source)
+  await expect(getCsvPreviewSlice(args)).rejects.toThrow('CSV preview')
+  expect(chunksRead).toBeLessThan(140)
+  expect(source.destroyed).toBe(true)
+})
