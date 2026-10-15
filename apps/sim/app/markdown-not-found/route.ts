@@ -14,10 +14,11 @@ There is no page at this address. It may have moved or never existed.
 
 /**
  * The 404 body for a client that asks for Markdown. `next.config.ts` rewrites an unmatched path
- * here only when its `Accept` header names `text/markdown`, so browsers keep the HTML `not-found`
- * page. Uncached like that page, and `Vary: Accept` because the same URL answers both ways.
+ * here, whatever its method, only when its `Accept` header names `text/markdown`, so browsers keep
+ * the HTML `not-found` page. Uncached like that page, and `Vary: Accept` because the same URL
+ * answers both ways.
  */
-export const GET = withRouteHandler(
+const notFound = withRouteHandler(
   () =>
     new Response(NOT_FOUND_MARKDOWN, {
       status: 404,
@@ -28,3 +29,9 @@ export const GET = withRouteHandler(
       },
     })
 )
+
+export const GET = notFound
+export const POST = notFound
+export const PUT = notFound
+export const PATCH = notFound
+export const DELETE = notFound

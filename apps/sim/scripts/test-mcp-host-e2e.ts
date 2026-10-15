@@ -163,10 +163,35 @@ try {
       assert.equal(response.status, 404)
       assert.equal(response.headers.get('content-type'), 'text/markdown; charset=utf-8')
       assert.match(response.headers.get('vary') ?? '', /\bAccept\b/)
+      assert.match(response.headers.get('cache-control') ?? '', /\bno-store\b/)
       assert.match(body, /^# Page not found\n/)
       assert.match(body, /\/llms\.txt\)/)
     })
   }
+
+  await check('an unknown page answers a Markdown POST in Markdown, not 405', async () => {
+    const { response } = await request(
+      '/not-a-real-page',
+      'python-requests/2.32.3',
+      baseUrl.host,
+      'POST',
+      MARKDOWN_ACCEPT
+    )
+    assert.equal(response.status, 404)
+    assert.equal(response.headers.get('content-type'), 'text/markdown; charset=utf-8')
+  })
+
+  await check('a client that refuses Markdown with q=0 gets the HTML 404', async () => {
+    const { response } = await request(
+      '/not-a-real-page',
+      'python-requests/2.32.3',
+      baseUrl.host,
+      'GET',
+      'text/html, text/markdown;q=0'
+    )
+    assert.equal(response.status, 404)
+    assert.match(response.headers.get('content-type') ?? '', /^text\/html/)
+  })
 
   await check('unknown page still answers a browser with the HTML 404', async () => {
     const { response } = await request(
