@@ -16,11 +16,26 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
 vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 import {
+  abortActiveStream,
   acquirePendingChatStream,
   getChatStreamLockOwners,
+  registerActiveStream,
   releasePendingChatStream,
   startAbortPoller,
 } from '@/lib/mothership/request/session/abort'
+
+describe('abortActiveStream', () => {
+  it('stops this process’s controller even when the abort marker cannot be written', async () => {
+    const controller = new AbortController()
+    registerActiveStream('stream-marker-down', controller)
+    mockWriteAbortMarker.mockRejectedValueOnce(new Error('redis unavailable'))
+
+    await expect(abortActiveStream('stream-marker-down')).rejects.toThrow('redis unavailable')
+
+    expect(controller.signal.aborted).toBe(true)
+    expect(await abortActiveStream('stream-marker-down')).toBe(false)
+  })
+})
 
 describe('startAbortPoller heartbeat', () => {
   beforeEach(() => {

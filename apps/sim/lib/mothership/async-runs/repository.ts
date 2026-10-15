@@ -32,6 +32,7 @@ import {
 } from 'drizzle-orm'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { executableToolPermission } from '@/lib/mothership/async-runs/executable-tool-permission'
@@ -194,32 +195,157 @@ export async function requestRunStop(
         (input.chatId && run.chatId !== input.chatId))
     )
       return run
-    const { userId, streamId } = input
-    const owner = resourceScopeFromOwner(input)
-    if (owner.kind === 'organization') {
-      await tx
-        .insert(copilotOrganizationRequestStops)
-        .values({ userId, organizationId: owner.organizationId, streamId })
-        .onConflictDoNothing()
-    } else {
-      await tx
-        .insert(copilotRequestStops)
-        .values({ userId, workspaceId: owner.workspaceId, streamId })
-        .onConflictDoNothing()
-    }
-    if (run) {
-      const stoppedRuns = and(
-        eq(copilotRuns.userId, input.userId),
-        eq(copilotRuns.streamId, input.streamId)
-      )
-      await tx
-        .update(copilotRuns)
-        .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
-        .where(stoppedRuns)
-      await cancelOpenDesktopToolCalls(tx, stoppedRuns, input.userId)
-    }
+    await recordRunStopTx(tx, input, Boolean(run))
     return run ?? null
   })
+}
+
+/**
+ * Records Stop for one stream in the caller's transaction: the durable intent every later
+ * segment and the worker's run-control read observe, closed tool admission, and settled
+ * desktop calls. `admitted` is false when no run row exists yet to close.
+ */
+async function recordRunStopTx(tx: DbTransaction, input: RunStopInput, admitted = true) {
+  const { userId, streamId } = input
+  const owner = resourceScopeFromOwner(input)
+  if (owner.kind === 'organization') {
+    await tx
+      .insert(copilotOrganizationRequestStops)
+      .values({ userId, organizationId: owner.organizationId, streamId })
+      .onConflictDoNothing()
+  } else {
+    await tx
+      .insert(copilotRequestStops)
+      .values({ userId, workspaceId: owner.workspaceId, streamId })
+      .onConflictDoNothing()
+  }
+  if (!admitted) return
+  const stoppedRuns = and(eq(copilotRuns.userId, userId), eq(copilotRuns.streamId, streamId))
+  await tx
+    .update(copilotRuns)
+    .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
+    .where(stoppedRuns)
+  await cancelOpenDesktopToolCalls(tx, stoppedRuns, userId)
+}
+
+type StoppedSandboxProcess = SessionProcessIdentity & { toolCallId: string }
+
+/** The run a Stop is delivered to. */
+export interface RunStopTarget {
+  id: string
+  streamId: string
+  userId: string
+  chatId: string
+  desktopDeviceId: string | null
+}
+
+/** The client workflows and sandbox commands a stopped run started, read once its admission closed. */
+export interface StoppedRunWork {
+  clientWorkflowExecutionIds: string[]
+  sandboxProcesses: StoppedSandboxProcess[]
+}
+
+/**
+ * A run a removal stopped. Its work is read in the removal's own transaction, before a hard
+ * delete cascades those rows away.
+ */
+export interface StoppedRun extends RunStopTarget, StoppedRunWork {}
+
+type LiveRunScope =
+  | { chatIds: string[] }
+  | { userId: string }
+  | { workspaceId: string }
+  | { userId: string; workspaceIds: string[] }
+  | { userId: string; organizationId: string }
+
+function liveRunScopeCondition(scope: LiveRunScope): SQL | undefined {
+  if ('chatIds' in scope) return inArray(copilotRuns.chatId, scope.chatIds)
+  if ('organizationId' in scope)
+    return and(
+      eq(copilotRuns.userId, scope.userId),
+      eq(copilotRuns.organizationId, scope.organizationId)
+    )
+  if ('workspaceIds' in scope)
+    return and(
+      eq(copilotRuns.userId, scope.userId),
+      inArray(copilotRuns.workspaceId, scope.workspaceIds)
+    )
+  if ('workspaceId' in scope) return eq(copilotRuns.workspaceId, scope.workspaceId)
+  return eq(copilotRuns.userId, scope.userId)
+}
+
+/** Of these workspaces, the ones where the user still has an unfinished Chat run. */
+export async function findWorkspacesWithLiveRunsTx(
+  tx: DbTransaction,
+  userId: string,
+  workspaceIds: string[]
+): Promise<string[]> {
+  if (workspaceIds.length === 0) return []
+  const rows = await tx
+    .selectDistinct({ workspaceId: copilotRuns.workspaceId })
+    .from(copilotRuns)
+    .where(
+      and(
+        eq(copilotRuns.userId, userId),
+        inArray(copilotRuns.workspaceId, workspaceIds),
+        notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)
+      )
+    )
+  return rows.flatMap(({ workspaceId }) => (workspaceId ? [workspaceId] : []))
+}
+
+/**
+ * Stops every unfinished run in `scope` inside the removal's own transaction, so Stop commits
+ * exactly when the removal does: a restored chat cannot revive the run and a takeover never
+ * adopts it. Rows a hard delete cascades away take their Stop with them; run control then
+ * answers Stop because the chat or owner is gone. Callers deliver the returned runs' Stop with
+ * `deliverRunStops` after commit.
+ */
+export async function stopLiveRunsTx(
+  tx: DbTransaction,
+  scope: LiveRunScope
+): Promise<StoppedRun[]> {
+  if (
+    ('chatIds' in scope && scope.chatIds.length === 0) ||
+    ('workspaceIds' in scope && scope.workspaceIds.length === 0)
+  )
+    return []
+  const rows = await tx
+    .select({
+      id: copilotRuns.id,
+      streamId: copilotRuns.streamId,
+      userId: copilotRuns.userId,
+      chatId: copilotRuns.chatId,
+      workspaceId: copilotRuns.workspaceId,
+      organizationId: copilotRuns.organizationId,
+      desktopDeviceId: copilotRuns.desktopDeviceId,
+    })
+    .from(copilotRuns)
+    .where(and(liveRunScopeCondition(scope), notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES)))
+  const stopped: StoppedRun[] = []
+  for (const {
+    id,
+    streamId,
+    userId,
+    chatId,
+    workspaceId,
+    organizationId,
+    desktopDeviceId,
+  } of rows) {
+    /** A run with no single owner has no Stop row to write; run control already answers Stop. */
+    if (Boolean(workspaceId) !== Boolean(organizationId))
+      await recordRunStopTx(tx, { streamId, userId, workspaceId, organizationId })
+    stopped.push({
+      id,
+      streamId,
+      userId,
+      chatId,
+      desktopDeviceId,
+      clientWorkflowExecutionIds: await getUnsettledClientWorkflowExecutions(streamId, userId, tx),
+      sandboxProcesses: await getUnsettledStreamSandboxProcesses(streamId, userId, tx),
+    })
+  }
+  return stopped
 }
 
 /**
@@ -1235,15 +1361,16 @@ export async function settleSimSandboxProcess(
 
 export async function getUnsettledStreamSandboxProcesses(
   streamId: string,
-  userId: string
-): Promise<Array<SessionProcessIdentity & { toolCallId: string }>> {
+  userId: string,
+  executor: DbOrTx = db
+): Promise<StoppedSandboxProcess[]> {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetRunSegment,
     'SELECT',
     'copilot_async_tool_calls',
     { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
     async () => {
-      const rows = await db
+      const rows = await executor
         .select({
           toolCallId: copilotAsyncToolCalls.toolCallId,
           processes: copilotAsyncToolCalls.sandboxProcesses,
@@ -1545,14 +1672,18 @@ export async function areStreamToolExecutionsSettled(
 }
 
 /** Execution IDs reserved by this run's browser-facing workflow handlers, independent of tool results. */
-export async function getUnsettledClientWorkflowExecutions(streamId: string, userId: string) {
+export async function getUnsettledClientWorkflowExecutions(
+  streamId: string,
+  userId: string,
+  executor: DbOrTx = db
+) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsGetRunSegment,
     'SELECT',
     'copilot_async_tool_calls',
     { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
     async () => {
-      const rows = await db
+      const rows = await executor
         .select({ executionId: copilotAsyncToolCalls.clientWorkflowExecutionId })
         .from(copilotAsyncToolCalls)
         .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))

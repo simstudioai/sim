@@ -117,10 +117,19 @@ describe('reconcileUserProjection', () => {
     mocks.grantWorkspace.mockResolvedValue('granted')
     mocks.lowerWorkspace.mockResolvedValue('lowered')
     mocks.readPermission.mockResolvedValue('write')
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
     mocks.addMember.mockResolvedValue('added')
     mocks.removeMember.mockResolvedValue('removed')
-    mocks.changeMemberRole.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
+    mocks.changeMemberRole.mockResolvedValue({
+      changed: true,
+      from: 'member',
+      to: 'admin',
+      stoppedRuns: [],
+    })
   })
 
   it('takes the organization and user locks before reading any grant', async () => {
@@ -301,7 +310,11 @@ describe('reconcileUserProjection', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
     mocks.readPermission.mockResolvedValue('write')
     stage({
       current: [

@@ -17,6 +17,7 @@ const logger = createLogger('WorkspaceByIdAPI')
 import { db } from '@sim/db'
 import { permissions, workspace } from '@sim/db/schema'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import {
   getEffectiveWorkspacePermission,
   getUserEntityPermissions,
@@ -284,6 +285,7 @@ export const DELETE = withRouteHandler(
 
       const archiveResult = await archiveWorkspace(workspaceId, {
         requestId: `workspace-${workspaceId}`,
+        deliverStops: deliverRunStops,
       })
 
       /** Recorded first: a retry that finishes an earlier partial deletion still archives it. */

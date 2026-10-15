@@ -593,7 +593,6 @@
     "apps/sim/app/api/chat/utils.ts": 2,
     "apps/sim/app/api/chat/validate/route.ts": 2,
     "apps/sim/app/api/copilot/api-keys/validate/route.ts": 2,
-    "apps/sim/app/api/copilot/chat/delete/route.ts": 2,
     "apps/sim/app/api/copilot/chat/queries.ts": 2,
     "apps/sim/app/api/copilot/chats/route.ts": 2,
     "apps/sim/app/api/copilot/feedback/route.ts": 2,
