@@ -687,6 +687,28 @@ describe('setupWorkspaceFileDocHandlers', () => {
     }
   })
 
+  it('tells an admitted writer it can write even if its cached role lapses before the reply', async () => {
+    // A distinct user/file: role decisions recorded under fake timers outlive this test.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const { io } = createIo()
+      const data: Record<string, unknown> = {}
+      // Registration records presence just before the reply; expire the role cache right there.
+      Object.defineProperty(data, 'fileDocPresence', {
+        set: () => vi.setSystemTime(Date.now() + ROLE_REVALIDATION_TTL_MS + 1),
+      })
+      const { socket, handlers } = setup('socket-lapse', io, { userId: 'user-lapse', data })
+      await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-lapse', clientId: 9 })
+
+      expect(socket.emit).toHaveBeenCalledWith(
+        FILE_DOC_EVENTS.JOIN_SUCCESS,
+        expect.objectContaining({ fileId: 'file-lapse', canWrite: true })
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('publishes a re-validated permission only when it changes what the socket last heard', async () => {
     const { io } = createIo()
     const { socket, handlers } = setup('socket-sweep', io)

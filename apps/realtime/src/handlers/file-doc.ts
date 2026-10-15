@@ -467,7 +467,11 @@ async function persistRoom(name: string, room: FileDocRoom, final: boolean): Pro
     const docState = await captureState()
     if (!docState) return // nothing seeded/authoritative to persist yet
     if (!(await store.isDocumentGenerationCurrent(name, generation))) return
-    if (!snapshotEditor) return
+    if (!snapshotEditor) {
+      // The claimed window must not strand the edits; a later flush may find an author.
+      if (!final && fileDocRooms.get(name) === room) schedulePersist(name, room)
+      return
+    }
     const result = await fileDocOwnerAdapter(room.owner).persist(
       room,
       snapshotEditor,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { RoomRef, RoomType } from '@sim/realtime-protocol/rooms'
+import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 
 const logger = createLogger('RoomPermission')
@@ -36,6 +37,8 @@ export function publishRoomPermission(
   try {
     publisher(socket, room, permission)
   } catch (error) {
-    logger.warn(`Room permission publish failed for socket ${socket.id} on ${room.type}`, error)
+    logger.warn(`Room permission publish failed for socket ${socket.id} on ${room.type}`, {
+      error: getErrorMessage(error),
+    })
   }
 }
