@@ -26,6 +26,7 @@ const DELEGATION_TTL_MS = 60_000
 
 let timer: ReturnType<typeof setInterval> | undefined
 let running = false
+let stopped = false
 
 /**
  * Resumes the run as its user, re-checking that user's current access. A user who may no
@@ -77,6 +78,7 @@ export async function takeOverAbandonedRuns(): Promise<void> {
   running = true
   try {
     for (const run of await findAbandonedRecoverableRuns(TAKEOVER_BATCH_SIZE)) {
+      if (stopped) return
       await takeOver(run).catch((error) =>
         logger.warn('Abandoned run could not be taken over; a later round retries', {
           runId: run.id,
@@ -102,7 +104,10 @@ export function startAbandonedRunTakeover(): void {
     )
   }, TAKEOVER_INTERVAL_MS)
   timer.unref()
-  const stop = () => clearInterval(timer)
+  const stop = () => {
+    stopped = true
+    clearInterval(timer)
+  }
   process.once('SIGTERM', stop)
   process.once('SIGINT', stop)
 }

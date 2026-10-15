@@ -497,29 +497,38 @@ const ABANDONED_RUN_IDLE_MS = 60_000
  * no run is provably abandoned.
  */
 export async function findAbandonedRecoverableRuns(limit: number): Promise<UnownedRun[]> {
-  const candidates: UnownedRun[] = await db
-    .select(unownedRunColumns)
-    .from(copilotRuns)
-    .where(
-      and(
-        inArray(copilotRuns.status, UNFINISHED_RUN_STATUSES),
-        isNotNull(controllerToken),
-        sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`,
-        idleFor(ABANDONED_RUN_IDLE_MS),
-        not(idleFor(ORPHANED_RUN_GRACE_MS)),
-        not(stopRequested)
+  const abandoned: UnownedRun[] = []
+  let after: string | undefined
+  /** Pages past runs whose controller is alive, so they never crowd out an abandoned one. */
+  while (abandoned.length < limit) {
+    const candidates: UnownedRun[] = await db
+      .select(unownedRunColumns)
+      .from(copilotRuns)
+      .where(
+        and(
+          inArray(copilotRuns.status, UNFINISHED_RUN_STATUSES),
+          isNotNull(controllerToken),
+          sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`,
+          idleFor(ABANDONED_RUN_IDLE_MS),
+          not(idleFor(ORPHANED_RUN_GRACE_MS)),
+          not(stopRequested),
+          after ? gt(copilotRuns.id, after) : undefined
+        )
       )
-    )
-    .orderBy(asc(copilotRuns.updatedAt))
-    .limit(limit)
-  if (candidates.length === 0) return []
-  try {
-    const locked = await findStreamsHoldingChatLock(candidates)
-    return candidates.filter((run) => !locked.has(run.streamId))
-  } catch (error) {
-    logger.warn('Chat stream ownership is unreadable; no run is taken over this round', {
-      error: getErrorMessage(error),
-    })
-    return []
+      .orderBy(asc(copilotRuns.id))
+      .limit(SWEEP_BATCH_SIZE)
+    if (candidates.length === 0) break
+    after = candidates[candidates.length - 1].id
+    try {
+      const locked = await findStreamsHoldingChatLock(candidates)
+      abandoned.push(...candidates.filter((run) => !locked.has(run.streamId)))
+    } catch (error) {
+      logger.warn('Chat stream ownership is unreadable; no run is taken over this round', {
+        error: getErrorMessage(error),
+      })
+      return []
+    }
+    if (candidates.length < SWEEP_BATCH_SIZE) break
   }
+  return abandoned.slice(0, limit)
 }

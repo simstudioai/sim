@@ -81,6 +81,7 @@ import {
   revokeExhaustedSimToolExecutions,
   upsertAsyncToolCall,
 } from '@/lib/mothership/async-runs/repository'
+import { chatPubSub } from '@/lib/mothership/chat-status'
 import { takeOverAbandonedRuns } from '@/lib/mothership/request/application/abandoned-runs'
 import {
   createProviderToolCallIdentity,
@@ -324,6 +325,7 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     await db.delete(permissions).where(eq(permissions.entityId, workspaceId))
     await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     for (const id of [ownerId, userId]) await db.delete(user).where(eq(user.id, id))
+    chatPubSub?.dispose()
     await closeRedisConnection()
   })
 
