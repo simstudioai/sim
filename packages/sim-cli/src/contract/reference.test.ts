@@ -8,6 +8,7 @@ import {
 } from '#sim-cli/contract/reference'
 import { runEmbeddedCli } from '#sim-cli/embed'
 import { V2_OPERATIONS } from '#sim-cli/generated/v2-api'
+import { buildProgram, UNPUBLISHED_GROUPS } from '#sim-cli/program'
 import { cursorSlot } from '#sim-cli/runtime/request'
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url))
@@ -17,6 +18,7 @@ interface InventoryEntry {
   shape?: string
   body?: string
   mothershipUnavailable?: true
+  unpublished?: true
 }
 
 let produced: InventoryEntry[] | undefined
@@ -47,6 +49,19 @@ function document(schema: ReferenceSchema): ReferenceDocument {
 const operation = { method: 'POST', path: '/items/[id]' }
 
 describe('CLI reference producer', () => {
+  it('lists unpublished groups for the worker, marked, while --help keeps hiding them', () => {
+    const commands = inventory()
+    for (const group of UNPUBLISHED_GROUPS) {
+      const members = commands.filter((entry) => entry.path[0] === group)
+      expect(members.length).toBeGreaterThan(0)
+      expect(members.every((entry) => entry.unpublished === true)).toBe(true)
+      expect(buildProgram().helpInformation()).not.toMatch(new RegExp(`^\\s+${group}\\b`, 'm'))
+    }
+    expect(
+      commands.filter((entry) => entry.unpublished && !UNPUBLISHED_GROUPS.has(entry.path[0] ?? ''))
+    ).toEqual([])
+  })
+
   it('publishes creation ids and preserves single/batch row choices from the real API', () => {
     const commands = inventory()
     const find = (path: string) => {

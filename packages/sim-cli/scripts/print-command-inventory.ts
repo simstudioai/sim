@@ -21,7 +21,7 @@ import {
   type ReferenceDocument,
 } from '#sim-cli/contract/reference'
 import { V2_OPERATIONS, type V2OperationName } from '#sim-cli/generated/v2-api'
-import { buildProgram } from '#sim-cli/program'
+import { buildProgram, UNPUBLISHED_GROUPS } from '#sim-cli/program'
 import { calledOperations, operationOf } from '#sim-cli/runtime/called-operations'
 import { camel } from '#sim-cli/runtime/derive'
 import { cursorSlot, flagNameFor } from '#sim-cli/runtime/request'
@@ -58,20 +58,25 @@ interface InventoryCommand extends CommandReference {
    * Absent when every call is admitted or the command calls no known operation.
    */
   mothershipUnavailable?: true
+  /** In a group hidden from `--help` until launch; the worker exposes it only when Sim enables it. */
+  unpublished?: true
 }
 
 function isHiddenCommand(command: Command): boolean {
   return (command as Command & { _hidden?: boolean })._hidden === true
 }
 
-function subcommands(command: Command): Command[] {
+/** Hidden commands stay out, except a whole top-level group that is only unpublished until launch. */
+function subcommands(command: Command, atRoot: boolean): Command[] {
   return command.commands.filter(
-    (child) => child.name() !== HELP_COMMAND && !isHiddenCommand(child)
+    (child) =>
+      child.name() !== HELP_COMMAND &&
+      (!isHiddenCommand(child) || (atRoot && UNPUBLISHED_GROUPS.has(child.name())))
   )
 }
 
 function collectLeaves(command: Command, prefix: string[]): { path: string[]; command: Command }[] {
-  const children = subcommands(command)
+  const children = subcommands(command, prefix.length === 0)
   if (children.length === 0) return [{ path: prefix, command }]
   return children.flatMap((child) => collectLeaves(child, [...prefix, child.name()]))
 }
@@ -150,6 +155,7 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
       options,
       ...reference,
       ...(mothershipRefuses(called) ? { mothershipUnavailable: true as const } : {}),
+      ...(UNPUBLISHED_GROUPS.has(cmdPath[0] ?? '') ? { unpublished: true as const } : {}),
     }
   }
 )
