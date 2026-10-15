@@ -62,7 +62,12 @@ import {
   setTerminalToolCallState,
 } from '@/lib/mothership/request/tool-call-state'
 import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
-import { capToToolDeadline, toDeadlineDate } from '@/lib/mothership/request/tools/deadline'
+import {
+  capToToolDeadline,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  toDeadlineDate,
+  toolDeadlinePassed,
+} from '@/lib/mothership/request/tools/deadline'
 import { desktopToolNotStarted } from '@/lib/mothership/request/tools/desktop-wait'
 import {
   type ToolExecutionLifetime,
@@ -370,10 +375,14 @@ async function executeToolWithWatchdog(
   // The frame's wire name can be a display identity (the worker's cli_* names);
   // execution always dispatches on the model's real tool name.
   const executableName = toolCall.execName ?? toolCall.name
+  const now = Date.now()
+  // Admission or approval can spend the whole deadline; the handler then never starts.
+  if (toolDeadlinePassed(toolCall.deadlineAt, now))
+    throw new Error(TOOL_DEADLINE_BEFORE_START_MESSAGE)
   const timeoutMs = capToToolDeadline(
     toolWatchdogTimeoutMs(executableName),
     toolCall.deadlineAt,
-    Date.now()
+    now
   )
   const controller = new AbortController()
   lifetime.signal.throwIfAborted()

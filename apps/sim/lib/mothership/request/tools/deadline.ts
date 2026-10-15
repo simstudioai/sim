@@ -19,6 +19,22 @@ export function frameToolDeadlineAt(deadlineMs: unknown, receivedAt: number): nu
   return receivedAt + deadlineMs - TOOL_DEADLINE_SETTLE_MARGIN_MS
 }
 
+/** What the model learns when a call's deadline passed before the call could start. */
+export const TOOL_DEADLINE_BEFORE_START_MESSAGE =
+  'This tool call ran out of its time limit before it could start, so it did not run. Nothing changed; it is safe to try again with a smaller request.'
+
+/** What the model learns when a call that started was still unfinished at its deadline. */
+export const TOOL_DEADLINE_EXCEEDED_MESSAGE =
+  'This tool call did not finish within its time limit and was abandoned. Its outcome is unknown: it may already have taken effect, so inspect the current state before repeating it.'
+
+/**
+ * Whether the call's deadline has passed, so nothing more may start for it: no handler, approval
+ * wait, server fallback or allowed decision. A call without a deadline never passes one.
+ */
+export function toolDeadlinePassed(deadlineAt: number | undefined, now: number): boolean {
+  return deadlineAt !== undefined && now >= deadlineAt
+}
+
 /** The column value for a call's deadline. */
 export function toDeadlineDate(deadlineAt: number | undefined): Date | undefined {
   return deadlineAt === undefined ? undefined : new Date(deadlineAt)

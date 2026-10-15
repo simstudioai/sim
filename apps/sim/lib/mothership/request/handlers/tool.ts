@@ -36,10 +36,13 @@ import { sealClientToolContext } from '@/lib/mothership/request/tools/client-com
 import {
   capToToolDeadline,
   frameToolDeadlineAt,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  TOOL_DEADLINE_EXCEEDED_MESSAGE,
   toDeadlineDate,
+  toolDeadlinePassed,
 } from '@/lib/mothership/request/tools/deadline'
 import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
-import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
+import { executeToolAndReport, failPendingToolCall } from '@/lib/mothership/request/tools/executor'
 import {
   runGatedToolExecution,
   TOOL_AWAITING_APPROVAL_STATUS,
@@ -507,9 +510,27 @@ function stampToolCallBlockEnd(
 }
 
 /**
+ * The completion a client wait reports for a call Sim settled itself: whatever the settlement
+ * left on the call, which is the desktop's own result when that landed first.
+ */
+function settledClientCompletion(toolCall: ToolCallState): AsyncTerminalCompletionSnapshot {
+  const status =
+    toolCall.status === MothershipStreamV1ToolOutcome.success ||
+    toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+      ? toolCall.status
+      : MothershipStreamV1ToolOutcome.error
+  return {
+    status,
+    ...(toolCall.error ? { message: toolCall.error } : {}),
+    ...(toolCall.result?.output !== undefined ? { data: toolCall.result.output } : {}),
+  }
+}
+
+/**
  * Adopts the deadline recorded when the call was first handed (a takeover re-hands its parked
  * calls), so an approval or client wait gets only what remains of it. Server executions adopt it
- * from their own upsert. On a failed read the frame's deadline stands.
+ * from their own upsert. A recorded deadline that cannot be read counts as spent: the frame's
+ * could be later than the one the worker is holding the call to.
  */
 async function adoptRecordedToolDeadline(toolCall: ToolCallState): Promise<void> {
   if (toolCall.deadlineAt === undefined) return
@@ -517,10 +538,11 @@ async function adoptRecordedToolDeadline(toolCall: ToolCallState): Promise<void>
     const recorded = (await getAsyncToolCall(toolCall.id))?.executionDeadlineAt
     if (recorded) toolCall.deadlineAt = recorded.getTime()
   } catch (error) {
-    logger.warn('Could not read a tool call deadline; using the frame deadline', {
+    logger.warn('Could not read a tool call deadline; treating it as spent', {
       toolCallId: toolCall.id,
       error: getErrorMessage(error),
     })
+    toolCall.deadlineAt = Date.now()
   }
 }
 
@@ -963,7 +985,16 @@ async function dispatchToolExecution(
         const desktopDeviceId = isBackgroundDesktopToolCall(toolName, args)
           ? await resolveRunDesktopDevice(context)
           : null
-        if (isWorkflowToolName(toolName)) {
+        if (toolDeadlinePassed(toolCall.deadlineAt, Date.now())) {
+          // An approval wait or a spent recorded deadline left no time: it never starts.
+          await failPendingToolCall(
+            toolCallId,
+            context,
+            execContext,
+            TOOL_DEADLINE_BEFORE_START_MESSAGE
+          )
+          completion = settledClientCompletion(toolCall)
+        } else if (isWorkflowToolName(toolName)) {
           const race = await raceWorkflowToolClientPickup({
             toolCallId,
             select:
@@ -974,6 +1005,7 @@ async function dispatchToolExecution(
                 : undefined,
             workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
             timeoutMs,
+            deadlineAt: toolCall.deadlineAt,
             // The caller declared its executors at turn setup (ChatRequest.clientCapabilities):
             // no pickup capability → zero grace, the race resolves straight to the server
             // claim. Same claim arbitration either way — the grace only encodes how long a
@@ -1031,6 +1063,16 @@ async function dispatchToolExecution(
           })
         }
         span.setAttribute(TraceAttr.ToolExecutor, MothershipStreamV1ToolExecutor.client)
+        if (completion === null && toolDeadlinePassed(toolCall.deadlineAt, Date.now())) {
+          // Settled durably, so a desktop that claimed the call stops renewing it.
+          await failPendingToolCall(
+            toolCallId,
+            context,
+            execContext,
+            TOOL_DEADLINE_EXCEEDED_MESSAGE
+          )
+          completion = settledClientCompletion(toolCall)
+        }
         // Both waiters resolve `T | null`, never undefined — comparing against
         // undefined made this a constant `true` and hid every timeout.
         span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== null)

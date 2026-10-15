@@ -1,6 +1,13 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { runFalQueue } from '@/lib/media/falai'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+import { downloadFalMedia, runFalQueue } from '@/lib/media/falai'
 
 const CANCEL_URL = 'https://queue.fal.run/fal-ai/model/requests/req-1/cancel'
 const STATUS_URL = 'https://queue.fal.run/fal-ai/model/requests/req-1/status'
@@ -118,5 +125,24 @@ describe('runFalQueue on a request that never finishes', () => {
       method: 'POST',
       headers: expect.objectContaining({ 'X-Fal-Request-Timeout': '1800' }),
     })
+  })
+})
+
+describe('downloadFalMedia', () => {
+  it('ends a download still resolving its host once its caller gives up', async () => {
+    inputValidationMockFns.mockValidateUrlWithDNS.mockImplementationOnce(
+      (_url: string, _name: string, _profile: string, options?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), {
+            once: true,
+          })
+        })
+    )
+    const caller = new AbortController()
+    const download = downloadFalMedia('https://media.example/out.mp3', caller.signal)
+
+    caller.abort(new Error('watchdog'))
+
+    await expect(download).rejects.toThrow('watchdog')
   })
 })

@@ -124,6 +124,7 @@ import {
   sealClientToolCompletion,
   sealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { TOOL_DEADLINE_BEFORE_START_MESSAGE } from '@/lib/mothership/request/tools/deadline'
 import {
   buildToolExecutionContext,
   executeToolAndReport,
@@ -678,6 +679,23 @@ describe('executeToolAndReport provenance isolation', () => {
     expect(upsertAsyncToolCall).toHaveBeenCalledWith(
       expect.objectContaining({ executionDeadlineAt: new Date(tool.deadlineAt ?? 0) })
     )
+  })
+
+  it('never starts a handler once the call deadline has passed', async () => {
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() - 1,
+    }
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(completion.status).toBe('error')
+    expect(tool.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
   })
 
   it('runs a call again only until the deadline recorded when it was first handed', async () => {

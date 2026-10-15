@@ -205,6 +205,37 @@ describe('runGatedToolExecution', () => {
     toolRequiresApproval.mockReturnValue(true)
   })
 
+  it('opens no prompt once the call deadline has passed', async () => {
+    const toolCall = { ...makeToolCall(), deadlineAt: Date.now() - 1 }
+    const execute = vi.fn()
+
+    expect(await gate(makeContext(), toolCall, execute, [])).toMatchObject({ status: 'error' })
+    expect(waitForToolPermissionDecision).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('does not honor an approval that lands after the call deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      waitForToolPermissionDecision.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ toolCallId: 'call-1', decision: 'allow' }), 2_000)
+          )
+      )
+      const toolCall = { ...makeToolCall(), deadlineAt: Date.now() + 1_000 }
+      const execute = vi.fn()
+      const pending = gate(makeContext(), toolCall, execute, [])
+
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      expect(await pending).toMatchObject({ status: 'error' })
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('stops waiting for an answer at the deadline the worker named for the call', async () => {
     vi.useFakeTimers()
     try {

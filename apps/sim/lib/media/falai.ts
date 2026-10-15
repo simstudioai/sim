@@ -227,6 +227,7 @@ async function pollFalQueue(
  */
 async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: string) {
   try {
+    // boundary-raw-fetch: cancels a request on the external Fal.ai queue
     const response = await fetch(cancelUrl, {
       method: 'PUT',
       headers: { Authorization: `Key ${apiKey}` },
@@ -278,7 +279,7 @@ export async function downloadFalMedia(
     return { contentType: match[1], buffer }
   }
 
-  const validation = await validateUrlWithDNS(url, 'mediaUrl', 'contentFetch')
+  const validation = await validateUrlWithDNS(url, 'mediaUrl', 'contentFetch', { signal })
   if (!validation.isValid) {
     throw new Error(validation.error)
   }

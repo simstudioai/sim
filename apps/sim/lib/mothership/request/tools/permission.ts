@@ -21,7 +21,7 @@ import {
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
-import { capToToolDeadline } from '@/lib/mothership/request/tools/deadline'
+import { capToToolDeadline, toolDeadlinePassed } from '@/lib/mothership/request/tools/deadline'
 import type {
   OrchestratorOptions,
   StreamingContext,
@@ -247,11 +247,15 @@ export function runGatedToolExecution(
         return { status: MothershipStreamV1ToolOutcome.success, message: output.message }
       }
 
-      const decision = await waitForToolPermissionDecision(
-        toolCallId,
-        capToToolDeadline(PERMISSION_WAIT_TIMEOUT_MS, toolCall.deadlineAt, Date.now()),
-        options.abortSignal
-      )
+      // No prompt opens past the call's deadline, and an answer that lands after it is not honored.
+      const answer = toolDeadlinePassed(toolCall.deadlineAt, Date.now())
+        ? null
+        : await waitForToolPermissionDecision(
+            toolCallId,
+            capToToolDeadline(PERMISSION_WAIT_TIMEOUT_MS, toolCall.deadlineAt, Date.now()),
+            options.abortSignal
+          )
+      const decision = toolDeadlinePassed(toolCall.deadlineAt, Date.now()) ? null : answer
 
       if (!decision) {
         // Timed out or the turn was stopped. Fail the call rather than running
