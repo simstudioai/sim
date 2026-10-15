@@ -121,6 +121,8 @@ async function submitAndPollFalQueue(
   apiKey: string,
   queueSignal: AbortSignal
 ): Promise<FalQueueResult> {
+  // Only a submit already under way outlives its caller; a stopped call never starts one.
+  queueSignal.throwIfAborted()
   const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
     method: 'POST',
     headers: {

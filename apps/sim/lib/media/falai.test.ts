@@ -111,6 +111,15 @@ describe('runFalQueue on a request that never finishes', () => {
     expect(fal.cancels()).toHaveLength(1)
   })
 
+  it('submits nothing for a caller that already gave up', async () => {
+    const fal = stubStuckFalQueue()
+
+    await expect(
+      runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', AbortSignal.abort())
+    ).rejects.toThrow()
+    expect(fal.calls).toEqual([])
+  })
+
   it('cancels a request its caller gave up on while submitting it', async () => {
     const calls: string[] = []
     let accept: (response: Response) => void = () => {}
