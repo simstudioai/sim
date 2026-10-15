@@ -68,6 +68,12 @@ import {
 } from '@/lib/workspace-files/search/index-state'
 import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
 
+async function requireDocxFormat() {
+  const format = await getE2BDocFormat('report.docx')
+  if (!format) throw new Error('DOCX rendering format is required for this fixture')
+  return format
+}
+
 const storageRoot = mkdtempSync(join(tmpdir(), 'sim-file-owner-search-'))
 setUploadDirServer(storageRoot)
 const fixtures: {
@@ -776,7 +782,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         artifact,
         fileDocumentCacheIdentity(
           source,
-          (await getE2BDocFormat('report.docx'))!,
+          await requireDocxFormat(),
           'text/plain',
           fileDocumentInputIdentity(f.owner, [dependencyRow])
         )
@@ -873,7 +879,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         'docx',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         artifact,
-        fileDocumentCacheIdentity(source, (await getE2BDocFormat('transition.docx'))!, 'text/plain')
+        fileDocumentCacheIdentity(source, await requireDocxFormat(), 'text/plain')
       )
       const input = { projectId: f.projectId, fileId: generated.file.id, maxBytes: 1_000_000 }
       const rendered = await readProjectFileArtifact.execute({ principal: f.reader, input })
@@ -996,7 +1002,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         ),
         fileDocumentCacheIdentity(
           source,
-          (await getE2BDocFormat('report.docx'))!,
+          await requireDocxFormat(),
           'text/plain',
           fileDocumentInputIdentity(f.owner, [dependencyRow])
         )
@@ -1007,7 +1013,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         'docx',
         fileDocumentCacheIdentity(
           source,
-          (await getE2BDocFormat('report.docx'))!,
+          await requireDocxFormat(),
           'text/plain',
           fileDocumentInputIdentity(f.owner, [dependencyRow])
         )
@@ -1089,7 +1095,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         ),
         fileDocumentCacheIdentity(
           source,
-          (await getE2BDocFormat('report.docx'))!,
+          await requireDocxFormat(),
           'text/plain',
           fileDocumentInputIdentity(f.owner, [dependencyRow])
         )
@@ -1100,7 +1106,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         'docx',
         fileDocumentCacheIdentity(
           source,
-          (await getE2BDocFormat('report.docx'))!,
+          await requireDocxFormat(),
           'text/plain',
           fileDocumentInputIdentity(f.owner, [dependencyRow])
         )
