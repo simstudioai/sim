@@ -1,7 +1,6 @@
 /** @vitest-environment jsdom */
 
 import { act, type ComponentProps, type ReactNode } from 'react'
-import { toast } from '@sim/emcn'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import {
   createMockDeploymentShape,
@@ -10,6 +9,7 @@ import {
 } from '@sim/testing/mocks/deployment-shape.mock'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { kbConnectorsQueriesMock } from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import {
   organizationProviderMock,
   organizationProviderMockFns,
@@ -24,7 +24,6 @@ import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/st
 
 const mocks = vi.hoisted(() => ({
   plan: false,
-  projects: true,
   resourcePanel: vi.fn(),
   chat: vi.fn(),
   composer: vi.fn(),
@@ -41,15 +40,11 @@ const mocks = vi.hoisted(() => ({
   activeResource: null as string | null,
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
-  useFeatureFlag: (name: string) =>
-    name === 'mothership-plan-mode' ? mocks.plan : name === 'projects' ? mocks.projects : false,
+  useFeatureFlag: (name: string) => (name === 'mothership-plan-mode' ? mocks.plan : false),
 }))
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
-vi.mock(
-  'next/navigation',
-  async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
-)
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => ({
   useResourcePanelController: () => ({
@@ -108,7 +103,6 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   useMothershipDraftsStore.setState({ drafts: {} })
-  mocks.projects = true
   mocks.plan = false
   mocks.activeResource = null
   mockSession.mockReturnValue({ data: { user: { id: 'reader' } } })
@@ -229,29 +223,4 @@ it('isolates saved drafts by user, organization, and conversation', async () => 
   })
   await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
   expect(composerProps().value).toBe('')
-})
-
-it.each([false])('does not look up saved Project references with projects=%s', async (projects) => {
-  mocks.projects = projects
-  vi.spyOn(toast, 'error').mockReturnValue('lookup-error')
-  const requests: unknown[] = []
-  const resources: unknown[] = []
-  vi.stubGlobal('fetch', async (input: unknown) => {
-    requests.push(input)
-    throw new Error('Project lookup is disabled')
-  })
-  mocks.addResource.mockImplementation((resource: unknown) => resources.push(resource))
-  await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
-  const selectResource = mocks.renderer.mock.lastCall?.[0].onWorkspaceResourceSelect
-  if (!selectResource) throw new Error('Chat resource selection is unavailable')
-  await act(async () =>
-    selectResource({
-      type: 'file',
-      id: 'file-a',
-      title: 'Saved Project file',
-      owner: { entityType: 'project', entityId: 'project-a' },
-    })
-  )
-  expect(requests).toEqual([])
-  expect(resources).toEqual([])
 })

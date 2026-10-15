@@ -6,7 +6,6 @@ import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/fil
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type Editor, Extension } from '@tiptap/core'
 import Collaboration from '@tiptap/extension-collaboration'
 import { createRoot, type Root } from 'react-dom/client'
@@ -30,20 +29,11 @@ import {
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/files')
 
-const {
-  collaborationRef,
-  realCollaboration,
-  uploadFile,
-  uploadProjectFile,
-  editableFileContent,
-  fileSource,
-} = vi.hoisted(() => ({
+const { collaborationRef, realCollaboration, uploadFile, editableFileContent } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
   realCollaboration: { enabled: false },
   uploadFile: vi.fn(),
   editableFileContent: vi.fn(),
-  uploadProjectFile: vi.fn(),
-  fileSource: { owner: undefined as { entityType: 'project'; entityId: string } | undefined },
 }))
 
 vi.mock(
@@ -54,12 +44,9 @@ vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
 }))
-vi.mock('@/hooks/queries/project-files', () => ({
-  useUploadProjectFile: () => ({ mutateAsync: uploadProjectFile }),
-}))
 vi.mock('@/hooks/use-add-to-chat', () => ({ useAddToChat: () => vi.fn() }))
 vi.mock('@/hooks/use-file-content-source', () => ({
-  useFileContentSource: () => ({ owner: fileSource.owner, resolveImageSrc: (src: string) => src }),
+  useFileContentSource: () => ({ resolveImageSrc: (src: string) => src }),
 }))
 vi.mock('@/app/workspace/[workspaceId]/components', () => ({ FindBar: () => null }))
 vi.mock(
@@ -127,7 +114,6 @@ const FILE: WorkspaceFileRecord = {
   updatedAt: new Date('2026-09-03T20:00:00Z'),
 }
 let root: Root
-let queryClient: QueryClient
 let container: HTMLDivElement
 const onChange = vi.fn()
 const onEditSource = vi.fn()
@@ -200,31 +186,29 @@ async function render(
   await act(async () => {
     const update = () =>
       root.render(
-        <QueryClientProvider client={queryClient}>
-          <Suspense fallback='Loading editor'>
-            <LoadedRichMarkdownEditor
-              file={options.file ?? FILE}
-              workspaceId={fileSource.owner ? undefined : FILE.workspaceId}
-              content={content}
-              acceptedBaselineContent={acceptedBaselineContent}
-              isStreaming={options.isStreaming ?? false}
-              streamIsIncremental={options.streamIsIncremental}
-              canEdit={canEdit}
-              userId='user-1'
-              userName='User'
-              collaborative={options.collaborative}
-              recoveringCollaboration={options.recoveringCollaboration}
-              enableFind={false}
-              onChange={options.onChange ?? onChange}
-              onEditSource={onEditSource}
-              onClientAutosaveChange={onClientAutosaveChange}
-              onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
-              downloadSourceRef={options.downloadSourceRef}
-              onDeriveTitleFromHeading={options.onDeriveTitleFromHeading}
-            />
-            <SuspendAfterEditor active={options.suspend ?? false} />
-          </Suspense>
-        </QueryClientProvider>
+        <Suspense fallback='Loading editor'>
+          <LoadedRichMarkdownEditor
+            file={options.file ?? FILE}
+            workspaceId={FILE.workspaceId}
+            content={content}
+            acceptedBaselineContent={acceptedBaselineContent}
+            isStreaming={options.isStreaming ?? false}
+            streamIsIncremental={options.streamIsIncremental}
+            canEdit={canEdit}
+            userId='user-1'
+            userName='User'
+            collaborative={options.collaborative}
+            recoveringCollaboration={options.recoveringCollaboration}
+            enableFind={false}
+            onChange={options.onChange ?? onChange}
+            onEditSource={onEditSource}
+            onClientAutosaveChange={onClientAutosaveChange}
+            onSaveShortcut={options.onSaveShortcut ?? onSaveShortcut}
+            downloadSourceRef={options.downloadSourceRef}
+            onDeriveTitleFromHeading={options.onDeriveTitleFromHeading}
+          />
+          <SuspendAfterEditor active={options.suspend ?? false} />
+        </Suspense>
       )
     if (options.suspend) startTransition(update)
     else update()
@@ -239,8 +223,6 @@ function getEditor() {
 
 beforeEach(() => {
   uploadFile.mockReset()
-  uploadProjectFile.mockReset()
-  fileSource.owner = undefined
   collaborationRef.current = null
   realCollaboration.enabled = false
   vi.spyOn(toast, 'warning').mockReturnValue('test-toast')
@@ -250,13 +232,9 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
-  })
 })
 afterEach(async () => {
   await act(async () => root.unmount())
-  queryClient.clear()
   container.remove()
 })
 
@@ -826,18 +804,4 @@ describe('loaded rich editor lifecycle', () => {
 
     expect(onDeriveTitleFromHeading).not.toHaveBeenCalled()
   })
-})
-
-it('inserts an uploaded inline image using its Project content address', async () => {
-  fileSource.owner = { entityType: 'project', entityId: 'project-a' }
-  uploadProjectFile.mockResolvedValue({ file: { id: 'image-a' } })
-  await render('Project document')
-  await act(async () => getEditor().storage.slashCommand.insertImage?.(1))
-  const input = container.querySelector<HTMLInputElement>('input[type="file"]')
-  if (!input) throw new Error('Editor image picker is unavailable')
-  Object.defineProperty(input, 'files', {
-    value: [new File(['image'], 'diagram.png', { type: 'image/png' })],
-  })
-  await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
-  expect(getEditor().getHTML()).toContain('src="/api/projects/project-a/files/image-a/content"')
 })

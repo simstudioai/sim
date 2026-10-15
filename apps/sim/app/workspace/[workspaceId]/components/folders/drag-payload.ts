@@ -1,6 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
-import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
-
 /**
  * The row ids a drag carries, written to and read from `dataTransfer` as JSON under a
  * private MIME type.
@@ -17,40 +14,22 @@ import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 export function writeRowDragPayload(
   dataTransfer: DataTransfer,
   mime: string,
-  rowIds: string[],
-  owner?: EditableFileOwner
+  rowIds: string[]
 ): void {
-  dataTransfer.setData(mime, JSON.stringify(owner ? { owner, rowIds } : rowIds))
+  dataTransfer.setData(mime, JSON.stringify(rowIds))
   dataTransfer.setData('text/plain', rowIds.join(','))
 }
 
 /**
  * Reads the row ids back, returning `null` when the payload is absent (a foreign drag) or
- * malformed rather than throwing mid-drop. Owner-scoped readers require an exact pair and
- * must not replace a rejected payload with an in-memory source.
+ * malformed (another writer on the same MIME) rather than throwing mid-drop. Callers fall back
+ * to their in-memory source for drags that never round-tripped through `dataTransfer`.
  */
-export function readRowDragPayload(
-  dataTransfer: DataTransfer,
-  mime: string,
-  owner?: EditableFileOwner
-): string[] | null {
+export function readRowDragPayload(dataTransfer: DataTransfer, mime: string): string[] | null {
   const raw = dataTransfer.getData(mime)
   if (!raw) return null
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (owner) {
-      if (
-        !isRecordLike(parsed) ||
-        !isRecordLike(parsed.owner) ||
-        parsed.owner.entityType !== owner.entityType ||
-        parsed.owner.entityId !== owner.entityId ||
-        !Array.isArray(parsed.rowIds) ||
-        !parsed.rowIds.every((id): id is string => typeof id === 'string' && id.length > 0)
-      ) {
-        return null
-      }
-      return parsed.rowIds.length > 0 ? parsed.rowIds : null
-    }
     if (!Array.isArray(parsed)) return null
     const rowIds = parsed.filter(
       (value): value is string => typeof value === 'string' && value.length > 0

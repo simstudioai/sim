@@ -65,8 +65,6 @@ const getFileShareResponseSchema = z.object({
   share: shareRecordSchema.nullable(),
 })
 
-export type GetFileShareResponse = z.output<typeof getFileShareResponseSchema>
-
 export const getFileShareContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files/[fileId]/share',

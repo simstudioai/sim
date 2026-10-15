@@ -159,23 +159,23 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/files/[fileId]/page.tsx": {
-      "modules": 2521,
+      "modules": 2468,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/files/browser.tsx": 590,
         "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/app/workspace/[workspaceId]/files/files.tsx": 525,
         "apps/sim/blocks/registry.ts": 367,
-        "apps/sim/lib/auth/index.ts": 319,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-detail/index.ts": 310,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-detail/detail.tsx": 306,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 301,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 271
+        "apps/sim/lib/auth/index.ts": 318,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 303,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 272,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 200,
+        "apps/sim/lib/webhooks/providers/index.ts": 89
       }
     },
     "app/workspace/[workspaceId]/files/[fileId]/view/page.tsx": {
-      "modules": 92,
+      "modules": 75,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/files/[fileId]/view/file-viewer.tsx": 91,
-        "apps/sim/hooks/queries/workspace-files.ts": 80
+        "apps/sim/app/workspace/[workspaceId]/files/[fileId]/view/file-viewer.tsx": 74,
+        "apps/sim/hooks/queries/workspace-files.ts": 63
       }
     },
     "app/workspace/[workspaceId]/files/error.tsx": {
@@ -187,16 +187,16 @@
       "gateways": {}
     },
     "app/workspace/[workspaceId]/files/page.tsx": {
-      "modules": 2520,
+      "modules": 2467,
       "gateways": {
-        "apps/sim/app/workspace/[workspaceId]/files/browser.tsx": 591,
         "apps/sim/triggers/registry.ts": 541,
+        "apps/sim/app/workspace/[workspaceId]/files/files.tsx": 526,
         "apps/sim/blocks/registry.ts": 367,
-        "apps/sim/lib/auth/index.ts": 319,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-detail/index.ts": 310,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-detail/detail.tsx": 306,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 301,
-        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 271
+        "apps/sim/lib/auth/index.ts": 318,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/index.ts": 303,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer.tsx": 272,
+        "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 200,
+        "apps/sim/lib/webhooks/providers/index.ts": 89
       }
     },
     "app/workspace/[workspaceId]/home/error.tsx": {

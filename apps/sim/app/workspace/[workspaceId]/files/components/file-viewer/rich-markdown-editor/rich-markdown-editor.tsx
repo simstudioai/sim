@@ -12,7 +12,6 @@ import {
 } from 'react'
 import { Chip, cn, toast } from '@sim/emcn'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
-import { getErrorMessage } from '@sim/utils/errors'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS, utf8ByteLength } from '@sim/utils/paste'
 import type { Extensions, JSONContent, Range } from '@tiptap/core'
 import { isChangeOrigin } from '@tiptap/extension-collaboration'
@@ -24,8 +23,8 @@ import {
   buildFileSelectionLabel,
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
-import type { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { FileSaveConflict } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-save-conflict'
@@ -81,11 +80,9 @@ import {
   isSelectionInLeadingHeading,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/title-heading'
 import { TextEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor'
-import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
 import { useEditableFileContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content'
 import { useSelectionCopyBridge } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge'
 import { isUntitledName } from '@/app/workspace/[workspaceId]/files/untitled-title'
-import { useUploadProjectFile } from '@/hooks/queries/project-files'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
 import type { SaveStatus } from '@/hooks/use-autosave'
@@ -131,8 +128,7 @@ const EDITOR_SURFACE_CLASS = cn(
 /** ProseMirror block positions do not correspond to markdown source line numbers. */
 function buildEditorSelectionContext(
   editor: Editor | null,
-  file: Pick<ViewerFileRecord, 'id' | 'name'>,
-  owner?: FileOperationOwner
+  file: Pick<WorkspaceFileRecord, 'id' | 'name'>
 ): ChatContext | null {
   if (!editor) return null
   const { from, to } = editor.state.selection
@@ -141,7 +137,6 @@ function buildEditorSelectionContext(
   if (!text.trim()) return null
   return {
     kind: 'file_selection',
-    ...(owner ? { owner } : {}),
     fileId: file.id,
     fileName: file.name,
     label: buildFileSelectionLabel(file.name),
@@ -162,13 +157,11 @@ function buildEditorSelectionContext(
  */
 interface ReadOnlyPlaceholderProps {
   content: JSONContent
-  file: ViewerFileRecord
-  workspaceId: string | undefined
+  file: WorkspaceFileRecord
+  workspaceId: string
 }
 
 function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholderProps) {
-  const source = useFileContentSource()
-  const projectOwner = source.owner?.entityType === 'project' ? source.owner : undefined
   const containerRef = useRef<HTMLDivElement>(null)
   const editor = useEditor({
     extensions: EXTENSIONS,
@@ -203,14 +196,10 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
     },
   })
   const buildSelectionContext = useCallback(
-    () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }, projectOwner),
-    [editor, file.id, file.name, projectOwner]
+    () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }),
+    [editor, file.id, file.name]
   )
-  useSelectionCopyBridge({
-    containerRef,
-    buildContext: buildSelectionContext,
-    owner: projectOwner ?? workspaceId,
-  })
+  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId)
   return (
     <>
       {editor && <LinkHoverCard editor={editor} />}
@@ -220,8 +209,8 @@ function ReadOnlyPlaceholder({ content, file, workspaceId }: ReadOnlyPlaceholder
 }
 
 interface RichMarkdownEditorProps {
-  file: ViewerFileRecord
-  workspaceId: string | undefined
+  file: WorkspaceFileRecord
+  workspaceId: string
   canEdit: boolean
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
@@ -448,8 +437,8 @@ interface LoadedRichMarkdownEditorProps {
   recoveringCollaboration?: boolean
   onWriteAccessLost?: () => void
   onReadOnlyJoinRejected?: () => void
-  file: ViewerFileRecord
-  workspaceId: string | undefined
+  file: WorkspaceFileRecord
+  workspaceId: string
   /** The live content from the engine — grows as the agent streams, then settles to the saved doc. */
   content: string
   /** Accepted external baseline, excluding local serialization echoes and own save acknowledgements. */
@@ -528,14 +517,6 @@ export function LoadedRichMarkdownEditor({
   enableFind,
   onEditSource,
 }: LoadedRichMarkdownEditorProps) {
-  const source = useFileContentSource()
-  const projectOwner = source.owner?.entityType === 'project' ? source.owner : undefined
-  const projectId = projectOwner?.entityId
-  const downloadScope = projectId
-    ? { owner: { entityType: 'project' as const, entityId: projectId } }
-    : workspaceId
-      ? { workspaceId }
-      : null
   /** Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle. */
   const [streamingAtMount] = useState(isStreaming)
 
@@ -551,7 +532,7 @@ export function LoadedRichMarkdownEditor({
    * via `useState`-init, and never changes — TipTap
    * fixes the extension set at editor creation, so it cannot turn on later. Enabled on a
    * `collaborative` surface (the Files page or the embedded chat file preview) for a readable,
-   * round-trip-safe workspace or Project document with a known user, as long as it is not ALREADY streaming at
+   * round-trip-safe workspace document with a known user, as long as it is not ALREADY streaming at
    * mount. An agent stream that begins AFTER mount is applied as CRDT
    * diffs into the live doc, so collaboration and streaming coexist (see the streaming effect below).
    */
@@ -561,8 +542,7 @@ export function LoadedRichMarkdownEditor({
       (!streamingAtMount || recoveringCollaboration) &&
       (settled?.verdict ?? false) &&
       Boolean(userId) &&
-      (Boolean(projectId) ||
-        (Boolean(workspaceId) && (file.storageContext ?? 'workspace') === 'workspace'))
+      (file.storageContext ?? 'workspace') === 'workspace'
   )
   if (
     !collaborationEnabled &&
@@ -586,7 +566,6 @@ export function LoadedRichMarkdownEditor({
 
   const collaboration = useFileDocCollaboration({
     workspaceId,
-    projectId,
     fileId: file.id,
     userId,
     userName,
@@ -693,8 +672,8 @@ export function LoadedRichMarkdownEditor({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const uploadFile = useUploadWorkspaceFile()
-  const uploadProjectFile = useUploadProjectFile()
   const editorInstanceRef = useRef<Editor | null>(null)
+  const source = useFileContentSource()
   const resolveImageSrcRef = useRef(source.resolveImageSrc)
 
   /** The picker anchor maps through edits while the operating-system file dialog is open. */
@@ -740,38 +719,27 @@ export function LoadedRichMarkdownEditor({
         const anchor = anchors[index]
         if (!anchor || findImageUpload(editor, anchor) === null) continue
         batch.toastId = toast.info(`Uploading "${image.name}"…`, { duration: 0 })
-        const { signal } = batch.controller
-        const uploadedUrl = await (projectId
-          ? uploadProjectFile
-              .mutateAsync({ projectId, file: image, folderId: file.folderId ?? null, signal })
-              .then(
-                (result) =>
-                  `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(result.file.id)}/content`
-              )
-          : workspaceId
-            ? uploadFile
-                .mutateAsync({ workspaceId, file: image, folderId: file.folderId ?? null, signal })
-                .then((result) => result.file.url)
-            : Promise.reject(new Error('File owner is required'))
-        ).catch((error) => {
-          if (projectId && !signal.aborted) {
-            toast.error(getErrorMessage(error, 'Unable to upload image'))
-          }
-          return null
-        })
+        const result = await uploadFile
+          .mutateAsync({
+            workspaceId,
+            file: image,
+            folderId: file.folderId ?? null,
+            signal: batch.controller.signal,
+          })
+          .catch(() => null)
         toast.dismiss(batch.toastId)
         batch.toastId = undefined
-        if (signal.aborted) break
-        if (uploadedUrl) {
+        if (batch.controller.signal.aborted) break
+        if (result) {
           const inserted = finishImageUpload(
             editor,
             anchor,
-            uploadedUrl,
+            result.file.url,
             image.name,
-            fallback ? resolveImageFileFallback(fallback, uploadedUrl) : undefined
+            fallback ? resolveImageFileFallback(fallback, result.file.url) : undefined
           )
           if (!inserted && !editor.isDestroyed) {
-            toast.info('The image was uploaded but was not inserted.')
+            toast.info('The image was uploaded to the workspace but was not inserted.')
           }
         } else {
           removeImageUpload(editor, anchor)
@@ -1431,13 +1399,13 @@ export function LoadedRichMarkdownEditor({
 
   const addToChat = useAddToChat()
   const buildSelectionContext = useCallback(
-    () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }, projectOwner),
-    [editor, file.id, file.name, projectOwner]
+    () => buildEditorSelectionContext(editor, { id: file.id, name: file.name }),
+    [editor, file.id, file.name]
   )
 
   const handleAddSelectionToChat = () => {
     const context = buildSelectionContext()
-    if (context && (workspaceId || projectOwner)) addToChat(context)
+    if (context) addToChat(context)
   }
 
   /** Stored content belongs to a separate preview, never to an unseeded collaborative document. */
@@ -1454,10 +1422,10 @@ export function LoadedRichMarkdownEditor({
   useImperativeHandle<FileDownloadSource | null, FileDownloadSource | null>(
     downloadSourceRef,
     () =>
-      editor && canExportSnapshot && downloadScope
+      editor && canExportSnapshot
         ? {
             fileId: file.id,
-            ...downloadScope,
+            workspaceId,
             getContent: () => {
               if (editor.isDestroyed) return null
               if (showPlaceholder) return placeholder?.markdown ?? null
@@ -1477,7 +1445,6 @@ export function LoadedRichMarkdownEditor({
       editor,
       file.id,
       workspaceId,
-      projectId,
       showPlaceholder,
       placeholder,
       collaborationEnabled,
@@ -1485,12 +1452,7 @@ export function LoadedRichMarkdownEditor({
     ]
   )
 
-  useSelectionCopyBridge({
-    containerRef,
-    buildContext: buildSelectionContext,
-    owner: projectOwner ?? workspaceId,
-    enabled: !showPlaceholder,
-  })
+  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId, !showPlaceholder)
 
   /**
    * Find is off while the placeholder is up. The text on screen then belongs to the placeholder's own
@@ -1526,7 +1488,7 @@ export function LoadedRichMarkdownEditor({
     // The find bar is a sibling of the scroller, not a child: pinned inside `containerRef` it would
     // scroll away with the document the moment stepping moved the view.
     <div className='relative flex min-h-0 flex-1 flex-col'>
-      {effectiveCanEdit && !isStreaming && settled?.verdict === false && onEditSource && (
+      {canEdit && !isStreaming && settled?.verdict === false && onEditSource && (
         <div
           role='status'
           className='flex items-center gap-2 border-[var(--border)] border-b px-4 py-2 text-[var(--text-muted)] text-small'
@@ -1581,7 +1543,7 @@ export function LoadedRichMarkdownEditor({
           <EditorBubbleMenu
             editor={editor}
             scrollContainerRef={containerRef}
-            onAddToChat={workspaceId || projectOwner ? handleAddSelectionToChat : undefined}
+            onAddToChat={handleAddSelectionToChat}
           />
         )}
         {editor && <TableBubbleMenu editor={editor} scrollContainerRef={containerRef} />}

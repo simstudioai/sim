@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useState } from 'react'
+import { useState } from 'react'
 import {
   Chip,
   ChipButtonGroup,
@@ -20,18 +20,13 @@ import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
-import {
-  type FileOwnerAdapters,
-  requireFileOwnerAdapter,
-} from '@/lib/workspace-files/owner-adapters'
-import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 interface ShareModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  owner: EditableFileOwner
+  workspaceId: string
   fileId: string
   fileName: string
   /** Share state already known from the file row, used as the initial value to avoid flicker. */
@@ -64,63 +59,27 @@ function savedMode(share: ShareRecord | null): ShareAuthType {
   return share?.authType ?? 'public'
 }
 
-interface ShareModalContentProps extends ShareModalProps {
-  workspacePolicy?: { canPublish: boolean; allowedAuthTypes: ShareAuthType[] | null }
-}
-
-function WorkspaceShareModal(props: ShareModalProps) {
-  const { config } = usePermissionConfig()
-  return (
-    <ShareModalContent
-      {...props}
-      workspacePolicy={{
-        canPublish: !config.disablePublicFileSharing,
-        allowedAuthTypes: config.allowedFileShareAuthTypes,
-      }}
-    />
-  )
-}
-
-const SHARE_MODAL_ADAPTERS: FileOwnerAdapters<ComponentType<ShareModalProps>> = {
-  workspace: WorkspaceShareModal,
-  project: ShareModalContent,
-}
-
-export function ShareModal(props: ShareModalProps) {
-  const Modal = requireFileOwnerAdapter(SHARE_MODAL_ADAPTERS, props.owner)
-  return (
-    <Modal key={`${props.owner.entityType}:${props.owner.entityId}:${props.fileId}`} {...props} />
-  )
-}
-
-function ShareModalContent({
+export function ShareModal({
   open,
   onOpenChange,
-  owner,
+  workspaceId,
   fileId,
   fileName,
   initialShare,
-  workspacePolicy,
-}: ShareModalContentProps) {
+}: ShareModalProps) {
   const {
-    data: settings,
+    data: share,
     isError: isShareError,
     isFetchedAfterMount,
-  } = useFileShare(owner, fileId, { enabled: open })
+  } = useFileShare(workspaceId, fileId, { enabled: open })
+  const { config: permissionConfig } = usePermissionConfig()
   const upsertShare = useUpsertFileShare()
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const { features } = useDeploymentShape()
 
-  const share = settings?.share
-  const policy = settings?.policy ?? workspacePolicy
-  const canWrite = settings?.capabilities?.canWrite ?? owner.entityType === 'workspace'
   const shareReadReady = isFetchedAfterMount && !isShareError
   const saved = shareReadReady ? (share ?? null) : (share ?? initialShare ?? null)
-  const savedAccessMode =
-    saved?.authType ??
-    (owner.entityType === 'project'
-      ? (policy?.allowedAuthTypes?.[0] ?? 'public')
-      : savedMode(saved))
+  const savedAccessMode = savedMode(saved)
 
   const [draftMode, setDraftMode] = useState<ShareAuthType | null>(null)
   const [draftPassword, setDraftPassword] = useState('')
@@ -129,7 +88,7 @@ function ShareModalContent({
   const effectiveMode = draftMode ?? savedAccessMode
   const effectiveEmails = draftEmails ?? saved?.allowedEmails ?? EMPTY_EMAILS
 
-  const allowedAuthTypes = policy?.allowedAuthTypes ?? (workspacePolicy ? null : [])
+  const allowedAuthTypes = permissionConfig.allowedFileShareAuthTypes
   const isAuthTypeAllowed = (mode: ShareAuthType) =>
     allowedAuthTypes === null || allowedAuthTypes.includes(mode)
 
@@ -146,7 +105,7 @@ function ShareModalContent({
 
   const modeDisallowed = !isAuthTypeAllowed(effectiveMode)
   const enableBlockedByPolicy =
-    (!policy?.canPublish && (owner.entityType === 'project' || !saved?.isActive)) || modeDisallowed
+    (permissionConfig.disablePublicFileSharing && !saved?.isActive) || modeDisallowed
 
   const passwordMissing =
     effectiveMode === 'password' && !saved?.hasPassword && draftPassword.trim().length === 0
@@ -179,9 +138,9 @@ function ShareModalContent({
   }
 
   const submitPrimaryAction = () => {
-    if (!shareReadReady || !canWrite || upsertShare.isPending) return
+    if (!shareReadReady || upsertShare.isPending) return
 
-    const base = { owner, fileId, token: saved ? undefined : generateShortId() }
+    const base = { workspaceId, fileId, token: saved ? undefined : generateShortId() }
     const vars = isUnshareAction
       ? { ...base, isActive: false as const }
       : effectiveMode === 'password'
@@ -219,10 +178,9 @@ function ShareModalContent({
 
   const accessHint = (() => {
     if (isShareError) return 'Unable to load the current sharing settings. Close and try again.'
-    if (!canWrite) return 'You have read-only access to this file.'
     if (modeDisallowed) return 'This sharing method is disabled by an administrator.'
     if (enableBlockedByPolicy)
-      return `Public sharing is disabled for this ${owner.entityType === 'project' ? 'Project' : 'workspace'} by an administrator.`
+      return 'Public sharing is disabled for this workspace by an administrator.'
     if (effectiveMode === 'password')
       return 'Anyone with the link and the password can view and download this file.'
     if (effectiveMode === 'email')
@@ -252,7 +210,7 @@ function ShareModalContent({
               value={effectiveMode}
               onValueChange={(value) => setDraftMode(value as ShareAuthType)}
               aria-label='File access'
-              disabled={upsertShare.isPending || !canWrite}
+              disabled={upsertShare.isPending}
             >
               {accessModes.map((mode) => (
                 <ChipButtonGroupItem key={mode} value={mode}>
@@ -275,7 +233,7 @@ function ShareModalContent({
                 value={draftPassword}
                 onChange={setDraftPassword}
                 placeholder={saved?.hasPassword ? '••••••••' : 'Enter a password'}
-                disabled={upsertShare.isPending || !canWrite}
+                disabled={upsertShare.isPending}
               />
             </ChipModalField>
           ) : null}
@@ -289,7 +247,7 @@ function ShareModalContent({
               allowDomains
               placeholder='Enter emails or domains'
               placeholderWithTags='Add email or domain'
-              disabled={upsertShare.isPending || !canWrite}
+              disabled={upsertShare.isPending}
             />
           ) : null}
         </ChipModalBody>
@@ -316,7 +274,6 @@ function ShareModalContent({
             disabled:
               upsertShare.isPending ||
               !shareReadReady ||
-              !canWrite ||
               (!isUnshareAction && (passwordMissing || emailsMissing || enableBlockedByPolicy)),
           }}
         />

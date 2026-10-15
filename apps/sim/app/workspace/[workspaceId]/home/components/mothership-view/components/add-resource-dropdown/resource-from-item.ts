@@ -4,7 +4,15 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 
-/** Builds the resource a picker row addresses, preserving its owner and execution context. */
+/**
+ * Builds the resource a picker row stands for.
+ *
+ * Every menu that selects a candidate goes through here so a family's extra
+ * identifier reaches the resource. Constructing the literal inline silently
+ * drops it — a log selected that way loses the execution id its chat context is
+ * addressed by. Only `executionId` is carried today; add a field here when
+ * another family needs one.
+ */
 export function resourceFromItem(
   type: MothershipResourceType,
   item: AvailableItem
@@ -15,9 +23,6 @@ export function resourceFromItem(
     id: item.id,
     title: item.name,
     ...(executionId ? { executionId } : {}),
-    ...(item.owner ? { owner: item.owner } : {}),
-    ...(item.owner?.entityType !== 'project' && typeof item.workspaceId === 'string'
-      ? { workspaceId: item.workspaceId }
-      : {}),
+    ...(typeof item.workspaceId === 'string' ? { workspaceId: item.workspaceId } : {}),
   }
 }

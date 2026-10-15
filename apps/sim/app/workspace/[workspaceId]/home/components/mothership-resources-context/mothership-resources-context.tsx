@@ -21,8 +21,7 @@ interface MothershipResourcesContextValue {
   removeResource: (
     resourceType: MothershipResourceType,
     resourceId: string,
-    workspaceId?: string,
-    owner?: MothershipResource['owner']
+    workspaceId?: string
   ) => void
   /** Replaces the resource list with a new ordering. */
   reorderResources: (resources: MothershipResource[]) => void

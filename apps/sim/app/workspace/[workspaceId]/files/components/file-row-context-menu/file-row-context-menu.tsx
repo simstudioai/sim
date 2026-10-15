@@ -15,7 +15,7 @@ import {
   FolderInput,
   Pencil,
 } from '@sim/emcn'
-import { Clock, Download, Duplicate, Link, Pin, Send, Trash } from '@sim/emcn/icons'
+import { Download, Link, Pin, Send, Trash } from '@sim/emcn/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
 import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
@@ -27,13 +27,11 @@ interface FileRowContextMenuProps {
   onOpen: () => void
   onCopyLink?: () => void
   onDownload?: () => void
-  onHistory?: () => void
-  onCopy?: () => void
   onRename: () => void
   onDelete: () => void
   onMove?: (optionValue: string) => void
   onShare?: () => void
-  onTogglePin?: () => void
+  onTogglePin: () => void
   /** Pin state of the right-clicked row, driving the Pin/Unpin label. */
   pinned: boolean
   moveOptions?: MoveOptionNode[]
@@ -48,8 +46,6 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   onOpen,
   onCopyLink,
   onDownload,
-  onHistory,
-  onCopy,
   onRename,
   onDelete,
   onMove,
@@ -70,10 +66,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
    * @see `.claude/rules/sim-list-ordering.md` — one rule, before the destructive group.
    */
   const hasActionsAboveDestructive =
-    !isMultiSelect ||
-    !!onDownload ||
-    !!onCopy ||
-    (!!onMove && !!moveOptions && moveOptions.length > 0)
+    !isMultiSelect || !!onDownload || (!!onMove && !!moveOptions && moveOptions.length > 0)
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -109,19 +102,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             {selectionActionLabel('Download', selectedCount)}
           </DropdownMenuItem>
         )}
-        {!isMultiSelect && onHistory && (
-          <DropdownMenuItem onSelect={onHistory}>
-            <Clock />
-            Version History
-          </DropdownMenuItem>
-        )}
-        {onCopy && (
-          <DropdownMenuItem onSelect={onCopy}>
-            <Duplicate />
-            {selectionActionLabel('Copy', selectedCount, 'Copy to...')}
-          </DropdownMenuItem>
-        )}
-        {!isMultiSelect && onTogglePin && (
+        {!isMultiSelect && (
           <DropdownMenuItem onSelect={onTogglePin}>
             <Pin />
             {pinned ? 'Unpin' : 'Pin'}

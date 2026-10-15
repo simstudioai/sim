@@ -119,8 +119,7 @@ export interface StreamLoopDeps {
   removeResource: (
     resourceType: MothershipResourceType,
     resourceId: string,
-    workspaceId?: string,
-    owner?: MothershipResource['owner']
+    workspaceId?: string
   ) => void
   /** Drops a queued client write that would re-add a resource the server already removed. */
   discardPendingResourceUpsert: (

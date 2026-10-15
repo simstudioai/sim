@@ -1,17 +1,8 @@
-import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
-
-export interface AvailableItem {
-  id: string
-  name: string
-  owner?: EditableFileOwner
-  projectName?: string
-  selectable?: boolean
-  [key: string]: unknown
-}
+export type AvailableItem = { id: string; name: string; [key: string]: unknown }
 
 export type ResourceTreeNode =
   | { kind: 'item'; id: string; item: AvailableItem }
-  | { kind: 'folder'; id: string; name: string; selectable?: boolean; children: ResourceTreeNode[] }
+  | { kind: 'folder'; id: string; name: string; children: ResourceTreeNode[] }
 
 export interface BuildResourceFolderTreeOptions {
   /**
@@ -89,15 +80,9 @@ export function buildResourceFolderTree(
 
     for (const folder of childFolders) {
       const children = buildLevel(folder.id)
-      if ((options?.pruneEmpty || folder.selectable === false) && children.length === 0) continue
+      if (options?.pruneEmpty && children.length === 0) continue
       sources.push(folder)
-      nodes.push({
-        kind: 'folder',
-        id: folder.id,
-        name: folder.name,
-        children,
-        ...(folder.selectable === false ? { selectable: false } : {}),
-      })
+      nodes.push({ kind: 'folder', id: folder.id, name: folder.name, children })
     }
     for (const item of childItems) {
       sources.push(item)

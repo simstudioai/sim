@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { QueryClient } from '@tanstack/react-query'
 import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
-import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-query'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 const logger = createLogger('SeedWorkspaceFiles')
 

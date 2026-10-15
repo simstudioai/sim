@@ -368,8 +368,7 @@ function renderUseChatInChat(
     defaultOptions: { queries: { retry: false } },
   }),
   selectedResourceId?: string,
-  requestMode?: 'agent' | 'assistant',
-  strictMode = false
+  requestMode?: 'agent' | 'assistant'
 ): {
   getResult: () => ReturnType<typeof useChat>
   unmount: () => void
@@ -393,15 +392,11 @@ function renderUseChatInChat(
     return null
   }
 
-  const render = () => {
-    const surface = (
-      <QueryClientProvider client={queryClient}>
-        <Probe />
-      </QueryClientProvider>
+  act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>{(<Probe />) as ReactNode}</QueryClientProvider>
     )
-    root.render(strictMode ? <StrictMode>{surface}</StrictMode> : surface)
-  }
-  act(render)
+  })
 
   return {
     getResult: () => {
@@ -413,7 +408,13 @@ function renderUseChatInChat(
       chatId = nextChatId
       mockUsePathname.mockReturnValue(`/workspace/ws-1/chat/${chatId}`)
       queryClient.setQueryData(mothershipChatKeys.detail(chatId), nextHistory)
-      act(render)
+      act(() =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      )
     },
   }
 }
@@ -556,39 +557,24 @@ function renderComposerSwap(): {
  * mounts, aborting the in-flight POST, and `consume` has already cleared the
  * entry so the second mount has nothing to replay.
  */
-function renderStrictModeHandoffConsumer() {
+function renderStrictModeHandoffConsumer(): void {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const container = document.createElement('div')
   const root = createRoot(container)
   mountedRoots.push(root)
-  let result: ReturnType<typeof useChat> | undefined
 
   function Probe() {
-    const chat = useChat('ws-1', undefined)
-    result = chat
-    const { sendMessage, addResource } = chat
+    const { sendMessage } = useChat('ws-1', undefined)
     useEffect(() => {
       const handoff = MothershipHandoffStorage.consume('ws-1')
-      if (!handoff) return
-      if (!handoff.message) {
-        for (const context of handoff.contexts ?? []) {
-          if (context.kind !== 'file_selection') continue
-          addResource({
-            type: 'file',
-            id: context.fileId,
-            title: context.fileName,
-            owner: context.owner,
-          })
-        }
-        return
-      }
+      if (!handoff?.message) return
       sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
         ...(handoff.resumeUserMessageId
           ? { resumeUserMessageId: handoff.resumeUserMessageId }
           : {}),
       })
-    }, [sendMessage, addResource])
+    }, [sendMessage])
     return null
   }
 
@@ -599,10 +585,6 @@ function renderStrictModeHandoffConsumer() {
       </StrictMode>
     )
   })
-  return () => {
-    if (result === undefined) throw new Error('Hook result is not ready')
-    return result
-  }
 }
 
 /** Every queued message across all chat keys, flattened. */
@@ -645,32 +627,6 @@ describe('useChat remount send recovery', () => {
     }
     queryClient?.clear()
     resetDeploymentShape()
-  })
-
-  it('retains a Project file from a chip-only handoff across StrictMode initialization', () => {
-    const owner = { entityType: 'project', entityId: 'project-1' } as const
-    MothershipHandoffStorage.store(
-      {
-        contexts: [
-          {
-            kind: 'file_selection',
-            fileId: 'file-1',
-            fileName: 'Architecture.md',
-            label: 'Architecture.md (selection)',
-            text: 'Shared architecture context',
-            owner,
-          },
-        ],
-      },
-      'ws-1'
-    )
-
-    const getResult = renderStrictModeHandoffConsumer()
-
-    expect(getResult().resources).toEqual([
-      { type: 'file', id: 'file-1', title: 'Architecture.md', owner },
-    ])
-    expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
   })
 
   it.each([false, true])(
@@ -980,51 +936,6 @@ describe('useChat remount send recovery', () => {
       expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
       expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
     })
-  })
-
-  it('reconnects a cached active chat after StrictMode replays its mount effects', async () => {
-    const history: MothershipChatHistory = {
-      id: 'chat-strict-reconnect',
-      title: 'Project architecture',
-      activeStreamId: 'accepted-architecture',
-      messages: [
-        {
-          id: 'accepted-architecture',
-          role: 'user',
-          content: 'Read the architecture',
-          timestamp: '',
-        },
-      ],
-      resources: [],
-    }
-    const event: MothershipStreamV1EventEnvelope = {
-      v: 1,
-      seq: 1,
-      ts: new Date().toISOString(),
-      type: 'text',
-      stream: { streamId: 'accepted-architecture', cursor: '1' },
-      payload: { channel: 'assistant', text: 'Recovered architecture response.' },
-    }
-    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (!String(input).includes('/api/mothership/chat/stream')) return fetchStub(input, init)
-      return Response.json({
-        success: true,
-        events: [{ eventId: 1, streamId: 'accepted-architecture', event }],
-        status: 'complete',
-      })
-    })
-    const { getResult } = renderUseChatInChat(
-      history.id,
-      history,
-      undefined,
-      undefined,
-      undefined,
-      true
-    )
-    await act(async () => {})
-    expect(getResult().messages.find((message) => message.role === 'assistant')?.content).toBe(
-      'Recovered architecture response.'
-    )
   })
 
   it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {

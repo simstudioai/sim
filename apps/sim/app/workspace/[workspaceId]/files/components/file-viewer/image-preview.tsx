@@ -1,12 +1,12 @@
 'use client'
 
 import { memo, useState } from 'react'
-import type { ViewerFileRecord } from '@/app/workspace/[workspaceId]/files/components/file-viewer/types'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 import { PREVIEW_LOADING_OVERLAY, UnsupportedPreview } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
 
-export const ImagePreview = memo(function ImagePreview({ file }: { file: ViewerFileRecord }) {
+export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   const source = useFileContentSource()
   /** `v` busts the browser cache across content writes; `preview` lets the server
    *  substitute a renderable JPEG for a HEIC. */

@@ -51,9 +51,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function source(
-  content = 'latest visible content'
-): Extract<FileDownloadSource, { workspaceId: string }> {
+function source(content = 'latest visible content'): FileDownloadSource {
   return { fileId: file.id, workspaceId: file.workspaceId, getContent: vi.fn(() => content) }
 }
 

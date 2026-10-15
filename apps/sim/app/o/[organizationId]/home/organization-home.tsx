@@ -7,7 +7,6 @@ import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
-import { getProjectContract } from '@/lib/api/contracts/projects'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
@@ -48,8 +47,7 @@ import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { getProjectFileQueryOptions } from '@/hooks/queries/project-files'
-import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/utils/workspace-file-query'
+import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
@@ -94,8 +92,6 @@ function OrganizationHomeContent({
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const planEnabled = useFeatureFlag('mothership-plan-mode')
-  const projectsEnabled = useFeatureFlag('projects')
-
   const requestMode =
     selectedMode ??
     (urlSearchLevel && searchAccess.memberScoped && !chatId ? 'assistant' : undefined) ??
@@ -172,30 +168,11 @@ function OrganizationHomeContent({
   ])
   const selectResource = useCallback(
     async (ref: WorkspaceResourceRef) => {
+      if (!ref.workspaceId) {
+        toast.error('This resource has no workspace address.')
+        return
+      }
       try {
-        if (ref.type === 'file' && ref.owner?.entityType === 'project') {
-          if (!projectsEnabled) return
-          if (!ref.id) throw new Error('Missing Project file identity')
-          await requestJson(getProjectContract, {
-            params: { id: ref.owner.entityId },
-            query: { organizationId: organization.id },
-          })
-          const result = await queryClient.fetchQuery({
-            ...getProjectFileQueryOptions(ref.owner.entityId, ref.id),
-            staleTime: 0,
-          })
-          addResource({
-            type: 'file',
-            id: result.file.id,
-            title: result.file.name,
-            owner: result.file.owner,
-          })
-          return
-        }
-        if (!ref.workspaceId) {
-          toast.error('This resource has no workspace address.')
-          return
-        }
         const host = await requestJson(getWorkspaceHostContextContract, {
           params: { id: ref.workspaceId },
         })
@@ -217,7 +194,7 @@ function OrganizationHomeContent({
         toast.error(`Couldn't open "${ref.title}". Check your access and try again.`)
       }
     },
-    [queryClient, addResource, organization.id, projectsEnabled]
+    [queryClient, addResource, organization.id]
   )
   const files = useFileAttachments({
     userId: session?.user?.id,
