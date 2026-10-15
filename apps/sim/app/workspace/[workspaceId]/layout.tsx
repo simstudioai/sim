@@ -15,6 +15,7 @@ import {
 } from '@/lib/desktop/executor/availability'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
+import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { ApplicationLoading } from '@/app/_shell/application-loading'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -131,6 +132,7 @@ async function WorkspaceContent({
     changelogEnabled,
     desktopExecutorRegistered,
     computerUseEnabled,
+    projectsEnabled,
   ] = await Promise.all([
     cookies(),
     orgSettings,
@@ -149,6 +151,7 @@ async function WorkspaceContent({
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
     isComputerUseAvailable(),
+    isProjectsEnabled(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -164,6 +167,7 @@ async function WorkspaceContent({
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
+          projects: projectsEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>

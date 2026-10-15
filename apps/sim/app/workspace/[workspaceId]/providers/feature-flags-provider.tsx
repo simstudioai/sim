@@ -10,6 +10,7 @@ export interface WorkspaceFeatureFlags {
   'mothership-plan-mode': boolean
   'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
+  projects?: boolean
 }
 
 const FeatureFlagsContext = createContext<WorkspaceFeatureFlags | null>(null)

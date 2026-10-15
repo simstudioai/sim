@@ -12,6 +12,7 @@ import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
@@ -73,6 +74,7 @@ export default async function OrganizationLayout({
     computerUseEnabled,
     workflowTestsEnabled,
     changelogEnabled,
+    projectsEnabled,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -89,6 +91,7 @@ export default async function OrganizationLayout({
     isComputerUseAvailable(),
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
+    isProjectsEnabled(),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -103,6 +106,7 @@ export default async function OrganizationLayout({
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': benchmarkEnabled,
           'mothership-memory-spaces': benchmarkEnabled,
+          projects: projectsEnabled,
         }}
       >
         <OrganizationProvider context={context}>
