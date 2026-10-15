@@ -57,16 +57,27 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
 vi.mock('@/lib/auth', () => authMock)
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
-/** Recovery's own workspace re-check, so a test can lose access after authorization passed. */
-const { workspacePermission } = vi.hoisted(() => ({ workspacePermission: { revoked: false } }))
+/**
+ * Recovery's own workspace re-check runs only after authorization passed; `beforeRecheck` lets
+ * a test change real access at exactly that point.
+ */
+const { workspacePermission } = vi.hoisted(() => ({
+  workspacePermission: {
+    rechecks: 0,
+    beforeRecheck: undefined as (() => Promise<void>) | undefined,
+  },
+}))
 vi.mock('@/lib/workspaces/permissions/utils', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/lib/workspaces/permissions/utils')>()
   return {
     ...original,
-    getUserEntityPermissions: (...args: Parameters<typeof original.getUserEntityPermissions>) =>
-      workspacePermission.revoked
-        ? Promise.resolve(null)
-        : original.getUserEntityPermissions(...args),
+    getUserEntityPermissions: async (
+      ...args: Parameters<typeof original.getUserEntityPermissions>
+    ) => {
+      workspacePermission.rechecks++
+      await workspacePermission.beforeRecheck?.()
+      return original.getUserEntityPermissions(...args)
+    },
   }
 })
 
@@ -344,7 +355,8 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     worker.requests.length = 0
     resetEnvFlagsMock()
     featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
-    workspacePermission.revoked = false
+    workspacePermission.rechecks = 0
+    workspacePermission.beforeRecheck = undefined
     await redis().del(ABANDONED_RUN_CURSOR_KEY)
     await db
       .insert(permissions)
@@ -722,10 +734,17 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
   })
 
   it('settles the run as revoked when access is lost after authorization passed', async () => {
-    workspacePermission.revoked = true
     const { streamId, runId, toolCallId } = await runAbandonedMidTool()
+    /** The user is removed from the workspace after authorization admitted them. */
+    workspacePermission.beforeRecheck = async () => {
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, userId), eq(permissions.entityId, workspaceId)))
+    }
 
     await takeOverAbandonedRuns()
+
+    expect(workspacePermission.rechecks).toBe(1)
 
     const run = await storedRun(runId)
     expect(run.status).toBe('error')

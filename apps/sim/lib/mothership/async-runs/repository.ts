@@ -24,6 +24,7 @@ import {
   like,
   lt,
   ne,
+  not,
   notInArray,
   or,
   type SQL,
@@ -734,11 +735,22 @@ export type ToolExecutionClaim =
   | { outcome: 'existing' }
 
 /**
+ * Every condition at once, typed as a condition: drizzle's `and` may return undefined, which a
+ * negation would render as `NOT (NULL)` and match nothing.
+ */
+function allOf(...conditions: SQL[]): SQL {
+  return sql`(${sql.join(
+    conditions.map((condition) => sql`(${condition})`),
+    sql` and `
+  )})`
+}
+
+/**
  * A Sim handler's execution of a call that has no result yet. Only a Sim handler sets
  * `executionStartedAt` without a browser workflow execution, so desktop and browser
  * executions, which settle their own lapses, never match.
  */
-const unfinishedSimExecution = and(
+const unfinishedSimExecution = allOf(
   eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
   isNotNull(copilotAsyncToolCalls.executionStartedAt),
   isNull(copilotAsyncToolCalls.executionSettledAt),
@@ -751,7 +763,7 @@ const unfinishedSimExecution = and(
  * owner's heartbeat never lets happen. A takeover runs it again until it has started
  * {@link SIM_TOOL_EXECUTION_MAX_ATTEMPTS} times.
  */
-const interruptedSimExecution = and(
+const interruptedSimExecution = allOf(
   unfinishedSimExecution,
   sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`,
   lt(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS)
@@ -761,7 +773,7 @@ const interruptedSimExecution = and(
  * An interrupted execution a takeover may still run again: its run still admits tools. Another
  * call's wait or workbench access must not revoke it as interrupted before that re-run.
  */
-const rerunnableSimExecution = and(
+const rerunnableSimExecution = allOf(
   interruptedSimExecution,
   sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.tool_admission_closed_at IS NULL AND r.status NOT IN (${sql.join(
     TERMINAL_RUN_STATUSES.map((status) => sql`${status}`),
@@ -1021,10 +1033,7 @@ export async function revokeExpiredSimToolExecutions(input: {
       tx,
       and(
         sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`,
-        or(
-          eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
-          sql`NOT (${rerunnableSimExecution})`
-        )
+        or(eq(copilotAsyncToolCalls.toolCallId, input.toolCallId), not(rerunnableSimExecution))
       )
     )
   )
@@ -1387,7 +1396,7 @@ export async function prepareWorkbenchAccess(
       and(
         sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`,
         /** This run was just verified to admit tools; every older run's admission just closed. */
-        sql`NOT (${and(eq(copilotAsyncToolCalls.runId, input.runId), interruptedSimExecution)})`
+        not(allOf(eq(copilotAsyncToolCalls.runId, input.runId), interruptedSimExecution))
       )
     )
     const previous = await tx

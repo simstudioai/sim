@@ -227,14 +227,19 @@ export async function acquirePendingChatStream(
     },
     async (span) => {
       const redis = getRedisClient()
-      const lease = { key: chatStreamLockKey(chatId), value: `${streamId}\n${generateId()}` }
+      const lease: ChatStreamLease = {
+        key: chatStreamLockKey(chatId),
+        value: `${streamId}\n${generateId()}`,
+      }
       span.setAttribute(TraceAttr.LockBackend, redis ? AbortBackend.Redis : AbortBackend.InProcess)
       if (redis) {
         const deadline = Date.now() + timeoutMs
         for (;;) {
           try {
+            const attemptedAt = Date.now()
             const acquired = await acquireLock(lease.key, lease.value, CHAT_STREAM_LOCK_TTL_SECONDS)
             if (acquired) {
+              lease.acquiredAt = attemptedAt
               registerPendingChatStream(chatId, streamId, lease)
               span.setAttribute(TraceAttr.LockAcquired, true)
               return true
@@ -357,7 +362,8 @@ export function startAbortPoller(
   const chatId = options?.chatId
   const lease = options?.lease ?? (chatId ? getLocalChatStreamLease(chatId, streamId) : undefined)
 
-  let lastHeartbeatAt = Date.now()
+  /** The lock's TTL runs from its last confirmed write: the acquisition until a renewal lands. */
+  let lastHeartbeatAt = lease?.acquiredAt ?? Date.now()
   let heartbeatOwnershipLost = false
   const stopController = (message: string) => {
     heartbeatOwnershipLost = true
