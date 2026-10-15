@@ -668,16 +668,40 @@ const nextConfig: NextConfig = {
     return redirects
   },
   async rewrites() {
-    return [
-      {
-        source: '/favicon.ico',
-        destination: '/icon.svg',
-      },
-      {
-        source: '/r/:shortCode',
-        destination: 'https://go.trybeluga.ai/:shortCode',
-      },
-    ]
+    return {
+      beforeFiles: [],
+      afterFiles: [
+        {
+          source: '/favicon.ico',
+          destination: '/icon.svg',
+        },
+        {
+          source: '/r/:shortCode',
+          destination: 'https://go.trybeluga.ai/:shortCode',
+        },
+      ],
+      /**
+       * Fallback rewrites run only after every page and dynamic route has failed to match, so
+       * this answers a Markdown client's 404 in Markdown without shadowing any real route.
+       * `text/markdown` must be one of the listed media ranges, and `q=0` (RFC 9110 §12.4.2:
+       * not acceptable) keeps the HTML page. Next anchors both patterns to the whole header.
+       */
+      fallback: [
+        {
+          source: '/:path*',
+          has: [{ type: 'header', key: 'accept', value: '(.*,)?\\s*text/markdown\\s*([;,].*)?' }],
+          missing: [
+            {
+              type: 'header',
+              key: 'accept',
+              value:
+                '(.*,)?\\s*text/markdown(\\s*;[^,]*?)?\\s*;\\s*q\\s*=\\s*0(\\.0{0,3})?\\s*(,.*)?',
+            },
+          ],
+          destination: '/markdown-not-found',
+        },
+      ],
+    }
   },
 }
 

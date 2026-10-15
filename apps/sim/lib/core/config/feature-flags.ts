@@ -120,6 +120,13 @@ const FEATURE_FLAGS = {
       'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',
     fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
+  'mothership-abandoned-run-takeover-disabled': {
+    description:
+      'Kill switch for Sim taking over Chat runs whose controller died (a deploy or a crash) and ' +
+      're-running their interrupted tool. Global on/off only; on stops every takeover scan. ' +
+      'Off by default, so takeovers run unless this is turned on.',
+    fallback: null,
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

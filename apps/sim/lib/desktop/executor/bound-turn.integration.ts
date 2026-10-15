@@ -511,7 +511,7 @@ describe.runIf(Boolean(redisUrl))("a turn bound to a desktop's background execut
 
       await lapse(toolCallId, 'lease')
       /** A Sim tool waiting on the same run sweeps its expired executions; this one is not its. */
-      await revokeExpiredSimToolExecutions({ runId: run.runId, userId })
+      await revokeExpiredSimToolExecutions({ runId: run.runId, userId, toolCallId: 'waiting-call' })
       expect((await storedCall(toolCallId)).status).toBe('running')
       await answer
       const late = await desktop.complete(toolCallId, executionToken, { output: 'built' })

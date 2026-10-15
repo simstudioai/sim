@@ -5,7 +5,13 @@ import {
   copilotRequestStops,
   copilotRuns,
 } from '@sim/db/schema'
-import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   areStreamToolExecutionsSettled,
@@ -185,6 +191,21 @@ describe('run admission and early Stop', () => {
   })
 })
 
+/** Finds a condition anywhere in a mocked expression, including inside `sql` and `sql.join` fragments. */
+function someNestedCondition(
+  node: unknown,
+  predicate: (condition: Record<string, unknown>) => boolean
+): boolean {
+  if (!node || typeof node !== 'object') return false
+  const record = node as Record<string, unknown>
+  if (predicate(record)) return true
+  return ['conditions', 'values', 'fragments'].some(
+    (key) =>
+      Array.isArray(record[key]) &&
+      (record[key] as unknown[]).some((child) => someNestedCondition(child, predicate))
+  )
+}
+
 describe('durable Sim tool ownership', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -240,12 +261,24 @@ describe('durable Sim tool ownership', () => {
         (condition) => condition.type === 'eq' && condition.right === input.userId
       )
     ).toBe(true)
+    /** A first execution, or a re-run of one whose owner died before it recorded a result. */
+    const claimable = flattenMockConditions(dbChainMockFns.where.mock.calls[1]?.[0]).find(
+      (condition) => condition.type === 'or'
+    )
+    const [firstExecution, interruptedExecution] = (claimable?.conditions ?? []) as unknown[]
     expect(
       hasMockCondition(
-        dbChainMockFns.where.mock.calls[1]?.[0],
+        firstExecution,
         (condition) =>
           condition.type === 'isNull' &&
           condition.column === copilotAsyncToolCalls.executionStartedAt
+      )
+    ).toBe(true)
+    expect(
+      someNestedCondition(
+        interruptedExecution,
+        (condition) =>
+          condition.type === 'lt' && condition.left === copilotAsyncToolCalls.executionAttempts
       )
     ).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
