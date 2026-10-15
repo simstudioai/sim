@@ -9,8 +9,17 @@ export interface SimToolExecutionOwner {
   ownerToken: string
 }
 
+/**
+ * Sim executions one call may start: the first, and a re-run each time a takeover finds the
+ * previous owner died before recording a result. A tool that kills its executor every time
+ * ends with {@link EXHAUSTED_SIM_TOOL_MESSAGE} instead of re-running forever.
+ */
+export const SIM_TOOL_EXECUTION_MAX_ATTEMPTS = 3
+
 export const INTERRUPTED_SIM_TOOL_MESSAGE =
   'Tool execution lost its owner before a result was recorded. Its outcome is unknown; inspect current state before retrying a mutation.'
+
+export const EXHAUSTED_SIM_TOOL_MESSAGE = `Tool execution was interrupted ${SIM_TOOL_EXECUTION_MAX_ATTEMPTS} times because the Sim server running it stopped, so it was not run again. Its outcome is unknown; inspect current state before retrying a mutation.`
 
 export class SimToolExecutionLeaseLostError extends Error {
   constructor() {

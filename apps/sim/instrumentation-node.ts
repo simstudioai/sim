@@ -414,4 +414,9 @@ export async function register() {
 
   const { startServiceUsageReplay } = await import('./lib/mothership/billing/service-delivery')
   startServiceUsageReplay()
+
+  const { startAbandonedRunTakeover } = await import(
+    './lib/mothership/request/application/abandoned-runs'
+  )
+  startAbandonedRunTakeover()
 }

@@ -73,6 +73,8 @@ export const ORPHANED_RUN_GRACE_MS = 60 * 60 * 1000
 export const LEGACY_RUN_GRACE_MS = 24 * 60 * 60 * 1000
 
 export const ORPHANED_RUN_ERROR = 'This response was interrupted before it finished.'
+export const REVOKED_RUN_ERROR =
+  'This response was stopped because you no longer have access to continue it.'
 export const LEGACY_RUN_ERROR = 'Run was never finalized (pre-lease run).'
 
 const SWEEP_BATCH_SIZE = 500
@@ -124,7 +126,7 @@ const stopRequested = sql`(EXISTS (SELECT 1 FROM ${copilotRequestStops} s
     WHERE s.user_id = ${copilotRuns.userId} AND s.organization_id = ${copilotRuns.organizationId}
       AND s.stream_id = ${copilotRuns.streamId}))`
 
-interface UnownedRun {
+export interface UnownedRun {
   id: string
   chatId: string
   streamId: string
@@ -144,9 +146,15 @@ const unownedRunColumns = {
   controllerToken,
 }
 
+const SETTLED_RUN_ERRORS = {
+  orphaned: ORPHANED_RUN_ERROR,
+  revoked: REVOKED_RUN_ERROR,
+  legacy: LEGACY_RUN_ERROR,
+} as const
+
 /** A run ends cancelled only if its user pressed Stop, whoever settles it. */
-function terminalValues(reason: 'orphaned' | 'legacy') {
-  const error = reason === 'orphaned' ? ORPHANED_RUN_ERROR : LEGACY_RUN_ERROR
+function terminalValues(reason: keyof typeof SETTLED_RUN_ERRORS) {
+  const error = SETTLED_RUN_ERRORS[reason]
   return {
     status: sql`(CASE WHEN ${stopRequested} THEN 'cancelled' ELSE 'error' END)::copilot_run_status`,
     error: sql`CASE WHEN ${stopRequested} THEN NULL ELSE ${error}::text END`,
@@ -171,7 +179,8 @@ function terminalValues(reason: 'orphaned' | 'legacy') {
 async function settleRuns(
   tx: DbTransaction,
   runs: UnownedRun[],
-  guard: SQL | undefined
+  guard: SQL | undefined,
+  reason: Exclude<keyof typeof SETTLED_RUN_ERRORS, 'legacy'> = 'orphaned'
 ): Promise<{ settled: UnownedRun[]; released: UnownedRun[] }> {
   if (runs.length === 0) return { settled: [], released: [] }
   const chatIds = [...new Set(runs.map((run) => run.chatId))]
@@ -235,7 +244,7 @@ async function settleRuns(
   for (const run of runs) {
     if (run.controllerToken === null) continue
     await apply([run], eq(controllerToken, run.controllerToken), {
-      ...terminalValues('orphaned'),
+      ...terminalValues(reason),
       completedAt: sql`now()`,
       updatedAt: sql`now()`,
     })
@@ -452,4 +461,65 @@ export async function settleStoppedRunWithoutController(runId: string): Promise<
   const { settled, released } = await db.transaction((tx) => settleRuns(tx, [run], stopRequested))
   announceReleased(released)
   return settled.length > 0
+}
+
+/**
+ * Settles a run its controller abandoned as an error when its user may no longer continue
+ * it. The run's chat lock is fenced as a takeover's would be, so a reconnect cannot claim
+ * the run while it settles; a run whose lock is held, or whose controller changed, is left.
+ */
+export async function settleRunWithoutAccess(run: UnownedRun): Promise<boolean> {
+  if (!run.controllerToken) return false
+  const fences = await fenceChatLocks([run])
+  if (fences.length === 0) return false
+  try {
+    const { settled, released } = await db.transaction((tx) =>
+      settleRuns(tx, [run], undefined, 'revoked')
+    )
+    announceReleased(released)
+    return settled.length > 0
+  } finally {
+    await releaseChatLocks(fences)
+  }
+}
+
+/**
+ * A run its controller is still driving writes its status at least once per leg, and a dead
+ * controller's chat lock lapses within this long, so a run written to more recently is not
+ * worth checking yet.
+ */
+const ABANDONED_RUN_IDLE_MS = 60_000
+
+/**
+ * Runs an interactive controller abandoned that a takeover can still resume: unfinished and
+ * not stopped, saved with their recovery intent, idle for a minute but within the recovery window, and
+ * with no controller holding their chat lock. Empty while the locks cannot be read, since then
+ * no run is provably abandoned.
+ */
+export async function findAbandonedRecoverableRuns(limit: number): Promise<UnownedRun[]> {
+  const candidates: UnownedRun[] = await db
+    .select(unownedRunColumns)
+    .from(copilotRuns)
+    .where(
+      and(
+        inArray(copilotRuns.status, UNFINISHED_RUN_STATUSES),
+        isNotNull(controllerToken),
+        sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`,
+        idleFor(ABANDONED_RUN_IDLE_MS),
+        not(idleFor(ORPHANED_RUN_GRACE_MS)),
+        not(stopRequested)
+      )
+    )
+    .orderBy(asc(copilotRuns.updatedAt))
+    .limit(limit)
+  if (candidates.length === 0) return []
+  try {
+    const locked = await findStreamsHoldingChatLock(candidates)
+    return candidates.filter((run) => !locked.has(run.streamId))
+  } catch (error) {
+    logger.warn('Chat stream ownership is unreadable; no run is taken over this round', {
+      error: getErrorMessage(error),
+    })
+    return []
+  }
 }
