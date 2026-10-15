@@ -425,14 +425,34 @@ func requireForegroundTarget(pid: pid_t, windowID: String, window: AXUIElement, 
             throw ComputerError("window_occluded", "Another of this app's windows covers the target point; observe that window and target it instead.")
         }
     } else if ![kAXMenuRole, kAXMenuItemRole, kAXMenuBarRole, kAXMenuBarItemRole].contains(attribute(hit, kAXRoleAttribute) as? String ?? "") {
-        throw ComputerError("window_occluded", "Cannot confirm which window receives this point; observe again before retrying.")
+        // Out-of-process panels (open and save) expose their contents without a window; they are
+        // reachable only inside the app's focused sheet, which must belong to the observed window.
+        let root = AXUIElementCreateApplication(pid)
+        guard let rawSheet = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(rawSheet) == AXUIElementGetTypeID(),
+              case let sheet = unsafeBitCast(rawSheet, to: AXUIElement.self), attribute(sheet, kAXRoleAttribute) as? String == kAXSheetRole,
+              elementRect(sheet)?.contains(point) == true, acceptsInput(sheet, observed: [(window, frame)]) else {
+            throw ComputerError("window_occluded", "Cannot confirm which window receives this point; observe again before retrying.")
+        }
     }
+}
+/// The window a sheet is attached to: its parent, or for an out-of-process panel that reports no
+/// parent, the window it reports as its own.
+func sheetOwner(_ sheet: AXUIElement) -> AXUIElement? {
+    for name in [kAXParentAttribute, kAXWindowAttribute] {
+        if let raw = attribute(sheet, name), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+            let owner = unsafeBitCast(raw, to: AXUIElement.self)
+            if attribute(owner, kAXRoleAttribute) as? String == kAXWindowRole { return owner }
+        }
+    }
+    return nil
 }
 /// Whether input aimed at an observed window may go to `window`: the observed window itself, or one of
 /// the app's dialogs or floating panels above it. Another document window, or one whose kind cannot be
 /// read, is refused.
 func acceptsInput(_ window: AXUIElement, observed: [(element: AXUIElement, frame: CGRect)]) -> Bool {
     if observed.contains(where: { CFEqual($0.element, window) && elementRect(window) == $0.frame }) { return true }
+    // A sheet (Go to Folder, an open or save panel) belongs to the window it is attached to.
+    if attribute(window, kAXRoleAttribute) as? String == kAXSheetRole { return sheetOwner(window).map { acceptsInput($0, observed: observed) } ?? false }
     let auxiliary: Set<String> = [kAXDialogSubrole, kAXSystemDialogSubrole, kAXFloatingWindowSubrole, kAXSystemFloatingWindowSubrole]
     return (attribute(window, kAXSubroleAttribute) as? String).map(auxiliary.contains) ?? false
 }
