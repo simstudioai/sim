@@ -21,6 +21,7 @@ import {
 import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   mergeWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { downloadFile, headObject } from '@/lib/uploads/core/storage-service'
 import {
@@ -77,6 +78,19 @@ function requireRevision(current: WorkspaceFileRow, expected: WorkspaceFileRow) 
   )
     throw new OrchestrationError('conflict', 'Shared file changed during the read')
 }
+function requirePublicBytes(provenance: WorkspaceFileSecretProvenance) {
+  if (
+    provenance.status === 'unknown' ||
+    (provenance.status === 'exact' && provenance.entries.length > 0)
+  )
+    throw new OrchestrationError('forbidden', 'File cannot be shared safely')
+}
+async function admitPublicFiles(tx: DbTransaction, files: readonly WorkspaceFileRow[]) {
+  const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, files)
+  const provenance = mergeWorkspaceFileSecretProvenance(...evidence.values())
+  requirePublicBytes(provenance)
+  return provenance
+}
 async function dependencies(
   tx: DbTransaction,
   snapshot: PublicFileShareSnapshot,
@@ -99,6 +113,7 @@ async function dependencies(
     .for('share')
   if (rows.length !== ids.length)
     throw new OrchestrationError('not_found', 'Document input not found')
+  await admitPublicFiles(tx, rows)
   return rows
 }
 async function finish(
@@ -128,6 +143,7 @@ async function finish(
       snapshot.file,
       ...current,
     ])
+    requirePublicBytes(mergeWorkspaceFileSecretProvenance(...evidence.values()))
     return {
       ...present(snapshot),
       buffer,
@@ -174,11 +190,10 @@ export async function checkPublicFileShareContent(
 ): Promise<void> {
   const operation = publicFileOperations.readContent
   try {
-    const initial = await withPublicFileShareGrant(
-      grant,
-      operation,
-      async (_tx, snapshot) => snapshot
-    )
+    const initial = await withPublicFileShareGrant(grant, operation, async (tx, snapshot) => {
+      await admitPublicFiles(tx, [snapshot.file])
+      return snapshot
+    })
     const stored = await headObject(initial.file.key, initial.adapter.storageContext)
     if (!stored) throw new OrchestrationError('not_found', 'File not found')
     assertKnownSizeWithinLimit(stored.size, MAX_BUFFERED_TRANSFER_BYTES, 'File')
@@ -228,6 +243,7 @@ export async function checkPublicFileShareContent(
         snapshot,
         inputs.map((file) => file.id)
       )
+      await admitPublicFiles(tx, [snapshot.file, ...current])
       for (let index = 0; index < current.length; index++) {
         requireRevision(current[index], inputs[index])
       }
@@ -245,11 +261,10 @@ export async function readPublicFileShareContent({
 }: PublicReadInput & { preview?: boolean }) {
   const operation = publicFileOperations.readContent
   try {
-    const initial = await withPublicFileShareGrant(
-      grant,
-      operation,
-      async (_tx, snapshot) => snapshot
-    )
+    const initial = await withPublicFileShareGrant(grant, operation, async (tx, snapshot) => {
+      await admitPublicFiles(tx, [snapshot.file])
+      return snapshot
+    })
     const raw = await downloadFile({
       key: initial.file.key,
       context: initial.adapter.storageContext,
@@ -257,7 +272,12 @@ export async function readPublicFileShareContent({
     })
     const format = await getE2BDocFormat(initial.file.originalName)
     const generated = Boolean(format && !isCompiledDocumentBuffer(initial.file.originalName, raw))
-    const source = raw.toString('utf8')
+    const source =
+      generated ||
+      initial.file.contentType === SIM_PAGE_CONTENT_TYPE ||
+      initial.file.originalName.toLowerCase().endsWith('.html')
+        ? raw.toString('utf8')
+        : ''
     const manifest = await withPublicFileShareGrant(
       grant,
       operation,
@@ -347,11 +367,10 @@ export async function readPublicFileShareInline({
   try {
     if (Boolean(fileId) === Boolean(key))
       throw new OrchestrationError('validation', 'Select one image reference')
-    const initial = await withPublicFileShareGrant(
-      grant,
-      operation,
-      async (_tx, snapshot) => snapshot
-    )
+    const initial = await withPublicFileShareGrant(grant, operation, async (tx, snapshot) => {
+      await admitPublicFiles(tx, [snapshot.file])
+      return snapshot
+    })
     const raw = await downloadFile({
       key: initial.file.key,
       context: initial.adapter.storageContext,
@@ -396,6 +415,7 @@ export async function readPublicFileShareInline({
           )
           .for('share')
         if (!file) throw new OrchestrationError('not_found', 'Embedded image not found')
+        await admitPublicFiles(tx, [snapshot.file, file])
         return { snapshot, dependencies: [file] }
       }
     )

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { getPublicInlineFileContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -33,16 +33,6 @@ export const GET = withRouteHandler(
         credential: await publicFileShareCredential(request.cookies.getAll(), getClientIp(request)),
       })
       if (!auth.authorized) return publicFileAuthDenied(auth)
-      if (request.method === 'HEAD') {
-        return new NextResponse(null, {
-          status: 405,
-          headers: {
-            Allow: 'GET',
-            'Cache-Control': FILE_CACHE_CONTROL.noStore,
-            'X-Content-Type-Options': 'nosniff',
-          },
-        })
-      }
       const result = await readPublicFileShareInline({
         grant: auth.grant,
         ...parsed.data.query,

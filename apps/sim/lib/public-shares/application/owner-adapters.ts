@@ -2,7 +2,7 @@ import { project, type WorkspaceFileRow, workspace } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
-import { lockProject, lockWorkspaceProject } from '@/lib/projects/membership'
+import { lockProjectShared, lockWorkspaceProject } from '@/lib/projects/membership'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import {
   type E2BDocFormat,
@@ -70,7 +70,7 @@ const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
   project: {
     async load(tx, entityId) {
       await requireProjectApiEnabled()
-      await lockProject(tx, entityId)
+      await lockProjectShared(tx, entityId)
       const [row] = await tx.select().from(project).where(eq(project.id, entityId)).for('share')
       if (!row || row.archivedAt) throw new OrchestrationError('not_found', 'File share not found')
       return {

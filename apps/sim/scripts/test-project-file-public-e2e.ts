@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, readFile, truncate, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
@@ -19,7 +20,7 @@ const databaseUrl = new URL(required(process.env.DATABASE_URL))
 const redisUrl = new URL(required(process.env.REDIS_URL))
 for (const url of [base, databaseUrl, redisUrl])
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname), 'Local runtime required')
-assert.match(databaseUrl.pathname, /test/i, 'Disposable database required')
+assertDisposableTestDatabaseUrl(databaseUrl.toString())
 assert.equal(base.protocol, 'http:')
 const reportPath = required(process.env.PROJECT_FILE_PUBLIC_REPORT_PATH)
 const fixtureDir = required(process.env.PROJECT_FILE_PUBLIC_FIXTURE_DIR)
@@ -270,6 +271,9 @@ try {
       assert.equal(bytes.status, 200)
       assert.ok(bytes.buffer.equals(image), 'Inline bytes differ from fixture')
       assert.equal(bytes.headers.get('content-type'), 'image/png')
+      const head = await request(`${path}/inline?fileId=${required(photo.id)}`, { method: 'HEAD' })
+      assert.equal(head.status, 200)
+      assert.equal(head.buffer.length, 0)
       assertBinaryError(await request(`${path}/inline?fileId=unreferenced`), 404)
       assert.equal(
         (await request(`${path}/inline?fileId=${required(photo.id)}&key=other`)).status,
@@ -401,7 +405,7 @@ try {
               body: { email: rejectedEmail, otp: '123456' },
             })
           ).status,
-          403
+          400
         )
         const key = `otp:file:${allowedEmail}:${share.id}`
         otpKeys.push(key)
@@ -430,7 +434,7 @@ try {
               body: { email: allowedEmail, otp: '000000' },
             })
           ).status,
-          429
+          400
         )
         assert.equal(await redis.get(key), null, 'Attempt exhaustion did not consume OTP')
         assert.equal((await request(path, { cookie })).status, 200)

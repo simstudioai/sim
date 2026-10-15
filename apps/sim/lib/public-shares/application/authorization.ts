@@ -28,6 +28,7 @@ interface PublicFileCredential {
   password?: string
   email?: string
   cookies?: Readonly<Record<string, string>>
+  resolveSessionPrincipal?: () => Promise<Principal | undefined>
   sessionPrincipal?: Principal
   clientIp?: string | null
 }
@@ -151,14 +152,16 @@ export async function authorizePublicFileShare({
 > {
   try {
     if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) unavailable()
-    const initial = await db.transaction(async (tx) => {
-      const snapshot = await loadSnapshot(tx, token)
-      const session =
-        snapshot.share.authType === 'sso' && credential.sessionPrincipal?.kind === 'session'
-          ? await loadSession(tx, credential.sessionPrincipal.userId)
-          : undefined
-      return { snapshot, session }
-    })
+    const snapshot = await db.transaction((tx) => loadSnapshot(tx, token))
+    const principal =
+      snapshot.share.authType === 'sso'
+        ? (credential.sessionPrincipal ?? (await credential.resolveSessionPrincipal?.()))
+        : undefined
+    const session =
+      principal?.kind === 'session'
+        ? await db.transaction((tx) => loadSession(tx, principal.userId))
+        : undefined
+    const initial = { snapshot, session }
     const result = await validateDeploymentCredentials(
       generateShortId(),
       initial.snapshot.share,

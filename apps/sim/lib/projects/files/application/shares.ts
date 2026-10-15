@@ -117,6 +117,7 @@ export const updateProjectFileShare = defineAuthorizedProjectFileUseCase<
       return {
         share: await upsertOwnedFileShare(tx, context.owner, {
           ...input,
+          authType: effectiveAuthType,
           userId: requirePrincipalSubjectUserId(principal),
         }),
       }

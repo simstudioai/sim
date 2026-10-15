@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { db } from '@sim/db'
+import { db, runOutsideTransactionContext } from '@sim/db'
 import {
   folder,
   idempotencyKey,
@@ -17,6 +17,7 @@ import {
   subscription,
   user,
   workspace,
+  workspaceFileSecretProvenance,
   workspaceFiles,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
@@ -38,6 +39,7 @@ import {
   createProjectFile,
   updateProjectFileContent,
 } from '@/lib/projects/files/application/content'
+import * as shareManager from '@/lib/public-shares/manager'
 import * as storage from '@/lib/uploads/core/storage-service'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -139,6 +141,84 @@ function createInput(projectId: string, content = 'Project architecture') {
 }
 
 describe('Public file shares against PostgreSQL and private storage', () => {
+  check(
+    'public delivery rejects unknown and secret-bearing provenance before storage',
+    async () => {
+      const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')
+      const { authorizePublicFileShare, readPublicFileShareContent } = await import(
+        '@/lib/public-shares/application'
+      )
+      const f = await fixture()
+      for (const secretProvenance of [
+        { status: 'unknown' as const },
+        {
+          status: 'exact' as const,
+          entries: [{ encryptedValue: 'private-fixture', sourceUserId: f.editorId }],
+        },
+      ]) {
+        const { file } = await createProjectFile.execute({
+          principal: f.principal,
+          input: {
+            ...createInput(f.projectId),
+            name: `${generateId()}.md`,
+            secretProvenance,
+          },
+        })
+        const { share } = await updateProjectFileShare.execute({
+          principal: f.principal,
+          input: {
+            projectId: f.projectId,
+            fileId: file.id,
+            isActive: true,
+          },
+        })
+        const access = await authorizePublicFileShare({
+          token: share.token,
+          credential: { method: 'GET' },
+        })
+        if (!access.authorized) throw new Error('Public fixture rejected')
+        const download = vi.spyOn(storage, 'downloadFile')
+        await expect(readPublicFileShareContent({ grant: access.grant })).rejects.toMatchObject({
+          code: 'forbidden',
+        })
+        expect(download).not.toHaveBeenCalled()
+        download.mockRestore()
+      }
+    }
+  )
+
+  check('non-SSO shares do not consult an unavailable session service', async () => {
+    const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')
+    const { authorizePublicFileShare } = await import('@/lib/public-shares/application')
+    const f = await fixture()
+    const { file } = await createProjectFile.execute({
+      principal: f.principal,
+      input: createInput(f.projectId),
+    })
+    const resolveSessionPrincipal = vi
+      .fn()
+      .mockRejectedValue(new Error('Session service unavailable'))
+    for (const authType of ['public', 'password', 'email'] as const) {
+      const { share } = await updateProjectFileShare.execute({
+        principal: f.principal,
+        input: {
+          projectId: f.projectId,
+          fileId: file.id,
+          isActive: true,
+          authType,
+          password: 'fixture-password',
+          allowedEmails: ['reader@shared.invalid'],
+        },
+      })
+      const result = await authorizePublicFileShare({
+        token: share.token,
+        credential: { method: 'GET', resolveSessionPrincipal },
+      })
+      expect(result.authorized).toBe(authType === 'public')
+    }
+    expect(resolveSessionPrincipal).not.toHaveBeenCalled()
+  })
+
   check(
     'public share configuration requires Project write and the canonical organization sharing policy',
     async () => {
@@ -274,6 +354,21 @@ describe('Public file shares against PostgreSQL and private storage', () => {
           input: { ...input, authType: 'password', password: 'a-valid-share-password' },
         })
         expect(allowed.share.authType).toBe('password')
+        const upsert = shareManager.upsertOwnedFileShare
+        const interleave = vi
+          .spyOn(shareManager, 'upsertOwnedFileShare')
+          .mockImplementationOnce(async (...args) => {
+            await runOutsideTransactionContext(() =>
+              db
+                .update(publicShare)
+                .set({ authType: 'public', isActive: false })
+                .where(eq(publicShare.id, allowed.share.id))
+            )
+            return upsert(...args)
+          })
+        const reenabled = await updateProjectFileShare.execute({ principal: f.principal, input })
+        expect(reenabled.share).toMatchObject({ authType: 'password', isActive: true })
+        interleave.mockRestore()
       } finally {
         await deleteWorkspaceFixture(db, eq(workspace.id, secondId))
       }
@@ -467,6 +562,17 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         await requestPublicFileShareOtp({ token: share.token, email: 'outsider@shared.invalid' })
       ).deliver()
       expect(await otpStore.getOTP('file', share.id, 'outsider@shared.invalid')).toBeNull()
+      const failure = { authorized: false, status: 400, error: 'Invalid verification code' }
+      expect(
+        await verifyPublicFileShareOtp({
+          token: share.token,
+          email: 'outsider@shared.invalid',
+          otp: '000000',
+        })
+      ).toEqual(failure)
+      expect(await verifyPublicFileShareOtp({ token: share.token, email, otp: '000000' })).toEqual(
+        failure
+      )
       await (await requestPublicFileShareOtp({ token: share.token, email })).deliver()
       const stored = await otpStore.getOTP('file', share.id, email)
       if (!stored) throw new Error('Allowed email received no code')
@@ -613,7 +719,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
         '@/lib/public-shares/application'
       )
       const { encryptSecret } = await import('@/lib/core/security/encryption')
-      for (const change of ['disabled', 'password', 'archived'] as const) {
+      for (const change of ['disabled', 'password', 'archived', 'provenance'] as const) {
         const f = await fixture()
         const { file } = await createProjectFile.execute({
           principal: f.principal,
@@ -648,6 +754,11 @@ describe('Public file shares against PostgreSQL and private storage', () => {
                 .update(publicShare)
                 .set({ password: (await encryptSecret('replacement-password')).encrypted })
                 .where(eq(publicShare.id, share.id))
+            if (change === 'provenance')
+              await db
+                .update(workspaceFileSecretProvenance)
+                .set({ status: 'unknown' })
+                .where(eq(workspaceFileSecretProvenance.fileId, file.id))
             if (change === 'archived')
               await db
                 .update(workspaceFiles)
@@ -657,7 +768,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
           return result
         })
         await expect(readPublicFileShareContent({ grant: access.grant })).rejects.toMatchObject({
-          code: 'not_found',
+          code: change === 'provenance' ? 'forbidden' : 'not_found',
         })
         spy.mockRestore()
       }

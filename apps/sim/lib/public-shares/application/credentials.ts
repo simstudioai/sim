@@ -28,7 +28,7 @@ const SSO_RESOURCE_RATE_LIMIT: TokenBucketConfig = {
   refillRate: 100,
   refillIntervalMs: 15 * 60_000,
 }
-const OTP_LOCKED_MESSAGE = 'Too many failed attempts. Please request a new code.'
+const OTP_FAILURE = { authorized: false as const, error: 'Invalid verification code', status: 400 }
 
 /** Exchanges a verified password for a cookie bound to the share's current password slot. */
 export async function authenticatePublicFileSharePassword({
@@ -113,27 +113,18 @@ export async function verifyPublicFileShareOtp({
   const allowed = await challenge.withCurrentPolicy(({ share }) =>
     isEmailAllowed(normalizedEmail, share.allowedEmails)
   )
-  if (!allowed) return { authorized: false as const, error: 'Email not authorized', status: 403 }
+  if (!allowed) return OTP_FAILURE
   const value = await getOTP('file', challenge.shareId, normalizedEmail)
   await challenge.withCurrentPolicy(() => undefined)
-  if (!value)
-    return {
-      authorized: false as const,
-      error: 'No verification code found, request a new one',
-      status: 400,
-    }
+  if (!value) return OTP_FAILURE
   const stored = decodeOTPValue(value)
   if (stored.attempts >= MAX_OTP_ATTEMPTS) {
     await deleteOTP('file', challenge.shareId, normalizedEmail)
-    return { authorized: false as const, error: OTP_LOCKED_MESSAGE, status: 429 }
+    return OTP_FAILURE
   }
   if (!safeCompare(stored.otp, otp)) {
-    const result = await incrementOTPAttempts('file', challenge.shareId, normalizedEmail, value)
-    return {
-      authorized: false as const,
-      error: result === 'locked' ? OTP_LOCKED_MESSAGE : 'Invalid verification code',
-      status: result === 'locked' ? 429 : 400,
-    }
+    await incrementOTPAttempts('file', challenge.shareId, normalizedEmail, value)
+    return OTP_FAILURE
   }
   await deleteOTP('file', challenge.shareId, normalizedEmail)
   const resource = await challenge.withCurrentPolicy(({ share }) => share)

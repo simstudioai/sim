@@ -13,6 +13,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -28,7 +29,7 @@ const base = new URL(required(process.env.PROJECT_FILE_SHARING_BASE_URL))
 const database = new URL(required(process.env.DATABASE_URL))
 for (const url of [base, database])
   assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname), 'Local runtime required')
-assert.match(database.pathname, /test/i, 'Disposable database required')
+assertDisposableTestDatabaseUrl(database.toString())
 const reportPath = required(process.env.PROJECT_FILE_SHARING_REPORT_PATH)
 const fixtureDir = required(process.env.PROJECT_FILE_SHARING_FIXTURE_DIR)
 const account = toRecord(JSON.parse(await readFile(join(fixtureDir, 'owner-account.json'), 'utf8')))
