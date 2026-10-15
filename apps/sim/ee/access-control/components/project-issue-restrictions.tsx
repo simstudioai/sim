@@ -1,6 +1,7 @@
 'use client'
 
 import { Checkbox, Chip, Info, OverflowText } from '@sim/emcn'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProjects } from '@/hooks/queries/projects'
 
@@ -20,7 +21,13 @@ export function ProjectIssueRestrictions({
   onChange,
 }: ProjectIssueRestrictionsProps) {
   const projects = useProjects(organizationId)
-  if (!projects.isEnabled || projects.isPending) return null
+  if (
+    !projects.isEnabled ||
+    projects.isPending ||
+    (isApiClientError(projects.error) && projects.error.status === 503)
+  ) {
+    return null
+  }
   const choices = projects.data?.pages.flatMap((page) => page.projects) ?? []
   if (!projects.error && choices.length === 0) return null
   const selected = new Set(value)

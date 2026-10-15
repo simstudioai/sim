@@ -2,7 +2,7 @@
 
 A Project groups environments. An environment is an existing `workspace` record; there is no separate environment table. Every newly created Project starts with an environment.
 
-Project APIs return HTTP 403 until the `projects` feature flag is on (AppConfig on hosted deployments; the `PROJECTS` secret elsewhere). The flag defaults off and gates Project and Project-file APIs through `requireProjectApiEnabled()`: workspace creation always assigns a Project atomically, and assigned Projects keep their lifecycle protections (fork inheritance, disconnect) either way. Disabling the flag does not disable retention or cleanup of existing Project data.
+Project APIs return HTTP 503 until the `projects` feature flag is on (AppConfig on hosted deployments; the `PROJECTS` secret elsewhere). The flag defaults off and gates Project and Project-file APIs through `requireProjectApiEnabled()`: workspace creation always assigns a Project atomically, and assigned Projects keep their lifecycle protections (fork inheritance, disconnect) either way. Disabling the flag does not disable retention or cleanup of existing Project data.
 
 ## Storage and consistency
 
