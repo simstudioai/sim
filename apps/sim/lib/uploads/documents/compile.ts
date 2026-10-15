@@ -2,8 +2,10 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { compareStrings } from '@sim/utils/string'
-import { ContentRefusedError, mustClassifyContent } from '@/lib/core/application'
+import { LRUCache } from 'lru-cache'
+import { ContentRefusedError } from '@/lib/core/application'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -161,7 +163,7 @@ interface ReferencedImageResolution {
   artifactIdentity?: string
 }
 
-export interface CompiledDocResult {
+interface CompiledDocResult {
   artifactKey?: string
   buffer: Buffer
   contentType: string
@@ -795,6 +797,38 @@ function cachedFromAdmittedVersions(
   })
 }
 
+/**
+ * Whether a cached build may be served to `principal`: every file it read is still at the version it
+ * read, and the principal's gate admits each one. Every principal is checked, not only a classified
+ * one, because the build's contributor identities travel with the bytes and a delivery receipt
+ * rejects a superseded one. A build whose input changed or was deleted compiles again.
+ */
+async function cachedBuildIsCurrent(
+  cached: CompiledDocCacheEntry,
+  workspaceId: string,
+  principal: Principal
+): Promise<boolean> {
+  const contributors = cached.contributingFiles ?? []
+  let resolution: ReferencedImageResolution
+  try {
+    resolution = await resolveReferencedFileIds(
+      workspaceId,
+      principal,
+      new Set(contributors.map((file) => file.fileId))
+    )
+  } catch (error) {
+    if (asOrchestrationError(error)?.code === 'not_found') return false
+    throw error
+  }
+  const records = resolution.images.map((image) => image.record)
+  if (!cachedFromAdmittedVersions(contributors, new Map(records.map((file) => [file.id, file])))) {
+    return false
+  }
+  const admitted = await admitWorkspaceFiles(principal, workspaceId, records, 'complete')
+  if (admitted.length !== records.length) throw new ContentRefusedError('workspace-file')
+  return true
+}
+
 async function compileDocInLegacySandbox(
   args: LegacyCompileArgs,
   fmt: E2BDocFormat
@@ -811,29 +845,11 @@ async function compileDocInLegacySandbox(
 
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
   const cached = compiledDocCache.get(cacheKey)
-  let cacheReadable = true
-  if (cached && args.filePrincipal && mustClassifyContent(args.filePrincipal)) {
-    const { images } = await resolveReferencedFileIds(
-      args.workspaceId,
-      args.filePrincipal,
-      new Set(cached.contributingFiles?.map((file) => file.fileId))
-    )
-    const records = images.map((image) => image.record)
-    cacheReadable = cachedFromAdmittedVersions(
-      cached.contributingFiles ?? [],
-      new Map(records.map((file) => [file.id, file]))
-    )
-    if (cacheReadable) {
-      const admitted = await admitWorkspaceFiles(
-        args.filePrincipal,
-        args.workspaceId,
-        records,
-        'complete'
-      )
-      if (admitted.length !== records.length) throw new ContentRefusedError('workspace-file')
-    }
-  }
-  if (cached && cacheReadable) {
+  if (
+    cached &&
+    (!args.filePrincipal ||
+      (await cachedBuildIsCurrent(cached, args.workspaceId, args.filePrincipal)))
+  ) {
     return {
       buffer: cached.buffer,
       contentType: fmt.contentType,
@@ -1033,7 +1049,7 @@ export function isCompiledDocumentBuffer(fileName: string, buffer: Buffer): bool
  *   not exist yet; the raw bytes are source, so serving them under the file's binary
  *   content type would be corrupt. The caller should signal "not ready" instead.
  */
-export type ServableDoc =
+type ServableDoc =
   | { kind: 'passthrough' }
   | { kind: 'artifact'; buffer: Buffer; contentType: string }
   | { kind: 'unavailable' }
@@ -1062,22 +1078,18 @@ export async function resolveServableDoc(
   }
 }
 
-const MAX_COMPILED_DOC_CACHE = 10
 interface CompiledDocCacheEntry {
   buffer: Buffer
   contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
-const compiledDocCache = new Map<string, CompiledDocCacheEntry>()
+const compiledDocCache = new LRUCache<string, CompiledDocCacheEntry>({ max: 10 })
 
 function compiledCacheSet(
   key: string,
   buffer: Buffer,
   contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
 ): void {
-  if (compiledDocCache.size >= MAX_COMPILED_DOC_CACHE) {
-    compiledDocCache.delete(compiledDocCache.keys().next().value as string)
-  }
   compiledDocCache.set(key, {
     buffer,
     ...(contributingFiles.length > 0 ? { contributingFiles } : {}),

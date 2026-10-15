@@ -57,7 +57,6 @@ export interface ImageDimensionsSource {
  * this source so the same components work in both contexts.
  */
 export interface FileContentSource {
-  owner?: EditableFileOwner
   buildUrl: (key: string, opts?: FileContentUrlOptions) => string
   /**
    * Map an embedded image `src` to a display URL scoped to the current context: the in-app source
@@ -91,7 +90,6 @@ function inlineImageSource(
   owner?: EditableFileOwner
 ): FileContentSource {
   return {
-    owner,
     buildUrl,
     resolveImageSrc: (src) => {
       if (!src) return src

@@ -214,6 +214,24 @@ describe('workspace file downloads', () => {
     ).rejects.toBeInstanceOf(ContentRefusedError)
   })
 
+  it('rechecks a session download whose rendered bytes embed other files', async () => {
+    mocks.getFile.mockResolvedValue(generatedDoc)
+    mocks.fetchServable.mockResolvedValue({
+      buffer: Buffer.from('%PDF-compiled'),
+      contentType: 'application/pdf',
+      receipt: {
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        files: [
+          { id: generatedDoc.id, key: generatedDoc.key, revision: 1 },
+          { id: 'file-embedded', key: 'workspace/workspace-1/logo.png', revision: 1 },
+        ],
+      },
+    })
+    vi.mocked(recheckFileReadReceipt).mockRejectedValueOnce(new Error('A file changed'))
+
+    await expect(downloadStream(generatedDoc.id)).rejects.toThrow('A file changed')
+  })
+
   it('reads no provenance for a session download, which no gate classifies', async () => {
     mocks.getFile.mockResolvedValue(plainFile)
     const result = await downloadStream(plainFile.id)

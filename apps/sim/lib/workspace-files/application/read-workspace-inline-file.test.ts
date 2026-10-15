@@ -92,6 +92,17 @@ describe('readWorkspaceInlineFile', () => {
     expect(mockDownloadFileStream).toHaveBeenCalled()
   })
 
+  it('delivers a session read of its own bytes on one authorization, without a receipt recheck', async () => {
+    const result = await readWorkspaceInlineFile.execute({
+      principal,
+      input: { workspaceId: 'ws-1', fileId: 'f1' },
+    })
+
+    expect(Buffer.from(await new Response(result.stream).arrayBuffer())).toEqual(Buffer.from('png'))
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).toHaveBeenCalledOnce()
+    expect(recheckFileReadReceipt).not.toHaveBeenCalled()
+  })
+
   it('authorizes a file-id reference against the asserted workspace before reading bytes', async () => {
     const result = await readWorkspaceInlineFile.execute({
       principal,

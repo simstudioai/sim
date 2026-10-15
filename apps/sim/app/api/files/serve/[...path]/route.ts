@@ -16,6 +16,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableDocBytes } from '@/lib/uploads/documents/compile'
@@ -24,7 +25,7 @@ import { FILE_CACHE_CONTROL, workspaceFileCacheControl } from '@/lib/uploads/ser
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { inferContextFromKey } from '@/lib/uploads/utils/file'
+import { inferContextFromKey, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
@@ -116,9 +117,6 @@ async function resolveServableBytes(params: {
   workspaceId: string | undefined
   options: ServeOptions
   ownerKey: string | undefined
-  filePrincipal?: Principal
-  /** The stored record's content type, where the caller has the record. */
-  fileType?: string
   signal: AbortSignal | undefined
 }): Promise<ServableBytes> {
   // `raw` is the stored source, already bounded by the read that produced it, but it
@@ -146,29 +144,16 @@ async function resolveTransformedBytes(params: {
   workspaceId: string | undefined
   options: ServeOptions
   ownerKey: string | undefined
-  filePrincipal?: Principal
-  fileType?: string
   signal: AbortSignal | undefined
 }): Promise<ServableBytes> {
-  const {
-    buffer,
-    filename,
-    storageKey,
-    workspaceId,
-    options,
-    ownerKey,
-    filePrincipal,
-    fileType,
-    signal,
-  } = params
+  const { buffer, filename, storageKey, workspaceId, options, ownerKey, signal } = params
 
   // The pdf model for pages: a page file stores its SOURCE (frontmatter +
   // markdown + sim: fences) and serving compiles it to the rendered document,
   // the same way a .pdf key stores its script and serves the binary. Raw
   // requests above still return the source; bespoke/legacy HTML falls through
-  // untouched. Sim pages store an EXTENSIONLESS name — the record type marks
-  // them; legacy pages still carry .html.
-  if (fileType === SIM_PAGE_CONTENT_TYPE || filename.toLowerCase().endsWith('.html')) {
+  // untouched.
+  if (filename.toLowerCase().endsWith('.html')) {
     const text = buffer.toString('utf8')
     if (isSimPageSource(text)) {
       const rendered = Buffer.from(
@@ -195,9 +180,7 @@ async function resolveTransformedBytes(params: {
   const doc = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
-    sourceMime: fileType,
     workspaceId,
-    filePrincipal,
     ownerKey,
     signal,
   })
@@ -246,9 +229,19 @@ function resolveServeCacheControl(
 ): string | undefined {
   if (context === 'workspace') return workspaceFileCacheControl(versioned, dependsOnReferencedFiles)
   if (versioned && !dependsOnReferencedFiles) return IMMUTABLE_CACHE_CONTROL
-  return context === 'workspace' || dependsOnReferencedFiles
-    ? WORKSPACE_REVALIDATE_CACHE_CONTROL
-    : undefined
+  return dependsOnReferencedFiles ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
+}
+
+/**
+ * The type a rendered workspace file is served under. A rendered Sim page is HTML; every other
+ * representation is named by the file's extension, as {@link resolveServableDocBytes} names it for
+ * local and cloud files, rather than by the stored record's type, so a `.csv` recorded as
+ * `application/vnd.ms-excel` still opens inline.
+ */
+function renderedWorkspaceContentType(file: WorkspaceFileRecord, renderedType: string): string {
+  return file.type === SIM_PAGE_CONTENT_TYPE && renderedType === 'text/html'
+    ? renderedType
+    : resolveEffectiveMimeType(undefined, file.name)
 }
 
 /**
@@ -418,7 +411,16 @@ export const GET = withRouteHandler(
         logger.info('Serve: document still compiling, returning 409', {
           message: error.message,
         })
-        return NextResponse.json({ error: 'Document is still being generated' }, { status: 409 })
+        return NextResponse.json(
+          { error: 'Document is still being generated' },
+          {
+            status: 409,
+            headers: {
+              'Cache-Control': FILE_CACHE_CONTROL.noStore,
+              'X-Content-Type-Options': 'nosniff',
+            },
+          }
+        )
       }
 
       const orchestrationError = asOrchestrationError(
@@ -462,21 +464,24 @@ async function handleWorkspaceFile(
   if (!workspaceId) throw new FileNotFoundError(`File not found: ${key}`)
 
   const input = { key, assertedWorkspaceId: workspaceId }
-  const { file } = await readWorkspaceFileRecordByKey.execute({ principal, input, request })
   if (request.method === 'HEAD') {
+    await readWorkspaceFileRecordByKey.execute({ principal, input, request })
     return new NextResponse(null, {
       headers: { 'Cache-Control': FILE_CACHE_CONTROL.noStore, 'X-Content-Type-Options': 'nosniff' },
     })
   }
+  let file: WorkspaceFileRecord
   let resolved: ServableBytes
   if (options.raw) {
-    const { content } = await readWorkspaceFileContentByKey.execute({ principal, input, request })
+    const read = await readWorkspaceFileContentByKey.execute({ principal, input, request })
+    file = read.file
     resolved = {
-      buffer: content,
+      buffer: read.content,
       contentType: getContentType(file.name),
       dependsOnReferencedFiles: false,
     }
   } else {
+    file = (await readWorkspaceFileRecordByKey.execute({ principal, input, request })).file
     const rendered = await fetchAuthorizedServableWorkspaceFileBuffer(file, principal, {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       signal: request.signal,
@@ -484,7 +489,7 @@ async function handleWorkspaceFile(
     const preview = options.preview ? await resolveServableImageBytes(rendered.buffer, key) : null
     resolved = {
       buffer: preview?.buffer ?? rendered.buffer,
-      contentType: preview?.contentType ?? rendered.contentType,
+      contentType: preview?.contentType ?? renderedWorkspaceContentType(file, rendered.contentType),
       dependsOnReferencedFiles: rendered.dependsOnReferencedFiles,
     }
     assertKnownSizeWithinLimit(
@@ -493,6 +498,8 @@ async function handleWorkspaceFile(
       'served file response'
     )
     await finishFileDelivery({
+      principal,
+      fileId: file.id,
       authorize: () => readWorkspaceFileRecordByKey.authorize({ principal, input, request }),
       receipt: rendered.receipt,
     })

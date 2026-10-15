@@ -68,7 +68,7 @@ own unless noted.
 
 | Path | U | E | R / C |
 |---|---|---|---|
-| File download (CLI `files get`) | Delivered once; invocation withheld from the model; workbench copy stays unknown | Redacted | Delivered |
+| File download (CLI `files get`) | Delivered once; invocation withheld from the model; workbench copy stays unknown | Opaque: into a chat workbench with entries imported, so output is redacted; refused without one | Delivered |
 | File download (run_code proxy) | Refused before bytes enter workbench history | Recorded in workbench history | Delivered |
 | Requested mounts | Refused before code executes, listed in `excludedInputs`; later calls remain usable | Recorded in workbench history | Delivered |
 | File text, version text, `files read`, grep | 403 | Redacted (grep redacts before clipping) | Delivered |
