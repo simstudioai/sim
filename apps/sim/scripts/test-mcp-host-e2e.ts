@@ -5,14 +5,17 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 
 /**
- * Exercises the public ownership challenge, host isolation, and the app-wide JSON 404 through a
- * running local app.
+ * Exercises the public ownership challenge, host isolation, the RFC 9727 API catalog, and the
+ * app-wide JSON 404 through a running local app.
  */
 const logger = createLogger('McpHostE2E')
 const CHALLENGE_PATH = '/.well-known/openai-apps-challenge'
 const EXPECTED_CHALLENGE = 'lFJ1-XIWpHGRNcgzTPl2Y_yYCTWLvlIbAvNRD08EvLI'
 const MCP_HOST = 'mcp.sim.test'
 const PROTECTED_RESOURCE_PATH = '/.well-known/oauth-protected-resource'
+const API_CATALOG_PATH = '/.well-known/api-catalog'
+const API_CATALOG_CONTENT_TYPE =
+  'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"'
 const startedAt = new Date().toISOString()
 
 const configuredBaseUrl = process.env.MCP_HOST_E2E_BASE_URL
@@ -83,7 +86,7 @@ try {
     })
   }
 
-  for (const path of [`${CHALLENGE_PATH}/extra`, '/login', '/api/health']) {
+  for (const path of [`${CHALLENGE_PATH}/extra`, '/login', '/api/health', API_CATALOG_PATH]) {
     await check(`dedicated MCP host rejects ${path}`, async () => {
       const { response } = await request(path, 'Mozilla/5.0')
       assert.equal(response.status, 404)
@@ -108,6 +111,31 @@ try {
       assert.deepEqual(JSON.parse(body), { error: 'Not found' })
     })
   }
+
+  for (const userAgent of ['', 'python-requests/2.32.3']) {
+    await check(`API catalog for ${userAgent || 'an empty User-Agent'}`, async () => {
+      const { response, body } = await request(API_CATALOG_PATH, userAgent, baseUrl.host)
+      assert.equal(response.status, 200)
+      assert.equal(response.headers.get('content-type'), API_CATALOG_CONTENT_TYPE)
+      assert.match(
+        response.headers.get('link') ?? '',
+        /\/\.well-known\/api-catalog>; rel="api-catalog"$/
+      )
+      const [api] = JSON.parse(body).linkset
+      assert.equal(new URL(api.anchor).pathname, '/api/v2')
+      assert.equal(new URL(api['service-desc'][0].href).pathname, '/openapi.json')
+      const status = new URL(api.status[0].href)
+      const health = await request(status.pathname, 'Mozilla/5.0', baseUrl.host)
+      assert.equal(health.response.status, 200, 'The catalog status link must resolve')
+    })
+  }
+
+  await check('API catalog answers HEAD with its Link header (RFC 9727 §2)', async () => {
+    const { response, body } = await request(API_CATALOG_PATH, '', baseUrl.host, 'HEAD')
+    assert.equal(response.status, 200)
+    assert.equal(body, '')
+    assert.match(response.headers.get('link') ?? '', /rel="api-catalog"$/)
+  })
 
   await check('application host still serves health checks', async () => {
     const { response } = await request('/api/health', 'Mozilla/5.0', baseUrl.host)

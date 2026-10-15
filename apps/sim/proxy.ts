@@ -295,15 +295,16 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
     pathname.startsWith('/api/webhooks/tiktok') ||
     pathname.startsWith('/api/webhooks/agentmail')
   const isMcpEndpoint = pathname.startsWith('/api/mcp/')
-  const isMcpDiscoveryEndpoint =
+  const isDiscoveryEndpoint =
     pathname.startsWith('/.well-known/oauth-authorization-server') ||
     pathname.startsWith('/.well-known/oauth-protected-resource') ||
-    pathname === '/.well-known/openai-apps-challenge'
+    pathname === '/.well-known/openai-apps-challenge' ||
+    pathname === '/.well-known/api-catalog'
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
   // Block suspicious requests, but exempt machine-to-machine endpoints that may
-  // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
-  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpDiscoveryEndpoint) {
+  // legitimately omit User-Agent headers (webhooks, MCP calls, and protocol discovery).
+  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isDiscoveryEndpoint) {
     // Scanner traffic (empty or tool user agents probing /admin.php etc.); the 403 is the response.
     logger.debug('Blocked suspicious request', {
       userAgent,
