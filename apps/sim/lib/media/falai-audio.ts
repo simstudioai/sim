@@ -26,6 +26,8 @@ export interface GenerateFalAudioParams {
   instrumental?: boolean
   /** When set, clones the voice from this reference sample (data URI) via a zero-shot clone model. */
   voiceSampleDataUri?: string
+  /** Ends the generation: the queued request is cancelled and every wait stops. */
+  signal?: AbortSignal
 }
 
 export interface GeneratedAudio {
@@ -94,11 +96,16 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
       ref_audio_url: params.voiceSampleDataUri,
       model_type: 'F5-TTS',
     }
-    const { requestId, data } = await runFalQueue(model, input, apiKey)
+    const { requestId, data } = await runFalQueue(model, input, apiKey, params.signal)
     const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
     if (!url) throw new Error('No audio URL in Fal.ai clone response')
-    const { buffer, contentType } = await downloadFalMedia(url)
-    const cost = await getFalAICostMetadata({ apiKey, endpointId: model, requestId })
+    const { buffer, contentType } = await downloadFalMedia(url, params.signal)
+    const cost = await getFalAICostMetadata({
+      apiKey,
+      endpointId: model,
+      requestId,
+      signal: params.signal,
+    })
     return {
       buffer,
       contentType: contentType.startsWith('audio/') ? contentType : 'audio/mpeg',
@@ -113,12 +120,17 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
   const input = buildInput(type, params, model)
 
   // For fal audio models the model ID is the queue endpoint.
-  const { requestId, data } = await runFalQueue(model, input, apiKey)
+  const { requestId, data } = await runFalQueue(model, input, apiKey, params.signal)
   const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
   if (!url) throw new Error('No audio URL in Fal.ai response')
 
-  const { buffer, contentType } = await downloadFalMedia(url)
-  const cost = await getFalAICostMetadata({ apiKey, endpointId: model, requestId })
+  const { buffer, contentType } = await downloadFalMedia(url, params.signal)
+  const cost = await getFalAICostMetadata({
+    apiKey,
+    endpointId: model,
+    requestId,
+    signal: params.signal,
+  })
 
   return {
     buffer,

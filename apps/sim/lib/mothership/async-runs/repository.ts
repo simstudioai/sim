@@ -36,10 +36,12 @@ import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/sess
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
 import { executableToolPermission } from '@/lib/mothership/async-runs/executable-tool-permission'
 import {
+  DEADLINE_SIM_TOOL_MESSAGE,
   EXHAUSTED_SIM_TOOL_MESSAGE,
   INTERRUPTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_LEASE_SECONDS,
   SIM_TOOL_EXECUTION_MAX_ATTEMPTS,
+  SIM_TOOL_RERUN_MIN_REMAINING_MS,
   SimToolExecutionLeaseLostError,
   type SimToolExecutionOwner,
 } from '@/lib/mothership/async-runs/execution-lease'
@@ -497,6 +499,8 @@ export async function upsertAsyncToolCall(input: {
   sealedContext?: AsyncCompletionData
   /** The call is held for the user's decision before anything may run it. */
   permissionRequested?: boolean
+  /** When the call must be settled by; the first row written for the call keeps its own. */
+  executionDeadlineAt?: Date
 }) {
   return await withDbSpan(
     TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
@@ -543,6 +547,9 @@ export async function upsertAsyncToolCall(input: {
             status: incomingStatus,
             ...(sealedContext !== undefined ? { result: sealedContext } : {}),
             ...(input.permissionRequested ? { permissionRequestedAt: now } : {}),
+            ...(input.executionDeadlineAt
+              ? { executionDeadlineAt: input.executionDeadlineAt }
+              : {}),
             updatedAt: now,
           })
           .onConflictDoNothing()
@@ -758,15 +765,19 @@ const unfinishedSimExecution = allOf(
   isNull(copilotAsyncToolCalls.clientWorkflowExecutionId)
 )
 
+/** A call whose deadline leaves less than a re-run needs; a call without one never matches. */
+const tooLateToRerun = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} < clock_timestamp() + ${SIM_TOOL_RERUN_MIN_REMAINING_MS} * interval '1 millisecond')`
+
 /**
  * A Sim execution whose owner died before recording a result: its lease lapsed, which a live
  * owner's heartbeat never lets happen. A takeover runs it again until it has started
- * {@link SIM_TOOL_EXECUTION_MAX_ATTEMPTS} times.
+ * {@link SIM_TOOL_EXECUTION_MAX_ATTEMPTS} times, while enough of its deadline remains.
  */
 const interruptedSimExecution = allOf(
   unfinishedSimExecution,
   sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`,
-  lt(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS)
+  lt(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS),
+  not(tooLateToRerun)
 )
 
 /**
@@ -994,8 +1005,11 @@ export async function getChatViewDesktopLeaseRemainingMs(
   return row ? Number(row.remainingMs) : null
 }
 
-/** Why a lapsed execution ended without a result: once, or after every re-run it was allowed. */
-const interruptionMessage = sql<string>`CASE WHEN ${copilotAsyncToolCalls.executionAttempts} >= ${SIM_TOOL_EXECUTION_MAX_ATTEMPTS} THEN ${EXHAUSTED_SIM_TOOL_MESSAGE}::text ELSE ${INTERRUPTED_SIM_TOOL_MESSAGE}::text END`
+/**
+ * Why a lapsed execution ended without a result: once, after every re-run it was allowed, or
+ * with too little of its deadline left to run again.
+ */
+const interruptionMessage = sql<string>`CASE WHEN ${copilotAsyncToolCalls.executionAttempts} >= ${SIM_TOOL_EXECUTION_MAX_ATTEMPTS} THEN ${EXHAUSTED_SIM_TOOL_MESSAGE}::text WHEN ${tooLateToRerun} THEN ${DEADLINE_SIM_TOOL_MESSAGE}::text ELSE ${INTERRUPTED_SIM_TOOL_MESSAGE}::text END`
 
 /**
  * Whether one of the run's Sim handlers is still running with its execution lease held. Its
@@ -1040,8 +1054,9 @@ export async function revokeExpiredSimToolExecutions(input: {
 }
 
 /**
- * Fails the run's lapsed executions that already started every time they may, so a takeover
- * hands the model a clear failure for each instead of running it again.
+ * Fails the run's lapsed executions that already started every time they may, or whose
+ * deadline leaves too little to run again, so a takeover hands the model a clear failure for
+ * each instead of running it again.
  */
 export async function revokeExhaustedSimToolExecutions(runId: string) {
   return db.transaction((tx) =>
@@ -1049,7 +1064,10 @@ export async function revokeExhaustedSimToolExecutions(runId: string) {
       tx,
       and(
         eq(copilotAsyncToolCalls.runId, runId),
-        gte(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS)
+        or(
+          gte(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS),
+          tooLateToRerun
+        )
       )
     )
   )

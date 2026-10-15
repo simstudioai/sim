@@ -62,6 +62,7 @@ import {
   setTerminalToolCallState,
 } from '@/lib/mothership/request/tool-call-state'
 import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
+import { capToToolDeadline, toDeadlineDate } from '@/lib/mothership/request/tools/deadline'
 import { desktopToolNotStarted } from '@/lib/mothership/request/tools/desktop-wait'
 import {
   type ToolExecutionLifetime,
@@ -248,17 +249,33 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
     : TOOL_WATCHDOG_DEFAULT_MS
 }
 
+type PendingToolCall = Pick<ToolCallState, 'name' | 'status'> &
+  Partial<Pick<ToolCallState, 'params' | 'execName' | 'deadlineAt'>>
+
 /**
- * How long the resume gate may wait on one pending tool call. Permission
- * prompts wait as long as the permission wait itself. Browser calls share the renderer's
- * budget so authorization and native queueing cannot outlive the resume gate. A desktop call on a
- * device-bound run gets the full client budget: its wait fails it once the device is offline, its
- * pickup window closes or its lease lapses, and otherwise it runs as long as the device renews it.
+ * How long the resume gate may wait on one pending tool call, from now: its own budget below,
+ * ended by the call's deadline when the worker named one.
  */
 export function pendingToolWaitBudgetMs(
-  toolCall:
-    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
-    | undefined,
+  toolCall: PendingToolCall | undefined,
+  desktopDeviceId?: string | null
+): number {
+  return capToToolDeadline(
+    ownPendingToolWaitBudgetMs(toolCall, desktopDeviceId),
+    toolCall?.deadlineAt,
+    Date.now()
+  )
+}
+
+/**
+ * Permission prompts wait as long as the permission wait itself. Browser calls share the
+ * renderer's budget so authorization and native queueing cannot outlive the resume gate. A
+ * desktop call on a device-bound run gets the full client budget: its wait fails it once the
+ * device is offline, its pickup window closes or its lease lapses, and otherwise it runs as long
+ * as the device renews it.
+ */
+function ownPendingToolWaitBudgetMs(
+  toolCall: PendingToolCall | undefined,
   desktopDeviceId?: string | null
 ): number {
   if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
@@ -353,7 +370,11 @@ async function executeToolWithWatchdog(
   // The frame's wire name can be a display identity (the worker's cli_* names);
   // execution always dispatches on the model's real tool name.
   const executableName = toolCall.execName ?? toolCall.name
-  const timeoutMs = toolWatchdogTimeoutMs(executableName)
+  const timeoutMs = capToToolDeadline(
+    toolWatchdogTimeoutMs(executableName),
+    toolCall.deadlineAt,
+    Date.now()
+  )
   const controller = new AbortController()
   lifetime.signal.throwIfAborted()
   const signal = AbortSignal.any([
@@ -692,16 +713,19 @@ async function executeToolAndReportInner(
   }
 
   toolCall.status = 'executing'
-  await upsertAsyncToolCall({
+  const record = await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: toolCall.id,
     ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     toolName: toolCall.name,
     args: toolCall.params,
+    executionDeadlineAt: toDeadlineDate(toolCall.deadlineAt),
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
     throw new Error('Tool could not start because its execution record is unavailable')
   })
+  /** A re-run after a takeover gets what remains of the call's first deadline, never a fresh one. */
+  if (record?.executionDeadlineAt) toolCall.deadlineAt = record.executionDeadlineAt.getTime()
   if (context.runId) {
     const claim = await lifetime.claim(context.runId, execContext.userId)
     if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')

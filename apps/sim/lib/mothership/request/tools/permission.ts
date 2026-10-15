@@ -21,6 +21,7 @@ import {
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
+import { capToToolDeadline } from '@/lib/mothership/request/tools/deadline'
 import type {
   OrchestratorOptions,
   StreamingContext,
@@ -248,7 +249,7 @@ export function runGatedToolExecution(
 
       const decision = await waitForToolPermissionDecision(
         toolCallId,
-        PERMISSION_WAIT_TIMEOUT_MS,
+        capToToolDeadline(PERMISSION_WAIT_TIMEOUT_MS, toolCall.deadlineAt, Date.now()),
         options.abortSignal
       )
 

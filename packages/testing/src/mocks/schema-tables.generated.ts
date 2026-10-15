@@ -1207,6 +1207,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'executionLeaseExpiresAt',
     'executionRevokedAt',
     'executionAttempts',
+    'executionDeadlineAt',
     'clientWorkflowExecutionId',
     'sandboxProcesses',
     'completedAt',

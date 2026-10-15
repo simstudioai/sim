@@ -7,7 +7,7 @@ import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
 } from '@/lib/mothership/async-runs/lifecycle'
-import { upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
+import { getAsyncToolCall, upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
   CLIENT_TOOL_RESULT_TIMEOUT_MS,
   COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
@@ -33,6 +33,11 @@ import { markToolResultSeen, wasToolResultSeen } from '@/lib/mothership/request/
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { sealClientToolContext } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import {
+  capToToolDeadline,
+  frameToolDeadlineAt,
+  toDeadlineDate,
+} from '@/lib/mothership/request/tools/deadline'
 import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
 import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
 import {
@@ -351,6 +356,7 @@ export async function prePersistClientExecutableToolCall(
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
     permissionRequested: gated,
+    executionDeadlineAt: toDeadlineDate(frameToolDeadlineAt(data.deadlineMs, Date.now())),
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
@@ -500,6 +506,24 @@ function stampToolCallBlockEnd(
   }
 }
 
+/**
+ * Adopts the deadline recorded when the call was first handed (a takeover re-hands its parked
+ * calls), so an approval or client wait gets only what remains of it. Server executions adopt it
+ * from their own upsert. On a failed read the frame's deadline stands.
+ */
+async function adoptRecordedToolDeadline(toolCall: ToolCallState): Promise<void> {
+  if (toolCall.deadlineAt === undefined) return
+  try {
+    const recorded = (await getAsyncToolCall(toolCall.id))?.executionDeadlineAt
+    if (recorded) toolCall.deadlineAt = recorded.getTime()
+  } catch (error) {
+    logger.warn('Could not read a tool call deadline; using the frame deadline', {
+      toolCallId: toolCall.id,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 async function handleCallPhase(
   data: ToolCallStreamEvent['payload'],
   context: StreamingContext,
@@ -610,6 +634,7 @@ async function handleCallPhase(
   // apply_file_edit intent handoff to one file subagent under concurrency.
   if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
   if (data.execName) toolCall.execName = data.execName
+  toolCall.deadlineAt ??= frameToolDeadlineAt(data.deadlineMs, Date.now())
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
@@ -888,7 +913,9 @@ async function dispatchToolExecution(
     return fireToolExecution()
   }
 
-  if (toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)) {
+  const gated = toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)
+  if (gated || clientExecutable) await adoptRecordedToolDeadline(toolCall)
+  if (gated) {
     registerPendingToolPromise(
       context,
       toolCallId,
@@ -918,7 +945,11 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const timeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
+    const timeoutMs = capToToolDeadline(
+      options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS,
+      toolCall.deadlineAt,
+      Date.now()
+    )
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
       {

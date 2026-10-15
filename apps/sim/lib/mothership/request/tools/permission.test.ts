@@ -205,6 +205,31 @@ describe('runGatedToolExecution', () => {
     toolRequiresApproval.mockReturnValue(true)
   })
 
+  it('stops waiting for an answer at the deadline the worker named for the call', async () => {
+    vi.useFakeTimers()
+    try {
+      waitForToolPermissionDecision.mockImplementation(
+        (_toolCallId: string, timeoutMs: number) =>
+          new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))
+      )
+      const toolCall = { ...makeToolCall(), deadlineAt: Date.now() + 5 * 60_000 }
+      const execute = vi.fn()
+      let settled = false
+      const pending = gate(makeContext(), toolCall, execute, []).finally(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+
+      expect(settled).toBe(true)
+      expect(await pending).toMatchObject({ status: 'error' })
+      expect(toolCall.error).toBe('Timed out waiting for the user to approve this tool.')
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not execute the tool until the user has answered', async () => {
     const context = makeContext()
     const toolCall = makeToolCall()

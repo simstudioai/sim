@@ -66,6 +66,7 @@ import {
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
+import { TOOL_DEADLINE_SETTLE_MARGIN_MS } from '@/lib/mothership/generated/protocol'
 import { Read as ReadTool, RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
   applyStreamEvent,
@@ -659,6 +660,62 @@ describe('sse-handlers tool lifecycle', () => {
 
     expect(context.accumulatedContent).toBe('I will check that.Final answer only.')
     expect(context.finalAssistantContent).toBe('Final answer only.')
+  })
+
+  describe('the deadline a frame names', () => {
+    const deadlineFrame = (deadlineMs: number): StreamEvent => ({
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'audio-1',
+        toolName: 'generate_audio',
+        arguments: { prompt: 'p' },
+        executor: MothershipStreamV1ToolExecutor.sim,
+        mode: MothershipStreamV1ToolMode.async,
+        phase: MothershipStreamV1ToolPhase.call,
+        ui: { simExecutable: true },
+        deadlineMs,
+      },
+    })
+
+    it('bounds the call from its receipt, less the settle margin', async () => {
+      executeTool.mockResolvedValueOnce({ success: true, output: {} })
+      const before = Date.now()
+      await sseHandlers.tool(deadlineFrame(900_000), context, execContext, { interactive: false })
+      const after = Date.now()
+      const deadlineAt = context.toolCalls.get('audio-1')?.deadlineAt ?? 0
+      expect(deadlineAt).toBeGreaterThanOrEqual(before + 900_000 - TOOL_DEADLINE_SETTLE_MARGIN_MS)
+      expect(deadlineAt).toBeLessThanOrEqual(after + 900_000 - TOOL_DEADLINE_SETTLE_MARGIN_MS)
+    })
+
+    it('gives a client call only what remains of the deadline recorded at first hand-off', async () => {
+      const recorded = new Date(Date.now() + 60_000)
+      mothershipAsyncRunsMockFns.mockGetAsyncToolCall.mockResolvedValueOnce({
+        executionDeadlineAt: recorded,
+      })
+      const event = deadlineFrame(900_000)
+      if (event.type !== 'tool') throw new Error('expected a tool frame')
+      await sseHandlers.tool(
+        {
+          ...event,
+          payload: {
+            ...event.payload,
+            toolName: 'browser_click',
+            executor: MothershipStreamV1ToolExecutor.client,
+            ui: { clientExecutable: true },
+          },
+        } as StreamEvent,
+        context,
+        execContext,
+        { interactive: true }
+      )
+      expect(context.toolCalls.get('audio-1')?.deadlineAt).toBe(recorded.getTime())
+    })
+
+    it('leaves a call without one on Sim\u2019s own bounds', async () => {
+      executeTool.mockResolvedValueOnce({ success: true, output: {} })
+      await sseHandlers.tool(deadlineFrame(-1), context, execContext, { interactive: false })
+      expect(context.toolCalls.get('audio-1')?.deadlineAt).toBeUndefined()
+    })
   })
 
   it('executes a display-named frame by its execName (the worker CLI class)', async () => {

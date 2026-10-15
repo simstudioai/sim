@@ -97,6 +97,30 @@ describe('Mothership media model boundaries', () => {
     ])
   })
 
+  it.each([
+    ['audio', () => mockGenerateFalAudio, generateAudioServerTool],
+    ['video', () => mockGenerateFalVideo, generateVideoServerTool],
+  ] as const)(
+    'ends the %s generation when the tool call is aborted',
+    async (_kind, generator, tool) => {
+      generator().mockImplementationOnce(
+        ({ signal }: { signal?: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+      const controller = new AbortController()
+      const result = tool.execute(
+        { prompt: 'p' },
+        { ...contextWithSecrets([]), abortSignal: controller.signal }
+      )
+
+      controller.abort(new Error('Tool timed out'))
+
+      await expect(result).resolves.toMatchObject({ success: false })
+    }
+  )
+
   it('preserves image prompts that merely collide with ambient secret plaintext', async () => {
     const context = contextWithSecrets([{ name: 'PROMPT', plaintext: 'private prompt' }])
 
