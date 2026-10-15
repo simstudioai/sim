@@ -681,14 +681,20 @@ final class Driver {
             }
             if request.method == "input_sequence" { return ["kind": "action", "action": request.method, "bundleId": bundle, "dispatched": true, "verified": false, "sequence": ["completedSteps": completed, "totalSteps": steps.count]] }
         case "press_key":
-            let windowId = try required(p.windowId, "windowId"); let frame = try windowRect(windowId, pid: pid)
-            guard snapshot.windowFrames[windowId] == frame else { throw ComputerError("stale_window", "Observe the target window again.") }
+            // Without a windowId the key goes to whichever observed window has focus.
+            let frame = try p.windowId.map { windowId in
+                let frame = try windowRect(windowId, pid: pid)
+                guard snapshot.windowFrames[windowId] == frame else { throw ComputerError("stale_window", "Observe the target window again.") }
+                return frame
+            }
             let root = AXUIElementCreateApplication(pid)
             // Keys go to the app's key window: the observed window, or a dialog, panel or popover above it,
             // but never another document window the snapshot did not observe.
             guard let rawWindow = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { throw ComputerError("focus_failed", "The app has no focused window to receive keys; click a window or call activate_app, then observe again.") }
             let focusedWindow = unsafeBitCast(rawWindow, to: AXUIElement.self)
-            guard elementRect(focusedWindow) == frame || attribute(focusedWindow, kAXSubroleAttribute) as? String != kAXStandardWindowSubrole else { throw ComputerError("focus_failed", "Another document window has keyboard focus; observe that window and target it instead.") }
+            let focusedFrame = elementRect(focusedWindow)
+            let observed = frame.map { focusedFrame == $0 } ?? snapshot.windowFrames.values.contains { focusedFrame == $0 }
+            guard observed || attribute(focusedWindow, kAXSubroleAttribute) as? String != kAXStandardWindowSubrole else { throw ComputerError("focus_failed", "Another document window has keyboard focus; observe that window and target it instead.") }
             if let focused = attribute(root, kAXFocusedUIElementAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { try requireNonSecure(unsafeBitCast(focused, to: AXUIElement.self)) }
             let (code, flags) = try parseKey(required(p.key, "key"))
             var selectedAll = false

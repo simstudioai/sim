@@ -235,8 +235,17 @@ export class ComputerUseService {
             ? (owner?.elementWindows.get(input.elementId) ?? owner?.windowId)
             : undefined
       if ('snapshotId' in input) this.snapshots.delete(input.snapshotId)
-      const params =
-        'observeAfter' in input ? omit(input, ['action', 'observeAfter']) : omit(input, ['action'])
+      /** Mutations accept includeScreenshot as shorthand for observeAfter.includeScreenshot. */
+      const isMutation = input.action !== 'get_app_state'
+      const observeAfter = {
+        ...('observeAfter' in input ? input.observeAfter : {}),
+        ...(isMutation && 'includeScreenshot' in input && input.includeScreenshot !== undefined
+          ? { includeScreenshot: input.includeScreenshot }
+          : {}),
+      }
+      const params = isMutation
+        ? omit(input, ['action', 'observeAfter', 'includeScreenshot'])
+        : omit(input, ['action'])
       let result: ComputerUseResult
       try {
         result = await this.deps.native.request(input.action, params)
@@ -264,7 +273,7 @@ export class ComputerUseService {
           const observation = await this.deps.native.request('get_app_state', {
             bundleId: input.bundleId,
             ...(windowId ? { windowId } : {}),
-            ...('observeAfter' in input ? input.observeAfter : {}),
+            ...observeAfter,
           })
           this.check(work)
           if (observation.kind !== 'state')
