@@ -35,11 +35,9 @@ Amounts are in millions. Codes such as industries, verticals, and deal types are
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrates the PitchBook Public API into the workflow. Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Also reports API credit usage and the lookup-table codes the search filters expect. Every call consumes PitchBook API credits.
-
-
+Search and pull profiles across companies, deals, investors, people, funds, limited partners, and service providers, including financing history, valuations, cap tables, debt and lenders, fund performance and commitments, patents, and credit analysis news. Retrieve lookup-table codes for search filters and use the usage actions to check API credit consumption.
 
 ## Actions
 
@@ -509,7 +507,7 @@ Retrieve every deal a company has been involved in, in chronological order with 
 
 ### PitchBook Company Most Recent Financing
 
-Retrieve a company most recent financing round: date, size, type, and last known valuation
+Retrieve a company’s most recent financing round: date, size, type, and last known valuation
 
 #### Input
 
@@ -565,7 +563,7 @@ Retrieve a company most recent financing round: date, size, type, and last known
 
 ### PitchBook Company Most Recent Debt Financing
 
-Retrieve a company most recent debt financing, including each debt instrument raised
+Retrieve a company’s most recent debt financing, including each debt instrument raised
 
 #### Input
 
@@ -849,7 +847,7 @@ Retrieve the current and former general service providers engaged by a company
 
 ### PitchBook Company Deal Service Providers
 
-Retrieve the service providers that worked on a company deals, and what each was hired for
+Retrieve the service providers that worked on a company’s deals, and what each was hired for
 
 #### Input
 
@@ -863,7 +861,7 @@ Retrieve the service providers that worked on a company deals, and what each was
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealServiceProviders` | array | Service providers engaged on the company deals |
+| `dealServiceProviders` | array | Service providers engaged on the company’s deals |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
 |   ↳ `serviceProviderTypes` | array | Types the service provider is classified as |
@@ -1041,7 +1039,7 @@ Retrieve the summary of a deal: company, date, size, status, type, and which det
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1090,7 +1088,7 @@ Retrieve the full detail of a deal: synopsis, percent acquired, round, invested 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1201,7 +1199,7 @@ Retrieve the pre-money and post-money valuation recorded for a deal
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1273,7 +1271,7 @@ Retrieve the investors, sellers, and exiting investors on a deal, including who 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | PitchBook API key |
-| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company deals lookup. |
+| `pbId` | string | Yes | PitchBook deal ID, e.g. 52721-65T. Deal IDs end in T and come from a deal search or a company’s deals lookup. |
 | `currency` | string | No | ISO currency code to convert monetary values into, sent as the X-Currency header \(e.g. USD, EUR, JPY\). Defaults to the currency on the account preferences. |
 
 #### Output
@@ -1399,7 +1397,7 @@ Retrieve the cap table as of a deal, one row per stock series with its terms and
 
 ### PitchBook Deal Tranche Info
 
-Retrieve the tranches a deal was funded in, with each tranche date, size, and investors
+Retrieve the tranches a deal was funded in, with each tranche’s date, size, and investors
 
 #### Input
 
@@ -1904,7 +1902,7 @@ Retrieve the current and former general service providers engaged by an investor
 
 ### PitchBook Investor Deal Service Providers
 
-Retrieve the service providers that worked on an investor deals, and what each was hired for
+Retrieve the service providers that worked on an investor’s deals, and what each was hired for
 
 #### Input
 
@@ -1918,7 +1916,7 @@ Retrieve the service providers that worked on an investor deals, and what each w
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `dealServiceProviders` | array | Service providers engaged on the investor deals |
+| `dealServiceProviders` | array | Service providers engaged on the investor’s deals |
 |   ↳ `investorId` | string | PitchBook investor ID |
 |   ↳ `serviceProviderId` | string | PitchBook service provider ID |
 |   ↳ `serviceProviderName` | string | Service provider name |
@@ -2066,7 +2064,7 @@ Retrieve the direct contact details on file for a person
 
 ### PitchBook Person Education and Work
 
-Retrieve a person full history: education, company roles, board seats, deal roles, and fund roles
+Retrieve a person’s full history: education, company roles, board seats, deal roles, and fund roles
 
 #### Input
 
@@ -2469,7 +2467,7 @@ Retrieve what a fund targets: check size, valuation, geography, industry, vertic
 
 ### PitchBook Fund Team
 
-Retrieve the active and former people on a fund team
+Retrieve the active and former people on a fund’s team
 
 #### Input
 
@@ -2634,7 +2632,7 @@ Retrieve every fund commitment a limited partner has made, with date, size, stat
 
 ### PitchBook Limited Partner Commitment Aggregates
 
-Retrieve a limited partner commitments rolled up by fund type, both active and all-time
+Retrieve a limited partner’s commitments rolled up by fund type, both active and all-time
 
 #### Input
 
@@ -2699,7 +2697,7 @@ Retrieve what a limited partner commits to: preferred commitment size, fund type
 
 ### PitchBook Limited Partner Actual Allocations
 
-Retrieve a limited partner reported asset allocation across cash, equities, fixed income, private equity, real estate, and alternatives
+Retrieve a limited partner’s reported asset allocation across cash, equities, fixed income, private equity, real estate, and alternatives
 
 #### Input
 
@@ -2767,7 +2765,7 @@ Retrieve a limited partner reported asset allocation across cash, equities, fixe
 
 ### PitchBook Limited Partner Target Allocations
 
-Retrieve a limited partner target allocation ranges per asset class, in both value and percentage terms
+Retrieve a limited partner’s target allocation ranges per asset class, in both value and percentage terms
 
 #### Input
 

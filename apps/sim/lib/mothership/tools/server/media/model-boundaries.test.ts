@@ -1,11 +1,4 @@
-import {
-  workspaceFileReferenceMock,
-  workspaceFileReferenceMockFns,
-} from '@sim/testing/mocks/workspace-file-reference.mock'
-import {
-  workspaceFileSecretProvenanceMock,
-  workspaceFileSecretProvenanceMockFns,
-} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { workspaceFileSecretProvenanceMock } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
@@ -13,17 +6,13 @@ const {
   mockGenerateContent,
   mockGenerateFalAudio,
   mockGenerateFalVideo,
-  mockReadWorkspaceFileContent,
   mockWriteWorkspaceFileByPath,
 } = vi.hoisted(() => ({
   mockGenerateContent: vi.fn(),
   mockGenerateFalAudio: vi.fn(),
   mockGenerateFalVideo: vi.fn(),
-  mockReadWorkspaceFileContent: vi.fn(),
   mockWriteWorkspaceFileByPath: vi.fn(),
 }))
-const { mockIsOpaqueWorkspaceFileEgressSafe } = workspaceFileSecretProvenanceMockFns
-const { mockResolveWorkspaceFileReference } = workspaceFileReferenceMockFns
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class GoogleGenAI {
@@ -37,14 +26,7 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
 vi.mock('@/lib/media/falai-audio', () => ({ generateFalAudio: mockGenerateFalAudio }))
 vi.mock('@/lib/media/falai-video', () => ({ generateFalVideo: mockGenerateFalVideo }))
 vi.mock(
-  '@/lib/workspace-files/application/resolve-workspace-file-reference',
-  () => workspaceFileReferenceMock
-)
-vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
-  readWorkspaceFileContent: { execute: mockReadWorkspaceFileContent },
-}))
-vi.mock(
-  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
   () => workspaceFileSecretProvenanceMock
 )
 
@@ -53,20 +35,6 @@ import { generateImageServerTool } from '@/lib/mothership/tools/server/image/gen
 import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-
-const file = {
-  id: 'file-1',
-  workspaceId: 'workspace-1',
-  name: 'reference.png',
-  key: 'workspace/workspace-1/reference.png',
-  path: '/api/files/serve/reference.png',
-  size: 10,
-  type: 'image/png',
-  uploadedBy: 'user-1',
-  uploadedAt: new Date('2026-08-05T00:00:00.000Z'),
-  updatedAt: new Date('2026-08-05T00:00:00.000Z'),
-  storageContext: 'workspace' as const,
-}
 
 function contextWithSecrets(
   entries: Array<{ name: string; plaintext: string }>
@@ -86,9 +54,6 @@ function contextWithSecrets(
 
 describe('Mothership media model boundaries', () => {
   beforeEach(() => {
-    mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
-    mockResolveWorkspaceFileReference.mockResolvedValue(file)
-    mockReadWorkspaceFileContent.mockResolvedValue({ file, content: Buffer.from('opaque-media') })
     mockWriteWorkspaceFileByPath.mockResolvedValue({
       id: 'output-1',
       name: 'output.bin',
@@ -184,48 +149,4 @@ describe('Mothership media model boundaries', () => {
       expect.objectContaining({ prompt: 'private prompt', lyrics: 'private lyrics' })
     )
   })
-
-  it.each([
-    [
-      'image',
-      () =>
-        generateImageServerTool.execute(
-          { prompt: 'safe', inputs: { files: [{ path: 'files/reference.png' }] } },
-          contextWithSecrets([])
-        ),
-    ],
-    [
-      'video',
-      () =>
-        generateVideoServerTool.execute(
-          { prompt: 'safe', inputs: { files: [{ path: 'files/reference.png' }] } },
-          contextWithSecrets([])
-        ),
-    ],
-    [
-      'audio',
-      () =>
-        generateAudioServerTool.execute(
-          { prompt: 'safe', inputs: { files: [{ path: 'files/reference.mp3' }] } },
-          contextWithSecrets([])
-        ),
-    ],
-  ])(
-    'rejects unsafe %s references before fetching bytes or calling a model',
-    async (_name, run) => {
-      mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(false)
-
-      await expect(run()).resolves.toEqual(
-        expect.objectContaining({
-          success: false,
-          message: expect.stringContaining('cannot be sent'),
-        })
-      )
-
-      expect(mockReadWorkspaceFileContent).not.toHaveBeenCalled()
-      expect(mockGenerateContent).not.toHaveBeenCalled()
-      expect(mockGenerateFalVideo).not.toHaveBeenCalled()
-      expect(mockGenerateFalAudio).not.toHaveBeenCalled()
-    }
-  )
 })

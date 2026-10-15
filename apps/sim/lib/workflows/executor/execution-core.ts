@@ -29,10 +29,10 @@ import {
   getExecutionEnvironment,
 } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
-import { connectExecutionSignalHub } from '@/lib/execution/execution-signal'
 import { getStoredFileReferenceScope, processInputFileFields } from '@/lib/execution/files'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 import { parseLargeExecutionValue } from '@/lib/execution/payloads/large-execution-value'
+import { connectExecutionSignalHub } from '@/lib/execution/signal'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'

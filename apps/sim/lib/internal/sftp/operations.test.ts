@@ -35,9 +35,9 @@ vi.mock('@/lib/internal/sftp/client', () => ({
   sftpIsDirectory: mocks.isDirectory,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
   docNotReadyResponse: mocks.docNotReadyResponse,

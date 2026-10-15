@@ -33,21 +33,19 @@ The block authenticates with an AWS access key ID and secret access key scoped t
 
 Function code is supplied from Amazon S3 (bucket, key, and optional object version) or from a container image URI in Amazon ECR. Uploading a .zip archive inline is not supported — publish the archive to S3 first, in the same region as the function, then point **Create Function** or **Update Function Code** at it.
 
-In Sim, the Lambda integration lets your agents run existing serverless code as a step in a workflow, ship and roll back deployments with alias traffic shifting, and continuously audit functions for deprecated runtimes, over-permissive policies, and publicly exposed URLs. It pairs naturally with CloudWatch for metrics and logs, S3 for deployment artifacts, and SQS for event sources.
+Use CloudWatch for function logs and metrics, S3 for deployment archives, and SQS for queue-backed event sources.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate AWS Lambda into workflows. Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.
-
-
+Invoke functions and read their response payload, create and update functions from Amazon S3 packages or container images, publish versions and aliases, wire up event source mappings, manage concurrency, function URLs, layers, permissions, and tags. Requires an AWS access key and secret access key.
 
 ## Actions
 
 ### Lambda Invoke Function
 
-Invoke a Lambda function synchronously or asynchronously and return its response
+Invoke a Lambda function synchronously for its response payload, asynchronously to queue execution, or as a dry run to check permissions.
 
 #### Input
 

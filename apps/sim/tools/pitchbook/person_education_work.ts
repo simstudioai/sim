@@ -10,7 +10,7 @@ export const pitchbookPersonEducationWorkTool: ToolConfig<
   id: 'pitchbook_person_education_work',
   name: 'PitchBook Person Education and Work',
   description:
-    'Retrieve a person full history: education, company roles, board seats, deal roles, and fund roles',
+    'Retrieve a person’s full history: education, company roles, board seats, deal roles, and fund roles',
   version: '1.0.0',
   errorExtractor: ErrorExtractorId.PITCHBOOK_ERRORS,
 

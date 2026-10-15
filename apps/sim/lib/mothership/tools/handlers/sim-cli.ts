@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
-import { messageForCopilotApplicationError } from '@/lib/mothership/application/error'
+import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import { AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type {
   ToolExecutionContext,
@@ -49,6 +49,7 @@ export async function executeSimCli(
       parentToolCallId: context.parentToolCallId,
       userPermission: context.userPermission,
       resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+      readOnly: context.benchmark === 'distill',
     })
     logger.info('CLI invocation finished', {
       exitCode: result.exitCode,

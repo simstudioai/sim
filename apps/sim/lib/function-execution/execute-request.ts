@@ -27,13 +27,13 @@ import {
   type CompiledCodePlaceholders,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
+import { parseExecutionDeadlineHeader } from '@/lib/execution/deadline-header'
 import {
   type DurableSecretProvenance,
   durableSecretProvenanceFromEnvelope,
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import {
@@ -80,7 +80,8 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
-import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/execution-observer'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/encoding'
+import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/observer'
 import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
@@ -88,11 +89,7 @@ import {
   MAX_SANDBOX_OUTPUT_BYTES,
   readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
-import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
-import {
-  MAX_BLOCK_MOUNTED_FILES,
-  SANDBOX_OUTPUT_DIR,
-} from '@/lib/execution/remote-sandbox/sandbox-paths'
+import { MAX_BLOCK_MOUNTED_FILES, SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/paths'
 import type {
   SandboxCollectedFile,
   SandboxFile,
@@ -115,7 +112,7 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
@@ -124,9 +121,9 @@ import {
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFiles } from '@/lib/uploads/core/storage-service'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { fileOperations } from '@/lib/workspace-files/application/operations'

@@ -21,7 +21,7 @@ import { ArrowUp, CircleAlert, Download, MoreVertical, Paperclip, Square, X } fr
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useShallow } from 'zustand/react/shallow'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import {
   extractBlockIdFromOutputId,
   extractPathFromOutputId,

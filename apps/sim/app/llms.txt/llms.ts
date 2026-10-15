@@ -1,5 +1,5 @@
+import { INTEGRATION_REACH } from '@sim/deployment-config/integration-claims'
 import { SITE_URL, toSiteUrl } from '@/lib/core/utils/urls'
-import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
 import { COMPLIANCE_PAGE_DESCRIPTION } from '@/app/(landing)/solutions/compliance/compliance'
 import { ENGINEERING_PAGE_DESCRIPTION } from '@/app/(landing)/solutions/engineering/engineering'
@@ -10,7 +10,7 @@ import { SALES_PAGE_DESCRIPTION } from '@/app/(landing)/solutions/sales/sales'
 
 /** Shared building blocks for `/llms.txt` and `/llms-full.txt` (https://llmstxt.org). */
 
-const SIM_SUMMARY = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_COUNT_LABEL} integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code.`
+const SIM_SUMMARY = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect ${INTEGRATION_REACH} and every major LLM to create agents that automate real work — visually, conversationally, or with code.`
 
 /** The H1 and blockquote summary every llms.txt variant opens with. */
 export const LLMS_HEADER = `# Sim\n\n> ${SIM_SUMMARY}`

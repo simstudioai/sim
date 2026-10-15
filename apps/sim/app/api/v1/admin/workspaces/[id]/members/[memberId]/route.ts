@@ -33,6 +33,7 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { ProjectConflictError } from '@/lib/projects/errors'
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
@@ -309,6 +310,7 @@ export const DELETE = withRouteHandler(
         workspaceId,
       })
     } catch (error) {
+      if (error instanceof ProjectConflictError) return adminConflictResponse(error.message)
       if (error instanceof WorkspaceBillingAccountRemovalError) {
         return adminBadRequestResponse(error.message)
       }

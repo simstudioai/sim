@@ -17,7 +17,7 @@ export const ZoomBlock: BlockConfig = {
   description: 'Create and manage Zoom meetings and recordings',
   authMode: AuthMode.OAuth,
   longDescription:
-    'Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.',
+    'Create, read, update, or delete meetings; retrieve invitations, cloud recordings, and past participants; or delete recordings. Meeting and recording webhooks can start workflows.',
   docsLink: 'https://docs.sim.ai/integrations/zoom',
   category: 'tools',
   integrationType: IntegrationType.Communication,

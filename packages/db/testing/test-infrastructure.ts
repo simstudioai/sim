@@ -39,6 +39,22 @@ export function readTestDatabaseUrl(): string {
 }
 
 /**
+ * Deletes every inherited database URL. `@sim/db` prefers a role-specific `DATABASE_URL_<ROLE>`
+ * over `DATABASE_URL`, so one left in the shell would bypass the test database.
+ */
+export function clearInheritedDatabaseUrls(): void {
+  for (const key of Object.keys(process.env)) {
+    if (
+      key.startsWith('DATABASE_URL') ||
+      key.startsWith('DATABASE_REPLICA_URL') ||
+      key === 'MIGRATION_DATABASE_URL'
+    ) {
+      delete process.env[key]
+    }
+  }
+}
+
+/**
  * Returns the validated `TEST_REDIS_URL`, or undefined when a local run has no Redis. In CI a
  * missing value throws: every Redis-gated suite would otherwise pass by skipping.
  *

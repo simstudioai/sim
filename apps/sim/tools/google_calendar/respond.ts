@@ -217,7 +217,7 @@ export const respondV2Tool: ToolConfig<
   id: 'google_calendar_respond_v2',
   name: 'Google Calendar Respond to Invitation',
   description:
-    'RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched. Returns API-aligned fields only.',
+    'RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched.',
   version: '2.0.0',
   oauth: respondTool.oauth,
   params: respondTool.params,

@@ -37,6 +37,7 @@ export const organizationSecretOperations = {
   /** permission-group-exempt: runtime use is governed by the authorized Build conversation, independently of secret-management UI access. */
   listNames: defineOrganizationOperation({
     id: 'organization_secrets.names',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     delegationAudience: ORGANIZATION_SECRETS_AUDIENCE,
@@ -46,6 +47,7 @@ export const organizationSecretOperations = {
   /** permission-group-exempt: runtime use is governed by the authorized Build conversation, independently of secret-management UI access. */
   mount: defineOrganizationOperation({
     id: 'organization_secrets.mount',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     delegationAudience: ORGANIZATION_SECRETS_AUDIENCE,

@@ -6,13 +6,14 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/search'
+import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { isCopilotToolPermissionsEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { SIM_TOOL_EXECUTION_LEASE_SECONDS } from '@/lib/mothership/async-runs/execution-lease'
@@ -88,7 +89,7 @@ import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { appendUnavailableAttachmentNotice } from '@/lib/uploads/utils/model-input'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
@@ -275,6 +276,8 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 }
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
+  /** Internal benchmark runner policy, independent of browser and model payloads. */
+  benchmark?: 'plan' | 'tool-free' | 'distill' | 'reconstruct' | 'resolve'
   /** Trusted entry point for Search metering; never read from model arguments. */
   searchSurface?: 'copilot' | 'slack'
   mcpBlockId?: string
@@ -490,6 +493,7 @@ export async function runCopilotLifecycle(
       throw new Error('Organization execution context does not match its authenticated scope')
     }
     execContext.messageId = payloadMsgId
+    execContext.benchmark = options.benchmark
     if (options.recovery?.userTimezone) execContext.userTimezone = options.recovery.userTimezone
     execContext.requestMode = requestMode
     execContext.searchSurface = lifecycleOptions.searchSurface ?? 'copilot'
@@ -1170,10 +1174,16 @@ async function runCheckpointLoop(
   let payload: Record<string, unknown> = initialPayload
   let retry: StreamRetryWindow | undefined
   const callerOnEvent = options.onEvent
-  const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  const mothershipBaseURL = options.benchmark
+    ? getBenchmarkMothershipUrl()
+    : await getMothershipBaseURL({ userId: options.userId })
   execContext.mothershipBaseURL = mothershipBaseURL
-  if (initialRoute === '/api/mothership' || initialRoute === '/api/copilot') {
-    const simConnection = getSimConnection()
+  if (
+    initialRoute === '/api/mothership' ||
+    initialRoute === '/api/copilot' ||
+    (initialRoute === '/api/mothership/execute' && options.benchmark)
+  ) {
+    const simConnection = getSimConnection(options.benchmark ? 'checkpoint' : undefined)
     payload = { ...payload, simConnection }
   }
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
@@ -1185,6 +1195,7 @@ async function runCheckpointLoop(
   const systemPromptOverride = env.MSHIP_SYSPROMPT_OVERRIDE
 
   if (
+    !options.benchmark &&
     initialRoute !== '/api/tools/resume' &&
     typeof systemPromptOverride === 'string' &&
     systemPromptOverride.trim() !== ''

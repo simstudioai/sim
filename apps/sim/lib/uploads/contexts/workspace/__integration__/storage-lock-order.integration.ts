@@ -1,7 +1,8 @@
 /**
- * Real PostgreSQL lock ordering between new-file finalization and a concurrent content write in
- * the same workspace. Both reach the workspace row and the per-workspace search dispatch queue row
- * (through the `workspace_files` search-index trigger), so they must take them in the same order.
+ * Real PostgreSQL lock ordering between new-file finalization and concurrent writers in the same
+ * workspace. They reach the workspace row, the file directory lock, and the per-workspace search
+ * dispatch queue row (through the `workspace_files` search-index trigger), so every writer must
+ * take them in the same order.
  */
 import { mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
@@ -33,12 +34,14 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { bulkArchiveWorkspaceFileItems } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   generateWorkspaceFileKey,
   registerUploadedWorkspaceFile,
   uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
+import { lockFileDirectories } from '@/lib/workspace-files/locks'
 
 type FinalizeNewFile = (workspaceId: string, userId: string) => Promise<unknown>
 
@@ -161,6 +164,55 @@ describe.skipIf(!migrated)('workspace file storage lock order in PostgreSQL', ()
       }
 
       const results = await settled
+      expect(results.filter((result) => result.status === 'rejected')).toEqual([])
+    }
+  )
+
+  it.each([
+    ['uploadWorkspaceFile', finalizeByUpload],
+    ['registerUploadedWorkspaceFile', finalizeByRegistration],
+  ])(
+    '%s commits alongside a bulk archive queued first on the directory lock',
+    async (_name, finalize) => {
+      const fixture = await seedWorkspaceWithFile()
+      const ready = createDeferred<number>()
+      const release = createDeferred<void>()
+
+      const directoryHolder = db.transaction(async (tx) => {
+        await lockFileDirectories(tx, [{ entityType: 'workspace', entityId: fixture.workspaceId }])
+        const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+        ready.resolve(connection.pid)
+        await release.promise
+      })
+      const holderPid = await ready.promise
+
+      // Waiters blocked by the holder, or by a backend the holder blocks: only this test's queue.
+      const waitingOnLocks = async () =>
+        (
+          await db.execute(
+            sql`SELECT pid FROM pg_stat_activity
+              WHERE ${holderPid} = ANY(pg_blocking_pids(pid))
+                OR pg_blocking_pids(pid) && ARRAY(
+                  SELECT pid FROM pg_stat_activity WHERE ${holderPid} = ANY(pg_blocking_pids(pid))
+                )`
+          )
+        ).length
+      const archived = bulkArchiveWorkspaceFileItems({
+        workspaceId: fixture.workspaceId,
+        fileIds: [fixture.existingFileId],
+      })
+      const outcomes: Promise<PromiseSettledResult<unknown>[]>[] = [
+        Promise.allSettled([directoryHolder, archived]),
+      ]
+      try {
+        await expect.poll(waitingOnLocks, { timeout: 4000 }).toBe(1)
+        outcomes.push(Promise.allSettled([finalize(fixture.workspaceId, fixture.aliceId)]))
+        await expect.poll(waitingOnLocks, { timeout: 4000 }).toBe(2)
+      } finally {
+        release.resolve()
+      }
+
+      const results = (await Promise.all(outcomes)).flat()
       expect(results.filter((result) => result.status === 'rejected')).toEqual([])
     }
   )

@@ -5,10 +5,11 @@ import { getTrigger } from '@/triggers'
 export const GongBlock: BlockConfig = {
   type: 'gong',
   name: 'Gong',
-  description: 'Revenue intelligence and conversation analytics',
+  description:
+    'Read Gong data, upload calls, assign or unassign flow prospects, and request data erasure',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.',
+    'Read calls, recording URLs, transcripts, user data, activity statistics, scorecards, trackers, library content, coaching metrics, and Engage flows. Upload call metadata and let Gong fetch the media URL, assign or unassign flow prospects, and request data erasure for an email address or phone number.',
   docsLink: 'https://docs.sim.ai/integrations/gong',
   category: 'tools',
   integrationType: IntegrationType.Sales,

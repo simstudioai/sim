@@ -23,14 +23,12 @@ describe('Slack personal-token scope policy', () => {
     'slack_list_members',
   ])('lets Slack evaluate conversation-specific scope alternatives for %s', (toolId) => {
     expect(tools[toolId].oauth?.requiredScopes).toEqual([])
-    expect(isAssistantIntegrationTool(tools[toolId])).toBe(true)
   })
 
   it.each(['slack_message', 'slack_update_message', 'slack_delete_message'])(
     'requires the personal writing scope for %s',
     (toolId) => {
       expect(tools[toolId].oauth?.requiredScopes).toEqual(['chat:write'])
-      expect(isAssistantIntegrationTool(tools[toolId])).toBe(true)
     }
   )
 

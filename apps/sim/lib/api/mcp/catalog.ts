@@ -1,6 +1,6 @@
 import { omit, toRecord } from '@sim/utils/object'
 import { z } from 'zod'
-import type { ApiSchema, HttpMethod } from '@/lib/api/contracts/types'
+import type { ApiSchema } from '@/lib/api/contracts/types'
 import { V2_MCP_OPERATIONS, type V2McpOperationName } from '@/lib/api/mcp/generated/v2-operations'
 import type { V2McpOperation } from '@/lib/api/mcp/types'
 import { v2RouteOperation } from '@/lib/api/server/routes/v2-json-route'
@@ -20,30 +20,59 @@ export const TOOL_NAMES = { read: 'call_read_operation', write: 'call_write_oper
 type ToolKind = keyof typeof TOOL_NAMES
 
 const REQUEST_SLOTS = ['params', 'query', 'body', 'headers'] as const
-type RequestSlot = (typeof REQUEST_SLOTS)[number]
-type JsonSchema = Record<string, unknown>
+
+const operationSummarySchema = z.object({
+  operation: z
+    .string()
+    .describe('Operation name to pass to describe_operation and the call tools.'),
+  method: z
+    .enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+    .describe('HTTP method of the Sim API route.'),
+  path: z.string().describe('Sim API route path; bracketed segments are path parameters.'),
+  domain: z.string().describe('API area, usable as the search_operations domain.'),
+  summary: z.string(),
+  tool: z
+    .enum([TOOL_NAMES.read, TOOL_NAMES.write])
+    .describe(
+      'The tool that runs the operation: the read tool only for operations that need nothing beyond read access.'
+    ),
+  personalCredentialOnly: z
+    .literal(true)
+    .optional()
+    .describe(
+      'Present when the operation refuses workspace API keys; call it with a personal API key or an OAuth connection.'
+    ),
+})
+
+const jsonSchema = z.record(z.string(), z.unknown())
+
+export const searchOperationsOutput = z.object({
+  total: z.number().describe('How many operations match, which can exceed those returned.'),
+  operations: z.array(operationSummarySchema).describe('Matching operations, best match first.'),
+})
+
+/** What describe_operation returns: everything needed to call one operation. */
+export const describeOperationOutput = operationSummarySchema.extend({
+  description: z.string().optional().describe('Longer documentation, when the operation has it.'),
+  input: z
+    .object({
+      params: jsonSchema.optional(),
+      query: jsonSchema.optional(),
+      body: jsonSchema.optional(),
+      headers: jsonSchema.optional(),
+    })
+    .describe(
+      'JSON Schema of each request part the operation takes; an absent part takes no input.'
+    ),
+})
+
+type McpOperationSummary = z.infer<typeof operationSummarySchema>
+type McpOperationDescription = z.infer<typeof describeOperationOutput>
+type JsonSchema = z.infer<typeof jsonSchema>
 
 /** One catalog row: enough to choose an operation, not to call it. */
-interface McpOperationEntry {
+type McpOperationEntry = Omit<McpOperationSummary, 'operation' | 'tool'> & {
   operation: V2McpOperationName
-  method: HttpMethod
-  path: string
-  domain: string
-  summary: string
-  /** The tool that runs it: the read tool only for operations that need nothing beyond read access. */
-  /** Refuses workspace API keys; call it with a personal key or an OAuth connection. */
-  personalCredentialOnly?: true
-}
-
-interface McpOperationSummary extends McpOperationEntry {
-  /** The tool that runs it: the read tool only for operations that need nothing beyond read access. */
-  tool: (typeof TOOL_NAMES)[ToolKind]
-}
-
-/** Everything needed to call one operation: its documentation plus the JSON Schema of each request slot. */
-interface McpOperationDescription extends McpOperationSummary {
-  description?: string
-  input: Partial<Record<RequestSlot, JsonSchema>>
 }
 
 const OPERATION_NAMES = Object.keys(V2_MCP_OPERATIONS) as V2McpOperationName[]
@@ -156,7 +185,7 @@ export async function searchOperations(options: {
   query?: string
   domain?: string
   limit: number
-}): Promise<{ total: number; operations: McpOperationSummary[] }> {
+}): Promise<z.infer<typeof searchOperationsOutput>> {
   const ranked = rankOperations(options.query, options.domain)
   return {
     total: ranked.length,

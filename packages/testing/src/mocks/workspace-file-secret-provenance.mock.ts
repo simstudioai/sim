@@ -69,7 +69,7 @@ function mergeWorkspaceFileSecretProvenance(
 
 /**
  * Controllable mock functions for
- * `@/lib/uploads/contexts/workspace/workspace-file-secret-provenance`.
+ * `@/lib/uploads/contexts/workspace/file-secret-provenance`.
  *
  * Every DB-backed function is a bare `vi.fn()` — including the safety predicates
  * (`isModelSafeWorkspaceFileKey`, `areModelSafeWorkspaceFileKeys`,
@@ -96,10 +96,12 @@ export const workspaceFileSecretProvenanceMockFns = {
   mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
+  mockGetBoundWorkspaceFileSecretProvenanceByIdentity: vi.fn(),
+  mockGetCurrentWorkspaceFileSecretProvenance: vi.fn(),
+  mockGetStoredFileSecretProvenanceByKey: vi.fn(),
   mockImportWorkspaceFileSecretProvenanceForModelView: vi.fn(),
   mockIsOpaqueWorkspaceFileEgressSafe: vi.fn(),
   mockImportWorkspaceFileSecretProvenanceForRuntime: vi.fn(),
-  mockImportWorkspaceFileSnapshotProvenance: vi.fn(),
   mockFilterModelSafeWorkspaceFileAttachments: vi.fn(),
   mockIsModelSafeWorkspaceFileKey: vi.fn(),
   mockAreModelSafeWorkspaceFileKeys: vi.fn(),
@@ -109,13 +111,13 @@ const fns = workspaceFileSecretProvenanceMockFns
 
 /**
  * Static mock module for
- * `@/lib/uploads/contexts/workspace/workspace-file-secret-provenance`. Constants carry the
+ * `@/lib/uploads/contexts/workspace/file-secret-provenance`. Constants carry the
  * real values.
  *
  * @example
  * ```ts
  * vi.mock(
- *   '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+ *   '@/lib/uploads/contexts/workspace/file-secret-provenance',
  *   () => workspaceFileSecretProvenanceMock
  * )
  * ```
@@ -142,12 +144,15 @@ export const workspaceFileSecretProvenanceMock = {
   getBoundWorkspaceFileSecretProvenance: fns.mockGetBoundWorkspaceFileSecretProvenance,
   getBoundWorkspaceFileSecretProvenanceByMetadata:
     fns.mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
+  getBoundWorkspaceFileSecretProvenanceByIdentity:
+    fns.mockGetBoundWorkspaceFileSecretProvenanceByIdentity,
+  getCurrentWorkspaceFileSecretProvenance: fns.mockGetCurrentWorkspaceFileSecretProvenance,
+  getStoredFileSecretProvenanceByKey: fns.mockGetStoredFileSecretProvenanceByKey,
   importWorkspaceFileSecretProvenanceForModelView:
     fns.mockImportWorkspaceFileSecretProvenanceForModelView,
   isOpaqueWorkspaceFileEgressSafe: fns.mockIsOpaqueWorkspaceFileEgressSafe,
   importWorkspaceFileSecretProvenanceForRuntime:
     fns.mockImportWorkspaceFileSecretProvenanceForRuntime,
-  importWorkspaceFileSnapshotProvenance: fns.mockImportWorkspaceFileSnapshotProvenance,
   filterModelSafeWorkspaceFileAttachments: fns.mockFilterModelSafeWorkspaceFileAttachments,
   isModelSafeWorkspaceFileKey: fns.mockIsModelSafeWorkspaceFileKey,
   areModelSafeWorkspaceFileKeys: fns.mockAreModelSafeWorkspaceFileKeys,

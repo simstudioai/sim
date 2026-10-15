@@ -86,7 +86,10 @@ export function ashbyLimit(value: unknown, parameter = 'perPage'): number | unde
  * array whose entries are either plain strings or `{ message, parameter }`
  * objects. An object entry stringifies to `[object Object]` unless its message
  * is read explicitly, which is the form a 403 for a missing module permission
- * arrives in.
+ * arrives in. A single response can carry more than one of these at once.
+ *
+ * Shared with the Ashby webhook provider, which webhook routes reach, so this
+ * module keeps type-only imports and adds no runtime dependencies to that graph.
  */
 export function ashbyErrorMessage(data: unknown, fallback: string): string {
   if (!data || typeof data !== 'object') return fallback

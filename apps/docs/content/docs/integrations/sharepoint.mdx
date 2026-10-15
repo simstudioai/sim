@@ -15,11 +15,28 @@ Use [SharePoint](https://www.microsoft.com/en-us/microsoft-365/sharepoint/collab
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.
+Sim requests these scopes when someone connects a SharePoint account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/sharepoint` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Sites.Read.All` | Read documents and list items in all SharePoint sites |
+| `Sites.ReadWrite.All` | Create, edit, and delete documents and list items in all SharePoint sites |
+| `Sites.Manage.All` | Create and delete lists and document libraries in all SharePoint sites |
+| `offline_access` | Access account when not using the application |
+
+## Use the block [#usage-instructions]
+
+Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.
 
 ## Actions
 
@@ -79,7 +96,7 @@ Read a specific page from a SharePoint site
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 | `pages` | array | List of SharePoint pages |
-|   ↳ `page` | object | page output from the tool |
+|   ↳ `page` | object |  |
 |     ↳ `id` | string | The unique ID of the page |
 |     ↳ `name` | string | The name of the page |
 |     ↳ `title` | string | The title of the page |
@@ -88,7 +105,7 @@ Read a specific page from a SharePoint site
 |     ↳ `description` | string | The description of the page |
 |     ↳ `createdDateTime` | string | When the page was created |
 |     ↳ `lastModifiedDateTime` | string | When the page was last modified |
-|   ↳ `content` | object | content output from the tool |
+|   ↳ `content` | object |  |
 |     ↳ `content` | string | Extracted text content from the page |
 |     ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
 | `content` | object | Content of the SharePoint page |
@@ -189,7 +206,7 @@ List details of all SharePoint sites
 |   ↳ `lastModifiedDateTime` | string | When the site was last modified |
 |   ↳ `isPersonalSite` | boolean | Whether this is a personal site |
 |   ↳ `root` | object | Present \(as an empty object\) only when this site is the root of its site collection |
-|   ↳ `siteCollection` | object | siteCollection output from the tool |
+|   ↳ `siteCollection` | object |  |
 |     ↳ `hostname` | string | Site collection hostname |
 | `sites` | array | List of all accessible SharePoint sites |
 |   ↳ `id` | string | The unique ID of the site |
@@ -448,24 +465,5 @@ Delete a file (or folder) from a SharePoint document library
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the file was deleted |
 | `itemId` | string | The ID of the deleted file |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a SharePoint account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/sharepoint` |
-| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `openid` | Standard authentication |
-| `profile` | Access profile information |
-| `email` | Access email address |
-| `Sites.Read.All` | Read documents and list items in all SharePoint sites |
-| `Sites.ReadWrite.All` | Create, edit, and delete documents and list items in all SharePoint sites |
-| `Sites.Manage.All` | Create and delete lists and document libraries in all SharePoint sites |
-| `offline_access` | Access account when not using the application |
 
 

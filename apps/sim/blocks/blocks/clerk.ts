@@ -17,7 +17,7 @@ export const ClerkBlock: BlockConfig = {
   name: 'Clerk',
   description: 'Manage users, organizations, and sessions in Clerk',
   longDescription:
-    'Integrate Clerk authentication and user management into your workflow. Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.',
+    'Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.',
   docsLink: 'https://docs.sim.ai/integrations/clerk',
   category: 'tools',
   integrationType: IntegrationType.Security,

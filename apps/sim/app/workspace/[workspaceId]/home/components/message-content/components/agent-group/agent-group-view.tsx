@@ -5,9 +5,9 @@ import { ActivityTextColumn } from '@/components/ui/activity-status'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { readToolActivity } from '@/lib/mothership/tools/activity'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
-import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
-import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import {
   collectGroupTools,

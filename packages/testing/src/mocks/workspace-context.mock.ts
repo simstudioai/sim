@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 
-/** Shape of `ActiveWorkspaceApplicationContext` from `@/lib/workspaces/application/workspace-context`. */
+/** Shape of `ActiveWorkspaceApplicationContext` from `@/lib/workspaces/application/context`. */
 export interface MockWorkspaceApplicationContext {
   workspaceId: string
   workspaceOrganizationId: string | null
@@ -60,7 +60,7 @@ const mockResolveActiveWorkspaceApplicationContext = vi.fn(
 )
 
 /**
- * Controllable mock functions for `@/lib/workspaces/application/workspace-context`.
+ * Controllable mock functions for `@/lib/workspaces/application/context`.
  *
  * Defaults delegate like production: `resolveActive…` → `loadActive…` → `load…`, and `load…`
  * resolves {@link createMockWorkspaceApplicationContext} for the requested id. Override the
@@ -85,11 +85,11 @@ export const workspaceContextMockFns = {
 }
 
 /**
- * Static mock module for `@/lib/workspaces/application/workspace-context`.
+ * Static mock module for `@/lib/workspaces/application/context`.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+ * vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
  * ```
  */
 export const workspaceContextMock = {

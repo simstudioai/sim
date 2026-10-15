@@ -11,11 +11,11 @@ import { requireForkProject } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
 import {
   collectReferencedDocumentIds,
   collectReferencedFileFolderPaths,
-} from '@/lib/workflows/references/reference-scan'
-import type { ForkRemapKind } from '@/lib/workflows/references/remap-references'
+} from '@/lib/workflows/references/scan'
 import { WORKSPACE_OPERATION_OBSERVE_EVENT } from '@/lib/workspaces/operations/outbox-events'
 import {
   findWorkspaceOperationReceipt,

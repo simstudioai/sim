@@ -14,6 +14,7 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadActiveFolderPathIndex, resolveFolderPathFilter } from '@/lib/folders/queries'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
+import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/active-base-reference'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -45,7 +46,6 @@ import {
   MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE,
 } from '@/lib/knowledge/constants'
 import { getConfiguredKbEmbedding } from '@/lib/knowledge/embeddings'
-import type { ActiveKnowledgeBaseReference } from '@/lib/knowledge/knowledge-base-reference'
 import {
   performDeleteKnowledgeBase,
   performRestoreKnowledgeBase,

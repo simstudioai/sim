@@ -1,25 +1,27 @@
 ---
 title: Authentication
-description: Login providers, SSO, and controlling who can sign up
+description: Configure sign-in, registration, SSO, and Sim OAuth access
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
+Configure the deployment's public origin and shared session secret before choosing login providers or restricting registration.
+
 ## Required configuration
 
-```bash
+```text
 BETTER_AUTH_SECRET=<openssl rand -hex 32>
 BETTER_AUTH_URL=https://sim.yourdomain.com
 NEXT_PUBLIC_APP_URL=https://sim.yourdomain.com
 ```
 
-<Callout type="warn">
-  `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` must be your exact public origin — correct scheme, no trailing slash. Leaving either as `localhost` in a deployed instance breaks sign-in, and the failure looks like a redirect loop rather than a configuration error.
+Replace the secret placeholder with the output of `openssl rand -hex 32`. Use your exact public origin, including scheme, with no trailing slash. Production Compose derives `BETTER_AUTH_URL` from `NEXT_PUBLIC_APP_URL`; see [Docker](/platform/self-hosting/docker).
 
-  `BETTER_AUTH_SECRET` must be **identical** on the app and realtime services. They share sessions through the database; a mismatch means realtime rejects every authenticated socket connection.
+<Callout type="warn">
+  The app and realtime services must use the same `BETTER_AUTH_SECRET`. They share database sessions; a mismatch prevents authenticated socket connections. An incorrect public origin can cause rejected sign-in or redirect loops.
 </Callout>
 
-If users reach Sim from more than one origin — an apex and `www`, or an alias domain — list the extras:
+If the deployment serves additional origins, list them explicitly:
 
 ```bash
 TRUSTED_ORIGINS=https://www.example.com,https://app.example.com
@@ -27,27 +29,27 @@ TRUSTED_ORIGINS=https://www.example.com,https://app.example.com
 
 ## Email and password
 
-Enabled by default. Users sign up with an email address and password.
+Email/password sign-in and signup are enabled by default. To require email verification:
 
 ```bash
 EMAIL_VERIFICATION_ENABLED=true
 ```
 
-Requires a configured email provider — see [Email](/platform/self-hosting/email). Without one the mailer no-ops silently, so users can never verify and never sign in. Do not enable this before email works.
+Verification is enforced only when a mail provider is configured. Test [email delivery](/platform/self-hosting/email) before requiring verification: a configured provider that cannot deliver still prevents new accounts from completing verification. Without a provider, verification is not enforced and invitations and password-reset mail are not delivered.
 
 ## Social login
 
-Three providers are supported for signing in to Sim itself.
+These providers sign members in to Sim itself. Integration account connections use separate callback paths.
 
-| Provider | Variables | Callback URL |
-|---|---|---|
+| Provider | Variables | Login callback |
+| --- | --- | --- |
 | Google | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `https://<host>/api/auth/callback/google` |
 | GitHub | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | `https://<host>/api/auth/callback/github` |
 | Microsoft | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` | `https://<host>/api/auth/callback/microsoft` |
 
-A provider appears on the login page once its credentials are set. Microsoft additionally requires both variables to be present before it is registered at all.
+Set both credentials to make a provider available on the login page. Microsoft is registered only when both values are present.
 
-Turn one off without removing its credentials — useful when the same Google or Microsoft app powers integrations but you do not want it as a login method:
+To keep credentials for integrations while disabling the corresponding login method:
 
 ```bash
 DISABLE_GOOGLE_AUTH=true
@@ -55,65 +57,82 @@ DISABLE_GITHUB_AUTH=true
 DISABLE_MICROSOFT_AUTH=true
 ```
 
-<Callout type="info">
-  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — register that provider's own login callback — `/api/auth/callback/google` for Google, `/api/auth/callback/microsoft` for Microsoft — alongside the connector callbacks (`/api/auth/oauth2/callback/google-email` and friends) on the same OAuth client. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+Google and Microsoft share their client credentials with integrations. Register their login callback alongside the integration callbacks on the same client; see [Integrations and OAuth](/platform/self-hosting/integrations-oauth).
+
+## Control registration and sign-in [#controlling-who-can-sign-up]
+
+| Variable | Effect |
+| --- | --- |
+| `DISABLE_REGISTRATION=true` | Blocks new email/password, email OTP, and social accounts. Existing accounts can sign in, including to accept workspace invitations. SSO registration is unaffected. |
+| `DISABLE_EMAIL_SIGNUP=true` | Blocks new email/password and email OTP registrations. Existing accounts can still sign in through those methods. |
+| `EMAIL_PASSWORD_SIGNUP_ENABLED=false` | Disables email/password and email OTP sign-in and signup, including for existing accounts. |
+| `ALLOWED_LOGIN_DOMAINS` | Comma-separated email domain allowlist, such as `acme.com,acme.co.uk`. Applies to email/password and email OTP sign-in as well as email signup. |
+| `ALLOWED_LOGIN_EMAILS` | Comma-separated address allowlist. An address or its domain may satisfy the allowlists. |
+| `BLOCKED_SIGNUP_DOMAINS` | Comma-separated blocked domains. Blocks signup, sign-in, and executions for addresses in those domains, including subdomains. |
+| `BLOCKED_EMAILS` | Comma-separated banned addresses. Blocks signup, sign-in, and executions. |
+| `SIGNUP_MX_VALIDATION_ENABLED=true` | Checks email/password signup for a domain with no MX record or a blocked mail backend. |
+| `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to reject when MX validation is enabled. |
+
+<Callout type="warn">
+  Email allowlists do not filter first-time Google, GitHub, or Microsoft sign-in. To restrict social access, disable login providers you have not vetted or restrict membership through your identity provider and use SSO. MX validation applies only to email/password signup, not sign-in or email OTP. Registration-disabled and blocked-domain/address controls also cover social accounts.
 </Callout>
+
+For example, an installation using SSO while allowing existing company email accounts to sign in can set:
+
+```bash
+ALLOWED_LOGIN_DOMAINS=acme.com
+DISABLE_EMAIL_SIGNUP=true
+SSO_ENABLED=true
+NEXT_PUBLIC_SSO_ENABLED=true
+```
+
+This does not restrict enabled social providers to `acme.com`. Configure or disable those login methods separately.
 
 ## SSO (SAML and OIDC)
 
-SAML and OIDC single sign-on is an enterprise feature, available on self-hosted deployments through configuration rather than billing:
+For a standard billing-disabled self-hosted deployment, enable the enterprise suite:
 
 ```bash
 ENTERPRISE_ENABLED=true
 NEXT_PUBLIC_ENTERPRISE_ENABLED=true
 ```
 
-Or enable just SSO:
+Or enable SSO alone:
 
 ```bash
 SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-Providers are then registered in the app under **Settings → Organization → SSO**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
+Set both the server flag and its UI counterpart. Register providers under **Settings → Organization → Single sign-on**. A provider can belong to an organization or be registered without one.
 
-See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the organization patterns.
+Most other enterprise features read settings from the organization that owns a workspace. Set `INSTANCE_ORG_NAME` to place new members in one organization, or provision organizations through the Admin API. See [SSO](/platform/enterprise/sso) and [Self-hosted enterprise features](/platform/enterprise/self-hosted) for provider setup, organization patterns, and billing-enabled behavior.
+
+## Behind a load balancer
+
+Tell Better Auth which forwarding hops to trust when resolving client IPs:
+
+```bash
+AUTH_TRUSTED_PROXIES=10.0.0.0/24,192.0.2.10
+```
+
+Use your proxy addresses or CIDRs. Better Auth reads `X-Forwarded-For` from right to left, skips trusted proxies, and uses the first untrusted address for session records and IP checks. A range that also trusts client traffic defeats this boundary. See [Security](/platform/self-hosting/security).
 
 ## Sign in with Sim
 
-Your deployment acts as an OAuth 2.0 authorization server using authorization
-code with PKCE. OAuth sign-in is available whenever authentication is enabled;
-see [CLI authentication](/cli/authentication).
+Sim also acts as an OAuth 2.0 authorization server, using authorization code with PKCE. It supports API authorization rather than OpenID Connect identity: it does not issue ID tokens. See [CLI authentication](/cli/authentication).
 
-Apply database migrations before deploying a new app version. When upgrading
-from a version without the OAuth token-family lifecycle, drain older app
-instances before accepting OAuth traffic so every instance enforces the same
-refresh and revocation rules.
+Access tokens are opaque and last one hour. Refresh tokens rotate on use, and each login has a fixed thirty-day lifetime that refresh does not extend. Validation checks current grants: revoking access under **Settings → General → Authorized apps** stops the app on its next request. Scheduled token cleanup runs independently of sign-in activity.
 
-`DISABLE_AUTH=true` disables OAuth sign-in and discovery because authorization
-requires a real Better Auth user session. Older servers without OAuth support
-return 404 from `/.well-known/oauth-authorization-server`, and the CLI falls
-back to the pairing-code handoff.
+`DISABLE_AUTH=true` disables OAuth sign-in and discovery because these require a real member session. Older servers without OAuth support return `404` from `/.well-known/oauth-authorization-server`; the CLI can fall back to pairing-code login.
 
-Access tokens are opaque and last an hour; refresh tokens rotate on every use.
-Each login has a fixed thirty-day lifetime that refreshing does not extend.
-Token validation checks current grants, so revoking a grant under
-**Settings → General → Authorized apps** stops the app on its very next request.
-Scheduled OAuth token cleanup runs independently of sign-in activity.
+### Client registration [#registering-an-app]
 
-Organization admins can restrict **OAuth App Access** under **Credentials & Access**
-in [permission groups](/platform/enterprise/access-control). Workspace requests use
-the group governing that workspace. Authorizing apps, issuing and refreshing tokens,
-and account-level billing and audit reads use the organization's default group.
-**CLI Access** also applies to the Sim CLI. Members can still review and revoke
-existing grants when OAuth app access is restricted.
+MCP clients can use the public registration endpoint at `/api/auth/oauth2/register`. It accepts reviewed callback formats, requires PKCE, and accepts at most 10 redirect URIs in a JSON body capped at 32 KiB. Its per-IP bucket holds 20 registration tokens and refills 20 each minute. Registration grants no resource access by itself. Members must consent, and each MCP grant is narrowed to the API or Search resource it addresses.
 
-### Registering an app
+The available scopes are `offline_access`, `api:read`, `api:write`, and `search:read`. API and Search resource scope families remain distinct. Public registration permits HTTPS callbacks, loopback HTTP callbacks, and the explicitly supported Cursor native callback; it does not accept arbitrary custom URI schemes.
 
-Dynamic client registration is switched off, so clients are created by an
-operator. Both `db:migrate` and the development `db:push` command install the
-OAuth lifecycle triggers and register the Sim CLI. Repeating either command
-preserves existing grants and client customizations. Register other apps with:
+Operators create first-party and confidential clients. Both `db:migrate` and the development `db:push` command install OAuth lifecycle triggers and register the Sim CLI, preserving existing grants and client customizations on repeat runs. From a source checkout, register another app with:
 
 ```bash
 DATABASE_URL=… \
@@ -125,77 +144,44 @@ OAUTH_SCOPES=api:read \
 bun run apps/sim/scripts/create-oauth-client.ts
 ```
 
-Add `OAUTH_CLIENT_PUBLIC=true` for a native or CLI app that cannot keep a
-secret; it then authenticates with PKCE alone. The provider exposes
-`offline_access`, `api:read`, and `api:write` for API authorization; it does not
-expose OpenID Connect identity scopes or issue ID tokens. A confidential
-client's secret is printed once and cannot be read back. Confidential clients
-use `client_secret_basic`; the registration command prints the token
-authentication method alongside the client ID.
+Add `OAUTH_CLIENT_PUBLIC=true` for a native or CLI app that cannot keep a secret. Confidential clients use `client_secret_basic`; the command prints the authentication method and prints the client secret once. The secret cannot be read back.
 
-Redirect URIs must be `https`, or `http` on a loopback address, and are matched
-exactly — except a loopback URI, where any port matches, because a native app
-cannot know its port in advance.
+Operator-registered redirect URIs must use HTTPS or HTTP on a loopback address. They match exactly, except that loopback callbacks may use any port.
 
-## Controlling who can sign up
+### Authorization and upgrades
 
-| Variable | Effect |
-|---|---|
-| `DISABLE_REGISTRATION=true` | Blocks all new accounts — email/password, email OTP, and social sign-in. Only existing accounts can sign in, including to accept a workspace invitation. SSO is unaffected |
-| `DISABLE_EMAIL_SIGNUP=true` | Blocks new email/password registrations; existing email login keeps working |
-| `EMAIL_PASSWORD_SIGNUP_ENABLED=false` | Disables the whole email path — sign-in, signup, and email OTP — for existing users too. Use `DISABLE_EMAIL_SIGNUP` to block only new accounts |
-| `ALLOWED_LOGIN_DOMAINS` | Comma-separated domain allowlist, e.g. `acme.com,acme.co.uk`. Gates email sign-**in** as well as signup |
-| `ALLOWED_LOGIN_EMAILS` | Comma-separated address allowlist, applied the same way |
-| `BLOCKED_SIGNUP_DOMAINS` | Comma-separated domain blocklist |
-| `BLOCKED_EMAILS` | Comma-separated address blocklist. Bans the address from the platform outright — signup, sign-in, and workflow executions |
-| `SIGNUP_MX_VALIDATION_ENABLED=true` | Reject domains with no MX record or a denylisted mail backend |
-| `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to block; used only with the above |
+Organization admins can restrict **OAuth App Access** under **Credentials & Access** in [permission groups](/platform/enterprise/access-control). Workspace requests use the group governing that workspace; authorization, issuance, refresh, and account-level billing/audit reads use the organization's default group. **CLI Access** also applies to the Sim CLI. Members can still inspect and revoke existing grants when OAuth app access is restricted.
 
-<Callout type="warn">
-  `ALLOWED_LOGIN_DOMAINS`, `ALLOWED_LOGIN_EMAILS`, and `SIGNUP_MX_VALIDATION_ENABLED` gate the **email/password** path only — and `SIGNUP_MX_VALIDATION_ENABLED` narrower still, running on email signup alone, not on email sign-in or email OTP. A first-time sign-in through Google, GitHub, or Microsoft creates an account through the social provider and is not filtered by them. To restrict who may sign in through a social provider, disable the ones you have not vetted (`DISABLE_GOOGLE_AUTH`, `DISABLE_GITHUB_AUTH`, `DISABLE_MICROSOFT_AUTH`) or restrict membership at the identity provider and use SSO.
+Apply database migrations before a new app version. When upgrading from a version without the OAuth token-family lifecycle, drain older app instances before accepting OAuth traffic so all instances enforce the same refresh and revocation rules.
 
-  `DISABLE_REGISTRATION` and `BLOCKED_SIGNUP_DOMAINS` apply to every path, social included.
-</Callout>
-
-For a company deployment, the usual pairing is domain-restricted signup plus SSO:
-
-```bash
-ALLOWED_LOGIN_DOMAINS=acme.com
-DISABLE_EMAIL_SIGNUP=true
-SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
-```
-
-Both SSO flags are needed: the server-side one grants access, and the `NEXT_PUBLIC_` one makes the login page render the SSO entry point.
-
-## Behind a load balancer
-
-Tell Better Auth which forwarding hops to trust when resolving the client IP:
-
-```bash
-AUTH_TRUSTED_PROXIES=10.0.0.0/24,192.0.2.10
-```
-
-Better Auth walks `X-Forwarded-For` right to left, skips these hops, and uses the first untrusted address as the client IP for session records and its own IP-based checks. Use your proxies' actual addresses — a broad private range that also covers client traffic defeats the purpose. See [Security](/platform/self-hosting/security).
-
-## Disabling authentication entirely
+## Disable authentication [#disabling-authentication-entirely]
 
 ```bash
 DISABLE_AUTH=true
 ```
 
-Bypasses authentication and creates an anonymous session for every request.
+Requests use a shared anonymous session.
 
 <Callout type="error">
-  Everyone who can reach the instance becomes a fully privileged user — including anything that can reach it through an SSRF bug elsewhere on your network. Use this only for a single-user instance on a private network, never behind an internet-facing ingress.
+  Anyone who can reach the instance can act through that session. Use this only for a single-user installation on a private network; do not expose it through an internet-facing ingress.
 </Callout>
 
 ## Other controls
 
 | Variable | Effect |
-|---|---|
-| `DISABLE_INVITATIONS=true` / `NEXT_PUBLIC_DISABLE_INVITATIONS=true` | Disable workspace invitations globally |
-| `DISABLE_PUBLIC_API=true` / `NEXT_PUBLIC_DISABLE_PUBLIC_API=true` | Disable the public API globally |
-| `ADMIN_API_KEY` | Enables the Admin API for GitOps operations and organization provisioning |
+| --- | --- |
+| `DISABLE_INVITATIONS=true` / `NEXT_PUBLIC_DISABLE_INVITATIONS=true` | Disable workspace invitations globally. |
+| `DISABLE_PUBLIC_API=true` / `NEXT_PUBLIC_DISABLE_PUBLIC_API=true` | Disable the public API globally. |
+| `ADMIN_API_KEY` | Enables Admin API GitOps operations and organization provisioning. |
 
-The `NEXT_PUBLIC_` twin controls what the UI shows; the server-side variable enforces it. Set both.
+Set both server and `NEXT_PUBLIC_` flags where a pair is listed. The server flag enforces the restriction; its counterpart controls the UI.
+
+## Verify authentication
+
+Sign out and sign back in at the public origin, then open a workflow in two browser windows and confirm edits propagate. Test each enabled login method. If verification is required, create a test account and confirm the message arrives and the verification succeeds. Use [Verify your install](/platform/self-hosting/verify) for deployment checks.
+
+## Related docs
+
+- [Email](/platform/self-hosting/email)
+- [Integrations and OAuth](/platform/self-hosting/integrations-oauth)
+- [Verified domains](/platform/enterprise/verified-domains)

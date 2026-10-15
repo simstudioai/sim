@@ -2,17 +2,17 @@ import type { Principal } from '@sim/auth/principal'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getShareForResource } from '@/lib/public-shares/share-manager'
+import { getShareForResource } from '@/lib/public-shares/manager'
 import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
   getWorkspaceFileWithCurrentVersion,
   type VersionedWorkspaceFileRecord,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/file-context'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
 
 export interface ReadWorkspaceFileMetadataInput {
   fileId: string

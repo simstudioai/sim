@@ -59,7 +59,7 @@ describe('Sim Mailer hosted entitlement', () => {
 
     await expect(hasWorkspaceInboxAccess('workspace-1')).resolves.toBe(false)
     await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(false)
-    expect(mockGetPersonalSubscription).toHaveBeenCalledWith('payer-1')
+    expect(mockGetPersonalSubscription).toHaveBeenCalledWith('payer-1', {})
   })
 
   it.each([

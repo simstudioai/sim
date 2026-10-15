@@ -8,6 +8,7 @@ import {
   humanInTheLoopManagerMock,
   humanInTheLoopManagerMockFns,
 } from '@sim/testing/mocks/human-in-the-loop-manager.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -1610,6 +1611,8 @@ describe('cancelWorkflowExecution', () => {
     expect(mockClearExecutionCancellation).toHaveBeenCalledWith('ex-1')
     expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+
+    expect(getMockLogger('CancelWorkflowExecution').error).not.toHaveBeenCalled()
   })
 
   it('finalizes paused cancellation state when resume completion wins the log claim', async () => {

@@ -9,7 +9,7 @@ paths:
 
 ## Absolute Imports
 
-**Always use absolute imports.** Never use relative imports, except that a barrel `index.ts` re-exports its own siblings relatively (`export { X } from './x'`).
+**Always use absolute imports.** Never use relative imports, except that a barrel `index.ts` re-exports its own siblings relatively (`export { X } from './x'`). `check:source-conventions` ratchets this per file.
 
 ```typescript
 // ✓ Good

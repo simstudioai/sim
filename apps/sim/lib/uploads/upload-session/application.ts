@@ -2,6 +2,7 @@ import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
 import type { CreateInternalFileUploadBody } from '@/lib/api/contracts/upload-sessions'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
 import {
   authorizeOrganizationAttachmentControl,
@@ -12,7 +13,7 @@ import {
   createOrganizationLogoUpload,
 } from '@/lib/uploads/contexts/organization-logo/application'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,
@@ -446,14 +447,18 @@ function principalUserId(principal: Principal): string {
   throw new Error('Workspace upload attribution must be resolved from the current workspace owner')
 }
 
-export function requestOrigin(request: OrchestrationRequestContext & { nextUrl?: URL }): string {
-  if (request.nextUrl instanceof URL) return request.nextUrl.origin
+/**
+ * The origin a local-storage transfer URL sends the caller back to. A network request names
+ * it with its browser `Origin` or proxy host headers. An in-process request (Chat's CLI, MCP
+ * dispatch) never crossed the network, so the URL it was addressed to is its origin; only a
+ * context with neither falls back to the configured app URL.
+ */
+export function requestOrigin(request: OrchestrationRequestContext): string {
   const origin = request.headers.get('origin')
   if (origin) return origin
   const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
-  const protocol = request.headers.get('x-forwarded-proto') ?? 'https'
-  if (!host) throw new Error('Upload signing requires a request origin')
-  return `${protocol}://${host}`
+  if (host) return `${request.headers.get('x-forwarded-proto') ?? 'https'}://${host}`
+  return request.url ? new URL(request.url).origin : getBaseUrl()
 }
 
 export type { UploadSessionTransfer }

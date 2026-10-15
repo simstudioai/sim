@@ -8,7 +8,7 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
   toBillingContext,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
@@ -19,7 +19,7 @@ import { defineWorkspaceOperation } from '@/lib/core/application/workspace-opera
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 const logger = createLogger('SpeechToken')
 const ELEVENLABS_TOKEN_URL = 'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe'

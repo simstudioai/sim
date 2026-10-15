@@ -1,5 +1,5 @@
 import type { db } from '@sim/db'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import {
   KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,

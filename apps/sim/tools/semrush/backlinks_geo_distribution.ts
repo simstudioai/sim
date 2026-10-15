@@ -19,7 +19,7 @@ export const semrushBacklinksGeoDistributionTool: ToolConfig<
 > = {
   id: 'semrush_backlinks_geo_distribution',
   name: 'Semrush Backlink Country Distribution',
-  description: 'Break a target backlink profile down by the country of its referring domains.',
+  description: 'Break a target’s backlink profile down by the country of its referring domains.',
   version: '1.0.0',
 
   params: {

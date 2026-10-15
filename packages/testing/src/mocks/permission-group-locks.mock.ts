@@ -21,6 +21,9 @@ export const permissionGroupLocksMockFns = {
       _options?: { lockTimeoutAlreadyBounded?: boolean }
     ): Promise<void> => undefined
   ),
+  mockAcquirePermissionGroupOrgReadLock: vi.fn(
+    async (_tx: unknown, _organizationId: string): Promise<void> => undefined
+  ),
 }
 
 /**
@@ -33,4 +36,6 @@ export const permissionGroupLocksMockFns = {
  */
 export const permissionGroupLocksMock = {
   acquirePermissionGroupOrgLock: permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgLock,
+  acquirePermissionGroupOrgReadLock:
+    permissionGroupLocksMockFns.mockAcquirePermissionGroupOrgReadLock,
 }

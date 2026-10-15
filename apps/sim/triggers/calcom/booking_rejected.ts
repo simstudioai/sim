@@ -1,11 +1,11 @@
 import { CalComIcon } from '@/components/icons'
-import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildRejectedOutputs,
   calcomSetupInstructions,
   calcomTriggerOptions,
   calcomWebhookSecretField,
 } from '@/triggers/calcom/utils'
+import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const calcomBookingRejectedTrigger: TriggerConfig = {

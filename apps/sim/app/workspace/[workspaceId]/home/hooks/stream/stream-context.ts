@@ -121,8 +121,13 @@ export interface StreamLoopDeps {
     resourceId: string,
     workspaceId?: string
   ) => void
+  /** Drops a queued client write that would re-add a resource the server already removed. */
+  discardPendingResourceUpsert: (
+    resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
+  ) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
+  startClientComputerTool: (id: string, args: Record<string, unknown>, ts?: string) => void
   startClientBrowserTool: (
     id: string,
     name: string,

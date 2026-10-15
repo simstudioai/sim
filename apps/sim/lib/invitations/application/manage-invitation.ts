@@ -21,12 +21,13 @@ import {
 } from '@/lib/core/orchestration/types'
 import { getInvitationById } from '@/lib/invitations/core'
 import { resendInvitationRecord, revokeInvitationRecord } from '@/lib/invitations/mutation-manager'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const invitationManagementOperations = {
   /** permission-group-exempt: cancellation removes access and remains available when sends are withheld. */
   cancel: defineOrganizationOperation({
     id: 'organization_invitations.cancel',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'organization_delegated'],
@@ -36,6 +37,7 @@ export const invitationManagementOperations = {
   /** permission-group-exempt: resend checks invitations.send against each canonical admission and workspace scope below. */
   resend: defineOrganizationOperation({
     id: 'organization_invitations.resend',
+    contentDelivery: 'none',
     minimumRole: 'admin',
     capability: 'none',
     principalKinds: ['session', 'organization_delegated'],
@@ -256,6 +258,7 @@ export const workspaceInvitationManagementOperations = {
     id: 'workspace_invitations.cancel',
     minimumRole: 'admin',
     capability: 'none',
+    contentDelivery: 'none',
     workspaceApiKey: 'deny',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],
@@ -264,6 +267,7 @@ export const workspaceInvitationManagementOperations = {
     id: 'workspace_invitations.resend',
     minimumRole: 'admin',
     capability: 'invitations.send',
+    contentDelivery: 'none',
     workspaceApiKey: 'deny',
     principalKinds: ['session', 'delegated'],
     delegatedServices: ['copilot'],

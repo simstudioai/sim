@@ -1,6 +1,6 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceOrganizationAccounts } from '@/lib/credential-groups/application/workspace-organization-accounts'
-import { listInternalCredentials } from '@/lib/credentials/application/credential-crud'
+import { listInternalCredentials } from '@/lib/credentials/application/crud'
 import { fetchOllamaEmbeddingModelCatalog } from '@/lib/embeddings/ollama-model-catalog.server'
 import { fetchOpenRouterEmbeddingModelCatalog } from '@/lib/embeddings/openrouter-model-catalog.server'
 import { getEffectiveEnvironmentVariableNames } from '@/lib/environment/utils'

@@ -4,6 +4,7 @@ import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
 import {
+  FILE_DELIVERY_CSP_PATH_PATTERN,
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
@@ -423,11 +424,12 @@ const nextConfig: NextConfig = {
             key: 'X-Frame-Options',
             value: 'SAMEORIGIN',
           },
-          {
-            key: 'Content-Security-Policy',
-            value: getMainCSPPolicy(),
-          },
         ],
+      },
+      {
+        // File routes preserve their representation CSP in withRouteHandler.
+        source: `/((?!workspace|chat|login|signup|${FILE_DELIVERY_CSP_PATH_PATTERN.slice(1)}$|$).*)`,
+        headers: [{ key: 'Content-Security-Policy', value: getMainCSPPolicy() }],
       },
     ]
   },
@@ -498,15 +500,9 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
-    /**
-     * The marketing Academy course/lesson pages were removed; content is
-     * consolidated into the docs site instead. Old course/lesson slugs have
-     * no equivalent path there, so every sub-path collapses to the new
-     * landing page rather than forwarding to a path that may not exist.
-     */
     redirects.push({
       source: '/academy/:path*',
-      destination: 'https://docs.sim.ai/academy',
+      destination: 'https://docs.sim.ai/introduction',
       permanent: true,
     })
 

@@ -11,26 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The File block is a built-in Sim block for working with files stored in the workspace, or fetched from external URLs. It handles reading, searching, writing, appending, compressing, decompressing, and sharing files as part of a workflow.
+Use the File block to read or extract workspace files, search their contents, fetch files from URLs with custom headers, write or append content, create or extract ZIP archives, and manage share links with public, password, email, or SSO access. Additional actions apply precise text edits, move files, and list, create, move, delete, or restore folders.
 
-With the File block, you can:
-
-- **Read and extract content**: Load workspace file objects and extract their text content from selected files or one or more folders
-- **Search workspace content**: Match a regular expression, or an exact piece of text, across the workspace or selected folder scopes with bounded line-level results
-- **Fetch from URLs**: Retrieve and parse files from external URLs with custom headers
-- **Write and append**: Create new workspace files or append content to existing ones
-- **Compress and decompress**: Bundle files into a .zip archive or extract an archive into the workspace
-- **Manage sharing**: Enable or disable a public share link for a file, with public, password, email, or SSO access modes
-
-In Sim, the File block allows your agents to search, read, and extract text from workspace files, fetch and parse files from URLs, write or append content to files, bundle files into or out of .zip archives, and control public sharing access for a file—all programmatically as steps in a workflow. Folder selection is optional and supports multiple folders. Pick them from the workspace, or switch the field to advanced mode and type comma-separated paths, including a value from an earlier block. When no folder is selected, search spans the workspace and file pickers are unscoped. Selected folders are expanded when the workflow runs, so newly added files are included automatically. This makes it possible to explore workspace content, move file content into and out of a workflow, package outputs for download or transfer, and expose files to external users through a managed share link.
+Folder selection is optional and supports multiple folders. Choose folders from the workspace, or switch to advanced mode and provide comma-separated paths or a value from an earlier block. Without a folder selection, Search spans the workspace and file pickers are unscoped. Selected folders are expanded when the workflow runs, so newly added files are included.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Read workspace file objects, search indexed text across the workspace or selected folder scopes, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, extract a .zip archive into the workspace, or manage the public share link for a file.
-
-
 
 ## Actions
 
@@ -198,7 +187,7 @@ Apply one precise edit to an existing text file without rewriting it. Use search
 | `anchor` | string | No | For insert_after, the complete line after which content is inserted. |
 | `startAnchor` | string | No | For delete_between, the complete first line to delete. The start anchor is removed. |
 | `endAnchor` | string | No | For delete_between, the complete ending boundary line. The end anchor remains in the file. |
-| `occurrence` | number | No | For anchored edits, which matching anchor occurrence to use, starting at 1. Defaults to 1. |
+| `occurrence` | number | No | For anchored edits, which start or insert anchor match to use, starting at 1. Defaults to 1. The end anchor is the first match after it. |
 | `expectedRevision` | string | No | Refuse the edit unless the file still holds the content this revision names, as returned by Get File or an earlier write. Use it so an edit computed from what you read cannot overwrite someone else’s change. |
 
 #### Output

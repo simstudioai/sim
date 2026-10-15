@@ -22,10 +22,10 @@ vi.mock('@/lib/credentials/application/service-account', () => ({
   },
 }))
 
-import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import { CredentialProviderOperationError } from '@/lib/credentials/application/crud'
 import { PATCH } from '@/app/api/v2/credentials/[credentialId]/route'
 
-vi.mock('@/lib/credentials/application/credential-crud', async () => {
+vi.mock('@/lib/credentials/application/crud', async () => {
   const { OrchestrationError: BaseError } = await import('@/lib/core/orchestration/types')
   class MockCredentialProviderOperationError extends BaseError {
     constructor(

@@ -72,7 +72,6 @@ const pendingWebhookVerificationProbeMatchers: Record<
     method === 'GET' ||
     method === 'HEAD' ||
     (method === 'POST' && (!body || Object.keys(body).length === 0)),
-  // Zoho Desk sends a GET reachability probe at subscription-create time.
   // Zoho sends a GET reachability probe at subscription-create time and, if that
   // does not return 200, falls back to a POST probe before failing the create.
   // Match the empty-bodied POST too, as grain/generic/salesforce do.

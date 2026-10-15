@@ -5,7 +5,7 @@ export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkRespon
   id: 'dub_update_link',
   name: 'Dub Update Link',
   description:
-    'Update an existing short link. You can modify the destination URL, slug, metadata, UTM parameters, and more.',
+    "Update an existing short link's destination URL, domain, slug, link-preview title and description, UTM parameters, and other supported settings.",
   version: '1.0.0',
 
   params: {

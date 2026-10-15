@@ -14,6 +14,8 @@ export const FILE_SEARCH_PATTERN_MAX_DEPTH = 20
 /** Total search deadline, including patterns whose literals cannot provide a selective trigram probe. */
 export const FILE_SEARCH_STATEMENT_TIMEOUT_MS = 10 * 1000
 export const FILE_SEARCH_LOCK_TIMEOUT_MS = 5 * 1000
+/** A rendered file's bytes are already fetched, so a contended requeue gives up rather than stall the read. */
+export const FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS = 1000
 export const FILE_SEARCH_DEFAULT_MAX_RESULTS = 50
 export const FILE_SEARCH_MAX_RESULTS = 200
 
@@ -112,3 +114,5 @@ export const FILE_SEARCH_INDEX_MAX_DURATION_SECONDS = 15 * 60
 export const FILE_SEARCH_INDEX_STALE_DISPATCH_MS = 6 * 60 * 60 * 1000
 export const FILE_SEARCH_INDEX_STALE_REAP_LIMIT = 100
 export const FILE_SEARCH_BACKFILL_PAGE_SIZE = 1000
+
+export const FILE_SEARCH_MAX_DEPENDENCIES = 500

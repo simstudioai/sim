@@ -44,7 +44,7 @@ vi.mock('@/lib/embeddings', async () => ({
   },
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/attribution'
 import { env } from '@/lib/core/config/env'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { seedKnowledgeAclFixture } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
@@ -56,7 +56,7 @@ import { executeSync } from '@/lib/knowledge/connectors/sync-engine'
 import { persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromUrl } from '@/lib/uploads/utils/file.server'
 import { googleWorkspaceDomain } from '@/connectors/google-drive/directory'
 import { googleDriveConnector } from '@/connectors/google-drive/google-drive'
 import type { ExternalDocument } from '@/connectors/types'

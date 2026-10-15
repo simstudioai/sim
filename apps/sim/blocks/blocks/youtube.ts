@@ -8,7 +8,7 @@ export const YouTubeBlock: BlockConfig = {
   description: 'Interact with YouTube videos, channels, and playlists',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.',
+    'Search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.',
   docsLink: 'https://docs.sim.ai/integrations/youtube',
   category: 'tools',
   integrationType: IntegrationType.Communication,

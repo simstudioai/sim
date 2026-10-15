@@ -1,5 +1,5 @@
 import { generateId } from '@sim/utils/id'
-import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/outputs'
 import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'

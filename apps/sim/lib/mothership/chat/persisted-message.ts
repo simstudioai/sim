@@ -28,8 +28,8 @@ import type {
   LocalToolCallStatus,
   OrchestratorResult,
 } from '@/lib/mothership/request/types'
+import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
-import { normalizeToolActivityDescription } from '@/lib/mothership/tools/tool-display'
 import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 export interface PersistedFileAttachment {
@@ -254,6 +254,16 @@ export function compactToolCallParams(message: PersistedMessage): PersistedMessa
     return { ...block, toolCall: { ...toolCall, params } }
   })
   return changed ? { ...message, contentBlocks } : message
+}
+
+/**
+ * What `copilot_messages.display_content` holds for a stored message: the chat UI's
+ * projection of its content, or null when that equals the content and the column stays empty.
+ * `content` is the stored form, already passed through {@link stripToolResultOutput}.
+ */
+export function displayContentOf(content: PersistedMessage): PersistedMessage | null {
+  const display = compactToolCallParams(content)
+  return display === content ? null : display
 }
 
 // Write: OrchestratorResult → PersistedMessage

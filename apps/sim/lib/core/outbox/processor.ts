@@ -9,7 +9,7 @@ import { OUTBOX_HANDLER_GROUPS } from '@/lib/core/outbox/handlers'
 import { pruneCompletedOutboxEvents } from '@/lib/core/outbox/retention'
 import { type ProcessOutboxResult, processOutboxEvents } from '@/lib/core/outbox/service'
 import { DeadlineExceededError } from '@/lib/core/utils/deadline'
-import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/error'
 import { recoverKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-recovery'
 import { reapStaleBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 

@@ -4,6 +4,7 @@ import { McpError as McpSdkError } from '@modelcontextprotocol/sdk/types.js'
 import { type V2McpServer, v2McpServerSchema } from '@/lib/api/contracts/v2/mcp-servers'
 import { createV2ResourceConcealmentPolicy, type V2ErrorPolicy } from '@/lib/api/server/routes'
 import { isTimeoutError } from '@/lib/core/execution-limits'
+import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { projectMcpHeaders } from '@/lib/mcp/projection'
 import type { McpServerRow } from '@/lib/mcp/queries'
 import {
@@ -74,9 +75,11 @@ function unreachableServerMessage(error: unknown): string {
  * cooling-down server is a retryable 503 (`v2Error` stamps it with
  * `Retry-After`), and a server whose stored OAuth grant no longer works is a 409
  * — the registration exists but its grant no longer does, which is a state
- * conflict a human resolves by reauthorizing. Answering all of those with a bare
- * 500 would make the endpoint that completes MCP onboarding indistinguishable
- * from a Sim outage.
+ * conflict a human resolves by reauthorizing. A grant whose refresh failed
+ * surfaces as `McpOauthRedirectRequired`: the SDK fell back to the browser
+ * authorization step, which no API caller can complete. Answering all of those
+ * with a bare 500 would make the endpoint that completes MCP onboarding
+ * indistinguishable from a Sim outage.
  *
  * The reauthorization case deliberately does **not** reuse 401. On this surface
  * 401 means exactly one thing — the Sim API key is missing or invalid — and the
@@ -101,7 +104,11 @@ export const v2McpToolDiscoveryErrorPolicy = {
     const orchestrated = mcpServerResourceErrorPolicy.render(error)
     if (orchestrated) return orchestrated
 
-    if (error instanceof McpOauthAuthorizationRequiredError || error instanceof UnauthorizedError) {
+    if (
+      error instanceof McpOauthAuthorizationRequiredError ||
+      error instanceof McpOauthRedirectRequired ||
+      error instanceof UnauthorizedError
+    ) {
       return v2Error(
         'CONFLICT',
         'The MCP server must be reauthorized in Sim before its tools can be listed',

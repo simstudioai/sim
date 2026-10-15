@@ -81,9 +81,9 @@ const routes = [
     billingOperation({
       applicationOperation: billingOperations.readStatus,
       operationId: 'getBillingStatus',
-      summary: 'Get Billing Status',
+      summary: 'Get billing status',
       description:
-        "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List Billing Logs for credit history.",
+        "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List billing logs for credit history.",
       errors: RESOURCE_ERRORS,
       success: { description: 'The current billing and storage status.' },
     }),
@@ -108,7 +108,7 @@ const routes = [
     billingOperation({
       applicationOperation: billingOperations.listLogs,
       operationId: 'listBillingLogs',
-      summary: 'List Billing Logs',
+      summary: 'List billing logs',
       description:
         'List credit usage with source filtering and cursor pagination. The default `period` is `30d`; pagination covers only the selected time window. An inverted custom window returns `400`.',
       errors: RESOURCE_ERRORS,
@@ -135,7 +135,7 @@ const routes = [
 export const billingOpenApiDocument = defineOpenApiDocument({
   output: 'apps/docs/openapi-v2-billing.json',
   info: {
-    title: 'Sim API v2 — Billing',
+    title: 'Sim API v2 — billing',
     description:
       'Version 2 of the Sim REST API for billing standing, credit allowance, storage quota, and cursor-paginated usage history.',
     version: '2.0.0',

@@ -24,7 +24,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/folders/queries', () => folderQueriesMock)
@@ -201,27 +201,20 @@ describe('Mothership table mounts through code calls', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  it('retains snapshot provenance refusal and cloud transport without buffering', async () => {
+  it('stops before code execution when a requested table snapshot is refused', async () => {
     mocks.safety.mockResolvedValueOnce('stale')
     await expect(run('table-orders')).rejects.toThrow('changed while preparing')
     expect(mocks.presign).not.toHaveBeenCalled()
     mocks.cloud.mockReturnValue(true)
     mocks.safety.mockResolvedValue('unsafe-provenance')
-    await run('table-orders')
-    const params = mocks.execute.mock.calls[0][1]
-    expect(params._sandboxFiles).toEqual([
-      {
-        type: 'url',
-        path: '/tmp/orders.csv',
-        url: 'https://storage.invalid/snapshot',
-        maxBytes: 500 * 1024 * 1024,
-      },
-    ])
-    expect(mocks.presign).toHaveBeenCalledWith('snapshot.csv', 'execution', 1800)
+    const result = await run('table-orders')
+    expect(mocks.execute).not.toHaveBeenCalled()
+    expect(mocks.presign).not.toHaveBeenCalled()
     expect(mocks.download).not.toHaveBeenCalled()
-    expect(
-      mocks.execute.mock.calls[0][2].resolvedSecretTraceRegistry.exportProvenance().complete
-    ).toBe(false)
+    expect(result.output).toMatchObject({
+      codeExecuted: false,
+      excludedInputs: [{ path: 'table-orders', reason: expect.any(String) }],
+    })
   })
 
   it.each(['local', 'cloud'] as const)(

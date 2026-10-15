@@ -15,7 +15,7 @@ Sendblue connects your agents to iMessage and SMS through your own dedicated pho
 
 Authentication uses a Sendblue **API Key ID** and **API Secret Key**, sent as the `sb-api-key-id` and `sb-api-secret-key` headers. You can find both in your [Sendblue dashboard](https://dashboard.sendblue.com). Every message is sent from one of your registered Sendblue lines, supplied as the **From Number** in E.164 format (for example `+15551234567`).
 
-**Operations**
+## Message operations
 
 - **Send Message** — send an iMessage or SMS to a single recipient. Provide message text, a media URL, or both, and optionally apply an iMessage expressive style (celebration, fireworks, lasers, confetti, and more).
 - **Send Group Message** — send to multiple recipients at once. Pass one recipient per line; reuse the returned `group_id` to keep replying in the same thread.
@@ -23,7 +23,7 @@ Authentication uses a Sendblue **API Key ID** and **API Secret Key**, sent as th
 - **Send Typing Indicator** — show a recipient that a reply is being composed (one-to-one chats only).
 - **Get Message** — retrieve a single message and its current status by message handle.
 
-**Triggers**
+## Trigger setup
 
 - **Message Received** — fires on every inbound message. Configure it as the **Receive** webhook in your Sendblue dashboard.
 - **Message Status Updated** — fires when an outbound message changes state (`SENT`, `DELIVERED`, `ERROR`). Configure it as the **Outbound** webhook, or pass its URL per message as `status_callback`.
@@ -32,11 +32,9 @@ Each trigger generates its own webhook URL — paste the matching URL into the c
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Send iMessages and SMS to individuals or groups, check whether a number supports iMessage, show typing indicators, and look up message status with Sendblue. Trigger workflows on inbound messages and delivery status updates.
-
-
 
 ## Actions
 
@@ -210,7 +208,7 @@ Retrieve a single message and its current status by message handle/ID.
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Sendblue Message Received
 

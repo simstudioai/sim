@@ -33,7 +33,7 @@ vi.mock('@/tools', () => toolsMock)
 
 import { getBlock } from '@/blocks/registry'
 import { PAUSE_RESUME } from '@/executor/constants'
-import { HumanInTheLoopBlockHandler } from '@/executor/handlers/human-in-the-loop/human-in-the-loop-handler'
+import { HumanInTheLoopBlockHandler } from '@/executor/handlers/human-in-the-loop/handler'
 
 toolsUtilsMockFns.mockGetTool.mockReturnValue({
   id: 'notifier_send',

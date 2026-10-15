@@ -8,12 +8,9 @@ import {
   RunCode,
   SearchWorkspace,
 } from '@/lib/mothership/generated/tool-catalog-v1'
+import { getToolActivitySummaryActions, readToolActivity } from '@/lib/mothership/tools/activity'
+import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import {
-  getToolActivitySummaryActions,
-  readToolActivity,
-} from '@/lib/mothership/tools/tool-activity'
-import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
 import { getSearchActivitySources } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'

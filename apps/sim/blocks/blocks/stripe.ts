@@ -15,7 +15,7 @@ export const StripeBlock: BlockConfig = {
   description: 'Process payments and manage Stripe data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrates Stripe into the workflow. Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Can be used in trigger mode to trigger a workflow when a Stripe event occurs.',
+    'Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Supported Stripe events can start workflows.',
   docsLink: 'https://docs.sim.ai/integrations/stripe',
   category: 'tools',
   integrationType: IntegrationType.Commerce,

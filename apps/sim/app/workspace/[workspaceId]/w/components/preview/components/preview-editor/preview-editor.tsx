@@ -28,7 +28,7 @@ import {
 } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { ReactFlowProvider } from '@xyflow/react'
-import { useParams } from 'next/navigation'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,
@@ -38,10 +38,11 @@ import {
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
+import { PreviewScope } from '@/app/workspace/[workspaceId]/w/components/preview/preview-scope'
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
@@ -732,8 +733,7 @@ function PreviewEditorContent({
   const blockConfig = getBlock(block.type) as BlockConfig | undefined
   const subBlockValues = block.subBlocks || {}
 
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useWorkflowScope()
 
   const isWorkflowBlock = block.type === 'workflow' || block.type === 'workflow_input'
 
@@ -1559,8 +1559,10 @@ function PreviewEditorContent({
  */
 export function PreviewEditor(props: PreviewEditorProps) {
   return (
-    <ReactFlowProvider>
-      <PreviewEditorContent {...props} />
-    </ReactFlowProvider>
+    <PreviewScope>
+      <ReactFlowProvider>
+        <PreviewEditorContent {...props} />
+      </ReactFlowProvider>
+    </PreviewScope>
   )
 }

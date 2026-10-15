@@ -1,10 +1,9 @@
 import { v2ListFileVersionsContract } from '@/lib/api/contracts/v2/file-versions'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { toFileVersion, v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { listWorkspaceFileVersions } from '@/lib/workspace-files/application/file-versions'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { toV2FileVersions } from '@/app/api/v2/files/utils'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
@@ -38,8 +37,8 @@ export const GET = defineV2JsonRoute({
     ),
   }),
   useCase: listWorkspaceFileVersions,
-  present: async ({ versions, nextKeys }, { params, query }) => ({
-    data: await toV2FileVersions(versions),
+  present: ({ versions, nextKeys }, { params, query }) => ({
+    data: versions.map(toFileVersion),
     nextCursor: writeSortedCursor(
       nextKeys,
       query.sortBy,

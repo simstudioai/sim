@@ -2,14 +2,26 @@ import type { ApplicationOperation } from '@/lib/core/application/operation'
 import { assertOperationCapability, defineOperation } from '@/lib/core/application/operation'
 
 export interface ProjectOperation extends ApplicationOperation {
-  readonly principalKinds: readonly ['session']
+  readonly principalKinds: readonly ('session' | 'resource_delegated')[]
   readonly access: 'read' | 'admin' | 'issues'
+  readonly delegationAudience?: string
+  readonly delegatedServices?: readonly ['copilot']
 }
+
+export const PROJECT_DISCOVERY_DELEGATION_TTL_MS = 60_000
 
 /** Project operations cannot borrow authority from workspace keys or an arbitrary root. */
 function defineProjectOperation<const O extends ProjectOperation>(operation: O): O {
   assertOperationCapability(operation)
+  if (
+    operation.principalKinds.includes('resource_delegated') &&
+    (operation.id !== 'projects.list' ||
+      operation.access !== 'read' ||
+      !operation.delegationAudience)
+  )
+    throw new Error('Resource delegation is available only for bounded Project discovery')
   Object.freeze(operation.principalKinds)
+  if (operation.delegatedServices) Object.freeze(operation.delegatedServices)
   return Object.freeze(operation)
 }
 
@@ -22,9 +34,11 @@ export const projectOperations = {
   // permission-group-exempt: navigation exposes only Projects containing accessible environments.
   list: defineProjectOperation({
     id: 'projects.list',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'resource_delegated'],
     access: 'read',
     capability: 'none',
+    delegationAudience: 'sim:projects:discovery',
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: Project metadata does not grant access to its Issues or environments.
   get: defineProjectOperation({

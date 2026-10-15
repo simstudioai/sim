@@ -35,7 +35,7 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
 import type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
-import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import { sanitizeFileKey } from '@/lib/uploads/utils/file'
 
 export type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
 

@@ -9,7 +9,7 @@ import {
   authorizeChatWorkspaceTarget,
   WORKSPACE_TARGET_AUDIENCE,
 } from '@/lib/mothership/chat/application/workspace-target'
-import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface InvocationOwner {
   userId: string
@@ -68,6 +68,7 @@ const headlessTargetOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   capability: 'copilot.use',
+  contentDelivery: 'none',
   principalKinds: ['delegated'],
   delegatedServices: ['copilot'],
 })

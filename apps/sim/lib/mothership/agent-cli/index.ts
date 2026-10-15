@@ -4,6 +4,7 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engines'
 import { curateKnowledgeDocuments } from '@/lib/mothership/agent-cli/knowledge-curation'
+import { isReadOnlyCliRequest, readOnlyCliTransport } from '@/lib/mothership/agent-cli/read-only'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { executeAgentCliService } from '@/lib/mothership/agent-cli/services'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
@@ -25,6 +26,7 @@ import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/appli
 
 export interface AgentCliExecutionContext extends Omit<ServerToolContext, 'abortSignal'> {
   signal?: AbortSignal
+  readOnly?: boolean
 }
 
 /**
@@ -38,6 +40,13 @@ export async function executeAgentCliRequest(
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {
   context.signal?.throwIfAborted()
+  if (context.readOnly && !isReadOnlyCliRequest(request)) {
+    return {
+      exitCode: 1,
+      stdout: '',
+      stderr: 'This operation is unavailable during benchmark reference generation.',
+    }
+  }
   if (
     request.invocation.kind === 'service' ||
     (request.invocation.kind === 'stdout' &&
@@ -75,7 +84,7 @@ async function executeBoundAgentCliRequest(
   const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
   const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
   const resources: ResourceChange[] = []
-  const identity: EmbeddedCliIdentity = {
+  const identity = {
     endpoint,
     apiKey,
     workspaceId: context.workspaceId,
@@ -91,7 +100,8 @@ async function executeBoundAgentCliRequest(
           AUGMENTATION_ENGINES[request.invocation.name]?.openReadResources === true),
     }),
     ...(context.signal ? { signal: context.signal } : {}),
-  }
+  } satisfies EmbeddedCliIdentity
+  if (context.readOnly) identity.transport = readOnlyCliTransport(identity.transport)
 
   const { invocation, sink } = request
   let result: AgentCliRawResult
@@ -131,6 +141,7 @@ async function executeBoundAgentCliRequest(
               }
             : {}),
           ...(context.chatId !== undefined ? { chatId: context.chatId } : {}),
+          resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
           signal: context.signal,
         },
         invocation.flags

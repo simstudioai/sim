@@ -28,7 +28,7 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
 }))
 vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@/lib/file-parsers', () => fileParsersMock)
-vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/utils/file.server', () => fileUtilsServerMock)
 vi.mock('@/lib/internal/mistral/operations', () => ({
   executeMistralParse: mockExecuteMistralParse,
 }))
@@ -37,8 +37,8 @@ vi.mock('@/lib/knowledge/documents/image-extraction', () => ({
 }))
 
 import { env } from '@/lib/core/config/env'
-import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { ImageExtractionPolicy } from '@/lib/knowledge/documents/image-extraction-policy'
+import { processDocument } from '@/lib/knowledge/documents/processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
 
 const IMAGE_URL = 'https://example.com/schedule.png'

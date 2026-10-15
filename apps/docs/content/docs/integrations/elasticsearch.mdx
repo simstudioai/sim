@@ -15,11 +15,9 @@ Use [Elasticsearch](https://www.elastic.co/elasticsearch/) to search with Query 
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Elasticsearch into workflows for powerful search, indexing, and data management. Supports document CRUD operations, advanced search queries, bulk operations, index management, and cluster monitoring. Works with both self-hosted and Elastic Cloud deployments.
-
-
+Search with Query DSL, manage documents and indexes, run bulk operations, and inspect cluster health on a self-hosted or Elastic Cloud deployment.
 
 ## Actions
 
@@ -188,7 +186,7 @@ Perform multiple index, create, delete, or update operations in a single request
 | `username` | string | No | Username for basic auth |
 | `password` | string | No | Password for basic auth |
 | `index` | string | No | Default index for operations \(e.g., "products", "logs-2024"\) |
-| `operations` | string | Yes | Bulk operations as NDJSON string. Each operation is two lines: action metadata and optional document. Example: \{"index":\{"_index":"products","_id":"1"\}\}\n\{"name":"Widget"\}\n |
+| `operations` | string | Yes | Bulk operations as NDJSON string. Index, create, and update use an action line followed by a document/update line; delete uses only an action line. Example: \{"index":\{"_index":"products","_id":"1"\}\}\n\{"name":"Widget"\}\n |
 | `refresh` | string | No | Refresh policy: true, false, or wait_for |
 
 #### Output

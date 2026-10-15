@@ -2,7 +2,7 @@ import { dbReplica } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { eq, type SQL, sql } from 'drizzle-orm'
 import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 
 /** Oldest and newest run start in the filtered set, or nulls when it is empty. */
 export interface LogStatsBounds {

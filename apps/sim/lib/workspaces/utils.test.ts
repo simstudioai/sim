@@ -1,13 +1,12 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  billingPayerTransferMock,
+  billingPayerTransferMockFns,
+} from '@sim/testing/mocks/billing-payer-transfer.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockChangeWorkspaceStoragePayerInTx } = vi.hoisted(() => ({
-  mockChangeWorkspaceStoragePayerInTx: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/storage/payer-transfer', () => ({
-  changeWorkspaceStoragePayerInTx: mockChangeWorkspaceStoragePayerInTx,
-}))
+const { mockChangeWorkspaceStoragePayerInTx } = billingPayerTransferMockFns
+vi.mock('@/lib/billing/storage/payer-transfer', () => billingPayerTransferMock)
 
 import {
   listAccessibleWorkspaceRowsForUser,

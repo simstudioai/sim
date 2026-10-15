@@ -17,7 +17,9 @@ import {
 import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
+import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
+import { getExecutionSignalHub } from '@/lib/execution/signal'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 
@@ -328,6 +330,31 @@ describe('what a failed resume did to its paused execution', () => {
       }
     }
   )
+
+  it('keeps the pause retryable when the cancellation subscription cannot be opened', async () => {
+    const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    const subscribeSpy = vi
+      .spyOn(getExecutionSignalHub(), 'subscribe')
+      .mockRejectedValueOnce(new Error('Redis subscriber connection ended'))
+    const markResumeAttemptFailedSpy = vi
+      .spyOn(PauseResumeManager, 'markResumeAttemptFailed')
+      .mockResolvedValueOnce(true)
+    const markResumeFailedSpy = vi.spyOn(managerInternals, 'markResumeFailed')
+    const { outcomes, args } = argsReportingOutcomes()
+
+    try {
+      await expect(PauseResumeManager.startResumeExecution(args)).rejects.toThrow(
+        'Run buffer temporarily unavailable'
+      )
+      expect(markResumeAttemptFailedSpy).toHaveBeenCalledTimes(1)
+      expect(markResumeFailedSpy).not.toHaveBeenCalled()
+      expect(outcomes).toEqual(['pause_retained'])
+    } finally {
+      subscribeSpy.mockRestore()
+      markResumeAttemptFailedSpy.mockRestore()
+      markResumeFailedSpy.mockRestore()
+    }
+  })
 
   describe('when the resumed run pauses but its pause cannot be saved', () => {
     const spies: { mockRestore: () => void }[] = []
@@ -2161,32 +2188,7 @@ describe('repeated human review pauses', () => {
     }
   }
 
-  it('keeps the next pause snapshot attached to the log that admission claimed', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1', deploymentVersionId: null }])
-    const stopAfterSnapshot = new Error('stop after snapshot construction')
-    mockPreprocessExecution.mockRejectedValueOnce(stopAfterSnapshot)
-
-    await expect(runResumeExecution(createRepeatedReviewResumeArgs())).rejects.toBe(
-      stopAfterSnapshot
-    )
-
-    expect(humanInTheLoopLogger.info).toHaveBeenCalledWith(
-      'Created resume snapshot',
-      expect.objectContaining({ metadata: expect.objectContaining({ executionId: 'durable-run' }) })
-    )
-    expect(
-      dbChainMockFns.where.mock.calls.some(([condition]) =>
-        flattenMockConditions(condition).some(
-          (part) =>
-            part.type === 'eq' &&
-            part.left === 'workflowExecutionLogs.executionId' &&
-            part.right === 'durable-run'
-        )
-      )
-    ).toBe(true)
-  })
-
-  it('cleans the base64 cache under the durable run that the resumed blocks wrote to', async () => {
+  function mockCompletedResumeRun() {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1', deploymentVersionId: null }])
     mockPreprocessExecution.mockResolvedValueOnce({
       success: true,
@@ -2205,6 +2207,32 @@ describe('repeated human review pauses', () => {
       logs: [],
       metadata: { executionId: 'durable-run' },
     })
+  }
+
+  it('keeps the next pause snapshot attached to the log that admission claimed', async () => {
+    mockCompletedResumeRun()
+
+    await expect(runResumeExecution(createRepeatedReviewResumeArgs())).resolves.toMatchObject({
+      status: 'completed',
+    })
+
+    expect(mockExecuteWorkflowCore.mock.calls[0][0].snapshot.metadata.executionId).toBe(
+      'durable-run'
+    )
+    expect(
+      dbChainMockFns.where.mock.calls.some(([condition]) =>
+        flattenMockConditions(condition).some(
+          (part) =>
+            part.type === 'eq' &&
+            part.left === 'workflowExecutionLogs.executionId' &&
+            part.right === 'durable-run'
+        )
+      )
+    ).toBe(true)
+  })
+
+  it('cleans the base64 cache under the durable run that the resumed blocks wrote to', async () => {
+    mockCompletedResumeRun()
 
     await expect(runResumeExecution(createRepeatedReviewResumeArgs())).resolves.toMatchObject({
       status: 'completed',
@@ -2289,6 +2317,52 @@ describe('repeated human review pauses', () => {
       runSpy.mockRestore()
       persistSpy.mockRestore()
       completeSpy.mockRestore()
+      processSpy.mockRestore()
+    }
+  })
+})
+
+describe('stopping an active resume from another replica', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('aborts the attempt when Stop records cancellation under the attempt id', async () => {
+    let attemptSignal: AbortSignal | undefined
+    const runSpy = vi
+      .spyOn(PauseResumeManager as unknown as PauseResumeManagerInternals, 'runResumeExecution')
+      .mockImplementationOnce(async (args) => {
+        attemptSignal = (args as { abortSignal: AbortSignal }).abortSignal
+        await markExecutionCancelled('stopped-attempt')
+        return { status: 'cancelled', success: false, output: {}, logs: [] }
+      })
+    const attemptFailedSpy = vi
+      .spyOn(PauseResumeManager, 'markResumeAttemptFailed')
+      .mockResolvedValueOnce(false)
+    const processSpy = vi.spyOn(PauseResumeManager, 'processQueuedResumes').mockResolvedValueOnce()
+    type Args = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+    try {
+      await PauseResumeManager.startResumeExecution({
+        resumeEntryId: 'entry-1',
+        resumeExecutionId: 'stopped-attempt',
+        contextId: 'hitl',
+        resumeInput: {},
+        userId: 'user-1',
+        pausedExecution: {
+          id: 'pause-1',
+          executionId: 'durable-run',
+          workflowId: 'workflow-1',
+          pausePoints: { hitl: { contextId: 'hitl', blockId: 'hitl' } },
+          executionSnapshot: createSnapshotSeed(),
+          metadata: {},
+        } as Args['pausedExecution'],
+      })
+
+      expect(attemptSignal?.aborted).toBe(true)
+      expect(attemptSignal?.reason).toMatchObject({ name: 'AbortError', message: 'user' })
+    } finally {
+      runSpy.mockRestore()
+      attemptFailedSpy.mockRestore()
       processSpy.mockRestore()
     }
   })

@@ -1,49 +1,58 @@
 ---
-title: RSS Feed
-description: The RSS trigger runs a workflow when a new item is published to an RSS or Atom feed.
+title: RSS feed
+description: Start a workflow for unseen items in an RSS or Atom feed.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview } from '@/components/workflow-preview'
-import { FAQ } from '@/components/ui/faq'
 
-The **RSS trigger** watches an RSS or Atom feed and runs a workflow when a new item is published. There's no account to connect — just a feed URL.
+The **RSS trigger** polls an RSS or Atom feed and starts a run for each selected unseen item. It needs a feed URL, with no connected account.
 
 <BlockPreview type="rss" />
 
 ## Configuration
 
-1. Add the RSS trigger as the workflow's entry point.
-2. Paste any RSS or Atom feed URL.
-3. Deploy the workflow to start polling.
+1. Add an RSS trigger and enter **Feed URL**.
+2. Connect the blocks that should process each item.
+3. Deploy the workflow to register the trigger.
+4. Confirm new item runs in [Logs](/logs-debugging).
 
-Once deployed, Sim checks the feed every minute and runs the workflow for each new item.
+Polling normally occurs once a minute. Self-hosted deployments need the RSS polling job configured; see [background jobs](/platform/self-hosting/background-jobs).
 
 ## Outputs
 
-| Output | What it is |
+These examples use a trigger named RSS. Use your block's normalized name if different.
+
+| Reference | Value |
 | --- | --- |
-| `<rss.title>` | The item title |
-| `<rss.link>` | The item link |
-| `<rss.pubDate>` | The publication date |
-| `<rss.item>` | The raw item, with every field (`guid`, `author`, `content`, and more) |
-| `<rss.feed>` | The feed metadata (title, link, description) |
+| `<rss.title>` | Item title |
+| `<rss.link>` | Item link |
+| `<rss.pubDate>` | Publication date |
+| `<rss.item>` | Parsed item with its available fields |
+| `<rss.feed>` | Feed `title`, `link`, and `description` |
+| `<rss.timestamp>` | Processing timestamp |
 
-Read a mapped field directly, or reach into the raw objects for anything else — `<rss.item.author>`, `<rss.feed.language>`.
+Read fields such as `<rss.item.author>` or `<rss.feed.description>`. Item fields can include `guid`, `summary`, `content`, `contentSnippet`, `author`, `categories`, `enclosure`, and `isoDate`, depending on the feed. Feed metadata is a limited projection, not every field in the original feed.
 
-## Use Cases
+## Polling and deduplication
 
-- **Content monitoring** — blogs, news sites, or competitor updates
-- **Release tracking** — GitHub releases, changelogs, or product updates
-- **Podcast automation** — run a workflow when a new episode drops
+Sim remembers up to 500 recent item identifiers. It uses the item's GUID, link, or title/publication-date combination when available, and an idempotency layer prevents repeated runs for the same identified item.
 
-<Callout>
-RSS triggers only fire for items published after you save the trigger. Existing feed items are not processed.
-</Callout>
+Dated items at or before the subscription's creation time are excluded. Items without a usable date cannot be filtered by that historical boundary and may run even if they were already present in the feed. The last poll time is not the exclusion boundary, so a cached feed can reveal an unseen item later.
 
-<FAQ items={[
-  { question: "How does the poller avoid processing the same item twice?", answer: "It tracks up to 100 recent item GUIDs and the last checked timestamp. An item is new only if its GUID hasn't been seen and its publication date is after the last check. An idempotency layer also prevents duplicate runs for the same item." },
-  { question: "Is there a limit on how many new items are processed per poll?", answer: "Yes — at most 25 new items per poll, newest first. If a feed publishes more than 25 between polls, only the 25 most recent run." },
-  { question: "What output fields are available from the RSS trigger?", answer: "title, link, and pubDate as top-level convenience fields, plus a full item object (guid, summary, content, contentSnippet, author, categories, enclosure, isoDate), a feed object (title, link, description), and a processed timestamp." },
-  { question: "What happens if the RSS feed is temporarily unreachable?", answer: "A failed fetch increments the consecutive-failure counter. After 100 consecutive failures the trigger auto-disables; any successful poll resets the counter to zero." },
-]} />
+Each poll selects at most 25 unseen items, newest first. Remaining unseen items stay eligible on later polls while they remain in the feed. Items left unattempted after an execution-admission refusal are also eligible later. This does not guarantee replay of an item that disappears from the feed before processing.
+
+## Fetch failures
+
+An unreachable feed or unsuccessful fetch counts as a failed poll and introduces backoff. The retry delay grows up to an hour, or longer when the source's `Retry-After` asks for it; skipped backoff polls do not count as failures.
+
+After 100 consecutive failed polls, the trigger disables itself. A successful poll resets the failure counter. Check the feed URL, reachability, and trigger status before reactivating it. Feed responses are bounded to 10 MiB.
+
+## Use a feed item [#use-cases]
+
+For release tracking, pass `<rss.title>` and `<rss.link>` to an Agent for a summary, then send that summary through an integration block. The trigger starts a separate run for each selected release item.
+
+## Related docs
+
+- [Deployment](/workflows/deployment)
+- [Connection syntax](/workflows/connections)
+- [Logs](/logs-debugging)

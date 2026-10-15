@@ -34,7 +34,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   },
 }))
 
-import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import { SandboxOutputLimitError } from '@/lib/execution/remote-sandbox/output-limits'
 import { readSessionSecretProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import {

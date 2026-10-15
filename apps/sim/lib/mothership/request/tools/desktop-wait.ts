@@ -24,7 +24,7 @@ import {
   type ClientToolSettlementGuard,
   settleClientToolCall,
 } from '@/lib/mothership/request/tools/client-settlement.server'
-import { isDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
+import { isBackgroundDesktopToolCall } from '@/lib/mothership/tools/desktop-tools'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotDesktopToolWait')
@@ -233,7 +233,7 @@ async function readDesktopPresence(deviceId: string): Promise<boolean | null> {
 async function settleOverdueDesktopToolCall(toolCallId: string): Promise<boolean> {
   const call = await getDesktopToolCallDeadlines(toolCallId)
   // A VFS read of Sim's own files shares its tool name with a local read, but no desktop runs it.
-  if (!call || !isDesktopToolCall(call.toolName, toRecordOrNull(call.args) ?? undefined))
+  if (!call || !isBackgroundDesktopToolCall(call.toolName, toRecordOrNull(call.args) ?? undefined))
     return false
   if (call.status === ASYNC_TOOL_STATUS.pending) {
     const present = await readDesktopPresence(call.deviceId)

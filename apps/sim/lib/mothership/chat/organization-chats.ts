@@ -10,6 +10,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
+import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
+import { selectedMemorySpaceForNewChat } from '@/lib/mothership/memory/spaces'
 import { ORGANIZATION_SECRETS_AUDIENCE } from '@/lib/organization-secrets/application/operations'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
@@ -29,6 +31,7 @@ export const organizationChatOperations = {
   }),
   list: defineOrganizationOperation({
     id: 'organization.chats.list',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     delegationAudience: 'sim:settings',
@@ -48,7 +51,10 @@ interface OrganizationChatInput {
   organizationId: string
 }
 
-async function requireBuildPermission(context: { organizationId: string; role: OrganizationRole }) {
+export async function requireOrganizationBuildPermission(context: {
+  organizationId: string
+  role: OrganizationRole
+}) {
   const config = await getUserPermissionConfigForOrganization(context.organizationId)
   if (!canCreateOrganizationWorkspace(context.role, config))
     throw new OrchestrationError(
@@ -66,7 +72,10 @@ export const authorizeOrganizationChat = {
       organizationChatOperations.read,
       input
     )
-    if (input.mode === 'agent' || input.mode === 'plan') await requireBuildPermission(context)
+    if (input.mode === 'agent' || input.mode === 'plan')
+      await requireOrganizationBuildPermission(context)
+    if (input.mode === 'plan' && !(await isPlanModeEnabled(context.userId)))
+      throw new OrchestrationError('not_found', 'Plan mode is unavailable')
     return context
   },
 }
@@ -115,22 +124,35 @@ export const createOrganizationChat = {
       organizationChatOperations.create,
       input
     )
-    if (input.mode === 'agent' || input.mode === 'plan') await requireBuildPermission(context)
-    const [chat] = await db
-      .insert(copilotChats)
-      .values({
-        userId: context.userId,
-        organizationId: context.organizationId,
-        type: 'mothership',
-        config: { conversationMode: input.mode ?? 'assistant' },
-        model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
-        lastSeenAt: new Date(),
-      })
-      .returning({ id: copilotChats.id })
-    if (!chat) throw new Error('Failed to create organization conversation')
-    publishChatStatusChanged(context, { chatId: chat.id, type: 'created' })
-    return chat
+    if (input.mode === 'agent' || input.mode === 'plan')
+      await requireOrganizationBuildPermission(context)
+    if (input.mode === 'plan' && !(await isPlanModeEnabled(context.userId)))
+      throw new OrchestrationError('not_found', 'Plan mode is unavailable')
+    return createOrganizationChatRecord(context, input.mode ?? 'assistant')
   },
+}
+
+/** Called after canonical membership and mode authorization by ordinary chat or benchmark orchestration. */
+export async function createOrganizationChatRecord(
+  context: { userId: string; organizationId: string },
+  mode: 'agent' | 'assistant' | 'plan',
+  benchmark?: { id: string; operatorUserId: string }
+) {
+  const [chat] = await db
+    .insert(copilotChats)
+    .values({
+      userId: context.userId,
+      organizationId: context.organizationId,
+      memorySpaceId: await selectedMemorySpaceForNewChat(context.userId, context.organizationId),
+      type: 'mothership',
+      config: { conversationMode: mode, ...(benchmark ? { benchmark } : {}) },
+      model: MOTHERSHIP_CHAT_DEFAULT_MODEL,
+      lastSeenAt: new Date(),
+    })
+    .returning({ id: copilotChats.id })
+  if (!chat) throw new Error('Failed to create organization conversation')
+  if (!benchmark) publishChatStatusChanged(context, { chatId: chat.id, type: 'created' })
+  return chat
 }
 
 export const organizationChatDelegationOperations = {
@@ -139,6 +161,7 @@ export const organizationChatDelegationOperations = {
    */
   cancel: defineOrganizationOperation({
     id: 'organization.chats.cancel',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['session', 'organization_delegated'],
     capability: 'none',
@@ -147,6 +170,7 @@ export const organizationChatDelegationOperations = {
   }),
   settings: defineOrganizationOperation({
     id: 'organization.chats.settings',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -155,6 +179,7 @@ export const organizationChatDelegationOperations = {
   }),
   workspaces: defineOrganizationOperation({
     id: 'organization.chats.workspaces',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -163,6 +188,7 @@ export const organizationChatDelegationOperations = {
   }),
   knowledge: defineOrganizationOperation({
     id: 'organization.chats.knowledge',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -171,6 +197,7 @@ export const organizationChatDelegationOperations = {
   }),
   secrets: defineOrganizationOperation({
     id: 'organization.chats.secrets',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -179,6 +206,7 @@ export const organizationChatDelegationOperations = {
   }),
   billing: defineOrganizationOperation({
     id: 'organization.chats.admit',
+    contentDelivery: 'none',
     minimumRole: 'member',
     principalKinds: ['organization_delegated'],
     capability: 'copilot.use',
@@ -231,7 +259,9 @@ export const authorizeOrganizationChatDelegation = {
       )
       .limit(1)
     if (!chat) throw new OrchestrationError('not_found', 'Conversation not found')
-    if (mode === 'agent' || mode === 'plan') await requireBuildPermission(context)
+    if (mode === 'agent' || mode === 'plan') await requireOrganizationBuildPermission(context)
+    if (mode === 'plan' && !(await isPlanModeEnabled(context.userId)))
+      throw new OrchestrationError('not_found', 'Plan mode is unavailable')
     return context
   },
 }

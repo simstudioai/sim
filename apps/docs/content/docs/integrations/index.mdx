@@ -5,7 +5,6 @@ description: Connect third-party services and OAuth accounts for your workflows
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
-import { FAQ } from '@/components/ui/faq'
 
 Integrations connect your workflows to services such as Gmail, Slack, GitHub, and HubSpot. Connect with OAuth or use a supported API token or service account, then select the saved credential in a block. Sim stores credentials securely and refreshes OAuth tokens when the provider supports it.
 
@@ -68,9 +67,7 @@ Blocks that require authentication (e.g. Gmail, Slack, HubSpot) display an accou
 
 You can also connect another account directly from the block by selecting **Connect another [service] account** at the bottom of the dropdown.
 
-<Callout type="info">
 If a block requires an integration and none is selected, the workflow will fail at that step.
-</Callout>
 
 ## Using a credential ID
 
@@ -100,8 +97,6 @@ Paste or reference the credential ID in that field. You can use a `{{SECRET}}` r
 
 Open a connection from the **Connected** list to manage it:
 
-{/* VISUAL: the connection detail view in the new Integrations page — display name, members, reconnect, disconnect. */}
-
 - Edit the **Display name** and **Description**.
 - Manage **Members** — invite teammates and assign them an **Admin** or **Member** role. Admins can edit, reconnect, disconnect, and manage access; Members can use the connection in workflows. When you connect an account, you are its Admin.
 - **Reconnect** — re-authorize if the connection expired or you need updated permissions.
@@ -111,11 +106,8 @@ Open a connection from the **Connected** list to manage it:
 If you disconnect an integration that is used in a workflow, that workflow will fail at any block referencing it. Update blocks before disconnecting.
 </Callout>
 
-<FAQ items={[
-  { question: "Does Sim handle OAuth token refresh automatically?", answer: "Yes. When an integration is used during execution, Sim checks whether the access token has expired and automatically refreshes it using the stored refresh token before making the API call. You do not need to handle token refresh manually." },
-  { question: "Can I connect multiple accounts for the same service?", answer: "Yes. You can connect multiple accounts per service (for example, two separate Gmail accounts). Each block lets you select which account to use from the account dropdown. This is useful when different workflows need different identities or permissions." },
-  { question: "What is a credential ID and when should I use it?", answer: "Each connection has a unique credential ID that you can use instead of the dropdown selector. This lets you pass the credential dynamically — for example, from a variable or a previous block's output — so the same workflow can use different accounts depending on the context. Copy the ID from the connection's detail view and use Switch to manual ID in any block to paste or reference it." },
-  { question: "What happens if an OAuth token can no longer be refreshed?", answer: "If a refresh fails (e.g. the user revoked access or the refresh token expired), the workflow will fail at the block using that integration. Open Integrations in the sidebar, find the connection, and reconnect it to re-authorize." },
-  { question: "Are OAuth tokens encrypted at rest?", answer: "Yes. OAuth tokens are encrypted before being stored in the database and are never exposed in the workflow editor, logs, or API responses." },
-  { question: "What happens if I disconnect an integration that is used in a workflow?", answer: "Any block referencing the disconnected integration will fail at runtime. Make sure to update those blocks before disconnecting, or reconnect the integration to restore access." },
-]} />
+## Token renewal and connection failures
+
+Sim attempts OAuth token renewal when a provider supports it and the connection has a usable refresh token. A revoked or expired refresh token can make a block fail even when the saved connection still appears in **Integrations**. A credential Admin can open it and select **Reconnect** to authorize again.
+
+OAuth tokens are encrypted before storage. The account selector and credential ID reference the saved connection; they do not expose its token. API tokens and service-account secrets have provider-specific rotation rules documented in their setup guides.

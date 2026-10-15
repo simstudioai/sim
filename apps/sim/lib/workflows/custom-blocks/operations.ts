@@ -348,7 +348,7 @@ export async function getCustomBlockManageContext(id: string): Promise<{
  * It is NOT the identity for the two things a workspace owns. Workspace
  * variables authorize against the source workspace's billing account, and that
  * account is the payer, exactly as they would for a schedule on the same
- * workflow — see the environment resolution in `workflow-handler`. Reading those
+ * workflow — see the environment resolution in `workflow/handler`. Reading those
  * as the owner too gave a published block a narrower workspace-secret selection
  * than the workflow got on every other trigger, which no consumer could see.
  */

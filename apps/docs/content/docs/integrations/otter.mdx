@@ -11,25 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Otter.ai](https://otter.ai/) is an AI meeting assistant that records, transcribes, and summarizes conversations.
+Use [Otter.ai](https://otter.ai/) to read meeting conversations, summaries, action items, insights, outlines, and transcripts. Retrieve audio download links, import recordings for transcription, and inspect channels, members, and workspace details.
 
-With the Otter block, you can:
-
-- **Read conversations**: List conversations and read each one's summary, action items, insights, outline, and transcript
-- **Get recordings**: Get audio download links and import recordings for transcription
-- **Browse your workspace**: List channels and their members, read workspace details, and list conversations across the workspace
-
-To connect, enter an API key from an Otter Enterprise workspace. The Otter triggers can also start a workflow when a conversation finishes processing or is shared.
-
-In Sim, the Otter block lets your agents act on your meetings: send action items to your task tracker, post summaries to Slack, or save transcripts to a knowledge base.
+Provide an API key from an Otter Enterprise workspace. Triggers can start workflows when a conversation finishes processing or is shared. Pass meeting outputs to a task tracker, Slack, or a knowledge base.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Otter.ai into your workflow to list and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.
-
-
+List and read meeting conversations with their summaries, action items, insights, outlines, and transcripts, get audio download links, import recordings, and browse channels and workspace details. Otter can also trigger workflows when a conversation finishes processing or is shared. Requires an Otter Enterprise workspace.
 
 ## Actions
 
@@ -367,7 +357,7 @@ List every conversation in an Otter workspace, most recent first. Requires an Ot
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Otter Conversation Completed
 
@@ -381,7 +371,7 @@ Trigger workflow when an Otter conversation shared to the webhook source finishe
 | `webhookName` | string | Name of the Otter webhook, if set |
 | `sourceType` | string | Where the webhook listens: workspace or channel |
 | `source` | json | The webhook source; for a channel source \(id, name, memberCount, owner, discoverability\) |
-| `createdBy` | object | createdBy output from the tool |
+| `createdBy` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | Full name |
 |   ↳ `firstName` | string | First name |
@@ -391,14 +381,14 @@ Trigger workflow when an Otter conversation shared to the webhook source finishe
 | `id` | string | Conversation ID |
 | `title` | string | Conversation title |
 | `url` | string | URL to view the conversation in Otter |
-| `owner` | object | owner output from the tool |
+| `owner` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | Full name |
 |   ↳ `firstName` | string | First name |
 |   ↳ `lastName` | string | Last name |
 |   ↳ `email` | string | Email address |
 | `createdAt` | string | When the conversation was created |
-| `processStatus` | object | processStatus output from the tool |
+| `processStatus` | object |  |
 |   ↳ `abstractSummary` | string | Summary processing status |
 |   ↳ `actionItem` | string | Action item processing status |
 |   ↳ `outline` | string | Outline processing status |
@@ -410,10 +400,10 @@ Trigger workflow when an Otter conversation shared to the webhook source finishe
 | `actionItems` | json | Action items \(id, text, assignee \{id, name, firstName, lastName, email\}, status \{completed, createdAt, lastModifiedAt, completedAt\}\) |
 | `insights` | json | Key topics discussed \(topic, text\[\]\) |
 | `outline` | json | Meeting outline sections \(section, text\[\]\) |
-| `transcript` | object | transcript output from the tool |
+| `transcript` | object |  |
 |   ↳ `content` | string | Full transcript text |
 |   ↳ `format` | string | Transcript format \(e.g., txt\) |
-| `customPrompt` | object | customPrompt output from the tool |
+| `customPrompt` | object |  |
 |   ↳ `label` | string | Custom prompt label |
 |   ↳ `output` | string | Custom prompt output |
 | `payload` | json | Full raw webhook body as delivered by Otter |
@@ -433,7 +423,7 @@ Trigger workflow when an existing Otter conversation is shared to the webhook so
 | `webhookName` | string | Name of the Otter webhook, if set |
 | `sourceType` | string | Where the webhook listens: workspace or channel |
 | `source` | json | The webhook source; for a channel source \(id, name, memberCount, owner, discoverability\) |
-| `createdBy` | object | createdBy output from the tool |
+| `createdBy` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | Full name |
 |   ↳ `firstName` | string | First name |
@@ -443,14 +433,14 @@ Trigger workflow when an existing Otter conversation is shared to the webhook so
 | `id` | string | Conversation ID |
 | `title` | string | Conversation title |
 | `url` | string | URL to view the conversation in Otter |
-| `owner` | object | owner output from the tool |
+| `owner` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | Full name |
 |   ↳ `firstName` | string | First name |
 |   ↳ `lastName` | string | Last name |
 |   ↳ `email` | string | Email address |
 | `createdAt` | string | When the conversation was created |
-| `processStatus` | object | processStatus output from the tool |
+| `processStatus` | object |  |
 |   ↳ `abstractSummary` | string | Summary processing status |
 |   ↳ `actionItem` | string | Action item processing status |
 |   ↳ `outline` | string | Outline processing status |
@@ -462,10 +452,10 @@ Trigger workflow when an existing Otter conversation is shared to the webhook so
 | `actionItems` | json | Action items \(id, text, assignee \{id, name, firstName, lastName, email\}, status \{completed, createdAt, lastModifiedAt, completedAt\}\) |
 | `insights` | json | Key topics discussed \(topic, text\[\]\) |
 | `outline` | json | Meeting outline sections \(section, text\[\]\) |
-| `transcript` | object | transcript output from the tool |
+| `transcript` | object |  |
 |   ↳ `content` | string | Full transcript text |
 |   ↳ `format` | string | Transcript format \(e.g., txt\) |
-| `customPrompt` | object | customPrompt output from the tool |
+| `customPrompt` | object |  |
 |   ↳ `label` | string | Custom prompt label |
 |   ↳ `output` | string | Custom prompt output |
 | `payload` | json | Full raw webhook body as delivered by Otter |
@@ -485,7 +475,7 @@ Trigger workflow on any Otter workspace webhook event
 | `webhookName` | string | Name of the Otter webhook, if set |
 | `sourceType` | string | Where the webhook listens: workspace or channel |
 | `source` | json | The webhook source; for a channel source \(id, name, memberCount, owner, discoverability\) |
-| `createdBy` | object | createdBy output from the tool |
+| `createdBy` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | Full name |
 |   ↳ `firstName` | string | First name |
@@ -495,14 +485,14 @@ Trigger workflow on any Otter workspace webhook event
 | `id` | string | Conversation ID |
 | `title` | string | Conversation title |
 | `url` | string | URL to view the conversation in Otter |
-| `owner` | object | owner output from the tool |
+| `owner` | object |  |
 |   ↳ `id` | string | User ID |
 |   ↳ `name` | string | Full name |
 |   ↳ `firstName` | string | First name |
 |   ↳ `lastName` | string | Last name |
 |   ↳ `email` | string | Email address |
 | `createdAt` | string | When the conversation was created |
-| `processStatus` | object | processStatus output from the tool |
+| `processStatus` | object |  |
 |   ↳ `abstractSummary` | string | Summary processing status |
 |   ↳ `actionItem` | string | Action item processing status |
 |   ↳ `outline` | string | Outline processing status |
@@ -514,10 +504,10 @@ Trigger workflow on any Otter workspace webhook event
 | `actionItems` | json | Action items \(id, text, assignee \{id, name, firstName, lastName, email\}, status \{completed, createdAt, lastModifiedAt, completedAt\}\) |
 | `insights` | json | Key topics discussed \(topic, text\[\]\) |
 | `outline` | json | Meeting outline sections \(section, text\[\]\) |
-| `transcript` | object | transcript output from the tool |
+| `transcript` | object |  |
 |   ↳ `content` | string | Full transcript text |
 |   ↳ `format` | string | Transcript format \(e.g., txt\) |
-| `customPrompt` | object | customPrompt output from the tool |
+| `customPrompt` | object |  |
 |   ↳ `label` | string | Custom prompt label |
 |   ↳ `output` | string | Custom prompt output |
 | `payload` | json | Full raw webhook body as delivered by Otter |

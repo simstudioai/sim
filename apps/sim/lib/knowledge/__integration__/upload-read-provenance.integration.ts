@@ -34,7 +34,7 @@ import {
 import {
   generateWorkspaceFileKey,
   trackChatUpload,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   areModelSafeWorkspaceFileKeys,
   filterModelSafeWorkspaceFileAttachments,
@@ -47,7 +47,7 @@ import {
   replaceWorkspaceFileSecretProvenanceInTx,
   snapshotWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
@@ -101,7 +101,6 @@ async function readUpload(ids: Awaited<ReturnType<typeof seedUpload>>) {
       workspaceId: ids.workspaceId,
       chatId: ids.chatId,
       reference: `uploads/${ids.name}`,
-      includeSecretProvenance: true,
     },
   })
   return {

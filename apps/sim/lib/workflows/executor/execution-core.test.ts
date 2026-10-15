@@ -109,7 +109,7 @@ const { connectExecutionSignalHubMock } = vi.hoisted(() => ({
   connectExecutionSignalHubMock: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/execution-signal', () => ({
+vi.mock('@/lib/execution/signal', () => ({
   connectExecutionSignalHub: connectExecutionSignalHubMock,
 }))
 

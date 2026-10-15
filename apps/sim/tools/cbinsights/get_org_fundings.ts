@@ -35,7 +35,7 @@ export const cbinsightsGetOrgFundingsTool: InternalToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, which never charges credits.',
+        'CB Insights organization ID. Resolve a name or website to one with Look Up Organizations, before requesting company data; confirm current credit terms with CB Insights.',
     },
     limit: {
       type: 'number',

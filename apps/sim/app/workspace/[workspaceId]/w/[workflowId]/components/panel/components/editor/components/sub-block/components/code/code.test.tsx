@@ -4,7 +4,6 @@
 
 import { act, type ReactNode } from 'react'
 import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
-import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -78,8 +77,6 @@ vi.mock('react-simple-code-editor', () => ({
     </>
   ),
 }))
-
-vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
@@ -161,9 +158,8 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
     selector({ blocks: {} }),
 }))
 
+import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { Code } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/code'
-
-nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 let container: HTMLDivElement
 let root: Root
@@ -183,12 +179,14 @@ afterEach(() => {
 function mount(password: boolean) {
   act(() => {
     root.render(
-      <Code
-        blockId='block-1'
-        subBlockId='privateKey'
-        password={password}
-        wandConfig={{ enabled: false, prompt: '' }}
-      />
+      <WorkflowScopeProvider workspaceId='workspace-1' workflowId='workflow-1'>
+        <Code
+          blockId='block-1'
+          subBlockId='privateKey'
+          password={password}
+          wandConfig={{ enabled: false, prompt: '' }}
+        />
+      </WorkflowScopeProvider>
     )
   })
 }

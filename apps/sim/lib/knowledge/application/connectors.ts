@@ -14,7 +14,7 @@ import { toRecord } from '@sim/utils/object'
 import { escapeLikePattern } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
-import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
 import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
@@ -35,6 +35,7 @@ import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
+import { admitKnowledgeDocuments } from '@/lib/knowledge/application/admit-knowledge-content'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   resolveKnowledgeAttributedUserId,
@@ -1190,7 +1191,7 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
     principal: Principal
     input: ListKnowledgeConnectorDocumentsInput
   }) => resolveActiveKnowledgeConnectorContext(input, principal),
-  async execute({ input, context }) {
+  async execute({ principal, input, context }) {
     const limit = input.limit ?? DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE
     const offset = input.offset ?? 0
     if (
@@ -1218,15 +1219,16 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
     }
     const filter =
       input.filter ?? (input.failedOnly ? 'failed' : input.includeExcluded ? undefined : 'active')
-    const baseConditions = [
+    const scopeConditions = [
       eq(document.connectorId, context.connectorId),
       isNull(document.archivedAt),
       isNull(document.deletedAt),
       knowledgeAccessCondition(await context.access.get()),
-      search
-        ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
-        : undefined,
     ] as const
+    const searchCondition = search
+      ? sql`${document.filename} ILIKE ${`%${escapeLikePattern(search)}%`} ESCAPE '\\'`
+      : undefined
+    const baseConditions = [...scopeConditions, searchCondition] as const
     const active = sql`${document.userExcluded} = false`
     /** One pass over the source's readable documents; excluded rows are scanned only when counted. */
     const [[counts], rows] = await Promise.all([
@@ -1260,9 +1262,13 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
         .offset(offset),
     ])
     const hasMore = rows.length > limit
-    const documents = rows.slice(0, limit)
+    const page = rows.slice(0, limit)
+    const admitted = await admitKnowledgeDocuments(
+      principal,
+      page.map((row) => ({ id: row.id, value: row }))
+    )
     return {
-      documents,
+      documents: page.filter((row) => admitted.has(row.id)),
       counts: {
         active: counts?.active ?? 0,
         excluded: counts?.excluded ?? 0,

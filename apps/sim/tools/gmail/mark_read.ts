@@ -83,7 +83,7 @@ interface GmailModifyV2Response {
 export const gmailMarkReadV2Tool: InternalToolConfig<GmailMarkReadParams, GmailModifyV2Response> = {
   id: 'gmail_mark_read_v2',
   name: 'Gmail Mark as Read',
-  description: 'Mark a Gmail message as read. Returns API-aligned fields only.',
+  description: 'Mark a Gmail message as read.',
   version: '2.0.0',
   oauth: gmailMarkReadTool.oauth,
   params: gmailMarkReadTool.params,

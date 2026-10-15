@@ -69,7 +69,7 @@ vi.mock('@sim/utils/id', () => idMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 

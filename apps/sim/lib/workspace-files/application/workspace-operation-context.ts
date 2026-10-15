@@ -4,7 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   loadWorkspaceFileOperationContext,
   type WorkspaceFileOperationContext,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 
 export interface AuthorizedWorkspaceOperationContext {

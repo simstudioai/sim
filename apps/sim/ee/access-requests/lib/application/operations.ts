@@ -51,6 +51,7 @@ function defineAccessRequestOperation(
          * permission-group-exempt: requests never grant a withheld capability without administrator review.
          */
         capability: 'none',
+        contentDelivery: 'none',
       })
   return Object.freeze({ ...workspaceOperation, organizationOperation, admin })
 }

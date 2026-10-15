@@ -15,7 +15,7 @@ vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: vi.fn() }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { encryptSecret } from '@/lib/core/security/encryption'
-import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/execution-observer'
+import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/observer'
 import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 

@@ -1,4 +1,6 @@
+import type { Principal } from '@sim/auth/principal'
 import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import {
   integrationsAvailabilityMock,
   integrationsAvailabilityMockFns,
@@ -35,7 +37,8 @@ import {
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
+import { admitContent, DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
@@ -79,11 +82,15 @@ const {
   readWorkspaceFileMetadata: vi.fn(),
   readTableView: vi.fn(),
   readWorkflowMetadata: vi.fn(),
-  listWorkflowFolders: vi.fn(
-    async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
-      folders: [],
-    })
-  ),
+  listWorkflowFolders: vi.fn<
+    (
+      request: Parameters<
+        typeof import('@/lib/workflows/application/folders').listWorkflowFolders.execute
+      >[0]
+    ) => Promise<{ folders: { id: string; name: string; parentId: string | null }[] }>
+  >(async () => ({
+    folders: [],
+  })),
   listTableFolders: vi.fn(
     async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
       folders: [],
@@ -113,11 +120,12 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   getSkillUseCase: { execute: getSkillUseCase },
 }))
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
 }))
 vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/table/application/views', () => ({
   readTableViewUseCase: { execute: readTableView },
 }))
@@ -126,7 +134,7 @@ vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 vi.mock('@/lib/workflows/application/read-workflow', () => ({
   readWorkflowMetadata: { execute: readWorkflowMetadata },
 }))
-vi.mock('@/lib/workflows/application/workflow-folders', () => ({
+vi.mock('@/lib/workflows/application/folders', () => ({
   listWorkflowFolders: { execute: listWorkflowFolders },
 }))
 vi.mock('@/lib/table/application/folders', () => ({
@@ -135,7 +143,7 @@ vi.mock('@/lib/table/application/folders', () => ({
 vi.mock('@/lib/knowledge/application/folders', () => ({
   listKnowledgeFolders: { execute: listKnowledgeFolders },
 }))
-vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+vi.mock('@/lib/workspace-files/application/folders', () => ({
   resolveWorkspaceFileFolderPathOperation: { execute: resolveFileFolderPath },
 }))
 vi.mock('@/lib/mothership/tools/server/docs/search-docs', () => ({
@@ -473,8 +481,8 @@ describe('processContextsServer - docs contexts', () => {
     const result = await processContextsServer(
       [
         { kind: 'docs', label: 'Product docs' },
-        { kind: 'blocks', label: 'Read [rows]' },
-        { kind: 'integration', label: 'My service' },
+        { kind: 'blocks', blockIds: [], label: 'Read [rows]' },
+        { kind: 'integration', blockType: 'custom_api', label: 'My service' },
       ],
       'reader',
       '@Product docs compare @Read [rows] with @My service and @unknown',
@@ -964,6 +972,23 @@ describe('file folder context', () => {
     resolveFileFolderPath.mockResolvedValueOnce({ path: null })
     expect(await resolveActiveResourceContext('filefolder', 'missing', 'ws-1', 'reader')).toBeNull()
   })
+
+  it.each([
+    { tab: 'a deleted file', failure: new OrchestrationError('not_found', 'gone'), level: 'info' },
+    {
+      tab: 'a revoked file',
+      failure: new OrchestrationError('forbidden', 'denied'),
+      level: 'warn',
+    },
+    { tab: 'a failed lookup', failure: new Error('connection reset'), level: 'error' },
+  ] as const)('drops $tab, logging it at $level', async ({ failure, level }) => {
+    readWorkspaceFileMetadata.mockRejectedValueOnce(failure)
+    expect(await resolveActiveResourceContext('file', 'file-1', 'ws-1', 'reader')).toBeNull()
+    const logger = getMockLogger('ProcessContents')
+    for (const method of ['info', 'warn', 'error'] as const) {
+      expect(logger[method]).toHaveBeenCalledTimes(method === level ? 1 : 0)
+    }
+  })
 })
 
 describe('processContextsServer - file_selection contexts', () => {
@@ -1149,7 +1174,6 @@ describe('processContextsServer - table_selection contexts', () => {
         legacyKeying: 'ids',
         columns: ['c_name', 'c_amount'],
         limit: 2,
-        includeTotal: true,
       },
     })
     expect(result).toHaveLength(1)
@@ -1400,12 +1424,49 @@ describe('processContextsServer - table_selection contexts', () => {
       nextCursor: 'next-page',
     })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1', 'r2'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1', 'r2'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
     )
     expect(context.content).toContain('1 row of 2, 1 omitted for length')
+    expect(context.content).toContain('| r1 | Ada |')
+  })
+
+  it('notes rows it did not show without saying why, inside the preview limit', async () => {
+    readTableUseCase.mockResolvedValue({
+      table: { name: 'Sales', schema: { columns: [{ id: 'name', name: 'Name' }] } },
+      folderPath: '/',
+    })
+    queryTableRows.mockResolvedValue({
+      rows: [{ id: 'r1', data: { name: 'Ada' } }],
+      totalCount: null,
+      nextCursor: null,
+    })
+    const [context] = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1', 'r2'],
+        },
+      ],
+      'user-1',
+      '',
+      'ws-1'
+    )
+    expect(context.content).toContain('1 selected row is not shown')
+    expect(context.content).not.toContain('r2')
     expect(context.content).toContain('| r1 | Ada |')
   })
 
@@ -1422,7 +1483,15 @@ describe('processContextsServer - table_selection contexts', () => {
       totalCount: 2,
     })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1', 'r2', 'r1'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1', 'r2', 'r1'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
@@ -1438,6 +1507,7 @@ describe('processContextsServer - table_selection contexts', () => {
         {
           kind: 'table_selection',
           tableId: 'tbl-1',
+          tableName: 'Sales',
           label: 'Rows',
           rowIds: Array.from({ length: MAX_TABLE_SELECTION_ROWS + 1 }, (_, i) => `r${i}`),
         },
@@ -1449,6 +1519,55 @@ describe('processContextsServer - table_selection contexts', () => {
     expect(result).toEqual([])
     expect(readTableUseCase).not.toHaveBeenCalled()
     expect(queryTableRows).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a pipe', 'tok|en-FIXTURE-PIPE-0001'],
+    ['a newline', 'tok\nen-FIXTURE-LINE-0002'],
+  ])('redacts a cell secret holding %s before markdown escaping', async (_case, secret) => {
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
+      decrypted: value.slice('enc:'.length),
+    }))
+    readTableUseCase.mockResolvedValue({
+      table: { name: 'Keys', schema: { columns: [{ id: 'c_key', name: 'Key' }] } },
+      folderPath: '/',
+    })
+    const rows = [{ id: 'r1', data: { c_key: `value ${secret}` } }]
+    /** The real query admits each row it returns; this one carries the secret's provenance. */
+    queryTableRows.mockImplementation(async ({ principal }) => {
+      await admitContent(principal, [
+        {
+          kind: 'table-row',
+          id: 'r1',
+          provenance: {
+            status: 'exact',
+            entries: [
+              { name: 'CELL_TOKEN', encryptedValue: `enc:${secret}`, sourceUserId: 'user-1' },
+            ],
+          },
+          view: { derived: rows[0].data },
+        },
+      ])
+      return { rows, totalCount: 1 }
+    })
+    const [context] = await processContextsServer(
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Keys',
+          label: 'Keys',
+          rowIds: ['r1'],
+        },
+      ],
+      'user-1',
+      '',
+      'ws-1'
+    )
+    expect(context.content).toContain('[REDACTED_SECRET]')
+    for (const fragment of [secret.slice(0, 4), secret.slice(-4), ...secret.split(/[|\n]/)]) {
+      expect(context.content).not.toContain(fragment)
+    }
   })
 
   it('keeps oversized column headings within the selection budget', async () => {
@@ -1466,7 +1585,15 @@ describe('processContextsServer - table_selection contexts', () => {
     })
     queryTableRows.mockResolvedValue({ rows: [{ id: 'r1', data: {} }], totalCount: 1 })
     const [context] = await processContextsServer(
-      [{ kind: 'table_selection', tableId: 'tbl-1', label: 'Rows', rowIds: ['r1'] }],
+      [
+        {
+          kind: 'table_selection',
+          tableId: 'tbl-1',
+          tableName: 'Sales',
+          label: 'Rows',
+          rowIds: ['r1'],
+        },
+      ],
       'user-1',
       '',
       'ws-1'
@@ -2011,15 +2138,16 @@ describe('organization resource mention targets', () => {
    * yields no context.
    */
   const ownedBy =
-    (workspaceId: string, value: unknown) =>
+    <T>(workspaceId: string, value: T) =>
     async ({
       principal,
       input,
     }: {
-      principal: { workspaceId?: string }
+      principal: Principal
       input: { workspaceId?: string; assertedWorkspaceId?: string }
     }) => {
       if (
+        !('workspaceId' in principal) ||
         principal.workspaceId !== workspaceId ||
         (input.workspaceId ?? input.assertedWorkspaceId) !== workspaceId
       ) {

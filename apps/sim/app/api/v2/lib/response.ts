@@ -10,6 +10,7 @@ import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
 import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import {
+  ContentDeliveryUnobservedError,
   forbiddenErrorDetails,
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
@@ -530,6 +531,10 @@ export function v2ErrorForOrchestration(
  * one its failure class maps to.
  */
 export function v2CaughtOrchestrationError(error: unknown): NextResponse | null {
+  /** Chat reached stored content outside any classifying surface: transient, never a content leak. */
+  if (error instanceof ContentDeliveryUnobservedError) {
+    return v2Error('SERVICE_UNAVAILABLE', error.message)
+  }
   const classified = asOrchestrationError(error)
   if (!classified) return null
   if (classified instanceof InsufficientScopeError) return v2InsufficientScope(classified)

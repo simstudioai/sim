@@ -15,11 +15,26 @@ Use [Webflow](https://webflow.com/) in Sim to create, retrieve, list, update, an
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.
+Sim requests these scopes when someone connects a Webflow account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/webflow` |
+| Environment variables | `WEBFLOW_CLIENT_ID`, `WEBFLOW_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `cms:read` | View CMS content |
+| `cms:write` | Manage CMS content |
+| `sites:read` | View Webflow sites |
+| `sites:write` | Manage webhooks and site settings |
+| `forms:read` | View form submissions |
+
+## Use the block [#usage-instructions]
+
+Create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Use trigger mode to start workflows when collection items change or forms are submitted.
 
 ## Actions
 
@@ -132,9 +147,11 @@ Delete an item from a Webflow CMS collection
 | `success` | boolean | Whether the deletion was successful |
 | `metadata` | json | Metadata about the deletion |
 
+
+
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Collection Item Changed
 
@@ -154,7 +171,7 @@ Trigger workflow when an item is updated in a Webflow CMS collection (requires W
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was changed |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | string | The ID of the changed item |
 |   ↳ `cmsLocaleId` | string | CMS locale ID |
 |   ↳ `lastPublished` | string | Last published timestamp |
@@ -185,7 +202,7 @@ Trigger workflow when a new item is created in a Webflow CMS collection (require
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was created |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | string | The ID of the created item |
 |   ↳ `cmsLocaleId` | string | CMS locale ID |
 |   ↳ `lastPublished` | string | Last published timestamp |
@@ -216,7 +233,7 @@ Trigger workflow when an item is deleted from a Webflow CMS collection (requires
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was deleted |
-| `payload` | object | payload output from the tool |
+| `payload` | object |  |
 |   ↳ `id` | string | The ID of the deleted item |
 |   ↳ `deletedOn` | string | Timestamp when the item was deleted |
 
@@ -250,23 +267,4 @@ Trigger workflow when a form is submitted on a Webflow site (requires Webflow cr
 |   ↳ `fieldType` | string | Type of input \(e.g., FormTextInput, FormEmail\) |
 |   ↳ `fieldElementId` | string | Unique identifier for the form element \(UUID\) |
 | `formElementId` | string | The form element ID |
-
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Webflow account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/webflow` |
-| Environment variables | `WEBFLOW_CLIENT_ID`, `WEBFLOW_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `cms:read` | View CMS content |
-| `cms:write` | Manage CMS content |
-| `sites:read` | View Webflow sites |
-| `sites:write` | Manage webhooks and site settings |
-| `forms:read` | View form submissions |
-
 

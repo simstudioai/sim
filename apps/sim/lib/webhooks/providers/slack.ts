@@ -5,7 +5,7 @@ import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { isRecordLike, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { NextResponse } from 'next/server'
@@ -1053,11 +1053,7 @@ export const slackHandler: WebhookProviderHandler = {
     event.title = asString(rawEvent?.title)
     event.previous_title = asString(rawEvent?.previous_title)
     event.tab = asString(rawEvent?.tab)
-    event.context = isRecordLike(rawEvent?.context)
-      ? rawEvent.context
-      : isRecordLike(rawEvent?.app_context)
-        ? rawEvent.app_context
-        : null
+    event.context = toRecordOrNull(rawEvent?.context) ?? toRecordOrNull(rawEvent?.app_context)
     event.team_id =
       asString(b?.team_id) ||
       asString(rawEvent?.team_id) ||

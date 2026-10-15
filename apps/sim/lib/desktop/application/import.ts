@@ -11,7 +11,7 @@ import {
   ensureWorkspaceFileChildFolder,
   loadActiveWorkspaceContext,
 } from '@/lib/uploads/contexts/workspace'
-import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import {
   createAuthorizedWorkspaceFile,

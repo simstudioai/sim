@@ -27,7 +27,7 @@ import {
   reorderMothershipChatResourcesContract,
 } from '@/lib/api/contracts/mothership-chats'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession } from '@/lib/auth/client'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { cancelActiveBrowserTools, initBrowserAgentTransport } from '@/lib/browser-agent/transport'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
@@ -80,6 +80,7 @@ import {
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
+import { executeComputerToolOnClient } from '@/lib/mothership/tools/client/computer-tool-execution'
 import {
   bindRunToolToExecution,
   executeRunToolOnClient,
@@ -116,6 +117,7 @@ import {
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
+import { useMothershipChatOlderMessages } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-chat-older-messages'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import {
@@ -136,7 +138,10 @@ import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { snapAllSmoothText } from '@/hooks/use-smooth-text'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
-import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
 import {
   liveQueueKey,
   liveQueuePosition,
@@ -737,6 +742,7 @@ export function useChat(
   options?: UseChatOptions
 ): UseChatReturn {
   const modelSelectorEnabled = useFeatureFlag('mothership-model-selector')
+  const computerUseEnabled = useFeatureFlag('mothership-computer-use')
   const workspaceId = typeof owner === 'string' ? owner : undefined
   const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
   const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
@@ -1376,6 +1382,7 @@ export function useChat(
     isPending: isChatHistoryPending,
     error: chatHistoryError,
   } = useMothershipChatHistory(resolvedChatId)
+  useMothershipChatOlderMessages(resolvedChatId, chatHistory)
   const requestModeRef = useRef<ChatRequestMode>(
     options?.requestMode ?? (organizationId ? 'assistant' : 'agent')
   )
@@ -1534,6 +1541,21 @@ export function useChat(
       })
     },
     [queryClient, refreshResourceHistory, resourcePersistenceQueue]
+  )
+
+  const discardPendingResourceUpsert = useCallback(
+    ({ type, id, workspaceId }: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>) => {
+      // An add queued before the chat id resolved stays in the provisional
+      // bucket until a flush adopts it, so both scopes may hold it.
+      const scopes = new Set([
+        chatIdRef.current ?? selectedChatIdRef.current,
+        pendingChatKeyRef.current,
+      ])
+      for (const scopeId of scopes) {
+        if (scopeId) resourcePersistenceQueue.discardUpsert(type, id, scopeId, workspaceId)
+      }
+    },
+    [resourcePersistenceQueue]
   )
 
   /**
@@ -2366,9 +2388,16 @@ export function useChat(
         setActiveResourceId,
         addResource,
         removeResource,
+        discardPendingResourceUpsert,
         startClientWorkflowTool,
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
           startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
+        startClientComputerTool: (toolCallId, args, eventTs) => {
+          const lease = desktopTurn?.lease()
+          void executeComputerToolOnClient(toolCallId, args, eventTs, lease?.signal).finally(() =>
+            lease?.release()
+          )
+        },
         startClientBrowserTool: startClientBrowserToolForStream,
         startClientTerminalTool: startClientTerminalToolForStream,
         startBrowserAgentRun: startBrowserAgentRunForStream,
@@ -2504,6 +2533,7 @@ export function useChat(
       queryClient,
       addResource,
       removeResource,
+      discardPendingResourceUpsert,
       startClientWorkflowTool,
       startClientLocalFilesystemTool,
       startClientTerminalTool,
@@ -2534,7 +2564,9 @@ export function useChat(
           signal,
           createTimeoutSignal(CHAT_HISTORY_RECOVERY_TIMEOUT_MS)
         )
-        const history = await fetchMothershipChatHistory(chatId, fetchSignal)
+        const history = await fetchMothershipChatHistory(chatId, fetchSignal, () =>
+          queryClient.getQueryData<MothershipChatHistory>(mothershipChatKeys.detail(chatId))
+        )
         if (signal?.aborted || fetchSignal?.aborted) return { loaded: false, streamId: null }
         queryClient.setQueryData(mothershipChatKeys.detail(chatId), history)
         return { loaded: true, streamId: history.activeStreamId ?? null }
@@ -3917,7 +3949,7 @@ export function useChat(
         const desktopChatCapabilities =
           options?.requestMode === 'assistant'
             ? {}
-            : await getDesktopChatCapabilities(desktopScopeIdRef.current)
+            : await getDesktopChatCapabilities(desktopScopeIdRef.current, computerUseEnabled)
 
         admissionUnknown = true
         /** A reload from here on may find the server holding this id. */
@@ -3949,8 +3981,12 @@ export function useChat(
             ...(options?.requestMode !== 'assistant'
               ? {
                   modelSelection: resolveMothershipModelSettings(
-                    useMothershipEffortStore.getState(),
-                    modelSelectorEnabled
+                    (options?.requestMode === 'plan'
+                      ? useMothershipPlanEffortStore
+                      : useMothershipEffortStore
+                    ).getState(),
+                    modelSelectorEnabled,
+                    options?.requestMode === 'plan'
                   ).modelSelection,
                   ...(effortChoice ? { effort: effortChoice } : {}),
                 }
@@ -4274,6 +4310,7 @@ export function useChat(
       queryClient,
       upsertChatHistory,
       modelSelectorEnabled,
+      computerUseEnabled,
       processSSEStream,
       finalize,
       resumeOrFinalize,

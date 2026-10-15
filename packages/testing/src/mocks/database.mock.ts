@@ -249,7 +249,13 @@ const execute = vi.fn(() => Promise.resolve([] as unknown[]))
 const query = vi.fn(() => Promise.resolve([] as unknown[]))
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
-const values = vi.fn(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
+const values = vi.fn<
+  (values: unknown) => {
+    returning: typeof returning
+    onConflictDoUpdate: typeof onConflictDoUpdate
+    onConflictDoNothing: typeof onConflictDoNothing
+  }
+>(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
 const transaction: ReturnType<typeof vi.fn> = vi.fn(
   async (cb: (tx: any) => unknown): Promise<unknown> => cb(dbChainMock.db)
 )

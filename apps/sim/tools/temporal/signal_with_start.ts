@@ -21,7 +21,7 @@ export const signalWithStartTool: ToolConfig<
   id: 'temporal_signal_with_start',
   name: 'Temporal Signal With Start',
   description:
-    'Atomically signal a Temporal workflow, starting it first if it is not already running, so the signal is never lost.',
+    'Atomically signal a Temporal workflow execution, starting it first if it is not already running.',
   version: '1.0.0',
 
   params: {

@@ -244,9 +244,15 @@ export function sortDirection(order: ListSortOrder): typeof asc {
  * On a paginated list these are the keyset's keys; on a single-page list they
  * are just the sort plus its tiebreaker.
  */
-export function listOrderBy(keys: readonly SQLWrapper[], order: ListSortOrder): SQL[] {
-  const direction = sortDirection(order)
-  return keys.map((key) => direction(key))
+export function listOrderBy(
+  keys: readonly SQLWrapper[],
+  order: ListSortOrder | readonly ListSortOrder[]
+): SQL[] {
+  if (typeof order !== 'string' && order.length !== keys.length)
+    throw new Error('Sort directions must match key columns')
+  return keys.map((key, index) =>
+    sortDirection(typeof order === 'string' ? order : order[index])(key)
+  )
 }
 
 /** `ORDER BY` for a keyset, each key in its own {@link KeysetKey.direction} or the requested one. */
@@ -332,9 +338,10 @@ export function keysetPage<Row>(
 export function keysetAfter<Row>(
   keys: readonly KeysetKey<Row>[],
   values: CursorKey[],
-  order: ListSortOrder
+  order: ListSortOrder | readonly ListSortOrder[]
 ): SQL | null {
-  if (values.length !== keys.length) return null
+  if (values.length !== keys.length || (typeof order !== 'string' && order.length !== keys.length))
+    return null
 
   const bound: SQL[] = []
   for (const [i, key] of keys.entries()) {
@@ -346,12 +353,16 @@ export function keysetAfter<Row>(
   const clauses = keys.map((key, i) =>
     and(
       ...keys.slice(0, i).map((prior, j) => eq(prior.expr, bound[j])),
-      (keyDirection(key, order) === 'asc' ? gt : lt)(key.expr, bound[i])
+      (keyDirection(key, typeof order === 'string' ? order : order[i]) === 'asc' ? gt : lt)(
+        key.expr,
+        bound[i]
+      )
     )
   )
   const after = or(...clauses)
   if (!after) return null
   if (keys.length === 1 || !keys[0].boundsScan) return after
-  const atOrBeyond = keyDirection(keys[0], order) === 'asc' ? gte : lte
+  const atOrBeyond =
+    keyDirection(keys[0], typeof order === 'string' ? order : order[0]) === 'asc' ? gte : lte
   return and(atOrBeyond(keys[0].expr, bound[0]), after) ?? null
 }

@@ -187,6 +187,10 @@ export function attachSecretCommands(program: Command): void {
       `${V2_OPERATIONS.setSecret.body.unredacted.describe} Pass --no-unredacted to restore redaction`
     )
     .option('--no-unredacted', 'Send --unredacted as false')
+    .addHelpText(
+      'after',
+      'Omit --value to enter it privately in a terminal. For an existing workspace secret, passing only --description or a redaction flag keeps the stored value and does not prompt. Personal secrets always require a value; they accept no writable metadata. In scripts, pass --value @path or --value @-.'
+    )
     .on('option:unredacted', () => redactionSpellings.add('--unredacted'))
     .on('option:no-unredacted', () => redactionSpellings.add('--no-unredacted'))
     .action((name: string, options: SetSecretOptions) =>

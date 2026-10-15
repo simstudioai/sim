@@ -8,8 +8,9 @@ import {
 import { escapeRegExp } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
+import { observeContentDelivery } from '@/lib/core/application'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
@@ -51,6 +52,7 @@ import {
   truncateSelectionText,
 } from '@/lib/mothership/chat/selection-context'
 import { quoteChatTranscript } from '@/lib/mothership/chat/text-transcript'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { QueryLogs } from '@/lib/mothership/generated/tool-catalog-v1'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -71,7 +73,8 @@ import { readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
 import { getBuiltinSkillById } from '@/lib/workflows/skills/builtin-skills'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getBlockRegistry } from '@/blocks/registry'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
 
 type AgentContextType =
@@ -346,7 +349,8 @@ export async function processContextsServer(
         ctx.columnIds,
         ctx.label,
         userId,
-        chatId
+        chatId,
+        resolvedSecretTraceRegistry
       )
     }
     if ((ctx.kind === 'folder' || ctx.kind === 'filefolder') && workspaceId) {
@@ -425,7 +429,7 @@ export async function processContextsServer(
         ? { ...resolved, content: `Workspace ${workspaceId}:\n${resolved.content}` }
         : resolved
     } catch (error) {
-      logger.error('Failed processing context (server)', { ctx, error })
+      logger.error('Failed processing context (server)', { kind: ctx.kind, error })
       return null
     }
   }
@@ -921,7 +925,19 @@ export async function resolveActiveResourceContext(
         return null
     }
   } catch (error) {
-    logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
+    // A tab can outlive its resource or the viewer's access to it; the
+    // request simply goes without that context.
+    const code = asOrchestrationError(error)?.code
+    if (code === 'not_found') {
+      logger.info('Skipped active resource that no longer exists', { resourceType, resourceId })
+    } else if (code === 'forbidden') {
+      logger.warn('Skipped active resource the user can no longer access', {
+        resourceType,
+        resourceId,
+      })
+    } else {
+      logger.error('Failed to resolve active resource context', { resourceType, resourceId, error })
+    }
     return null
   }
 }
@@ -1126,7 +1142,8 @@ async function resolveTableSelectionResource(
   columnIds: string[] | undefined,
   label: string,
   userId: string,
-  chatId?: string
+  chatId?: string,
+  turnRegistry?: ResolvedSecretTraceRegistry
 ): Promise<AgentContext | null> {
   if (
     rowIds.length > MAX_TABLE_SELECTION_ROWS ||
@@ -1153,17 +1170,30 @@ async function resolveTableSelectionResource(
   if (columns.length === 0) return null
 
   const uniqueRowIds = [...new Set(rowIds)]
-  const result = await queryTableRows.execute({
-    principal,
-    input: {
-      tableId,
-      assertedWorkspaceId: workspaceId,
-      predicate: { all: [{ field: 'id', op: 'in', value: uniqueRowIds }] },
-      legacyKeying: 'ids',
-      columns: columns.map(getColumnId),
-      limit: uniqueRowIds.length,
-      includeTotal: true,
-    },
+  /**
+   * The preview is inlined into the turn as text no later projection reads, so it is redacted
+   * here: each row is admitted on its own against a selection-local registry, which then redacts
+   * the preview and hands its secrets to the turn's registry for everything after.
+   */
+  const selectionRegistry = new ResolvedSecretTraceRegistry([], { userId, workspaceId })
+  const result = await observeContentDelivery(
+    createRegistryContentGate({ registry: selectionRegistry, workspaceId, actorUserId: userId }),
+    () =>
+      queryTableRows.execute({
+        principal,
+        input: {
+          tableId,
+          assertedWorkspaceId: workspaceId,
+          predicate: { all: [{ field: 'id', op: 'in', value: uniqueRowIds }] },
+          legacyKeying: 'ids',
+          columns: columns.map(getColumnId),
+          limit: uniqueRowIds.length,
+        },
+      })
+  )
+  await turnRegistry?.importProvenance(selectionRegistry.exportProvenance(), {
+    trusted: true,
+    origin: 'chatContext.tableSelection',
   })
   const rowsById = new Map(result.rows.map((row) => [row.id, row]))
   const rows = uniqueRowIds.flatMap((id) => {
@@ -1171,7 +1201,14 @@ async function resolveTableSelectionResource(
     return row ? [row] : []
   })
   if (rows.length === 0) return null
-  const selectedRowCount = result.totalCount ?? rows.length
+  /**
+   * A byte-limited page still has the rest of the selection to read, so those rows count as
+   * omitted for length. Otherwise a missing row was deleted or withheld; the note says so without
+   * telling which.
+   */
+  const missingRows = uniqueRowIds.length - rows.length
+  const pageLimited = result.nextCursor !== null && result.nextCursor !== undefined
+  const selectedRowCount = rows.length + (pageLimited ? missingRows : 0)
 
   const selection = JSON.stringify({
     tableId,
@@ -1202,23 +1239,63 @@ async function resolveTableSelectionResource(
   // needs. The real clause isn't known until packing finishes, so reserve its
   // longest form: every row shown AND every row omitted maximizes both counts
   // and forces the plural. A few characters of unused slack beats overshooting.
+  /**
+   * Each cell is redacted as stored, before markdown escaping rewrites `|` and newlines: redaction
+   * matches a secret's exact text, so escaping first would let a secret holding either pass.
+   */
+  let cellsProjected = true
+  const projectCell = (value: unknown): string => {
+    if (value === null || value === undefined) return ''
+    const projection = projectResolvedSecretModelContent(
+      typeof value === 'string' ? value : JSON.stringify(value),
+      selectionRegistry
+    )
+    if (projection.safe && typeof projection.value === 'string') return projection.value
+    cellsProjected = false
+    return ''
+  }
+  const omittedRows = pageLimited ? 0 : missingRows
+  const omittedNote =
+    omittedRows > 0
+      ? `\n\n${omittedRows} selected ${omittedRows === 1 ? 'row is' : 'rows are'} not shown: deleted since the selection, or not available to Chat.`
+      : ''
   const lines: string[] = []
   let remaining =
     MAX_TABLE_SELECTION_PREVIEW_LENGTH -
-    describe(sizeClause(selectedRowCount, selectedRowCount)).length
+    describe(sizeClause(selectedRowCount, selectedRowCount)).length -
+    omittedNote.length
   for (const row of rows) {
-    const line = `| ${renderTableCell(row.id)} | ${columns.map((col) => renderTableCell(row.data[getColumnId(col)])).join(' | ')} |`
+    const line = `| ${renderTableCell(row.id)} | ${columns.map((col) => renderTableCell(projectCell(row.data[getColumnId(col)]))).join(' | ')} |`
     if (line.length + 1 > remaining) break
     lines.push(line)
     remaining -= line.length + 1
   }
 
   const rendered = `${describe(sizeClause(lines.length, selectedRowCount - lines.length))}${lines.join('\n')}`
+  const projected = projectResolvedSecretModelContent(rendered, selectionRegistry)
+  /** A fallback names the table, which is redacted like the rest; unredactable, it is omitted. */
+  const fallback = (reason: string) => {
+    const named = `Selected ${scope} from table ${JSON.stringify(table.name)} (${selectedRowCount} rows, ${columns.length} columns). ${reason}`
+    const projectedName = projectResolvedSecretModelContent(named, selectionRegistry)
+    return projectedName.safe && typeof projectedName.value === 'string'
+      ? projectedName.value
+      : `Selected ${scope} (${selectedRowCount} rows, ${columns.length} columns). ${reason}`
+  }
   const preview =
-    rendered.length <= MAX_TABLE_SELECTION_PREVIEW_LENGTH
-      ? rendered
-      : `Selected ${scope} from table "${table.name}" (${selectedRowCount} rows, ${columns.length} columns). The column headings exceed the selection content limit; no cell values were inlined.`
-  const content = `${selection}\n\n${preview}`
+    !cellsProjected || !projected.safe || typeof projected.value !== 'string'
+      ? fallback('Cell values could not be checked for secret values, so none were inlined.')
+      : projected.value.length <= MAX_TABLE_SELECTION_PREVIEW_LENGTH
+        ? `${projected.value}${omittedNote}`
+        : fallback(
+            'The column headings exceed the selection content limit; no cell values were inlined.'
+          )
+  /** The descriptor names columns and rows; it is shown to the model too, so it is redacted too. */
+  const projectedSelection = projectResolvedSecretModelContent(selection, selectionRegistry)
+  const descriptor =
+    projectedSelection.safe && typeof projectedSelection.value === 'string'
+      ? projectedSelection.value
+      : JSON.stringify({ tableId })
+  const content = `${descriptor}\n\n${preview}`
   return {
     type: 'table_selection',
     tag: label ? `@${label}` : '@',

@@ -25,7 +25,11 @@ export async function getFileMetadata(
 
   if (metadataRecord) {
     return {
-      userId: metadataRecord.userId,
+      ...(metadataRecord.projectId == null &&
+      metadataRecord.context !== 'project' &&
+      metadataRecord.userId
+        ? { userId: metadataRecord.userId }
+        : {}),
       workspaceId: metadataRecord.workspaceId || '',
       originalName: metadataRecord.originalName,
       uploadedAt: metadataRecord.uploadedAt.toISOString(),

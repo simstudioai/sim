@@ -402,6 +402,7 @@ describe('destructive operations are gated', () => {
     'activateWorkflowVersion',
     'applyWorkflowOperations',
     'applyWorkflowVariables',
+    'archiveProjectFileItems',
     'bulkDeleteFiles',
     'bulkDeleteTables',
     'bulkUpdateKnowledgeChunks',
@@ -417,6 +418,18 @@ describe('destructive operations are gated', () => {
    * decision on anything new.
    */
   const NON_DESTRUCTIVE = new Set<V2OperationName>([
+    'completeProjectFileUpload',
+    'createProjectFile',
+    'createProjectFileFolder',
+    'createProjectFileUpload',
+    'getProjectFileUploadPartUrls',
+    'moveProjectFileItems',
+    'renameProjectFile',
+    'restoreProjectFile',
+    'restoreProjectFileFolder',
+    'revertProjectFileVersion',
+    'updateProjectFileContent',
+    'updateProjectFileFolder',
     /** These amend access or request history without discarding a resource. */
     'cancelOrganizationAccessRequest',
     'cancelWorkspaceAccessRequest',

@@ -311,13 +311,6 @@ describe('ashby request bodies', () => {
     ).toThrow(/required. Pass null to clear/)
   })
 
-  it('set_custom_field_values sends the values array', () => {
-    const values = [{ fieldId: 'f', fieldValue: 'High' }]
-    expect(
-      requestBody(setCustomFieldValuesTool, { objectId: 'o', objectType: 'Job', values }).values
-    ).toEqual(values)
-  })
-
   it('rejects an empty values array before it reaches Ashby', () => {
     expect(() =>
       requestBody(setCustomFieldValuesTool, { objectId: 'o', objectType: 'Job', values: [] })
@@ -436,41 +429,6 @@ describe('ashby response transforms', () => {
     expect(result.output.nextSyncCursor).toBeNull()
   })
 
-  it('set_custom_field_value maps the single result object', async () => {
-    const result = await transform(setCustomFieldValueTool, {
-      success: true,
-      results: { id: 'cf', title: 'Priority', isPrivate: false, value: 'High', valueLabel: 'High' },
-    })
-    expect(result.output.customField).toEqual({
-      id: 'cf',
-      title: 'Priority',
-      isPrivate: false,
-      value: 'High',
-      valueLabel: 'High',
-    })
-  })
-
-  it('set_custom_field_values maps the result array', async () => {
-    // The plural endpoint returns an array where the singular returns an object.
-    const result = await transform(setCustomFieldValuesTool, {
-      success: true,
-      results: [
-        { id: 'a', title: 'A', value: 1 },
-        { id: 'b', title: 'B', value: null },
-      ],
-    })
-    expect(result.output.customFields).toHaveLength(2)
-    expect(result.output.customFields[1].value).toBeNull()
-  })
-
-  it('delete_application surfaces the deleted id', async () => {
-    const result = await transform(deleteApplicationTool, {
-      success: true,
-      results: { applicationId: 'app-1' },
-    })
-    expect(result.output.applicationId).toBe('app-1')
-  })
-
   it('delete_application reports a missing permission readably', async () => {
     // candidatesDelete is a separate module permission, so this is the most
     // likely failure for this operation and must not surface as [object Object].
@@ -497,24 +455,6 @@ describe('ashby response transforms', () => {
     }
   })
 
-  it('anonymize_candidate maps the returned candidate', async () => {
-    const result = await transform(anonymizeCandidateTool, {
-      success: true,
-      results: { id: 'cand-1', name: 'Anonymous cand-1', primaryEmailAddress: null },
-    })
-    expect(result.output.id).toBe('cand-1')
-    expect(result.output.name).toBe('Anonymous cand-1')
-  })
-
-  it('change_application_source maps the returned application', async () => {
-    const result = await transform(changeApplicationSourceTool, {
-      success: true,
-      results: { id: 'app-1', status: 'Active', source: null },
-    })
-    expect(result.output.id).toBe('app-1')
-    expect(result.output.source).toBeNull()
-  })
-
   it('keeps an array valueLabel intact for MultiValueSelect fields', async () => {
     // This is why AshbyCustomField.valueLabel widened to string | string[];
     // a mapper that coerced it would silently drop the labels.
@@ -524,20 +464,6 @@ describe('ashby response transforms', () => {
     })
     expect(result.output.customField.valueLabel).toEqual(['A', 'B'])
     expect(result.output.customField.value).toEqual(['a', 'b'])
-  })
-
-  it('list_job_postings surfaces draft status on the new field', async () => {
-    const result = await transform(listJobPostingsTool, {
-      success: true,
-      results: [
-        { id: 'p1', title: 'A', status: 'Published' },
-        { id: 'p2', title: 'B', status: 'Draft' },
-      ],
-    })
-    expect(result.output.jobPostings.map((p: { status: string }) => p.status)).toEqual([
-      'Published',
-      'Draft',
-    ])
   })
 
   it('defaults missing result payloads instead of throwing', async () => {

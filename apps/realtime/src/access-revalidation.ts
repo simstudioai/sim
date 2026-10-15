@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { ROOM_MEMBERSHIP_ACTIONS, satisfiesRoomMembership } from '@sim/platform-authz/room-policy'
 import type { AccessRevokedBroadcast } from '@sim/realtime-protocol/events'
 import {
+  isProjectRoom,
   parseRoomName,
   ROOM_TYPES,
   type RoomRef,
@@ -14,6 +15,7 @@ import {
   runRoomEvictionHandler,
   setEvictionCleanupSink,
 } from '@/handlers/room-eviction'
+import { publishRoomPermission } from '@/handlers/room-permission'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { ROLE_REVALIDATION_TTL_MS, resolveCurrentRoomPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
@@ -33,14 +35,8 @@ const logger = createLogger('AccessRevalidation')
 export const ACCESS_REVALIDATION_SWEEP_INTERVAL_MS = ROLE_REVALIDATION_TTL_MS
 
 /**
- * Fallback consumed by {@link resolveCurrentRoomPermission} only on a transient DB
- * failure with a cold cache, where resolving to a permission that KEEPS the socket
- * (never eviction) is the safe outcome during an outage. It is the room's own
- * membership level, so it satisfies that room's requirement exactly — a static
- * `'read'` would have evicted every file-doc socket (which needs `write`) on a cold
- * cache blip. The scan deliberately does not read presence for a per-socket
- * join-time role: that would put a Redis dependency inside the security-critical
- * scan lane, and the fallback's only job is to be permissive.
+ * Preserves membership for room types that allow a cold-cache outage fallback.
+ * Document rooms throw instead; the sweep retains their subscriptions for retry.
  */
 function fallbackRoleFor(type: RoomType): string {
   return ROOM_MEMBERSHIP_ACTIONS[type]
@@ -116,7 +112,7 @@ function collectScanTargets(io: IRoomManager['io']): ScanTarget[] {
     for (const name of socket.rooms) {
       if (name === socket.id) continue
       const ref = parseRoomName(name)
-      if (!ref) continue
+      if (!ref || ref.id.includes(':')) continue
       targets.push({ room: ref, name, socket: authed, userId: authed.userId })
     }
   }
@@ -327,19 +323,19 @@ export function startAccessRevalidationSweep(roomManager: IRoomManager): AccessR
         // resolution keeps running in the background and is re-raced when the
         // rotation returns to this socket, so it is acted on once it settles.
         const role = await Promise.race([
-          resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type)),
+          isProjectRoom(room)
+            ? resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type), socket.id)
+            : resolveCurrentRoomPermission(userId, room, fallbackRoleFor(room.type)),
           sleep(Math.min(SCAN_SOCKET_TIMEOUT_MS, remainingBudget)).then(() => SCAN_TIMED_OUT),
         ])
         // {@link SCAN_TIMED_OUT} is the only symbol this race can yield; matching on
         // the type narrows it out of the permission comparison below.
+        if (typeof role !== 'symbol') publishRoomPermission(socket, room, role)
         if (typeof role === 'symbol') {
           logger.warn(
             `Authorization check timed out for user ${userId} on ${name}; skipping this pass`
           )
         } else if (!satisfiesRoomMembership(role, room.type)) {
-          // Covers both revocation (`null`) and downgrade below the level this room
-          // requires — a member dropped to `read` may keep a table room but not the
-          // collaborative document editor, exactly as at join time.
           revokeSocket(socket, room, name)
         }
       } catch (error) {

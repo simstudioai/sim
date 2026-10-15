@@ -8,7 +8,7 @@ import {
   isEmailAllowed,
   validateAuthToken,
 } from '@/lib/core/security/deployment'
-import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
+import { resolveActiveShareByToken } from '@/lib/public-shares/manager'
 import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
 import { PublicFileAuth } from '@/app/f/[token]/public-file-auth'
 import { PublicFileEmailAuth } from '@/app/f/[token]/public-file-email-auth'

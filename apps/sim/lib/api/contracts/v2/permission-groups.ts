@@ -48,12 +48,12 @@ export const v2PermissionGroupSchema = z
     isDefault: z
       .boolean()
       .describe(
-        'Whether this is the organization default, which applies to everyone across all its workspaces regardless of member assignments.'
+        'Whether this is the organization fallback group. It governs a human caller with no applicable workspace-specific group; its own membership assignments do not limit its audience. Organization-level actions use the default group.'
       ),
     membershipMode: z
       .string()
       .describe(
-        'An empty inherit group governs everyone in its workspaces; an empty explicit group governs nobody.'
+        'When no explicit assignments exist, an `inherit` group governs every member in its targeted workspaces. An empty `explicit` group, including a SCIM-managed group, governs nobody.'
       ),
     workspaceIds: z
       .array(z.string())
@@ -65,7 +65,8 @@ export const v2PermissionGroupSchema = z
   .meta({
     id: 'V2PermissionGroup',
     title: 'Permission group',
-    description: 'An organization permission group and its resolved settings.',
+    description:
+      'An organization permission group and its resolved settings for human callers. Workspace API keys use their workspace role and operation policy without a user permission group.',
   })
 export type V2PermissionGroup = z.output<typeof v2PermissionGroupSchema>
 

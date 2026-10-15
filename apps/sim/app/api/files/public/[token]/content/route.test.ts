@@ -14,7 +14,7 @@ const { mockEnforceRateLimit, mockValidateDeploymentAuth, mockResolveServableDoc
   })
 )
 
-vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/public-shares/manager', () => publicSharesMock)
 
 vi.mock('@/lib/public-shares/rate-limit', () => ({
   enforcePublicFileRateLimit: mockEnforceRateLimit,
@@ -26,7 +26,7 @@ vi.mock('@/lib/core/security/deployment-auth', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/uploads/documents/compile', () => ({
   resolveServableDoc: mockResolveServableDoc,
 }))
 

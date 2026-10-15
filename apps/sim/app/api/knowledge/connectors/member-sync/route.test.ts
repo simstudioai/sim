@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   sweep: vi.fn(),
 }))
 vi.mock('@/lib/auth/internal', () => authInternalMock)
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
   sweepStaleMemberObservations: mocks.sweep,

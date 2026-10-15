@@ -2,7 +2,7 @@ import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeho
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import type { CodeLanguage } from '@/lib/execution/languages'
 import type { SandboxBuildError } from '@/lib/execution/remote-sandbox/build-errors'
-import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import type { SandboxSpec } from '@/lib/execution/remote-sandbox/spec'
 
 /**
  * Which vetted image a sandbox runs in. Every kind fails closed when its

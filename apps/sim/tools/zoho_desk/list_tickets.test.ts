@@ -52,7 +52,7 @@ describe('zohoDeskListTicketsTool request url', () => {
 /**
  * Models the real block-to-tool seam. The executor merges the mapper's output
  * ON TOP of the serialized inputs (`{ ...inputs, ...transformedParams }` in
- * executor/handlers/generic/generic-handler.ts), so the mapper can overwrite a
+ * executor/handlers/generic/handler.ts), so the mapper can overwrite a
  * key but never remove one. A test that passes only the mapper's return value
  * would miss every stale input the merge restores — which is precisely the
  * class of bug these cover.

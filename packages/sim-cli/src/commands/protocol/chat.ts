@@ -114,7 +114,7 @@ document, conversation ID included.
 
 Examples:
   $ sim chat "What workflows do I have?"
-  $ sim chat -c 3f2a… "Which of those run on a schedule?"
+  $ sim chat -c "$CONVERSATION_ID" "Which of those run on a schedule?"
   $ sim --output json chat "Summarize yesterday's failed runs" | jq -r '.content'
 `
     )

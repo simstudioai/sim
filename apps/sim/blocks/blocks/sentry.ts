@@ -10,7 +10,7 @@ export const SentryBlock: BlockConfig = {
   description: 'Manage Sentry issues, projects, events, and releases',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.',
+    'Monitor issues, manage projects, track events, and coordinate releases across your applications.',
   docsLink: 'https://docs.sim.ai/integrations/sentry',
   category: 'tools',
   integrationType: IntegrationType.Observability,

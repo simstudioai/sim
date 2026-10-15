@@ -1,73 +1,58 @@
 ---
 title: Organizing a workspace
-description: Folders, colors, and naming conventions for keeping a growing workspace understandable.
+description: Group workflows with folders, nesting, ordering, and locks.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
+Folders group workflows in the sidebar. Use them to organize a workspace by team, customer, or purpose.
 
-Folders group workflows in the sidebar. Nest or reorder them to organize a [workspace](/platform/workspaces) by team, customer, or purpose.
+You need **Write** or **Admin** access to arrange unlocked folders. Only a workspace **Admin** can lock or unlock them.
 
-{/* VISUAL: before/after sidebar. Left: a flat list of ~20 workflows, no grouping. Right: the same workflows under 3-4 top-level color-coded folders ("Internal", "Customer-Facing", "Ops"), some expanded to show nested subfolders. */}
+## Name and nest folders
 
-## The parts of a folder
+Use category names for folders and action names for workflows. For example:
 
-Here's an example: a folder named **Customer Deployments**, colored red, holding five workflows and two subfolders.
+```text
+Customer operations
+  Customer A
+    Send weekly summary
+    Check overdue invoices
+  Customer B
+    Send weekly summary
+Internal
+  Update support metrics
+```
 
-### Name
+Choose **Create folder** from a folder's menu to add a subfolder. Choose **Rename** to change its name. Keep the hierarchy shallow enough that teammates can find a workflow without opening many levels.
 
-Choose category names such as `Internal`, `Customer-Facing`, or `Ops`. Use the same naming convention across your workspace.
+## Reorder and move folders
 
-{/* VISUAL: a single sidebar folder row showing the expand chevron, color dot, and name "Customer Deployments". */}
+Drag a folder up or down to change its order within a level. Drag it onto another folder to nest it there. Put frequently used folders near the top.
 
-### Color
+Folder names, nesting, and order organize navigation. They do not give different members access to different branches of the workspace.
 
-Folder colors appear as dots beside their names and default to gray (`#6B7280`). Change the color from the folder menu. Use color alongside clear names so the grouping is still understandable without color.
+## Lock a folder
 
-{/* VISUAL: a short vertical stack of folders with distinct color dots: red "Production", gray "Internal", another color for "Customer-Facing", showing color as the grouping signal. */}
+Choose **Lock** from the folder's menu to prevent editing. New folders are unlocked by default.
 
-### Nesting
+A folder lock applies to its workflows and subfolders. A child cannot clear a lock inherited from its parent; unlock the parent first. Otherwise authorized workflows can still run while locked.
 
-Nest folders when a category needs subgroups, for example `Production` → `Customer A` → `Deployments`. Keep the hierarchy shallow enough to scan.
+Use a lock to prevent accidental changes to production logic. Workspace roles and resource permissions still govern access and execution.
 
-{/* VISUAL: a three-level nested tree: "Production" (red, top level) > "Customer A" (yellow) > "Deployments" (purple), each row indented one step, showing the parent-to-child chain. */}
+## Delete and restore a folder
 
-### Order
+Deleting a folder also removes its contents from active lists. Check the affected workflows before choosing **Delete** and confirming the deletion.
 
-Folders display in a set **order**, top to bottom, that you control by dragging them in the sidebar. Drag a folder up or down to reorder it within its level, or drag it onto another folder to move it inside as a subfolder. Order is a convention too: put the folders a team touches daily at the top.
+Deleted items remain recoverable under **Settings → Recently deleted** until retention cleanup removes them. Restore them there when needed. Recovery is subject to the workspace's effective [data retention policy](/platform/enterprise/data-retention).
 
-### Locking
+A locked folder cannot be deleted until its lock is cleared.
 
-A **locked** folder is read-only: its workflows can be viewed but not edited. Locking is off by default. Lock a `Production` folder so members can open and run its workflows without changing them by accident. Locking a folder also locks everything inside it, so a locked parent protects its subfolders and their workflows in one move. Who can lock and unlock follows the workspace [roles and permissions](/platform/permissions).
+## Choose folders or another workspace
 
-{/* VISUAL: the folder context menu open on a folder row, showing the options: rename, change color, lock, duplicate, export, new subfolder, delete. */}
+Keep work in folders when it shares the same team, access rules, and settings. Create another workspace when it needs its own members, credentials, secrets, or resource ownership—for example, a separate customer project with different collaborators.
 
-### Archiving
+Use the same category names across related resources so a table, secret, and workflow are easy to associate. This is a naming convention, not an enforced relationship.
 
-**Archiving** a folder removes it from your active sidebar without deleting it. An archived folder drops out of the normal view, and you restore it when you need it again. Use archiving for cleanup: a finished customer engagement or a retired experiment leaves the sidebar but stays recoverable. There is no permanent hard-delete in the folder menu, so archiving is the safe way to get something out of the way.
+## Related docs
 
-## Conventions
-
-Naming conventions make the structure legible to someone who did not build it. Nothing here is enforced, so the value comes from applying one rule consistently across the workspace.
-
-- **Group by audience or function at the top level.** A common split is `Internal`, `Customer-Facing`, and `Ops`. Someone new can find the right branch from the top-level names alone.
-- **Name folders as categories, workflows as actions.** A folder is a noun (`Billing`); a workflow is a thing it does (`Send overdue reminder`). The folder path plus the workflow name should read as a sentence.
-- **Use color for the top level, names for everything below.** Color carries the coarse grouping; names carry the detail. Mixing both at every level turns into noise.
-- **Mirror the convention everywhere.** The same category words you use for folders are worth reusing for [tables](/platform/workspaces), [secrets](/platform/credentials), and [integrations](/integrations), so a team learns one vocabulary instead of three.
-
-## One workspace or several
-
-Folders organize workflows within a workspace. Use a separate workspace when the work needs its own members, settings, or resource ownership.
-
-- **Group in folders** when everything belongs to the same team and the same access rules, and you only want it easier to navigate.
-- **Split into workspaces** when a set of work needs its own members, its own integrations and secrets, or its own isolation. The classic case is one workspace per customer, where the workspace itself is the deliverable the customer owns.
-
-See [Workspace fundamentals](/platform/workspaces) for what the boundary scopes and [Roles and permissions](/platform/permissions) for how members and seats work across workspaces.
-
-## Next
-
-<Cards>
-  <Card title="Workspace fundamentals" href="/platform/workspaces" description="What a workspace holds and the boundary it scopes." />
-  <Card title="Roles and permissions" href="/platform/permissions" description="Permission levels, members, and seat rules." />
-  <Card title="Secrets" href="/platform/credentials" description="Workspace and personal API keys and variables." />
-  <Card title="Integrations" href="/integrations" description="Connect third-party accounts to a workspace." />
-</Cards>
+- [Workspace fundamentals](/platform/workspaces)
+- [Roles and permissions](/platform/permissions)

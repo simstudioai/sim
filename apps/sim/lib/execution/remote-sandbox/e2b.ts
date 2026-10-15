@@ -30,15 +30,15 @@ import {
 } from '@/lib/execution/remote-sandbox/cli-tools.server'
 import { processCodeFailure } from '@/lib/execution/remote-sandbox/code-failure'
 import {
-  recordSandboxProcess,
-  reportUnsettledSandboxProcess,
-  settleSandboxProcess,
-} from '@/lib/execution/remote-sandbox/execution-observer'
-import {
   FUNCTION_SANDBOX_CPU_COUNT,
   FUNCTION_SANDBOX_MATERIALIZER_REVISION,
   FUNCTION_SANDBOX_MEMORY_MB,
 } from '@/lib/execution/remote-sandbox/function-resources'
+import {
+  recordSandboxProcess,
+  reportUnsettledSandboxProcess,
+  settleSandboxProcess,
+} from '@/lib/execution/remote-sandbox/observer'
 import {
   assertSandboxProcessOutputWithinLimit,
   isSandboxOutputLimitError,
@@ -49,20 +49,20 @@ import {
   SandboxProcessOutputBudget,
   tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
-import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/sandbox-paths'
-import {
-  quoteDependency,
-  type SandboxSpec,
-  SIM_DEPS_DIR,
-  SIM_NODE_MODULES_DIR,
-  systemPackageInstallCommand,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+import { resolveSandboxDirectoryEntryPath } from '@/lib/execution/remote-sandbox/paths'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import {
   type SessionProcessIdentity,
   sessionProcessCommand,
   sessionProcessStopCommand,
 } from '@/lib/execution/remote-sandbox/session-process'
+import {
+  quoteDependency,
+  type SandboxSpec,
+  SIM_DEPS_DIR,
+  SIM_NODE_MODULES_DIR,
+  systemPackageInstallCommand,
+} from '@/lib/execution/remote-sandbox/spec'
 import type {
   CreateSandboxOptions,
   RunCommandOptions,

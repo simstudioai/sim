@@ -22,7 +22,7 @@ vi.mock('@/app/api/workflows/middleware', () => ({
 
 vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 

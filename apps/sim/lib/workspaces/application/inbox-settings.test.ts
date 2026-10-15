@@ -23,7 +23,7 @@ vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) 
   ...(await importOriginal<typeof import('@/lib/permission-groups/capability-assertions')>()),
   assertWorkspaceCapability: hoisted.capability,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/mothership/inbox/lifecycle', () => ({
   enableInbox: hoisted.enable,

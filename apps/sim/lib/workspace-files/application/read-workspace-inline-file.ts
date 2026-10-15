@@ -6,9 +6,10 @@ import {
   getWorkspaceFile,
   loadActiveWorkspaceFileContext,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { requireAdmittedWorkspaceFile } from '@/lib/workspace-files/application/admit-file-content'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
@@ -37,6 +38,7 @@ export interface ReadWorkspaceInlineFileResult {
 async function executeReadWorkspaceInlineFile({
   input,
   context,
+  principal,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
   ReadWorkspaceInlineFileInput,
@@ -46,6 +48,7 @@ async function executeReadWorkspaceInlineFile({
     throwOnError: true,
   })
   if (!file) throw new OrchestrationError('not_found', 'Not found')
+  await requireAdmittedWorkspaceFile(principal, context.workspaceId, file, 'opaque')
 
   const stream = await downloadFileStream({ key: file.key, context: 'workspace' })
   return {

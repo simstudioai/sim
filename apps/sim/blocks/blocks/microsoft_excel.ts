@@ -63,8 +63,7 @@ export const MicrosoftExcelBlock: BlockConfig = {
   authMode: AuthMode.OAuth,
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'microsoft_excel_v2' },
-  longDescription:
-    'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
+  longDescription: 'Read, write, update, add to table, and create new worksheets.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -685,8 +684,7 @@ export const MicrosoftExcelV2Block: BlockConfig = {
   description: 'Read and write data with sheet selection',
   authMode: AuthMode.OAuth,
   hideFromToolbar: false,
-  longDescription:
-    'Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.',
+  longDescription: 'Read and write data in selected worksheets.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,

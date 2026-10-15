@@ -23,13 +23,13 @@ import type {
   StreamingContext,
 } from '@/lib/mothership/request/types'
 import { findNonTabFileIds } from '@/lib/mothership/resources/file-tabs'
-import { peekFileIntent } from '@/lib/mothership/tools/server/files/file-intent-store'
+import { peekFileIntent } from '@/lib/mothership/tools/server/files/intent-store'
 import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
   type WorkspaceFilePreviewBase,
-} from '@/lib/mothership/tools/server/files/file-preview'
-import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+} from '@/lib/mothership/tools/server/files/preview'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/file-manager'
 import { findActiveWorkspaceFilesByReference } from '@/lib/workspace-files/application/list-workspace-files'
 
 const logger = createLogger('CopilotFilePreviewAdapter')

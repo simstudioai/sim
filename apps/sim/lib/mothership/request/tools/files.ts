@@ -16,7 +16,7 @@ import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceRepresentation,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { decodeVfsPathSegments } from '@/lib/vfs/path'
 import type { ResolvedSecretMatcher } from '@/executor/utils/resolved-secret-matcher'
 import {

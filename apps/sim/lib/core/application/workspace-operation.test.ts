@@ -6,6 +6,7 @@ describe('defineWorkspaceOperation delegated service policy', () => {
   it('preserves and freezes an explicit delegated service allowlist', () => {
     const operation = defineWorkspaceOperation({
       id: 'test.read',
+      contentDelivery: 'none',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       principalKinds: ['delegated'],
@@ -33,6 +34,7 @@ describe('defineWorkspaceOperation delegated service policy', () => {
     expect(() =>
       defineWorkspaceOperation({
         id: 'test.unused_service_policy',
+        contentDelivery: 'none',
         minimumRole: 'read',
         workspaceApiKey: 'deny',
         principalKinds: ['session'],
@@ -46,6 +48,7 @@ describe('defineWorkspaceOperation delegated service policy', () => {
     expect(() =>
       defineWorkspaceOperation({
         id: 'test.duplicate_service_policy',
+        contentDelivery: 'none',
         minimumRole: 'read',
         workspaceApiKey: 'deny',
         principalKinds: ['delegated'],

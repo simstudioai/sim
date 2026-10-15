@@ -11,9 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Dynatrace](https://www.dynatrace.com/) is an observability platform that monitors applications, infrastructure, and user experience from a single agent. Its Davis AI correlates signals across the stack into **problems** — a single incident with a root cause, an impact assessment, and the affected entities attached — instead of a stream of disconnected alerts.
+Use [Dynatrace](https://www.dynatrace.com/) to inspect observability and security data, manage problems and configuration, or submit metrics, logs, and events.
 
-**What you can reach from Sim**
+**Supported operations**
 
 - **Problems** — list and inspect Davis problems, read their root cause and affected entities, close them, and manage their comments.
 - **Metrics** — query time series with a metric selector, discover which metrics exist, read a metric's descriptor, and push your own data points.
@@ -54,7 +54,7 @@ Create the token under **Access tokens** in Dynatrace, and grant only the scopes
 | Synthetic | `syntheticExecutions.read`, `ReadSyntheticData` | `syntheticExecutions.write` |
 | Audit log | `auditLogs.read` | — |
 
-Note that **Synthetic monitors are the one part of this integration on Environment API v1** — Sim handles the path difference, but the token scopes differ from the v2 endpoints.
+**Synthetic monitors use Environment API v1** — Sim handles the path difference, but the token scopes differ from the v2 endpoints.
 
 **Selectors**
 
@@ -67,11 +67,11 @@ metricSelector:         builtin:host.cpu.usage:splitBy("dt.entity.host"):avg:nam
 securityProblemSelector: status("OPEN"),riskLevel("CRITICAL")
 ```
 
-Every selector field in the block has a wand — describe what you want in plain language and Sim writes the selector for you.
+For selector fields with a wand, describe the filter in plain language to generate a selector, then review its syntax before running the operation.
 
 **Settings objects**
 
-Most Dynatrace configuration is a *settings object*: a JSON `value` whose shape is defined by a *schema* such as `builtin:alerting.maintenance-window`. There is no fixed structure Sim can validate for you, so the reliable way to write one is to read an existing object of the same schema first and mirror its `value`. Get Settings Object also returns an `updateToken` — pass it back on update or delete and the call fails rather than overwriting a change someone else made in the meantime.
+Most Dynatrace configuration is a *settings object*: a JSON `value` whose shape is defined by a *schema* such as `builtin:alerting.maintenance-window`. The schema determines the JSON shape. Read its definition or an existing object of the same schema before constructing `value`. [Get Settings Object](https://docs.dynatrace.com/docs/dynatrace-api/environment-api/settings/key-concepts) also returns an `updateToken` — pass it back on update or delete and the call fails rather than overwriting a change someone else made in the meantime.
 
 **Pagination**
 
@@ -79,11 +79,9 @@ List operations return a `nextPageKey` (a `nextSliceKey` for log search). Feed i
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, manage SLOs and their burn rates, triage and mute Application Security vulnerabilities, review runtime attacks, tag entities, manage settings objects such as maintenance windows and alerting profiles, run synthetic monitors on demand, and read the audit log.
-
-
 
 ## Actions
 

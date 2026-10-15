@@ -5,7 +5,7 @@ import {
   isPayloadSizeLimitError,
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { ensureFileNameExtension, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import { ensureFileNameExtension, sanitizeFileKey } from '@/lib/uploads/utils/file'
 
 const logger = createLogger('FilesUtils')
 

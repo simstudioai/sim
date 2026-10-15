@@ -1,6 +1,6 @@
 import { type Principal, resolvePrincipalAuditAttribution } from '@sim/auth/principal'
 import type { WorkspaceFileVersionSource } from '@sim/db/schema'
-import type { WorkspaceFileVersionWrite } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
+import type { WorkspaceFileVersionWrite } from '@/lib/uploads/contexts/workspace/file-version-store'
 
 function versionSourceForPrincipal(principal: Principal): WorkspaceFileVersionSource {
   switch (principal.kind) {
@@ -10,6 +10,7 @@ function versionSourceForPrincipal(principal: Principal): WorkspaceFileVersionSo
     case 'oauth_access_token':
     case 'workspace_api_key':
       return 'api'
+    case 'resource_delegated':
     case 'delegated':
       if (principal.serviceId === 'copilot') return 'copilot'
       if (principal.serviceId === 'executor') return 'workflow'

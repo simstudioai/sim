@@ -15,11 +15,28 @@ Use [Microsoft Dataverse](https://learn.microsoft.com/en-us/power-apps/maker/dat
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
+Sim requests these scopes when someone connects a Microsoft Dataverse account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-dataverse` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `https://dynamics.microsoft.com/user_impersonation` | Access Microsoft Dataverse on your behalf |
+| `offline_access` | Access account when not using the application |
+
+In Microsoft Entra, add the **Dynamics CRM** API with the delegated `user_impersonation` permission to the app registration.
+
+## Use the block [#usage-instructions]
+
+Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, relevance search, and table metadata lookup. Works with Dynamics 365, Power Platform, and custom Dataverse environments.
 
 ## Actions
 
@@ -369,7 +386,7 @@ Update an existing record in a Microsoft Dataverse table. Only send the columns 
 
 ### Upload File to Microsoft Dataverse
 
-Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.
+Upload a file to a file or image column on a Dataverse record. Supports single-request upload for files up to 128 MiB. Provide the file through the File input; its bytes are read from storage and sent as the raw request body.
 
 #### Input
 
@@ -431,24 +448,5 @@ Retrieve the current authenticated user information from Microsoft Dataverse. Us
 | `businessUnitId` | string | The business unit ID |
 | `organizationId` | string | The organization ID |
 | `success` | boolean | Operation success status |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Microsoft Dataverse account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-dataverse` |
-| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `openid` | Standard authentication |
-| `profile` | Access profile information |
-| `email` | Access email address |
-| `https://dynamics.microsoft.com/user_impersonation` | Access Microsoft Dataverse on your behalf |
-| `offline_access` | Access account when not using the application |
-
-In Microsoft Entra, add the **Dynamics CRM** API with the delegated `user_impersonation` permission to the app registration.
 
 

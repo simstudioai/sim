@@ -8,12 +8,12 @@ import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import {
   findWorkspaceFileFolderIdByPath,
   listWorkspaceFileFolders,
-} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+} from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   getWorkspaceFileByName,
   type WorkspaceFileRecord,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
@@ -21,7 +21,7 @@ import {
   createWorkspaceFileBufferByPath,
   updateWorkspaceFileContentBufferByPath,
 } from '@/lib/workspace-files/application/write-workspace-file-by-path'
-import { parseWorkspaceFileCreatePath } from '@/lib/workspace-files/workspace-file-path'
+import { parseWorkspaceFileCreatePath } from '@/lib/workspace-files/file-path'
 
 export type WorkspaceFileWriteMode = 'create' | 'overwrite'
 

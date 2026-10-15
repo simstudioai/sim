@@ -34,6 +34,7 @@ import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
 
 const logger = createLogger('ForkChat')
 interface ForkChatInput {
@@ -156,6 +157,14 @@ export const forkChat = defineAuthorizedChatUseCase({
 
       /** Publish only after both the file bytes and the worker conversation are prepared. */
       await db.transaction(async (tx) => {
+        if (parent.workspaceId) {
+          const currentWorkspace = await lockActiveWorkspace(tx, parent.workspaceId)
+          if (currentWorkspace.organizationId !== context.workspaceOrganizationId)
+            throw new OrchestrationError(
+              'conflict',
+              'Workspace organization changed. Refresh and retry.'
+            )
+        }
         /**
          * The fork can share keys with its source (organization attachments, files whose copy
          * failed), and chat cleanup deletes a shared key once no remaining chat references it,
@@ -164,7 +173,7 @@ export const forkChat = defineAuthorizedChatUseCase({
          * not waits for this commit and then sees the fork's references.
          */
         const [source] = await tx
-          .select({ id: copilotChats.id })
+          .select({ id: copilotChats.id, memorySpaceId: copilotChats.memorySpaceId })
           .from(copilotChats)
           .where(eq(copilotChats.id, chatId))
           .for('key share')
@@ -183,6 +192,7 @@ export const forkChat = defineAuthorizedChatUseCase({
             resources: newChatResources,
             previewYaml: parent.previewYaml,
             config: parent.config,
+            memorySpaceId: source.memorySpaceId,
             conversationId: null,
             updatedAt: now,
             lastSeenAt: now,

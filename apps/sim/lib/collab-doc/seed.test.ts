@@ -7,7 +7,7 @@ import { getSchema } from '@tiptap/core'
 import { prosemirrorJSONToYDoc } from '@tiptap/y-tiptap'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
-import * as collabState from '@/lib/collab-doc/collab-state'
+import * as collabState from '@/lib/collab-doc/state'
 
 const { mockGetWorkspaceFile, mockFetchWorkspaceFileBuffer: mockFetchBuffer } =
   workspaceUploadsMockFns

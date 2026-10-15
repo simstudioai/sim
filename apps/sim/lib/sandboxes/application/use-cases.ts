@@ -6,7 +6,7 @@ import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { SandboxCliToolId } from '@/lib/execution/remote-sandbox/cli-tools'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
-import type { SandboxLanguage } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import type { SandboxLanguage } from '@/lib/execution/remote-sandbox/spec'
 import {
   createWorkspaceSandbox,
   currentSandboxStrategy,

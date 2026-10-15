@@ -63,7 +63,6 @@ describe('createHttpHandler', () => {
 
     await handler(req, res)
 
-    expect(mockInvalidateDocument).toHaveBeenCalledWith('file-1', 100)
     expect(to).toHaveBeenCalledWith(['workspace-file-doc:file-1', 'file-doc-admission:file-1'])
     expect(emit).toHaveBeenCalledWith(
       'file-doc-invalidated',

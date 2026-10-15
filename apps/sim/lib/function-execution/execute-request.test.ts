@@ -26,7 +26,7 @@ import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/execution-deadline-header'
+import { INTERNAL_EXECUTION_DEADLINE_HEADER } from '@/lib/execution/deadline-header'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -115,7 +115,7 @@ vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
   writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
 
 vi.mock(
   '@/lib/workspace-files/application/resolve-workspace-file-reference',
@@ -132,7 +132,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
 
 vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
+vi.mock('@/lib/uploads/contexts/execution/file-manager', () => ({
   uploadExecutionFile: mockUploadExecutionFile,
 }))
 

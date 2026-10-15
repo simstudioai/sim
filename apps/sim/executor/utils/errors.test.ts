@@ -46,7 +46,7 @@ describe('getExecutionErrorStatus', () => {
   })
 
   it("never adopts an upstream target's duck-typed status as our own", () => {
-    // `api-handler` copies the remote response's status onto the thrown error.
+    // `api/handler` copies the remote response's status onto the thrown error.
     // Adopting it would make a remote 404 the workflow API's 404.
     const error = Object.assign(new Error('HTTP 404'), { status: 404 })
     expect(getExecutionErrorStatus(error)).toBe(500)
@@ -88,7 +88,7 @@ describe('hosted-key status survives the ToolResponse flattening', () => {
   /**
    * `executeTool` catches a thrown error and returns a `ToolResponse`, so the
    * status has to ride `ToolResponse.statusCode` and be re-attached by
-   * `generic-handler`. This reproduces that hand-off end to end.
+   * `generic/handler`. This reproduces that hand-off end to end.
    */
   function errorFromFailedToolResponse(response: {
     error: string

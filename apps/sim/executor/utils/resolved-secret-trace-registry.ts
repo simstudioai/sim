@@ -1731,6 +1731,41 @@ export class ResolvedSecretTraceRegistry {
     return importedAll
   }
 
+  /** Imports one item's trusted evidence atomically, leaving this registry unchanged on refusal. */
+  async tryImportProvenance(
+    provenances: Iterable<ResolvedSecretTraceProvenanceV1>,
+    options: ImportResolvedSecretTraceProvenanceOptions & { value?: unknown }
+  ): Promise<boolean> {
+    const staged = new ResolvedSecretTraceRegistry([], this.scope, { staged: true })
+    for (const provenance of provenances) {
+      if (!(await staged.importProvenance(provenance, options)) || !staged.isComplete())
+        return false
+    }
+
+    let entries = [...staged.activeEntries.values()]
+    if (options.value !== undefined) {
+      const filtered = staged.exportProvenanceForValue(options.value)
+      if (!filtered.complete) return false
+      const selected = new Set(
+        filtered.entries.map((entry) =>
+          activeEntryKey({
+            name: entry.name ?? '',
+            plaintext: '',
+            encryptedValue: entry.encryptedValue,
+            anonymous: entry.name === undefined,
+          })
+        )
+      )
+      entries = entries.filter((entry) => selected.has(activeEntryKey(entry)))
+    }
+
+    /** No await separates the capacity check from activation, including across concurrent calls. */
+    if (this.isPermanentlyIncomplete() || this.activeEntryBytesAfter(entries) === undefined)
+      return false
+    for (const entry of entries) this.addActiveEntry(entry, { propagated: true })
+    return true
+  }
+
   /**
    * Imports only provenance whose decrypted plaintext occurs in the exact value crossing this
    * boundary. Staging in a scoped temporary registry prevents a valid but overbroad envelope from
@@ -2578,6 +2613,22 @@ export class ResolvedSecretTraceRegistry {
     if (copied) target.inheritIncompletenessReasonsFrom(this)
   }
 
+  private activeEntryBytesAfter(entries: Iterable<ActiveSecretEntry>): number | undefined {
+    let count = this.activeEntries.size
+    let bytes = this.activeProvenanceEntryBytes
+    for (const entry of entries) {
+      if (this.activeEntries.has(activeEntryKey(entry))) continue
+      bytes += (count === 0 ? 0 : 1) + serializedProvenanceEntryByteSize(toProvenanceEntry(entry))
+      count += 1
+      if (
+        count > MAX_PROVENANCE_ENTRIES ||
+        this.completeProvenanceEnvelopeBytes + bytes > MAX_SERIALIZED_PROVENANCE_BYTES
+      )
+        return undefined
+    }
+    return bytes
+  }
+
   private addActiveEntry(entry: ActiveSecretEntry, options: { propagated?: boolean } = {}): void {
     const key = activeEntryKey(entry)
     const existing = this.activeEntries.get(key)
@@ -2596,22 +2647,14 @@ export class ResolvedSecretTraceRegistry {
       return
     }
 
-    const entryBytes = serializedProvenanceEntryByteSize(toProvenanceEntry(entry))
-    const separatorBytes = this.activeEntries.size === 0 ? 0 : 1
-    if (
-      this.activeEntries.size >= MAX_PROVENANCE_ENTRIES ||
-      this.completeProvenanceEnvelopeBytes +
-        this.activeProvenanceEntryBytes +
-        separatorBytes +
-        entryBytes >
-        MAX_SERIALIZED_PROVENANCE_BYTES
-    ) {
+    const nextEntryBytes = this.activeEntryBytesAfter([entry])
+    if (nextEntryBytes === undefined) {
       this.markIncomplete('provenance-capacity-exceeded')
       return
     }
     this.activeEntries.set(key, entry)
     if (options.propagated) this.propagatedEntryKeys.add(key)
-    this.activeProvenanceEntryBytes += separatorBytes + entryBytes
+    this.activeProvenanceEntryBytes = nextEntryBytes
     this.modelEgressRevision += 1
   }
 

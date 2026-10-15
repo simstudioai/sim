@@ -11,26 +11,15 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Clerk](https://clerk.com/) is a comprehensive identity infrastructure platform that helps you manage users, authentication, and sessions for your applications.
+Use [Clerk](https://clerk.com/) to manage application users, organizations, memberships, invitations, and sessions with a Clerk secret key. Read or update profiles, ban or lock users, and revoke sessions from a workflow.
 
-In Sim, the Clerk integration lets your agents automate user and session management through easy-to-use API-based tools. Agents can securely list users, update user profiles, manage organizations, monitor sessions, and revoke access directly in your workflow.
-
-With Clerk, you can:
-
-- **Authenticate users and manage sessions**: Seamlessly control sign-in, sign-up, and session lifecycle for your users.
-- **List and update users**: Automatically pull user lists, update user attributes, or view profile details as part of your agent tasks.
-- **Manage organizations and memberships**: Add or update organizations and administer user memberships with clarity.
-- **Monitor and revoke sessions**: See active or past user sessions, and revoke access immediately if needed for security.
-
-The integration enables real-time, auditable management of your user base—all from within Sim. Connected agents can automate onboarding, enforce policies, keep directories up to date, and react to authentication events or organizational changes, helping you run secure and flexible processes using Clerk as your identity engine.
+The integration also manages allowlist and blocklist identifiers, JWT templates, and actor tokens. These are backend administration operations; use the action reference to select the operation and required identifiers.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
-Integrate Clerk authentication and user management into your workflow. Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.
-
-
+Create, update, delete, ban, lock, and list users. Manage organizations, their memberships, and invitations. Monitor and control user sessions. Maintain allowlist/blocklist identifiers, JWT templates, and actor tokens.
 
 ## Actions
 
@@ -1082,7 +1071,7 @@ Revoke an actor token before it is used or expires
 
 ## Triggers
 
-A **Trigger** is a block that starts a workflow when an event happens in this service.
+A trigger starts a workflow when a supported event occurs in this service.
 
 ### Clerk Organization Created
 

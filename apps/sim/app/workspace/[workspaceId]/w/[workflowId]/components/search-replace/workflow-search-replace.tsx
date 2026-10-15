@@ -11,7 +11,6 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn/icons'
-import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
@@ -30,8 +29,12 @@ import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replac
 import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import {
+  useScopedWorkflowId,
+  useWorkflowScope,
+} from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands'
 import { ReplacementControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/components'
 import { useWorkflowResourceReplacementOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-resource-replacement-options'
 import {
@@ -54,9 +57,9 @@ import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useChatStore } from '@/stores/chat/store'
+import { useVariablesModalStore } from '@/stores/modals/variables/store'
 import { usePanelEditorSearchStore, usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
-import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowSearchReplaceStore } from '@/stores/workflow-search-replace/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -140,11 +143,10 @@ interface WorkflowSearchReplacePanelProps {
 }
 
 function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string | undefined
-  const routeWorkflowId = params.workflowId as string | undefined
+  const { workspaceId } = useWorkflowScope()
+  const scopedWorkflowId = useScopedWorkflowId()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const workflowId = activeWorkflowId ?? routeWorkflowId
+  const workflowId = activeWorkflowId ?? scopedWorkflowId
   const currentWorkflow = useCurrentWorkflow()
   const workflowSubblockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : undefined

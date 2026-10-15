@@ -27,7 +27,7 @@ vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 vi.mock('@/stores', () => ({ clearUserData: mockClearUserData }))
 
-vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/auth/client', () => authClientMock)
 
 vi.mock('@/app/invite/components/layout', () => ({
   default: ({ children }: { children: ReactNode }) => children,

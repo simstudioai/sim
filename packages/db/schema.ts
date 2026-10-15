@@ -253,14 +253,16 @@ export const folder = pgTable(
   'folder',
   {
     id: text('id').primaryKey(),
+    /** File folders may belong to a Project; other resource folders remain workspace-owned. */
+    projectId: text('project_id').references((): AnyPgColumn => project.id, {
+      onDelete: 'restrict',
+    }),
     resourceType: folderResourceTypeEnum('resource_type').notNull(),
     name: text('name').notNull(),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     parentId: text('parent_id').references((): AnyPgColumn => folder.id, {
       onDelete: 'set null',
     }),
@@ -271,6 +273,37 @@ export const folder = pgTable(
     deletedAt: timestamp('deleted_at'),
   },
   (table) => ({
+    ownerCheck: check(
+      'folder_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.projectId}) = 1 AND (${table.projectId} IS NULL OR ${table.resourceType} = 'file')`
+    ),
+    workspaceOwnerTypeUnique: unique('folder_workspace_owner_type_unique').on(
+      table.id,
+      table.workspaceId,
+      table.resourceType
+    ),
+    workspaceParentOwnerFk: foreignKey({
+      name: 'folder_workspace_parent_owner_fk',
+      columns: [table.parentId, table.workspaceId, table.resourceType],
+      foreignColumns: [table.id, table.workspaceId, table.resourceType],
+    }),
+    projectOwnerTypeUnique: unique('folder_project_owner_type_unique').on(
+      table.id,
+      table.projectId,
+      table.resourceType
+    ),
+    projectParentOwnerFk: foreignKey({
+      name: 'folder_project_parent_owner_fk',
+      columns: [table.parentId, table.projectId, table.resourceType],
+      foreignColumns: [table.id, table.projectId, table.resourceType],
+    }),
+    projectIdIdx: index('folder_project_id_idx').on(table.projectId, table.id).concurrently(),
+    projectResourceParentNameActiveUnique: uniqueIndex(
+      'folder_project_resource_parent_name_active_unique'
+    )
+      .on(table.projectId, table.resourceType, sql`coalesce(${table.parentId}, '')`, table.name)
+      .concurrently()
+      .where(sql`${table.deletedAt} IS NULL AND ${table.projectId} IS NOT NULL`),
     userIdx: index('folder_user_idx').on(table.userId),
     workspaceResourceParentIdx: index('folder_workspace_resource_parent_idx').on(
       table.workspaceId,
@@ -1631,6 +1664,7 @@ export const chat = pgTable(
         table.workflowId,
         table.archivedAt
       ),
+      userIdIdx: index('chat_user_id_idx').on(table.userId).concurrently(),
     }
   }
 )
@@ -2495,6 +2529,7 @@ export const workspaceFile = pgTable(
     workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
       .on(table.workspaceId, table.deletedAt)
       .where(sql`${table.deletedAt} IS NOT NULL`),
+    uploadedByIdx: index('workspace_file_uploaded_by_idx').on(table.uploadedBy).concurrently(),
   })
 )
 
@@ -2689,6 +2724,8 @@ export const workspaceFiles = pgTable(
   'workspace_files',
   {
     id: text('id').primaryKey(),
+    /** Direct owner, independent of creator, caller, and billing payer. */
+    projectId: text('project_id').references(() => project.id, { onDelete: 'restrict' }),
     key: text('key').notNull(),
     userId: text('user_id')
       .notNull()
@@ -2756,7 +2793,8 @@ export const workspaceFiles = pgTable(
      * `workspace_file_search_index.source_content_updated_at` came from such a round trip can never be
      * claimed, indexed, or cleaned up. The default truncates, and the
      * `workspace_files_content_version_millisecond` trigger enforces it for the writers a default cannot
-     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and any UPDATE.
+     * reach — explicit `CURRENT_TIMESTAMP` expressions, raw SQL inserts, and updates that change row
+     * data. Relationship fences that only advance the row version preserve an existing revision.
      */
     contentUpdatedAt: timestamp('content_updated_at')
       .notNull()
@@ -2770,6 +2808,27 @@ export const workspaceFiles = pgTable(
     secretProvenanceVersion: integer('secret_provenance_version'),
   },
   (table) => ({
+    ownerCheck: check(
+      'workspace_files_owner_check',
+      sql`num_nonnulls(${table.workspaceId}, ${table.projectId}, ${table.organizationId}) <= 1`
+    ),
+    workspaceBindingCheck: check(
+      'workspace_files_workspace_binding_check',
+      sql`${table.context} NOT IN ('workspace', 'chat', 'mothership', 'execution', 'workspace-logos') OR ${table.workspaceId} IS NOT NULL`
+    ),
+    projectBindingCheck: check(
+      'workspace_files_project_binding_check',
+      sql`(${table.projectId} IS NOT NULL) = (${table.context} = 'project') AND (${table.projectId} IS NULL OR ${table.chatId} IS NULL)`
+    ),
+    projectIdIdx: index('workspace_files_project_id_idx')
+      .on(table.projectId, table.id)
+      .concurrently(),
+    projectFolderOriginalNameActiveUnique: uniqueIndex(
+      'workspace_files_project_folder_name_active_unique'
+    )
+      .on(table.projectId, sql`coalesce(${table.folderId}, '')`, table.originalName)
+      .concurrently()
+      .where(sql`${table.deletedAt} IS NULL AND ${table.projectId} IS NOT NULL`),
     keyActiveUniqueIdx: uniqueIndex('workspace_files_key_active_unique')
       .on(table.key)
       .where(sql`${table.deletedAt} IS NULL`),
@@ -2781,16 +2840,35 @@ export const workspaceFiles = pgTable(
         sql`${table.deletedAt} IS NULL AND ${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL`
       ),
     /**
-     * Serves the search backfill's hourly keyset walk over every live workspace file, which pages
-     * by `(workspace_id, id)`.
+     * Serves the search backfill's hourly keyset walk over every live workspace and project file,
+     * which pages by `(owner type, owner id, id)` — the owner expressions below, where a project
+     * file's owner is its project and every other file's is its workspace.
      *
      * Without this index nothing supplies that order under that filter, so each page sorts the
      * whole remaining set and the dispatcher's statement timeout aborts the transaction before any
-     * page commits. The column order must match the walk's `ORDER BY`, and the predicate must match
-     * its filter exactly, or the planner cannot prove the partial index covers the query.
+     * page commits. The expressions and their order must match the walk's `ORDER BY`, and the
+     * predicate must match its filter exactly, or the planner cannot prove the partial index
+     * covers the query.
      *
-     * The walk must also compare its cursor row-wise (`(workspace_id, id) > (:ws, :id)`) to seek
-     * with this index; `a > x OR (a = x AND b > y)` is only ever a filter. See `seedBackfillPage`.
+     * The walk must also compare its cursor row-wise (`(type, owner, id) > (:type, :owner, :id)`)
+     * to seek with this index; an `OR` of per-column comparisons is only ever a filter. See
+     * `seedBackfillPage`.
+     */
+    ownerSearchKeysetIdx: index('workspace_files_search_owner_keyset_idx')
+      .on(
+        sql`(CASE WHEN ${table.projectId} IS NOT NULL THEN 'project' ELSE 'workspace' END)`,
+        sql`coalesce(${table.projectId}, ${table.workspaceId})`,
+        table.id
+      )
+      .where(
+        sql`${table.deletedAt} IS NULL AND ((${table.context} = 'workspace' AND ${table.workspaceId} IS NOT NULL) OR (${table.context} = 'project' AND ${table.projectId} IS NOT NULL))`
+      )
+      .concurrently(),
+    /**
+     * Served the pre-project backfill walk, which paged live workspace files by
+     * `(workspace_id, id)` and compared its cursor row-wise to seek with this index.
+     *
+     * contract-pending(after owner-aware search dispatchers are fully deployed): retire workspace_files_workspace_active_keyset_idx — the backfill now walks `workspace_files_search_owner_keyset_idx`, so its last designed reader is gone once older dispatchers drain; confirm no other plan still picks it.
      */
     workspaceActiveKeysetIdx: index('workspace_files_workspace_active_keyset_idx')
       .on(table.workspaceId, table.id)
@@ -2888,7 +2966,8 @@ export const workspaceFileSearchIndex = pgTable(
   })
 )
 
-/** One bounded scheduler row per workspace with current file revisions awaiting dispatch. */
+// contract-pending(after owner-aware search workers are fully deployed): retire this queue and dual enqueue after old dispatchers and retries drain.
+/** @deprecated Compatibility scheduling for previously deployed workspace workers. */
 export const workspaceFileSearchDispatchQueue = pgTable(
   'workspace_file_search_dispatch_queue',
   {
@@ -2911,10 +2990,37 @@ export const workspaceFileSearchDispatchQueue = pgTable(
   })
 )
 
+/** Owner-neutral dispatch replaces the workspace-only queue after older workers drain. */
+export const fileSearchDispatchQueue = pgTable(
+  'file_search_dispatch_queue',
+  {
+    entityType: text('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    enqueuedAt: timestamp('enqueued_at').notNull().defaultNow(),
+    lastDispatchedAt: timestamp('last_dispatched_at'),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.entityType, table.entityId] }),
+    ownerCheck: check(
+      'file_search_dispatch_owner_check',
+      sql`${table.entityType} IN ('workspace', 'project') AND length(${table.entityId}) > 0`
+    ),
+    scheduleIdx: index('file_search_dispatch_schedule_idx').on(
+      table.lastDispatchedAt.asc().nullsFirst(),
+      table.enqueuedAt,
+      table.entityType,
+      table.entityId
+    ),
+  })
+)
+
 /** Singleton keyset cursor for the resumable initial workspace-file search backfill. */
 export const workspaceFileSearchBackfill = pgTable('workspace_file_search_backfill', {
   id: text('id').primaryKey(),
   afterWorkspaceId: text('after_workspace_id'),
+  afterEntityType: text('after_entity_type'),
+  afterEntityId: text('after_entity_id'),
   afterFileId: text('after_file_id'),
   completedAt: timestamp('completed_at'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2967,13 +3073,21 @@ export const workspaceFileSearchBuild = pgTable(
   {
     id: text('id').primaryKey(),
     fileId: text('file_id').notNull(),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id'),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
+    artifactKey: text('artifact_key'),
     sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     /** Null only for a completely published build; abandoned workers expire automatically. */
     expiresAt: timestamp('expires_at'),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_build_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_build scan. */
+    ownerCheck: check(
+      'file_search_build_owner_check',
+      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
+    ),
     fileIdx: index('workspace_file_search_build_file_idx').on(table.fileId),
     cleanupIdx: index('workspace_file_search_build_cleanup_idx')
       .on(table.expiresAt, table.id)
@@ -2988,7 +3102,9 @@ export const workspaceFileSearchRevision = pgTable(
     fileId: text('file_id')
       .primaryKey()
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id'),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
     sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
     status: workspaceFileSearchIndexStatusEnum('status').notNull().default('pending'),
     buildId: text('build_id').references(() => workspaceFileSearchBuild.id, {
@@ -3010,6 +3126,29 @@ export const workspaceFileSearchRevision = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_revision_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_revision scan. */
+    ownerCheck: check(
+      'file_search_revision_owner_check',
+      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
+    ),
+    ownerPendingIdx: index('file_search_revision_owner_pending_idx')
+      .on(
+        sql`coalesce(${table.entityType}, 'workspace')`,
+        sql`coalesce(${table.entityId}, ${table.workspaceId})`,
+        table.updatedAt,
+        table.fileId,
+        table.sourceContentUpdatedAt
+      )
+      .where(sql`${table.status} = 'pending' AND ${table.dispatchedAt} IS NULL`)
+      .concurrently(),
+    ownerStatusIdx: index('file_search_revision_owner_status_idx')
+      .on(
+        sql`coalesce(${table.entityType}, 'workspace')`,
+        sql`coalesce(${table.entityId}, ${table.workspaceId})`,
+        table.status,
+        table.dispatchedAt
+      )
+      .concurrently(),
     workspaceStatusIdx: index('workspace_file_search_revision_workspace_status_idx').on(
       table.workspaceId,
       table.status
@@ -3031,7 +3170,9 @@ export const workspaceFileSearchChunk = pgTable(
     buildId: text('build_id')
       .notNull()
       .references(() => workspaceFileSearchBuild.id),
-    workspaceId: text('workspace_id').notNull(),
+    workspaceId: text('workspace_id'),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
     ordinal: integer('ordinal').notNull(),
     lineStart: integer('line_start').notNull(),
     fragment: boolean('fragment').notNull(),
@@ -3039,6 +3180,21 @@ export const workspaceFileSearchChunk = pgTable(
     content: text('content').notNull(),
   },
   (table) => ({
+    /** contract-pending(after owner-aware search workers are fully deployed): validate file_search_chunk_owner_check separately — 0426 added it NOT VALID so rollout avoids a workspace_file_search_chunk scan. */
+    ownerCheck: check(
+      'file_search_chunk_owner_check',
+      sql`(${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL) OR (${table.entityType} = 'workspace' AND ${table.entityId} = ${table.workspaceId}) OR (${table.entityType} = 'project' AND length(${table.entityId}) > 0 AND ${table.workspaceId} IS NULL)`
+    ),
+    ownerContentIdx: index('file_search_chunk_owner_content_idx')
+      .using(
+        'gin',
+        table.entityType.asc().op('text_ops'),
+        table.entityId.asc().op('text_ops'),
+        table.content.asc().op('gin_trgm_ops')
+      )
+      .where(sql`${table.entityType} = 'project'`)
+      .with({ fastupdate: 'off' })
+      .concurrently(),
     pk: primaryKey({
       name: 'workspace_file_search_chunk_pk',
       columns: [table.buildId, table.ordinal],
@@ -3064,6 +3220,33 @@ export const workspaceFileSearchChunk = pgTable(
   })
 )
 
+/** A bounded compiled-input manifest outlives input deletion until its build is retired. */
+export const fileSearchDependency = pgTable(
+  'file_search_dependency',
+  {
+    buildId: text('build_id')
+      .notNull()
+      .references(() => workspaceFileSearchBuild.id, { onDelete: 'cascade' }),
+    fileId: text('file_id').notNull(),
+    key: text('key').notNull(),
+    sourceContentUpdatedAt: timestamp('source_content_updated_at').notNull(),
+    /**
+     * The build's canonical owner, always derived from the build by the
+     * `file_search_dependency_owner` trigger, so the dispatcher can find an owner's stale
+     * dependencies without testing every ready revision.
+     */
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.buildId, table.fileId] }),
+    fileIdx: index('file_search_dependency_file_idx').on(table.fileId, table.buildId),
+    ownerIdx: index('file_search_dependency_owner_idx')
+      .on(table.entityType, table.entityId, table.buildId)
+      .concurrently(),
+  })
+)
+
 export const uploadSessionStatusEnum = pgEnum('upload_session_status', [
   'uploading',
   'completing',
@@ -3086,6 +3269,7 @@ export const uploadSessionProviderEnum = pgEnum('upload_session_provider', [
 
 export const uploadSessionPurposeEnum = pgEnum('upload_session_purpose', [
   'workspace_file',
+  'project_file',
   'table_import',
   'knowledge_document',
   'profile_picture',
@@ -3244,9 +3428,8 @@ export const workspaceFileVersion = pgTable(
     fileId: text('file_id')
       .notNull()
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Compatibility scope, checked against fileId; Project versions derive their owner from the file. */
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     version: integer('version').notNull(),
     key: text('key').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
@@ -3301,12 +3484,12 @@ export const publicShare = pgTable(
     /** 'file' | 'folder' (folder reserved for future) */
     resourceType: text('resource_type').notNull(),
     resourceId: text('resource_id').notNull(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     /**
      * SET NULL (not CASCADE) so a share — and its public link — outlives the user who created it;
-     * the file still belongs to the workspace.
+     * the shared file keeps its durable owner.
      */
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     token: text('token').notNull(),
@@ -3321,6 +3504,21 @@ export const publicShare = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
+    /** contract-pending(after 0034_backfill_public_share_entities has run in every environment): validate public_share_entity_binding_check separately — 0425 added it NOT VALID so rollout avoids a public_share scan. */
+    entityBinding: check(
+      'public_share_entity_binding_check',
+      sql`
+      (${table.entityType} IS NULL AND ${table.entityId} IS NULL AND ${table.workspaceId} IS NOT NULL)
+      OR (${table.entityType} IS NOT NULL AND ${table.entityId} IS NOT NULL AND char_length(${table.entityId}) > 0
+        AND ((${table.entityType} = 'workspace' AND ${table.workspaceId} IS NOT NULL AND ${table.entityId} = ${table.workspaceId})
+          OR (${table.entityType} = 'project' AND ${table.workspaceId} IS NULL AND ${table.resourceType} = 'file')))
+    `
+    ),
+    entityIdIdx: index('public_share_entity_id_idx').on(
+      table.entityType,
+      table.entityId,
+      table.resourceType
+    ),
     tokenIdx: uniqueIndex('public_share_token_unique').on(table.token),
     resourceUniqueIdx: uniqueIndex('public_share_resource_unique').on(
       table.resourceType,
@@ -4228,6 +4426,124 @@ export const docsEmbeddings = pgTable(
 
 export const chatTypeEnum = pgEnum('chat_type', ['mothership', 'copilot'])
 
+/** Private benchmark artifacts retain their source scope and fence each asynchronous attempt. */
+export const mothershipBenchmarks = pgTable(
+  'mothership_benchmarks',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Null preserves the original owner's execution identity for existing cases. */
+    runAsUserId: text('run_as_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    sourceWorkspaceId: text('source_workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    version: integer('version').notNull().default(1),
+    runningStage: text('running_stage'),
+    attemptId: text('attempt_id'),
+    leaseExpiresAt: timestamp('lease_expires_at'),
+    plannerChatId: text('planner_chat_id'),
+    error: text('error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerCreatedIdx: index('mothership_benchmarks_owner_created_idx').on(
+      table.organizationId,
+      table.userId,
+      table.createdAt,
+      table.id
+    ),
+    workspaceIdx: index('mothership_benchmarks_workspace_idx').on(table.sourceWorkspaceId),
+    versionCheck: check('mothership_benchmarks_version_check', sql`${table.version} > 0`),
+    attemptCheck: check(
+      'mothership_benchmarks_attempt_check',
+      sql`(${table.runningStage} IS NULL AND ${table.attemptId} IS NULL AND ${table.leaseExpiresAt} IS NULL) OR (${table.runningStage} IS NOT NULL AND ${table.runningStage} IN ('distill', 'redact', 'plan', 'reconstruct', 'grade') AND ${table.attemptId} IS NOT NULL AND ${table.leaseExpiresAt} IS NOT NULL)`
+    ),
+  })
+)
+
+/** Immutable artifacts with separate human reviews; the parent owns access and deletion. */
+export const mothershipBenchmarkRuns = pgTable(
+  'mothership_benchmark_runs',
+  {
+    id: text('id').primaryKey(),
+    benchmarkId: text('benchmark_id')
+      .notNull()
+      .references(() => mothershipBenchmarks.id, { onDelete: 'cascade' }),
+    label: text('label').notNull().default(''),
+    evaluationKey: text('evaluation_key').notNull(),
+    reviews: jsonb('reviews').notNull().default([]),
+    version: integer('version').notNull().default(1),
+    reviewedAt: timestamp('reviewed_at'),
+    correct: integer('correct').notNull(),
+    automaticCorrect: integer('automatic_correct').notNull(),
+    total: integer('total').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    benchmarkCreatedIdx: index('mothership_benchmark_runs_benchmark_created_idx').on(
+      table.benchmarkId,
+      table.createdAt,
+      table.id
+    ),
+    scoreCheck: check(
+      'mothership_benchmark_runs_score_check',
+      sql`${table.total} > 0 AND ${table.correct} >= 0 AND ${table.correct} <= ${table.total}`
+    ),
+    versionCheck: check('mothership_benchmark_runs_version_check', sql`${table.version} > 0`),
+    automaticScoreCheck: check(
+      'mothership_benchmark_runs_automatic_score_check',
+      sql`${table.automaticCorrect} >= 0 AND ${table.automaticCorrect} <= ${table.total}`
+    ),
+  })
+)
+
+/** Private graph names; memory content stays in the memory service. */
+export const mothershipMemorySpaces = pgTable(
+  'mothership_memory_spaces',
+  {
+    id: uuid('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerIdx: index('mothership_memory_spaces_owner_idx').on(table.userId, table.organizationId),
+  })
+)
+
+/** Null selects the implicit Default, whose original namespace never changes. */
+export const mothershipMemorySelections = pgTable(
+  'mothership_memory_selections',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    spaceId: uuid('space_id').references(() => mothershipMemorySpaces.id, {
+      onDelete: 'no action',
+    }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.organizationId] }),
+  })
+)
+
 // contract-pending(after the release that stops declaring plan_artifact is deployed): drop copilot_chats.plan_artifact — the plan artifact moved into the message transcript; safe once no deployed release declares the column.
 export const copilotChats = pgTable(
   'copilot_chats',
@@ -4241,6 +4557,8 @@ export const copilotChats = pgTable(
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',
     }),
+    /** Bound once, without an FK: workspace chats can outlive their organization; missing graph ownership fails closed. */
+    memorySpaceId: uuid('memory_space_id'),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
@@ -4329,6 +4647,12 @@ export const copilotMessages = pgTable(
     messageId: text('message_id').notNull(),
     role: text('role').notNull(),
     content: jsonb('content').notNull(),
+    /**
+     * The chat UI's projection of `content` (tool-call params truncated), or null when it equals
+     * `content` or has not been backfilled. Transcript reads for the UI select
+     * `coalesce(display_content, content)` so they never detoast the full params.
+     */
+    displayContent: jsonb('display_content'),
     streamId: text('stream_id'),
     model: text('model'),
     seq: integer('seq'),

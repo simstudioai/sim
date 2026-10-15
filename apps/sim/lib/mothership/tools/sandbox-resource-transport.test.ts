@@ -6,12 +6,15 @@ import {
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import {
+  type ContentSource,
+  noteContentDeliveryOperation,
+  requireAdmittedContent,
+} from '@/lib/core/application'
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  reportWorkspaceFileDelivery,
-  requireCopilotWorkspaceFileDeliveryObserver,
-} from '@/lib/workspace-files/application/file-delivery-observer'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 const { readScope, recordEffects, fetcher, routeMatcher, recordInput, mint } = vi.hoisted(() => ({
   readScope: vi.fn(),
@@ -259,7 +262,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => ({
   recordExistingSessionFileInput: recordInput,
 }))
 
-it('does not poison public scratch after authenticated static catalog discovery', async () => {
+it('records nothing into the workbench for a route that returns no stored content', async () => {
   routeMatcher.mockReturnValue({
     params: { toolId: 'function_execute' },
     load: async () => ({ GET: fetcher }),
@@ -270,25 +273,34 @@ it('does not poison public scratch after authenticated static catalog discovery'
   expect(recordInput).not.toHaveBeenCalled()
 })
 
-it('cannot deliver a successful unclassified file response when recording its unknown provenance fails', async () => {
+const CHAT = createDelegatedPrincipal({ serviceId: 'copilot' })
+const fileSource = (provenance: ContentSource['provenance']): ContentSource => ({
+  kind: 'workspace-file',
+  id: 'file',
+  provenance,
+  view: 'complete',
+})
+
+it('replaces a successful response its sourced operation never classified with a 403', async () => {
   routeMatcher.mockReturnValue({ params: { fileId: 'file' }, load: async () => ({ GET: fetcher }) })
-  fetcher.mockResolvedValue(new Response('unsafe'))
-  recordInput.mockRejectedValueOnce(new Error('storage unavailable'))
-  await expect(proxySandboxResourceRequest(request('/api/v2/files/file'), token)).rejects.toThrow(
-    'storage unavailable'
-  )
-  expect(fetcher).toHaveBeenCalledOnce()
+  fetcher.mockImplementation(async () => {
+    noteContentDeliveryOperation(fileOperations.readContent, CHAT)
+    return new Response('unclassified file text')
+  })
+  const response = await proxySandboxResourceRequest(request('/api/v2/files/file/text'), token)
+  expect(response.status).toBe(403)
+  expect(await response.text()).not.toContain('unclassified file text')
+  expect(recordInput).not.toHaveBeenCalled()
 })
 
 /**
- * The file read and download use cases refuse a Chat principal that no delivery observer records,
- * so the workbench's file reads depend on this proxy installing one around the route handler.
+ * The file read and download use cases refuse a Chat principal no gate observes, so the
+ * workbench's reads depend on this proxy installing its session gate around the route handler.
  */
-it('dispatches a workbench file read under a delivery observer the Copilot guard admits', async () => {
+it('admits a workbench file read under the session gate, recording it before the bytes return', async () => {
   routeMatcher.mockReturnValue({ params: { fileId: 'file' }, load: async () => ({ GET: fetcher }) })
   fetcher.mockImplementation(async () => {
-    requireCopilotWorkspaceFileDeliveryObserver(createDelegatedPrincipal({ serviceId: 'copilot' }))
-    await reportWorkspaceFileDelivery({ status: 'exact', entries: [] }, 'file')
+    await requireAdmittedContent(CHAT, fileSource({ status: 'exact', entries: [] }))
     return new Response('file text')
   })
   recordInput.mockResolvedValueOnce(undefined)
@@ -300,6 +312,23 @@ it('dispatches a workbench file read under a delivery observer the Copilot guard
 
   expect(response.status).toBe(200)
   expect(await response.text()).toBe('file text')
+  expect(recordInput).toHaveBeenCalledWith(chatSandboxSessionKey(scope.chatId), {
+    status: 'exact',
+    entries: [],
+  })
+})
+
+it('withholds a result whose provenance the workbench history could not record', async () => {
+  routeMatcher.mockReturnValue({ params: { fileId: 'file' }, load: async () => ({ GET: fetcher }) })
+  fetcher.mockImplementation(async () => {
+    await requireAdmittedContent(CHAT, fileSource({ status: 'exact', entries: [] }))
+    return new Response('file text')
+  })
+  recordInput.mockRejectedValueOnce(new Error('storage unavailable'))
+  const response = await proxySandboxResourceRequest(request('/api/v2/files/file/text'), token)
+  expect(response.status).toBe(502)
+  expect(await response.text()).not.toContain('file text')
+  expect(fetcher).toHaveBeenCalledOnce()
 })
 
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: mint }))

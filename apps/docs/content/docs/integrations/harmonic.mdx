@@ -27,19 +27,17 @@ This integration uses a reusable Harmonic **team API key** connection. It does n
 - **Email enrichment:** **Submit Email Enrichment Job** queues up to 5,000 people from either person URNs or LinkedIn URLs (one list or the other, never both). Poll **Get Email Enrichment Job** until `isTerminal` is true; the per-person rows carry a status but never an address, so pass `succeededPersonUrns` to **Batch Get People** to read the resolved emails. Check **Get Email Enrichment Usage** first to avoid exhausting the monthly quota.
 - **Downstream workflows:** Pass `contacts` directly into Sim tables, scoring or approval steps, and other integrations such as a CRM. Every contact-producing action uses the same camelCase output shape. A nullable array means Harmonic did not return that collection for the record; an empty array means Harmonic returned the collection with no values.
 - **Large batches:** Batch Get People accepts at most 500 combined IDs and URNs and requests only the fields used by the normalized contact output. Exceptionally large profiles can still exceed Sim's response limit; retry with smaller batches if that occurs.
-- **Workspace and list APIs:** This first version intentionally omits Harmonic's retiring V1 workspace and people-list endpoints. Harmonic says those APIs stop serving traffic on November 5, 2026 and already fail after a workspace completes its V2 migration. See Harmonic's [Workspace API migration guide](https://console.harmonic.ai/docs/api-reference/workspace/migration) for the V2 GraphQL replacement.
+- **Workspace and list APIs:** This first version intentionally omits Harmonic's retiring V1 workspace and people-list endpoints. Harmonic says those APIs stop serving traffic on November 5, 2026 and already fail after a workspace completes its V2 migration. Confirm that deadline for your workspace with Harmonic. See its [Workspace API migration guide](https://console.harmonic.ai/docs/api-reference/workspace/migration) for the V2 GraphQL replacement.
 
-Harmonic recommends no more than 100 saved-search results per page. Its general API limit is 10 requests per second, while Scout task creation is limited to 10 requests per minute and 100 per hour. Endpoint and field availability can also depend on your Harmonic subscription.
+Harmonic recommends no more than 100 saved-search results per page. Its general API limit is 10 requests per second, while [Scout task creation](https://support.harmonic.ai/en/articles/15058239-scout-via-api) is limited to 10 requests per minute and 100 per hour. Endpoint and field availability can also depend on your Harmonic subscription.
 
 Harmonic does not publish a webhook-registration contract for this workflow surface, so the integration has no native triggers. Use a **Schedule** block to poll a shared saved search when recurring synchronization is needed.
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## Use the block [#usage-instructions]
 
 Connect a reusable Harmonic team API key, use Scout to find people with natural-language criteria, select team-visible people saved searches, and hydrate person identifiers into normalized contacts for downstream tables, CRM, scoring, and outreach workflows.
-
-
 
 ## Actions
 

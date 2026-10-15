@@ -170,7 +170,7 @@ import type { StreamingContext } from '@/lib/mothership/request/types'
 import {
   type PendingFileIntent,
   storeFileIntent,
-} from '@/lib/mothership/tools/server/files/file-intent-store'
+} from '@/lib/mothership/tools/server/files/intent-store'
 import { GET as copilotChatGET } from '@/app/api/copilot/chat/queries'
 import { GET as streamGET } from '@/app/api/copilot/chat/stream/route'
 import { GET as mothershipChatGET } from '@/app/api/mothership/chats/[chatId]/route'

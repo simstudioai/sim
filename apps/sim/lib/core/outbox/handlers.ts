@@ -35,6 +35,11 @@ import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/stora
 import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'
 import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
 import {
+  PROJECT_FILE_DOCUMENT_RETIRE_EVENT,
+  PROJECT_FILE_PREFIX_CLEANUP_EVENT,
+  PROJECT_STORAGE_RECONCILE_EVENT,
+} from '@/lib/projects/files/outbox-events'
+import {
   WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
   WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
 } from '@/lib/uploads/contexts/workspace/file-outbox-events'
@@ -194,19 +199,35 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
   {
     events: [WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT],
     load: async () => {
-      const { workspaceFileLiveDocOutboxHandlers } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
-      )
-      return workspaceFileLiveDocOutboxHandlers
+      const { fileLiveDocOutboxHandlers } = await import('@/lib/uploads/server/live-doc-outbox')
+      return fileLiveDocOutboxHandlers
     },
   },
   {
     events: [WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT],
     load: async () => {
       const { workspaceFileStorageCleanupOutboxHandlers } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
+        '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
       )
       return workspaceFileStorageCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [PROJECT_FILE_PREFIX_CLEANUP_EVENT, PROJECT_STORAGE_RECONCILE_EVENT],
+    load: async () => {
+      const { projectFilePrefixCleanupOutboxHandlers } = await import(
+        '@/lib/projects/files/prefix-cleanup'
+      )
+      return projectFilePrefixCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [PROJECT_FILE_DOCUMENT_RETIRE_EVENT],
+    load: async () => {
+      const { projectFileDocumentOutboxHandlers } = await import(
+        '@/lib/projects/files/application/document-lifecycle'
+      )
+      return projectFileDocumentOutboxHandlers
     },
   },
   {

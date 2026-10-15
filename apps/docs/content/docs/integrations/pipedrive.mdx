@@ -1,6 +1,6 @@
 ---
 title: Pipedrive
-description: Interact with Pipedrive CRM
+description: Manage Pipedrive deals, leads, activities, and projects
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -15,11 +15,28 @@ Use [Pipedrive](https://www.pipedrive.com) to manage deals, leads, activities, a
 {/* MANUAL-CONTENT-END */}
 
 
-## Usage Instructions
+## OAuth scopes [#oauth-scopes]
 
-Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.
+Sim requests these scopes when someone connects a Pipedrive account. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
 
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/pipedrive` |
+| Environment variables | `PIPEDRIVE_CLIENT_ID`, `PIPEDRIVE_CLIENT_SECRET` |
 
+| Scope | Description |
+| ----- | ----------- |
+| `base` | Basic access to Pipedrive account |
+| `deals:full` | Full access to manage Pipedrive deals |
+| `contacts:full` | Full access to manage Pipedrive contacts |
+| `leads:full` | Full access to manage Pipedrive leads |
+| `activities:full` | Full access to manage Pipedrive activities |
+| `mail:full` | Full access to manage Pipedrive emails |
+| `projects:full` | Full access to manage Pipedrive projects |
+
+## Use the block [#usage-instructions]
+
+Create, read, and update deals and activities, and create, read, update, or delete leads. List, retrieve, or create projects, inspect pipelines, and retrieve files and mail threads through the connected account.
 
 ## Actions
 
@@ -504,24 +521,5 @@ Delete a specific lead from Pipedrive
 | --------- | ---- | ----------- |
 | `data` | object | Deletion confirmation data |
 | `success` | boolean | Operation success status |
-
-## OAuth Scopes
-
-Sim requests these scopes when someone connects a Pipedrive account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
-
-| Setting | Value |
-| ------- | ----- |
-| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/pipedrive` |
-| Environment variables | `PIPEDRIVE_CLIENT_ID`, `PIPEDRIVE_CLIENT_SECRET` |
-
-| Scope | Description |
-| ----- | ----------- |
-| `base` | Basic access to Pipedrive account |
-| `deals:full` | Full access to manage Pipedrive deals |
-| `contacts:full` | Full access to manage Pipedrive contacts |
-| `leads:full` | Full access to manage Pipedrive leads |
-| `activities:full` | Full access to manage Pipedrive activities |
-| `mail:full` | Full access to manage Pipedrive emails |
-| `projects:full` | Full access to manage Pipedrive projects |
 
 

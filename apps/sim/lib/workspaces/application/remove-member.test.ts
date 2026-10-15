@@ -32,7 +32,7 @@ const hoisted = vi.hoisted(() => ({
 }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/access/workspace-access', () => ({
   revokeWorkspaceAccessTx: hoisted.revoke,
@@ -158,7 +158,7 @@ describe('workspace member removal', () => {
     mocks.revoke.mockResolvedValue({
       revoked: false,
       reason: 'unresolved-workflows',
-      unresolvedWorkflows: ['workflow'],
+      unresolvedWorkspaceIds: ['workflow'],
     })
     let committed = false
     dbChainMockFns.transaction.mockImplementationOnce(async (callback) => {

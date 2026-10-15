@@ -103,7 +103,7 @@ const { mockGetDocument, mockMapTags, mockListDocuments } = vi.hoisted(() => ({
   mockListDocuments: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {

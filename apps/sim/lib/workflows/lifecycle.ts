@@ -11,6 +11,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -308,8 +309,26 @@ export async function disableUserResources(userId: string): Promise<void> {
     .from(workspace)
     .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
+  const failures: { workspaceId: string; error: unknown }[] = []
+  // Sequential: environments of one Project contend on its exclusive lock.
   for (const row of ownedWorkspaces) {
-    await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
+    try {
+      await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
+    } catch (error) {
+      failures.push({ workspaceId: row.id, error })
+    }
+  }
+  if (failures.length > 0) {
+    logger.error(`[${requestId}] Failed to archive workspaces for banned user ${userId}`, {
+      failures: failures.map(({ workspaceId, error }) => ({
+        workspaceId,
+        error: getErrorMessage(error),
+      })),
+    })
+    throw new AggregateError(
+      failures.map((failure) => failure.error),
+      `Failed to archive ${failures.length} of ${ownedWorkspaces.length} workspaces for banned user ${userId}`
+    )
   }
 
   logger.info(

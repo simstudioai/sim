@@ -11,7 +11,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('VideoProviderClient')

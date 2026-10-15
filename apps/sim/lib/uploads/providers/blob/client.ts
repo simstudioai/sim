@@ -19,7 +19,7 @@ import type {
   MultipartCompletionPolicy,
   StoredObjectInfo,
 } from '@/lib/uploads/shared/types'
-import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file-utils'
+import { sanitizeStorageMetadata } from '@/lib/uploads/utils/file'
 import { sanitizeFileName } from '@/executor/constants'
 
 const logger = createLogger('BlobClient')

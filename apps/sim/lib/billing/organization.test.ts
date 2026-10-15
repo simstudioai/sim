@@ -47,7 +47,7 @@ vi.mock('@/lib/billing/organizations/create-organization', () => ({
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
 
 vi.mock('@/lib/billing/enterprise-outbox', () => ({
   assertNoCompetingEnterpriseIssuance: mockAssertNoCompetingEnterpriseIssuance,

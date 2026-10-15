@@ -350,7 +350,7 @@ sourceIds.forEach((id) => delete params[id])   // subblock ids are deleted
 if (chosen !== undefined) params[group.canonicalId] = chosen
 ```
 
-So by the time `tools.config.params(inputs)` runs (`executor/handlers/generic/generic-handler.ts`),
+So by the time `tools.config.params(inputs)` runs (`executor/handlers/generic/handler.ts`),
 `params.uploadFile` and `params.fileRef` are **gone** and the value is under `params.file`. Reading a
 subblock id there yields `undefined` and silently sends no file.
 
@@ -359,7 +359,7 @@ and the first non-empty advanced value in advanced mode, so a stale value in the
 never leak. `normalizeFileInput` then handles the JSON string that advanced-mode template resolution
 produces.
 
-Note that `generic-handler` merges rather than replaces (`{ ...inputs, ...transformedParams }`), so
+Note that `generic/handler` merges rather than replaces (`{ ...inputs, ...transformedParams }`), so
 omitting a key from the returned object does not strip it from what the tool receives. Tools simply
 ignore params they do not declare.
 

@@ -1,13 +1,13 @@
 import { sha256Hex } from '@sim/security/hash'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 import { OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT } from '@/lib/knowledge/documents/checkpoint-events'
-import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/document-processing-error'
 import type { OcrRequestPolicy } from '@/lib/knowledge/documents/ocr-request-policy'
 import {
   createCheckpointCleanupHandler,
   readFramedCheckpoint,
   writeFramedCheckpoint,
 } from '@/lib/knowledge/documents/processing-checkpoint-store'
+import { PermanentDocumentProcessingError } from '@/lib/knowledge/documents/processing-error'
 import { getKnowledgeOpaqueModelInputRegistry } from '@/lib/knowledge/model-input-provenance'
 
 const MAX_CHECKPOINT_TEXT_BYTES = 20 * 1024 * 1024

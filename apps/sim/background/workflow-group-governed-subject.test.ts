@@ -89,7 +89,7 @@ vi.mock('@/executor/utils/resolved-secret-trace-registry', () => ({
     exportCheckpointProvenance = vi.fn(() => undefined)
   },
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 /** Real pacing would sleep jittered backoff against the global db mock. */
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({

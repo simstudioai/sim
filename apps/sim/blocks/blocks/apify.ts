@@ -11,7 +11,7 @@ export const ApifyBlock: BlockConfig = {
   description: 'Run Apify actors and retrieve results',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.',
+    'Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.',
   docsLink: 'https://docs.sim.ai/integrations/apify',
   category: 'tools',
   integrationType: IntegrationType.Search,

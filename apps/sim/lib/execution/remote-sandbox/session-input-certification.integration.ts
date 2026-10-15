@@ -38,7 +38,7 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
-import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxSessionInputs } from '@/lib/execution/remote-sandbox/observer'
 import {
   initializeSessionFileProvenance,
   isSessionFileProvenanceClean,

@@ -33,6 +33,7 @@ export const sandboxOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'sandboxes.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
@@ -41,6 +42,7 @@ export const sandboxOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'sandboxes.use',
+    contentDelivery: 'none',
     ...ALL_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
@@ -49,6 +51,7 @@ export const sandboxOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'sandboxes.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
@@ -57,6 +60,7 @@ export const sandboxOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'sandboxes.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
@@ -65,6 +69,7 @@ export const sandboxOperations = {
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     capability: 'sandboxes.use',
+    contentDelivery: 'none',
     ...HUMAN_PRINCIPAL_POLICY,
   }),
 } as const

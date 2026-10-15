@@ -24,7 +24,7 @@ import {
   type BillingAttributionSnapshot,
   getWorkspaceBilledAccountUserId,
   requireBillingAttributionHeader,
-} from '@/lib/billing/core/billing-attribution'
+} from '@/lib/billing/core/attribution'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
@@ -51,6 +51,10 @@ import {
   validateCallChain,
 } from '@/lib/execution/call-chain'
 import {
+  INTERNAL_EXECUTION_DEADLINE_HEADER,
+  parseExecutionDeadlineHeader,
+} from '@/lib/execution/deadline-header'
+import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
@@ -58,10 +62,6 @@ import {
   setExecutionActiveBlockStarts,
   type TerminalExecutionStreamStatus,
 } from '@/lib/execution/event-buffer'
-import {
-  INTERNAL_EXECUTION_DEADLINE_HEADER,
-  parseExecutionDeadlineHeader,
-} from '@/lib/execution/execution-deadline-header'
 import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,

@@ -19,6 +19,7 @@ vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 
 import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
   McpConnectionError,
   McpOauthAuthorizationRequiredError,
@@ -159,6 +160,19 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
     expect(response.status).toBe(409)
     expect(body.error.code).toBe('CONFLICT')
     expect(body.error.details).toEqual({ code: 'MCP_SERVER_REAUTHORIZATION_REQUIRED' })
+  })
+
+  it('reports a grant that needs a fresh authorization redirect as the same 409', async () => {
+    mockDiscoverMcpServerToolsUseCase.mockRejectedValueOnce(
+      new McpOauthRedirectRequired('https://auth.example.com/authorize?state=secret-state')
+    )
+
+    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
+    const body = await response.json()
+
+    expect(response.status).toBe(409)
+    expect(body.error.details).toEqual({ code: 'MCP_SERVER_REAUTHORIZATION_REQUIRED' })
+    expect(JSON.stringify(body)).not.toContain('secret-state')
   })
 
   it('does not blame the caller for an upstream protocol fault', async () => {

@@ -34,7 +34,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
   },
 }))
 
-import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/observer'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 
 const IDENTITY = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }

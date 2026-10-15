@@ -166,8 +166,7 @@ export const kalshiGetEventsV2Tool: ToolConfig<KalshiGetEventsV2Params, KalshiGe
   {
     id: 'kalshi_get_events_v2',
     name: 'Get Events from Kalshi V2',
-    description:
-      'Retrieve a list of events from Kalshi with optional filtering (V2 - exact API response)',
+    description: 'Retrieve a list of events from Kalshi with optional filtering',
     version: '2.0.0',
 
     params: {

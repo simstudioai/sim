@@ -24,6 +24,7 @@ import JSZip from 'jszip'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
+const embeddingInputs = vi.hoisted(() => new Map<string, string[]>())
 const sandboxEnvironment = vi.hoisted(() => {
   const fixture = {
     SANDBOX_PROVIDER: 'e2b',
@@ -45,18 +46,26 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
 vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},
-  embedKnowledge: async (texts: string[]) => ({
-    embeddings: texts.map(() => [1, ...Array<number>(1535).fill(0)]),
-    totalTokens: texts.length,
-    billableTokens: 0,
-    isBYOK: true,
-    modelName: 'text-embedding-3-small',
-    pricingId: 'text-embedding-3-small',
-  }),
+  embedKnowledge: async (texts: string[], options: { workspaceId?: string | null }) => {
+    if (options.workspaceId) {
+      const inputs = embeddingInputs.get(options.workspaceId) ?? []
+      inputs.push(...texts)
+      embeddingInputs.set(options.workspaceId, inputs)
+    }
+    return {
+      embeddings: texts.map(() => [1, ...Array<number>(1535).fill(0)]),
+      totalTokens: texts.length,
+      billableTokens: 0,
+      isBYOK: true,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    }
+  },
 }))
 
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
 import { fileManageDecompressBodySchema } from '@/lib/api/contracts/tools/file'
+import { observeContentDelivery } from '@/lib/core/application'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { isUserFile } from '@/lib/core/utils/user-file'
@@ -76,17 +85,21 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
+import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-events'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { createSingleDocument } from '@/lib/knowledge/documents/service'
 import { loadKnowledgeDocumentSecretRegistry } from '@/lib/knowledge/secret-provenance'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
+import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
 import {
   deleteWorkspaceFile,
   getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+  uploadWorkspaceFile,
+} from '@/lib/uploads/contexts/workspace/file-manager'
 import {
   filterModelSafeWorkspaceFileAttachments,
   getBoundWorkspaceFileSecretProvenance,
@@ -95,7 +108,7 @@ import {
   isOpaqueWorkspaceFileEgressSafe,
   type WorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenanceIdentity,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import type { UserFile } from '@/executor/types'
@@ -190,13 +203,32 @@ async function extract(ids: Fixture, archive: UserFile) {
   return { child, record, identity, publicMetadata: JSON.stringify({ archive, body }) }
 }
 
-async function assertBlockedConsumers(ids: Fixture, source: Awaited<ReturnType<typeof extract>>) {
+/**
+ * Opaque delivery is refused either way. A knowledge base refuses an unknown source but accepts
+ * one with recorded secrets, whose entries its chunks then carry (redacted wherever they are read).
+ */
+async function assertBlockedConsumers(
+  ids: Fixture,
+  source: Awaited<ReturnType<typeof extract>>,
+  knowledge: 'refused' | 'accepted' = 'refused'
+) {
   expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, source.identity)).toBe(false)
   const imported = await addWorkspaceFilesToKnowledgeBase.execute({
     principal: sessionPrincipal(ids),
     input: { knowledgeBaseId: ids.knowledgeBaseId, fileReferences: [source.child.id] },
   })
-  expect(imported).toMatchObject({ added: [], failed: [source.child.id] })
+  if (knowledge === 'refused') {
+    expect(imported).toMatchObject({ added: [], failed: [source.child.id] })
+  } else {
+    expect(imported).toMatchObject({ failed: [] })
+    expect(imported.added).toHaveLength(1)
+    /** The accepted document queued its processing; that work is removed with the fixture. */
+    const events = await db
+      .select({ id: outboxEvent.id })
+      .from(outboxEvent)
+      .where(sql`${outboxEvent.payload}::jsonb ->> 'documentId' = ${imported.added[0].documentId}`)
+    trackedEventIds.push(...events.map((event) => event.id))
+  }
 }
 
 beforeAll(() => {
@@ -696,6 +728,119 @@ describe('Function export provenance in PostgreSQL', () => {
 })
 
 describe('execution archive durable provenance', () => {
+  it.each([
+    {
+      name: 'whitespace-normalized secret',
+      secret: '  fixture-live-key-82367  ',
+      fragments: ['fixture-live-key-82367'],
+      masked: true,
+    },
+    {
+      name: 'secret crossing chunk boundaries',
+      secret: `left-fixture-secret-${'Q'.repeat(180)}-right-fixture-secret`,
+      fragments: ['left-fixture-secret', 'QQQQQQQQ', 'right-fixture-secret'],
+      masked: true,
+    },
+    { name: 'short secret cutoff', secret: 'T0k3n42', fragments: [], masked: false },
+  ])(
+    'indexes $name without changing original bytes or exposing derived fragments',
+    async (testCase) => {
+      const ids = await seed()
+      await db
+        .update(knowledgeBase)
+        .set({ chunkingConfig: { maxSize: 32, minSize: 1, overlap: 0 } })
+        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+      const { encrypted } = await encryptSecret(testCase.secret)
+      const content = `Public introduction.\n${testCase.secret}\nPublic conclusion.`
+      const source = await uploadWorkspaceFile(
+        ids.workspaceId,
+        ids.aliceId,
+        Buffer.from(content),
+        'source.txt',
+        'text/plain',
+        {
+          notifyWorkspaceChange: false,
+          secretProvenance: {
+            status: 'exact',
+            entries: [
+              {
+                name: 'FIXTURE_SECRET',
+                encryptedValue: encrypted,
+                sourceUserId: ids.aliceId,
+                sourceWorkspaceId: ids.workspaceId,
+              },
+            ],
+          },
+        }
+      )
+      const imported = await addWorkspaceFilesToKnowledgeBase.execute({
+        principal: sessionPrincipal(ids),
+        input: { knowledgeBaseId: ids.knowledgeBaseId, fileReferences: [source.id] },
+      })
+      expect(imported.failed).toEqual([])
+      expect(imported.added).toHaveLength(1)
+      const documentId = imported.added[0].documentId
+      const events = await db
+        .select()
+        .from(outboxEvent)
+        .where(sql`${outboxEvent.payload}::jsonb ->> 'documentId' = ${documentId}`)
+      trackedEventIds.push(...events.map((event) => event.id))
+      const dispatch = events.find(
+        (event) => event.eventType === KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT
+      )
+      if (!dispatch) throw new Error('Knowledge import did not queue document processing')
+      await processOutboxEventById(dispatch.id, knowledgeDocumentProcessingOutboxHandlers)
+      const [indexed] = await db.select().from(document).where(eq(document.id, documentId))
+      expect(indexed.processingStatus, indexed.processingError ?? undefined).toBe('completed')
+      if (!indexed.storageKey) throw new Error('Knowledge import did not retain its original')
+      expect(
+        (await downloadFile({ key: indexed.storageKey, context: 'knowledge-base' })).toString()
+      ).toBe(content)
+      const stored = await listKnowledgeChunks.execute({
+        principal: sessionPrincipal(ids),
+        input: { knowledgeBaseId: ids.knowledgeBaseId, documentId },
+      })
+      const readbackRegistry = new ResolvedSecretTraceRegistry([], {
+        userId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+      })
+      const gate = createRegistryContentGate({
+        registry: readbackRegistry,
+        actorUserId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+      })
+      const readback = await observeContentDelivery(gate, () =>
+        listKnowledgeChunks.execute({
+          principal: createCopilotChatPrincipal(
+            { userId: ids.aliceId, workspaceId: ids.workspaceId },
+            KNOWLEDGE_DELEGATION_AUDIENCE
+          ),
+          input: { knowledgeBaseId: ids.knowledgeBaseId, documentId },
+        })
+      )
+      expect(readback.chunks.length).toBeGreaterThan(0)
+      const projected = projectResolvedSecretModelContent(readback, readbackRegistry)
+      expect(projected.safe).toBe(true)
+      if (!projected.safe) throw new Error('Indexed chunk readback was withheld')
+      const outputs = [
+        (embeddingInputs.get(ids.workspaceId) ?? []).join('\n'),
+        stored.chunks.map((chunk) => chunk.content).join('\n'),
+        JSON.stringify(projected.value),
+      ]
+      for (const output of outputs) {
+        expect(output).toContain('Public introduction.')
+        expect(output).toContain('Public conclusion.')
+        if (testCase.masked) {
+          expect(output).toContain('{{FIXTURE_SECRET}}')
+          for (const fragment of testCase.fragments) expect(output).not.toContain(fragment)
+        } else {
+          expect(output).toContain(testCase.secret)
+          expect(output).not.toContain('{{FIXTURE_SECRET}}')
+        }
+      }
+    }
+  )
+
   it.each(['exact', 'unrecorded'] as const)(
     'carries %s lineage through extraction and delayed KB indexing/search',
     async (status) => {
@@ -827,7 +972,7 @@ describe('execution archive durable provenance', () => {
     expect(projected.safe).toBe(true)
     if (!projected.safe) throw new Error('Known extracted lineage withheld runtime readback')
     expect(projected.value).toBe('name,description\nOrion,{{FIXTURE_SECRET}}\n')
-    await assertBlockedConsumers(ids, source)
+    await assertBlockedConsumers(ids, source, 'accepted')
   })
 
   it('preserves compatibility for execution files created before provenance stamping', async () => {

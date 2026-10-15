@@ -15,7 +15,7 @@ import {
   hashSandboxSpec,
   SIM_REQUIREMENTS_PATH,
   validateDependencies,
-} from '@/lib/execution/remote-sandbox/sandbox-spec'
+} from '@/lib/execution/remote-sandbox/spec'
 import type { SandboxCommandResult, SandboxHandle } from '@/lib/execution/remote-sandbox/types'
 
 const CLI_TOOL_ID = 'google-cloud-cli@577.0.0-r1' as const

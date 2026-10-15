@@ -37,7 +37,7 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/identity-lock', () => billingIdentityLockMock)
 vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/billing/webhooks/enterprise-reconciliation-lease', () => ({
   withEnterpriseReconciliationLease: vi.fn(async (_id: string, operation: () => Promise<unknown>) =>

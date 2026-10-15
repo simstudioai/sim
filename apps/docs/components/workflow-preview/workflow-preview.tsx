@@ -109,6 +109,7 @@ const SELECT_TITLES = new Set([
   'Operation',
   'Method',
   'Unit',
+  'Event',
   'Event type',
   'Validation',
   'Account',

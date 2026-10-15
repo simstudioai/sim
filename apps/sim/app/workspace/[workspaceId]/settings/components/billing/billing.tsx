@@ -18,7 +18,7 @@ import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
-import { useSession, useSubscription } from '@/lib/auth/auth-client'
+import { useSession, useSubscription } from '@/lib/auth/client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { CREDIT_MULTIPLIER, formatCreditCost } from '@/lib/billing/credits/conversion'
 import {

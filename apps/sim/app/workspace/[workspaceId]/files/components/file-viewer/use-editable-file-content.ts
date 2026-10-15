@@ -5,7 +5,7 @@ import { toast } from '@sim/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { saveBlob } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { GENERATED_DOCUMENT_SOURCE_TYPES } from '@/lib/uploads/utils/file-utils'
+import { GENERATED_DOCUMENT_SOURCE_TYPES } from '@/lib/uploads/utils/file'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
   type SyncTextEditorContentStateOptions,

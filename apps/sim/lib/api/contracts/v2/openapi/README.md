@@ -6,7 +6,7 @@ Write enough context to choose and use an operation correctly. Concision means r
 
 | Location | Content |
 | --- | --- |
-| Operation `summary` | A short action and resource name, using the existing title-case convention: `Create Workflow`, `Replace File Content`. |
+| Operation `summary` | A short action and resource name in sentence case: `Create workflow`, `Replace file content`. Preserve product names and acronyms such as API, MCP, OAuth, and SSO. |
 | Operation `description` | The result, relevant scope, and important behavior: side effects, partial success, asynchronous completion, destructive changes, retry safety, or a distinction from a related operation. |
 | Parameter or schema description | The field's meaning, units, omission/null behavior, dependencies, and interpretation. Let the schema declare types, required fields, enums, and bounds; explain them in prose only when needed for correct use. |
 | Response description | What the result represents, including partial, truncated, pending, or redacted results. |
@@ -26,7 +26,7 @@ Write enough context to choose and use an operation correctly. Concision means r
 - Describe user-visible outcomes instead of storage formats, locking, redaction internals, or deployment architecture. For an open-ended status, say to handle unknown values; the caller does not need to know how statuses are stored. Keep implementation details only when they change correct usage.
 - Avoid generic filter inventories and repeated schema details. Preserve exceptions such as bounded pages, null cursors with truncated results, and counts read independently of result pages.
 
-For example, an upsert description should say: “Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update Row for a partial patch.”
+For example, an upsert description should say: “Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update row for a partial patch.”
 
 ## Sources and verification
 
