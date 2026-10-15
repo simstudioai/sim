@@ -656,8 +656,14 @@ final class Driver {
                 }
                 return false
             }
+            let observedFrames = Array(snapshot.windowFrames.values)
             func validateFocus() throws {
                 try checkCancellation(); try requireNonSecure(element)
+                // The editor must still sit in an observed window (or a dialog above it) at the observed frame.
+                guard let rawWindow = attribute(element, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID(),
+                      acceptsInput(unsafeBitCast(rawWindow, to: AXUIElement.self), observed: observedFrames) else {
+                    throw ComputerError("stale_window", "The editor's window moved or is not an observed window; observe again.")
+                }
                 guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current) else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
                 if let focused = attribute(root, kAXFocusedUIElementAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { try requireNonSecure(unsafeBitCast(focused, to: AXUIElement.self)) }
             }
