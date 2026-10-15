@@ -1,8 +1,8 @@
 /** @vitest-environment node */
 import { Readable } from 'node:stream'
+import { flushMacrotask } from '@sim/testing/helpers'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
-import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -43,7 +43,7 @@ describe('file archive resource lifetime', () => {
       const source = Readable.from(
         (async function* () {
           yield Buffer.alloc(65536, 'a')
-          await sleep(1)
+          await flushMacrotask()
           yield Buffer.alloc(65536, 'b')
         })()
       )
