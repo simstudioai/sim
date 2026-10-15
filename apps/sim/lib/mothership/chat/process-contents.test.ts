@@ -38,6 +38,7 @@ import {
 } from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { admitContent, DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
@@ -970,6 +971,23 @@ describe('file folder context', () => {
   it('omits unavailable folders instead of substituting the root', async () => {
     resolveFileFolderPath.mockResolvedValueOnce({ path: null })
     expect(await resolveActiveResourceContext('filefolder', 'missing', 'ws-1', 'reader')).toBeNull()
+  })
+
+  it.each([
+    { tab: 'a deleted file', failure: new OrchestrationError('not_found', 'gone'), level: 'info' },
+    {
+      tab: 'a revoked file',
+      failure: new OrchestrationError('forbidden', 'denied'),
+      level: 'warn',
+    },
+    { tab: 'a failed lookup', failure: new Error('connection reset'), level: 'error' },
+  ] as const)('drops $tab, logging it at $level', async ({ failure, level }) => {
+    readWorkspaceFileMetadata.mockRejectedValueOnce(failure)
+    expect(await resolveActiveResourceContext('file', 'file-1', 'ws-1', 'reader')).toBeNull()
+    const logger = getMockLogger('ProcessContents')
+    for (const method of ['info', 'warn', 'error'] as const) {
+      expect(logger[method]).toHaveBeenCalledTimes(method === level ? 1 : 0)
+    }
   })
 })
 
