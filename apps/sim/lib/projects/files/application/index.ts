@@ -1,4 +1,4 @@
-export { readProjectFileArtifact } from './artifacts'
+export { readProjectFileArtifact, readProjectFileText } from './artifacts'
 export { getProjectFileListAccess } from './collection-access'
 export {
   createProjectFile,

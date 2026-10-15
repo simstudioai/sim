@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import type { AuthorizedWorkspaceUseCaseContext, ContentSourceKind } from '@/lib/core/application'
 import { redactBeforeCutting } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -48,8 +48,8 @@ export interface ReadWorkspaceFileTextInput {
   allowPlainText?: boolean
 }
 
-export interface ReadWorkspaceFileTextResult {
-  file: WorkspaceFileRecord
+/** Text extracted from one file's bytes, whichever owner stores them. */
+export interface ExtractedFileText {
   text: string
   /** True when a parser limit stopped extraction before the input was exhausted. */
   truncated: boolean
@@ -69,6 +69,10 @@ export interface ReadWorkspaceFileTextResult {
     /** False when extraction was truncated, so `totalLines` is not the file's end. */
     totalLinesExact: boolean
   }
+}
+
+export interface ReadWorkspaceFileTextResult extends ExtractedFileText {
+  file: WorkspaceFileRecord
 }
 
 /**
@@ -169,22 +173,41 @@ export async function extractWorkspaceFileRecordText(
   } else {
     content = await readSourceBuffer(file, maxBytes, signal)
   }
-  const parsed = await parseFileText(content, extension, file.name, signal)
-  const metadata = parsed.metadata ?? {}
-
-  const truncated = metadata.truncated === true
-  const ranged = input.offset !== undefined || input.limit !== undefined
-  const { text, lineRange } = sliceFileTextLines(
-    ranged
-      ? await redactBeforeCutting(principal, parsed.content, 'workspace-file')
-      : parsed.content,
-    input.offset,
-    input.limit,
-    truncated
-  )
-
   return {
     file,
+    ...(await extractFileTextFromBytes(content, extension, file.name, input, {
+      principal,
+      kind: 'workspace-file',
+      signal,
+    })),
+  }
+}
+
+/**
+ * Turns admitted bytes into text for every file owner. The caller admits the content as `complete`
+ * first; a line window is cut only after redaction, so it can never split a secret the registry
+ * would otherwise mask whole.
+ */
+export async function extractFileTextFromBytes(
+  content: Buffer,
+  format: string,
+  fileName: string,
+  window: { offset?: number; limit?: number },
+  options: { principal?: Principal; kind: ContentSourceKind; signal?: AbortSignal }
+): Promise<ExtractedFileText> {
+  const parsed = await parseFileText(content, format, fileName, options.signal)
+  const metadata = parsed.metadata ?? {}
+  const truncated = metadata.truncated === true
+  const ranged = window.offset !== undefined || window.limit !== undefined
+  const { text, lineRange } = sliceFileTextLines(
+    ranged
+      ? await redactBeforeCutting(options.principal, parsed.content, options.kind)
+      : parsed.content,
+    window.offset,
+    window.limit,
+    truncated
+  )
+  return {
     text,
     truncated,
     degraded: metadata.degraded === true,
@@ -209,7 +232,7 @@ export async function extractWorkspaceFileRecordText(
  * well formed, it is the stored bytes that cannot become the representation
  * being asked for, and the caller needs to know that retrying will not help.
  */
-export async function parseFileText(
+async function parseFileText(
   content: Buffer,
   extension: string,
   fileName: string,

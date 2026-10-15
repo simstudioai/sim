@@ -41,6 +41,7 @@ import { type AgentCliExecutionContext, executeAgentCliRequest } from '@/lib/mot
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import type { AgentCliAugmentationInvocation } from '@/lib/mothership/generated/agent-cli'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { createProjectFile } from '@/lib/projects/files/application'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
@@ -210,6 +211,30 @@ check('Project grep matches public bytes while excluding classified secret text'
   expect(visible.exitCode, visible.stderr).toBe(0)
   expect(visible.stdout).toContain(`files/grep-notes.txt (${file.id}):1:`)
   expect(visible.stdout).not.toContain(secret)
+
+  // Text reads match workspace files: admission imports the provenance, so the model egress
+  // masks the secret while every other line stays readable. A line window is redacted before it
+  // is cut, so it never holds a fragment the egress could miss.
+  const egress = (output: unknown) =>
+    JSON.stringify(
+      projectToolResultForCopilot({ success: true, output }, f.context.resolvedSecretTraceRegistry)
+    )
+  const whole = await read(f.projectId, f.context, file.id)
+  expect(whole.exitCode, whole.stderr).toBe(0)
+  expect(JSON.parse(whole.stdout)).toMatchObject({ representation: 'text' })
+  const wholeEgress = egress(JSON.parse(whole.stdout))
+  expect(wholeEgress).toContain('before')
+  expect(wholeEgress).toContain('after')
+  expect(wholeEgress).not.toContain(secret)
+  const ranged = await read(f.projectId, f.context, file.id, { offset: '2', limit: '1' })
+  expect(ranged.exitCode, ranged.stderr).toBe(0)
+  expect(JSON.parse(ranged.stdout).lineRange).toMatchObject({ offset: 2, lineCount: 1 })
+  expect(ranged.stdout).not.toContain(secret)
+
+  // Byte reads stay opaque: no redaction reaches bytes, so a secret still refuses them.
+  const bytes = await read(f.projectId, f.context, file.id, {}, 'files view')
+  expect(bytes.exitCode).not.toBe(0)
+  expect(bytes.stdout + bytes.stderr).not.toContain(secret)
 })
 
 describe('Project CLI representations against PostgreSQL and stored bytes', () => {

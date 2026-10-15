@@ -4,10 +4,10 @@ import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { list, artifact } = vi.hoisted(() => ({ list: vi.fn(), artifact: vi.fn() }))
+const { list, textRead } = vi.hoisted(() => ({ list: vi.fn(), textRead: vi.fn() }))
 vi.mock('@/lib/projects/files/application', () => ({
   listProjectFiles: { execute: list },
-  readProjectFileArtifact: { execute: artifact },
+  readProjectFileText: { execute: textRead },
 }))
 vi.mock('@/lib/mothership/application/execute-project-file-use-case', () => ({
   executeCopilotProjectFileUseCase: (
@@ -35,10 +35,13 @@ beforeEach(() => {
     files: [{ id: 'file', name: 'notes.txt', folderPath: '/' }],
     nextKeys: null,
   })
-  artifact.mockResolvedValue({
+  textRead.mockResolvedValue({
     file: { id: 'file', name: 'notes.txt' },
     contentType: 'text/plain',
-    buffer: Buffer.from('before\nneedle\nafter'),
+    text: 'before\nneedle\nafter',
+    truncated: false,
+    degraded: false,
+    degradedReason: null,
     secretProvenance: { status: 'exact', entries: [] },
   })
 })
@@ -65,11 +68,14 @@ describe('Project grep corpus', () => {
     expect(result.exitCode).toBe(1)
     expect(list).not.toHaveBeenCalled()
   })
-  it('refuses to match bytes without exact source evidence', async () => {
-    artifact.mockResolvedValueOnce({
+  it('refuses to match text without exact source evidence', async () => {
+    textRead.mockResolvedValueOnce({
       file: { id: 'file', name: 'notes.txt' },
       contentType: 'text/plain',
-      buffer: Buffer.from('needle'),
+      text: 'needle',
+      truncated: false,
+      degraded: false,
+      degradedReason: null,
       secretProvenance: { status: 'unknown' },
     })
     await expect(grepProjectFiles(invocation, context(), 'project')).rejects.toThrow(
@@ -85,7 +91,7 @@ describe('Project grep corpus', () => {
   })
 })
 
-it('reads five Project artifacts concurrently while preserving inventory result order', async () => {
+it('reads five Project files concurrently while preserving inventory result order', async () => {
   const gates = Array.from({ length: 6 }, () => createDeferred<void>())
   let active = 0
   let peak = 0
@@ -97,7 +103,7 @@ it('reads five Project artifacts concurrently while preserving inventory result 
     })),
     nextKeys: null,
   })
-  artifact.mockImplementation(async ({ fileId }: { fileId: string }) => {
+  textRead.mockImplementation(async ({ fileId }: { fileId: string }) => {
     active++
     peak = Math.max(peak, active)
     await gates[Number(fileId.slice(5))].promise
@@ -105,7 +111,10 @@ it('reads five Project artifacts concurrently while preserving inventory result 
     return {
       file: { id: fileId, name: `${fileId}.txt` },
       contentType: 'text/plain',
-      buffer: Buffer.from('needle'),
+      text: 'needle',
+      truncated: false,
+      degraded: false,
+      degradedReason: null,
       secretProvenance: { status: 'exact', entries: [] },
     }
   })

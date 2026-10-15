@@ -2,7 +2,10 @@ import { v2ReadFileTextQuerySchema } from '@/lib/api/contracts/v2/files'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { fileReadFailure } from '@/lib/mothership/agent-cli/engines/file-view'
-import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
+import {
+  observePrivateFile,
+  presentObservedText,
+} from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import { importProjectFileProvenance } from '@/lib/mothership/agent-cli/project-file-provenance'
 import { agentCliFail } from '@/lib/mothership/agent-cli/types'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
@@ -12,12 +15,14 @@ import type {
 } from '@/lib/mothership/generated/agent-cli'
 import {
   readProjectFileArtifact,
+  readProjectFileText,
   resolveProjectFileReference,
 } from '@/lib/projects/files/application'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace'
 import { MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { MAX_TEXT_EXTRACTION_BYTES, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
+import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
 const projectReadQuerySchema = v2ReadFileTextQuerySchema.omit({ workspaceId: true })
 const READ_FLAGS = new Set(['max-bytes', 'offset', 'limit', 'render', 'pages'])
@@ -65,38 +70,75 @@ export async function readProjectFileForAgent(
       { projectId }
     )
     const target = { projectId, fileId: resolved.file.id }
-    const { file, buffer, contentType, secretProvenance } = await executeCopilotProjectFileUseCase(
-      context,
-      readProjectFileArtifact,
-      {
-        ...target,
-        maxBytes: query.data.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES,
-        forModel: explicitVisual,
-      },
-      target
-    )
-    await importProjectFileProvenance(context.resolvedSecretTraceRegistry, secretProvenance)
-    context.signal?.throwIfAborted()
-    const type =
-      resolveEffectiveMimeType(contentType, file.name).split(';')[0]?.trim().toLowerCase() ?? ''
-    const visual =
-      explicitVisual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))
-    /** Default visual selection uses the authorized artifact's MIME, not earlier discovery metadata. */
-    if (visual && (secretProvenance.status !== 'exact' || secretProvenance.entries.length !== 0))
-      throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
-    const result = await observePrivateFile(
-      {
-        buffer,
-        name: file.name,
-        contentType: type,
-        fileId: file.id,
-        path: fileOwnerVfsPath(file.owner, workspaceFileVfsPath(file)),
-        source: 'project',
-      },
-      flags,
-      { ...query.data, visual },
-      context.signal
-    )
+    const maxBytes = query.data.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
+    const resolvedType = mimeOf(resolved.file.type, resolved.file.name)
+    /**
+     * Text reads admit the file as `complete`, so the registry masks its secrets as it does for a
+     * workspace file; only visual and undecodable reads take its stored bytes, which no redaction
+     * reaches. Images and PDFs default to visual unless a line range asks for their text.
+     */
+    const readsText =
+      !explicitVisual &&
+      workspaceFileTextFormat({ name: resolved.file.name, type: resolvedType }) !== null &&
+      (textRange || !isDefaultVisual(resolvedType))
+    let file: typeof resolved.file
+    let result: Awaited<ReturnType<typeof observePrivateFile>>
+    if (readsText) {
+      const read = await executeCopilotProjectFileUseCase(
+        context,
+        readProjectFileText,
+        { ...target, maxBytes, offset: query.data.offset, limit: query.data.limit },
+        target
+      )
+      await importProjectFileProvenance(context.resolvedSecretTraceRegistry, read.secretProvenance)
+      context.signal?.throwIfAborted()
+      file = read.file
+      result = presentObservedText(
+        {
+          name: file.name,
+          path: fileOwnerVfsPath(file.owner, workspaceFileVfsPath(file)),
+          type: mimeOf(read.contentType, file.name),
+          source: 'project',
+          fileId: file.id,
+        },
+        read
+      )
+    } else {
+      const artifact = await executeCopilotProjectFileUseCase(
+        context,
+        readProjectFileArtifact,
+        { ...target, maxBytes, forModel: explicitVisual },
+        target
+      )
+      await importProjectFileProvenance(
+        context.resolvedSecretTraceRegistry,
+        artifact.secretProvenance
+      )
+      context.signal?.throwIfAborted()
+      file = artifact.file
+      const type = mimeOf(artifact.contentType, file.name)
+      const visual = explicitVisual || (!textRange && isDefaultVisual(type))
+      /** Default visual selection uses the authorized artifact's MIME, not earlier discovery metadata. */
+      if (
+        visual &&
+        (artifact.secretProvenance.status !== 'exact' ||
+          artifact.secretProvenance.entries.length !== 0)
+      )
+        throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+      result = await observePrivateFile(
+        {
+          buffer: artifact.buffer,
+          name: file.name,
+          contentType: type,
+          fileId: file.id,
+          path: fileOwnerVfsPath(file.owner, workspaceFileVfsPath(file)),
+          source: 'project',
+        },
+        flags,
+        { ...query.data, visual },
+        context.signal
+      )
+    }
     const resource = {
       type: 'file' as const,
       id: file.id,
@@ -124,4 +166,12 @@ export async function readProjectFileForAgent(
   } catch (error) {
     return fileReadFailure(error)
   }
+}
+
+function mimeOf(contentType: string, name: string) {
+  return resolveEffectiveMimeType(contentType, name).split(';')[0]?.trim().toLowerCase() ?? ''
+}
+
+function isDefaultVisual(type: string) {
+  return type.startsWith('image/') || type === 'application/pdf'
 }

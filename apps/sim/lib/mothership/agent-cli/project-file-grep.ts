@@ -11,9 +11,7 @@ import {
 import { importProjectFileProvenance } from '@/lib/mothership/agent-cli/project-file-provenance'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import type { AgentCliAugmentationInvocation } from '@/lib/mothership/generated/agent-cli'
-import { listProjectFiles, readProjectFileArtifact } from '@/lib/projects/files/application'
-import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
-import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
+import { listProjectFiles, readProjectFileText } from '@/lib/projects/files/application'
 
 /** Project grep materializes only freshly authorized files and imports evidence before matching. */
 export function grepProjectFiles(
@@ -74,13 +72,13 @@ export function grepProjectFiles(
       return mapGrepFileReads(selectedFiles, async ({ item, label }): Promise<GrepMaterialized> => {
         context.signal?.throwIfAborted()
         const target = { projectId, fileId: item.id }
-        let artifact: Awaited<ReturnType<typeof readProjectFileArtifact.execute>>
+        let read: Awaited<ReturnType<typeof readProjectFileText.execute>>
         try {
-          artifact = await withGrepReadSlot(
+          read = await withGrepReadSlot(
             () =>
               executeCopilotProjectFileUseCase(
                 context,
-                readProjectFileArtifact,
+                readProjectFileText,
                 { ...target, maxBytes: MAX_GREP_BYTES_PER_FILE },
                 target
               ),
@@ -95,31 +93,14 @@ export function grepProjectFiles(
         }
         await importProjectFileProvenance(
           context.resolvedSecretTraceRegistry,
-          artifact.secretProvenance
+          read.secretProvenance
         )
-        let text: string | null = null
-        try {
-          const format = workspaceFileTextFormat({
-            name: artifact.file.name,
-            type: artifact.contentType,
-          })
-          if (!format) throw new Error('No text decoder')
-          const parsed = await parseWorkspaceFileText(artifact.buffer, format, {
-            maxTextBytes: MAX_GREP_BYTES_PER_FILE,
-            signal: context.signal,
-          })
-          if (parsed.metadata?.degraded || parsed.metadata?.truncated)
-            reportIncomplete(
-              `files/${label} (${item.id}): text extraction is incomplete; use files read to inspect it.`
-            )
-          if (!parsed.metadata?.degraded) text = parsed.content
-        } catch {
-          context.signal?.throwIfAborted()
+        if (read.degraded || read.truncated) {
           reportIncomplete(
-            `files/${label} (${item.id}): could not decode text; use files read to inspect the error.`
+            `files/${label} (${item.id}): text extraction is ${read.degraded ? 'degraded' : 'truncated'}; use files read or files get to inspect it.`
           )
         }
-        return { scope: 'files', id: item.id, label, text }
+        return { scope: 'files', id: item.id, label, text: read.degraded ? null : read.text }
       })
     },
   })

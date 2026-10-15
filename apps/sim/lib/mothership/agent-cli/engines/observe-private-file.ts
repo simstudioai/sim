@@ -1,12 +1,14 @@
-import { ContentRefusedError, redactBeforeCutting } from '@/lib/core/application'
+import { ContentRefusedError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliFlags } from '@/lib/mothership/agent-cli/types'
 import { agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
-import { parseFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import {
+  type ExtractedFileText,
+  extractFileTextFromBytes,
+} from '@/lib/workspace-files/application/read-workspace-file-text'
 import { decodeFileVisual } from '@/lib/workspace-files/decode-file-visual'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
-import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 
 /** Shared representation selection for authorized private file bytes. */
 export async function observePrivateFile(
@@ -78,35 +80,10 @@ export async function observePrivateFile(
   }
   const format = workspaceFileTextFormat({ name: file.name, type })
   if (format) {
-    const parsed = await parseFileText(file.buffer, format, file.name)
-    const truncated = parsed.metadata?.truncated === true
-    const ranged = options.offset !== undefined || options.limit !== undefined
-    const { text, lineRange } = sliceFileTextLines(
-      ranged
-        ? await redactBeforeCutting(
-            undefined,
-            parsed.content,
-            file.source === 'knowledge' ? 'knowledge-document' : 'workspace-file'
-          )
-        : parsed.content,
-      options.offset,
-      options.limit,
-      truncated
-    )
-    return agentCliOk(
-      JSON.stringify({
-        ...metadata,
-        representation: 'text',
-        text,
-        truncated,
-        degraded: parsed.metadata?.degraded === true,
-        degradedReason:
-          parsed.metadata?.degraded === true ? (parsed.metadata.warning ?? null) : null,
-        charCount: text.length,
-        byteCount: file.buffer.length,
-        ...(lineRange ? { lineRange } : {}),
-      })
-    )
+    const extracted = await extractFileTextFromBytes(file.buffer, format, file.name, options, {
+      kind: file.source === 'knowledge' ? 'knowledge-document' : 'workspace-file',
+    })
+    return presentObservedText(metadata, extracted)
   }
   if (textRange) throw new OrchestrationError('validation', 'This file has no text decoder')
   return agentCliOk(
@@ -121,6 +98,27 @@ export async function observePrivateFile(
           : file.source === 'knowledge'
             ? 'Content was not inspected: this original has no model-readable decoder.'
             : 'Content was not inspected: this file has no model-readable decoder. Process its mounted sandbox path with run_code.',
+    })
+  )
+}
+
+/** The `files read` text representation, shared by every owner's text read. */
+export function presentObservedText(
+  metadata: Record<string, unknown>,
+  extracted: ExtractedFileText
+) {
+  const { lineRange, ...rest } = extracted
+  return agentCliOk(
+    JSON.stringify({
+      ...metadata,
+      representation: 'text',
+      text: rest.text,
+      truncated: rest.truncated,
+      degraded: rest.degraded,
+      degradedReason: rest.degradedReason,
+      charCount: rest.text.length,
+      byteCount: rest.byteCount,
+      ...(lineRange ? { lineRange } : {}),
     })
   )
 }
