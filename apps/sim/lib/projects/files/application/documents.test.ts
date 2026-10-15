@@ -28,9 +28,10 @@ const args = {
 }
 
 describe('persistProjectFileDoc conflict retries', () => {
-  it('reports a document conflict after a revision keeps moving', async () => {
+  it('retries a moving revision before reporting a document conflict', async () => {
     mockReadContent.mockRejectedValue(new ProjectFileRevisionConflictError('File changed'))
     await expect(persistProjectFileDoc.execute(args)).resolves.toEqual({ status: 'conflict' })
+    expect(mockReadContent).toHaveBeenCalledTimes(3)
   })
 
   it('surfaces a Project lock conflict instead of reporting a document conflict', async () => {

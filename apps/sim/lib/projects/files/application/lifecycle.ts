@@ -166,10 +166,9 @@ export const restoreProjectFile = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.restore,
   invalidatesFileList: ({ context }) => Boolean(context.file?.deletedAt),
   async execute({ input, context, tx }: LifecycleArgs<ProjectFileTarget & { fileId: string }>) {
-    const restored = await restoreFileInTx(tx, context.owner, input.fileId)
-    const result = { restored: true as const, file: await projectFileRecord(tx, context, restored) }
-    if (context.file?.deletedAt)
-      await retireDocuments(tx, context.projectId, [input.fileId], result)
+    const { file, restored } = await restoreFileInTx(tx, context.owner, input.fileId)
+    const result = { restored: true as const, file: await projectFileRecord(tx, context, file) }
+    if (restored) await retireDocuments(tx, context.projectId, [input.fileId], result)
     return result
   },
   projectAudit: ({ context, result }) => ({

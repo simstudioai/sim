@@ -3048,12 +3048,15 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
   }
 }
 
-/** Restores a retained head, re-rooting and deduplicating within its canonical owner. */
+/**
+ * Restores a retained head, re-rooting and deduplicating within its canonical owner. `restored`
+ * reports whether this call restored it, read under the file's row lock.
+ */
 export async function restoreFileInTx(
   tx: DbTransaction,
   owner: EditableFileOwner,
   fileId: string
-): Promise<WorkspaceFileRow> {
+): Promise<{ file: WorkspaceFileRow; restored: boolean }> {
   if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
   await lockFileDirectories(tx, [owner])
   const [file] = await tx
@@ -3063,7 +3066,7 @@ export async function restoreFileInTx(
     .for('update')
     .limit(1)
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  if (!file.deletedAt) return file
+  if (!file.deletedAt) return { file, restored: false }
   let folderId = file.folderId
   if (folderId) {
     const [parent] = await tx
@@ -3119,5 +3122,5 @@ export async function restoreFileInTx(
       throw error
     })
   if (!restored) throw new OrchestrationError('conflict', 'File changed during restoration')
-  return restored
+  return { file: restored, restored: true }
 }
