@@ -52,7 +52,7 @@ export function ChatPanelLayout({
       {!collapsed && (
         <div className='relative z-20 w-0 flex-none max-md:hidden'>
           <div
-            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
+            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize touch-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
             role='separator'
             tabIndex={0}
             aria-orientation='vertical'

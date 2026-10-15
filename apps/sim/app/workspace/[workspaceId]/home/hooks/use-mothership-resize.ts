@@ -205,6 +205,7 @@ export function useMothershipResize(
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (e.button !== 0) return
       e.preventDefault()
 
       const el = mothershipRef.current
