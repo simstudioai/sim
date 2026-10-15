@@ -66,4 +66,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
 # `sh -c exec` expands the env var while keeping uvicorn as PID 1 for clean SIGTERM.
 # Quote the expansion so a malformed PII_WORKERS fails uvicorn arg-parsing rather
 # than being interpreted by the shell.
-CMD ["sh", "-c", "exec uvicorn server:app --host 0.0.0.0 --port 5001 --workers \"${PII_WORKERS:-1}\""]
+# Worker memory grows with uptime (spaCy vocab/allocator growth), so with more than
+# one worker each exits after a jittered request count (health checks included) and
+# the supervisor respawns it. A single worker has no supervisor, so it never recycles.
+# In-flight requests get up to the ALB's 300s idle timeout to finish.
+CMD ["sh", "-c", "set -- --host 0.0.0.0 --port 5001 --workers \"${PII_WORKERS:-1}\" --timeout-graceful-shutdown 300; if [ \"${PII_WORKERS:-1}\" -gt 1 ] 2>/dev/null; then set -- \"$@\" --limit-max-requests \"${PII_MAX_REQUESTS:-4000}\" --limit-max-requests-jitter \"${PII_MAX_REQUESTS_JITTER:-2000}\"; fi; exec uvicorn server:app \"$@\""]
