@@ -253,10 +253,13 @@ export const readProjectFileVersion = defineAuthorizedProjectFileUseCase({
 
 const readVersionContent = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readVersionContent,
-  async prepare({
+  async prepareFromSnapshot({
     principal,
     input,
-  }: Omit<VersionArgs<VersionTarget & { maxBytes?: number }>, 'tx'>): Promise<PreparedVersionRead> {
+  }: Omit<
+    VersionArgs<VersionTarget & { maxBytes?: number }>,
+    'tx' | 'context'
+  >): Promise<PreparedVersionRead> {
     const snapshot = await snapshotRead.execute({ principal, input })
     await requireAdmittedContent(principal, {
       kind: 'workspace-file',
@@ -264,7 +267,10 @@ const readVersionContent = defineAuthorizedProjectFileUseCase({
       provenance: workspaceFileSecretProvenanceFromSnapshot(snapshot.provenance),
       view: 'opaque',
     })
-    return { snapshot, content: await readVersionBytes(snapshot.version, input.maxBytes) }
+    const content = await runWithOutboundOrganization(snapshot.organizationId, () =>
+      readVersionBytes(snapshot.version, input.maxBytes)
+    )
+    return { snapshot, content }
   },
   async execute({
     input,

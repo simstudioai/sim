@@ -15,36 +15,27 @@ export const projectFileVersionSchema = v2FileVersionSchema.meta({
   title: 'Project file version',
   description: 'One recorded version of a shared Project file.',
 })
-export type ProjectFileVersion = z.output<typeof projectFileVersionSchema>
-export const projectFileVersionParamsSchema = projectFileParamsSchema.extend({
+const projectFileVersionParamsSchema = projectFileParamsSchema.extend({
   version: versionNumberPathSchema.describe('Version number.'),
 })
-export type ProjectFileVersionParams = z.input<typeof projectFileVersionParamsSchema>
 export const listProjectFileVersionsQuerySchema = v2ListFileVersionsQuerySchema.omit({
   workspaceId: true,
 })
-export type ListProjectFileVersionsQuery = z.output<typeof listProjectFileVersionsQuerySchema>
-export const listProjectFileVersionsResponseSchema = z.object({
+const listProjectFileVersionsResponseSchema = z.object({
   revision: writtenFileRevisionSchema,
   versions: z.array(projectFileVersionSchema),
   nextCursor: z.string().nullable(),
 })
-export type ListProjectFileVersionsResponse = z.output<typeof listProjectFileVersionsResponseSchema>
-export const getProjectFileVersionResponseSchema = z.object({ version: projectFileVersionSchema })
-export type GetProjectFileVersionResponse = z.output<typeof getProjectFileVersionResponseSchema>
+const getProjectFileVersionResponseSchema = z.object({ version: projectFileVersionSchema })
 export const revertProjectFileVersionBodySchema = v2RevertFileVersionBodySchema.omit({
   workspaceId: true,
 })
-export type RevertProjectFileVersionBody = z.input<typeof revertProjectFileVersionBodySchema>
-export const revertProjectFileVersionResponseSchema = z.object({
+const revertProjectFileVersionResponseSchema = z.object({
   reverted: z.boolean(),
   file: projectFileRecordSchema,
   version: projectFileVersionSchema,
   revision: writtenFileRevisionSchema,
 })
-export type RevertProjectFileVersionResponse = z.output<
-  typeof revertProjectFileVersionResponseSchema
->
 export const deleteProjectFileVersionResponseSchema = v2DeleteFileVersionResultSchema.extend({
   deleted: z
     .literal(true)
@@ -52,9 +43,6 @@ export const deleteProjectFileVersionResponseSchema = v2DeleteFileVersionResultS
       'The version is no longer available; stored-object cleanup is retried asynchronously when needed.'
     ),
 })
-export type DeleteProjectFileVersionResponse = z.output<
-  typeof deleteProjectFileVersionResponseSchema
->
 
 export const listProjectFileVersionsContract = defineRouteContract({
   method: 'GET',

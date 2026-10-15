@@ -33,9 +33,9 @@ export function prepareFileAccountingInTx(
 ): Promise<PreparedFileAccounting>
 /**
  * Prepares retained-head accounting in the caller's transaction, after authorization and before
- * directory, file, history or cleanup locks. Locks lifecycle then the owner row; a Project also
- * locks its payer here, a workspace only when its non-zero delta is applied. A Project's lifecycle
- * lock is exclusive, so its caller must not already hold that Project shared. Multi-owner callers
+ * directory, file, history or cleanup locks. Locks lifecycle then the owner row; the payer is
+ * locked last, only when a non-zero delta is applied. A Project's lifecycle lock is exclusive, so
+ * its caller must not already hold that Project shared. Multi-owner callers
  * must acquire all lifecycle locks first. Resolve from the canonical owner, never actor or
  * creator. Apply one signed delta at finalization and notify only after the caller commits.
  */

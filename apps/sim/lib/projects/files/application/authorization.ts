@@ -20,7 +20,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
-import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { acquirePermissionGroupOrgReadLock } from '@/lib/permission-groups/locks'
 import { loadProjectAccess } from '@/lib/projects/application/authorization'
 import { resolveCopilotProjectScope } from '@/lib/projects/application/discovery'
 import {
@@ -257,7 +257,12 @@ export async function createProjectFileAuthorizer(
 
   return async (tx) => {
     requirePrincipal(principal, operation, input)
-    const access = await loadProjectAccess(tx, userId, { projectId: input.projectId })
+    const access = await loadProjectAccess(
+      tx,
+      userId,
+      { projectId: input.projectId },
+      'chargesStorage' in operation ? 'exclusive' : 'shared'
+    )
     const context = await requireProjectFileOwnerRole(tx, principal, access, operation.access)
     let file: WorkspaceFileRow | undefined
     if (operation.target === 'file') {
@@ -280,7 +285,7 @@ export async function createProjectFileAuthorizer(
       }
     }
     if (access.record.organizationId)
-      await acquirePermissionGroupOrgLock(tx, access.record.organizationId)
+      await acquirePermissionGroupOrgReadLock(tx, access.record.organizationId)
     if (principal.kind === 'resource_delegated' && principal.serviceId === 'copilot') {
       if (!invocationScope) throw new Error('Copilot Project invocation was not prepared')
       await requireCurrentCopilotProjectInvocation(tx, principal, access, invocationScope)

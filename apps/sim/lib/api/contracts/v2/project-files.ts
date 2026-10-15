@@ -18,12 +18,10 @@ import {
 export const v2ProjectFilesParamsSchema = z.object({
   projectId: nonEmptyIdSchema.describe('Project identifier.'),
 })
-export type V2ProjectFilesParams = z.input<typeof v2ProjectFilesParamsSchema>
 
 export const v2ProjectFileParamsSchema = v2ProjectFilesParamsSchema.extend({
   fileId: nonEmptyIdSchema.describe('File identifier within the Project.'),
 })
-export type V2ProjectFileParams = z.input<typeof v2ProjectFileParamsSchema>
 
 export const v2ProjectFileSchema = v2FileSchema
   .omit({ uploadedByEmail: true, webUrl: true })
@@ -43,7 +41,7 @@ export const v2ProjectFileSchema = v2FileSchema
   .meta({ id: 'V2ProjectFile', title: 'Project file' })
 export type V2ProjectFile = z.output<typeof v2ProjectFileSchema>
 
-export const v2ListProjectFilesQuerySchema = v2ListFilesQuerySchema
+const v2ListProjectFilesQuerySchema = v2ListFilesQuerySchema
   .omit({ workspaceId: true })
   .extend(v2PaginationFields({ max: 1000, fallback: 100, description: 'Maximum files per page.' }))
 export type V2ListProjectFilesQuery = z.output<typeof v2ListProjectFilesQuerySchema>
@@ -73,7 +71,7 @@ function validateContentEncoding(
   }
 }
 
-export const v2CreateProjectFileBodySchema = z
+const v2CreateProjectFileBodySchema = z
   .object({
     name: v2CreateFileBodySchema.shape.name,
     contentType: v2CreateFileBodySchema.shape.contentType,
@@ -87,9 +85,8 @@ export const v2CreateProjectFileBodySchema = z
   })
   .strict()
   .superRefine(validateContentEncoding)
-export type V2CreateProjectFileBody = z.input<typeof v2CreateProjectFileBodySchema>
 
-export const v2UpdateProjectFileContentBodySchema = z
+const v2UpdateProjectFileContentBodySchema = z
   .object({
     content: v2UpdateFileContentBodySchema.shape.content.describe(
       'Complete replacement content for the file. The complete JSON request is capped at 70 MiB, including UTF-8 encoding, escaping, base64, and the envelope. The decoded-file limit is 50 MiB.'
@@ -99,7 +96,6 @@ export const v2UpdateProjectFileContentBodySchema = z
   })
   .strict()
   .superRefine(validateContentEncoding)
-export type V2UpdateProjectFileContentBody = z.input<typeof v2UpdateProjectFileContentBodySchema>
 
 export const v2CreateProjectFileContract = defineRouteContract({
   method: 'POST',

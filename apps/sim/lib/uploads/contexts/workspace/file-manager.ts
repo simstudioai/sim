@@ -2075,9 +2075,11 @@ export async function resolveFileReference<const O extends EditableFileOwner>(
   }
   if (segments.length === 0) throw new OrchestrationError('validation', 'File reference is empty')
 
-  const folders = await loadActiveFileFolderPathIndex(owner, client, {
-    maxRows: MAX_FOLDERS_PER_WORKSPACE,
-  })
+  let folders: Awaited<ReturnType<typeof loadActiveFileFolderPathIndex>> | undefined
+  const loadFolders = async () =>
+    (folders ??= await loadActiveFileFolderPathIndex(owner, client, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    }))
   let selector: SQL
   if (isFileId) {
     selector = eq(workspaceFiles.id, localReference)
@@ -2085,7 +2087,7 @@ export async function resolveFileReference<const O extends EditableFileOwner>(
     const folderPath = buildFolderPath(segments.slice(0, -1))
     let folderId: string | null = null
     if (folderPath !== '/') {
-      const matchingFolders = [...folders.pathById].filter(
+      const matchingFolders = [...(await loadFolders()).pathById].filter(
         ([, path]) =>
           parseFolderPath(path).map(normalizeVfsSegment).join('/') ===
           segments.slice(0, -1).map(normalizeVfsSegment).join('/')
@@ -2112,7 +2114,8 @@ export async function resolveFileReference<const O extends EditableFileOwner>(
   if (rows.length > 1) throw new OrchestrationError('conflict', 'File reference is ambiguous')
   const row = rows[0]
   if (!row) return null
-  return mapFileRecord(row, owner, buildWorkspaceFileFolderPathMap([...folders.rowById.values()]))
+  const folderRows = row.folderId ? [...(await loadFolders()).rowById.values()] : []
+  return mapFileRecord(row, owner, buildWorkspaceFileFolderPathMap(folderRows))
 }
 
 async function getWorkspaceFileByExactReference(

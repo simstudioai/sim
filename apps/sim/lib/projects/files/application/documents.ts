@@ -16,6 +16,8 @@ import {
 } from '@/lib/collab-doc/state'
 import type { AuthorizingUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { ProjectFileRevisionConflictError } from '@/lib/projects/errors'
 import {
   createProjectFileAuthorizer,
   type ProjectFileAuthorizationContext,
@@ -28,6 +30,7 @@ import {
 import { readProjectFileDocIdInTx } from '@/lib/projects/files/application/document-lifecycle'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 import { isMarkdownFile } from '@/lib/uploads/utils/file'
+import { MAX_WORKSPACE_FILE_CONTENT_BYTES } from '@/lib/workspace-files/orchestration'
 
 interface ProjectDocumentTarget {
   projectId: string
@@ -98,7 +101,7 @@ function cacheUseCase(
         .limit(1)
       if (!file) throw new OrchestrationError('not_found', 'File not found')
       if (file.version.getTime() !== input.expectedVersion)
-        throw new OrchestrationError('conflict', 'File changed while preparing its document')
+        throw new ProjectFileRevisionConflictError('File changed while preparing its document')
       await saveCollabDocStateInTx(tx, input.fileId, input.state)
       return { version: file.version.getTime() }
     },
@@ -108,10 +111,11 @@ function cacheUseCase(
 const seedCache = cacheUseCase(projectFileOperations.readContent)
 const persistCache = cacheUseCase(projectFileOperations.updateContent)
 
+/** Only a moved revision or cached history is worth a fresh read; other conflicts are final. */
 function isDocumentConflict(error: unknown) {
   return (
     error instanceof CollabDocStateConflictError ||
-    (error instanceof OrchestrationError && error.code === 'conflict')
+    error instanceof ProjectFileRevisionConflictError
   )
 }
 
@@ -190,7 +194,7 @@ export const persistProjectFileDoc: AuthorizingUseCase<
     requireProjectDocument(await db.transaction(authorize))
   },
   async execute(args) {
-    await this.authorize(args)
+    await persistProjectFileDoc.authorize(args)
     if (args.input.expectedVersion === undefined) return { status: 'deferred' }
     assertCollabDocStateSize(args.input.docState)
     const doc = new Y.Doc()
@@ -203,7 +207,17 @@ export const persistProjectFileDoc: AuthorizingUseCase<
     }
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
-        const read = await readProjectFileContent.execute(args)
+        const read = await readProjectFileContent
+          .execute({
+            ...args,
+            input: { ...args.input, maxBytes: MAX_WORKSPACE_FILE_CONTENT_BYTES },
+          })
+          .catch((error: unknown) => {
+            // No snapshot can replace or account for bytes past the largest editable file.
+            if (isPayloadSizeLimitError(error)) return null
+            throw error
+          })
+        if (!read) return { status: 'conflict' }
         const version = read.file.contentUpdatedAt.getTime()
         if (!isMarkdownFile(read.file)) {
           throw new OrchestrationError(

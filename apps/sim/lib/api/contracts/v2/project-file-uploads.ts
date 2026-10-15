@@ -14,12 +14,11 @@ import {
   v2UploadTokenHeadersSchema,
 } from '@/lib/api/contracts/v2/uploads'
 
-export const v2ProjectFileUploadParamsSchema = v2ProjectFilesParamsSchema.extend({
+const v2ProjectFileUploadParamsSchema = v2ProjectFilesParamsSchema.extend({
   uploadId: nonEmptyIdSchema.describe('Upload session identifier within the Project.'),
 })
-export type V2ProjectFileUploadParams = z.input<typeof v2ProjectFileUploadParamsSchema>
 
-export const v2CreateProjectFileUploadBodySchema = createProjectFileUploadBodySchema.extend({
+const v2CreateProjectFileUploadBodySchema = createProjectFileUploadBodySchema.extend({
   folderId: createProjectFileUploadBodySchema.shape.folderId.describe(
     'Destination folder identifier; omit or use null for the Project root.'
   ),
@@ -27,9 +26,8 @@ export const v2CreateProjectFileUploadBodySchema = createProjectFileUploadBodySc
     'Canonical destination folder path. Specify either folderId or folderPath, not both.'
   ),
 })
-export type V2CreateProjectFileUploadBody = z.input<typeof v2CreateProjectFileUploadBodySchema>
 
-export const v2ProjectFileUploadSchema = v2FileUploadSchema
+const v2ProjectFileUploadSchema = v2FileUploadSchema
   .extend({
     file: v2ProjectFileSchema
       .nullable()
@@ -40,12 +38,11 @@ export const v2ProjectFileUploadSchema = v2FileUploadSchema
   .meta({ id: 'V2ProjectFileUpload', title: 'Project file upload session' })
 export type V2ProjectFileUpload = z.output<typeof v2ProjectFileUploadSchema>
 
-export const v2CreateProjectFileUploadDataSchema = v2CreateFileUploadDataSchema
+const v2CreateProjectFileUploadDataSchema = v2CreateFileUploadDataSchema
   .extend({
     session: v2ProjectFileUploadSchema.describe('New Project upload session.'),
   })
   .meta({ id: 'V2CreateProjectFileUploadData', title: 'Create Project file upload data' })
-export type V2CreateProjectFileUploadData = z.output<typeof v2CreateProjectFileUploadDataSchema>
 
 export const v2CreateProjectFileUploadContract = defineRouteContract({
   method: 'POST',

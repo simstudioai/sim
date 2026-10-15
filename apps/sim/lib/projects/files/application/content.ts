@@ -6,6 +6,7 @@ import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
 import type { DbTransaction } from '@/lib/db/types'
+import { ProjectFileRevisionConflictError } from '@/lib/projects/errors'
 import type {
   ProjectFileAuthorizationContext,
   ProjectFileTarget,
@@ -220,7 +221,7 @@ export const updateProjectFileContent = defineAuthorizedProjectFileUseCase({
       })
     } catch (error) {
       if (error instanceof ContentVersionConflictError)
-        throw new OrchestrationError('conflict', error.message)
+        throw new ProjectFileRevisionConflictError(error.message)
       throw error
     }
     const liveDocEventId =
@@ -270,10 +271,13 @@ const readDeliveryProvenance = new WeakMap<object, WorkspaceFileSecretProvenance
 
 export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.readContent,
-  async prepare({
+  async prepareFromSnapshot({
     principal,
     input,
-  }: Omit<ContentUseCaseArgs<ReadProjectFileContentInput>, 'tx'>): Promise<PreparedFileRead> {
+  }: Omit<
+    ContentUseCaseArgs<ReadProjectFileContentInput>,
+    'tx' | 'context'
+  >): Promise<PreparedFileRead> {
     const snapshot = await captureContentDownload.execute({ principal, input })
     const file = snapshot.file
     await requireAdmittedContent(principal, {
@@ -282,12 +286,14 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
       provenance: snapshot.secretProvenance,
       view: 'opaque',
     })
-    const content = await downloadFile({
-      key: file.key,
-      context: 'project',
-      maxBytes: input.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
-      signal: input.signal,
-    })
+    const content = await runWithOutboundOrganization(snapshot.organizationId, () =>
+      downloadFile({
+        key: file.key,
+        context: 'project',
+        maxBytes: input.maxBytes ?? MAX_BUFFERED_TRANSFER_BYTES,
+        signal: input.signal,
+      })
+    )
     return { key: file.key, revision: file.contentUpdatedAt, content }
   },
   async execute({
@@ -303,7 +309,7 @@ export const readProjectFileContent = defineAuthorizedProjectFileUseCase({
       file.key !== prepared.key ||
       file.contentUpdatedAt.getTime() !== prepared.revision.getTime()
     )
-      throw new OrchestrationError('conflict', 'File changed while its content was being read')
+      throw new ProjectFileRevisionConflictError('File changed while its content was being read')
     const provenance =
       input.includeSecretProvenance ||
       hasWorkspaceFileDeliveryObserver() ||

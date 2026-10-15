@@ -55,7 +55,7 @@ export async function mapProjectFileResult(
   }
 }
 
-/** Locks the canonical Project payer before content, directory, and history mutation locks. */
+/** Locks the Project and its row before content, directory, and history locks; see `chargesStorage`. */
 export async function prepareProjectFileAccounting(
   tx: DbTransaction,
   context: ProjectFileAuthorizationContext

@@ -37,6 +37,11 @@ export function defineAuthorizedProjectFileUseCase<
   operation: O
   isolationLevel?: 'repeatable read'
   prepare?(args: ProjectFileUseCaseContext<I>): Promise<P>
+  /**
+   * A `prepare` that authorizes through its own snapshot use case and so needs no preflight
+   * transaction; it runs its outbound I/O in the snapshot's organization itself.
+   */
+  prepareFromSnapshot?(args: Omit<ProjectFileUseCaseContext<I>, 'context'>): Promise<P>
   execute(args: ProjectFileUseCaseContext<I> & { tx: DbTransaction; prepared?: P }): Promise<R>
   onCommitFailure?(
     args: ProjectFileUseCaseContext<I> & { prepared: P; error: unknown }
@@ -49,6 +54,8 @@ export function defineAuthorizedProjectFileUseCase<
     | boolean
     | ((args: ProjectFileUseCaseContext<I> & { result: NoInfer<R> }) => boolean)
 }): AuthorizingUseCase<O, I, R> {
+  if (definition.prepareFromSnapshot && (definition.prepare || definition.onCommitFailure))
+    throw new Error('A snapshot-prepared use case cannot also define prepare or onCommitFailure')
   return {
     operation: definition.operation,
     delegationAudience: definition.operation.delegationAudience,
@@ -75,6 +82,8 @@ export function defineAuthorizedProjectFileUseCase<
         prepared = await runWithOutboundOrganization(context.organizationId, () =>
           prepare({ ...args, context })
         )
+      } else if (definition.prepareFromSnapshot) {
+        prepared = await definition.prepareFromSnapshot(args)
       }
       let committed: { context: ProjectFileAuthorizationContext; result: R }
       let callbackCompleted = false

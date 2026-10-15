@@ -7,3 +7,11 @@ export class ProjectConflictError extends OrchestrationError {
     this.name = 'ProjectConflictError'
   }
 }
+
+/** The file's content revision moved during an optimistic read-then-write; a fresh read may succeed. */
+export class ProjectFileRevisionConflictError extends OrchestrationError {
+  constructor(message: string) {
+    super('conflict', message)
+    this.name = 'ProjectFileRevisionConflictError'
+  }
+}

@@ -14,19 +14,15 @@ import {
 } from '@/lib/api/contracts/v2/project-files'
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
-export const v2ProjectFileVersionParamsSchema = v2ProjectFileParamsSchema.extend({
+const v2ProjectFileVersionParamsSchema = v2ProjectFileParamsSchema.extend({
   version: versionNumberPathSchema.describe('Version number.'),
 })
-export type V2ProjectFileVersionParams = z.input<typeof v2ProjectFileVersionParamsSchema>
-export const v2RevertProjectFileVersionResultSchema = z.object({
+const v2RevertProjectFileVersionResultSchema = z.object({
   reverted: z.boolean().describe('False if the selected version is already current.'),
   file: v2ProjectFileSchema,
   version: projectFileVersionSchema.describe('The current version after the revert.'),
   revision: writtenFileRevisionSchema,
 })
-export type V2RevertProjectFileVersionResult = z.output<
-  typeof v2RevertProjectFileVersionResultSchema
->
 
 export const v2ListProjectFileVersionsContract = defineRouteContract({
   method: 'GET',

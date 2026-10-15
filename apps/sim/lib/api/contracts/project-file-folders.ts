@@ -15,7 +15,6 @@ import {
 export const projectFileFolderParamsSchema = projectFilesParamsSchema.extend({
   folderId: nonEmptyIdSchema,
 })
-export type ProjectFileFolderParams = z.input<typeof projectFileFolderParamsSchema>
 
 export const projectFileFolderRecordSchema = workspaceFileFolderSchema
   .omit({ workspaceId: true })
@@ -28,11 +27,10 @@ export type ProjectFileFolderRecord = z.output<typeof projectFileFolderRecordSch
 export const listProjectFileFoldersQuerySchema = listWorkspaceFileFoldersQuerySchema
 export type ListProjectFileFoldersQuery = z.output<typeof listProjectFileFoldersQuerySchema>
 
-export const listProjectFileFoldersResponseSchema = z.object({
+const listProjectFileFoldersResponseSchema = z.object({
   folders: z.array(projectFileFolderRecordSchema),
   capabilities: projectFileCapabilitiesSchema,
 })
-export type ListProjectFileFoldersResponse = z.output<typeof listProjectFileFoldersResponseSchema>
 
 export const listProjectFileFoldersContract = defineRouteContract({
   method: 'GET',
@@ -48,8 +46,7 @@ export type CreateProjectFileFolderBody = z.input<typeof createProjectFileFolder
 export const updateProjectFileFolderBodySchema = updateWorkspaceFileFolderBodySchema
 export type UpdateProjectFileFolderBody = z.input<typeof updateProjectFileFolderBodySchema>
 
-export const projectFileFolderResponseSchema = z.object({ folder: projectFileFolderRecordSchema })
-export type ProjectFileFolderResponse = z.output<typeof projectFileFolderResponseSchema>
+const projectFileFolderResponseSchema = z.object({ folder: projectFileFolderRecordSchema })
 
 export const createProjectFileFolderContract = defineRouteContract({
   method: 'POST',

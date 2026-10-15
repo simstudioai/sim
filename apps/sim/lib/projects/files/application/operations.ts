@@ -14,6 +14,12 @@ interface ProjectFilePolicy extends ApplicationOperation {
   readonly access: 'read' | 'write'
   readonly target: 'project' | 'file' | 'collection_observation'
   readonly fileScope?: 'active' | 'all'
+  /**
+   * Charges the Project storage payer, whose accounting holds the Project exclusively, so
+   * authorization takes it exclusively up front instead of upgrading a shared hold. Every other
+   * operation holds the Project shared.
+   */
+  readonly chargesStorage?: true
   readonly principalKinds: readonly ProjectFilePrincipal['kind'][]
   readonly delegatedServices: readonly ResourceDelegatedPrincipal['serviceId'][]
   readonly delegationAudience: 'sim:project-files' | 'sim:file-list-observation'
@@ -83,6 +89,7 @@ export const projectFileOperations = {
     access: 'write',
     target: 'file',
     oauthScope: 'api:write',
+    chargesStorage: true,
   }),
   downloadItems: defineProjectFileOperation({
     ...POLICY,
@@ -155,6 +162,7 @@ export const projectFileOperations = {
     access: 'write',
     target: 'file',
     oauthScope: 'api:write',
+    chargesStorage: true,
   }),
   deleteVersion: defineProjectFileOperation({
     ...HISTORY_POLICY,
@@ -203,6 +211,7 @@ export const projectFileOperations = {
     access: 'write',
     target: 'project',
     oauthScope: 'api:write',
+    chargesStorage: true,
   }),
   uploadCancel: defineProjectFileOperation({
     ...POLICY,
@@ -284,6 +293,7 @@ export const projectFileOperations = {
     access: 'write',
     target: 'project',
     oauthScope: 'api:write',
+    chargesStorage: true,
   }),
   updateContent: defineProjectFileOperation({
     ...POLICY,
@@ -292,6 +302,7 @@ export const projectFileOperations = {
     access: 'write',
     target: 'file',
     oauthScope: 'api:write',
+    chargesStorage: true,
     delegatedServices: ['copilot', 'realtime'],
   }),
   rename: defineProjectFileOperation({
