@@ -179,7 +179,7 @@ describe('useReloadWorkspaceFileContent', () => {
     async (cached) => {
       const owner = { entityType: 'project', entityId: 'project-1' } as const
       const oldRecord = {
-        file: { ...file, owner, key: 'project/project-1/old.md' },
+        file: { ...file, folderId: null, owner, key: 'project/project-1/old.md' },
         capabilities: { canRead: true, canWrite: true },
       }
       const currentRecord = {

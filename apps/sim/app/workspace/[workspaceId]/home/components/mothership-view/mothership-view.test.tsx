@@ -5,6 +5,7 @@ import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
+import type { ProjectFileRecord } from '@/lib/api/contracts/project-files'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { MothershipResourcesProvider } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { MothershipView } from '@/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view'
@@ -64,8 +65,21 @@ it.each([false, true])(
       owner: { entityType: 'project' as const, entityId: 'project' },
     }
     const options = getProjectFileQueryOptions('project', 'file')
+    const file: ProjectFileRecord = {
+      id: 'file',
+      owner: resource.owner,
+      name: 'notes.txt',
+      key: 'project/project/notes.txt',
+      path: '/notes.txt',
+      size: 5,
+      type: 'text/plain',
+      uploadedBy: 'user',
+      folderId: null,
+      uploadedAt: new Date('2026-10-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-10-01T00:00:00.000Z'),
+    }
     client.setQueryData(options.queryKey, {
-      file: { id: 'file', name: 'notes.txt', type: 'text/plain' },
+      file,
       capabilities: { canRead: true, canWrite: false },
     })
     const container = document.createElement('div')

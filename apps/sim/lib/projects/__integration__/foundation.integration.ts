@@ -1253,11 +1253,10 @@ describe('Project foundation at the database and application boundary', () => {
       })
       const blocker = await held.promise
       const deletion = db.transaction(async (tx) => {
-        const { projectIdsToDelete } = await prepareProjectsForAccountDeletion(tx, f.ownerId, [
-          f.ids[1],
-        ])
+        const projectIds = await prepareProjectsForAccountDeletion(tx, f.ownerId, [f.ids[1]])
+        expect(projectIds).toHaveLength(1)
         await tx.delete(workspace).where(eq(workspace.id, f.ids[1]))
-        await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
+        await tx.delete(project).where(inArray(project.id, projectIds))
       })
       try {
         await waitUntilBlockedBy(blocker, "lock='project'")
@@ -1384,13 +1383,14 @@ describe('Project foundation at the database and application boundary', () => {
           .where(eq(workspace.projectId, privateProject.projectId))
       ).toEqual([{ workspaceId: privateProject.ids[0] }])
       await db.transaction(async (tx) => {
-        const { projectIdsToDelete } = await prepareProjectsForAccountDeletion(
+        const projectIds = await prepareProjectsForAccountDeletion(
           tx,
           privateProject.ownerId,
           privateProject.ids
         )
+        expect(projectIds).toEqual([privateProject.projectId])
         await tx.delete(workspace).where(inArray(workspace.id, privateProject.ids))
-        await tx.delete(project).where(inArray(project.id, projectIdsToDelete))
+        await tx.delete(project).where(inArray(project.id, projectIds))
       })
       expect(
         await db.select().from(project).where(eq(project.id, privateProject.projectId))

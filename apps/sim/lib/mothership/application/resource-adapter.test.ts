@@ -141,7 +141,7 @@ describe('Copilot resource authoring admission', () => {
   it('refuses a registered operation that does not admit Copilot resource delegation', () => {
     const refusedOperation = Object.freeze({
       ...operation,
-      delegatedServices: Object.freeze(['realtime']),
+      delegatedServices: Object.freeze(['realtime'] as const),
     } as const)
     const execute = createCopilotApplicationAdapter({
       mode: 'resource',

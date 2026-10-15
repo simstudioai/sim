@@ -9,6 +9,8 @@
  *   import whose every binding the barrel then exports (`export { X }`, or renamed with
  *   `export const Y = X`). A path that leaves the folder (`../x`,
  *   `./../x`), a side-effect import, and an import the barrel keeps for itself are all flagged.
+ *   Wire contracts under `lib/mothership/generated/` are exempt: the worker's `contracts:sync`
+ *   copies them verbatim and byte-checks the copies, so their sibling imports must stay relative.
  * - `text-size-literal` (`.claude/rules/sim-styling.md` "Tailwind" 3): an `apps/sim` string or
  *   template literal sets type size with `text-[Npx]` where the documented text scale has a token
  *   for that size (`text-[13px]` → `text-small`). The literal also drops the token's line-height.
@@ -248,8 +250,12 @@ function importTypeSpecifier(node: Node): string | undefined {
   return stringValue(argument.type === 'TSLiteralType' ? argument.literal : argument)
 }
 
+/** Verbatim copies of the mothership worker's contracts; see the `relative-import` note above. */
+const SYNCED_CONTRACTS_DIR = 'apps/sim/lib/mothership/generated/'
+
 function findRelativeImports(file: string, program: Node): Violation[] {
   const violations: Violation[] = []
+  if (file.startsWith(SYNCED_CONTRACTS_DIR)) return violations
   const reExported = isBarrel(file) ? exportedLocals(program) : undefined
   walk(program, (node) => {
     const declared = declarationSpecifier(node)

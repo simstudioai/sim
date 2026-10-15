@@ -832,7 +832,7 @@ it('inserts an uploaded inline image using its Project content address', async (
   fileSource.owner = { entityType: 'project', entityId: 'project-a' }
   uploadProjectFile.mockResolvedValue({ file: { id: 'image-a' } })
   await render('Project document')
-  await act(async () => getEditor().storage.slashCommand.insertImage(1))
+  await act(async () => getEditor().storage.slashCommand.insertImage?.(1))
   const input = container.querySelector<HTMLInputElement>('input[type="file"]')
   if (!input) throw new Error('Editor image picker is unavailable')
   Object.defineProperty(input, 'files', {
