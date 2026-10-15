@@ -4,7 +4,11 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { lockProject, lockWorkspaceProject } from '@/lib/projects/membership'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
-import { type E2BDocFormat, resolveServableDoc } from '@/lib/uploads/documents/compile'
+import {
+  type E2BDocFormat,
+  fileDocumentCacheIdentity,
+  resolveServableDoc,
+} from '@/lib/uploads/documents/compile'
 import { loadCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -78,12 +82,17 @@ const adapters: FileOwnerAdapters<PublicFileOwnerAdapter> = {
     },
     storageContext: 'project',
     pageOptions: (projectId) => ({ projectId }),
-    async readCompiled({ owner, source, format, dependencies }) {
+    async readCompiled({ owner, source, sourceMime, format, dependencies }) {
       const buffer = await loadCompiledDoc(
         owner,
         source.toString('utf8'),
         format.ext,
-        fileDocumentInputIdentity(owner, dependencies),
+        fileDocumentCacheIdentity(
+          source.toString('utf8'),
+          format,
+          sourceMime,
+          fileDocumentInputIdentity(owner, dependencies)
+        ),
         { maxBytes: MAX_BUFFERED_TRANSFER_BYTES }
       )
       if (!buffer)

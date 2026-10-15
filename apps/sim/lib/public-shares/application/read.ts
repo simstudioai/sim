@@ -21,7 +21,7 @@ import {
 import {
   getBoundWorkspaceFileSecretProvenanceByMetadata,
   mergeWorkspaceFileSecretProvenance,
-} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { downloadFile, headObject } from '@/lib/uploads/core/storage-service'
 import {
   collectReferencedFileIds,
@@ -32,7 +32,7 @@ import {
 import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'

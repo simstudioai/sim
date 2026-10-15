@@ -10,7 +10,8 @@ import sharp from 'sharp'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getStorageProvider } from '@/lib/uploads/config'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
-import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
+import { fileDocumentCacheIdentity, getE2BDocFormat } from '@/lib/uploads/documents/compile'
+import { compiledArtifactKey, storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 
 /** Real public wire/cookie proof; SQL and Redis only seed disposable sharing and OTP fixtures. */
 const base = new URL(required(process.env.PROJECT_FILE_PUBLIC_BASE_URL))
@@ -305,17 +306,25 @@ try {
           json(unavailable, 409).error,
           'This document is still being prepared. Please try again shortly.'
         )
-        let key: string | undefined
+        const format = await getE2BDocFormat('output.pptx')
+        assert.ok(format)
+        const cacheIdentity =
+          owner === 'project'
+            ? fileDocumentCacheIdentity(source, format, 'text/x-pptxgenjs')
+            : undefined
+        const key = compiledArtifactKey(
+          { entityType: owner, entityId: owner === 'workspace' ? workspaceId : projectId },
+          source,
+          'pptx',
+          cacheIdentity
+        )
         await storeCompiledDoc(
           { entityType: owner, entityId: owner === 'workspace' ? workspaceId : projectId },
           source,
           'pptx',
           'application/vnd.openxmlformats-officedocument.presentationml.presentation',
           Buffer.from('PK\u0003\u0004output-fixture'),
-          undefined,
-          (writtenKey) => {
-            key = writtenKey
-          }
+          cacheIdentity
         )
         const path = resolve(UPLOAD_DIR_SERVER, required(key))
         assert.ok(path.startsWith(`${resolve(UPLOAD_DIR_SERVER)}${sep}`))

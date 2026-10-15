@@ -670,9 +670,7 @@ describe('Public file shares against PostgreSQL and private storage', () => {
       const { updateProjectFileShare } = await import('@/lib/projects/files/application/shares')
       const { authorizePublicFileShare, readPublicFileShare, readPublicFileShareContent } =
         await import('@/lib/public-shares/application')
-      const { uploadWorkspaceFile } = await import(
-        '@/lib/uploads/contexts/workspace/workspace-file-manager'
-      )
+      const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace/file-manager')
       const { upsertFileShare } = await import('@/lib/public-shares/manager')
       const f = await fixture()
       const { file } = await createProjectFile.execute({
