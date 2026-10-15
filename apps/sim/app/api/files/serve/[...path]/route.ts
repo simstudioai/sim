@@ -499,7 +499,6 @@ async function handleWorkspaceFile(
     )
     await finishFileDelivery({
       principal,
-      fileId: file.id,
       authorize: () => readWorkspaceFileRecordByKey.authorize({ principal, input, request }),
       receipt: rendered.receipt,
     })

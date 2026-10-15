@@ -107,7 +107,6 @@ async function executeDownloadWorkspaceFileStream({
   const result = await streamWorkspaceFileRecord(file, principal)
   const provenance = await finishFileDelivery({
     principal,
-    fileId: file.id,
     authorize: () => downloadWorkspaceFileStream.authorize({ principal, input }),
     receipt:
       result.receipt ??

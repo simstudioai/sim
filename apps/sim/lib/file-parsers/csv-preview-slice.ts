@@ -125,7 +125,7 @@ export async function getCsvPreviewSlice({
     let headersSet = false
     let truncated = false
     let stopParsing = () => {}
-    parser = parseCsvStream({
+    const csvParser = parseCsvStream({
       columns: false,
       skip_empty_lines: true,
       trim: true,
@@ -157,9 +157,10 @@ export async function getCsvPreviewSlice({
         return null
       },
     })
+    parser = csvParser
     const parsed = new Promise<void>((resolve, reject) => {
       stopParsing = resolve
-      parser.on('error', reject).on('end', resolve).resume()
+      csvParser.on('error', reject).on('end', resolve).resume()
     })
 
     // Re-feed the sniffed prefix, then drain the rest of the source into the parser.
@@ -172,8 +173,8 @@ export async function getCsvPreviewSlice({
       }
     }
     piped = Readable.from(rejoin())
-    piped.on('error', (err) => parser?.destroy(err))
-    piped.pipe(parser)
+    piped.on('error', (err) => csvParser.destroy(err))
+    piped.pipe(csvParser)
 
     await parsed
     return { headers, rows, truncated }
