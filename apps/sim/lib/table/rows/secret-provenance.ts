@@ -988,8 +988,9 @@ function envelopeFromClassifications(
   rowCount: number,
   scope: ResolvedSecretTraceScopeV1
 ): ResolvedSecretTraceProvenanceV1 {
+  /** Legacy or stale rows read as unknown by policy; a writer that failed to record is logged where it wrote. */
   const incomplete = (cause: string): ResolvedSecretTraceProvenanceV1 => {
-    logger.error('Table row read could not establish secret provenance', {
+    logger.warn('Table row read could not establish secret provenance', {
       surface: 'table-row',
       cause,
       rowCount,

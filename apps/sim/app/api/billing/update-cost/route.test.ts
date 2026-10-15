@@ -9,6 +9,7 @@ import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-
 import {
   billingUsageLogMock,
   billingUsageLogMockFns,
+  MockCumulativeUsageInFlightError,
 } from '@sim/testing/mocks/billing-usage-log.mock'
 import {
   billingUsageMonitorMock,
@@ -18,6 +19,7 @@ import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-
 import { mothershipOtelMock } from '@sim/testing/mocks/mothership-otel.mock'
 import { sleep } from '@sim/utils/helpers'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BillingInFlightCode } from '@/lib/mothership/generated/billing'
 
 const {
   mockCheckAndBillOverageThreshold,
@@ -746,6 +748,41 @@ describe('POST /api/billing/update-cost — workspaceId attribution', () => {
       error: 'Billing settlement temporarily unavailable',
       retryable: true,
     })
+  })
+
+  it('answers a retryable in-flight 503 while another attempt of the request is recorded', async () => {
+    const billingRequestId = '0190c03f-9f7d-4b79-8b58-e7f779fd29e1'
+    mockRecordCumulativeUsage.mockRejectedValueOnce(
+      new MockCumulativeUsageInFlightError(`update-cost:${billingRequestId}`)
+    )
+
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          userId: 'user-1',
+          cost: 0.5,
+          model: 'claude-opus-4.8',
+          source: 'workspace-chat',
+          idempotencyKey: billingRequestId,
+        },
+        {
+          'x-api-key': 'internal',
+          'x-sim-billing-protocol': 'direct-v1',
+          'x-sim-billing-request-id': billingRequestId,
+          'x-sim-billing-account-decision': 'serialized-account-decision',
+        }
+      )
+    )
+
+    expect(res.status).toBe(503)
+    expect(res.headers.get('retry-after')).toBe('5')
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      code: BillingInFlightCode,
+      retryable: true,
+    })
+    expect(mockCheckAndBillPayerOverageThreshold).not.toHaveBeenCalled()
   })
 
   it('retries modern settlement on a duplicate cumulative callback before returning 409', async () => {

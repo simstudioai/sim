@@ -7,7 +7,7 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import { reportDurableSecretProvenanceUnrecordedBatch } from '@/lib/execution/durable-secret-provenance-telemetry'
 import { recordExistingSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
-import { reportContentRefusal } from '@/lib/mothership/content-delivery/telemetry'
+import { createContentRefusals } from '@/lib/mothership/content-delivery/telemetry'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 /** The workbench's history could not be widened, so nothing may enter the machine. */
@@ -55,11 +55,12 @@ export function createSessionContentGate(scope: {
     async admit(sources) {
       const verdicts: boolean[] = []
       const admitted: DurableSecretProvenance[] = []
+      const refusals = createContentRefusals(scope.workspaceId)
       let unrecorded = 0
       for (const source of sources) {
         const { provenance } = source
         if (provenance.status === 'unknown') {
-          verdicts.push(reportContentRefusal(source, 'unknown', scope.workspaceId))
+          verdicts.push(refusals.refuse(source, 'unknown'))
           continue
         }
         if (
@@ -67,7 +68,7 @@ export function createSessionContentGate(scope: {
           provenance.entries.length > 0 &&
           source.view === 'excerpt'
         ) {
-          verdicts.push(reportContentRefusal(source, 'opaque', scope.workspaceId))
+          verdicts.push(refusals.refuse(source, 'opaque'))
           continue
         }
         if (provenance.status === 'unrecorded') {
@@ -78,6 +79,7 @@ export function createSessionContentGate(scope: {
         }
         verdicts.push(true)
       }
+      refusals.report()
       if (admitted.length > 0) {
         try {
           await recordExistingSessionFileInput(

@@ -30,6 +30,7 @@ import {
 import {
   type CumulativeUsageContextField,
   CumulativeUsageContextMismatchError,
+  CumulativeUsageInFlightError,
   CumulativeUsagePeriodClosedError,
   recordCumulativeUsage,
 } from '@/lib/billing/core/usage-log'
@@ -43,6 +44,7 @@ import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { BillingInFlightCode } from '@/lib/mothership/generated/billing'
 import { BILLING_CALLBACK_OUTCOME } from '@/lib/mothership/generated/billing-protocol-v1'
 import { BillingRouteOutcome } from '@/lib/mothership/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
@@ -53,7 +55,7 @@ import { withIncomingGoSpan } from '@/lib/mothership/request/otel'
 const logger = createLogger('BillingUpdateCostAPI')
 /**
  * How long a cost callback waits on the payer's standing. The worker gives up on the whole
- * callback after 5 s, and a cold gate read can wait on the ledger far longer; past this the
+ * callback after 15 s, and a cold gate read can wait on the ledger far longer; past this the
  * callback answers not-exceeded. The abandoned read keeps running and caches its admission, and
  * the next step or re-check reads a refusal again.
  */
@@ -507,6 +509,30 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
           requestId,
         },
         { status: 409 }
+      )
+    }
+
+    /**
+     * Another attempt of this request is still being recorded, so this one's outcome is unknown:
+     * the caller resends later, and the monotonic top-up applies the higher cumulative once.
+     */
+    if (error instanceof CumulativeUsageInFlightError) {
+      logger.info(`[${requestId}] Cost update already in flight for this request`, {
+        eventKey: error.eventKey,
+        duration,
+      })
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
+      span.setAttribute(TraceAttr.HttpStatusCode, 503)
+      span.setAttribute(TraceAttr.BillingDurationMs, duration)
+      return NextResponse.json(
+        {
+          success: false,
+          code: BillingInFlightCode,
+          error: 'Billing request already in flight',
+          retryable: true,
+          requestId,
+        },
+        { status: 503, headers: { 'Retry-After': '5' } }
       )
     }
 

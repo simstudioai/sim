@@ -74,6 +74,7 @@ export {
   type ContentSource,
   type ContentSourceKind,
   type ContentView,
+  countWithheldContent,
   isCopilotPrincipal,
   mustClassifyContent,
   noteContentDeliveryOperation,

@@ -70,15 +70,48 @@ export function reportDurableSecretProvenanceWrite(
   })
 }
 
-/** Reports a durable read refusal without exposing content or secret values. */
+/**
+ * Reports a durable read refusal without exposing content or secret values. A refusal is policy
+ * applied to content that lacks provenance, not a fault, so it is a warning.
+ */
 export function reportDurableSecretProvenanceRefusal(
   report: DurableSecretProvenanceRefusalReport
 ): void {
-  persistenceLogger.error('Refusing unavailable durable secret provenance', {
+  persistenceLogger.warn('Refusing unavailable durable secret provenance', {
     surface: report.surface,
     cause: report.cause,
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
     ...(report.resourceId ? { resourceId: report.resourceId } : {}),
+  })
+}
+
+/** Resource ids a batched refusal names, enough to find the items without listing a whole page. */
+const REFUSAL_SAMPLE_SIZE = 5
+
+/** Reports every refusal of one read as a single line: counts per surface and cause, and a sample. */
+export function reportDurableSecretProvenanceRefusals(
+  reports: readonly DurableSecretProvenanceRefusalReport[]
+): void {
+  const [first] = reports
+  if (!first) return
+  if (reports.length === 1) {
+    reportDurableSecretProvenanceRefusal(first)
+    return
+  }
+  const causes: Record<string, number> = {}
+  for (const report of reports) {
+    const key = `${report.surface}:${report.cause}`
+    causes[key] = (causes[key] ?? 0) + 1
+  }
+  const workspaceIds = new Set(reports.map((report) => report.workspaceId))
+  const sampleResourceIds = reports
+    .flatMap((report) => (report.resourceId ? [report.resourceId] : []))
+    .slice(0, REFUSAL_SAMPLE_SIZE)
+  persistenceLogger.warn('Refusing unavailable durable secret provenance', {
+    refusedCount: reports.length,
+    causes,
+    ...(workspaceIds.size === 1 && first.workspaceId ? { workspaceId: first.workspaceId } : {}),
+    ...(sampleResourceIds.length > 0 ? { sampleResourceIds } : {}),
   })
 }
 

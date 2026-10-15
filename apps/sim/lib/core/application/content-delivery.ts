@@ -73,6 +73,8 @@ interface ContentLedger {
   accounted: boolean
   /** Bounded aggregate of admitted provenance, for a surface that persists the delivered bytes. */
   admitted: ContentProvenance[]
+  /** Only on a {@link countWithheldContent} ledger: the items refused inside it, by kind. */
+  withheld?: Map<ContentSourceKind, number>
   /** A committed write's returned item was refused; the operation answers with a refusal. */
   withheldAfterWrite?: ContentSourceKind
   /** The gate itself failed while this ledger was open, whatever the route then answered. */
@@ -303,6 +305,13 @@ export async function admitContent(
   }
   markAccounted()
   if (ledger) {
+    for (let current: ContentLedger | undefined = ledger; current; current = current.parent) {
+      const { withheld } = current
+      if (!withheld) continue
+      sources.forEach(({ kind }, index) => {
+        if (!verdicts[index]) withheld.set(kind, (withheld.get(kind) ?? 0) + 1)
+      })
+    }
     const batch = mergeContentProvenance(
       (function* () {
         for (let index = 0; index < sources.length; index++) {
@@ -457,6 +466,26 @@ export async function trackContentDelivery<T>(
     admitted: ledger.admitted,
     ...(ledger.gateFailure === undefined ? {} : { gateFailure: ledger.gateFailure }),
   }
+}
+
+/**
+ * Runs `execute` and counts, by kind, the items a gate refused inside it, across every request and
+ * use case it ran. A refused item is left out of the result it was read in, so a surface reporting
+ * to Chat uses this to say what is missing rather than let it read as absent.
+ */
+export async function countWithheldContent<T>(
+  execute: () => Promise<T>
+): Promise<{ result: T; withheld: ReadonlyMap<ContentSourceKind, number> }> {
+  const withheld = new Map<ContentSourceKind, number>()
+  const ledger: ContentLedger = {
+    parent: ledgers.getStore(),
+    sourcedOperationAdmitted: false,
+    accounted: false,
+    admitted: [],
+    withheld,
+  }
+  const result = await ledgers.run(ledger, execute)
+  return { result, withheld }
 }
 
 /** Route admission records that Chat was admitted to an operation, in the request's ledger. */

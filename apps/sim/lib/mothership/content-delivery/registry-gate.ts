@@ -6,8 +6,8 @@ import {
 } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
   CONTENT_SURFACE,
-  type ContentRefusalReason,
-  reportContentRefusal,
+  type ContentRefusals,
+  createContentRefusals,
 } from '@/lib/mothership/content-delivery/telemetry'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -33,12 +33,10 @@ export interface RegistryContentGateScope {
  * any entry, so a refused item cannot latch the registry for every other item.
  */
 export function createRegistryContentGate(scope: RegistryContentGateScope): ContentDeliveryGate {
-  const refuse = (source: ContentSource, reason: ContentRefusalReason): false =>
-    reportContentRefusal(source, reason, scope.workspaceId)
-
   const decide = async (
     source: ContentSource,
-    unrecorded: DurableSecretProvenanceUnrecordedReport[]
+    unrecorded: DurableSecretProvenanceUnrecordedReport[],
+    { refuse }: ContentRefusals
   ): Promise<boolean> => {
     const { provenance } = source
     if (provenance.status === 'unknown') {
@@ -89,8 +87,13 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
     },
     async admit(sources) {
       const unrecorded: DurableSecretProvenanceUnrecordedReport[] = []
+      const refusals = createContentRefusals(scope.workspaceId)
       const verdicts: boolean[] = []
-      for (const source of sources) verdicts.push(await decide(source, unrecorded))
+      try {
+        for (const source of sources) verdicts.push(await decide(source, unrecorded, refusals))
+      } finally {
+        refusals.report()
+      }
       reportDurableSecretProvenanceUnrecordedBatch(unrecorded)
       return verdicts
     },

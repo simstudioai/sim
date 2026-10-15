@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 const telemetry = vi.hoisted(() => ({
   reportDurableSecretProvenanceRefusal: vi.fn(),
+  reportDurableSecretProvenanceRefusals: vi.fn(),
   reportDurableSecretProvenanceUnrecordedBatch: vi.fn(),
 }))
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => telemetry)
@@ -122,12 +123,26 @@ describe('createRegistryContentGate', () => {
     const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
     expect(await gate.admit([item('archive', exact(SECRET), 'opaque')])).toEqual([false])
     expect(registry.isPermanentlyIncomplete()).toBe(false)
-    expect(telemetry.reportDurableSecretProvenanceRefusal).toHaveBeenCalledWith(
+    expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledWith([
       expect.objectContaining({
         resourceId: 'archive',
         cause: 'workspace-file-opaque-secret-content',
-      })
+      }),
+    ])
+  })
+
+  it('reports every item one admission refuses as one batch, not one line per item', async () => {
+    telemetry.reportDurableSecretProvenanceRefusals.mockClear()
+    const gate = createRegistryContentGate({ registry: newRegistry(), actorUserId: 'user-1' })
+    const refused = Array.from({ length: 50 }, (_, index) =>
+      item(`legacy-${index}`, { status: 'unknown' })
     )
+    const verdicts = await gate.admit([...refused, item('clean', exact())])
+    expect(verdicts).toEqual([...refused.map(() => false), true])
+    expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledTimes(1)
+    const [reports] = telemetry.reportDurableSecretProvenanceRefusals.mock.calls[0]
+    expect(reports).toHaveLength(50)
+    expect(telemetry.reportDurableSecretProvenanceRefusal).not.toHaveBeenCalled()
   })
 
   it('refuses an item holding secrets when there is no registry to redact with', async () => {

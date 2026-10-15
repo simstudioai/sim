@@ -2,6 +2,7 @@ import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it } from 'vitest'
 import {
   reportDurableSecretProvenanceRefusal,
+  reportDurableSecretProvenanceRefusals,
   reportDurableSecretProvenanceWrite,
 } from '@/lib/execution/durable-secret-provenance-telemetry'
 
@@ -42,7 +43,7 @@ describe('durable secret provenance telemetry', () => {
       entries: [{ encryptedValue: 'private ciphertext' }],
     }
     reportDurableSecretProvenanceRefusal(report)
-    expect(logger.error).toHaveBeenCalledExactlyOnceWith(
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
       'Refusing unavailable durable secret provenance',
       {
         surface: 'workspace-file',
@@ -51,5 +52,31 @@ describe('durable secret provenance telemetry', () => {
         resourceId: 'file-1',
       }
     )
+  })
+  it('reports a batch of refusals as one line with counts and a bounded sample', () => {
+    logger.warn.mockClear()
+    const reports = Array.from({ length: 8 }, (_, index) => ({
+      surface: 'table-row' as const,
+      cause:
+        index < 6
+          ? ('table-row-provenance-unavailable' as const)
+          : ('table-row-opaque-secret-content' as const),
+      workspaceId: 'workspace-1',
+      resourceId: `row-${index}`,
+    }))
+    reportDurableSecretProvenanceRefusals(reports)
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      'Refusing unavailable durable secret provenance',
+      {
+        refusedCount: 8,
+        causes: {
+          'table-row:table-row-provenance-unavailable': 6,
+          'table-row:table-row-opaque-secret-content': 2,
+        },
+        workspaceId: 'workspace-1',
+        sampleResourceIds: ['row-0', 'row-1', 'row-2', 'row-3', 'row-4'],
+      }
+    )
+    expect(logger.error).not.toHaveBeenCalled()
   })
 })
