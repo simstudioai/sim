@@ -241,6 +241,9 @@ async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: st
       signal: AbortSignal.timeout(FAL_CANCEL_TIMEOUT_MS),
     })
     await response.body?.cancel()
+    // 400 means the request already finished, so there is nothing left to stop.
+    if (!response.ok && response.status !== 400)
+      throw new Error(`Fal.ai cancellation returned ${response.status}`)
   } catch (error) {
     logger.warn('Fal.ai request cancellation failed', {
       requestId,
@@ -278,6 +281,7 @@ export async function downloadFalMedia(
   url: string,
   signal?: AbortSignal
 ): Promise<{ buffer: Buffer; contentType: string }> {
+  signal?.throwIfAborted()
   if (url.startsWith('data:')) {
     const match = /^data:([^;]+);base64,(.+)$/u.exec(url)
     if (!match) throw new Error('Invalid data URI media response')

@@ -3,6 +3,7 @@ import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
@@ -22,7 +23,7 @@ interface FalCall {
  * A fal queue whose request is accepted and then never finishes: every status poll reports
  * IN_PROGRESS, or (`statusHangs`) never answers at all until its signal aborts.
  */
-function stubStuckFalQueue(options: { statusHangs?: boolean } = {}) {
+function stubStuckFalQueue(options: { statusHangs?: boolean; cancelStatus?: number } = {}) {
   const calls: FalCall[] = []
   vi.stubGlobal(
     'fetch',
@@ -38,7 +39,8 @@ function stubStuckFalQueue(options: { statusHangs?: boolean } = {}) {
           status_url: STATUS_URL,
           cancel_url: CANCEL_URL,
         })
-      if (init.method === 'PUT') return jsonResponse({ status: 'CANCELLATION_REQUESTED' }, 202)
+      if (init.method === 'PUT')
+        return jsonResponse({ status: 'CANCELLATION_REQUESTED' }, options.cancelStatus ?? 202)
       if (options.statusHangs)
         return new Promise<Response>((_resolve, reject) => {
           init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
@@ -111,6 +113,23 @@ describe('runFalQueue on a request that never finishes', () => {
     expect(fal.cancels()).toHaveLength(1)
   })
 
+  it('warns when fal refuses to cancel a request', async () => {
+    const fal = stubStuckFalQueue({ cancelStatus: 500 })
+    const caller = new AbortController()
+    const generation = runFalQueue('fal-ai/model', { prompt: 'p' }, 'key', caller.signal).catch(
+      () => undefined
+    )
+    await vi.advanceTimersByTimeAsync(3_500)
+    caller.abort()
+    await generation
+
+    expect(fal.cancels()).toHaveLength(1)
+    expect(getMockLogger('FalMediaClient').warn).toHaveBeenCalledWith(
+      'Fal.ai request cancellation failed',
+      expect.objectContaining({ requestId: 'req-1' })
+    )
+  })
+
   it('submits nothing for a caller that already gave up', async () => {
     const fal = stubStuckFalQueue()
 
@@ -168,6 +187,12 @@ describe('runFalQueue on a request that never finishes', () => {
 })
 
 describe('downloadFalMedia', () => {
+  it('returns nothing for a caller that already gave up, even inline media', async () => {
+    await expect(
+      downloadFalMedia('data:audio/mpeg;base64,AAAA', AbortSignal.abort())
+    ).rejects.toThrow()
+  })
+
   it('ends a download still resolving its host once its caller gives up', async () => {
     inputValidationMockFns.mockValidateUrlWithDNS.mockImplementationOnce(
       (_url: string, _name: string, _profile: string, options?: { signal?: AbortSignal }) =>
