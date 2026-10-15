@@ -6268,6 +6268,58 @@ describe('Hosted Key Injection', () => {
     cleanupEnvVars()
   })
 
+  it('stops before provider dispatch and billing when BYOK resolution fails', async () => {
+    setEnvFlags({ isHosted: true })
+    mockGetBYOKKey.mockRejectedValueOnce(new Error('BYOK credentials unavailable'))
+    mockRateLimiterFns.acquireKey.mockResolvedValue({
+      success: true,
+      key: 'platform-fixture-key',
+      keyIndex: 0,
+      envVarName: 'TEST_HOSTED_KEY',
+    })
+    const request = vi.fn(async () => jsonResponse({ ok: true }))
+    vi.stubGlobal('fetch', request)
+    tools.test_byok_failure = {
+      id: 'test_byok_failure',
+      name: 'BYOK fixture',
+      description: 'Credential failure fixture',
+      version: '1.0.0',
+      params: {},
+      request: { url: 'https://example.com/fixture', method: 'GET', headers: () => ({}) },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: { type: 'per_request', cost: 0.005 },
+        rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+    const metered = vi.fn(async () => {})
+    try {
+      const result = await observeServiceCosts(metered, () =>
+        executeTool(
+          'test_byok_failure',
+          {},
+          {
+            executionContext: createToolExecutionContext({
+              userId: 'user-1',
+              copilotToolExecution: true,
+            }),
+          }
+        )
+      )
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('BYOK credentials unavailable')
+      expect(request).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(metered).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_byok_failure')
+      resetEnvFlagsMock()
+    }
+  })
+
   it('should not inject hosted key when tool has no hosting config', async () => {
     const mockTool = {
       id: 'test_no_hosting',

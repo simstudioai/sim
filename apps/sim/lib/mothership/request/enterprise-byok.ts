@@ -6,6 +6,6 @@ export async function resolveEnterpriseByokKey(
   workspaceId: string | undefined
 ): Promise<string | null> {
   if (!workspaceId || !(await isWorkspaceOnEnterprisePlan(workspaceId))) return null
-  const byok = await getBYOKKey(workspaceId, 'anthropic', { failClosed: true })
+  const byok = await getBYOKKey(workspaceId, 'anthropic')
   return byok?.apiKey ?? null
 }

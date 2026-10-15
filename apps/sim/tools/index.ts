@@ -559,7 +559,8 @@ async function injectHostedKeyIfNeeded(
   tool: ToolDefinition,
   params: Record<string, unknown>,
   executionContext: ExecutionContext | undefined,
-  requestId: string
+  requestId: string,
+  signal: AbortSignal | undefined
 ): Promise<HostedKeyInjectionResult> {
   if (!tool.hosting) return { isUsingHostedKey: false }
   if (!isHosted) return { isUsingHostedKey: false }
@@ -576,16 +577,11 @@ async function injectHostedKeyIfNeeded(
   const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
 
   if (byokProviderId && workspaceId) {
-    try {
-      const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId)
-      if (byokResult) {
-        params[apiKeyParam] = byokResult.apiKey
-        logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
-        return { isUsingHostedKey: false } // Don't bill - user's own key
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to get BYOK key for ${tool.id}:`, error)
-      // Fall through to hosted key
+    const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId, { signal })
+    if (byokResult) {
+      params[apiKeyParam] = byokResult.apiKey
+      logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
+      return { isUsingHostedKey: false }
     }
   }
 
@@ -1851,7 +1847,8 @@ async function executeToolImplementation(
       tool,
       contextParams,
       executionContext,
-      requestId
+      requestId,
+      effectiveSignal
     )
 
     if (hostedKeyInfo.isUsingHostedKey) {
