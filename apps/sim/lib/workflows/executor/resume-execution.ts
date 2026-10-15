@@ -54,6 +54,7 @@ export interface ExecuteResumeWorkflowOptions {
   userId: string
   resumeInput: unknown
   isApiCaller: boolean
+  /** `legacy` polls async resumes by job id; `v2` derives the job id from the resume entry so a retried dispatch is deduplicated. */
   pollingSurface: 'legacy' | 'v2'
   allowStreaming: boolean
   requestSignal?: AbortSignal
