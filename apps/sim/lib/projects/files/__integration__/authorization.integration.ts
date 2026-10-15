@@ -29,7 +29,9 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbTransaction } from '@/lib/db/types'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import { renameProject } from '@/lib/projects/application'
+import { ProjectConflictError } from '@/lib/projects/errors'
 import {
   createProjectFileFolder,
   getProjectFileMetadata,
@@ -40,6 +42,7 @@ import {
 } from '@/lib/projects/files/application'
 import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/application/authorized-use-case'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
+import { tryLockProjects } from '@/lib/projects/membership'
 import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace'
 import { resolveArchivedFileFolderScope } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
@@ -996,6 +999,80 @@ describe('Project file authority at the database boundary', () => {
     } finally {
       release.resolve()
       await mutation
+    }
+  })
+
+  check(
+    'reads and non-charging writes share the Project while exclusive holders still wait',
+    async () => {
+      const f = await fixture()
+      await grant(f.readerId, f.workspaces[0], 'admin')
+      const [baseline] = await db.execute<{ value: string }>(
+        sql`SELECT current_setting('lock_timeout') AS value`
+      )
+      const entered = createDeferred<string | undefined>()
+      const release = createDeferred<void>()
+      const read = defineAuthorizedProjectFileUseCase({
+        operation: projectFileOperations.list,
+        async execute({ tx }) {
+          const [setting] = await tx.execute<{ value: string }>(
+            sql`SELECT current_setting('lock_timeout') AS value`
+          )
+          entered.resolve(setting?.value)
+          await release.promise
+        },
+      }).execute({ principal: f.reader, input: { projectId: f.projectId } })
+      try {
+        expect(await entered.promise).toBe(baseline?.value)
+        expect(
+          await readAccess.execute({ principal: f.reader, input: { projectId: f.projectId } })
+        ).toEqual({ projectId: f.projectId, canWrite: true })
+        const { folder: created } = await createProjectFileFolder.execute({
+          principal: f.reader,
+          input: { projectId: f.projectId, name: 'Concurrent' },
+        })
+        expect(created.name).toBe('Concurrent')
+        await expect(
+          db.transaction((tx) => tryLockProjects(tx, [f.projectId]))
+        ).rejects.toBeInstanceOf(ProjectConflictError)
+        const groupWrite = db.transaction(async (tx) => {
+          await tx.execute(sql`SET LOCAL lock_timeout = '100ms'`)
+          await acquirePermissionGroupOrgLock(tx, f.organizationId, {
+            lockTimeoutAlreadyBounded: true,
+          })
+        })
+        expect(await groupWrite.then(() => null, getPostgresErrorCode)).toBe('55P03')
+      } finally {
+        release.resolve()
+        await read
+      }
+    }
+  )
+
+  check('storage-charging writes hold the Project exclusively from authorization', async () => {
+    const f = await fixture()
+    await grant(f.readerId, f.workspaces[0], 'admin')
+    const entered = createDeferred<void>()
+    const release = createDeferred<void>()
+    const write = defineAuthorizedProjectFileUseCase({
+      operation: projectFileOperations.create,
+      async execute() {
+        entered.resolve()
+        await release.promise
+      },
+    }).execute({ principal: f.reader, input: { projectId: f.projectId } })
+    try {
+      await entered.promise
+      const read = db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL lock_timeout = '100ms'`)
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock_shared(hashtextextended(${`project:${f.projectId}`}, 0))`
+        )
+      })
+      expect(await read.then(() => null, getPostgresErrorCode)).toBe('55P03')
+    } finally {
+      release.resolve()
+      await write
     }
   })
 

@@ -2075,9 +2075,11 @@ export async function resolveFileReference<const O extends EditableFileOwner>(
   }
   if (segments.length === 0) throw new OrchestrationError('validation', 'File reference is empty')
 
-  const folders = await loadActiveFileFolderPathIndex(owner, client, {
-    maxRows: MAX_FOLDERS_PER_WORKSPACE,
-  })
+  let folders: Awaited<ReturnType<typeof loadActiveFileFolderPathIndex>> | undefined
+  const loadFolders = async () =>
+    (folders ??= await loadActiveFileFolderPathIndex(owner, client, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    }))
   let selector: SQL
   if (isFileId) {
     selector = eq(workspaceFiles.id, localReference)
@@ -2085,7 +2087,7 @@ export async function resolveFileReference<const O extends EditableFileOwner>(
     const folderPath = buildFolderPath(segments.slice(0, -1))
     let folderId: string | null = null
     if (folderPath !== '/') {
-      const matchingFolders = [...folders.pathById].filter(
+      const matchingFolders = [...(await loadFolders()).pathById].filter(
         ([, path]) =>
           parseFolderPath(path).map(normalizeVfsSegment).join('/') ===
           segments.slice(0, -1).map(normalizeVfsSegment).join('/')
@@ -2112,7 +2114,8 @@ export async function resolveFileReference<const O extends EditableFileOwner>(
   if (rows.length > 1) throw new OrchestrationError('conflict', 'File reference is ambiguous')
   const row = rows[0]
   if (!row) return null
-  return mapFileRecord(row, owner, buildWorkspaceFileFolderPathMap([...folders.rowById.values()]))
+  const folderRows = row.folderId ? [...(await loadFolders()).rowById.values()] : []
+  return mapFileRecord(row, owner, buildWorkspaceFileFolderPathMap(folderRows))
 }
 
 async function getWorkspaceFileByExactReference(
@@ -3045,12 +3048,15 @@ export async function restoreWorkspaceFile(workspaceId: string, fileId: string):
   }
 }
 
-/** Restores a retained head, re-rooting and deduplicating within its canonical owner. */
+/**
+ * Restores a retained head, re-rooting and deduplicating within its canonical owner. `restored`
+ * reports whether this call restored it, read under the file's row lock.
+ */
 export async function restoreFileInTx(
   tx: DbTransaction,
   owner: EditableFileOwner,
   fileId: string
-): Promise<WorkspaceFileRow> {
+): Promise<{ file: WorkspaceFileRow; restored: boolean }> {
   if (owner.entityType === 'workspace') await lockWorkspaceProject(tx, owner.entityId)
   await lockFileDirectories(tx, [owner])
   const [file] = await tx
@@ -3060,7 +3066,7 @@ export async function restoreFileInTx(
     .for('update')
     .limit(1)
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  if (!file.deletedAt) return file
+  if (!file.deletedAt) return { file, restored: false }
   let folderId = file.folderId
   if (folderId) {
     const [parent] = await tx
@@ -3116,5 +3122,5 @@ export async function restoreFileInTx(
       throw error
     })
   if (!restored) throw new OrchestrationError('conflict', 'File changed during restoration')
-  return restored
+  return { file: restored, restored: true }
 }

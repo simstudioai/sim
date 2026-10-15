@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileRow } from '@sim/db/schema'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import type {
   ProjectFileAuthorizationContext,
@@ -9,6 +10,7 @@ import type {
 } from '@/lib/projects/files/application/authorization'
 import { defineAuthorizedProjectFileUseCase } from '@/lib/projects/files/application/authorized-use-case'
 import {
+  listProjectFileDocIdsInTx,
   processProjectFileDocRetirementNow,
   rotateProjectFileDocInTx,
 } from '@/lib/projects/files/application/document-lifecycle'
@@ -42,6 +44,7 @@ interface MoveInput extends SelectionInput {
 }
 
 const retirementEffects = new WeakMap<object, string[]>()
+const RETIREMENT_CONCURRENCY = 8
 
 async function retireDocuments(
   tx: DbTransaction,
@@ -50,7 +53,7 @@ async function retireDocuments(
   result: object
 ) {
   const eventIds: string[] = []
-  for (const fileId of [...new Set(fileIds)].sort()) {
+  for (const fileId of await listProjectFileDocIdsInTx(tx, fileIds)) {
     const retired = await rotateProjectFileDocInTx(tx, { projectId, fileId })
     if (retired) eventIds.push(retired.outboxEventId)
   }
@@ -60,7 +63,7 @@ async function retireDocuments(
 async function finishRetirements(result: object) {
   const eventIds = retirementEffects.get(result) ?? []
   retirementEffects.delete(result)
-  await Promise.all(eventIds.map(processProjectFileDocRetirementNow))
+  await mapWithConcurrency(eventIds, RETIREMENT_CONCURRENCY, processProjectFileDocRetirementNow)
 }
 
 function boundedSelection(input: SelectionInput) {
@@ -163,10 +166,9 @@ export const restoreProjectFile = defineAuthorizedProjectFileUseCase({
   operation: projectFileOperations.restore,
   invalidatesFileList: ({ context }) => Boolean(context.file?.deletedAt),
   async execute({ input, context, tx }: LifecycleArgs<ProjectFileTarget & { fileId: string }>) {
-    const restored = await restoreFileInTx(tx, context.owner, input.fileId)
-    const result = { restored: true as const, file: await projectFileRecord(tx, context, restored) }
-    if (context.file?.deletedAt)
-      await retireDocuments(tx, context.projectId, [input.fileId], result)
+    const { file, restored } = await restoreFileInTx(tx, context.owner, input.fileId)
+    const result = { restored: true as const, file: await projectFileRecord(tx, context, file) }
+    if (restored) await retireDocuments(tx, context.projectId, [input.fileId], result)
     return result
   },
   projectAudit: ({ context, result }) => ({

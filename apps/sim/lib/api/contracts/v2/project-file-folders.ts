@@ -11,12 +11,11 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { v2ProjectFilesParamsSchema } from '@/lib/api/contracts/v2/project-files'
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
-export const v2ProjectFileFolderParamsSchema = v2ProjectFilesParamsSchema.extend({
+const v2ProjectFileFolderParamsSchema = v2ProjectFilesParamsSchema.extend({
   folderId: nonEmptyIdSchema.describe('Folder identifier within the Project.'),
 })
-export type V2ProjectFileFolderParams = z.input<typeof v2ProjectFileFolderParamsSchema>
 
-export const v2ProjectFileFolderSchema = projectFileFolderRecordSchema.extend({
+const v2ProjectFileFolderSchema = projectFileFolderRecordSchema.extend({
   id: nonEmptyIdSchema.describe('Stable folder identifier.'),
   owner: projectFileFolderRecordSchema.shape.owner
     .extend({
@@ -36,14 +35,13 @@ export const v2ProjectFileFolderSchema = projectFileFolderRecordSchema.extend({
 })
 export type V2ProjectFileFolder = z.output<typeof v2ProjectFileFolderSchema>
 
-export const v2ListProjectFileFoldersQuerySchema = listProjectFileFoldersQuerySchema
+const v2ListProjectFileFoldersQuerySchema = listProjectFileFoldersQuerySchema
   .extend({
     scope: listProjectFileFoldersQuerySchema.shape.scope.describe('Folder lifecycle scope.'),
   })
   .strict()
-export type V2ListProjectFileFoldersQuery = z.output<typeof v2ListProjectFileFoldersQuerySchema>
 
-export const v2CreateProjectFileFolderBodySchema = createProjectFileFolderBodySchema
+const v2CreateProjectFileFolderBodySchema = createProjectFileFolderBodySchema
   .extend({
     name: createProjectFileFolderBodySchema.shape.name.describe('Name for the new folder.'),
     parentId: nonEmptyIdSchema
@@ -52,9 +50,8 @@ export const v2CreateProjectFileFolderBodySchema = createProjectFileFolderBodySc
       .describe('Parent folder identifier; omit or use null for the root.'),
   })
   .strict()
-export type V2CreateProjectFileFolderBody = z.input<typeof v2CreateProjectFileFolderBodySchema>
 
-export const v2UpdateProjectFileFolderBodySchema = updateProjectFileFolderBodySchema
+const v2UpdateProjectFileFolderBodySchema = updateProjectFileFolderBodySchema
   .extend({
     name: updateProjectFileFolderBodySchema.shape.name.describe(
       'New folder name; omit to leave unchanged.'
@@ -70,15 +67,10 @@ export const v2UpdateProjectFileFolderBodySchema = updateProjectFileFolderBodySc
     ),
   })
   .strict()
-export type V2UpdateProjectFileFolderBody = z.input<typeof v2UpdateProjectFileFolderBodySchema>
 
-export const v2RestoreProjectFileFolderResponseSchema =
-  restoreProjectFileFolderResponseSchema.extend({
-    folder: v2ProjectFileFolderSchema.describe('Restored Project folder.'),
-  })
-export type V2RestoreProjectFileFolderResponse = z.output<
-  typeof v2RestoreProjectFileFolderResponseSchema
->
+const v2RestoreProjectFileFolderResponseSchema = restoreProjectFileFolderResponseSchema.extend({
+  folder: v2ProjectFileFolderSchema.describe('Restored Project folder.'),
+})
 
 export const v2ListProjectFileFoldersContract = defineRouteContract({
   method: 'GET',

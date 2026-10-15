@@ -1,4 +1,3 @@
-import type { z } from 'zod'
 import { noInputSchema } from '@/lib/api/contracts/primitives'
 import {
   archiveProjectFileItemsBodySchema,
@@ -14,10 +13,9 @@ import {
 } from '@/lib/api/contracts/v2/project-files'
 import { v2DataResponse } from '@/lib/api/contracts/v2/shared'
 
-export const v2RenameProjectFileBodySchema = v2RenameFileBodySchema.omit({ workspaceId: true })
-export type V2RenameProjectFileBody = z.input<typeof v2RenameProjectFileBodySchema>
+const v2RenameProjectFileBodySchema = v2RenameFileBodySchema.omit({ workspaceId: true })
 
-export const v2ArchiveProjectFileItemsBodySchema = archiveProjectFileItemsBodySchema.safeExtend({
+const v2ArchiveProjectFileItemsBodySchema = archiveProjectFileItemsBodySchema.safeExtend({
   fileIds: archiveProjectFileItemsBodySchema.shape.fileIds.describe(
     'Identifiers of the files to archive.'
   ),
@@ -25,9 +23,8 @@ export const v2ArchiveProjectFileItemsBodySchema = archiveProjectFileItemsBodySc
     'Identifiers of folders to archive recursively, including their files and descendants.'
   ),
 })
-export type V2ArchiveProjectFileItemsBody = z.input<typeof v2ArchiveProjectFileItemsBodySchema>
 
-export const v2MoveProjectFileItemsBodySchema = archiveProjectFileItemsBodySchema.safeExtend({
+const v2MoveProjectFileItemsBodySchema = archiveProjectFileItemsBodySchema.safeExtend({
   fileIds: archiveProjectFileItemsBodySchema.shape.fileIds.describe(
     'Identifiers of the files to move.'
   ),
@@ -38,7 +35,6 @@ export const v2MoveProjectFileItemsBodySchema = archiveProjectFileItemsBodySchem
     'Existing destination folder path within the Project. Omit to move items to the Project root.'
   ),
 })
-export type V2MoveProjectFileItemsBody = z.input<typeof v2MoveProjectFileItemsBodySchema>
 
 export const v2RenameProjectFileContract = defineRouteContract({
   method: 'PATCH',

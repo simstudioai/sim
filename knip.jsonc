@@ -48,11 +48,12 @@
         // Generated contracts mirror their source of truth; regenerating them must not
         // trip the unused-export ratchet, and hand edits would be overwritten.
         "lib/mothership/generated/**": ["exports", "types", "duplicates"],
-        // API conventions require exported named wire schemas and aliases, including before client adoption.
-        "lib/api/contracts/projects.ts": ["exports", "types"],
-        "lib/api/contracts/project-file*.ts": ["exports", "types"],
-        "lib/api/contracts/v2/project-file*.ts": ["exports", "types"],
-        "lib/api/contracts/v2/uploads.ts": ["types"],
+        // Consumed only by the stacked Project file PRs: the rendered-content contracts by #9017,
+        // the client aliases by #9034. Remove each entry once its consumer merges.
+        "lib/api/contracts/projects.ts": ["types"],
+        "lib/api/contracts/project-files.ts": ["exports", "types"],
+        "lib/api/contracts/project-file-folders.ts": ["types"],
+        "lib/api/contracts/project-file-lifecycle.ts": ["types"],
         "sandboxes/index.ts": ["files"],
         "components/mcp/index.ts": ["files"],
         "triggers/quickbooks/index.ts": ["files"],

@@ -14,18 +14,16 @@ import {
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 
-export const projectFileUploadParamsSchema = projectFilesParamsSchema.extend({
+const projectFileUploadParamsSchema = projectFilesParamsSchema.extend({
   uploadId: nonEmptyIdSchema,
 })
-export type ProjectFileUploadParams = z.input<typeof projectFileUploadParamsSchema>
 
 export const createProjectFileUploadBodySchema = v2CreateFileUploadBodySchema
   .omit({ workspaceId: true })
   .extend({ folderId: folderIdSchema.nullish() })
   .strict()
-export type CreateProjectFileUploadBody = z.input<typeof createProjectFileUploadBodySchema>
 
-export const projectFileUploadSessionSchema = z
+const projectFileUploadSessionSchema = z
   .object({
     id: nonEmptyIdSchema,
     purpose: z.literal('project_file'),
@@ -40,14 +38,13 @@ export const projectFileUploadSessionSchema = z
   .strict()
 export type ProjectFileUploadSession = z.output<typeof projectFileUploadSessionSchema>
 
-export const createProjectFileUploadResponseSchema = z
+const createProjectFileUploadResponseSchema = z
   .object({
     session: projectFileUploadSessionSchema,
     uploadToken: z.string().min(1),
     transfer: v2UploadTransferSchema,
   })
   .strict()
-export type CreateProjectFileUploadResponse = z.output<typeof createProjectFileUploadResponseSchema>
 
 export const createProjectFileUploadContract = defineRouteContract({
   method: 'POST',

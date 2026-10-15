@@ -1,8 +1,9 @@
-import { workspaceFiles } from '@sim/db/schema'
+import { workspaceFileCollabState, workspaceFiles } from '@sim/db/schema'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { and, eq } from 'drizzle-orm'
+import { compareStrings } from '@sim/utils/string'
+import { and, eq, inArray } from 'drizzle-orm'
 import * as Y from 'yjs'
 import { loadCollabDocState, saveCollabDocStateInTx } from '@/lib/collab-doc/state'
 import {
@@ -38,6 +39,22 @@ function documentIdentity(state: Uint8Array): string {
 export async function readProjectFileDocIdInTx(tx: DbTransaction, fileId: string) {
   const cached = await loadCollabDocState(fileId, undefined, tx)
   return cached ? documentIdentity(cached.docState) : null
+}
+
+/**
+ * The files among `fileIds` that have cached document history, in code-unit order, read in one
+ * query. The caller holds the files' row locks, so no seed can add history before it commits.
+ */
+export async function listProjectFileDocIdsInTx(
+  tx: DbTransaction,
+  fileIds: readonly string[]
+): Promise<string[]> {
+  if (!fileIds.length) return []
+  const rows = await tx
+    .select({ fileId: workspaceFileCollabState.fileId })
+    .from(workspaceFileCollabState)
+    .where(inArray(workspaceFileCollabState.fileId, [...new Set(fileIds)]))
+  return rows.map((row) => row.fileId).sort(compareStrings)
 }
 
 /** Archive and restore retire the cached history atomically with the file lifecycle mutation. */

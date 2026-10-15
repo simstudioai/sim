@@ -16,11 +16,10 @@ import {
 } from '@/lib/api/contracts/workspace-file-folders'
 import { renameWorkspaceFileBodySchema } from '@/lib/api/contracts/workspace-files'
 
-export const renameProjectFileBodySchema = renameWorkspaceFileBodySchema.strict()
+const renameProjectFileBodySchema = renameWorkspaceFileBodySchema.strict()
 export type RenameProjectFileBody = z.input<typeof renameProjectFileBodySchema>
 
-export const renameProjectFileResponseSchema = z.object({ file: projectFileRecordSchema })
-export type RenameProjectFileResponse = z.output<typeof renameProjectFileResponseSchema>
+const renameProjectFileResponseSchema = z.object({ file: projectFileRecordSchema })
 
 export const renameProjectFileContract = defineRouteContract({
   method: 'PATCH',
@@ -30,7 +29,7 @@ export const renameProjectFileContract = defineRouteContract({
   response: { mode: 'json', schema: renameProjectFileResponseSchema },
 })
 
-export const moveProjectFileItemsBodySchema = moveWorkspaceFileItemsBodySchema.strict()
+const moveProjectFileItemsBodySchema = moveWorkspaceFileItemsBodySchema.strict()
 export type MoveProjectFileItemsBody = z.input<typeof moveProjectFileItemsBodySchema>
 
 export const moveProjectFileItemsResponseSchema = z.object({
@@ -39,7 +38,6 @@ export const moveProjectFileItemsResponseSchema = z.object({
   movedFileIds: z.array(nonEmptyIdSchema).describe('Identifiers of moved files.'),
   movedFolderIds: z.array(nonEmptyIdSchema).describe('Identifiers of moved folders.'),
 })
-export type MoveProjectFileItemsResponse = z.output<typeof moveProjectFileItemsResponseSchema>
 
 export const moveProjectFileItemsContract = defineRouteContract({
   method: 'POST',
@@ -66,7 +64,6 @@ export const archiveProjectFileItemsResponseSchema = z.object({
     })
     .describe('Identifiers of affected file items.'),
 })
-export type ArchiveProjectFileItemsResponse = z.output<typeof archiveProjectFileItemsResponseSchema>
 
 export const archiveProjectFileItemsContract = defineRouteContract({
   method: 'POST',
@@ -76,11 +73,10 @@ export const archiveProjectFileItemsContract = defineRouteContract({
   response: { mode: 'json', schema: archiveProjectFileItemsResponseSchema },
 })
 
-export const restoreProjectFileResponseSchema = z.object({
+const restoreProjectFileResponseSchema = z.object({
   restored: z.literal(true),
   file: projectFileRecordSchema,
 })
-export type RestoreProjectFileResponse = z.output<typeof restoreProjectFileResponseSchema>
 
 export const restoreProjectFileContract = defineRouteContract({
   method: 'POST',
@@ -99,9 +95,6 @@ export const restoreProjectFileFolderResponseSchema = z.object({
     })
     .describe('Counts of affected file items.'),
 })
-export type RestoreProjectFileFolderResponse = z.output<
-  typeof restoreProjectFileFolderResponseSchema
->
 
 export const restoreProjectFileFolderContract = defineRouteContract({
   method: 'POST',

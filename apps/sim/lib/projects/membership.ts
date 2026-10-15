@@ -12,6 +12,7 @@ import {
   acquireAdvisoryXactLock,
   acquireAdvisoryXactLocks,
   tryAcquireAdvisoryXactLocks,
+  withLockTimeout,
 } from '@/lib/db/advisory-locks'
 import { textArrayLiteral } from '@/lib/db/arrays'
 import type { DbTransaction } from '@/lib/db/types'
@@ -30,20 +31,13 @@ async function withProjectLockTimeout<T>(
   message: string,
   acquire: () => Promise<T>
 ): Promise<T> {
-  const [setting] = await tx.execute<{ previous: string }>(
-    sql`SELECT current_setting('lock_timeout') AS previous`
-  )
-  await tx.execute(sql`SELECT set_config('lock_timeout', ${`${PROJECT_LOCK_TIMEOUT_MS}ms`}, true)`)
-  let result: T
   try {
-    result = await acquire()
+    return await withLockTimeout(tx, PROJECT_LOCK_TIMEOUT_MS, acquire)
   } catch (error) {
     const code = getPostgresErrorCode(error)
     if (code === '55P03' || code === '40P01') throw new ProjectConflictError(message)
     throw error
   }
-  await tx.execute(sql`SELECT set_config('lock_timeout', ${setting?.previous ?? '0'}, true)`)
-  return result
 }
 
 /**
@@ -80,6 +74,17 @@ export async function lockProjectBackfillWrites(
 export async function lockProject(tx: DbTransaction, projectId: string): Promise<void> {
   await withProjectLockTimeout(tx, PROJECT_CHANGING, () =>
     acquireAdvisoryXactLock(tx, 'project', projectLockKey(projectId))
+  )
+}
+
+/**
+ * Holds the Project lock SHARED: fences the holder against every exclusive holder (lifecycle,
+ * payer transfer, retention, Project storage accounting) without serializing it against other
+ * shared holders. A transaction holding it must never later take the same Project exclusively.
+ */
+export async function lockProjectShared(tx: DbTransaction, projectId: string): Promise<void> {
+  await withProjectLockTimeout(tx, PROJECT_CHANGING, () =>
+    acquireAdvisoryXactLocks(tx, 'project', [{ key: projectLockKey(projectId), shared: true }])
   )
 }
 

@@ -21,7 +21,7 @@ import {
   type ProjectOperation,
   projectOperations,
 } from '@/lib/projects/application/operations'
-import { lockProject } from '@/lib/projects/membership'
+import { lockProject, lockProjectShared } from '@/lib/projects/membership'
 
 const logger = createLogger('ProjectAuthorization')
 
@@ -188,13 +188,20 @@ function projectVisibility(
   return { record, rows, active, visible, orgAdmin, canAdminister }
 }
 
-/** Loads and holds canonical Project membership for a resource-specific access policy. */
+/**
+ * Loads and holds canonical Project membership for a resource-specific access policy. `lock` is
+ * the mode the Project is held in: `shared` for a caller that only needs it fenced against
+ * lifecycle and payer changes, `exclusive` for one that will take it exclusively later in the
+ * transaction, which must never upgrade a shared hold.
+ */
 export async function loadProjectAccess(
   tx: DbTransaction,
   userId: string,
-  input: ProjectAuthorizationInput & { projectId: string }
+  input: ProjectAuthorizationInput & { projectId: string },
+  lock: 'shared' | 'exclusive' = 'exclusive'
 ) {
-  await lockProject(tx, input.projectId)
+  if (lock === 'shared') await lockProjectShared(tx, input.projectId)
+  else await lockProject(tx, input.projectId)
   const [record] = await tx.select().from(project).where(eq(project.id, input.projectId)).limit(1)
   if (
     !record ||

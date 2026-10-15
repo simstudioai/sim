@@ -158,30 +158,29 @@ async function mutateStorageUsage(
 }
 
 /**
- * Locks and reads the payer ledger after the workspace row has been locked.
+ * Reads the payer ledger, locking it after the owner row has been locked unless `lock` is false.
  * `FOR NO KEY UPDATE` for the reason documented at the top of this module.
  */
-async function lockStorageUsageForMutation(
+async function readStorageUsageInTx(
   tx: DbOrTx,
-  billingEntity: Readonly<BillingEntity>
+  billingEntity: Readonly<BillingEntity>,
+  lock = true
 ): Promise<number> {
   if (billingEntity.type === 'organization') {
-    const [row] = await tx
+    const query = tx
       .select({ storageUsedBytes: organization.storageUsedBytes })
       .from(organization)
       .where(eq(organization.id, billingEntity.id))
-      .for('no key update')
-      .limit(1)
+    const [row] = lock ? await query.for('no key update').limit(1) : await query.limit(1)
     if (!row) throw new Error(`Storage payer organization:${billingEntity.id} not found`)
     return row.storageUsedBytes
   }
 
-  const [row] = await tx
+  const query = tx
     .select({ storageUsedBytes: userStats.storageUsedBytes })
     .from(userStats)
     .where(eq(userStats.userId, billingEntity.id))
-    .for('no key update')
-    .limit(1)
+  const [row] = lock ? await query.for('no key update').limit(1) : await query.limit(1)
   if (!row) throw new Error(`Storage payer user:${billingEntity.id} not found`)
   return row.storageUsedBytes
 }
@@ -221,8 +220,9 @@ function assertWorkspaceStorageContext(
 /**
  * Locks the asserted owner before directory/file/version mutation. The caller holds lifecycle
  * locks and owns the transaction. The one-shot signed delta admits finalization, not a
- * reservation. Workspace files update both ledgers and lock the shared payer only when a non-zero
- * delta is applied (`undefined` for zero); Projects lock their payer here and update only it.
+ * reservation. The shared payer is locked last, only when a non-zero delta is applied: workspace
+ * files update both ledgers (`undefined` for zero); Projects update only the payer and report its
+ * usage, read unlocked for zero. Locking the Project row here keeps the payer it names fixed.
  */
 export async function prepareFileStorageMutationInTx(
   tx: DbTransaction,
@@ -280,14 +280,13 @@ export async function prepareFileStorageMutationInTx(
       `Storage payer changed for Project ${context.projectId}; resolve a fresh billing context`
     )
   }
-  const currentUsage = await lockStorageUsageForMutation(tx, billingEntity)
-  if (!Number.isSafeInteger(currentUsage) || currentUsage < 0) {
-    throw new Error(`Invalid storage usage for payer ${getPayerKey(billingEntity)}`)
-  }
   return {
     async applyDelta(deltaBytes) {
       admitDelta(deltaBytes)
-      const latestUsage = await lockStorageUsageForMutation(tx, billingEntity)
+      const latestUsage = await readStorageUsageInTx(tx, billingEntity, deltaBytes !== 0)
+      if (!Number.isSafeInteger(latestUsage) || latestUsage < 0) {
+        throw new Error(`Invalid storage usage for payer ${getPayerKey(billingEntity)}`)
+      }
       const nextUsage = Math.max(0, latestUsage + deltaBytes)
       if (!Number.isSafeInteger(nextUsage)) throw new Error('Invalid file storage total')
       if (deltaBytes > 0 && limit !== undefined && nextUsage > limit) {
@@ -606,7 +605,7 @@ async function mutateWorkspaceStorageUsage(
   const workspacePayer = await lockWorkspaceStorageForMutationInTx(tx, workspaceId)
 
   const billingEntity = assertWorkspaceStorageContext(workspacePayer, context)
-  const currentPayerUsage = await lockStorageUsageForMutation(tx, billingEntity)
+  const currentPayerUsage = await readStorageUsageInTx(tx, billingEntity)
 
   if (mutation === 'decrement' && workspacePayer.storageUsedBytes < bytes) {
     logger.error('Clamping workspace storage ledger underflow', {
