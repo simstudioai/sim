@@ -1,7 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { resolveDocumentRender } from '@/lib/uploads/documents'
-import type { ServableFile } from '@/lib/uploads/utils/file.server'
+import { resolveDocumentRender } from '@/lib/uploads/documents/render'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 
 /**
@@ -29,7 +28,7 @@ export async function resolveRenderedWorkspaceArtifact(
   file: WorkspaceFileRecord,
   filePrincipal: Principal,
   options: { maxBytes: number; signal?: AbortSignal; tooLargeMessage?: (limit: string) => string }
-): Promise<ServableFile> {
+) {
   return resolveDocumentRender(file.name, options, () =>
     fetchAuthorizedServableWorkspaceFileBuffer(file, filePrincipal, {
       maxBytes: options.maxBytes,

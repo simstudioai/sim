@@ -132,6 +132,7 @@ import {
 } from '@/lib/mothership/__integration__/content-delivery-fixture'
 import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
+import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
@@ -251,6 +252,12 @@ describe('content reaching Chat is admitted per item', () => {
         chatId: generateId(),
       },
       registry,
+      files: createWorkbenchFileProvenance({
+        userId: fixture.ids.aliceId,
+        workspaceId: fixture.ids.workspaceId,
+        sessionKey: generateId(),
+        resolvedSecretTraceRegistry: registry,
+      }),
       resources: [],
       observeReads: true,
     })

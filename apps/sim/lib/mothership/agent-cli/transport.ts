@@ -40,6 +40,7 @@ export function createAgentCliTransport(context: {
     transport: createTracedCliTransport(endpoint, createScopedCliTransport(endpoint, invocation)),
     invocation,
     registry,
+    tracksWorkbenchDownloads: Boolean(files),
   })
   const reads: typeof fetch = async (input, init) => {
     const { response, admitted } = await dispatchUnderContentGate(gate, () => routes(input, init))

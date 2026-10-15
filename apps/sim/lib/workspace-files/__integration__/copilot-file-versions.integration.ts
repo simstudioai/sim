@@ -40,6 +40,7 @@ import {
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { createScopedCliTransport } from '@/lib/mothership/agent-cli/scoped-transport'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
+import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import {
   updateWorkspaceFileContent,
@@ -145,6 +146,12 @@ describe('chat-delegated file version history', () => {
             endpoint: ORIGIN,
             invocation,
             ...(registry ? { registry } : {}),
+            files: createWorkbenchFileProvenance({
+              userId,
+              workspaceId: fixture.workspaceId,
+              sessionKey: invocation.chatId,
+              resolvedSecretTraceRegistry: registry,
+            }),
             resources: [],
             observeReads: true,
           })

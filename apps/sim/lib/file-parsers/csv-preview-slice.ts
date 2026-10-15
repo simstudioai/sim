@@ -2,11 +2,14 @@ import { Readable } from 'node:stream'
 import { truncate } from '@sim/utils/string'
 import { parse as parseCsvStream } from 'csv-parse'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
+import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFileStream } from '@/lib/uploads/core/storage-service'
 
 /** Cap a single cell so one pathological field can't bloat the preview payload. */
 const MAX_CELL_LENGTH = 2_000
+const MAX_RECORD_SIZE = 256 * 1024
+const MAX_PREVIEW_BYTES = 8 * 1024 * 1024
 
 /** Read at most this many bytes while sniffing the first line for the delimiter. */
 const DELIMITER_SNIFF_MAX_BYTES = 256 * 1024
@@ -44,7 +47,7 @@ function cell(value: unknown): string {
 /**
  * Streams the first {@link CSV_PREVIEW_MAX_ROWS} rows of a CSV/TSV from storage without
  * ever buffering the whole file. The source stream is destroyed as soon as enough rows are
- * read (one past the cap, to detect truncation), so a multi-GB file costs O(rows) of memory.
+ * read (one past the cap, to detect truncation), with record and total-byte limits bounding parser memory and work.
  */
 export async function getCsvPreviewSlice({
   key,
@@ -60,6 +63,17 @@ export async function getCsvPreviewSlice({
   signal?.addEventListener('abort', onAbort, { once: true })
 
   const reader = source[Symbol.asyncIterator]()
+  let bytesRead = 0
+  let piped: Readable | undefined
+  let parser: ReturnType<typeof parseCsvStream> | undefined
+  async function nextChunk() {
+    const next = await reader.next()
+    if (!next.done) {
+      bytesRead += Buffer.byteLength(next.value)
+      assertKnownSizeWithinLimit(bytesRead, MAX_PREVIEW_BYTES, 'CSV preview')
+    }
+    return next
+  }
 
   try {
     // Pull chunks until the first newline so the delimiter can be sniffed before parsing.
@@ -71,12 +85,14 @@ export async function getCsvPreviewSlice({
     let firstLine = ''
     let sniffedBytes = 0
     while (true) {
-      const { value, done } = await reader.next()
+      const { value, done } = await nextChunk()
       if (done) break
       const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value)
       sniffed.push(chunk)
       sniffedBytes += chunk.length
-      const text = chunk.toString('utf-8')
+      const text = chunk
+        .subarray(0, Math.max(0, DELIMITER_SNIFF_MAX_BYTES - sniffedBytes + chunk.length))
+        .toString('utf-8')
       const nl = text.indexOf('\n')
       if (nl !== -1) {
         firstLine += text.slice(0, nl)
@@ -91,13 +107,13 @@ export async function getCsvPreviewSlice({
     }
 
     const delimiter = detectDelimiter(firstLine)
-    const parser = parseCsvStream({
+    parser = parseCsvStream({
       columns: false,
       skip_empty_lines: true,
       trim: true,
       relax_column_count: true,
       relax_quotes: true,
-      skip_records_with_error: true,
+      max_record_size: MAX_RECORD_SIZE,
       cast: false,
       bom: true,
       delimiter,
@@ -107,13 +123,13 @@ export async function getCsvPreviewSlice({
     async function* rejoin() {
       for (const chunk of sniffed) yield chunk
       while (true) {
-        const { value, done } = await reader.next()
+        const { value, done } = await nextChunk()
         if (done) return
         yield value
       }
     }
-    const piped = Readable.from(rejoin())
-    piped.on('error', (err) => parser.destroy(err))
+    piped = Readable.from(rejoin())
+    piped.on('error', (err) => parser?.destroy(err))
     piped.pipe(parser)
 
     let headers: string[] = []
@@ -141,6 +157,8 @@ export async function getCsvPreviewSlice({
     if (signal?.aborted) signal.throwIfAborted()
     throw error
   } finally {
+    piped?.destroy()
+    parser?.destroy()
     signal?.removeEventListener('abort', onAbort)
     source.destroy()
   }

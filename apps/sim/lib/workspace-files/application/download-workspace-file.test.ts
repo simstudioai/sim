@@ -4,6 +4,7 @@ import {
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -22,12 +23,15 @@ import {
   observeContentDelivery,
 } from '@/lib/core/application'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
 
 class FakeDocNotReadyError extends Error {}
 
 const hoisted = vi.hoisted(() => ({
   fetchServable: vi.fn(),
 }))
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -142,7 +146,7 @@ describe('workspace file downloads', () => {
       downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: plainFile.id } })
     )
     expect(admit).toHaveBeenCalledWith([
-      { kind: 'workspace-file', id: plainFile.id, provenance, view: 'complete' },
+      { kind: 'workspace-file', id: plainFile.id, provenance, view: 'opaque' },
     ])
     expect(admit.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.downloadStream.mock.invocationCallOrder[0]
@@ -159,6 +163,22 @@ describe('workspace file downloads', () => {
       )
     ).rejects.toBeInstanceOf(ContentRefusedError)
     expect(mocks.downloadStream).not.toHaveBeenCalled()
+  })
+
+  it('refuses raw bytes when final receipt provenance is no longer admitted', async () => {
+    mocks.getFile.mockResolvedValue(plainFile)
+    mocks.provenance.mockResolvedValue({ status: 'exact', entries: [] })
+    vi.mocked(recheckFileReadReceipt).mockResolvedValueOnce({
+      status: 'unknown',
+    })
+    await expect(
+      observeContentDelivery(
+        { admit: async (sources) => sources.map((source) => source.provenance.status === 'exact') },
+        () =>
+          downloadWorkspaceFileStream.execute({ principal: CHAT, input: { fileId: plainFile.id } })
+      )
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mocks.downloadStream).toHaveBeenCalled()
   })
 
   it('refuses a Chat download no gate observes', async () => {

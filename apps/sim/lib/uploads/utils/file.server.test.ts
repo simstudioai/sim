@@ -222,6 +222,7 @@ describe('servable page provenance', () => {
       buffer: Buffer.from('<html>rendered image</html>'),
       contentType: 'text/html',
       contributingFiles: [contributor],
+      dependsOnReferencedFiles: true,
     })
   })
 })

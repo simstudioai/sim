@@ -12,7 +12,7 @@ import {
   buildKnowledgeBundleArchive,
   knowledgeBundleFileName,
 } from '@/lib/knowledge/transfer/export-archive'
-import { encodeFilenameForHeader } from '@/app/api/files/utils'
+import { encodeFilenameForHeader } from '@/lib/uploads/server/delivery'
 
 /** GET /api/knowledge/[id]/export — stream a knowledge base as a bundle archive. */
 export const GET = defineInternalBinaryRoute({

@@ -23,6 +23,8 @@ export interface RegistryContentGateScope {
    * anything persisted from it stays unknown. Only a direct single-file download takes it (D7).
    */
   unknown?: 'refuse' | 'taint'
+  /** Private workbench downloads persist imported provenance; opaque bytes never go directly to the model. */
+  destination?: 'model' | 'workbench'
 }
 
 /**
@@ -56,7 +58,11 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
       return true
     }
     if (provenance.entries.length === 0) return true
-    if (source.view === 'opaque' || source.view === 'excerpt') return refuse(source, 'opaque')
+    if (
+      source.view === 'excerpt' ||
+      (source.view === 'opaque' && scope.destination !== 'workbench')
+    )
+      return refuse(source, 'opaque')
     const registry = scope.registry
     if (!registry) return refuse(source, 'registry')
     /** A derived view that shows nothing needs no entry; `undefined` would mean the whole item. */
