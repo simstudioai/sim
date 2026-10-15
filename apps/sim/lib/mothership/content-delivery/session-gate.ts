@@ -26,7 +26,8 @@ export class WorkbenchProvenanceUnavailableError extends Error {
  */
 export function createSessionContentGate(scope: {
   sessionKey: string
-  workspaceId: string
+  /** Absent for a Project callback, which reads files no workspace owns. */
+  workspaceId?: string
   actorUserId: string
 }): ContentDeliveryGate {
   return {

@@ -34,10 +34,12 @@ vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
+import { observeContentDelivery } from '@/lib/core/application/content-delivery'
 import { closeRedisConnection } from '@/lib/core/config/redis'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { type AgentCliExecutionContext, executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import type { AgentCliAugmentationInvocation } from '@/lib/mothership/generated/agent-cli'
 import { createProjectFile } from '@/lib/projects/files/application'
 import { storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
@@ -124,6 +126,19 @@ async function fixture() {
   return { ...ids, context, principal }
 }
 
+/** Chat runs every CLI call under the tool executor's registry gate; reads here do the same. */
+function runCli(
+  request: Parameters<typeof executeAgentCliRequest>[0],
+  context: AgentCliExecutionContext
+) {
+  const gate = createRegistryContentGate({
+    registry: context.resolvedSecretTraceRegistry,
+    workspaceId: context.workspaceId,
+    actorUserId: context.userId,
+  })
+  return observeContentDelivery(gate, () => executeAgentCliRequest(request, context))
+}
+
 function read(
   projectId: string,
   context: AgentCliExecutionContext,
@@ -131,7 +146,7 @@ function read(
   flags: AgentCliAugmentationInvocation['flags'] = {},
   name = 'files read'
 ) {
-  return executeAgentCliRequest(
+  return runCli(
     {
       fileOwner: { entityType: 'project', entityId: projectId },
       invocation: { kind: 'augmentation', name, positionals: [reference], flags },
@@ -202,7 +217,7 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
     'native workspace content search reaches its collection operation instead of a file named search',
     async () => {
       const f = await fixture()
-      const result = await executeAgentCliRequest(
+      const result = await runCli(
         {
           fileOwner: { entityType: 'workspace', entityId: f.workspaceId },
           invocation: {
@@ -287,7 +302,7 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
         kind: 'cli' as const,
         argv: ['files', 'search', '--query', 'nativeprovenanceneedle', '--mode', 'exact'],
       }
-      const result = await executeAgentCliRequest({ fileOwner: owner, invocation }, f.context)
+      const result = await runCli({ fileOwner: owner, invocation }, f.context)
       expect(result.exitCode, result.stderr).toBe(0)
       expect(JSON.parse(result.stdout).results[0].fileId).toBe(file.id)
       expect(JSON.parse(result.stdout).results[0].text).toContain('Preview withheld')
@@ -296,7 +311,7 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
       await db
         .delete(workspaceFileSecretProvenance)
         .where(eq(workspaceFileSecretProvenance.fileId, dependency.id))
-      const rejected = await executeAgentCliRequest(
+      const rejected = await runCli(
         { fileOwner: owner, invocation },
         {
           ...f.context,
@@ -330,7 +345,7 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
       })
       const owner = { entityType: 'workspace' as const, entityId: f.workspaceId }
       const invocation = { kind: 'cli' as const, argv: ['files', 'describe', file.id] }
-      const explicit = await executeAgentCliRequest({ fileOwner: owner, invocation }, f.context)
+      const explicit = await runCli({ fileOwner: owner, invocation }, f.context)
       expect(explicit.exitCode, explicit.stderr).toBe(0)
       expect(explicit.stdout).toContain(file.id)
       expect(explicit.resources).toContainEqual({
@@ -338,24 +353,15 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
         readOnly: true,
         resource: expect.objectContaining({ type: 'file', id: file.id, owner }),
       })
-      const legacy = await executeAgentCliRequest(
-        { workspaceId: f.workspaceId, invocation },
-        f.context
-      )
+      const legacy = await runCli({ workspaceId: f.workspaceId, invocation }, f.context)
       expect(legacy.exitCode, legacy.stderr).toBe(0)
       expect(legacy.stdout).toBe(explicit.stdout)
       await expect(
-        executeAgentCliRequest(
-          { fileOwner: owner, workspaceId: generateId(), invocation },
-          f.context
-        )
+        runCli({ fileOwner: owner, workspaceId: generateId(), invocation }, f.context)
       ).rejects.toMatchObject({ code: 'validation' })
       const other = await fixture()
       await expect(
-        executeAgentCliRequest(
-          { fileOwner: { ...owner, entityId: other.workspaceId }, invocation },
-          f.context
-        )
+        runCli({ fileOwner: { ...owner, entityId: other.workspaceId }, invocation }, f.context)
       ).rejects.toMatchObject({ code: 'not_found' })
     }
   )

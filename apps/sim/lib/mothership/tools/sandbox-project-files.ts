@@ -4,23 +4,20 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createDurableSecretProvenanceRegistry } from '@/lib/execution/durable-secret-provenance'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
-import {
-  readSessionSecretProvenance,
-  recordExistingSessionFileInput,
-} from '@/lib/execution/remote-sandbox/session-file-provenance'
+import { readSessionSecretProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
 import { createProjectFileUploadTransport } from '@/lib/mothership/agent-cli/project-file-upload-transport'
 import { createProjectFileWriteTransport } from '@/lib/mothership/agent-cli/project-file-write-transport'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import { createSessionContentGate, deliverSandboxResponse } from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import {
   type readSandboxResourceScope,
   recordSandboxResourceEffects,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
-import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('SandboxProjectFiles')
@@ -128,21 +125,12 @@ export async function proxySandboxProjectFileRequest(
       ? {}
       : { body: request.body, duplex: 'half' }),
   })
-  let observed = false
-  const delivery: typeof fetch = (input, init) =>
-    observeWorkspaceFileDelivery(
-      async (provenance) => {
-        if (provenance?.status !== 'exact')
-          throw new Error('Project file provenance is unavailable')
-        await recordExistingSessionFileInput(sessionKey, provenance)
-        observed = true
-      },
-      () => transport(input, init)
-    )
+  /** The same workbench gate as workspace callbacks: whatever the request reads widens the machine's history first. */
+  const gate = createSessionContentGate({ sessionKey, actorUserId: scope.userId })
   const effects: ResourceChange[] = []
   let completed: Response | undefined
   const dispatch: typeof fetch = async (input, init) => {
-    completed = await delivery(input, init)
+    completed = await deliverSandboxResponse(gate, () => transport(input, init), scope.toolCallId)
     return completed
   }
   let response: Response
@@ -154,13 +142,6 @@ export async function proxySandboxProjectFileRequest(
     logger.warn('Project callback effect projection failed after API completion', {
       toolCallId: scope.toolCallId,
     })
-  }
-  if (response.ok && response.body && response.headers.has('Content-Disposition') && !observed) {
-    await response.body.cancel()
-    return Response.json(
-      { error: 'File read provenance is unavailable. Retry the read.' },
-      { status: 503 }
-    )
   }
   const requestId = generateId()
   await recordSandboxResourceEffects(

@@ -4,18 +4,12 @@ import { NextRequest } from 'next/server'
 import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
-import { ContentGateFailure } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
-import {
-  createSessionContentGate,
-  dispatchUnderContentGate,
-  markCommittedWriteResponse,
-  WorkbenchProvenanceUnavailableError,
-} from '@/lib/mothership/content-delivery'
+import { createSessionContentGate, deliverSandboxResponse } from '@/lib/mothership/content-delivery'
 import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { proxySandboxFileCopyRequest } from '@/lib/mothership/tools/sandbox-file-copy'
@@ -155,29 +149,7 @@ async function proxyAuthorizedSandboxRequest(
   })
   const deliver = async () => {
     dispatched = true
-    try {
-      response = (await dispatchUnderContentGate(gate, dispatch)).response
-    } catch (error) {
-      if (
-        !(error instanceof ContentGateFailure) ||
-        !(error.gateFailure instanceof WorkbenchProvenanceUnavailableError)
-      ) {
-        throw error
-      }
-      /** A mutation may already have committed; the result is withheld, never retried for it. */
-      logger.warn('Sandbox response provenance could not be recorded', {
-        toolCallId: scope.toolCallId,
-      })
-      const withheld = Response.json(
-        {
-          error: error.committedWrite
-            ? 'The change was saved, but its result could not be returned safely. Do not retry the change.'
-            : 'The API request ran, but its result could not be returned safely. Do not retry a mutation automatically; read the resource to check its current state.',
-        },
-        { status: 502 }
-      )
-      response = error.committedWrite ? markCommittedWriteResponse(withheld) : withheld
-    }
+    response = await deliverSandboxResponse(gate, dispatch, scope.toolCallId)
     return response
   }
   try {
