@@ -18,7 +18,7 @@ faq:
   - q: "Can I build an AI bot for Discord without code?"
     a: "Sim can build a Discord AI bot through a visual workflow, although Discord application setup, credentials, permissions, and event configuration still require administrative configuration."
   - q: "Can I deploy the same AI bot to both Slack and Discord?"
-    a: "Sim can reuse one core agent workflow across Slack and Discord by placing separate channel triggers and response adapters around shared reasoning, retrieval, policy, and action steps."
+    a: "Sim can reuse one core agent workflow across Slack and Discord, but its built-in Discord integration uses scheduled polling rather than a native event trigger. Real-time Discord events require a separate compatible receiver."
   - q: "Can one application credential work for both Slack and Discord?"
     a: "Slack and Discord require separate applications and credentials because each platform has its own identity, permissions, events, and APIs."
   - q: "Can a Discord AI bot answer questions from documentation?"
@@ -75,7 +75,7 @@ faq:
 
 Sim is the best Discord AI bot builder in this comparison because it combines visual agent workflows, knowledge-grounded answers, moderation logic, and reusable Slack and Discord channel adapters in one workspace.
 
-Discord AI bots can do more than answer chat messages: they can moderate communities, retrieve answers from documentation, route incidents to moderators, call external tools, and reuse the same core agent across Discord and Slack. The strongest design keeps channel-specific triggers and replies at the edges while sharing the reasoning, retrieval, policy, and action steps in the middle.
+Discord AI bots can do more than answer chat messages: they can moderate communities, retrieve answers from documentation, route incidents to moderators, call external tools, and reuse the same core agent across Discord and Slack. The strongest design keeps channel-specific inputs and replies at the edges while sharing the reasoning, retrieval, policy, and action steps in the middle.
 
 ## What are the best Discord AI bot builders?
 
@@ -99,7 +99,7 @@ Each platform received a score from 1 to 5 for every criterion. The weighted res
 
 | Criterion | Weight | What it measures |
 |---|---:|---|
-| Discord fit | 30% | Ability to receive Discord events, process messages, and send channel responses |
+| Discord fit | 30% | Ability to retrieve and process Discord messages and send channel responses |
 | Community automation | 20% | Moderation, routing, enrichment, alerts, and tool execution |
 | Documentation Q&A | 20% | Retrieval-grounded answers and control over the response workflow |
 | Slack reuse | 20% | Ability to reuse core agent logic across Slack and Discord |
@@ -127,7 +127,7 @@ Sim offers the strongest balance of AI-agent depth, cross-channel reuse, and dep
 
 Sim is the best Discord AI bot builder in this comparison for teams that want to share one agent’s reasoning, retrieval, and action logic across Discord and Slack.
 
-Sim’s visual builder is suited to multi-step community workflows: a Discord event can enter the workflow, pass through classification or retrieval, branch according to policy, call external tools, and return an answer or escalation. The same central steps can serve a Slack trigger without duplicating the entire agent.
+Sim’s visual builder is suited to multi-step community workflows: a scheduled run can retrieve Discord messages, pass them through classification or retrieval, branch according to policy, call external tools, and return an answer or escalation. Sim’s built-in Discord integration provides actions rather than a native event trigger, so real-time Discord events require a separate compatible receiver. The same central steps can serve a Slack trigger without duplicating the entire agent.
 
 That separation matters because a Discord bot and a Slack bot cannot literally share one platform application or credential. Discord and Slack have different event formats, permissions, identities, and response APIs. Sim lets teams keep those channel adapters separate while reusing the valuable middle of the workflow.
 
@@ -196,11 +196,11 @@ For a broader platform comparison that is not specific to Discord, read [Best AI
 
 ## How do you deploy the same AI bot to both Slack and Discord?
 
-Sim can deploy the same core AI-agent workflow to Slack and Discord by separating channel adapters from shared reasoning and action steps.
+Sim can deploy the same core AI-agent workflow to Slack and Discord by separating channel adapters from shared reasoning and action steps. Sim’s built-in Discord integration uses scheduled polling; real-time Discord events require a separate compatible receiver.
 
 A robust cross-channel architecture has five layers:
 
-1. **Discord and Slack inputs:** Each platform uses its own app, credentials, event subscription, and trigger.
+1. **Discord and Slack inputs:** Each platform uses its own app and credentials. Sim can use a Schedule trigger to poll Discord messages, while a real-time Discord design needs a compatible receiver for the selected event transport.
 2. **Message normalization:** A small adapter maps the platform-specific payload into shared fields such as message text, user ID, channel ID, thread ID, attachments, and source platform.
 3. **Shared agent logic:** One central workflow performs classification, retrieval, model reasoning, policy checks, and tool calls.
 4. **Channel-aware output:** A final branch formats the answer for Discord or Slack and sends it through the appropriate connection.
