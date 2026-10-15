@@ -52,6 +52,7 @@ describe('browser download admission with PostgreSQL', () => {
       claimed_at timestamp, claimed_by text, execution_started_at timestamp,
       execution_settled_at timestamp, execution_owner_token text,
       execution_lease_expires_at timestamptz, execution_revoked_at timestamptz,
+      execution_attempts integer NOT NULL DEFAULT 0,
       client_workflow_execution_id text, sandbox_processes jsonb NOT NULL DEFAULT '{}',
       completed_at timestamp, created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now()
