@@ -229,11 +229,17 @@ export class ComputerUseService {
       this.check(work)
       const owner = 'snapshotId' in input ? this.snapshots.get(input.snapshotId) : undefined
       const elementId = 'elementId' in input ? input.elementId : undefined
-      /** Calls without a window act on the snapshot's selected window, or the element's own. */
+      /**
+       * Element and coordinate calls observe the window they acted on. An untargeted key keeps the
+       * focused-window default, so a key that closes the window still returns fresh state.
+       */
       const windowId =
         ('windowId' in input ? input.windowId : undefined) ??
-        (elementId ? owner?.elementWindows.get(elementId) : undefined) ??
-        owner?.windowId
+        (elementId
+          ? (owner?.elementWindows.get(elementId) ?? owner?.windowId)
+          : 'x' in input
+            ? owner?.windowId
+            : undefined)
       if ('snapshotId' in input) this.snapshots.delete(input.snapshotId)
       /** Mutations accept includeScreenshot as shorthand for observeAfter.includeScreenshot. */
       const isMutation = input.action !== 'get_app_state'
