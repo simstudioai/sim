@@ -764,11 +764,10 @@ describe('useChat remount send recovery', () => {
      * Streams a turn that opens a file tab without an effect (the client
      * persists it), then the server's own removal of that file as an effect.
      * Later turns only complete. The removal is held until `addSent` resolves,
-     * so the client's own write for the add has started by then. With
-     * `restore`, the server then stores the file again as an effect. Returns
-     * each send's resource attachments.
+     * so the client's own write for the add has started by then. Returns each
+     * send's resource attachments.
      */
-    function streamAddThenServerRemoval(addSent: Promise<void>, restore = false): unknown[] {
+    function streamAddThenServerRemoval(addSent: Promise<void>): unknown[] {
       const sentAttachments: unknown[] = []
       vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input) !== '/api/mothership/chat' || init?.method !== 'POST') {
@@ -799,21 +798,7 @@ describe('useChat remount send recovery', () => {
                   type: 'resource',
                   payload: { op: 'remove', resource: file, effectId: 'remove-deleted-file' },
                 },
-                ...(restore
-                  ? [
-                      {
-                        ...envelope,
-                        seq: 3,
-                        type: 'resource' as const,
-                        payload: {
-                          op: 'upsert' as const,
-                          resource: file,
-                          effectId: 'restore-file',
-                        },
-                      },
-                    ]
-                  : []),
-                { ...complete, seq: 4 },
+                complete,
               ]
             : [complete]
         const encoder = new TextEncoder()
@@ -883,44 +868,6 @@ describe('useChat remount send recovery', () => {
       expect(writes).toEqual(writesBeforeRemoval)
       expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
       expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
-    })
-
-    it('deletes an add still in flight once it lands, after the server removal', async () => {
-      const add = createDeferred<unknown>()
-      const { writes, addSent } = recordResourceWrites(() => add.promise)
-      streamAddThenServerRemoval(addSent)
-      const { getResult } = renderUseChatInChat(chat.id, chat)
-
-      await act(async () => {
-        await getResult().sendMessage('Export the report, then delete it')
-      })
-      expect(writes).toEqual(['POST deleted-file'])
-
-      await act(async () => {
-        add.resolve({ resources: [] })
-        await sleep(0)
-      })
-
-      expect(writes).toEqual(['POST deleted-file', 'DELETE deleted-file'])
-      expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
-    })
-
-    it('keeps a tab the server restored after removing it while its add was in flight', async () => {
-      const add = createDeferred<unknown>()
-      const { writes, addSent } = recordResourceWrites(() => add.promise)
-      streamAddThenServerRemoval(addSent, true)
-      const { getResult } = renderUseChatInChat(chat.id, chat)
-
-      await act(async () => {
-        await getResult().sendMessage('Export the report, delete it, then restore it')
-      })
-      await act(async () => {
-        add.resolve({ resources: [] })
-        await sleep(0)
-      })
-
-      expect(writes).toEqual(['POST deleted-file'])
-      expect(getResult().resources.map((resource) => resource.id)).toContain('deleted-file')
     })
 
     it('drops a failed add when the removal arrives in a reconnect replay', async () => {

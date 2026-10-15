@@ -124,44 +124,21 @@ export class ResourcePersistenceQueue {
   /**
    * Forgets a write that would add back a resource the server has already
    * removed on its own, so neither a later flush nor the projection over
-   * server history resurrects it. A removal the user queued still runs.
-   *
-   * An add already in flight may commit after that server removal, so for it
-   * this returns a scheduler for a compensating delete, ordered after the
-   * write settles; a queued or failed add is simply dropped.
+   * server history resurrects it. A removal the user queued still runs, and a
+   * write already in flight is left to its own bookkeeping.
    */
   discardUpsert(
     type: MothershipResource['type'],
     id: string,
     scopeId: string,
     workspaceId?: string
-  ): RemovedResourcePersistence['scheduleDelete'] | undefined {
+  ): void {
     const key = this.getKey(scopeId, type, id, workspaceId)
-    if (this.pendingRemovals.has(key)) return
-    if (this.inFlight.has(key))
-      return this.remove(type, id, scopeId, false, workspaceId).scheduleDelete
+    if (this.pendingRemovals.has(key) || this.inFlight.has(key)) return
     this.desiredUpdates.delete(key)
     this.failedKeys.delete(key)
     this.pendingKeys.delete(key)
     this.persistedKeys.delete(key)
-  }
-
-  /**
-   * Cancels a delete still waiting to run for a resource the server has since
-   * stored again on its own, as a newer add would. The server already holds
-   * the resource, so nothing is written.
-   */
-  cancelRemoval(
-    type: MothershipResource['type'],
-    id: string,
-    scopeId: string,
-    workspaceId?: string
-  ): void {
-    const key = this.getKey(scopeId, type, id, workspaceId)
-    if (!this.removalTokens.delete(key)) return
-    this.pendingRemovals.delete(key)
-    this.failedKeys.delete(key)
-    if (!this.desiredUpdates.has(key)) this.pendingKeys.delete(key)
   }
 
   /**

@@ -263,9 +263,6 @@ interface WithdrawnSendResult {
  */
 type StartSendMessageResult = boolean | WithdrawnSendResult
 
-/** The fields that address a stored chat resource. */
-type ResourceIdentity = Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
-
 interface StartSendMessageOptions {
   /** Awaited before dispatch. Defaults to the hook's in-flight stop, if any. */
   pendingStop?: Promise<void> | null
@@ -1482,18 +1479,6 @@ export function useChat(
     [queryClient, resourcePersistenceQueue]
   )
 
-  const deleteStoredResource = useCallback(
-    (chatId: string, { type, id, workspaceId }: ResourceIdentity) =>
-      async () => {
-        const result = await requestJson(removeMothershipChatResourceContract, {
-          body: { chatId, resourceType: type, resourceId: id, workspaceId },
-        })
-        await refreshResourceHistory(chatId)
-        return result
-      },
-    [refreshResourceHistory]
-  )
-
   const removeResource = useCallback(
     (resourceType: MothershipResourceType, resourceId: string, resourceWorkspaceId?: string) => {
       const matches = (resource: MothershipResource) =>
@@ -1542,47 +1527,32 @@ export function useChat(
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
       if (!persistChatId) return
-      scheduleDelete(
-        persistChatId,
-        deleteStoredResource(persistChatId, {
-          type: resourceType,
-          id: resourceId,
-          workspaceId: resourceWorkspaceId,
+      scheduleDelete(persistChatId, async () => {
+        const result = await requestJson(removeMothershipChatResourceContract, {
+          body: {
+            chatId: persistChatId,
+            resourceType,
+            resourceId,
+            workspaceId: resourceWorkspaceId,
+          },
         })
-      )
+        await refreshResourceHistory(persistChatId)
+        return result
+      })
     },
-    [queryClient, deleteStoredResource, resourcePersistenceQueue]
+    [queryClient, refreshResourceHistory, resourcePersistenceQueue]
   )
 
   const discardPendingResourceUpsert = useCallback(
-    (resource: ResourceIdentity) => {
-      const { type, id, workspaceId } = resource
-      const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
+    ({ type, id, workspaceId }: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>) => {
       // An add queued before the chat id resolved stays in the provisional
       // bucket until a flush adopts it, so both scopes may hold it.
-      for (const scopeId of new Set([persistChatId, pendingChatKeyRef.current])) {
-        if (!scopeId) continue
-        const scheduleDelete = resourcePersistenceQueue.discardUpsert(
-          type,
-          id,
-          scopeId,
-          workspaceId
-        )
-        if (scheduleDelete && persistChatId) {
-          scheduleDelete(persistChatId, deleteStoredResource(persistChatId, resource))
-        }
-      }
-    },
-    [deleteStoredResource, resourcePersistenceQueue]
-  )
-
-  const cancelPendingResourceRemoval = useCallback(
-    ({ type, id, workspaceId }: ResourceIdentity) => {
-      for (const scopeId of new Set([
+      const scopes = new Set([
         chatIdRef.current ?? selectedChatIdRef.current,
         pendingChatKeyRef.current,
-      ])) {
-        if (scopeId) resourcePersistenceQueue.cancelRemoval(type, id, scopeId, workspaceId)
+      ])
+      for (const scopeId of scopes) {
+        if (scopeId) resourcePersistenceQueue.discardUpsert(type, id, scopeId, workspaceId)
       }
     },
     [resourcePersistenceQueue]
@@ -2419,7 +2389,6 @@ export function useChat(
         addResource,
         removeResource,
         discardPendingResourceUpsert,
-        cancelPendingResourceRemoval,
         startClientWorkflowTool,
         startClientLocalFilesystemTool: (toolCallId, toolName, toolArgs) =>
           startClientLocalFilesystemTool(toolCallId, toolName, toolArgs, desktopTurn),
@@ -2565,7 +2534,6 @@ export function useChat(
       addResource,
       removeResource,
       discardPendingResourceUpsert,
-      cancelPendingResourceRemoval,
       startClientWorkflowTool,
       startClientLocalFilesystemTool,
       startClientTerminalTool,
