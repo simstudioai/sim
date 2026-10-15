@@ -191,6 +191,21 @@ describe('run admission and early Stop', () => {
   })
 })
 
+/** Finds a condition anywhere in a mocked expression, including inside `sql` and `sql.join` fragments. */
+function someNestedCondition(
+  node: unknown,
+  predicate: (condition: Record<string, unknown>) => boolean
+): boolean {
+  if (!node || typeof node !== 'object') return false
+  const record = node as Record<string, unknown>
+  if (predicate(record)) return true
+  return ['conditions', 'values', 'fragments'].some(
+    (key) =>
+      Array.isArray(record[key]) &&
+      (record[key] as unknown[]).some((child) => someNestedCondition(child, predicate))
+  )
+}
+
 describe('durable Sim tool ownership', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -260,7 +275,7 @@ describe('durable Sim tool ownership', () => {
       )
     ).toBe(true)
     expect(
-      hasMockCondition(
+      someNestedCondition(
         interruptedExecution,
         (condition) =>
           condition.type === 'lt' && condition.left === copilotAsyncToolCalls.executionAttempts
