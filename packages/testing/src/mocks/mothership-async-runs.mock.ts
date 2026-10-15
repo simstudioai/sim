@@ -40,6 +40,9 @@ export const mothershipAsyncRunsMockFns = {
     async (_toolCallId: string): Promise<number | null> => null
   ),
   mockRevokeExpiredSimToolExecutions: vi.fn(),
+  /** No Sim tool still running by default, so a takeover may proceed. */
+  mockHasLiveSimToolExecution: vi.fn(async (_runId: string): Promise<boolean> => false),
+  mockRevokeExhaustedSimToolExecutions: vi.fn(async (_runId: string): Promise<unknown[]> => []),
   mockSettleSimToolExecution: vi.fn(),
   mockSettleClientWorkflowToolExecution: vi.fn(),
   mockRecordSimSandboxProcess: vi.fn(),
@@ -103,6 +106,8 @@ export const mothershipAsyncRunsMock = {
   getChatViewDesktopLeaseRemainingMs:
     mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs,
   revokeExpiredSimToolExecutions: mothershipAsyncRunsMockFns.mockRevokeExpiredSimToolExecutions,
+  hasLiveSimToolExecution: mothershipAsyncRunsMockFns.mockHasLiveSimToolExecution,
+  revokeExhaustedSimToolExecutions: mothershipAsyncRunsMockFns.mockRevokeExhaustedSimToolExecutions,
   settleSimToolExecution: mothershipAsyncRunsMockFns.mockSettleSimToolExecution,
   settleClientWorkflowToolExecution:
     mothershipAsyncRunsMockFns.mockSettleClientWorkflowToolExecution,

@@ -4955,10 +4955,18 @@ export const copilotAsyncToolCalls = pgTable(
     executionOwnerToken: text('execution_owner_token'),
     executionLeaseExpiresAt: timestamp('execution_lease_expires_at', { withTimezone: true }),
     executionRevokedAt: timestamp('execution_revoked_at', { withTimezone: true }),
+    /** Sim executions started for this call, counting each re-run after its owner died. */
+    executionAttempts: integer('execution_attempts').notNull().default(0),
     /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
     clientWorkflowExecutionId: text('client_workflow_execution_id'),
     sandboxProcesses: jsonb('sandbox_processes')
-      .$type<Record<string, { sandboxId: string; sessionKey: string; settled: boolean }>>()
+      /** `ownerToken` names the execution attempt that started the command. */
+      .$type<
+        Record<
+          string,
+          { sandboxId: string; sessionKey: string; settled: boolean; ownerToken?: string }
+        >
+      >()
       .notNull()
       .default({}),
     completedAt: timestamp('completed_at'),
