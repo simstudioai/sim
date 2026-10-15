@@ -230,23 +230,27 @@ async function recordRunStopTx(tx: DbTransaction, input: RunStopInput, admitted 
 
 type StoppedSandboxProcess = SessionProcessIdentity & { toolCallId: string }
 
-/** A stopped run, with what its post-commit delivery needs. */
-export interface StoppedRun {
+/** The run a Stop is delivered to. */
+export interface RunStopTarget {
   id: string
   streamId: string
   userId: string
   chatId: string
   desktopDeviceId: string | null
-  /**
-   * The client workflows and sandbox commands the run started, read once its admission is
-   * closed. A removal reads them in its own transaction, before a hard delete cascades their
-   * rows away.
-   */
+}
+
+/** The client workflows and sandbox commands a stopped run started, read once its admission closed. */
+export interface StoppedRunWork {
   clientWorkflowExecutionIds: string[]
   sandboxProcesses: StoppedSandboxProcess[]
 }
 
-/** Whose live runs a deletion or access removal ends. */
+/**
+ * A run a removal stopped. Its work is read in the removal's own transaction, before a hard
+ * delete cascades those rows away.
+ */
+export interface StoppedRun extends RunStopTarget, StoppedRunWork {}
+
 type LiveRunScope =
   | { chatIds: string[] }
   | { userId: string }

@@ -1746,6 +1746,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
         permissionGroupsRevoked,
         credentialMembershipsRevoked,
         pendingInvitationsCancelled,
+        stoppedRuns,
       }
     }
 

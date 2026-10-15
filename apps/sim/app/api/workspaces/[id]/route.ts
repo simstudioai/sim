@@ -285,8 +285,8 @@ export const DELETE = withRouteHandler(
 
       const archiveResult = await archiveWorkspace(workspaceId, {
         requestId: `workspace-${workspaceId}`,
+        deliverStops: deliverRunStops,
       })
-      deliverRunStops(archiveResult.stoppedRuns)
 
       /** Recorded first: a retry that finishes an earlier partial deletion still archives it. */
       if (archiveResult.archivedProject) {

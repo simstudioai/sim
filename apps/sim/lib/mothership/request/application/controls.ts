@@ -149,7 +149,8 @@ export const abortRun = defineAuthorizedChatUseCase({
       { ...input, workspaceId, organizationId },
       run
     )
-    const [clientWorkflowExecutionIds, sandboxProcesses] = await Promise.all([
+    /** Read alongside the signals, which need none of it. */
+    const work = Promise.all([
       getUnsettledClientWorkflowExecutions(streamId, userId).catch((error) => {
         logger.warn('Stopped stream workflow ownership could not be read', {
           streamId,
@@ -164,16 +165,14 @@ export const abortRun = defineAuthorizedChatUseCase({
         })
         return []
       }),
-    ])
-    const { settled, workerSettled } = await deliverRunStop({
-      id: run.id,
-      streamId,
-      userId,
-      chatId,
-      desktopDeviceId: run.desktopDeviceId,
+    ]).then(([clientWorkflowExecutionIds, sandboxProcesses]) => ({
       clientWorkflowExecutionIds,
       sandboxProcesses,
-    })
+    }))
+    const { settled, workerSettled } = await deliverRunStop(
+      { id: run.id, streamId, userId, chatId, desktopDeviceId: run.desktopDeviceId },
+      work
+    )
     if (!settled) return { aborted: true, settled: false, forceReleased: true }
     const toolsSettled = await areStreamToolExecutionsSettled(streamId, userId).catch((error) => {
       logger.warn('Stopped stream tool settlement could not be verified', {

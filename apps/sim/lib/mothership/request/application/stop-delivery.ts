@@ -4,7 +4,11 @@ import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { settleStoppedRunWithoutController } from '@/lib/mothership/async-runs/orphaned-runs'
-import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
+import type {
+  RunStopTarget,
+  StoppedRun,
+  StoppedRunWork,
+} from '@/lib/mothership/async-runs/repository'
 import {
   abortActiveStream,
   releasePendingChatStream,
@@ -30,11 +34,12 @@ interface RunStopDeliveryOptions {
 /**
  * Delivers a Stop that is already durable to everything still acting on the run: the
  * desktop, the worker, this process's controller, the run's client workflows and sandbox
- * commands. Each effect is best-effort; the worker also reconciles Sim's durable intent on
+ * commands. The signals go out first; `work` may still be loading. Each effect is best-effort; the worker also reconciles Sim's durable intent on
  * its next heartbeat.
  */
 export async function deliverRunStop(
-  run: StoppedRun,
+  run: RunStopTarget,
+  work: StoppedRunWork | Promise<StoppedRunWork>,
   options: RunStopDeliveryOptions = {}
 ): Promise<RunStopDelivery> {
   const { streamId, userId, chatId } = run
@@ -63,9 +68,9 @@ export async function deliverRunStop(
       error: getErrorMessage(error),
     })
   }
-  const cancelClientWorkflows = () =>
+  const cancelClientWorkflows = async () =>
     Promise.all(
-      run.clientWorkflowExecutionIds.map(async (executionId) => {
+      (await work).clientWorkflowExecutionIds.map(async (executionId) => {
         /** The execution route reserved these IDs before recording ownership; no client result is trusted. */
         abortManualExecution(executionId)
         await markExecutionCancelled(executionId)
@@ -74,7 +79,9 @@ export async function deliverRunStop(
   const [settled, worker] = await Promise.all([
     waitForPendingChatStream(chatId, 8000, streamId),
     workerStop,
-    recoverSandboxProcesses(run.sandboxProcesses, AbortSignal.timeout(8000)),
+    Promise.resolve(work).then(({ sandboxProcesses }) =>
+      recoverSandboxProcesses(sandboxProcesses, AbortSignal.timeout(8000))
+    ),
     cancelClientWorkflows().catch((error) => {
       logger.warn('Stopped stream workflow cancellation could not be delivered', {
         streamId,
@@ -103,7 +110,7 @@ export async function deliverRunStop(
  */
 export function deliverRunStops(runs: StoppedRun[], options: RunStopDeliveryOptions = {}): void {
   for (const run of runs) {
-    deliverRunStop(run, options).catch((error) =>
+    deliverRunStop(run, run, options).catch((error) =>
       logger.warn('Stop for a removed run was not delivered', {
         streamId: run.streamId,
         error: getErrorMessage(error),

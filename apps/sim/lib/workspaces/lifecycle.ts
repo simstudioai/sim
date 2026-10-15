@@ -51,6 +51,12 @@ export interface EnvironmentArchiveEffects {
 interface ArchiveWorkspaceOptions {
   requestId: string
   expectedOwnerId?: string
+  /**
+   * Starts delivering the Stop the archive committed for its live Chat runs, before the slower
+   * post-commit cleanup. Injected because this module sits in page graphs that must not load
+   * the delivery; without it the runs stop on run control's next read.
+   */
+  deliverStops?: (runs: StoppedRun[]) => void
 }
 
 interface ArchiveWorkspaceResult {
@@ -58,8 +64,6 @@ interface ArchiveWorkspaceResult {
   workspaceName?: string
   /** The Project archived with its last active environment, for the caller's audit. */
   archivedProject?: { id: string; name: string }
-  /** Chat runs the archive stopped; see {@link EnvironmentArchiveEffects}. */
-  stoppedRuns: StoppedRun[]
 }
 
 export async function archiveWorkspace(
@@ -69,7 +73,7 @@ export async function archiveWorkspace(
   const workspaceRecord = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
 
   if (!workspaceRecord) {
-    return { archived: false, stoppedRuns: [] }
+    return { archived: false }
   }
 
   /** Retrying deletion also archives children left active by an older or incomplete deletion. */
@@ -95,9 +99,10 @@ export async function archiveWorkspace(
         : undefined,
     }
   })
-  if (!outcome) return { archived: false, stoppedRuns: [] }
+  if (!outcome) return { archived: false }
 
   logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
+  options.deliverStops?.(outcome.effects.stoppedRuns)
 
   await finishEnvironmentArchive(outcome.effects, options.requestId)
 
@@ -105,7 +110,6 @@ export async function archiveWorkspace(
     archived: !workspaceRecord.archivedAt,
     workspaceName: workspaceRecord.name,
     archivedProject: outcome.archivedProject,
-    stoppedRuns: outcome.effects.stoppedRuns,
   }
 }
 

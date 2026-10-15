@@ -59,6 +59,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -74,6 +75,7 @@ import {
   getLocalChatStreamLease,
   releasePendingChatStream,
 } from '@/lib/mothership/request/session/abort'
+import { chatStreamLockKey } from '@/lib/mothership/request/session/controller-lease'
 import { executeSimControl } from '@/lib/mothership/transport/control'
 import { removeOrganizationMemberRecord } from '@/lib/organizations/member-manager'
 import { AccountDeletionBlockedError, deleteUserAccount } from '@/lib/users/account-deletion'
@@ -128,6 +130,38 @@ async function seedWorkspace(ownerId: string, members: string[] = []) {
     }))
   )
   return id
+}
+
+/** An organization its owner runs, with one workspace of its own. */
+async function seedOrganization(ownerId: string) {
+  const organizationId = generateId()
+  organizationIds.push(organizationId)
+  await db
+    .insert(organization)
+    .values({ id: organizationId, name: 'Run removal fixture', slug: organizationId })
+  await db
+    .insert(member)
+    .values({ id: generateId(), organizationId, userId: ownerId, role: 'owner' })
+  const workspaceId = generateId()
+  workspaceIds.push(workspaceId)
+  await insertWorkspaceFixture(db, {
+    id: workspaceId,
+    name: 'Run removal fixture',
+    ownerId,
+    billedAccountUserId: ownerId,
+    organizationId,
+  })
+  return { organizationId, workspaceId }
+}
+
+async function grantWrite(userId: string, workspaceId: string) {
+  await db.insert(permissions).values({
+    id: generateId(),
+    userId,
+    entityType: 'workspace',
+    entityId: workspaceId,
+    permissionType: 'write',
+  })
 }
 
 /** A Chat run its controller is still driving, in a chat of its own. */
@@ -497,31 +531,9 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
   it('stops an external collaborator’s runs in the organization’s workspaces only', async () => {
     const ownerId = await seedUser()
     const externalId = await seedUser()
-    const organizationId = generateId()
-    organizationIds.push(organizationId)
-    await db
-      .insert(organization)
-      .values({ id: organizationId, name: 'Run removal fixture', slug: organizationId })
-    await db
-      .insert(member)
-      .values({ id: generateId(), organizationId, userId: ownerId, role: 'owner' })
-    const organizationWorkspace = generateId()
-    workspaceIds.push(organizationWorkspace)
-    await insertWorkspaceFixture(db, {
-      id: organizationWorkspace,
-      name: 'Run removal fixture',
-      ownerId,
-      billedAccountUserId: ownerId,
-      organizationId,
-    })
-    await db.insert(permissions).values({
-      id: generateId(),
-      userId: externalId,
-      entityType: 'workspace',
-      entityId: organizationWorkspace,
-      permissionType: 'write',
-    })
-    const removedRun = await seedRun({ userId: externalId, workspaceId: organizationWorkspace })
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    await grantWrite(externalId, workspaceId)
+    const removedRun = await seedRun({ userId: externalId, workspaceId })
     const elsewhere = await seedRun({
       userId: externalId,
       workspaceId: await seedWorkspace(externalId),
@@ -536,6 +548,46 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     await expect.poll(pushedStops).toEqual([removedRun.streamId])
     expect(await runControl(removedRun)).toEqual(STOPPED)
     expect(await runControl(elsewhere)).toEqual(LIVE)
+  })
+
+  it('delivers the Stop it recorded even when there was no access left to remove', async () => {
+    const ownerId = await seedUser()
+    const externalId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const run = await seedRun({ userId: externalId, workspaceId })
+
+    await expect(
+      removeOrganizationMemberRecord({ organizationId, userId: externalId, actorUserId: ownerId })
+    ).rejects.toThrow('External workspace member not found')
+
+    await expect.poll(pushedStops).toEqual([run.streamId])
+  })
+
+  it('delivers each Stop once when leaving a workspace also ends the organization membership', async () => {
+    const ownerId = await seedUser()
+    const memberId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    await db
+      .insert(member)
+      .values({ id: generateId(), organizationId, userId: memberId, role: 'member' })
+    await grantWrite(memberId, workspaceId)
+    const workspaceRun = await seedRun({ userId: memberId, workspaceId })
+    const assistantRun = await seedRun({ userId: memberId, organizationId })
+    /** A live controller keeps the run unsettled, as it would be while both removals commit. */
+    await getRedisClient()?.set(
+      chatStreamLockKey(workspaceRun.chatId),
+      workspaceRun.streamId,
+      'EX',
+      60
+    )
+
+    await removeWorkspaceMemberRecord(workspaceId, memberId, ownerId)
+
+    const expected = [workspaceRun.streamId, assistantRun.streamId].sort()
+    await expect.poll(pushedStops).toEqual(expected)
+    await sleep(300)
+    expect(pushedStops()).toEqual(expected)
+    await getRedisClient()?.del(chatStreamLockKey(workspaceRun.chatId))
   })
 
   it('answers Stop for a suspended owner’s run', async () => {
