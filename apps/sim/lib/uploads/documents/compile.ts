@@ -620,6 +620,21 @@ async function renderPreparedDocument(source: string, fmt: E2BDocFormat, inputs:
     : compileDocViaE2BPython(source, fmt, inputs)
 }
 
+/** Shared identity for owner-bound rendering and readers of its compiled artifacts. */
+export function fileDocumentCacheIdentity(
+  source: string,
+  format: E2BDocFormat,
+  sourceMime: string,
+  inputIdentity?: string
+): string {
+  return JSON.stringify({
+    sourceLanguage: getDocumentSourceLanguage(source, format, sourceMime),
+    renderer:
+      isDocSandboxEnabled && sourceMime !== 'text/x-pdflibjs' ? 'document-sandbox' : 'native',
+    inputs: inputIdentity ?? null,
+  })
+}
+
 /** Compiles a document against a fixed, authorized input manifest and canonical owner cache. */
 export async function compileFileDocument(args: {
   owner: EditableFileOwner
@@ -641,11 +656,12 @@ export async function compileFileDocument(args: {
     throw new DocCompileUserError('Document inputs exceed the rendering limit')
   }
   const useDocumentSandbox = isDocSandboxEnabled && args.sourceMime !== 'text/x-pdflibjs'
-  const cacheIdentity = JSON.stringify({
-    sourceLanguage: getDocumentSourceLanguage(args.source, fmt, args.sourceMime),
-    renderer: useDocumentSandbox ? 'document-sandbox' : 'native',
-    inputs: args.inputIdentity ?? null,
-  })
+  const cacheIdentity = fileDocumentCacheIdentity(
+    args.source,
+    fmt,
+    args.sourceMime,
+    args.inputIdentity
+  )
   const cached = await loadCompiledDoc(args.owner, args.source, fmt.ext, cacheIdentity, {
     maxBytes: args.maxBytes,
     signal: args.signal,

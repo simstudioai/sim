@@ -53,6 +53,7 @@ import {
   createOwnedWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/file-manager'
+import { fileDocumentCacheIdentity, getE2BDocFormat } from '@/lib/uploads/documents/compile'
 import { compiledArtifactKey, storeCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
@@ -773,7 +774,12 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         'docx',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         artifact,
-        fileDocumentInputIdentity(f.owner, [dependencyRow])
+        fileDocumentCacheIdentity(
+          source,
+          (await getE2BDocFormat('report.docx'))!,
+          'text/plain',
+          fileDocumentInputIdentity(f.owner, [dependencyRow])
+        )
       )
       const { loadFileSearchSource } = await import('@/lib/workspace-files/search/source')
       const revision = {
@@ -866,7 +872,8 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         source,
         'docx',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        artifact
+        artifact,
+        fileDocumentCacheIdentity(source, (await getE2BDocFormat('transition.docx'))!, 'text/plain')
       )
       const input = { projectId: f.projectId, fileId: generated.file.id, maxBytes: 1_000_000 }
       const rendered = await readProjectFileArtifact.execute({ principal: f.reader, input })
@@ -987,13 +994,23 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         await Packer.toBuffer(
           new Document({ sections: [{ children: [new Paragraph('oldrender')] }] })
         ),
-        fileDocumentInputIdentity(f.owner, [dependencyRow])
+        fileDocumentCacheIdentity(
+          source,
+          (await getE2BDocFormat('report.docx'))!,
+          'text/plain',
+          fileDocumentInputIdentity(f.owner, [dependencyRow])
+        )
       )
       const artifactKey = compiledArtifactKey(
         f.owner,
         source,
         'docx',
-        fileDocumentInputIdentity(f.owner, [dependencyRow])
+        fileDocumentCacheIdentity(
+          source,
+          (await getE2BDocFormat('report.docx'))!,
+          'text/plain',
+          fileDocumentInputIdentity(f.owner, [dependencyRow])
+        )
       )
       const completion = {
         owner: f.owner,
@@ -1070,13 +1087,23 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
         await Packer.toBuffer(
           new Document({ sections: [{ children: [new Paragraph('old-contributor')] }] })
         ),
-        fileDocumentInputIdentity(f.owner, [dependencyRow])
+        fileDocumentCacheIdentity(
+          source,
+          (await getE2BDocFormat('report.docx'))!,
+          'text/plain',
+          fileDocumentInputIdentity(f.owner, [dependencyRow])
+        )
       )
       const artifactKey = compiledArtifactKey(
         f.owner,
         source,
         'docx',
-        fileDocumentInputIdentity(f.owner, [dependencyRow])
+        fileDocumentCacheIdentity(
+          source,
+          (await getE2BDocFormat('report.docx'))!,
+          'text/plain',
+          fileDocumentInputIdentity(f.owner, [dependencyRow])
+        )
       )
       const { markFileSearchArtifactReadyInTx } = await import(
         '@/lib/workspace-files/search/artifact-ready'

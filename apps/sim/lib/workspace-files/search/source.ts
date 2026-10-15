@@ -10,6 +10,7 @@ import {
   getE2BDocFormat,
   isCompiledDocumentBuffer,
 } from '@/lib/uploads/documents'
+import { fileDocumentCacheIdentity } from '@/lib/uploads/documents/compile'
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 import { compiledArtifactKey, loadCompiledDoc } from '@/lib/uploads/documents/compiled-store'
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
@@ -102,7 +103,11 @@ export async function loadFileSearchSource(
   if (inputs.length !== ids.length) throw new FileSearchExclusionError('incomplete_extraction')
   signal.throwIfAborted()
   const inputIdentity = fileDocumentInputIdentity(owner, inputs)
-  const artifact = await loadCompiledDoc(owner, source, format.ext, inputIdentity, {
+  const cacheIdentity =
+    owner.entityType === 'project'
+      ? fileDocumentCacheIdentity(source, format, file.contentType, inputIdentity)
+      : inputIdentity
+  const artifact = await loadCompiledDoc(owner, source, format.ext, cacheIdentity, {
     maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
     signal,
   })
@@ -111,7 +116,7 @@ export async function loadFileSearchSource(
     bytes: artifact ? { buffer: artifact, kind: 'artifact' } : { buffer: raw, kind: 'source' },
     ...(artifact
       ? {
-          artifactKey: compiledArtifactKey(owner, source, format.ext, inputIdentity),
+          artifactKey: compiledArtifactKey(owner, source, format.ext, cacheIdentity),
         }
       : {}),
     dependencies: inputs.map((input) => ({
