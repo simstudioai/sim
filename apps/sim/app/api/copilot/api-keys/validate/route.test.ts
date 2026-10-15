@@ -6,6 +6,7 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
 import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
 import {
@@ -145,7 +146,10 @@ import {
   validateCopilotApiKeyContract,
 } from '@/lib/api/contracts/copilot'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
-import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
+import {
+  NEAR_LIMIT_USAGE_GATE_TTL_MS,
+  resetUsageGateCache,
+} from '@/lib/billing/core/usage-gate-cache'
 import { POST } from '@/app/api/copilot/api-keys/validate/route'
 
 const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
@@ -627,6 +631,25 @@ describe('validation lifecycle purposes', () => {
         message: expect.stringContaining("organization's usage limit"),
       },
     })
+  })
+
+  it('re-reads a direct-v1 account near its limit, so a continuation past it is refused', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      mockCheckUsageStatus.mockResolvedValue({ isExceeded: false, currentUsage: 4.2, limit: 5 })
+      expect((await POST(request(body, directHeaders), createRouteContext({}))).status).toBe(200)
+
+      mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 5.4, limit: 5 })
+      /** `lru-cache` captures `performance` at load: spy its clock, then fire its 1 ms debounce. */
+      const start = performance.now()
+      vi.spyOn(performance, 'now').mockReturnValue(start + NEAR_LIMIT_USAGE_GATE_TTL_MS + 1)
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect((await POST(request(body, directHeaders), createRouteContext({}))).status).toBe(402)
+    } finally {
+      vi.runOnlyPendingTimers()
+      vi.useRealTimers()
+    }
   })
 
   it('admits a direct-v1 continuation whose usage cannot be read', async () => {
