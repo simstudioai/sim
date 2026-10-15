@@ -296,6 +296,28 @@ describe('native computer use authority and lifecycle', () => {
     await expect(click('s1', 'chat', 'repeat')).rejects.toThrow('stale')
   })
 
+  it('keeps a snapshot usable after an action that sent nothing to the app', async () => {
+    const { state, native, click } = setup()
+    await state()
+    native.request.mockRejectedValueOnce(
+      new ComputerUseError({
+        code: 'window_occluded',
+        message: 'Covered.',
+        dispatchState: 'not_started',
+      })
+    )
+    await expect(click('s1', 'chat', 'refused')).rejects.toThrow('Covered.')
+    await expect(click('s1', 'chat', 'retry')).resolves.toMatchObject({ dispatched: true })
+  })
+
+  it('consumes a snapshot after an action whose dispatch is unknown', async () => {
+    const { state, native, click } = setup()
+    await state()
+    native.request.mockRejectedValueOnce(new Error('Computer Use helper exited.'))
+    await expect(click('s1', 'chat', 'lost')).rejects.toThrow('exited')
+    await expect(click('s1', 'chat', 'repeat')).rejects.toThrow('stale')
+  })
+
   it.each(['app', 'window'])('rejects a follow-up snapshot from a different %s', async (target) => {
     const { state, service, native, click } = setup()
     await state()
