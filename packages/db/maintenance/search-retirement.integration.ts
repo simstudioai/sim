@@ -698,9 +698,11 @@ describe('operator-driven Search retirement in PostgreSQL', () => {
     }
   })
 
-  it('the CLI respects health gates, keeps status read-only, and stops after losing its session', async () => {
+  it('the CLI connects with PlanetScale TLS URL parameters, respects health gates, keeps status read-only, and stops after losing its session', async () => {
     const fixtureUrl = new URL(databaseUrl)
     fixtureUrl.pathname = `/${database}`
+    fixtureUrl.searchParams.set('sslmode', 'disable')
+    fixtureUrl.searchParams.set('sslrootcert', 'system')
     const script = fileURLToPath(new URL('../scripts/retire-indexed-search.ts', import.meta.url))
     const environment = {
       ...process.env,
