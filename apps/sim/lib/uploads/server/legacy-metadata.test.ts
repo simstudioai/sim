@@ -17,7 +17,7 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
 
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-import { getFileMetadata } from '@/lib/uploads/core/storage-client'
+import { getFileMetadata } from '@/lib/uploads/server/legacy-metadata'
 
 setUploadsConfig({
   USE_S3_STORAGE: true,
@@ -48,6 +48,20 @@ describe('getFileMetadata', () => {
 
     await expect(getFileMetadata('workspace/ws/key.md')).rejects.toThrow('AccessDenied')
   })
+
+  it.each(['general', 'project'])(
+    'does not grant a legacy uploader read for %s files',
+    async (context) => {
+      mockGetFileMetadataByKey.mockResolvedValue({
+        userId: 'uploader',
+        context,
+        workspaceId: null,
+        originalName: 'shared.md',
+        uploadedAt: new Date(),
+      })
+      expect(await getFileMetadata(`${context}/shared.md`)).not.toHaveProperty('userId')
+    }
+  )
 
   it('prefers the database record when one exists', async () => {
     mockGetFileMetadataByKey.mockResolvedValue({

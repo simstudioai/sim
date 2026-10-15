@@ -803,6 +803,19 @@ export const CLI_CONTRACT: CliContract = {
   createProjectFileFolder: { command: 'projects files folders create' },
   updateProjectFileFolder: { command: 'projects files folders update' },
   restoreProjectFileFolder: { command: 'projects files folders restore' },
+  searchProjectFileContent: {
+    command: 'projects files search',
+    flags: {
+      folderPaths: FOLDER_PATHS_FLAG,
+      includeSubfolders: { boolean: true, negatable: true },
+    },
+    itemsPath: 'results',
+    columns: [
+      { header: 'file', path: 'fileId' },
+      { header: 'line', path: 'lineNumber' },
+      { header: 'text' },
+    ],
+  },
   moveProjectFileItems: {
     command: 'projects files move',
     flags: {

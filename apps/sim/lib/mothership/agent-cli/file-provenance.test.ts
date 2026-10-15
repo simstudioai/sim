@@ -59,10 +59,12 @@ vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
 
 import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
+import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
@@ -118,6 +120,31 @@ function registry() {
   return new ResolvedSecretTraceRegistry([], { userId: 'reader', workspaceId: 'workspace' })
 }
 
+function classify(
+  status: 'exact' | 'unknown',
+  fileRevision = revision,
+  entries: Extract<WorkspaceFileSecretProvenance, { status: 'exact' }>['entries'] = [],
+  includePublicationRows = true
+) {
+  resetDbChainMock()
+  const sidecar = {
+    id: file.id,
+    key: file.key,
+    context: file.storageContext,
+    fileContentUpdatedAt: fileRevision,
+    secretProvenanceVersion: 1,
+    provenanceContentUpdatedAt: fileRevision,
+    status,
+    entries,
+  }
+  queueTableRows(workspaceFiles, [sidecar])
+  if (!includePublicationRows) return
+  queueTableRows(workspaceFiles, [
+    { ...file, context: file.storageContext, secretProvenanceVersion: 1 },
+  ])
+  queueTableRows(workspaceFiles, [sidecar])
+}
+
 type SidecarStatus = 'exact' | 'unknown'
 
 function sidecarRow(status: SidecarStatus, fileRevision = revision, entries: unknown[] = []) {
@@ -131,7 +158,7 @@ function sidecarRow(status: SidecarStatus, fileRevision = revision, entries: unk
 }
 
 /** Queues one sidecar per status, in the order the reads consume them. */
-function classify(...statuses: [SidecarStatus, ...SidecarStatus[]]) {
+function classifySequence(...statuses: [SidecarStatus, ...SidecarStatus[]]) {
   resetDbChainMock()
   for (const status of statuses) queueTableRows(workspaceFiles, [sidecarRow(status)])
 }
@@ -178,11 +205,19 @@ function runCli(invocation: CliInvocation, trace = registry()) {
 const invocation = { userId: 'reader', workspaceId: 'workspace', chatId: 'chat' }
 
 /** Chat's CLI transport as every invocation composes it: the registry gate around the routes. */
-function readTransport(trace = registry()): typeof fetch {
+function readTransport(trace = registry(), tracked = true): typeof fetch {
   const transport = createAgentCliTransport({
     endpoint: 'https://sim.test',
     invocation,
     registry: trace,
+    files: tracked
+      ? createWorkbenchFileProvenance({
+          userId: 'reader',
+          workspaceId: 'workspace',
+          sessionKey: 'chat',
+          resolvedSecretTraceRegistry: trace,
+        })
+      : undefined,
     resources: [],
     observeReads: true,
   })
@@ -220,15 +255,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     mocks.stream.mockImplementation(async () => Readable.from(Buffer.from(content)))
     mocks.buffer.mockResolvedValue(Buffer.from(content))
     mocks.decrypt.mockResolvedValue({ decrypted: content })
-    queueTableRows(workspaceFiles, [
-      {
-        fileContentUpdatedAt: revision,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: revision,
-        status: 'unknown',
-        entries: [],
-      },
-    ])
+    classify('unknown')
   })
 
   it('uses current Copilot file authority with personal keys disabled and rejects a foreign ID-only owner', async () => {
@@ -411,18 +438,19 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     ).not.toContain(content)
   })
 
+  it('refuses opaque protected downloads without workbench provenance tracking', async () => {
+    classify('exact', revision, [
+      { name: 'FILE_SECRET', encryptedValue: 'fixture-ciphertext', sourceUserId: 'reader' },
+    ])
+    const response = await readTransport(registry(), false)(fileRequest())
+    expect(response.status).toBe(403)
+    expect(await response.text()).not.toContain(content)
+    expect(mocks.stream).not.toHaveBeenCalled()
+  })
+
   it('imports encrypted file provenance into a fresh registry before model projection', async () => {
-    resetDbChainMock()
-    queueTableRows(workspaceFiles, [
-      {
-        fileContentUpdatedAt: revision,
-        secretProvenanceVersion: 1,
-        provenanceContentUpdatedAt: revision,
-        status: 'exact',
-        entries: [
-          { name: 'FILE_SECRET', encryptedValue: 'fixture-ciphertext', sourceUserId: 'reader' },
-        ],
-      },
+    classify('exact', revision, [
+      { name: 'FILE_SECRET', encryptedValue: 'fixture-ciphertext', sourceUserId: 'reader' },
     ])
     const trace = registry()
     const response = await readTransport(trace)(fileRequest())
@@ -481,7 +509,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
           nextCursor: null,
         })
       })
-      classify('unknown')
+      classify('unknown', revision, [], false)
       const grep = async () => {
         const trace = registry()
         const result = await runCli(grepFiles(content), trace)
@@ -523,7 +551,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
         nextCursor: null,
       })
     )
-    classify('exact', 'unknown')
+    classifySequence('exact', 'unknown')
     const refusals = getMockLogger('DurableSecretProvenancePersistence').error
     refusals.mockClear()
     const trace = registry()

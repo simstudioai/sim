@@ -1,17 +1,35 @@
 import {
+  createDelegatedPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
+import { fileReadReceiptMock } from '@sim/testing/mocks/file-read-receipt.mock'
 import {
   uploadsMetadataMock,
   uploadsMetadataMockFns,
 } from '@sim/testing/mocks/uploads-metadata.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import {
   workspaceUploadsMock,
   workspaceUploadsMockFns,
 } from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  ContentRefusedError,
+  observeContentDelivery,
+} from '@/lib/core/application/content-delivery'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+import { recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
+
+vi.mock('@/lib/workspace-files/read-receipt', () => fileReadReceiptMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
@@ -66,6 +84,21 @@ describe('readWorkspaceFileContentByKey', () => {
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getFile.mockResolvedValue(file)
     mocks.fetchContent.mockResolvedValue(Buffer.from('source'))
+  })
+
+  it('refuses bytes when final receipt provenance changes after storage opens', async () => {
+    const chat = createDelegatedPrincipal({ audience: WORKSPACE_FILES_DELEGATION_AUDIENCE })
+    workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue(
+      { status: 'exact', entries: [] }
+    )
+    vi.mocked(recheckFileReadReceipt).mockResolvedValueOnce({ status: 'unknown' })
+    await expect(
+      observeContentDelivery(
+        { admit: async (sources) => sources.map((source) => source.provenance.status === 'exact') },
+        () => readWorkspaceFileContentByKey.execute({ principal: chat, input: { key: file.key } })
+      )
+    ).rejects.toBeInstanceOf(ContentRefusedError)
+    expect(mocks.fetchContent).toHaveBeenCalled()
   })
 
   it('authorizes the canonical file before returning its stored bytes', async () => {

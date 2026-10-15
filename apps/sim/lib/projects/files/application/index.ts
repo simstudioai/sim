@@ -1,3 +1,4 @@
+export { readProjectFileArtifact } from './artifacts'
 export { getProjectFileListAccess } from './collection-access'
 export {
   createProjectFile,
@@ -13,12 +14,14 @@ export {
   restoreProjectFileFolder,
 } from './lifecycle'
 export { projectFileOperations } from './operations'
+export { readProjectFileCsvPreview, readProjectInlineFile } from './previews'
 export {
   getProjectFileMetadata,
   listProjectFileItems,
   listProjectFiles,
   resolveProjectFileReference,
 } from './read'
+export { searchProjectFileContent } from './search'
 export {
   abortProjectFileUploadSession,
   completeProjectFileUploadSession,

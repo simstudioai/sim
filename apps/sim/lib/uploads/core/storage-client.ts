@@ -11,32 +11,15 @@ export function getServePathPrefix(): string {
 }
 
 /**
- * Get file metadata from storage provider
+ * Read raw object metadata from the configured provider; it is not canonical file ownership.
  * @param key File key/name
  * @param customConfig Optional custom storage configuration
  * @returns File metadata object with userId, workspaceId, originalName, uploadedAt, etc.
  */
-export async function getFileMetadata(
+export async function getStorageObjectMetadata(
   key: string,
   customConfig?: StorageConfig
 ): Promise<Record<string, string>> {
-  const { getFileMetadataByKey } = await import('../server/metadata')
-  const metadataRecord = await getFileMetadataByKey(key)
-
-  if (metadataRecord) {
-    return {
-      ...(metadataRecord.projectId == null &&
-      metadataRecord.context !== 'project' &&
-      metadataRecord.userId
-        ? { userId: metadataRecord.userId }
-        : {}),
-      workspaceId: metadataRecord.workspaceId || '',
-      originalName: metadataRecord.originalName,
-      uploadedAt: metadataRecord.uploadedAt.toISOString(),
-      purpose: metadataRecord.context,
-    }
-  }
-
   if (USE_BLOB_STORAGE) {
     const { headBlobObject } = await import('@/lib/uploads/providers/blob/client')
     const { BLOB_CONFIG } = await import('@/lib/uploads/config')
