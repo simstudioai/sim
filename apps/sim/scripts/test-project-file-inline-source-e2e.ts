@@ -61,23 +61,31 @@ await check(
     assert.ok((await response.arrayBuffer()).byteLength > 0)
   }
 )
-await check('Private Project inline responses disable browser cache reuse', async () => {
-  const metadata = await request(
-    `/api/projects/${owner.entityId}/files/${required(doc.imageId)}`,
-    true
-  )
-  assert.equal(metadata.status, 200)
-  const key = required(toRecord(toRecord(await metadata.json()).file).key)
-  for (const query of [
-    `key=${encodeURIComponent(key)}`,
-    `fileId=${encodeURIComponent(required(doc.imageId))}`,
-  ]) {
-    const response = await request(`/api/projects/${owner.entityId}/files/inline?${query}`, true)
-    assert.equal(response.status, 200)
-    assert.equal(response.headers.get('cache-control'), 'private, no-store')
-    assert.ok((await response.arrayBuffer()).byteLength > 0)
+await check(
+  'Private Project inline caching distinguishes immutable keys from live file IDs',
+  async () => {
+    const metadata = await request(
+      `/api/projects/${owner.entityId}/files/${required(doc.imageId)}`,
+      true
+    )
+    assert.equal(metadata.status, 200)
+    const key = required(toRecord(toRecord(await metadata.json()).file).key)
+    for (const query of [
+      `key=${encodeURIComponent(key)}`,
+      `fileId=${encodeURIComponent(required(doc.imageId))}`,
+    ]) {
+      const response = await request(`/api/projects/${owner.entityId}/files/inline?${query}`, true)
+      assert.equal(response.status, 200)
+      assert.equal(
+        response.headers.get('cache-control'),
+        query.startsWith('key=')
+          ? 'private, max-age=31536000, immutable'
+          : 'private, no-cache, must-revalidate'
+      )
+      assert.ok((await response.arrayBuffer()).byteLength > 0)
+    }
   }
-})
+)
 await check(
   'The document token grants its own image and conceals the foreign Project image',
   async () => {
