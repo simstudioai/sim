@@ -7,12 +7,7 @@ import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
-import {
-  getFileExtension,
-  getMimeTypeFromExtension,
-  needsRenderedArtifact,
-  resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file'
+import { observedMediaType } from '@/lib/uploads/utils/file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
@@ -120,14 +115,7 @@ export const fileReadCommand: AgentCliEngine = {
         ...(runtime.chatId !== undefined ? { chatId: runtime.chatId } : {}),
       })
       runtime.signal?.throwIfAborted()
-      const type =
-        (needsRenderedArtifact(file.type, file.name)
-          ? getMimeTypeFromExtension(getFileExtension(file.name))
-          : resolveEffectiveMimeType(file.type, file.name)
-        )
-          .split(';')[0]
-          ?.trim()
-          .toLowerCase() ?? ''
+      const type = observedMediaType(file.type, file.name)
       if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
         const { metadata, ...result } = await readFileVisual(
           file.id,

@@ -269,6 +269,25 @@ export function needsRenderedArtifact(
     : isRenderableDocumentName(fileName)
 }
 
+/**
+ * The base media type a reader sees for a stored file: a generated document's rendered type, as
+ * its name promises, otherwise its own effective type. Readers choose a representation from this.
+ */
+export function observedMediaType(
+  contentType: string | null | undefined,
+  fileName: string
+): string {
+  return (
+    (needsRenderedArtifact(contentType, fileName)
+      ? getMimeTypeFromExtension(getFileExtension(fileName))
+      : resolveEffectiveMimeType(contentType, fileName)
+    )
+      .split(';')[0]
+      ?.trim()
+      .toLowerCase() ?? ''
+  )
+}
+
 const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
 
 /**

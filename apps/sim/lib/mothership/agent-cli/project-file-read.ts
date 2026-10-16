@@ -23,7 +23,11 @@ import {
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { MAX_TEXT_EXTRACTION_BYTES, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
+import {
+  MAX_TEXT_EXTRACTION_BYTES,
+  observedMediaType,
+  resolveEffectiveMimeType,
+} from '@/lib/uploads/utils/file'
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
@@ -74,7 +78,8 @@ export async function readProjectFileForAgent(
     )
     const target = { projectId, fileId: resolved.file.id }
     const maxBytes = query.data.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
-    const resolvedType = mimeOf(resolved.file.type, resolved.file.name)
+    /** A generated document is chosen by the type it renders to, as the workspace reader does. */
+    const resolvedType = observedMediaType(resolved.file.type, resolved.file.name)
     /**
      * Text reads admit the file as `complete`, so the registry masks its secrets as it does for a
      * workspace file; only visual and undecodable reads take its stored bytes, which no redaction
