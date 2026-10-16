@@ -489,4 +489,17 @@ describe('Jira plain search ranking', () => {
     const page = await searchAtlassian(api, 'jira', query)
     expect(page.documents.map((document) => document.id)[0]).toBe('HALF-9')
   })
+
+  it('follows summaries holding every term with those holding half of them', async () => {
+    const api = jira(
+      { ids: ['NEW-3', 'NEW-2', 'NEW-1'], more: true },
+      ['ALL-1'],
+      [
+        { key: 'ALL-1', summary: 'Merged results pipelines' },
+        { key: 'HALF-1', summary: 'Merged results dashboard' },
+      ]
+    )
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['ALL-1', 'HALF-1', 'NEW-3'])
+  })
 })

@@ -226,8 +226,8 @@ export async function searchAtlassian(
           next: exact.next,
         }
         // JQL has no relevance order, so an all-terms match larger than a page comes back newest
-        // first; issues whose summary holds every term, or else at least half of three or more
-        // terms (most terms first), lead it instead.
+        // first; issues whose summary holds every term lead it instead, then those holding at
+        // least half of three or more terms (most terms first).
         if (!text || input.native || order || input.textMatch === 'any' || !exact.next)
           return exactPage
         const terms = stemmedTerms(text)
@@ -241,22 +241,27 @@ export async function searchAtlassian(
         ])
         // A cancelled search stops here; any other failure keeps the all-terms page.
         input.signal?.throwIfAborted()
-        let titled =
+        const everyTerm =
           every.status === 'fulfilled' ? every.value.issues.map(({ document }) => document) : []
-        if (!titled.length && half.status === 'fulfilled' && half.value) {
-          titled = half.value.issues
-            .map(({ document, summary }) => ({ document, held: terms.held(summary) }))
-            .filter(({ held }) => held >= terms.required)
-            .sort((left, right) => right.held - left.held)
-            .map(({ document }) => document)
-        }
+        const halfTerms =
+          half.status === 'fulfilled' && half.value
+            ? half.value.issues
+                .map(({ document, summary }) => ({ document, held: terms.held(summary) }))
+                .filter(({ held }) => held >= terms.required)
+                .sort((left, right) => right.held - left.held)
+                .map(({ document }) => document)
+            : []
+        const titled = [...everyTerm, ...halfTerms]
         if (!titled.length) return exactPage
-        const leading = new Set(titled.map((document) => document.id))
+        const seen = new Set<string>()
         return {
-          documents: [
-            ...titled,
-            ...exactPage.documents.filter((document) => !leading.has(document.id)),
-          ].slice(0, input.limit),
+          documents: [...titled, ...exactPage.documents]
+            .filter(({ id }) => {
+              if (seen.has(id)) return false
+              seen.add(id)
+              return true
+            })
+            .slice(0, input.limit),
           excluded: false,
           ranking: 'relevance',
         }
@@ -323,7 +328,7 @@ export async function searchAtlassian(
         : '') +
       (pages.some((result) => result.ranking === 'relevance')
         ? provider === 'jira'
-          ? ' More issues contained every word than fit on one page, so issues whose summary holds every word, or else most of them, come first; refine the query, or page with a native JQL query.'
+          ? ' More issues contained every word than fit on one page, so issues whose summary holds every word, then most of them, come first; refine the query, or page with a native JQL query.'
           : ' More pages contained every word than fit on one page, so this page is ordered by Confluence relevance search; refine the query, or page with a native CQL query.'
         : '') +
       (pages.some((result) => result.ranking === 'unavailable')
