@@ -740,7 +740,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const ranked = [...fused.values()]
       .map((entry) => ({
         ...entry,
-        relevance: relevanceOf?.(entry.result.documentName, entry.result.content) ?? [0, 0, 0],
+        relevance: relevanceOf?.(entry.result.documentName, entry.result.content ?? '') ?? [
+          0, 0, 0,
+        ],
       }))
       .sort(({ relevance: x, result: a }, { relevance: y, result: b }) => {
         if (!dateSorted) {
