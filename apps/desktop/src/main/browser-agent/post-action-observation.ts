@@ -3,7 +3,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { ToolError } from '@/main/browser-agent/errors'
 
-/** Every page action accepts observe: models carry it over from click and type to the rest. */
+/** Actions that accept observe; models carry it over from click and type to these. */
 const OBSERVABLE_ACTIONS: ReadonlySet<BrowserToolName> = new Set([
   'browser_click',
   'browser_click_at',
