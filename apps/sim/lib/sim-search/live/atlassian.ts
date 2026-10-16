@@ -251,18 +251,17 @@ export async function searchAtlassian(
                 .sort((left, right) => right.held - left.held)
                 .map(({ document }) => document)
             : []
-        const titled = [
-          ...new Map(
-            [...everyTerm, ...halfTerms].map((document) => [document.id, document])
-          ).values(),
-        ]
+        const titled = [...everyTerm, ...halfTerms]
         if (!titled.length) return exactPage
-        const leading = new Set(titled.map((document) => document.id))
+        const seen = new Set<string>()
         return {
-          documents: [
-            ...titled,
-            ...exactPage.documents.filter((document) => !leading.has(document.id)),
-          ].slice(0, input.limit),
+          documents: [...titled, ...exactPage.documents]
+            .filter(({ id }) => {
+              if (seen.has(id)) return false
+              seen.add(id)
+              return true
+            })
+            .slice(0, input.limit),
           excluded: false,
           ranking: 'relevance',
         }
