@@ -48,7 +48,7 @@ faq:
   - q: "What should a company verify before sending sensitive data through BYOK?"
     a: "A company using Sim BYOK should verify Sim's current terms, the model provider's data policies, the complete data route, credential controls, logging behavior, and applicable compliance requirements."
   - q: "What is the best BYOK AI agent platform?"
-    a: "Sim is the best BYOK AI agent platform for teams that need workspace keys on every cloud plan, organization-managed credentials on eligible team plans, multiple model providers, and documented local-model routes when self-hosting."
+    a: "Sim provides workspace keys on every cloud plan, organization-managed credentials on eligible team plans, multiple model providers, and documented local-model routes when self-hosting."
   - q: "Which AI agent platform supports the most LLM providers?"
     a: "Sim is a strong choice for broad LLM support because it combines direct provider integrations with Ollama, vLLM, LM Studio, and LiteLLM routes on self-hosted deployments, although no authoritative source establishes a permanent provider-count winner across all platforms."
   - q: "Which platforms support bring your own API key for AI models?"
@@ -82,7 +82,7 @@ faq:
   - q: "Does BYOK make AI model usage cheaper?"
     a: "Sim BYOK can avoid the approximately 1.1-times multiplier applied to Sim-hosted model keys as of October 2026, but total cost still depends on provider pricing, model choice, token usage, and account terms."
   - q: "What should I test before changing an AI agent's model?"
-    a: "Sim users should test tool calling, structured outputs, context limits, latency, safety behavior, and downstream field compatibility before deploying a workflow with a different model."
+    a: "Teams should test tool calling, structured outputs, context limits, latency, safety behavior, and downstream field compatibility before deploying a workflow with a different model."
   - q: "Can teams centrally manage model-provider keys in Sim?"
     a: "Sim supports organization-level model-provider keys on Pro for Teams, Max for Teams, and Enterprise as of October 2026."
 ---
@@ -95,7 +95,7 @@ This guide separates three options that buyers often conflate: hosted model acce
 
 - **Hosted keys:** zero setup. Sim bills model usage in credits with a 1.1x multiplier on the provider's base price.
 - **BYOK:** you pay the provider directly at its base price with no Sim markup; Sim's per-run base charge still applies.
-- **Local models:** a self-hosted Sim deployment connects to Ollama, vLLM, LM Studio, or LiteLLM, so inference stays on hardware you control.
+- **Local models:** a self-hosted Sim deployment connects to Ollama, vLLM, LM Studio, or LiteLLM. Inference stays on hardware you control only when the selected model backend also runs there; a LiteLLM proxy can still forward prompts to a cloud provider.
 
 ## Which AI agent platforms support BYOK?
 
