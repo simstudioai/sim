@@ -5,6 +5,7 @@ import { describeError, getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { FOREIGN_KEY_VIOLATION } from '@/lib/core/errors/database-query-error'
 import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { RESERVATION_TTL_BUFFER_MS } from '@/lib/core/execution-limits'
@@ -125,8 +126,6 @@ function getActiveBlockDisplayProvenance(
 }
 
 const logger = createLogger('LoggingSession')
-
-const FOREIGN_KEY_VIOLATION = '23503'
 
 type CompletionAttempt = 'complete' | 'error' | 'cancelled' | 'paused'
 

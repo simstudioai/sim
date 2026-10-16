@@ -1544,9 +1544,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     getDeletedScopeMock.mockReturnValue('workspace')
 
     const thrown = await executeWorkflowCore({
-      snapshot: createSnapshot() as any,
+      snapshot: createSnapshot() as unknown as ExecutionSnapshot,
       callbacks: {},
-      loggingSession: loggingSession as any,
+      loggingSession: loggingSession as unknown as LoggingSession,
     }).catch((error: unknown) => error)
     await loggingSession.setPostExecutionPromise.mock.calls[0]?.[0]
 
@@ -1568,9 +1568,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
 
     const result = await executeWorkflowCore({
-      snapshot: createSnapshot() as any,
+      snapshot: createSnapshot() as unknown as ExecutionSnapshot,
       callbacks: {},
-      loggingSession: loggingSession as any,
+      loggingSession: loggingSession as unknown as LoggingSession,
     })
     await loggingSession.setPostExecutionPromise.mock.calls[0]?.[0]
 
@@ -1593,9 +1593,9 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     hasCompletedMock.mockReturnValue(false)
 
     await executeWorkflowCore({
-      snapshot: createSnapshot() as any,
+      snapshot: createSnapshot() as unknown as ExecutionSnapshot,
       callbacks: {},
-      loggingSession: loggingSession as any,
+      loggingSession: loggingSession as unknown as LoggingSession,
     })
     await loggingSession.setPostExecutionPromise.mock.calls[0]?.[0]
 

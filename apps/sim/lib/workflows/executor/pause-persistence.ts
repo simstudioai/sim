@@ -22,7 +22,9 @@ interface HandlePostExecutionPauseStateArgs {
  * Every caller of `executeWorkflowCore` must call this after execution completes
  * to ensure HITL pause state is persisted to the database and queued resumes are drained.
  *
- * - If execution is paused but its workspace or workflow was deleted: nothing is left to persist
+ * - If the paused completion itself found the workspace or workflow deleted: nothing is left
+ *   to persist. A deletion landing after the paused log was written still fails
+ *   `persistPauseResult` and is force-failed below.
  * - If execution is paused but its log was never finalized: marks execution as failed
  * - If execution is paused without a snapshot: marks execution as failed
  * - If execution is paused with a valid snapshot: persists to `paused_executions` table

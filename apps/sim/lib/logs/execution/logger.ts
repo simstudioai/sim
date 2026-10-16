@@ -34,6 +34,7 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { FOREIGN_KEY_VIOLATION } from '@/lib/core/errors/database-query-error'
 import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
@@ -99,7 +100,6 @@ const EXECUTION_LOG_IDLE_TIMEOUT_MS = 5_000
 // Bounds the wait for the per-execution usage-reconcile advisory lock. Generous
 // (favor waiting over dropping a charge); only trips on a pathological lock hold.
 const USAGE_RECONCILE_LOCK_TIMEOUT_MS = 10_000
-const FOREIGN_KEY_VIOLATION = '23503'
 /** The log's snapshot foreign key as Postgres names it (identifiers are cut at 63 bytes). */
 const STATE_SNAPSHOT_FOREIGN_KEY = 'workflow_execution_logs_state_snapshot_id_workflow_execution_sn'
 

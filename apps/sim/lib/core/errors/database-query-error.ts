@@ -6,6 +6,9 @@ import {
 } from '@sim/utils/errors'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 
+/** PostgreSQL `foreign_key_violation`. */
+export const FOREIGN_KEY_VIOLATION = '23503'
+
 /**
  * The Drizzle query failure anywhere in `error`'s cause chain. Its message carries the SQL text and
  * bound parameters, so it must never reach a user; its `cause` holds the driver error and code.

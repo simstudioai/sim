@@ -1248,6 +1248,37 @@ describe('LoggingSession deleted run scope', () => {
     expect(sessionLogger?.error).not.toHaveBeenCalled()
   })
 
+  it('stops a run whose minimal fallback start finds the workspace deleted', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d6', 'api', 'req-1')
+    startWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockRejectedValueOnce(foreignKeyViolation())
+    findDeletedExecutionScopeMock.mockResolvedValue('workspace')
+
+    await expect(session.safeStart(startParams)).resolves.toBe(false)
+
+    expect(startWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(session.getDeletedScope()).toBe('workspace')
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d6')
+    const errorMessages = vi.mocked(sessionLogger?.error).mock.calls.map(([message]) => message)
+    expect(errorMessages.some((message) => String(message).includes('Minimal logging'))).toBe(false)
+  })
+
+  it('ends quietly when the cost-only fallback is what finds the workspace deleted', async () => {
+    const session = new LoggingSession('workflow-1', 'execution-d7', 'api', 'req-1')
+    completeWorkflowExecutionMock
+      .mockRejectedValueOnce(new Error('trace store unavailable'))
+      .mockRejectedValueOnce(new ExecutionScopeDeletedError('execution-d7', 'workspace'))
+
+    await expect(session.safeComplete({ finalOutput: { ok: true } })).resolves.toBeUndefined()
+
+    expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
+    expect(session.getDeletedScope()).toBe('workspace')
+    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d7')
+    const errorMessages = vi.mocked(sessionLogger?.error).mock.calls.map(([message]) => message)
+    expect(errorMessages.some((message) => String(message).includes('Cost-only'))).toBe(false)
+  })
+
   it('falls back to a minimal start when a foreign key fails but the scope still exists', async () => {
     const session = new LoggingSession('workflow-1', 'execution-d4', 'api', 'req-1')
     startWorkflowExecutionMock
