@@ -11,6 +11,7 @@ import type {
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
   type CompleteAsyncToolCallInput,
+  completePendingAsyncToolCall,
   getAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
@@ -709,6 +710,8 @@ export async function executeToolAndReport(
   )
 }
 
+type CancelledSpanDetail = { cancelReason: string; error?: string | undefined }
+
 async function executeToolAndReportInner(
   toolCall: ToolCallState,
   context: StreamingContext,
@@ -756,7 +759,11 @@ async function executeToolAndReportInner(
   if (record?.executionDeadlineAt) toolCall.deadlineAt = record.executionDeadlineAt.getTime()
   if (context.runId) {
     const claim = await lifetime.claim(context.runId, execContext.userId)
-    if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
+    if (claim.outcome === 'closed') {
+      /** A call another controller already started keeps its own result, observed below. */
+      const stopped = await settleCancelledIfUnstarted('Run stopped before tool admission')
+      if (stopped) return stopped
+    }
     // Settled as never run instead of claimed, so a crash before the handler refuses to start
     // cannot leave it recovered as an unknown outcome. Losing that settlement leaves another writer's.
     if (
@@ -835,21 +842,39 @@ async function executeToolAndReportInner(
   // never evaluated (and the span does not exist yet there anyway).
   async function settleCancelled(
     message: string,
-    span?: { cancelReason: string; error?: string | undefined }
+    span?: CancelledSpanDetail
   ): Promise<AsyncCompletionSignal> {
     markToolCallCancelled(message)
     const cancellationResult = toolCall.result
     markToolResultSeen(context, toolCall.id)
-    await lifetime.complete({
+    await lifetime.complete(cancellationRecord(message))
+    if (toolCall.result !== cancellationResult) {
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    return publishCancellation(message, span)
+  }
+
+  /** Cancels the call only while nothing has started it; otherwise reports nothing settled. */
+  async function settleCancelledIfUnstarted(
+    message: string
+  ): Promise<AsyncCompletionSignal | undefined> {
+    if (!(await completePendingAsyncToolCall(cancellationRecord(message)))) return undefined
+    markToolCallCancelled(message)
+    markToolResultSeen(context, toolCall.id)
+    return publishCancellation(message)
+  }
+
+  function cancellationRecord(message: string): CompleteAsyncToolCallInput {
+    return {
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
       result: { cancelled: true },
       error: message,
-    })
-    if (toolCall.result !== cancellationResult) {
-      return terminalCompletionFromToolCall(toolCall)
     }
+  }
+
+  function publishCancellation(message: string, span?: CancelledSpanDetail): AsyncCompletionSignal {
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),

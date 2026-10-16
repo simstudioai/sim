@@ -88,6 +88,7 @@ import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { deleteCopilotChat, softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
 import { chatPubSub } from '@/lib/mothership/chat-status'
+import { abortRun, steerRun } from '@/lib/mothership/request/application/controls'
 import { claimRunController } from '@/lib/mothership/request/lifecycle/controller-ownership'
 import {
   acquirePendingChatStream,
@@ -964,6 +965,74 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     await db.update(user).set({ banned: true }).where(eq(user.id, ownerId))
 
     expect(await runControl(run)).toEqual(STOPPED)
+  })
+
+  it('lets a blocked owner Stop their run, and neither steer nor send, nor anyone else Stop it', async () => {
+    const ownerId = await seedUser()
+    const memberId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId, [memberId])
+    const run = await seedRun({ userId: ownerId, workspaceId })
+    await db.update(user).set({ banned: true }).where(eq(user.id, ownerId))
+    const owner = createSessionPrincipal({ userId: ownerId, sessionId: generateId() })
+    const input = { streamId: run.streamId, chatId: run.chatId, workspaceId }
+
+    await expect(
+      steerRun.execute({
+        principal: owner,
+        input: { ...input, steeringId: generateId(), content: 'Keep going' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    const sendStreamId = generateId()
+    expect(await acquirePendingChatStream(run.chatId, sendStreamId, 0)).toBe(true)
+    const lease = getLocalChatStreamLease(run.chatId, sendStreamId)
+    if (!lease) throw new Error('The send needs its chat lease')
+    const sendClaim = { normalizedKey: `run-removal:${generateId()}`, claimToken: generateId() }
+    await db
+      .insert(idempotencyKey)
+      .values({ key: sendClaim.normalizedKey, result: { claimToken: sendClaim.claimToken } })
+    await expect(
+      admitChatTurn
+        .execute({
+          principal: owner,
+          input: {
+            chatId: run.chatId,
+            runId: generateId(),
+            executionId: generateId(),
+            requestId: generateId(),
+            message: { id: sendStreamId, content: 'Start over' },
+            recovery: {
+              kind: 'interactive_stream',
+              goRoute: '/api/mothership',
+              clientToolPickupExpected: false,
+              request: {
+                userId: ownerId,
+                chatId: run.chatId,
+                messageId: sendStreamId,
+                workspaceId,
+                message: 'Start over',
+              },
+            },
+            lease,
+            sendClaim,
+            notifyWorkspaceStatus: false,
+          },
+        })
+        .finally(() => releasePendingChatStream(run.chatId, sendStreamId, lease))
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    await expect(
+      abortRun.execute({
+        principal: createSessionPrincipal({ userId: memberId, sessionId: generateId() }),
+        input,
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(await hasStop(run)).toBe(false)
+    expect(pushedStops()).toEqual([])
+
+    await expect(abortRun.execute({ principal: owner, input })).resolves.toMatchObject({
+      aborted: true,
+    })
+    expect(await hasStop(run)).toBe(true)
+    expect(pushedStops()).toEqual([run.streamId])
   })
 
   /**

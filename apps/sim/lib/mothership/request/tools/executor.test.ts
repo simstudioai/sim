@@ -627,12 +627,44 @@ describe('executeToolAndReport provenance isolation', () => {
 
   it('refuses a late tool after durable Stop closed admission', async () => {
     claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
     const tool = buildPendingToolCall()
     const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
       userId: 'user-1',
       workflowId: 'workflow-1',
     })
-    expect(result.status).toBe('cancelled')
+    expect(result).toMatchObject({
+      status: 'cancelled',
+      message: 'Run stopped before tool admission',
+      data: { cancelled: true },
+    })
+    expect(completePendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith({
+      toolCallId: tool.id,
+      status: 'cancelled',
+      result: { cancelled: true },
+      error: 'Run stopped before tool admission',
+    })
+    expect(publishToolConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: tool.id, status: 'cancelled' })
+    )
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(settleSimToolExecution).not.toHaveBeenCalled()
+  })
+
+  it('keeps the result of a call another controller started before Stop closed admission', async () => {
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    waitForToolConfirmation.mockResolvedValueOnce({ status: 'success', data: { ran: true } })
+    const tool = buildPendingToolCall()
+    const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+    expect(result.status).toBe('success')
+    expect(tool.result?.output).toEqual({ ran: true })
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
     expect(executeTool).not.toHaveBeenCalled()
     expect(settleSimToolExecution).not.toHaveBeenCalled()
   })
@@ -743,7 +775,9 @@ describe('executeToolAndReport provenance isolation', () => {
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
 
-    expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
+    expect(completePendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ status: 'cancelled', error: 'Run stopped before tool admission' })
+    )
     expect(completion).toMatchObject({
       status: 'cancelled',
       message: 'Run stopped before tool admission',

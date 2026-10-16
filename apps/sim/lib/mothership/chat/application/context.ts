@@ -19,7 +19,19 @@ export async function resolveOwnedWorkspaceChatContext(principal: Principal, cha
   return context
 }
 
-export async function resolveOwnedChatContext(principal: Principal, chatId: string) {
+export interface OwnedChatContextOptions {
+  /**
+   * Resolves the chat for an owner whose account is blocked. Only Stop sets it: halting the
+   * owner's existing work is never harmful, so it stays available after access is withheld.
+   */
+  allowBlockedOwner?: boolean
+}
+
+export async function resolveOwnedChatContext(
+  principal: Principal,
+  chatId: string,
+  options: OwnedChatContextOptions = {}
+) {
   const [chat] = await db
     .select({
       userId: copilotChats.userId,
@@ -40,7 +52,7 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
   ) {
     throw new OrchestrationError('not_found', 'Chat not found')
   }
-  if ((await getActivelyBannedUserIds([chat.userId])).length > 0) {
+  if (!options.allowBlockedOwner && (await getActivelyBannedUserIds([chat.userId])).length > 0) {
     throw new OrchestrationError('forbidden', 'User account is suspended')
   }
   const owner: ChatOwnerContext = chat.organizationId
