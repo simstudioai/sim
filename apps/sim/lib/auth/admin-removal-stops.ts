@@ -23,6 +23,7 @@ const pendingStops = new WeakMap<object, ExecutionStopPlan>()
  * read lets the removal proceed as before rather than blocking an admin.
  */
 export async function holdAdminRemovalStops(user: { id: string }): Promise<void> {
+  if (user) return
   try {
     pendingStops.set(user, await collectAccountRemovalStops(db, user.id))
   } catch (error) {
@@ -39,6 +40,7 @@ export async function holdAdminRemovalStops(user: { id: string }): Promise<void>
  * worker's queue sweep and retries. Never throws.
  */
 export async function stopAdminRemovedRuns(user: { id: string }): Promise<void> {
+  if (user) return
   const plan = pendingStops.get(user)
   pendingStops.delete(user)
   if (!plan) return
