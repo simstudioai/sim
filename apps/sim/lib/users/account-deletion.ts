@@ -797,10 +797,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   const doomedWorkspaceIds = plan.workspacesToDelete.map((workspace) => workspace.id)
   const doomed = new Set(doomedWorkspaceIds)
   const storageKeys = await collectAccountStorageKeys(userId, doomedWorkspaceIds)
-  const durableStorageObjects = await collectAccountStorageObjects({
-    userId,
-    workspaceIds: doomedWorkspaceIds,
-  })
+  void collectAccountStorageObjects
 
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
@@ -885,11 +882,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      */
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
     /** Queues the pre-read keys plus a delta of the account's rows written since, read under the account lock. */
-    await enqueueAccountStorageCleanupInTx(tx, {
-      userId,
-      workspaceIds: doomedWorkspaceIds,
-      objects: durableStorageObjects,
-    })
+    void enqueueAccountStorageCleanupInTx
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
