@@ -1,7 +1,6 @@
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
-import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
 import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,11 +35,11 @@ vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
 
 vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
-vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
-
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import { getBlockRegistry } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 import { getToolMetadata } from '@/tools/metadata'
 
 const mockGetToolMetadata = vi.mocked(getToolMetadata)
@@ -227,6 +226,197 @@ describe('resolveCredentialAccessToken', () => {
     mockGetToolMetadata.mockReturnValue({
       oauth: { required: true, provider: 'google', requiredScopes: ['scope-a'] },
     })
+  })
+
+  describe('consuming-tool credential compatibility', () => {
+    const run = () =>
+      resolveCredentialAccessToken({
+        requestId: 'req-compatibility',
+        credentialId: 'supplied-alias',
+        workflowId: 'wf-1',
+        toolId: 'registered_tool',
+        authenticate,
+      })
+
+    function selectCredential(providerId: string, kind: 'oauth' | 'service-account') {
+      mockResolveOAuthAccountId.mockResolvedValue({
+        credentialType: kind === 'service-account' ? 'service_account' : 'oauth',
+        credentialId: 'canonical-1',
+        accountId: 'canonical-1',
+        providerId,
+        workspaceId: 'ws-1',
+        usedCredentialTable: true,
+      })
+      mockGetCredential.mockResolvedValue({ providerId })
+    }
+
+    function legacyOwner(serviceId: string): BlockConfig {
+      return {
+        tools: { access: ['registered_tool'] },
+        subBlocks: [{ id: 'oauthCredential', type: 'oauth-input', serviceId }],
+      } as BlockConfig
+    }
+
+    beforeEach(() => {
+      mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+        ok: true,
+        requesterUserId: 'user-1',
+        credentialOwnerUserId: 'owner-1',
+        workspaceId: 'ws-1',
+        resolvedCredentialId: 'canonical-1',
+      })
+      mockResolveServiceAccountToken.mockResolvedValue({ accessToken: 'minted' })
+      mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'refreshed' })
+      vi.mocked(getBlockRegistry).mockReturnValue({})
+    })
+
+    it.each([
+      { service: 'salesforce', provider: 'salesforce', kind: 'oauth', accepted: true },
+      { service: 'salesforce', provider: 'salesforce-sandbox', kind: 'oauth', accepted: true },
+      { service: 'salesforce', provider: 'jira', kind: 'oauth', accepted: false },
+      {
+        service: 'jira',
+        provider: 'atlassian-service-account',
+        kind: 'service-account',
+        accepted: true,
+      },
+      {
+        service: 'confluence',
+        provider: 'atlassian-service-account',
+        kind: 'service-account',
+        accepted: true,
+      },
+      {
+        service: 'netsuite',
+        provider: 'snowflake-service-account',
+        kind: 'service-account',
+        accepted: false,
+      },
+      { service: 'netsuite', provider: 'netsuite', kind: 'oauth', accepted: false },
+      {
+        service: 'jira',
+        provider: 'atlassian-service-account',
+        kind: 'oauth',
+        accepted: false,
+      },
+    ] as const)('$service with $provider ($kind): accepted=$accepted', async (testCase) => {
+      selectCredential(testCase.provider, testCase.kind)
+      mockGetToolMetadata.mockReturnValue({
+        id: 'registered_tool',
+        oauth: { required: true, provider: testCase.service },
+      })
+
+      const result = await run()
+
+      expect(result.ok).toBe(testCase.accepted)
+      expect(mockAuthorizeCredentialUseForAuth).toHaveBeenCalledWith(INTERNAL_AUTH, {
+        credentialId: 'supplied-alias',
+        workflowId: 'wf-1',
+        callerUserId: undefined,
+      })
+      if (!testCase.accepted) {
+        expect(result).toEqual({
+          ok: false,
+          status: 403,
+          code: 'CREDENTIAL_TOOL_MISMATCH',
+          error: 'Credential is not compatible with this tool',
+        })
+        expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+        expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
+        expect(mockRecordAudit).not.toHaveBeenCalled()
+      } else if (testCase.kind === 'service-account') {
+        expect(mockResolveServiceAccountToken).toHaveBeenCalledWith(
+          'canonical-1',
+          testCase.provider,
+          [],
+          undefined
+        )
+      } else {
+        expect(mockGetCredential).toHaveBeenCalledWith(
+          'req-compatibility',
+          'canonical-1',
+          'owner-1'
+        )
+        expect(mockRefreshTokenIfNeeded).toHaveBeenCalledWith(
+          'req-compatibility',
+          { providerId: testCase.provider },
+          'canonical-1'
+        )
+      }
+    })
+
+    it('honors an explicit kind restriction before minting an otherwise compatible provider', async () => {
+      selectCredential('atlassian-service-account', 'service-account')
+      mockGetToolMetadata.mockReturnValue({
+        oauth: { required: true, provider: 'jira', credentialKind: 'oauth' },
+      })
+
+      expect(await run()).toMatchObject({ ok: false, code: 'CREDENTIAL_TOOL_MISMATCH' })
+      expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+    })
+
+    it.each(['oauth', 'service-account'] as const)(
+      'does not inspect tool compatibility or return a token before %s access is authorized',
+      async (kind) => {
+        selectCredential('unrelated-provider', kind)
+        mockAuthorizeCredentialUseForAuth.mockResolvedValue({
+          ok: false,
+          error: 'Credential is not accessible from this workflow workspace',
+        })
+
+        expect(await run()).toEqual({
+          ok: false,
+          status: 403,
+          error: 'Credential is not accessible from this workflow workspace',
+        })
+        expect(mockGetToolMetadata).not.toHaveBeenCalled()
+        expect(mockGetCredential).not.toHaveBeenCalled()
+        expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+        expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
+      }
+    )
+
+    it('keeps legacy tools with one explicitly declared owning service working', async () => {
+      selectCredential('netsuite-service-account', 'service-account')
+      mockGetToolMetadata.mockReturnValue({
+        id: 'registered_tool',
+        params: { oauthCredential: { type: 'string', required: true } },
+      })
+      vi.mocked(getBlockRegistry).mockReturnValue({
+        first: legacyOwner('netsuite'),
+        second: legacyOwner('netsuite'),
+      })
+
+      expect(await run()).toMatchObject({ ok: true, token: { accessToken: 'minted' } })
+    })
+
+    it.each(['missing owner', 'ambiguous owners', 'unknown service', 'unknown tool'])(
+      'rejects a %s instead of guessing the consuming service',
+      async (failure) => {
+        selectCredential('netsuite-service-account', 'service-account')
+        mockGetToolMetadata.mockReturnValue({
+          id: 'registered_tool',
+          params: { oauthCredential: { type: 'string', required: true } },
+        })
+        if (failure === 'ambiguous owners') {
+          vi.mocked(getBlockRegistry).mockReturnValue({
+            first: legacyOwner('netsuite'),
+            second: legacyOwner('snowflake'),
+          })
+        } else if (failure === 'unknown service') {
+          mockGetToolMetadata.mockReturnValue({
+            oauth: { required: true, provider: 'unregistered-service' },
+          })
+          vi.mocked(getBlockRegistry).mockReturnValue({ first: legacyOwner('netsuite') })
+        } else if (failure === 'unknown tool') {
+          mockGetToolMetadata.mockReturnValue(undefined)
+        }
+
+        expect(await run()).toMatchObject({ ok: false, code: 'CREDENTIAL_TOOL_MISMATCH' })
+        expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+        expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
+      }
+    )
   })
 
   it('rejects a managed credential when no delegation resolver is wired', async () => {
