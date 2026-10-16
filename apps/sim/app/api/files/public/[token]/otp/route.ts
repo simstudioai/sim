@@ -11,7 +11,11 @@ import { OTP_IP_RATE_LIMIT } from '@/lib/core/security/otp'
 import { afterResponse } from '@/lib/core/utils/after-response'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { publicFileAuthDenied, publicFileErrorResponse } from '@/lib/public-shares/api'
+import {
+  logPublicFileError,
+  publicFileAuthDenied,
+  publicFileErrorResponse,
+} from '@/lib/public-shares/api'
 import {
   requestPublicFileShareOtp,
   verifyPublicFileShareOtp,
