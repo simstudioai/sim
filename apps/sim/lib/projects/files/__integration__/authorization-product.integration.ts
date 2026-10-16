@@ -153,8 +153,8 @@ async function grant(
 
 afterAll(async () => {
   const reportPath =
-    process.env.PROJECT_FILE_AUTHORIZATION_REPORT_PATH ??
-    resolve('test-results/project-file-authorization.json')
+    process.env.PROJECT_FILE_AUTHORIZATION_PRODUCT_REPORT_PATH ??
+    resolve('test-results/project-file-authorization-product.json')
   await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(reportPath, JSON.stringify({ checks }, null, 2))
   for (const f of fixtures) {

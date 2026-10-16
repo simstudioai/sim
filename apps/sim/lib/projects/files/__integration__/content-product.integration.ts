@@ -775,7 +775,8 @@ afterAll(async () => {
   }
   await rm(localStorageRoot, { recursive: true, force: true })
   const report =
-    process.env.PROJECT_FILE_CONTENT_REPORT_PATH ?? 'test-results/project-file-content.json'
+    process.env.PROJECT_FILE_CONTENT_PRODUCT_REPORT_PATH ??
+    'test-results/project-file-content-product.json'
   await mkdir(dirname(report), { recursive: true })
   await writeFile(report, JSON.stringify({ checks }, null, 2))
   await closeRedisConnection()

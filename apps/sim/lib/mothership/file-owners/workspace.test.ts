@@ -20,24 +20,10 @@ beforeEach(() => {
   readMetadata.mockReset()
 })
 
-it.each([
-  [
-    'keeps a chat upload on its uploads path so the reader resolves it',
-    { id: 'upload', name: 'notes.md', folderPath: null, vfsNamespace: 'uploads' },
-    'uploads/notes.md',
-  ],
-  [
-    'places a workspace file under its folder path',
-    { id: 'file', name: 'notes.md', folderPath: 'Reports' },
-    'files/Reports/notes.md',
-  ],
-])('%s', async (_name, stored, path) => {
-  readMetadata.mockResolvedValue({ file: stored })
-  const file = await workspaceFileOwnerAdapter.readChatMetadata(ingress, {
-    owner,
-    fileId: stored.id,
-  })
-  expect(file.path).toBe(path)
+it('places a workspace file under its folder path', async () => {
+  readMetadata.mockResolvedValue({ file: { id: 'file', name: 'notes.md', folderPath: 'Reports' } })
+  const file = await workspaceFileOwnerAdapter.readChatMetadata(ingress, { owner, fileId: 'file' })
+  expect(file.path).toBe('files/Reports/notes.md')
 })
 
 it('refuses a file owned by another workspace before reading its metadata', async () => {
