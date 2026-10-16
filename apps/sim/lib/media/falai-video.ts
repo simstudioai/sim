@@ -2,11 +2,13 @@ import { isRecordLike } from '@sim/utils/object'
 import {
   downloadFalMedia,
   extractFalMediaUrl,
+  type FalCostRecorder,
   getFalApiKey,
   getNumberProp,
+  recordFalCost,
   runFalQueue,
 } from '@/lib/media/falai'
-import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
+import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 
 type DurationFormat = 'number' | 'seconds' | 'string'
 
@@ -112,6 +114,8 @@ export interface GenerateFalVideoParams {
   imageDataUri?: string
   /** Ends the generation: the queued request is cancelled and every wait stops. */
   signal?: AbortSignal
+  /** Bills the generation once fal completes it, even if a Stop then ends the download. */
+  onCost: FalCostRecorder
 }
 
 export interface GeneratedVideo {
@@ -178,13 +182,8 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
   if (!url) throw new Error('No video URL in Fal.ai response')
 
   const videoNode = isRecordLike(data.video) ? data.video : undefined
+  const cost = await recordFalCost(apiKey, endpoint, requestId, params.onCost)
   const { buffer, contentType } = await downloadFalMedia(url, params.signal)
-  const cost = await getFalAICostMetadata({
-    apiKey,
-    endpointId: endpoint,
-    requestId,
-    signal: params.signal,
-  })
 
   return {
     buffer,

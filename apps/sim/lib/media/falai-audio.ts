@@ -1,5 +1,12 @@
-import { downloadFalMedia, extractFalMediaUrl, getFalApiKey, runFalQueue } from '@/lib/media/falai'
-import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
+import {
+  downloadFalMedia,
+  extractFalMediaUrl,
+  type FalCostRecorder,
+  getFalApiKey,
+  recordFalCost,
+  runFalQueue,
+} from '@/lib/media/falai'
+import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 
 export type AudioType = 'speech' | 'music' | 'sfx'
 
@@ -28,6 +35,8 @@ export interface GenerateFalAudioParams {
   voiceSampleDataUri?: string
   /** Ends the generation: the queued request is cancelled and every wait stops. */
   signal?: AbortSignal
+  /** Bills the generation once fal completes it, even if a Stop then ends the download. */
+  onCost: FalCostRecorder
 }
 
 export interface GeneratedAudio {
@@ -99,13 +108,8 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
     const { requestId, data } = await runFalQueue(model, input, apiKey, params.signal)
     const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
     if (!url) throw new Error('No audio URL in Fal.ai clone response')
+    const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
     const { buffer, contentType } = await downloadFalMedia(url, params.signal)
-    const cost = await getFalAICostMetadata({
-      apiKey,
-      endpointId: model,
-      requestId,
-      signal: params.signal,
-    })
     return {
       buffer,
       contentType: contentType.startsWith('audio/') ? contentType : 'audio/mpeg',
@@ -124,13 +128,8 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
   const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
   if (!url) throw new Error('No audio URL in Fal.ai response')
 
+  const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
   const { buffer, contentType } = await downloadFalMedia(url, params.signal)
-  const cost = await getFalAICostMetadata({
-    apiKey,
-    endpointId: model,
-    requestId,
-    signal: params.signal,
-  })
 
   return {
     buffer,

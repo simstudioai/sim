@@ -36,6 +36,20 @@ import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/gen
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+interface FalGenerationParams {
+  signal?: AbortSignal
+  onCost: (cost: { costDollars: number }) => Promise<void>
+}
+
+/** A fal generation that bills 0.1 through `onCost`, then returns `media` with that cost. */
+function billsThen(media: Record<string, unknown>) {
+  return async ({ onCost }: FalGenerationParams) => {
+    const cost = { costDollars: 0.1 }
+    await onCost(cost)
+    return { ...media, cost }
+  }
+}
+
 function contextWithSecrets(
   entries: Array<{ name: string; plaintext: string }>
 ): ServerToolContext {
@@ -67,19 +81,17 @@ describe('Mothership media model boundaries', () => {
         { content: { parts: [{ inlineData: { data: 'aW1hZ2U=', mimeType: 'image/png' } }] } },
       ],
     })
-    mockGenerateFalVideo.mockResolvedValue({
-      buffer: Buffer.from('video'),
-      contentType: 'video/mp4',
-      model: 'veo-3.1-fast',
-      cost: { costDollars: 0.1 },
-    })
-    mockGenerateFalAudio.mockResolvedValue({
-      buffer: Buffer.from('audio'),
-      contentType: 'audio/mpeg',
-      type: 'music',
-      model: 'music-model',
-      cost: { costDollars: 0.1 },
-    })
+    mockGenerateFalVideo.mockImplementation(
+      billsThen({ buffer: Buffer.from('video'), contentType: 'video/mp4', model: 'veo-3.1-fast' })
+    )
+    mockGenerateFalAudio.mockImplementation(
+      billsThen({
+        buffer: Buffer.from('audio'),
+        contentType: 'audio/mpeg',
+        type: 'music',
+        model: 'music-model',
+      })
+    )
   })
 
   it('meters image, video and audio at their provider boundary before file persistence', async () => {
@@ -118,6 +130,27 @@ describe('Mothership media model boundaries', () => {
       controller.abort(new Error('Tool timed out'))
 
       await expect(result).resolves.toMatchObject({ success: false })
+    }
+  )
+
+  it.each([
+    ['audio', 'falai_audio', mockGenerateFalAudio, generateAudioServerTool],
+    ['video', 'falai_video', mockGenerateFalVideo, generateVideoServerTool],
+  ] as const)(
+    'bills a completed %s generation once when the tool call is aborted after it',
+    async (_kind, service, generator, tool) => {
+      generator.mockImplementationOnce(async ({ onCost }: FalGenerationParams) => {
+        await onCost({ costDollars: 0.2 })
+        throw new Error('Tool timed out')
+      })
+      const charges = vi.fn().mockResolvedValue(undefined)
+
+      const result = await observeServiceCosts(charges, () =>
+        tool.execute({ prompt: 'p' }, contextWithSecrets([]))
+      )
+
+      expect(result).toMatchObject({ success: false })
+      expect(charges.mock.calls).toEqual([[service, 0.2]])
     }
   )
 
