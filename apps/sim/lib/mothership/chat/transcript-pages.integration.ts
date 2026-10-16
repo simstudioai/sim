@@ -124,8 +124,13 @@ async function createChat(type: 'mothership' | 'copilot' = 'mothership'): Promis
   return chat.id
 }
 
-/** A workflow Copilot panel chat, as the panel stores it. */
-async function createWorkflowChat(options: { archivedWorkflow?: boolean } = {}): Promise<string> {
+/**
+ * A workflow Copilot panel chat, as the panel stores it. A legacy row, from before chats carried
+ * a workspace, has only its workflow's.
+ */
+async function createWorkflowChat(
+  options: { archivedWorkflow?: boolean; legacyRow?: boolean } = {}
+): Promise<string> {
   const workflowId = generateId()
   const now = new Date()
   await db.insert(workflow).values({
@@ -143,7 +148,7 @@ async function createWorkflowChat(options: { archivedWorkflow?: boolean } = {}):
     .values({
       userId: ownerId,
       workflowId,
-      workspaceId,
+      workspaceId: options.legacyRow ? null : workspaceId,
       type: 'copilot',
     })
     .returning({ id: copilotChats.id })
@@ -389,16 +394,22 @@ describe('chat transcript pages in PostgreSQL', () => {
 
   it('serves older pages of a workflow copilot chat while its owner may read the workflow', async () => {
     const chatId = await createWorkflowChat()
+    const legacyChatId = await createWorkflowChat({ legacyRow: true })
     const archivedChatId = await createWorkflowChat({ archivedWorkflow: true })
-    for (const id of [chatId, archivedChatId]) await appendTurns(id, 40)
+    for (const id of [chatId, legacyChatId, archivedChatId]) await appendTurns(id, 40)
+
+    for (const id of [chatId, legacyChatId]) {
+      const cursor = (await latestWindow(id))?.olderCursor
+      if (!cursor) throw new Error('latest window reaches the first message')
+      const page = await readChatOlderMessages.execute({
+        principal: owner,
+        input: { chatId: id, before: cursor },
+      })
+      expect(page.messages.length).toBeGreaterThan(0)
+    }
 
     const before = (await latestWindow(chatId))?.olderCursor
     if (!before) throw new Error('latest window reaches the first message')
-    const page = await readChatOlderMessages.execute({
-      principal: owner,
-      input: { chatId, before },
-    })
-    expect(page.messages.length).toBeGreaterThan(0)
     await expect(
       readChatOlderMessages.execute({ principal: outsider, input: { chatId, before } })
     ).rejects.toThrow('Chat not found')

@@ -22,8 +22,13 @@ async function createChat(): Promise<string> {
   return chat.id
 }
 
-/** A workflow Copilot panel chat, as the panel stores it. */
-async function createWorkflowChat(options: { archivedWorkflow?: boolean } = {}): Promise<string> {
+/**
+ * A workflow Copilot panel chat, as the panel stores it. A legacy row, from before chats carried
+ * a workspace, has only its workflow's.
+ */
+async function createWorkflowChat(
+  options: { archivedWorkflow?: boolean; legacyRow?: boolean } = {}
+): Promise<string> {
   const workflowId = generateId()
   const now = new Date()
   await db.insert(workflow).values({
@@ -41,7 +46,7 @@ async function createWorkflowChat(options: { archivedWorkflow?: boolean } = {}):
     .values({
       userId: ownerId,
       workflowId,
-      workspaceId,
+      workspaceId: options.legacyRow ? null : workspaceId,
       type: 'copilot',
     })
     .returning({ id: copilotChats.id })
@@ -99,11 +104,14 @@ describe('reading whether a chat is still streaming', () => {
     ).rejects.toThrow('Chat not found')
   })
 
-  it('answers the owner of a workflow copilot chat', async () => {
-    const chatId = await createWorkflowChat()
-    await expect(
-      readChatStreamStatus.execute({ principal: owner, input: { chatId } })
-    ).resolves.toEqual({ activeStreamId: null })
+  it('answers the owner of a workflow copilot chat, including a legacy row without a workspace', async () => {
+    for (const chatId of [
+      await createWorkflowChat(),
+      await createWorkflowChat({ legacyRow: true }),
+    ])
+      await expect(
+        readChatStreamStatus.execute({ principal: owner, input: { chatId } })
+      ).resolves.toEqual({ activeStreamId: null })
   })
 
   it('refuses a workflow copilot chat whose workflow is archived, as the chat detail read does', async () => {

@@ -36,7 +36,8 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
     .limit(1)
   if (
     !chat ||
-    Boolean(chat.workspaceId) === Boolean(chat.organizationId) ||
+    (chat.workspaceId && chat.organizationId) ||
+    (!chat.workspaceId && !chat.organizationId && !chat.workflowId) ||
     chat.userId !== resolvePrincipalSubjectUserId(principal) ||
     (chat.organizationId && chat.type !== 'mothership')
   ) {
@@ -48,7 +49,9 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
   const owner: ChatOwnerContext = chat.organizationId
     ? { organizationId: chat.organizationId }
     : {
-        ...(await resolveActiveWorkspaceApplicationContext(chat.workspaceId!)),
+        ...(await resolveActiveWorkspaceApplicationContext(
+          await resolveChatWorkspaceId(chatId, chat)
+        )),
         organizationId: undefined,
       }
   return {
@@ -60,6 +63,22 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
     mode: chat.mode,
     memorySpaceId: chat.memorySpaceId ?? null,
   }
+}
+
+/**
+ * A workflow chat row from before chats carried a workspace is scoped by its workflow's, while
+ * its owner may still read that workflow.
+ */
+async function resolveChatWorkspaceId(
+  chatId: string,
+  chat: { userId: string; workspaceId: string | null; workflowId: string | null }
+): Promise<string> {
+  if (chat.workspaceId) return chat.workspaceId
+  const workflow = chat.workflowId
+    ? await authorizeChatWorkflowRead(chatId, chat.userId, chat.workflowId)
+    : null
+  if (!workflow?.workspaceId) throw new OrchestrationError('not_found', 'Chat not found')
+  return workflow.workspaceId
 }
 
 /**

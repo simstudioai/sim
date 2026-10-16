@@ -1572,7 +1572,6 @@
     "apps/sim/lib/mothership/async-runs/orphaned-runs.integration.ts": 10,
     "apps/sim/lib/mothership/auth/internal.ts": 1,
     "apps/sim/lib/mothership/billing/service-store.integration.ts": 3,
-    "apps/sim/lib/mothership/chat/application/context.ts": 1,
     "apps/sim/lib/mothership/chat/application/fork.ts": 2,
     "apps/sim/lib/mothership/chat/application/inline-images.ts": 1,
     "apps/sim/lib/mothership/chat/application/use-cases.test.ts": 1,

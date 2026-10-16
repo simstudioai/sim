@@ -337,7 +337,7 @@ export async function authorizeChatWorkflowRead(
 
 /** A workspace Plan chat is unavailable while Plan mode is off for its owner. */
 export async function isChatModeAvailable(
-  chat: { organizationId: string | null | undefined; mode: ConversationMode },
+  chat: { organizationId?: string | null; mode: ConversationMode },
   userId: string
 ): Promise<boolean> {
   return chat.organizationId || chat.mode !== 'plan' ? true : isPlanModeEnabled(userId)
