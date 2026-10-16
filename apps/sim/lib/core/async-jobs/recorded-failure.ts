@@ -2,12 +2,12 @@ import { isRecordLike } from '@sim/utils/object'
 import type { JobType } from '@/lib/core/async-jobs/types'
 
 /**
- * Job types whose runner reports a failure the run already recorded in its
+ * The job type whose runner reports a failure the run already recorded in its
  * execution log by completing with a {@link RecordedJobFailureResult} instead
  * of throwing, so the queue does not fault (and alert on) a user or workflow
  * error.
  */
-const RECORDED_FAILURE_JOB_TYPES: ReadonlySet<string> = new Set<JobType>(['workflow-execution'])
+const RECORDED_FAILURE_JOB_TYPE: JobType = 'workflow-execution'
 
 /**
  * Bounds the error in UTF-8 bytes so the result stays inline under Trigger.dev's
@@ -35,6 +35,7 @@ interface RecordedJobFailureResult {
   executedAt: string
 }
 
+/** The output a runner completes with when its failure is already in the execution log. */
 export function buildRecordedJobFailureResult(params: {
   workflowId: string
   executionId: string
@@ -56,6 +57,6 @@ export function buildRecordedJobFailureResult(params: {
  * runner threw.
  */
 export function getRecordedJobFailureError(type: string, output: unknown): string | undefined {
-  if (!RECORDED_FAILURE_JOB_TYPES.has(type) || !isRecordLike(output)) return undefined
+  if (type !== RECORDED_FAILURE_JOB_TYPE || !isRecordLike(output)) return undefined
   return output.success === false && typeof output.error === 'string' ? output.error : undefined
 }

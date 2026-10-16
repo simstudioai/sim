@@ -119,6 +119,13 @@ function isNonFaultPreprocessingRejection(rejection: PreprocessExecutionError): 
   )
 }
 
+/** Completes the job with a failure already in the execution log, keeping it on the run's span. */
+function completeWithRecordedFailure(workflowId: string, executionId: string, error: unknown) {
+  const failure = toError(error)
+  trace.getActiveSpan()?.recordException(failure)
+  return buildRecordedJobFailureResult({ workflowId, executionId, error: failure.message })
+}
+
 function requireLegacyWorkflowJobString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) {
     throw new Error(`Legacy workflow job ${field} must be a non-empty string`)
@@ -333,16 +340,9 @@ export async function executeWorkflowJob(
 
         // A failure core already recorded is the workflow's outcome, not a job fault; a run past
         // its deadline (checked after the await, which can outlast it) still fails the job.
-        if (
-          (await isRecordedWorkflowFailure(error, executionId, loggingSession)) &&
-          !timeoutController.isTimedOut()
-        ) {
-          trace.getActiveSpan()?.recordException(toError(error))
-          return buildRecordedJobFailureResult({
-            workflowId,
-            executionId,
-            error: toError(error).message,
-          })
+        if (await isRecordedWorkflowFailure(error, executionId, loggingSession)) {
+          if (timeoutController.isTimedOut()) throw error
+          return completeWithRecordedFailure(workflowId, executionId, error)
         }
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
@@ -365,12 +365,7 @@ export async function executeWorkflowJob(
           isNonFaultPreprocessingRejection(preprocessingRejection) &&
           loggingSession.hasCompleted()
         ) {
-          trace.getActiveSpan()?.recordException(toError(error))
-          return buildRecordedJobFailureResult({
-            workflowId,
-            executionId,
-            error: toError(error).message,
-          })
+          return completeWithRecordedFailure(workflowId, executionId, error)
         }
 
         throw error

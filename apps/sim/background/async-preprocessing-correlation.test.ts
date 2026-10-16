@@ -426,6 +426,7 @@ describe('async preprocessing correlation threading', () => {
       mockWasExecutionFinalizedByCore.mockReturnValue(true)
 
       await expect(runRecordedFailure('execution-recorded-deadline')).rejects.toBe(error)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
     })
 
     it('still fails the job when the run passed its deadline', async () => {
@@ -435,6 +436,7 @@ describe('async preprocessing correlation threading', () => {
       mockWasExecutionFinalizedByCore.mockReturnValue(true)
 
       await expect(runRecordedFailure('execution-recorded-late')).rejects.toBe(error)
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
     })
   })
 
