@@ -116,10 +116,10 @@ func holdsFocus(_ focused: CFTypeRef, _ element: AXUIElement) -> Bool {
     }
     return false
 }
-/// Whether typed characters land as text: a text, combo or date control, or anything with an editable
-/// text selection. Buttons, lists and web areas take characters as commands instead.
+/// Whether typed characters land as text: a text, combo, date or time control (`AXDateTimeArea` is an
+/// NSDatePicker's field), or anything with an editable text selection. Buttons, lists and web areas take characters as commands instead.
 func takesText(_ element: AXUIElement) -> Bool {
-    if [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole, kAXDateFieldRole, kAXTimeFieldRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return true }
+    if [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole, kAXDateFieldRole, kAXTimeFieldRole, "AXDateTimeArea"].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return true }
     var settable: DarwinBoolean = false
     return AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success && settable.boolValue
 }
