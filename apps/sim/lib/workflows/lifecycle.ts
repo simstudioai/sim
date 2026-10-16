@@ -324,8 +324,9 @@ export async function disableUserResources(userId: string): Promise<void> {
   /**
    * Records the workspaces' stops and signals their in-flight runs; the recorded stop's queue
    * sweep and retries run in the outbox worker, since this module sits in page graphs that must
-   * not load that delivery. Logged, not thrown: the ban and archives have committed, and a retry
-   * would find no unarchived workspace to stop.
+   * not load that delivery. Logged, not thrown: the ban and archives have committed, and banning
+   * the user again records the stops again, since every owned workspace is stopped, archived or
+   * not.
    */
   let stopFailed = false
   const stopRuns = async (workspaceIds: string[]): Promise<void> => {

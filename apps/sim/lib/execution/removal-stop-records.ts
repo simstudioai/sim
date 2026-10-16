@@ -193,8 +193,9 @@ export async function recordExecutionStops(
  * Sets the cancellation flag each execution's engine watches, and aborts the ones this process
  * runs, without the queue sweep or the retry the outbox event adds. Callers whose module graph
  * cannot load the delivery stop in-flight runs with it at once and leave the rest to the outbox
- * worker. Returns how many flags Redis refused or the deadline (`signal`, else
- * {@link SIGNAL_DEADLINE_MS}) left unsent; never throws.
+ * worker. The deadline (`signal`, else {@link SIGNAL_DEADLINE_MS}) bounds only the Redis writes;
+ * every execution this process runs is aborted first. Returns how many flags Redis refused or
+ * the deadline left unsent; never throws.
  *
  * Without Redis at all the flag is process-local by design (`markExecutionCancelled`) and a
  * retry from any process could reach no further, so that outcome does not count as refused.
@@ -203,6 +204,16 @@ export async function signalExecutionStops(
   executions: readonly Pick<PlannedExecutionStop, 'executionId' | 'executionDeadlineAt'>[],
   signal?: AbortSignal
 ): Promise<number> {
+  for (const { executionId } of executions) {
+    try {
+      abortManualExecution(executionId)
+    } catch (error) {
+      logger.warn('Failed to abort a local execution being stopped', {
+        executionId,
+        error: describeError(error),
+      })
+    }
+  }
   const deadline = signal ?? AbortSignal.timeout(SIGNAL_DEADLINE_MS)
   let refused = 0
   await mapWithConcurrency(executions, SIGNAL_CONCURRENCY, async (execution) => {
@@ -218,14 +229,6 @@ export async function signalExecutionStops(
     } catch (error) {
       refused += 1
       logger.warn('Failed to signal an execution being stopped', {
-        executionId: execution.executionId,
-        error: describeError(error),
-      })
-    }
-    try {
-      abortManualExecution(execution.executionId)
-    } catch (error) {
-      logger.warn('Failed to abort a local execution being stopped', {
         executionId: execution.executionId,
         error: describeError(error),
       })
