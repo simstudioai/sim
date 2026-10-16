@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import type Redis from 'ioredis'
 import { LRUCache } from 'lru-cache'
@@ -18,6 +19,7 @@ import {
   getBillingPeriodUsageCost,
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
+import { releaseLock } from '@/lib/core/config/redis'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import type { DbClient } from '@/lib/db/types'
 
@@ -85,7 +87,9 @@ const PREFIX_REFRESH_AFTER_MS = 3 * 60_000
  * The refresh lease is held for as long as one ledger sum may run, so a second process starts
  * the same sum only once the first has certainly ended, and a holder that died frees it then.
  * Nothing tells a stranded lease from a live one, and nothing needs to: while it is held, every
- * other reader serves the stored prefix or, with none, sums the whole window.
+ * other reader serves the stored prefix or, with none, sums the whole window. Its holder
+ * releases it once the new prefix is stored, so a prefix discarded by an epoch bump right after
+ * is refreshed by the next read rather than leaving every reader summing the whole window.
  */
 const PREFIX_LEASE_MS = USAGE_LEDGER_STATEMENT_TIMEOUT_MS
 
@@ -259,23 +263,24 @@ async function readStoredPrefix(
 }
 
 /**
- * Whether this process took the refresh lease. It is never released: the stored prefix ends the
- * need for it, and expiry frees it for the next refresh. A lease whose `SET` failed or timed out
- * may still have landed, held by nobody, for {@link PREFIX_LEASE_MS}. Not `acquireLock`, which
+ * This process's token for the refresh lease, or `null` when it did not take it. A refresh that
+ * fails keeps the lease until expiry, as a backoff. A lease whose `SET` failed or timed out may
+ * still have landed, held by nobody, for {@link PREFIX_LEASE_MS}. Not `acquireLock`, which
  * issues on a client that is not ready and has no read deadline.
  */
-async function acquirePrefixLease(redis: Redis, key: string): Promise<boolean> {
+async function acquirePrefixLease(redis: Redis, key: string): Promise<string | null> {
+  const token = generateShortId()
   try {
     const result = await withinDeadline(
-      () => redis.set(sharedPrefixLeaseKey(key), '1', 'PX', PREFIX_LEASE_MS, 'NX'),
+      () => redis.set(sharedPrefixLeaseKey(key), token, 'PX', PREFIX_LEASE_MS, 'NX'),
       Date.now() + SHARED_READ_TIMEOUT_MS
     )
-    return result === 'OK'
+    return result === 'OK' ? token : null
   } catch (error) {
     logger.warn('Shared reporting usage prefix lease failed', {
       error: getErrorMessage(error),
     })
-    return false
+    return null
   }
 }
 
@@ -283,9 +288,10 @@ async function acquirePrefixLease(redis: Redis, key: string): Promise<boolean> {
  * Fire-and-forget, and only on a ready client, like {@link writeSharedReportingUsageCost}. A
  * plain `SET` replaces the stored prefix: every prefix is a lower bound for its own cutoff, so
  * two refreshes racing can leave either one, and the tail always resumes from the cutoff stored
- * with it.
+ * with it. Once it lands, the lease is released only while it still holds `lease`, so one that
+ * expired and was taken by another process is left to that process.
  */
-function writeStoredPrefix(key: string, prefix: LedgerPrefix): void {
+function writeStoredPrefix(key: string, prefix: LedgerPrefix, lease: string): void {
   try {
     const redis = readyRedisClient()
     if (!redis) return
@@ -296,6 +302,7 @@ function writeStoredPrefix(key: string, prefix: LedgerPrefix): void {
         'PX',
         prefix.cutoff + PREFIX_CUTOFF_LAG_MS + PREFIX_RETAIN_MS - Date.now()
       )
+      .then(() => releaseLock(sharedPrefixLeaseKey(key), lease))
       .catch(warnSharedWriteFailed)
   } catch (error) {
     warnSharedWriteFailed(error)
@@ -335,10 +342,11 @@ async function resolveLedgerPrefix(
   const { epochs, prefix: stored } = state
   if (stored && cutoff - stored.cutoff < PREFIX_REFRESH_AFTER_MS) return stored
 
-  if (await acquirePrefixLease(redis, key)) {
+  const lease = await acquirePrefixLease(redis, key)
+  if (lease) {
     const cost = getBillingPeriodUsageCost(entity, { ...period, end: new Date(cutoff) }).then(
       (prefixCost) => {
-        writeStoredPrefix(key, { ...epochs, cutoff, cost: prefixCost })
+        writeStoredPrefix(key, { ...epochs, cutoff, cost: prefixCost }, lease)
         return prefixCost
       }
     )
