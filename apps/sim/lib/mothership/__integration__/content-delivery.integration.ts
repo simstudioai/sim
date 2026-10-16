@@ -141,6 +141,8 @@ import { generateImageServerTool } from '@/lib/mothership/tools/server/image/gen
 import { generateAudioServerTool } from '@/lib/mothership/tools/server/media/generate-audio'
 import { generateVideoServerTool } from '@/lib/mothership/tools/server/media/generate-video'
 import { getShareForResource } from '@/lib/public-shares/manager'
+import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
+import { queryTableRows } from '@/lib/table/application/rows'
 import {
   createOwnedWorkspaceFile,
   getWorkspaceFile,
@@ -580,6 +582,45 @@ describe('content reaching Chat is admitted per item', () => {
         `/api/v2/tables/${fixture.table.tableId}/rows?workspaceId=${ws()}`
       )
       expectPerItem(read, { secretAdmitted: true })
+    })
+
+    it('exports private evidence only for rows delivered by the mixed Chat page', async () => {
+      const scope = { userId: fixture.ids.aliceId, workspaceId: ws() }
+      const registry = new ResolvedSecretTraceRegistry([], scope)
+      const result = await observeContentDelivery(
+        createRegistryContentGate({ registry, actorUserId: scope.userId, workspaceId: ws() }),
+        () =>
+          queryTableRows.execute({
+            principal: createCopilotChatPrincipal(scope, TABLE_DELEGATION_AUDIENCE, {
+              tableId: fixture.table.tableId,
+            }),
+            input: { tableId: fixture.table.tableId, includePersistedSecretProvenance: true },
+          })
+      )
+      expect(result.rows.map((row) => row.id).sort()).toEqual(
+        [fixture.table.rows.clean, fixture.table.rows.entries].sort()
+      )
+      expect(result.secretProvenance?.complete).toBe(true)
+      const receiver = new ResolvedSecretTraceRegistry([], scope)
+      expect(
+        await receiver.importProvenance(result.secretProvenance, {
+          trusted: true,
+          origin: 'delivered-table-page',
+        })
+      ).toBe(true)
+      const projected = projectResolvedSecretModelContent(
+        result.rows.map((row) => row.data),
+        receiver
+      )
+      expect(projected.safe).toBe(true)
+      expect(JSON.stringify(projected)).not.toContain(CANARY.secret)
+      expect(JSON.stringify(projected)).toContain('{{FIXTURE_TOKEN}}')
+      const ordinary = await queryTableRows.execute({
+        principal: createSessionPrincipal({ userId: scope.userId }),
+        input: { tableId: fixture.table.tableId, includePersistedSecretProvenance: true },
+      })
+      expect(ordinary.rows).toHaveLength(3)
+      expect(ordinary.secretProvenance?.complete).toBe(false)
     })
 
     it('filters and sorts mixed-provenance rows without refusing unrelated content (#18b)', async () => {

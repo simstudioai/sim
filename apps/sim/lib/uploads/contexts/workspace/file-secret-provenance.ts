@@ -4,6 +4,7 @@ import {
   type WorkspaceFileSecretProvenanceEntry,
   workspaceFileSecretProvenance,
   workspaceFiles,
+  workspaceFileVersion,
 } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
@@ -710,7 +711,7 @@ export async function applyWorkspaceFileSecretProvenancePolicyInTx(
   return snapshotWorkspaceFileSecretProvenanceInTx(tx, fileId, nextContentUpdatedAt, 1)
 }
 
-/** Copies exact provenance for a byte-identical, same-owner-scope file copy; otherwise unknown. */
+/** Preserves encrypted origin entries for an authorized copy of the captured file revision. */
 export async function copyWorkspaceFileSecretProvenanceInTx(
   tx: DbTransaction,
   expectedSource: WorkspaceFileSecretProvenanceCopySource | undefined,
@@ -718,8 +719,6 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
 ): Promise<void> {
   const [target] = await tx
     .select({
-      userId: workspaceFiles.userId,
-      workspaceId: workspaceFiles.workspaceId,
       contentUpdatedAt: workspaceFiles.contentUpdatedAt,
     })
     .from(workspaceFiles)
@@ -739,8 +738,6 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
   const [source] = await tx
     .select({
       key: workspaceFiles.key,
-      userId: workspaceFiles.userId,
-      workspaceId: workspaceFiles.workspaceId,
       secretProvenanceVersion: workspaceFiles.secretProvenanceVersion,
       fileContentUpdatedAt: workspaceFiles.contentUpdatedAt,
       provenanceContentUpdatedAt: workspaceFileSecretProvenance.contentUpdatedAt,
@@ -780,28 +777,13 @@ export async function copyWorkspaceFileSecretProvenanceInTx(
     })
     return
   }
-  /**
-   * An absence copies as an absence. Folding it in with the refusals below would hand the target a
-   * taint the source never carried, and a fork or a chat copy would turn a readable file into a
-   * permanently refused one — the pathology this surface exists to undo, reached by copying.
-   *
-   * Safe to carry across the scope checks below, which exist to stop one workspace's secret entries
-   * landing in another's file. A recorded absence has no entries to carry.
-   */
   if (source.status === 'unrecorded') {
     await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
       status: 'unrecorded',
     })
     return
   }
-  if (
-    source.status !== 'exact' ||
-    (source.entries.length > 0 &&
-      (!source.workspaceId ||
-        !target.workspaceId ||
-        source.userId !== target.userId ||
-        source.workspaceId !== target.workspaceId))
-  ) {
+  if (source.status !== 'exact') {
     await replaceWorkspaceFileSecretProvenanceInTx(tx, targetFileId, target.contentUpdatedAt, {
       status: 'unknown',
     })
@@ -818,7 +800,7 @@ export async function markWorkspaceFileSecretProvenanceUnknown(
   workspaceId: string,
   fileIds: readonly string[]
 ): Promise<void> {
-  const uniqueIds = [...new Set(fileIds.filter((fileId) => fileId.length > 0))]
+  const uniqueIds = [...new Set(fileIds.filter((fileId) => fileId.length > 0))].sort(compareStrings)
   if (uniqueIds.length === 0) return
 
   await db.transaction(async (tx) => {
@@ -833,7 +815,11 @@ export async function markWorkspaceFileSecretProvenanceUnknown(
     for (let index = 0; index < uniqueIds.length; index += FILE_PROVENANCE_QUERY_CHUNK_SIZE) {
       const chunk = uniqueIds.slice(index, index + FILE_PROVENANCE_QUERY_CHUNK_SIZE)
       const rows = await tx
-        .select({ id: workspaceFiles.id, contentUpdatedAt: workspaceFiles.contentUpdatedAt })
+        .select({
+          id: workspaceFiles.id,
+          key: workspaceFiles.key,
+          contentUpdatedAt: workspaceFiles.contentUpdatedAt,
+        })
         .from(workspaceFiles)
         .where(
           and(
@@ -843,11 +829,26 @@ export async function markWorkspaceFileSecretProvenanceUnknown(
             isNull(workspaceFiles.deletedAt)
           )
         )
+        .orderBy(workspaceFiles.id)
+        .for('update')
       bound += rows.length
       for (const row of rows) {
         await replaceWorkspaceFileSecretProvenanceInTx(tx, row.id, row.contentUpdatedAt, {
           status: 'unknown',
         })
+        await tx
+          .update(workspaceFileVersion)
+          .set({
+            secretProvenanceStatus: 'unknown',
+            secretProvenanceEntries: [],
+          })
+          .where(
+            and(
+              eq(workspaceFileVersion.fileId, row.id),
+              eq(workspaceFileVersion.key, row.key),
+              isNull(workspaceFileVersion.supersededAt)
+            )
+          )
       }
     }
     /**
@@ -1443,12 +1444,7 @@ async function loadModelSafeWorkspaceFileRowChunk(
       workspaceFileSecretProvenance,
       eq(workspaceFileSecretProvenance.fileId, workspaceFiles.id)
     )
-    .where(
-      and(
-        inArray(workspaceFiles.key, [...keys]),
-        or(isNull(workspaceFiles.deletedAt), eq(workspaceFiles.context, 'execution'))
-      )
-    )
+    .where(inArray(workspaceFiles.key, [...keys]))
     .orderBy(
       workspaceFiles.key,
       sql`${workspaceFiles.deletedAt} IS NULL DESC`,
