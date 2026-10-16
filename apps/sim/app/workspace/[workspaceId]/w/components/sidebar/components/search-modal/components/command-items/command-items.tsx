@@ -6,6 +6,7 @@ import { OverflowText } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { FolderPathLabel } from '@/components/ui'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
@@ -21,28 +22,6 @@ interface ItemMetaProps {
 
 function ItemMeta({ meta }: ItemMetaProps) {
   return <span className='ml-auto shrink-0 pl-2 text-[var(--text-subtle)] text-small'>{meta}</span>
-}
-
-interface ItemFolderPathProps {
-  folderPath: string[]
-}
-
-/** Trailing folder-path receipt whose head segments yield space to the leaf. */
-function ItemFolderPath({ folderPath }: ItemFolderPathProps) {
-  return (
-    <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
-      {folderPath.length > 1 && (
-        <>
-          <OverflowText
-            label={folderPath.slice(0, -1).join(' / ')}
-            className='[flex-shrink:9999]'
-          />
-          <span className='shrink-0 whitespace-pre'> / </span>
-        </>
-      )}
-      <OverflowText label={folderPath[folderPath.length - 1]} />
-    </span>
-  )
 }
 
 /** Structural equality for the optional folder-path prop in memo comparators. */
@@ -171,7 +150,7 @@ export const MemoizedWorkflowItem = memo(
         {meta ? (
           <ItemMeta meta={meta} />
         ) : folderPath && folderPath.length > 0 ? (
-          <ItemFolderPath folderPath={folderPath} />
+          <FolderPathLabel segments={folderPath} />
         ) : null}
       </Command.Item>
     )
@@ -208,7 +187,7 @@ export const MemoizedFileItem = memo(
         {meta ? (
           <ItemMeta meta={meta} />
         ) : folderPath && folderPath.length > 0 ? (
-          <ItemFolderPath folderPath={folderPath} />
+          <FolderPathLabel segments={folderPath} />
         ) : null}
       </Command.Item>
     )
@@ -330,7 +309,7 @@ export const MemoizedIconItem = memo(
         {meta ? (
           <ItemMeta meta={meta} />
         ) : folderPath && folderPath.length > 0 ? (
-          <ItemFolderPath folderPath={folderPath} />
+          <FolderPathLabel segments={folderPath} />
         ) : null}
       </Command.Item>
     )
