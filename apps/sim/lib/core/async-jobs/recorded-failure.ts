@@ -1,5 +1,4 @@
 import { isRecordLike } from '@sim/utils/object'
-import { truncateAtCodePoint } from '@sim/utils/string'
 import type { JobType } from '@/lib/core/async-jobs/types'
 
 /**
@@ -11,11 +10,22 @@ import type { JobType } from '@/lib/core/async-jobs/types'
 const RECORDED_FAILURE_JOB_TYPES: ReadonlySet<string> = new Set<JobType>(['workflow-execution'])
 
 /**
- * Keeps the result far below Trigger.dev's output offload threshold: an
- * offloaded output is not returned inline by `runs.retrieve`, so the job would
- * read as completed instead of failed.
+ * Bounds the error in UTF-8 bytes so the result stays inline under Trigger.dev's
+ * 128 KiB output offload threshold even if JSON escaping inflates every byte
+ * sixfold (`\u0000`). `runs.retrieve` resolves an offloaded output through
+ * its presigned URL, but if that fetch fails the output reads as missing and
+ * the job would read as completed instead of failed.
  */
-const RECORDED_FAILURE_ERROR_MAX_LENGTH = 64_000
+const RECORDED_FAILURE_ERROR_MAX_BYTES = 16 * 1024
+
+/** Cuts at a code point boundary so the kept prefix is valid UTF-8. */
+function truncateUtf8(value: string, maxBytes: number): string {
+  const bytes = Buffer.from(value, 'utf8')
+  if (bytes.length <= maxBytes) return value
+  let end = maxBytes
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end--
+  return `${bytes.subarray(0, end).toString('utf8')}...`
+}
 
 interface RecordedJobFailureResult {
   success: false
@@ -34,7 +44,7 @@ export function buildRecordedJobFailureResult(params: {
     success: false,
     workflowId: params.workflowId,
     executionId: params.executionId,
-    error: truncateAtCodePoint(params.error, RECORDED_FAILURE_ERROR_MAX_LENGTH),
+    error: truncateUtf8(params.error, RECORDED_FAILURE_ERROR_MAX_BYTES),
     executedAt: new Date().toISOString(),
   }
 }

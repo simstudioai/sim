@@ -418,7 +418,7 @@ describe('async preprocessing correlation threading', () => {
       const error = recordedError()
       mockExecuteWorkflowCore.mockRejectedValueOnce(error)
       mockIsWorkflowTimedOut.mockReturnValue(true)
-      finalizeWhenPostExecutionSettles()
+      mockWasExecutionFinalizedByCore.mockReturnValue(true)
 
       await expect(runRecordedFailure('execution-recorded-late')).rejects.toBe(error)
     })
