@@ -186,19 +186,31 @@ describe('deleted workspace storage sweep', () => {
     expect(await exists('workspace/ws1/nested/b.txt.upload-metadata.json')).toBe(false)
   })
 
-  it('spends an attempt instead of continuing when a full local page removes nothing', async () => {
-    for (let index = 0; index < 520; index++)
-      await put(`workspace/ws1/legacy/legacy file ${index}.txt`)
-
-    const result = await sweep(
-      { version: 1, workspaceId: 'ws1' },
-      outboxContext({ deadlineAt: Date.now() + 120_000 })
+  it('pages past a full page of kept objects to the ones behind it', async () => {
+    const keptKeys = Array.from(
+      { length: 520 },
+      (_, index) => `workspace/ws1/a-kept/${String(index).padStart(3, '0')}.bin`
+    )
+    const unkeptKeys = Array.from(
+      { length: 10 },
+      (_, index) => `workspace/ws1/z-unkept/${index}.bin`
+    )
+    for (const key of [...keptKeys, ...unkeptKeys]) await put(key)
+    queueTableRows(
+      schemaMock.document,
+      keptKeys.map((key) => ({ key }))
+    )
+    queueTableRows(
+      schemaMock.document,
+      keptKeys.map((key) => ({ key }))
     )
 
-    expect(result).toEqual({
-      outcome: 'deferred',
-      reason: 'Workspace storage sweep removed nothing from a full listing page',
-    })
+    await expect(sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())).resolves.toBe(
+      undefined
+    )
+
+    for (const key of unkeptKeys) expect(await exists(key)).toBe(false)
+    for (const key of keptKeys) expect(await exists(key)).toBe(true)
   })
 
   it.each([
@@ -398,20 +410,22 @@ describe('queueing account storage cleanup', () => {
     expect(keys).toContain('copilot/abc/v1004.txt')
   })
 
-  it('only inserts inside the deletion transaction', async () => {
+  it('queues a file committed between the early read and the deletion locks, once', async () => {
+    const early = { id: 'file-1', key: 'copilot/abc/early.txt', context: 'copilot' }
+    queueTableRows(schemaMock.workspaceFiles, [early])
+    const objects = await collectAccountStorageObjects({ userId: 'user-1', workspaceIds: [] })
     queueTableRows(schemaMock.workspaceFiles, [
-      { id: 'file-1', key: 'copilot/abc/file.txt', context: 'copilot' },
+      early,
+      { id: 'file-2', key: 'copilot/abc/late.txt', context: 'copilot' },
     ])
-    const objects = await collectAccountStorageObjects({ userId: 'user-1', workspaceIds: ['ws1'] })
-    const insertOnly = { insert: dbChainMock.db.insert } as unknown as DbTransaction
 
-    await enqueueAccountStorageCleanupInTx(insertOnly, {
+    await enqueueAccountStorageCleanupInTx(dbChainMock.db as unknown as DbTransaction, {
       userId: 'user-1',
-      workspaceIds: ['ws1'],
+      workspaceIds: [],
       objects,
     })
 
-    expect(queuedObjectKeys()).toEqual(['copilot/abc/file.txt'])
+    expect(queuedObjectKeys()).toEqual(['copilot/abc/early.txt', 'copilot/abc/late.txt'])
   })
 
   it('never queues a profile picture row', async () => {

@@ -12,13 +12,9 @@ import {
   workspaceFileVersion,
   workspace as workspaceTable,
 } from '@sim/db/schema'
-import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
-import { inArray, isNotNull, like, or, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
+import { inArray, isNotNull, like, or } from 'drizzle-orm'
 import { extractStorageKey, isPublicStorageKey } from '@/lib/uploads/utils/file'
-
-const MIN_NEEDLE_LENGTH = 4
-const NEEDLES_PER_QUERY = 50
 
 /** Every string inside a URL column or a JSON settings blob, including JSON held as a string. */
 function collectStrings(value: unknown, into: string[]): void {
@@ -82,53 +78,39 @@ function keysNamedByUrl(value: string): string[] {
 }
 
 /**
- * The longest run of URL-safe characters after a key's root. Percent-encoding never splits such a
- * run, so any stored URL naming the key contains it; `null` when the key has none long enough.
- */
-function urlNeedle(key: string): string | null {
-  let best = ''
-  for (const run of key.slice(key.indexOf('/') + 1).match(/[A-Za-z0-9_-]+/g) ?? [])
-    if (run.length > best.length) best = run
-  return best.length >= MIN_NEEDLE_LENGTH ? best : null
-}
-
-/**
  * Keys named by the columns that hold a stored asset as a URL rather than a row:
  * `user.image`, `workspace.logo_url`, `organization.logo`, `organization.whitelabel_settings`,
  * `organization.metadata`, `custom_block.icon_url`, `chat.customizations` (deployed-chat logo
- * and avatar), and `oauth_client.icon`. With `needles`, reads only rows whose value contains one;
- * without, every row that holds a URL.
+ * and avatar), and `oauth_client.icon`. Every non-empty value is read and decoded here rather than
+ * matched in SQL, since a URL may percent-encode any character of the key it names. Only
+ * `user.image`, mostly external OAuth avatars, is narrowed, to values that point at this app's
+ * file-serve route or name a world-readable root.
  */
-async function loadUrlReferencedKeys(needles: readonly string[] | null): Promise<Set<string>> {
-  const matching = (column: SQLWrapper, fallback: SQL | undefined): SQL | undefined =>
-    needles ? or(...needles.map((needle) => sql`${column}::text LIKE ${`%${needle}%`}`)) : fallback
+async function loadUrlReferencedKeys(): Promise<Set<string>> {
   const values: string[] = []
   const sources = [
     db
       .select({ value: user.image })
       .from(user)
       .where(
-        matching(
-          user.image,
-          or(like(user.image, '%/api/files/serve/%'), like(user.image, '%profile-pictures/%'))
+        or(
+          like(user.image, '%/api/files/serve/%'),
+          like(user.image, '%profile-pictures%'),
+          like(user.image, '%og-images%'),
+          like(user.image, '%workspace-logos%'),
+          like(user.image, '%organization-logos%')
         )
       ),
     db
       .select({ value: workspaceTable.logoUrl })
       .from(workspaceTable)
-      .where(matching(workspaceTable.logoUrl, isNotNull(workspaceTable.logoUrl))),
+      .where(isNotNull(workspaceTable.logoUrl)),
     db
       .select({ value: customBlock.iconUrl })
       .from(customBlock)
-      .where(matching(customBlock.iconUrl, isNotNull(customBlock.iconUrl))),
-    db
-      .select({ value: chat.customizations })
-      .from(chat)
-      .where(matching(chat.customizations, sql`${chat.customizations}::text LIKE '%Url%'`)),
-    db
-      .select({ value: oauthClient.icon })
-      .from(oauthClient)
-      .where(matching(oauthClient.icon, isNotNull(oauthClient.icon))),
+      .where(isNotNull(customBlock.iconUrl)),
+    db.select({ value: chat.customizations }).from(chat).where(isNotNull(chat.customizations)),
+    db.select({ value: oauthClient.icon }).from(oauthClient).where(isNotNull(oauthClient.icon)),
   ]
   for (const source of sources) for (const row of await source) collectStrings(row.value, values)
   const organizations = await db
@@ -140,9 +122,9 @@ async function loadUrlReferencedKeys(needles: readonly string[] | null): Promise
     .from(organization)
     .where(
       or(
-        matching(organization.logo, isNotNull(organization.logo)),
-        matching(organization.whitelabelSettings, isNotNull(organization.whitelabelSettings)),
-        matching(organization.metadata, isNotNull(organization.metadata))
+        isNotNull(organization.logo),
+        isNotNull(organization.whitelabelSettings),
+        isNotNull(organization.metadata)
       )
     )
   for (const row of organizations) collectStrings([row.logo, row.whitelabel, row.metadata], values)
@@ -158,8 +140,8 @@ async function loadUrlReferencedKeys(needles: readonly string[] | null): Promise
  *   `workspace_file_version.key`, `document.storage_key`, `execution_large_values.key`; or
  * - it sits under a world-readable root (`isPublicStorageKey`, the same prefixes the file-serve
  *   route's `isPublicByKeyPrefix` answers without a session) and a stored asset URL names it (see
- *   {@link loadUrlReferencedKeys}). Only rows containing the key's longest URL-safe run are read,
- *   each run at most once per guard. No URL column is read for any other key:
+ *   {@link loadUrlReferencedKeys}), read at most once per guard and only once a public key comes
+ *   up. No URL column is read for any other key:
  *   `verifyFileAccess` serves it only through a row, by its key path under a workspace that still
  *   exists (which exact-key cleanup keeps; see `keysUnderLiveWorkspaces`), or by object metadata
  *   to a signed-in holder of a hand-pasted URL to a private file this deletion means to erase.
@@ -171,25 +153,7 @@ async function loadUrlReferencedKeys(needles: readonly string[] | null): Promise
  * attachments that is the intended erasure. A failed lookup throws, so nothing is deleted.
  */
 export function createStorageReferenceGuard(): (keys: readonly string[]) => Promise<Set<string>> {
-  const loadedNeedles = new Set<string>()
-  const named = new Set<string>()
-  let loadedAll = false
-  const loadNamedKeys = async (publicKeys: readonly string[]) => {
-    if (loadedAll || publicKeys.length === 0) return
-    const needles = publicKeys.map(urlNeedle)
-    if (needles.includes(null)) {
-      for (const key of await loadUrlReferencedKeys(null)) named.add(key)
-      loadedAll = true
-      return
-    }
-    const pending = [...new Set(needles.flatMap((needle) => needle ?? []))].filter(
-      (needle) => !loadedNeedles.has(needle)
-    )
-    for (const batch of chunkArray(pending, NEEDLES_PER_QUERY)) {
-      for (const key of await loadUrlReferencedKeys(batch)) named.add(key)
-      for (const needle of batch) loadedNeedles.add(needle)
-    }
-  }
+  let named: Set<string> | null = null
   return async (keys) => {
     const referenced = new Set<string>()
     if (keys.length === 0) return referenced
@@ -218,8 +182,10 @@ export function createStorageReferenceGuard(): (keys: readonly string[]) => Prom
     ]
     for (const row of rows) if (row.key) referenced.add(row.key)
     const publicKeys = list.filter(isPublicStorageKey)
-    await loadNamedKeys(publicKeys)
-    for (const key of publicKeys) if (named.has(key)) referenced.add(key)
+    if (publicKeys.length > 0) {
+      named ??= await loadUrlReferencedKeys()
+      for (const key of publicKeys) if (named.has(key)) referenced.add(key)
+    }
     return referenced
   }
 }

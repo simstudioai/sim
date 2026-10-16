@@ -1,7 +1,8 @@
-import { opendir, rmdir } from 'node:fs/promises'
+import { readdir, rmdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { describeError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { compareStrings } from '@sim/utils/string'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
   getStorageConfig,
@@ -40,22 +41,50 @@ async function removeEmptyDirectory(path: string): Promise<void> {
   }
 }
 
-async function localKeys(prefix: string, signal: AbortSignal): Promise<string[]> {
+/** Orders keys path segment by segment, the order a sorted depth-first walk visits them in. */
+function compareKeyPaths(left: readonly string[], right: readonly string[]): number {
+  for (let index = 0; index < Math.min(left.length, right.length); index++) {
+    const order = compareStrings(left[index], right[index])
+    if (order !== 0) return order
+  }
+  return left.length - right.length
+}
+
+/**
+ * The first local keys under `prefix` in {@link compareKeyPaths} order, after `startAfter` when
+ * given, so a caller can page past objects it keeps. Prunes directories it walks to the end empty.
+ */
+async function localKeys(
+  prefix: string,
+  signal: AbortSignal,
+  startAfter?: string
+): Promise<string[]> {
+  const cursor = startAfter?.split('/')
   const keys: string[] = []
   async function visit(key: string): Promise<void> {
     signal.throwIfAborted()
-    let directory
+    let entries
     try {
-      directory = await opendir(join(UPLOAD_DIR_SERVER, key))
+      entries = await readdir(join(UPLOAD_DIR_SERVER, key), { withFileTypes: true })
     } catch (error) {
       if (describeError(error).code === 'ENOENT') return
       throw error
     }
-    for await (const entry of directory) {
+    entries.sort((left, right) => compareStrings(left.name, right.name))
+    for (const entry of entries) {
       signal.throwIfAborted()
       const child = `${key}${entry.name}`
-      if (entry.isDirectory()) await visit(`${child}/`)
-      else keys.push(child)
+      if (entry.isDirectory()) {
+        const segments = child.split('/')
+        if (
+          !cursor ||
+          segments.every((segment, index) => cursor[index] === segment) ||
+          compareKeyPaths(segments, cursor) > 0
+        )
+          await visit(`${child}/`)
+      } else if (!cursor || compareKeyPaths(child.split('/'), cursor) > 0) {
+        keys.push(child)
+      }
       if (keys.length >= STORAGE_KEY_PAGE_SIZE) return
     }
     await removeEmptyDirectory(join(UPLOAD_DIR_SERVER, key))
@@ -77,8 +106,8 @@ function keyPage(keys: string[], nextPageToken: string | undefined): StorageKeyP
 }
 
 /**
- * Lists one page of object keys under `prefix` in the bucket serving `context`. A local listing
- * has no cursor: it returns the first keys still on disk, so callers advance by deleting them.
+ * Lists one page of object keys under `prefix` in the bucket serving `context`. A local listing's
+ * page token is the page's last key, so a caller keeping objects still advances past them.
  */
 export async function listStorageKeyPage(
   prefix: string,
@@ -141,8 +170,8 @@ export async function listStorageKeyPage(
         : undefined
     )
   }
-  const keys = await localKeys(prefix, signal)
-  return { keys, done: keys.length < STORAGE_KEY_PAGE_SIZE }
+  const keys = await localKeys(prefix, signal, pageToken)
+  return keyPage(keys, keys.length < STORAGE_KEY_PAGE_SIZE ? undefined : keys[keys.length - 1])
 }
 
 /**

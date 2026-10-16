@@ -103,6 +103,14 @@ async function insertAdminWorkspace(id: string, ownerId: string) {
   })
 }
 
+/** A legal URL for `key` that shares no literal run with it, as a hand-written link can be. */
+function percentEncodeEveryCharacter(key: string): string {
+  return Array.from(
+    key,
+    (character) => `%${character.charCodeAt(0).toString(16).padStart(2, '0')}`
+  ).join('')
+}
+
 function fileRow(values: {
   key: string
   userId: string
@@ -112,7 +120,7 @@ function fileRow(values: {
 }) {
   return {
     id: generateId(),
-    originalName: 'fixture.txt',
+    originalName: `fixture-${generateId()}.txt`,
     contentType: 'text/plain',
     sizeBytes: 1,
     chatId: values.chatId ?? null,
@@ -154,6 +162,7 @@ async function seed() {
     legacyWorkspacelessKb: `kb/${generateId()}-legacy.txt`,
     profilePictureRowLogo: `profile-pictures/${generateId()}/org-logo.png`,
     logoNamedByUrl: `workspace-logos/${doomedId}/${generateId()}-org-logo.png`,
+    logoNamedByEncodedUrl: `workspace-logos/${doomedId}/${generateId()}-workspace-logo.png`,
   }
   await db.insert(workspaceFiles).values([
     fileRow({
@@ -217,6 +226,12 @@ async function seed() {
     .update(user)
     .set({ image: `/api/files/serve/${encodeURIComponent(keys.logoNamedByUrl)}` })
     .where(eq(user.id, ownerId))
+  await db
+    .update(workspace)
+    .set({
+      logoUrl: `/api/files/serve/s3/${percentEncodeEveryCharacter(keys.logoNamedByEncodedUrl)}`,
+    })
+    .where(eq(workspace.id, survivingId))
   for (const key of Object.values(keys)) await put(key)
   return { ownerId, departingId, doomedId, survivingId, keys }
 }
@@ -304,6 +319,7 @@ describe('account deletion storage sweep', () => {
         f.keys.legacyWorkspacelessKb,
         f.keys.profilePictureRowLogo,
         f.keys.logoNamedByUrl,
+        f.keys.logoNamedByEncodedUrl,
       ])
         expect(await readFile(join(storageRoot, key), 'utf8')).toBe('x')
       expect(
