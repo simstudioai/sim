@@ -754,6 +754,18 @@ async function executeToolAndReportInner(
   })
   /** A re-run after a takeover gets what remains of the call's first deadline, never a fresh one. */
   if (record?.executionDeadlineAt) toolCall.deadlineAt = record.executionDeadlineAt.getTime()
+  // Too late to start: an unclaimed call is settled as never run rather than claimed first, so a
+  // crash before its handler refuses to start cannot leave it recovered as an unknown outcome.
+  if (
+    toolStartWindowClosed(toolCall.deadlineAt, Date.now()) &&
+    (await failUnstartedToolCall(
+      toolCall.id,
+      context,
+      execContext,
+      TOOL_DEADLINE_BEFORE_START_MESSAGE
+    ))
+  )
+    return terminalCompletionFromToolCall(toolCall)
   if (context.runId) {
     const claim = await lifetime.claim(context.runId, execContext.userId)
     if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
