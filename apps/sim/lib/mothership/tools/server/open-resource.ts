@@ -20,7 +20,7 @@ import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/mothership/auth/application-delegation'
-import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
+import { getCopilotFileOwnerAdapter, isOwnerScopedFile } from '@/lib/mothership/file-owners'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -48,34 +48,24 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
   async execute(input, context) {
     if (context?.requestMode !== 'agent' && context?.requestMode !== 'plan')
       throw new OrchestrationError('forbidden', 'Resource panels require agent mode')
-    if (
-      input.resources.some(
-        (resource) =>
-          resource.owner && getCopilotFileOwnerAdapter(resource.owner).resourceScope === 'owner'
+    if (input.resources.some((resource) => resource.owner && isOwnerScopedFile(resource.owner))) {
+      const owned = input.resources.flatMap((resource) =>
+        resource.type === 'file' &&
+        resource.owner &&
+        isOwnerScopedFile(resource.owner) &&
+        !resource.viewId
+          ? [{ owner: resource.owner, fileId: resource.id }]
+          : []
       )
-    ) {
-      if (
-        input.workspaceId ||
-        input.resources.some(
-          (resource) =>
-            resource.type !== 'file' ||
-            !resource.owner ||
-            getCopilotFileOwnerAdapter(resource.owner).resourceScope !== 'owner' ||
-            resource.viewId
-        )
-      )
+      if (input.workspaceId || owned.length !== input.resources.length)
         throw new OrchestrationError(
           'validation',
           'Owner-scoped files cannot be mixed with workspace targets'
         )
       const resources: OpenResourceOutput['resources'] = []
-      for (const resource of input.resources) {
+      for (const target of owned) {
         assertServerToolNotAborted(context)
-        if (!resource.owner) throw new OrchestrationError('validation', 'File owner required')
-        const file = await getCopilotFileOwnerAdapter(resource.owner).readMetadata(context, {
-          owner: resource.owner,
-          fileId: resource.id,
-        })
+        const file = await getCopilotFileOwnerAdapter(target.owner).readMetadata(context, target)
         resources.push({ type: 'file', id: file.id, title: file.name, owner: file.owner })
       }
       assertServerToolNotAborted(context)
@@ -91,7 +81,7 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
       if (
         resource.owner &&
         (resource.type !== 'file' ||
-          getCopilotFileOwnerAdapter(resource.owner).resourceScope !== 'workspace' ||
+          isOwnerScopedFile(resource.owner) ||
           resource.owner.entityId !== workspaceId)
       )
         throw new OrchestrationError('not_found', 'File owner not found in this invocation')

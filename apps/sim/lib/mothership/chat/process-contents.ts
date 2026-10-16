@@ -54,7 +54,7 @@ import {
 } from '@/lib/mothership/chat/selection-context'
 import { quoteChatTranscript } from '@/lib/mothership/chat/text-transcript'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
-import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
+import { getCopilotFileOwnerAdapter, isOwnerScopedFile } from '@/lib/mothership/file-owners'
 import type { ChatFileIngress } from '@/lib/mothership/file-owners/types'
 import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ResourceAddress } from '@/lib/mothership/generated/resources'
@@ -422,7 +422,7 @@ export async function processContextsServer(
       if ((ctx.kind === 'file' || ctx.kind === 'file_selection') && ctx.owner !== undefined) {
         const parsed = FileOperationOwner.safeParse(ctx.owner)
         if (!parsed.success) return null
-        if (getCopilotFileOwnerAdapter(parsed.data).resourceScope === 'owner') {
+        if (isOwnerScopedFile(parsed.data)) {
           if (ctx.workspaceId) return null
           return await resolveOwnedFileContext(
             { owner: parsed.data, fileId: ctx.fileId },

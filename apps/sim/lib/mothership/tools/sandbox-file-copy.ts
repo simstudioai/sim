@@ -7,11 +7,11 @@ import { parseRequest } from '@/lib/api/server/validation'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createFileCopyCliTransport } from '@/lib/mothership/agent-cli/file-copy-transport'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
-import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
+import { sandboxCallbackContext } from '@/lib/mothership/tools/sandbox-callback'
 import {
-  type readSandboxResourceScope,
   recordSandboxResourceEffects,
+  type SandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
 
 const logger = createLogger('SandboxFileCopy')
@@ -20,7 +20,7 @@ const logger = createLogger('SandboxFileCopy')
 export async function proxySandboxFileCopyRequest(
   request: Request,
   token: string,
-  scope: NonNullable<Awaited<ReturnType<typeof readSandboxResourceScope>>>
+  scope: SandboxResourceScope
 ): Promise<Response> {
   if (
     scope.fileOwnerProtocolVersion !== 1 ||
@@ -46,16 +46,7 @@ export async function proxySandboxFileCopyRequest(
   const endpoint = getInternalApiBaseUrl()
   const transport = createFileCopyCliTransport(
     endpoint,
-    {
-      userId: scope.userId,
-      chatId: scope.chatId,
-      toolCallId: scope.toolCallId,
-      copilotToolExecution: true,
-      copilotResourceAdmission: createCopilotResourceAdmission({
-        userId: scope.userId,
-        invocation: { kind: 'chat', chatId: scope.chatId },
-      }),
-    },
+    sandboxCallbackContext(scope),
     parsed.data.body
   )
   const forwarded = new Request(`${endpoint.replace(/\/$/, '')}${v2CopyFileItemsContract.path}`, {

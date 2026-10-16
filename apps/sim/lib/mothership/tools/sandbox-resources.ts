@@ -33,7 +33,7 @@ const scopeSchema = z
     (scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId),
     'Exactly one chat owner is required'
   )
-type SandboxResourceScope = z.infer<typeof scopeSchema>
+export type SandboxResourceScope = z.infer<typeof scopeSchema>
 
 interface ActiveSandboxResourceScope {
   identity: SimToolExecutionOwner & {

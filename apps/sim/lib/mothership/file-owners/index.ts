@@ -1,1 +1,4 @@
-export { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners/registry'
+export {
+  getCopilotFileOwnerAdapter,
+  isOwnerScopedFile,
+} from '@/lib/mothership/file-owners/registry'

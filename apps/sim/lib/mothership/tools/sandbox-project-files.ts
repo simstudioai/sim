@@ -5,17 +5,19 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createDurableSecretProvenanceRegistry } from '@/lib/execution/durable-secret-provenance'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import { readSessionSecretProvenance } from '@/lib/execution/remote-sandbox/session-file-provenance'
-import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
 import { createProjectFileUploadTransport } from '@/lib/mothership/agent-cli/project-file-upload-transport'
 import { createProjectFileWriteTransport } from '@/lib/mothership/agent-cli/project-file-write-transport'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
-import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { createSessionContentGate, deliverSandboxResponse } from '@/lib/mothership/content-delivery'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import {
-  type readSandboxResourceScope,
+  forwardableSandboxHeaders,
+  sandboxCallbackContext,
+} from '@/lib/mothership/tools/sandbox-callback'
+import {
   recordSandboxResourceEffects,
+  type SandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -28,22 +30,12 @@ export async function proxySandboxProjectFileRequest(
   token: string,
   path: string,
   search: string,
-  scope: NonNullable<Awaited<ReturnType<typeof readSandboxResourceScope>>>,
+  scope: SandboxResourceScope,
   projectId: string
 ): Promise<Response> {
   const endpoint = getInternalApiBaseUrl()
   const sessionKey = chatSandboxSessionKey(scope.chatId)
-  const context: AgentCliExecutionContext = {
-    userId: scope.userId,
-    chatId: scope.chatId,
-    toolCallId: scope.toolCallId,
-    copilotToolExecution: true,
-    copilotResourceAdmission: createCopilotResourceAdmission({
-      userId: scope.userId,
-      invocation: { kind: 'chat', chatId: scope.chatId },
-    }),
-    signal: request.signal,
-  }
+  const context = sandboxCallbackContext(scope, request.signal)
   const history = async () => {
     request.signal.throwIfAborted()
     const provider = resolveProvider()
@@ -104,21 +96,9 @@ export async function proxySandboxProjectFileRequest(
       fallback: createProjectFileCliTransport(endpoint, context, { projectId }),
     }),
   })
-  const headers = new Headers(request.headers)
-  for (const name of [
-    'host',
-    'cookie',
-    'authorization',
-    'connection',
-    'transfer-encoding',
-    'x-api-key',
-    'x-mothership-workspace-id',
-    'x-mothership-file-owner',
-  ])
-    headers.delete(name)
   const forwarded = new Request(`${endpoint.replace(/\/$/, '')}${path}${search}`, {
     method: request.method,
-    headers,
+    headers: forwardableSandboxHeaders(request),
     signal: request.signal,
     redirect: 'manual',
     ...(request.method === 'GET' || request.method === 'HEAD'

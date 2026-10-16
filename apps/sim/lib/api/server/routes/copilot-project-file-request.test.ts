@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  copilotRequestPrincipal,
-  isCopilotRequest,
-  markCopilotProjectFileRequest,
-} from '@/lib/api/server/routes/copilot-request'
+import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
+import { markCopilotProjectFileRequest } from '@/lib/mothership/application/execute-project-file-use-case'
 import {
   type CopilotExecutionContext,
   createCopilotResourceAdmission,

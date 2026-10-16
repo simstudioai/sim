@@ -3,12 +3,12 @@ import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-
 import { requireTrustedCopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import type { CopilotFileOwnerAdapter } from '@/lib/mothership/file-owners/types'
-import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
+import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 
 export const workspaceFileOwnerAdapter: CopilotFileOwnerAdapter = {
-  resourceScope: 'workspace',
+  invocationScope: 'workspace',
   async readChatMetadata(ingress, target) {
     if (ingress.workspaceId !== target.owner.entityId) {
       throw new OrchestrationError('not_found', 'File owner not found in this invocation')
@@ -26,14 +26,7 @@ export const workspaceFileOwnerAdapter: CopilotFileOwnerAdapter = {
       id: file.id,
       name: file.name,
       owner: { entityType: 'workspace', entityId: target.owner.entityId },
-      path: fileOwnerVfsPath(
-        target.owner,
-        canonicalWorkspaceFilePath({
-          folderPath: file.folderPath,
-          name: file.name,
-          prefix: file.vfsNamespace,
-        })
-      ),
+      path: fileOwnerVfsPath(target.owner, workspaceFileVfsPath(file)),
     }
   },
   async executeCli(request, context, owner) {

@@ -23,8 +23,11 @@ interface ChatFileMetadata {
  * reauthorized by the owner's use cases.
  */
 export interface CopilotFileOwnerAdapter {
-  /** Legacy workspace resources share an invocation with other workspace resource kinds. */
-  resourceScope: 'workspace' | 'owner'
+  /**
+   * `workspace`: legacy workspace files share the invocation's workspace with other resource
+   * kinds. `owner`: the owner binds its own invocation and never takes a workspace target.
+   */
+  invocationScope: 'workspace' | 'owner'
   executeCli(
     request: AgentCliRequest,
     context: AgentCliExecutionContext,

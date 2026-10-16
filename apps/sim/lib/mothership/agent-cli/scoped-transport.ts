@@ -2,14 +2,15 @@ import { NextRequest } from 'next/server'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import {
   dispatchInProcessV2Request,
-  matchV2Route,
+  type MatchedRoute,
 } from '@/lib/api/server/routes/in-process-transport'
+import { tryMatchV2Route } from '@/lib/api/server/routes/v2-route-pattern'
 import type { CopilotChatDelegationContext } from '@/lib/mothership/auth/application-delegation'
 
 interface ScopedCliInvocation {
   admitRequest(
     request: NextRequest,
-    route: NonNullable<ReturnType<typeof matchV2Route>>
+    route: MatchedRoute
   ): Response | undefined | Promise<Response | undefined>
 }
 
@@ -20,22 +21,15 @@ export function createScopedCliTransport(
 ): typeof fetch {
   const origin = new URL(endpoint).origin
   const scope = Object.freeze({ ...invocation })
+  const unavailable = () => Response.json({ error: 'CLI target is unavailable' }, { status: 400 })
   return async (input, init) => {
     const request = new Request(input, init)
     const url = new URL(request.url)
-    if (url.origin !== origin || !url.pathname.startsWith('/api/v2/'))
-      return Response.json({ error: 'CLI target is unavailable' }, { status: 400 })
+    if (url.origin !== origin || !url.pathname.startsWith('/api/v2/')) return unavailable()
     const forwarded = new NextRequest(request)
     if ('admitRequest' in scope) {
-      let matched: ReturnType<typeof matchV2Route>
-      try {
-        matched = matchV2Route(url.pathname)
-      } catch {
-        return Response.json({ error: 'CLI target is unavailable' }, { status: 400 })
-      }
-      if (!matched) {
-        return Response.json({ error: 'CLI target is unavailable' }, { status: 400 })
-      }
+      const matched = tryMatchV2Route(url.pathname)
+      if (!matched) return unavailable()
       const denied = await scope.admitRequest(forwarded, matched)
       if (denied) return denied
     } else {

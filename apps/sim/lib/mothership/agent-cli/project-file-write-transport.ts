@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { NextRequest } from 'next/server'
-import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CreateProjectFileFolderContract,
   v2UpdateProjectFileFolderContract,
@@ -10,16 +9,24 @@ import {
   v2CreateProjectFileContract,
   v2UpdateProjectFileContentContract,
 } from '@/lib/api/contracts/v2/project-files'
-import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
+import type { MatchedRoute } from '@/lib/api/server/routes/in-process-transport'
 import {
   V2_PARSE_DEFAULTS,
   v2InvalidBodyResponse,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes/v2-json-route'
+import { isV2ContractRoute } from '@/lib/api/server/routes/v2-route-pattern'
 import { parseRequest } from '@/lib/api/server/validation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
-import { requireCleanProjectFileMetadata } from '@/lib/mothership/agent-cli/project-file-write-provenance'
+import {
+  matchProjectCliRoute,
+  renderProjectCliFailure,
+  throwIfCancelled,
+} from '@/lib/mothership/agent-cli/project-file-transport'
+import {
+  type ProjectFileProvenanceOptions,
+  requireCleanProjectFileMetadata,
+} from '@/lib/mothership/agent-cli/project-file-write-provenance'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import { requireTrustedCopilotResourceExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import { toCreateProjectFileInput } from '@/lib/projects/files/api/create-input'
@@ -28,83 +35,69 @@ import { createProjectFile, updateProjectFileContent } from '@/lib/projects/file
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('ProjectFileWriteTransport')
+
+/** Forwarded writes that publish a caller-chosen name, so their metadata is checked first. */
+const NAME_WRITE_CONTRACTS = [
+  v2RenameProjectFileContract,
+  v2CreateProjectFileFolderContract,
+  v2UpdateProjectFileFolderContract,
+] as const
 
 /**
  * Parses a write that publishes a caller-chosen name under its route's size limit, or returns
  * undefined for forwarded writes that reference existing items only.
  */
-function parseNameWrite(original: Request, route: string, params: Record<string, string>) {
-  const parse = <C extends AnyApiRouteContract>(contract: C) => {
-    /** Only a name write is copied, so forwarded upload bodies are never teed. */
-    const request = new NextRequest(original.clone())
-    return parseRequest(
-      contract,
-      request,
-      { params },
-      {
-        ...V2_PARSE_DEFAULTS,
-        maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
-        invalidJsonResponse: () => v2InvalidBodyResponse(request),
-      }
-    )
-  }
-  switch (route) {
-    case 'PATCH /api/v2/projects/{projectId}/files/{fileId}':
-      return parse(v2RenameProjectFileContract)
-    case 'POST /api/v2/projects/{projectId}/files/folders':
-      return parse(v2CreateProjectFileFolderContract)
-    case 'PATCH /api/v2/projects/{projectId}/files/folders/{folderId}':
-      return parse(v2UpdateProjectFileFolderContract)
-    default:
-      return undefined
-  }
+function parseNameWrite(original: Request, route: MatchedRoute) {
+  const contract = NAME_WRITE_CONTRACTS.find((candidate) =>
+    isV2ContractRoute(original.method, route, candidate)
+  )
+  if (!contract) return undefined
+  /** Only a name write is copied, so forwarded upload bodies are never teed. */
+  const request = new NextRequest(original.clone())
+  return parseRequest(
+    contract,
+    request,
+    { params: route.params },
+    {
+      ...V2_PARSE_DEFAULTS,
+      maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+      invalidJsonResponse: () => v2InvalidBodyResponse(request),
+    }
+  )
 }
 
 /** Private inline writes carry only a proven empty classification; original source identities are never reconstructed. */
-export function createProjectFileWriteTransport(options: {
-  endpoint: string
-  projectId: string
-  context: AgentCliExecutionContext
-  fallback: typeof fetch
-  resolveSecretTraceRegistry?: () => Promise<ResolvedSecretTraceRegistry>
-}): typeof fetch {
+export function createProjectFileWriteTransport(
+  options: ProjectFileProvenanceOptions & {
+    endpoint: string
+    projectId: string
+    fallback: typeof fetch
+  }
+): typeof fetch {
   const origin = new URL(options.endpoint).origin
   const projectId = options.projectId
   return async (input, init) => {
     const originalRequest = new Request(input, init)
-    const url = new URL(originalRequest.url)
-    let matched: ReturnType<typeof matchV2Route>
-    try {
-      matched = matchV2Route(url.pathname)
-    } catch {
-      return v2Error('BAD_REQUEST', 'CLI target is unavailable')
-    }
-    if (url.origin !== origin || !matched || matched.params.projectId !== projectId)
-      return v2Error('BAD_REQUEST', 'CLI target is unavailable')
-    const create =
-      originalRequest.method === 'POST' && matched.pattern === '/api/v2/projects/{projectId}/files'
-    const update =
-      originalRequest.method === 'PUT' &&
-      matched.pattern === '/api/v2/projects/{projectId}/files/{fileId}/content'
+    const matched = matchProjectCliRoute(originalRequest, origin, projectId)
+    if (matched instanceof Response) return matched
+    const create = isV2ContractRoute(originalRequest.method, matched, v2CreateProjectFileContract)
+    const update = isV2ContractRoute(
+      originalRequest.method,
+      matched,
+      v2UpdateProjectFileContentContract
+    )
     if (!create && !update) {
-      const nameWrite = parseNameWrite(
-        originalRequest,
-        `${originalRequest.method} ${matched.pattern}`,
-        matched.params
-      )
+      const nameWrite = parseNameWrite(originalRequest, matched)
       if (!nameWrite) return options.fallback(originalRequest)
       try {
         const parsed = await nameWrite
         if (!parsed.success) return parsed.response
         await requireCleanProjectFileMetadata(parsed.data.body, options)
-        options.context.signal?.throwIfAborted()
-        originalRequest.signal.throwIfAborted()
+        throwIfCancelled(options.context.signal, originalRequest.signal)
       } catch (error) {
-        options.context.signal?.throwIfAborted()
-        originalRequest.signal.throwIfAborted()
+        throwIfCancelled(options.context.signal, originalRequest.signal)
         const response = v2OrchestrationErrorPolicy.render(error)
         if (response) return response
         throw error
@@ -123,8 +116,7 @@ export function createProjectFileWriteTransport(options: {
       invalidJsonResponse: () => v2InvalidBodyResponse(request),
     }
     try {
-      options.context.signal?.throwIfAborted()
-      request.signal.throwIfAborted()
+      throwIfCancelled(options.context.signal, request.signal)
       if (create) {
         const parsed = await parseRequest(
           v2CreateProjectFileContract,
@@ -135,8 +127,7 @@ export function createProjectFileWriteTransport(options: {
         if (!parsed.success) return parsed.response
         const { params, body } = parsed.data
         await requireCleanInlineText(body, options)
-        options.context.signal?.throwIfAborted()
-        request.signal.throwIfAborted()
+        throwIfCancelled(options.context.signal, request.signal)
         const result = await executeCopilotProjectFileUseCase(
           options.context,
           createProjectFile,
@@ -160,8 +151,7 @@ export function createProjectFileWriteTransport(options: {
       if (!parsed.success) return parsed.response
       const { params, body } = parsed.data
       await requireCleanInlineText(body, options)
-      options.context.signal?.throwIfAborted()
-      request.signal.throwIfAborted()
+      throwIfCancelled(options.context.signal, request.signal)
       const target = { projectId, fileId: params.fileId }
       const result = await executeCopilotProjectFileUseCase(
         options.context,
@@ -180,22 +170,17 @@ export function createProjectFileWriteTransport(options: {
       })
       return v2Data(response.data)
     } catch (error) {
-      options.context.signal?.throwIfAborted()
-      request.signal.throwIfAborted()
-      const response = v2OrchestrationErrorPolicy.render(error)
-      if (response) return response
-      logger.error('Project file write failed', { error })
-      return v2Error('INTERNAL_ERROR', 'Project file write could not be completed')
+      return renderProjectCliFailure(error, [options.context.signal, request.signal], logger, {
+        log: 'Project file write failed',
+        message: 'Project file write could not be completed',
+      })
     }
   }
 }
 
 async function requireCleanInlineText(
   body: { content: string; encoding: 'utf-8' | 'base64' },
-  options: {
-    context: AgentCliExecutionContext
-    resolveSecretTraceRegistry?: () => Promise<ResolvedSecretTraceRegistry>
-  }
+  options: ProjectFileProvenanceOptions
 ): Promise<void> {
   const { context } = options
   context.signal?.throwIfAborted()

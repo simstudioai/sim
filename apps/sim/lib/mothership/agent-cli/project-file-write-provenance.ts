@@ -2,13 +2,16 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+/** The invocation a Project write checks, and the registry holding its source's committed provenance. */
+export interface ProjectFileProvenanceOptions {
+  context: AgentCliExecutionContext
+  resolveSecretTraceRegistry?: () => Promise<ResolvedSecretTraceRegistry>
+}
+
 /** Shared metadata is public even when the file's bytes retain protected provenance. */
 export async function requireCleanProjectFileMetadata(
   value: unknown,
-  options: {
-    context: AgentCliExecutionContext
-    resolveSecretTraceRegistry?: () => Promise<ResolvedSecretTraceRegistry>
-  }
+  options: ProjectFileProvenanceOptions
 ): Promise<void> {
   const { context } = options
   context.signal?.throwIfAborted()

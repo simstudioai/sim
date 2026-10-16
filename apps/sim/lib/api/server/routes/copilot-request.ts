@@ -4,31 +4,22 @@ import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-w
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import {
   type CopilotChatDelegationContext,
-  type CopilotExecutionContext,
   createCopilotChatPrincipal,
-  createCopilotResourceApplicationPrincipal,
-  requireTrustedCopilotResourceExecutionContext,
-  type TrustedCopilotResourceExecutionContext,
 } from '@/lib/mothership/auth/application-delegation'
-import type { ProjectFileTarget } from '@/lib/projects/files/application/authorization'
-import {
-  PROJECT_FILE_DELEGATION_TTL_MS,
-  projectFileOperations,
-} from '@/lib/projects/files/application/operations'
-import type { CopyFileItemsInput } from '@/lib/workspace-files/application/copy-authorization'
-import {
-  FILE_COPY_DELEGATION_TTL_MS,
-  fileCopyOperation,
-} from '@/lib/workspace-files/application/copy-operation'
+
+/**
+ * Mints the resource grant one admitted request carries for an operation the route runs under
+ * the given audience, or none when that operation is outside the grant. Owned by the domain
+ * adapter that bound the request, so this route layer stays free of domain policy.
+ */
+type CopilotResourceRequestGrant = (
+  operation: ApplicationOperation,
+  audience: string
+) => ResourceDelegatedPrincipal | undefined
 
 type CopilotRequestInvocation =
-  | { kind: 'file_copy'; principal: ResourceDelegatedPrincipal }
+  | { kind: 'resource'; grant: CopilotResourceRequestGrant }
   | { kind: 'workspace'; context: Readonly<CopilotChatDelegationContext> }
-  | {
-      kind: 'project_files'
-      context: TrustedCopilotResourceExecutionContext
-      target: Readonly<ProjectFileTarget>
-    }
 
 /** A private in-process invocation, installed only after current chat/target authorization. Never a wire header. */
 const INVOCATIONS = new WeakMap<Request, CopilotRequestInvocation>()
@@ -40,40 +31,12 @@ export function markCopilotRequest(
   INVOCATIONS.set(request, { kind: 'workspace', context: Object.freeze({ ...invocation }) })
 }
 
-/** Binds one precise Project request to opaque authoring admission; the use case reauthorizes current access. */
-export function markCopilotProjectFileRequest(
+/** Binds one request to a domain adapter's resource grant; the use case still reauthorizes current access. */
+export function markCopilotResourceRequest(
   request: Request,
-  context: CopilotExecutionContext,
-  target: ProjectFileTarget
+  grant: CopilotResourceRequestGrant
 ): void {
-  const trustedContext = requireTrustedCopilotResourceExecutionContext(context)
-  if (!target.projectId.trim() || (target.fileId !== undefined && !target.fileId.trim())) {
-    throw new Error('Copilot Project file requests require a valid resource target')
-  }
-  INVOCATIONS.set(request, {
-    kind: 'project_files',
-    context: trustedContext,
-    target: Object.freeze({ ...target }),
-  })
-}
-
-/** Carries one immutable paired grant to the registered compound operation without a wire credential. */
-export function markCopilotFileCopyRequest(
-  request: Request,
-  context: CopilotExecutionContext,
-  target: CopyFileItemsInput
-): ResourceDelegatedPrincipal {
-  const principal = createCopilotResourceApplicationPrincipal(
-    requireTrustedCopilotResourceExecutionContext(context),
-    {
-      audience: fileCopyOperation.delegationAudience,
-      ttlMs: FILE_COPY_DELEGATION_TTL_MS,
-      createDelegationId: (trusted) => trusted.toolCallId,
-      scope: { kind: 'file_copy', ...target },
-    }
-  )
-  INVOCATIONS.set(request, { kind: 'file_copy', principal })
-  return principal
+  INVOCATIONS.set(request, { kind: 'resource', grant })
 }
 
 export function isCopilotRequest(request: Request): boolean {
@@ -113,35 +76,9 @@ export function copilotRequestPrincipal(
   if (!invocation) return undefined
   const audience = copilotRouteAudience(operation, useCase)
   if (!audience) return undefined
-  if (invocation.kind === 'file_copy') {
-    if (operation !== fileCopyOperation || audience !== fileCopyOperation.delegationAudience)
-      return undefined
-    noteContentDeliveryOperation(operation, invocation.principal)
-    return invocation.principal
-  }
-  if (invocation.kind === 'project_files') {
-    const registered = Object.values(projectFileOperations).find((entry) => entry === operation)
-    if (
-      !registered ||
-      !registered.principalKinds.some((kind) => kind === 'resource_delegated') ||
-      !registered.delegatedServices.some((service) => service === 'copilot') ||
-      registered.delegationAudience !== audience ||
-      (registered.target === 'file') !== (invocation.target.fileId !== undefined)
-    ) {
-      return undefined
-    }
-    const principal = createCopilotResourceApplicationPrincipal(invocation.context, {
-      audience: registered.delegationAudience,
-      ttlMs: PROJECT_FILE_DELEGATION_TTL_MS,
-      createDelegationId: (context) => context.toolCallId,
-      scope: {
-        kind: 'entity',
-        entityType: 'project',
-        entityId: invocation.target.projectId,
-        ...(invocation.target.fileId ? { fileId: invocation.target.fileId } : {}),
-      },
-    })
-    noteContentDeliveryOperation(operation, principal)
+  if (invocation.kind === 'resource') {
+    const principal = invocation.grant(operation, audience)
+    if (principal) noteContentDeliveryOperation(operation, principal)
     return principal
   }
   const principal = createCopilotChatPrincipal(invocation.context, audience)

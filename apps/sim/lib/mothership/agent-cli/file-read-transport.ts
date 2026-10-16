@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { NextRequest } from 'next/server'
 import { v2DownloadFileContract, v2ReadFileTextContract } from '@/lib/api/contracts/v2/files'
-import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
+import type { MatchedRoute } from '@/lib/api/server/routes/in-process-transport'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
+import { tryMatchV2Route, v2RoutePattern } from '@/lib/api/server/routes/v2-route-pattern'
 import { parseRequest } from '@/lib/api/server/validation'
 import { observeContentDelivery } from '@/lib/core/application'
 import {
@@ -19,10 +20,8 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 const logger = createLogger('MothershipFileReads')
 
-/** Contract paths in the generated route table's `{param}` pattern syntax. */
-const routePattern = (path: string) => path.replace(/\[([^\]]+)\]/g, '{$1}')
-const DOWNLOAD_PATTERN = routePattern(v2DownloadFileContract.path)
-const TEXT_PATTERN = routePattern(v2ReadFileTextContract.path)
+const DOWNLOAD_PATTERN = v2RoutePattern(v2DownloadFileContract)
+const TEXT_PATTERN = v2RoutePattern(v2ReadFileTextContract)
 
 /**
  * Answers the two single-file reads Chat needs beyond their public routes — a chat upload by its
@@ -46,14 +45,11 @@ export function createFileReadTransport(context: {
   return async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input)
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
-    let route: ReturnType<typeof matchV2Route> = null
-    if (method === 'GET' && url.origin === base.origin && url.pathname.startsWith(`${basePath}/`)) {
-      try {
-        route = matchV2Route(url.pathname.slice(basePath.length))
-      } catch {
-        /** A malformed percent encoding names no file; the route answers it. */
-      }
-    }
+    /** A malformed percent encoding names no file; the route answers it. */
+    const route: MatchedRoute | null =
+      method === 'GET' && url.origin === base.origin && url.pathname.startsWith(`${basePath}/`)
+        ? tryMatchV2Route(url.pathname.slice(basePath.length))
+        : null
     if (!route || (route.pattern !== DOWNLOAD_PATTERN && route.pattern !== TEXT_PATTERN)) {
       return context.transport(input, init)
     }

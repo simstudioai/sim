@@ -31,7 +31,10 @@ import {
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
-import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import {
+  authoringInvocation,
+  createCopilotResourceAdmission,
+} from '@/lib/mothership/auth/application-delegation'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import {
@@ -1458,18 +1461,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         executionContext.assistantSearch = body.assistantSearch
 
       executionContext.userPermission = userPermission ?? undefined
-      if (actualChatId || workspaceId) {
-        const invocation = actualChatId
-          ? { kind: 'chat' as const, chatId: actualChatId }
-          : workspaceId
-            ? { kind: 'workspace' as const, workspaceId }
-            : undefined
-        if (invocation)
-          executionContext.copilotResourceAdmission = createCopilotResourceAdmission({
-            userId: authenticatedUserId,
-            invocation,
-          })
-      }
+      const invocation = authoringInvocation({ chatId: actualChatId, workspaceId })
+      if (invocation)
+        executionContext.copilotResourceAdmission = createCopilotResourceAdmission({
+          userId: authenticatedUserId,
+          invocation,
+        })
 
       /** Trace catalog preparation and attachment tracking before durable admission. */
       const preparedPayload = await withCopilotSpan(

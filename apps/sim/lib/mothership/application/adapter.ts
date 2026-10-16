@@ -207,6 +207,14 @@ function createWorkspaceApplicationAdapter<O extends WorkspaceOperation, ScopeIn
   }
 }
 
+/** Whether an operation accepts a Copilot resource grant at all; its audience is checked separately. */
+export function admitsCopilotResourceDelegation(operation: CopilotResourceOperation): boolean {
+  return (
+    operation.principalKinds.includes('resource_delegated') &&
+    operation.delegatedServices?.includes('copilot') === true
+  )
+}
+
 function createResourceApplicationAdapter<O extends CopilotResourceOperation, ScopeInput>(
   options: CopilotResourceAdapterOptions<O, ScopeInput>
 ): CopilotApplicationExecutor<O, ScopeInput> {
@@ -221,10 +229,7 @@ function createResourceApplicationAdapter<O extends CopilotResourceOperation, Sc
       throw new Error(`Unregistered Copilot ${options.domain} operation: ${useCase.operation.id}`)
     }
     const operation = useCase.operation
-    if (
-      !operation.principalKinds.includes('resource_delegated') ||
-      !operation.delegatedServices?.includes('copilot')
-    ) {
+    if (!admitsCopilotResourceDelegation(operation)) {
       throw new Error(`Operation ${operation.id} does not admit Copilot resource delegation`)
     }
     if (operation.delegationAudience !== options.delegation.audience) {

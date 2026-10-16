@@ -60,6 +60,16 @@ export interface CopilotResourceDelegationConfiguration {
   createDelegationId(context: TrustedCopilotResourceExecutionContext): string
 }
 
+/** The invocation an authoring turn acts for: its chat when it has one, else its workspace. */
+export function authoringInvocation(scope: {
+  chatId?: string
+  workspaceId?: string
+}): CopilotResourcePrincipal['invocation'] | undefined {
+  if (scope.chatId) return { kind: 'chat', chatId: scope.chatId }
+  if (scope.workspaceId) return { kind: 'workspace', workspaceId: scope.workspaceId }
+  return undefined
+}
+
 /** Called only after authoring ingress authenticates its user and invocation, including resumed runs. */
 export function createCopilotResourceAdmission(input: {
   userId: string

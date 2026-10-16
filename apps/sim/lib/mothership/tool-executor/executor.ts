@@ -10,7 +10,7 @@ import { ASSISTANT_TOOLS, isAssistantIntegrationTool } from '@/lib/mothership/as
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
-import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
+import { isOwnerScopedFile } from '@/lib/mothership/file-owners'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
@@ -68,9 +68,7 @@ export async function executeTool(
       parsed.success &&
       parsed.data.resources.every(
         (resource) =>
-          resource.type === 'file' &&
-          resource.owner &&
-          getCopilotFileOwnerAdapter(resource.owner).resourceScope === 'owner'
+          resource.type === 'file' && resource.owner && isOwnerScopedFile(resource.owner)
       )
     ) {
       if (context.targetWorkspaceId)

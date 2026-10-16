@@ -32,6 +32,7 @@ import {
   PROJECT_FILE_DELEGATION_TTL_MS,
   type ProjectFileOperation,
   type ProjectFilePrincipal,
+  projectFileDelegationScope,
   projectFileOperations,
 } from '@/lib/projects/files/application/operations'
 import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
@@ -87,12 +88,7 @@ function requirePrincipal(
               entityType: 'project',
               entityId: input.projectId,
             }
-          : {
-              kind: 'entity',
-              entityType: 'project',
-              entityId: input.projectId,
-              ...(input.fileId ? { fileId: input.fileId } : {}),
-            },
+          : projectFileDelegationScope(input),
       maxTtlMs: PROJECT_FILE_DELEGATION_TTL_MS,
     })
   }

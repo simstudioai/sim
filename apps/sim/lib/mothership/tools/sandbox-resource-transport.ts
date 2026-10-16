@@ -13,11 +13,13 @@ import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspa
 import { createSessionContentGate, deliverSandboxResponse } from '@/lib/mothership/content-delivery'
 import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
+import { forwardableSandboxHeaders } from '@/lib/mothership/tools/sandbox-callback'
 import { proxySandboxFileCopyRequest } from '@/lib/mothership/tools/sandbox-file-copy'
 import { proxySandboxProjectFileRequest } from '@/lib/mothership/tools/sandbox-project-files'
 import {
   readSandboxResourceScope,
   recordSandboxResourceEffects,
+  type SandboxResourceScope,
 } from '@/lib/mothership/tools/sandbox-resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 
@@ -102,26 +104,14 @@ async function proxyAuthorizedSandboxRequest(
   token: string,
   path: string,
   url: URL,
-  scope: NonNullable<Awaited<ReturnType<typeof readSandboxResourceScope>>>,
+  scope: SandboxResourceScope,
   targetWorkspaceId: string
 ): Promise<Response> {
   const endpoint = getInternalApiBaseUrl()
   const target = `${endpoint.replace(/\/$/, '')}${path}${url.search}`
-  const headers = new Headers(request.headers)
-  for (const header of [
-    'host',
-    'cookie',
-    'authorization',
-    'connection',
-    'transfer-encoding',
-    'x-mothership-workspace-id',
-    'x-mothership-file-owner',
-  ])
-    headers.delete(header)
-  headers.delete('x-api-key')
   const init: RequestInit & { duplex: 'half' } = {
     method: request.method,
-    headers,
+    headers: forwardableSandboxHeaders(request),
     signal: request.signal,
     redirect: 'manual',
     duplex: 'half',

@@ -20,11 +20,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  copilotRequestPrincipal,
-  markCopilotProjectFileRequest,
-} from '@/lib/api/server/routes/copilot-request'
+import { copilotRequestPrincipal } from '@/lib/api/server/routes/copilot-request'
 import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
+import { markCopilotProjectFileRequest } from '@/lib/mothership/application/execute-project-file-use-case'
 import { executeCopilotProjectDiscovery } from '@/lib/mothership/application/execute-project-use-case'
 import { withFileOwnerContext } from '@/lib/mothership/application/file-owner-context'
 import {

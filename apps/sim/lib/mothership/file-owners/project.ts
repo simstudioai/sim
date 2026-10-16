@@ -1,6 +1,9 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
-import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import {
+  authoringInvocation,
+  createCopilotResourceAdmission,
+} from '@/lib/mothership/auth/application-delegation'
 import type { CopilotFileOwnerAdapter } from '@/lib/mothership/file-owners/types'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import {
@@ -10,16 +13,12 @@ import {
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 
 export const projectFileOwnerAdapter: CopilotFileOwnerAdapter = {
-  resourceScope: 'owner',
+  invocationScope: 'owner',
   async readChatMetadata(ingress, target) {
     if (ingress.requestMode !== 'agent' && ingress.requestMode !== 'plan') {
       throw new OrchestrationError('forbidden', 'Project file context requires agent or plan mode')
     }
-    const invocation = ingress.chatId
-      ? { kind: 'chat' as const, chatId: ingress.chatId }
-      : ingress.workspaceId
-        ? { kind: 'workspace' as const, workspaceId: ingress.workspaceId }
-        : null
+    const invocation = authoringInvocation(ingress)
     if (!invocation) {
       throw new OrchestrationError('forbidden', 'File context requires an authoring invocation')
     }

@@ -6,7 +6,7 @@ import {
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { resolveOwnedFileContext } from '@/lib/mothership/chat/process-contents'
-import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
+import { isOwnerScopedFile } from '@/lib/mothership/file-owners'
 import type { ChatContextItem } from '@/lib/mothership/generated/protocol'
 
 /**
@@ -25,8 +25,7 @@ export async function resolveFileAttachment(
 ): Promise<{ context: ChatContextItem; tab?: z.infer<typeof mothershipResourceSchema> }> {
   const { userId, workspaceId, organizationId, chatId, requestMode } = scope
   if (resource.viewId || resource.currentView) throw new Error('Invalid file resource target')
-  const usesWorkspace =
-    !resource.owner || getCopilotFileOwnerAdapter(resource.owner).resourceScope === 'workspace'
+  const usesWorkspace = !resource.owner || !isOwnerScopedFile(resource.owner)
   const assertedWorkspaceId = usesWorkspace
     ? (resource.owner?.entityId ?? resource.workspaceId)
     : undefined

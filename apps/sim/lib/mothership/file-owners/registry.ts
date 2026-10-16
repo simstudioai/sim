@@ -16,3 +16,8 @@ const adapters: FileOwnerAdapters<CopilotFileOwnerAdapter> = Object.freeze({
 export function getCopilotFileOwnerAdapter(owner: FileOwner): CopilotFileOwnerAdapter {
   return requireFileOwnerAdapter(adapters, owner)
 }
+
+/** Whether a file owner binds its own invocation rather than the invocation's workspace. */
+export function isOwnerScopedFile(owner: FileOwner): boolean {
+  return getCopilotFileOwnerAdapter(owner).invocationScope === 'owner'
+}
