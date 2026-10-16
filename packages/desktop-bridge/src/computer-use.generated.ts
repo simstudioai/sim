@@ -17,6 +17,16 @@ const SnapshotId = z
   .describe("Latest unconsumed snapshotId from get_app_state for this app. Actions consume it.");
 const ElementId = z.string().min(1).max(128).describe("Element reference from that snapshot.");
 const WindowId = z.string().min(1).max(128).describe("Window reference from that snapshot.");
+/** Input fields shared across actions keep one description: Anthropic flattens the union and anyOfs differing copies. */
+const TargetWindowId = WindowId.optional().describe(
+  "Window reference from an earlier snapshot of this app. If omitted, get_app_state and press_key use the app's focused window; coordinate actions use the window the snapshot selected.",
+);
+const IncludeScreenshot = z
+  .boolean()
+  .optional()
+  .describe(
+    "Set true to include a screenshot in the returned state. On actions it overrides observeAfter.includeScreenshot.",
+  );
 const Coordinate = z.number().nonnegative().max(100_000);
 const ObserveAfter = {
   observeAfter: z
@@ -25,7 +35,7 @@ const ObserveAfter = {
     .describe(
       "Every mutation returns fresh app state by default. Set includeScreenshot to true to include an image; otherwise no screenshot is captured. Observation failure never retries the action.",
     ),
-  includeScreenshot: z.boolean().optional().describe("Same as observeAfter.includeScreenshot."),
+  includeScreenshot: IncludeScreenshot,
 };
 const InputSequenceStep = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("type_text"), text: z.string().max(32_000) }),
@@ -35,9 +45,7 @@ const ElementTarget = { bundleId: BundleId, snapshotId: SnapshotId, elementId: E
 const PointTarget = {
   bundleId: BundleId,
   snapshotId: SnapshotId,
-  windowId: WindowId.optional().describe(
-    "Window reference from that snapshot. Defaults to the window the snapshot selected.",
-  ),
+  windowId: TargetWindowId,
   x: Coordinate,
   y: Coordinate,
 };
@@ -51,13 +59,17 @@ const ScrollOffsets = {
     .min(-10_000)
     .max(10_000)
     .optional()
-    .describe("Horizontal scroll distance in points; positive scrolls right, negative left. Defaults to 0."),
+    .describe(
+      "Horizontal scroll distance in points; positive scrolls right, negative left. Omit for 0 when deltaY is set.",
+    ),
   deltaY: z
     .number()
     .min(-10_000)
     .max(10_000)
     .optional()
-    .describe("Vertical scroll distance in points; positive scrolls down, negative up. Defaults to 0."),
+    .describe(
+      "Vertical scroll distance in points; positive scrolls down, negative up. Omit for 0 when deltaX is set.",
+    ),
 };
 
 const hasScrollDistance = (input: { deltaX?: number | undefined; deltaY?: number | undefined }) =>
@@ -71,11 +83,8 @@ export const ComputerUseSchema = z.union([
   z.strictObject({
     action: z.literal("get_app_state"),
     bundleId: BundleId,
-    windowId: WindowId.optional(),
-    includeScreenshot: z
-      .boolean()
-      .optional()
-      .describe("Set true to include an image of the selected window."),
+    windowId: TargetWindowId,
+    includeScreenshot: IncludeScreenshot,
   }),
   z.strictObject({ action: z.literal("click"), ...ElementTarget, ...ObserveAfter, ...ClickOptions }),
   z.strictObject({ action: z.literal("click"), ...PointTarget, ...ObserveAfter, ...ClickOptions }),
@@ -90,11 +99,15 @@ export const ComputerUseSchema = z.union([
     ...ObserveAfter,
     bundleId: BundleId,
     snapshotId: SnapshotId,
-    windowId: WindowId.optional().describe(
-      "Window reference from that snapshot. Omit to send the key to the app's focused window.",
-    ),
-    elementId: ElementId.optional().describe("Focus this element from the snapshot before pressing the key."),
-    key: z.string().min(1).max(128).describe("One key or chord, such as Enter, Tab, Escape, or Cmd+A."),
+    windowId: TargetWindowId,
+    elementId: ElementId.optional(),
+    key: z
+      .string()
+      .min(1)
+      .max(128)
+      .describe(
+        "One key or chord, such as Enter, Tab, Escape, or Cmd+A. With elementId, focuses that element first.",
+      ),
   }),
   z
     .strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets })

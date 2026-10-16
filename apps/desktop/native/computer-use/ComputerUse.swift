@@ -48,12 +48,13 @@ func axCheck(_ result: AXError) throws {
 }
 /// A press that opens a sheet, alert or modal panel holds the app's Accessibility reply until that UI
 /// is up, so for a press `cannotComplete` after the messaging timeout means the request was delivered.
-/// For a value or selection change the outcome is unknown: it counts as dispatched but still fails.
+/// Any other failure may follow an effect, so it counts as dispatched unless Accessibility rejected the
+/// request before the app saw it.
 func dispatchAX(_ element: AXUIElement, press: Bool = false, _ operation: (AXUIElement) -> AXError) throws {
     AXUIElementSetMessagingTimeout(element, 2)
     let result = operation(element)
-    if result == .cannotComplete { inputDispatched = true; if press { return } }
-    if result == .success { inputDispatched = true; return }
+    if ![.illegalArgument, .attributeUnsupported, .actionUnsupported, .notImplemented, .apiDisabled].contains(result) { inputDispatched = true }
+    if result == .success || result == .cannotComplete && press { return }
     try axCheck(result)
 }
 /// Some apps (Calendar on macOS 26) answer AXPress on a menu item by opening its menu with the item
@@ -62,15 +63,12 @@ func completeMenuPress(_ item: AXUIElement, pid: pid_t) async throws {
     let submenu = (attribute(item, kAXChildrenAttribute) as? [AXUIElement] ?? []).contains { attribute($0, kAXRoleAttribute) as? String == kAXMenuRole }
     guard attribute(item, kAXRoleAttribute) as? String == kAXMenuItemRole, !submenu else { return }
     try await Task.sleep(for: .milliseconds(250))
-    // An open menu is an on-screen window at the pop-up menu level; a menu that ran its item has none.
-    let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
-    guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
-          entries.contains(where: { ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid && ($0[kCGWindowLayer as String] as? NSNumber)?.intValue == menuLevel }) else { return }
     try checkCancellation()
-    // Return runs whatever is highlighted, so it is sent only when this exact item is.
-    _ = AXUIElementSetAttributeValue(item, kAXSelectedAttribute as CFString, kCFBooleanTrue)
-    guard attribute(item, kAXSelectedAttribute) as? Bool == true else { return }
-    try checkCancellation()
+    // A press that ran its item closes the item's menu (a closed menu has no height). Return runs the
+    // highlighted item, so it is sent only while this item's own menu is open and the app highlights it.
+    guard let rawMenu = attribute(item, kAXParentAttribute), CFGetTypeID(rawMenu) == AXUIElementGetTypeID(),
+          case let menu = unsafeBitCast(rawMenu, to: AXUIElement.self), attribute(menu, kAXRoleAttribute) as? String == kAXMenuRole,
+          (elementRect(menu)?.height ?? 0) > 0, attribute(item, kAXSelectedAttribute) as? Bool == true else { return }
     try postKey(pid: pid, code: 36)
 }
 /// A menu item's keyboard shortcut in macOS notation, such as ⌥⌘N, so the agent can use real shortcuts.
@@ -117,6 +115,20 @@ func holdsFocus(_ focused: CFTypeRef, _ element: AXUIElement) -> Bool {
         current = unsafeBitCast(parent, to: AXUIElement.self)
     }
     return false
+}
+/// Whether typed characters land as text: a text, combo or date control, or anything with an editable
+/// text selection. Buttons, lists and web areas take characters as commands instead.
+func takesText(_ element: AXUIElement) -> Bool {
+    if [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole, kAXDateFieldRole, kAXTimeFieldRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return true }
+    var settable: DarwinBoolean = false
+    return AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success && settable.boolValue
+}
+/// The window holding `element`: the element itself when it is a window or sheet, which report no
+/// window of their own, otherwise the window it reports.
+func containingWindow(_ element: AXUIElement) -> AXUIElement? {
+    if [kAXWindowRole, kAXSheetRole].contains(attribute(element, kAXRoleAttribute) as? String ?? "") { return element }
+    guard let raw = attribute(element, kAXWindowAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+    return unsafeBitCast(raw, to: AXUIElement.self)
 }
 func axActions(_ element: AXUIElement) -> [String] {
     var names: CFArray?
@@ -273,6 +285,10 @@ final class Snapshot {
                 queue.append(AXTraversalEntry(element: element, parent: depth == 0 ? nil : path[depth - 1], depth: depth, menu: false, priority: true))
             }
         }
+        // The menu bar's titles and any open menu come before window content, which can exhaust the budget.
+        if let raw = attribute(root, kAXMenuBarAttribute), CFGetTypeID(raw) == AXUIElementGetTypeID() {
+            queue.append(AXTraversalEntry(element: unsafeBitCast(raw, to: AXUIElement.self), parent: root, depth: 1, menu: false, priority: true))
+        }
         var menuCount = 0
         while nodes.count < 2000 && Date().timeIntervalSince(created) < 8, let entry = queue.next() {
             try checkCancellation()
@@ -281,7 +297,7 @@ final class Snapshot {
             if elements.values.contains(where: { CFEqual($0, element) }) { continue }
             let role = attribute(element, kAXRoleAttribute) as? String ?? "AXUnknown"
             let isMenu = entry.menu || [kAXMenuBarRole, kAXMenuRole, kAXMenuItemRole, kAXMenuBarItemRole].contains(role)
-            if isMenu && !entry.menu && !entry.priority {
+            if role == kAXMenuItemRole && !entry.menu && !entry.priority {
                 queue.append(AXTraversalEntry(element: element, parent: entry.parent, depth: entry.depth, menu: true, priority: false)); continue
             }
             if isMenu && !entry.priority {
@@ -316,12 +332,19 @@ final class Snapshot {
             if !isSecure, entry.depth < 64 {
                 let (children, childrenTruncated) = pagedElements(element, name: kAXChildrenAttribute, limit: 500)
                 truncated = truncated || childrenTruncated
-                // An open menu is what the user is choosing from, so its items and their submenus come first.
-                let openMenu = isMenu && (entry.priority || role == kAXMenuRole && (elementRect(element)?.height ?? 0) > 0)
-                for child in children { queue.append(AXTraversalEntry(element: child, parent: element, depth: entry.depth + 1, menu: isMenu && !openMenu, priority: openMenu)) }
+                // An open menu's items and their submenus come first; a closed menu (no height) keeps its items last.
+                let openMenu = role == kAXMenuRole ? (elementRect(element)?.height ?? 0) > 0 : isMenu && entry.priority
+                let deferChildren = !openMenu && (entry.menu || role == kAXMenuRole)
+                for child in children { queue.append(AXTraversalEntry(element: child, parent: element, depth: entry.depth + 1, menu: deferChildren, priority: openMenu)) }
             } else if entry.depth >= 64 { truncated = true }
         }
         if queue.hasPending || queue.truncated { truncated = true }
+    }
+    /// The observed windowId whose window holds `element`; a sheet counts as the window it is attached to.
+    func windowId(holding element: AXUIElement) -> String? {
+        guard var window = containingWindow(element) else { return nil }
+        if attribute(window, kAXRoleAttribute) as? String == kAXSheetRole { guard let owner = sheetOwner(window) else { return nil }; window = owner }
+        return windowElements.first { CFEqual($0.value, window) }?.key
     }
     func observedWindows() -> [(element: AXUIElement, frame: CGRect)] {
         windowFrames.compactMap { id, frame in windowElements[id].map { ($0, frame) } }
@@ -432,8 +455,8 @@ func requireForegroundTarget(pid: pid_t, windowID: String, window: AXUIElement, 
     // The point must belong to the observed window (its sheets and popovers report it as their window),
     // to one of the app's dialogs or floating panels above it, or to an open menu, which has no window.
     // Anything unconfirmed is refused.
-    if let rawWindow = attribute(hit, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID() {
-        guard acceptsInput(unsafeBitCast(rawWindow, to: AXUIElement.self), observed: [(window, frame)]) else {
+    if let hitWindow = containingWindow(hit) {
+        guard acceptsInput(hitWindow, observed: [(window, frame)]) else {
             throw ComputerError("window_occluded", "Another of this app's windows covers the target point; observe that window and target it instead.")
         }
     } else if ![kAXMenuRole, kAXMenuItemRole, kAXMenuBarRole, kAXMenuBarItemRole].contains(attribute(hit, kAXRoleAttribute) as? String ?? "") {
@@ -589,14 +612,20 @@ final class Driver {
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
             let axWindowFrames = axWindows.compactMap(elementRect)
-            let windows = windowsFor(app.processIdentifier).prefix(100).compactMap { entry -> [String: Any]? in
-                guard let id = entry[kCGWindowNumber as String] as? NSNumber, let bounds = entry[kCGWindowBounds as String] as? [String: Any], let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0, axWindowFrames.contains(rect) else { return nil }
+            let entries = windowsFor(app.processIdentifier).prefix(100)
+            func bounds(_ entry: [String: Any]) -> CGRect? { (entry[kCGWindowBounds as String] as? [String: Any]).flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } }
+            func onScreen(_ entry: [String: Any]) -> Bool { entry[kCGWindowIsOnscreen as String] as? Bool == true }
+            // A background tab is an off-screen window with the bounds of the tab in front, which is the
+            // only one Accessibility shows, so it can be neither observed nor targeted.
+            let onScreenRects = entries.filter(onScreen).compactMap(bounds)
+            let windows = entries.compactMap { entry -> [String: Any]? in
+                guard let id = entry[kCGWindowNumber as String] as? NSNumber, let rect = bounds(entry), rect.width > 0, rect.height > 0, axWindowFrames.contains(rect), onScreen(entry) || !onScreenRects.contains(rect) else { return nil }
                 snapshot.windowFrames[id.stringValue] = rect
                 // Public APIs match a window-list entry to its Accessibility window only by bounds; when
                 // two windows share bounds that match is ambiguous, so neither gets an identity and
-                // input aimed at either is refused.
+                // input aimed at either is refused. An off-screen (minimized) window takes no input either.
                 let matches = axWindows.filter { elementRect($0) == rect }
-                if matches.count == 1 { snapshot.windowElements[id.stringValue] = matches[0] }
+                if matches.count == 1, onScreen(entry) { snapshot.windowElements[id.stringValue] = matches[0] }
                 var result: [String: Any] = ["windowId": id.stringValue, "title": entry[kCGWindowName as String] as? String ?? ""]
                 if let title = result["title"] as? String { result["title"] = String(title.prefix(4096)) }
                 result.merge(rectJSON(rect)) { _, new in new }; return result
@@ -604,11 +633,9 @@ final class Driver {
             if snapshots.count >= 16 { snapshots.removeAll() }
             snapshots[app.bundleIdentifier!] = snapshot
             let root = AXUIElementCreateApplication(app.processIdentifier)
-            var focusedFrame: CGRect?
-            if let focused = attribute(root, kAXFocusedWindowAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { focusedFrame = elementRect(unsafeBitCast(focused, to: AXUIElement.self)) }
-            let focusedID = snapshot.windowFrames.first { $0.value == focusedFrame }?.key
+            let focusedID = attribute(root, kAXFocusedWindowAttribute).flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? snapshot.windowId(holding: unsafeBitCast($0, to: AXUIElement.self)) : nil }
             for index in snapshot.nodes.indices {
-                if let element = snapshot.elements[snapshot.nodes[index]["elementId"] as? String ?? ""], attribute(element, kAXRoleAttribute) as? String == kAXWindowRole, let frame = elementRect(element), let windowID = snapshot.windowFrames.first(where: { $0.value == frame })?.key { snapshot.nodes[index]["windowId"] = windowID }
+                if let element = snapshot.elements[snapshot.nodes[index]["elementId"] as? String ?? ""], attribute(element, kAXRoleAttribute) as? String == kAXWindowRole, let windowID = snapshot.windowId(holding: element) { snapshot.nodes[index]["windowId"] = windowID }
                 else if let parentID = snapshot.nodes[index]["parentId"] as? String, let parent = snapshot.nodes.first(where: { $0["elementId"] as? String == parentID }), let windowID = parent["windowId"] as? String { snapshot.nodes[index]["windowId"] = windowID }
             }
             guard let selectedWindowId = p.windowId ?? focusedID ?? windows.first?["windowId"] as? String else { throw ComputerError("app_window_unavailable", "No accessible app window is available. Open a window, then observe the app again.") }
@@ -638,7 +665,9 @@ final class Driver {
         } catch let error as ComputerError {
             // Input that reached the app may have changed it, so only an untouched app keeps its references.
             if inputDispatched { snapshots.removeValue(forKey: bundle); throw error }
-            throw ComputerError(error.code, error.message + (error.code == "stale_element" ? "" : " Nothing was sent to the app; this snapshot is still valid."), dispatchState: "not_started")
+            // Only a malformed or unsupported request leaves the observation itself usable.
+            let requestError = ["invalid_arguments", "invalid_coordinates", "invalid_window", "unsupported_action", "unsupported_key", "element_unavailable", "secure_element"].contains(error.code)
+            throw ComputerError(error.code, error.message + (requestError ? " Nothing was sent to the app; this snapshot is still valid." : ""), dispatchState: "not_started")
         } catch {
             snapshots.removeValue(forKey: bundle); throw error
         }
@@ -670,8 +699,9 @@ final class Driver {
             } else {
                 try await coordinateAction { dispatch in
                     let position = try point(p, app: app, snapshot: snapshot); let mouse: CGMouseButton = button == "right" ? .right : .left
-                    // Coordinates are window-local to the requested (or selected) window; an element target uses its own.
-                    let windowID = try required(p.windowId ?? (p.elementId == nil ? snapshot.selectedWindowId : snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key), "windowId")
+                    // Coordinates are window-local to the requested (or selected) window. An element targets its
+                    // own window; an out-of-process panel's content reports none and the selected window's sheet check applies.
+                    let windowID = try required(p.windowId ?? p.elementId.flatMap { snapshot.windowId(holding: try snapshot.element($0)) } ?? snapshot.selectedWindowId, "windowId")
                     let frame = try required(snapshot.windowFrames[windowID], "window frame")
                     for click in 1...count {
                         try checkCancellation()
@@ -685,29 +715,33 @@ final class Driver {
             let steps = request.method == "type_text" ? [InputStep(action: "type_text", text: try required(p.text, "text"), key: nil)] : try required(p.steps, "steps")
             try validateInputSteps(steps)
             let root = AXUIElementCreateApplication(pid)
-            // Keystrokes go to whatever holds keyboard focus, so the target is any focusable element
-            // (text fields, terminals, combo boxes, date fields, web editors), not only AX-writable ones.
-            var focusable: DarwinBoolean = false
-            let isFocused = attribute(root, kAXFocusedUIElementAttribute).map { CFEqual($0, element) } == true
-            guard isFocused || (AXUIElementIsAttributeSettable(element, kAXFocusedAttribute as CFString, &focusable) == .success && focusable.boolValue) else {
-                throw ComputerError("unsupported_action", "This element cannot take keyboard focus. Type into a text field, text area, combo box or other focusable control, or click it first.")
+            // Keystrokes go to whatever holds keyboard focus: a text control (terminals included, read-only
+            // or not), or a container whose focused editor already holds it, such as a web composer.
+            let targetTakesText = takesText(element)
+            guard targetTakesText || attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) == true else {
+                throw ComputerError("unsupported_action", "This element does not take text. Type into a text field, text area, combo box or date field, or use press_key for shortcuts.")
             }
             if request.method == "input_sequence", p.activateFirst == true { try await activate(app) }
             // Activation can move focus, so whether the editor holds it is read after activating.
-            if attribute(root, kAXFocusedUIElementAttribute).map({ CFEqual($0, element) }) != true {
+            if attribute(root, kAXFocusedUIElementAttribute).map({ holdsFocus($0, element) }) != true {
                 try axCheck(AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue))
                 try await Task.sleep(for: .milliseconds(50))
             }
             let observedWindows = snapshot.observedWindows()
+            // The first editor found holding focus receives the whole input, so text never follows focus elsewhere.
+            var editor: AXUIElement?
             func validateFocus() throws {
                 try checkCancellation(); try requireNonSecure(element)
                 // The editor must still sit in an observed window (or a dialog above it) at the observed frame.
-                guard let rawWindow = attribute(element, kAXWindowAttribute), CFGetTypeID(rawWindow) == AXUIElementGetTypeID(),
-                      acceptsInput(unsafeBitCast(rawWindow, to: AXUIElement.self), observed: observedWindows) else {
+                guard let window = containingWindow(element), acceptsInput(window, observed: observedWindows) else {
                     throw ComputerError("stale_window", "The editor's window moved or is not an observed window; observe again.")
                 }
-                guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current, element) else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
-                if let focused = attribute(root, kAXFocusedUIElementAttribute), CFGetTypeID(focused) == AXUIElementGetTypeID() { try requireNonSecure(unsafeBitCast(focused, to: AXUIElement.self)) }
+                guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current, element), editor.map({ CFEqual($0, current) }) ?? true else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
+                // Keystrokes land on the focused element, so it (or the text control targeted) must take text.
+                let receiver = unsafeBitCast(current, to: AXUIElement.self)
+                try requireNonSecure(receiver)
+                guard targetTakesText || takesText(receiver) else { throw ComputerError("unsupported_action", "Keyboard focus is not in a text input; no text was sent. Click into the text field, or use press_key for shortcuts.") }
+                editor = receiver
             }
             // AX focus requests and app activation may settle asynchronously. Wait without
             // posting input or requesting focus again; every eventual input keeps the same guard.
@@ -796,8 +830,8 @@ final class Driver {
                 let position = try point(p, app: app, snapshot: snapshot); let dx = p.deltaX ?? 0; let dy = p.deltaY ?? 0
                 guard dx.isFinite, dy.isFinite, abs(dx) <= 10000, abs(dy) <= 10000 else { throw ComputerError("invalid_arguments", "Scroll deltas exceed bounds.") }
                 guard let event = CGEvent(scrollWheelEvent2Source: CGEventSource(stateID: .privateState), units: .pixel, wheelCount: 2, wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) else { throw ComputerError("input_failed", "Could not create scroll event.") }
-                // Coordinates are window-local to the requested (or selected) window; an element target uses its own.
-                let windowID = try required(p.windowId ?? (p.elementId == nil ? snapshot.selectedWindowId : snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key), "windowId")
+                // Coordinates are window-local to the requested (or selected) window; an element targets its own.
+                let windowID = try required(p.windowId ?? p.elementId.flatMap { snapshot.windowId(holding: try snapshot.element($0)) } ?? snapshot.selectedWindowId, "windowId")
                 let frame = try required(snapshot.windowFrames[windowID], "window frame")
                 try requireForegroundTarget(pid: pid, windowID: windowID, window: try required(snapshot.windowElements[windowID], "observed window"), point: position, frame: frame)
                 event.location = position; dispatch.willDispatch(); event.post(tap: .cghidEventTap)
