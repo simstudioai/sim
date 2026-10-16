@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
+import { DeadlineExceededError, withinDeadline } from '@/lib/core/utils/deadline'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -15,6 +16,11 @@ export const FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS = 0.25
 const FALAI_BILLING_EVENT_ATTEMPTS = 2
 const FALAI_BILLING_EVENT_RETRY_MS = 500
 const FALAI_PRICING_RESPONSE_MAX_BYTES = 2 * 1024 * 1024
+/**
+ * Longest a cost lookup may take, covering every billing-event attempt and the estimate. The
+ * generation is already paid for by then, so a lookup that runs out falls back to the floor.
+ */
+const FALAI_COST_LOOKUP_TIMEOUT_MS = 10_000
 const logger = createLogger('FalAIPricing')
 
 export interface FalAICostMetadata {
@@ -167,10 +173,16 @@ async function estimateFalAICallCost(
     return { error: `Fal.ai pricing estimate failed: ${response.status} ${error}` }
   }
 
-  const data = await readResponseJsonWithLimit(response, {
-    maxBytes: FALAI_PRICING_RESPONSE_MAX_BYTES,
-    label: 'Fal.ai pricing estimate response',
-  })
+  let data: unknown
+  try {
+    data = await readResponseJsonWithLimit(response, {
+      maxBytes: FALAI_PRICING_RESPONSE_MAX_BYTES,
+      label: 'Fal.ai pricing estimate response',
+    })
+  } catch (error) {
+    signal?.throwIfAborted()
+    return { error: getErrorMessage(error, 'Unknown error') }
+  }
   const totalCost = isRecordLike(data) ? getNumber(data.total_cost) : undefined
   if (totalCost === undefined) {
     return { error: 'Fal.ai pricing estimate missing total_cost' }
@@ -179,18 +191,57 @@ async function estimateFalAICallCost(
   return { costDollars: totalCost }
 }
 
-export async function getFalAICostMetadata({
+interface FalAICostLookup {
+  apiKey: string
+  endpointId: string
+  requestId: string
+  /** Ends the lookup with an error. Without one, only {@link FALAI_COST_LOOKUP_TIMEOUT_MS} ends it. */
+  signal?: AbortSignal
+}
+
+/**
+ * The cost of a completed fal request. The lookup is bounded on its own: past
+ * {@link FALAI_COST_LOOKUP_TIMEOUT_MS} it returns the fallback floor rather than nothing.
+ */
+export async function getFalAICostMetadata(lookup: FalAICostLookup): Promise<FalAICostMetadata> {
+  const { endpointId, requestId } = lookup
+  try {
+    return await withinDeadline(
+      (signal) => lookUpFalAICost({ ...lookup, signal }),
+      Date.now() + FALAI_COST_LOOKUP_TIMEOUT_MS,
+      lookup.signal
+    )
+  } catch (error) {
+    if (!(error instanceof DeadlineExceededError)) throw error
+    logger.warn('Fal.ai cost lookup timed out after generation completed', {
+      endpointId,
+      requestId,
+    })
+    return fallbackFloorCost(endpointId, requestId, error.message)
+  }
+}
+
+function fallbackFloorCost(
+  endpointId: string,
+  requestId: string,
+  error: string | undefined
+): FalAICostMetadata {
+  return {
+    endpointId,
+    requestId,
+    costDollars: getFalAIFallbackProviderCostDollars(endpointId),
+    source: 'fallback_floor',
+    currency: 'USD',
+    error,
+  }
+}
+
+async function lookUpFalAICost({
   apiKey,
   endpointId,
   requestId,
   signal,
-}: {
-  apiKey: string
-  endpointId: string
-  requestId: string
-  signal?: AbortSignal
-}): Promise<FalAICostMetadata> {
-  signal?.throwIfAborted()
+}: FalAICostLookup): Promise<FalAICostMetadata> {
   for (let attempt = 0; attempt < FALAI_BILLING_EVENT_ATTEMPTS; attempt++) {
     const event = await fetchFalAIBillingEvent(apiKey, requestId, signal)
     if (event) {
@@ -229,12 +280,5 @@ export async function getFalAICostMetadata({
     error: estimate.error,
   })
 
-  return {
-    endpointId,
-    requestId,
-    costDollars: getFalAIFallbackProviderCostDollars(endpointId),
-    source: 'fallback_floor',
-    currency: 'USD',
-    error: estimate.error,
-  }
+  return fallbackFloorCost(endpointId, requestId, estimate.error)
 }
