@@ -12,8 +12,8 @@ import { providerText } from '@/lib/sim-search/live/text'
 import {
   confluenceTextClause,
   holdsHalfTheTerms,
-  jiraSummaryClause,
   jiraTextClause,
+  significantTerms,
 } from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
@@ -176,7 +176,12 @@ export async function searchAtlassian(
       const cloudId = string(site.id)
       const origin = string(site.url).replace(/\/$/, '')
       if (provider === 'jira') {
-        const searchIssues = async (jql: string, cursor?: string): Promise<SitePage> => {
+        /** One JQL page, keeping only issues whose summary and description pass `keep`. */
+        const searchIssues = async (
+          jql: string,
+          cursor?: string,
+          keep?: (summary: string, description: string) => boolean
+        ): Promise<SitePage> => {
           const data = object(
             await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
               body: {
@@ -192,10 +197,7 @@ export async function searchAtlassian(
             documents: array(data.issues)
               .filter((row) => {
                 const fields = object(row.fields)
-                return (
-                  !relevant ||
-                  relevant(`${string(fields.summary)}\n${textContent(fields.description)}`)
-                )
+                return !keep || keep(string(fields.summary), textContent(fields.description))
               })
               .map((row) => issue(row, cloudId, origin)),
             excluded: false,
@@ -204,27 +206,40 @@ export async function searchAtlassian(
         }
         const exact = await searchIssues(
           input.native?.query || (text ? jiraTextClause(text, input.textMatch) : ''),
-          input.native?.cursor && single ? input.native.cursor : undefined
+          input.native?.cursor && single ? input.native.cursor : undefined,
+          relevant && ((summary, description) => relevant(`${summary}\n${description}`))
         )
         // JQL has no relevance order, so an all-terms match larger than a page comes back newest
-        // first; issues whose summary holds every term lead it instead.
+        // first; issues whose summary holds every term, or else at least half of three or more
+        // terms, lead it instead.
         if (!text || input.native || order || input.textMatch === 'any' || !exact.next) return exact
-        try {
-          const titled = await searchIssues(jiraSummaryClause(text))
-          if (!titled.documents.length) return exact
-          const leading = new Set(titled.documents.map((document) => document.id))
-          return {
-            documents: [
-              ...titled.documents,
-              ...exact.documents.filter((document) => !leading.has(document.id)),
-            ].slice(0, input.limit),
-            excluded: false,
-            ranking: 'relevance',
-          }
-        } catch {
-          // A cancelled search stops here; any other failure keeps the all-terms page.
-          input.signal?.throwIfAborted()
-          return exact
+        const [every, half] = await Promise.allSettled([
+          searchIssues(jiraTextClause(text, 'all', 'summary')),
+          significantTerms(text).length >= 3
+            ? searchIssues(
+                jiraTextClause(text, 'any', 'summary'),
+                undefined,
+                holdsHalfTheTerms(text)
+              )
+            : undefined,
+        ])
+        // A cancelled search stops here; any other failure keeps the all-terms page.
+        input.signal?.throwIfAborted()
+        const titled =
+          every.status === 'fulfilled' && every.value.documents.length
+            ? every.value.documents
+            : half.status === 'fulfilled'
+              ? (half.value?.documents ?? [])
+              : []
+        if (!titled.length) return exact
+        const leading = new Set(titled.map((document) => document.id))
+        return {
+          documents: [
+            ...titled,
+            ...exact.documents.filter((document) => !leading.has(document.id)),
+          ].slice(0, input.limit),
+          excluded: false,
+          ranking: 'relevance',
         }
       }
       const searchPages = async (clause: string, cursor?: string) => {
@@ -289,7 +304,7 @@ export async function searchAtlassian(
         : '') +
       (pages.some((result) => result.ranking === 'relevance')
         ? provider === 'jira'
-          ? ' More issues contained every word than fit on one page, so issues whose summary holds every word come first; refine the query, or page with a native JQL query.'
+          ? ' More issues contained every word than fit on one page, so issues whose summary holds the most query words come first; refine the query, or page with a native JQL query.'
           : ' More pages contained every word than fit on one page, so this page is ordered by Confluence relevance search; refine the query, or page with a native CQL query.'
         : '') +
       (pages.some((result) => result.ranking === 'unavailable')

@@ -334,14 +334,27 @@ describe('Confluence plain search ranking', () => {
 
 describe('Jira plain search ranking', () => {
   const search = '/ex/jira/cloud/rest/api/3/search/jql'
-  /** Answers the all-terms query with `exact` and the summary query with `titled`, or its failure. */
-  function jira(exact: { ids: string[]; more: boolean }, titled: string[] | (() => never)) {
-    const issues = (ids: string[]) => ids.map((key) => ({ key, fields: { summary: key } }))
+  type Issue = string | { key: string; summary: string }
+  /**
+   * Answers the all-terms query with `exact`, the all-terms summary query with `titled`, and the
+   * half-the-terms summary query with `half`, or their failures.
+   */
+  function jira(
+    exact: { ids: string[]; more: boolean },
+    titled: Issue[] | (() => never),
+    half: Issue[] | (() => never) = []
+  ) {
+    const issues = (rows: Issue[] | (() => never)) =>
+      (typeof rows === 'function' ? rows() : rows).map((row) =>
+        typeof row === 'string'
+          ? { key: row, fields: { summary: row } }
+          : { key: row.key, fields: { summary: row.summary } }
+      )
     const json = vi.fn(async (path: string, options?: { body?: { jql?: string } }) => {
       if (path === '/oauth/token/accessible-resources') return [SITE]
       if (path !== search) throw new Error(`Unexpected request: ${path}`)
-      if (options?.body?.jql?.includes('summary ~'))
-        return { issues: issues(typeof titled === 'function' ? titled() : titled) }
+      const jql = options?.body?.jql ?? ''
+      if (jql.includes('summary ~')) return { issues: issues(jql.includes(' OR ') ? half : titled) }
       return { issues: issues(exact.ids), ...(exact.more ? { nextPageToken: 'page-2' } : {}) }
     })
     return { json, text: vi.fn(), bytes: vi.fn() } satisfies NativeClient
@@ -410,5 +423,35 @@ describe('Jira plain search ranking', () => {
       expect(page.documents.map((document) => document.id)).not.toContain('TOP-1')
       expect(api.json).toHaveBeenCalledTimes(2)
     }
+  })
+
+  it('leads with issues whose summary holds at least half the terms when none holds them all', async () => {
+    const api = jira(
+      overflowing,
+      [],
+      [
+        { key: 'HALF-1', summary: 'Merged results broke the pipelines' },
+        { key: 'LOOSE-1', summary: 'Pipelines dashboard' },
+      ]
+    )
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['HALF-1', 'NEW-3', 'NEW-2'])
+    expect(page.nextCursor).toBeUndefined()
+  })
+
+  it('keeps a two-term query to summaries holding every term', async () => {
+    const api = jira(overflowing, [], [{ key: 'HALF-1', summary: 'Merged pipelines' }])
+    const page = await searchAtlassian(api, 'jira', { ...query, query: 'merged pipelines' })
+    expect(page.documents.map((document) => document.id)).toEqual(['NEW-3', 'NEW-2', 'NEW-1'])
+    expect(api.json).toHaveBeenCalledTimes(3)
+  })
+
+  it('keeps the all-terms page and its cursor when the half-the-terms summary search fails', async () => {
+    const api = jira(overflowing, [], () => {
+      throw new NativeSearchError('rate_limited', 'Rate limited.', 30)
+    })
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['NEW-3', 'NEW-2', 'NEW-1'])
+    expect(page.nextCursor).toBe('page-2')
   })
 })
