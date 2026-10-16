@@ -18,7 +18,10 @@ import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/genera
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { getProjectFileCapabilities } from '@/lib/projects/files/application'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import {
+  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { v2Error } from '@/app/api/v2/lib/response'
 
@@ -62,6 +65,16 @@ export async function executeProjectFileCliRequest(
     if (response.ok && response.headers.has('Content-Disposition') && !provenance) {
       await response.body?.cancel()
       return v2Error('SERVICE_UNAVAILABLE', 'File read provenance is unavailable. Retry the read.')
+    }
+    /** Raw bytes reach the model unredacted unless a workbench tracker keeps them private. */
+    if (
+      !files &&
+      response.headers.has('Content-Disposition') &&
+      provenance?.status === 'exact' &&
+      provenance.entries.length > 0
+    ) {
+      await response.body?.cancel()
+      return v2Error('FORBIDDEN', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
     }
     if (response.body && provenance) files?.trackDownload(response.body, provenance)
     return response
