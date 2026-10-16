@@ -240,6 +240,7 @@ function renderSearchEntry(
           key={key}
           value={`${entry.item.name} ${key}`}
           onSelect={() => handlers.onSelectWorkspace(entry.item)}
+          workspaceId={entry.item.id}
           name={entry.item.name}
           isCurrent={entry.item.isCurrent}
           logoUrl={entry.item.logoUrl}

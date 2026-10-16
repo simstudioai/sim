@@ -1,7 +1,6 @@
 import { ChipTag } from '@sim/emcn'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import type { InvitationDetails } from '@/lib/api/contracts/invitations'
-import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 
 interface InvitationWorkspaceAccessProps {
@@ -15,12 +14,7 @@ export function InvitationWorkspaceAccess({ grants }: InvitationWorkspaceAccessP
         <li key={grant.workspaceId}>
           <SettingsResourceRow
             flush
-            icon={
-              <IdentityTile
-                initial={getWorkspaceInitial(grant.workspaceName ?? undefined)}
-                logoUrl={grant.workspaceLogoUrl}
-              />
-            }
+            icon={<IdentityTile glyphSeed={grant.workspaceId} logoUrl={grant.workspaceLogoUrl} />}
             iconVariant='custom'
             title={grant.workspaceName || 'Unnamed workspace'}
             badge={<ChipTag variant='gray'>{grant.permission} access</ChipTag>}
