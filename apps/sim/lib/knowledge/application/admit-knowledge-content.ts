@@ -81,6 +81,7 @@ export async function admitKnowledgeChunks(
       return items.map((chunk) => ({
         kind: 'knowledge-chunk' as const,
         id: chunk.id,
+        parentId: chunk.documentId,
         provenance: provenance.get(chunk.id) ?? { status: 'unknown' as const },
         view: chunk.value === undefined ? ('complete' as const) : { derived: chunk.value },
       }))

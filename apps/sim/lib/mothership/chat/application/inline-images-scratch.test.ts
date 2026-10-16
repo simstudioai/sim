@@ -1,6 +1,7 @@
 import { copilotChats } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { remoteSandboxMock } from '@sim/testing/mocks/remote-sandbox.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
@@ -8,7 +9,11 @@ import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import sharp from 'sharp'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const hoisted = vi.hoisted(() => ({ snapshot: vi.fn(), dispose: vi.fn() }))
+const hoisted = vi.hoisted(() => ({
+  snapshot: vi.fn(),
+  dispose: vi.fn(),
+  provenance: vi.fn(() => ({ status: 'exact', entries: [] as unknown[] })),
+}))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
@@ -25,7 +30,7 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
 vi.mock('@/lib/mothership/agent-cli/workbench-file-provenance', () => ({
   createWorkbenchFileProvenance: () => ({
     observeUpload: (_machine: unknown, stream: unknown) => stream,
-    uploadProvenance: () => ({ status: 'exact', entries: [] }),
+    uploadProvenance: () => hoisted.provenance(),
   }),
 }))
 vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
@@ -82,4 +87,54 @@ it('runs the real nested scratch authorization, limit validation, snapshot read 
   expect(mocks.upload).toHaveBeenCalledWith(
     expect.objectContaining({ createOnly: true, persistMetadata: false, contentType: 'image/webp' })
   )
+})
+
+it('refuses an image holding recorded secrets as opaque, naming it without its path', async () => {
+  const owner = {
+    userId: 'owner',
+    workspaceId: 'workspace',
+    organizationId: null,
+    type: 'mothership',
+  }
+  queueTableRows(copilotChats, [owner])
+  queueTableRows(copilotChats, [owner])
+  hoisted.provenance.mockReturnValueOnce({
+    status: 'exact',
+    entries: [
+      {
+        encryptedValue: 'ciphertext',
+        sourceUserId: 'owner',
+        sourceWorkspaceId: 'workspace',
+        name: 'FIXTURE_TOKEN',
+      },
+    ],
+  })
+  const buffer = Buffer.from('not shown')
+  mocks.snapshot.mockResolvedValue({
+    size: buffer.length,
+    dispose: mocks.dispose,
+    stream: async () =>
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(buffer)
+          controller.close()
+        },
+      }),
+  })
+  const refusals = getMockLogger('DurableSecretProvenancePersistence').warn
+  refusals.mockClear()
+  await expect(
+    materializeStreamImage(
+      { userId: 'owner', workspaceId: 'workspace', chatId: 'chat' },
+      { requestId: 'request-secret', reference: '/tmp/quarterly%20payroll.png' }
+    )
+  ).rejects.toThrow()
+  expect(refusals).toHaveBeenCalledTimes(1)
+  const [, fields] = refusals.mock.calls[0]
+  expect(fields).toMatchObject({
+    surface: 'workspace-file',
+    cause: 'workspace-file-opaque-secret-content',
+    parentId: 'chat',
+  })
+  expect(JSON.stringify(fields)).not.toMatch(/payroll|\/tmp/)
 })

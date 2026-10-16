@@ -140,7 +140,7 @@ export const materializeInlineChatImage = defineAuthorizedChatUseCase({
       source = (
         await readChatSandboxFile.execute({
           principal,
-          input: { ...scope, path: decodeURIComponent(reference), signal },
+          input: { ...scope, path: decodeURIComponent(reference), view: 'opaque', signal },
           request,
         })
       ).buffer

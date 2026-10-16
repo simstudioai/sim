@@ -1,4 +1,4 @@
-import type { ContentDeliveryGate } from '@/lib/core/application'
+import type { ContentDeliveryGate, ContentVerdict } from '@/lib/core/application'
 import {
   createDurableSecretProvenanceRegistry,
   type DurableSecretProvenance,
@@ -53,7 +53,7 @@ export function createSessionContentGate(scope: {
       }
     },
     async admit(sources) {
-      const verdicts: boolean[] = []
+      const verdicts: ContentVerdict[] = []
       const admitted: DurableSecretProvenance[] = []
       const refusals = createContentRefusals(scope.workspaceId)
       let unrecorded = 0

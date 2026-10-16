@@ -56,7 +56,12 @@ function readAsChat(scope: { principal?: Principal } = {}) {
     () => readChatSandboxFile.execute({ principal: scope.principal ?? chatPrincipal, input })
   )
 }
-const input = { workspaceId: 'ws', chatId: 'chat', path: '/tmp/image.png' }
+const input = {
+  workspaceId: 'ws',
+  chatId: 'chat',
+  path: '/tmp/image.png',
+  view: 'complete' as const,
+}
 const machine = { providerId: 'e2b', sandboxId: 'physical' }
 beforeEach(() => {
   mocks.permission.mockResolvedValue('read')

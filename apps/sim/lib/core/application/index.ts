@@ -70,9 +70,11 @@ export {
   ContentDeliveryUnobservedError,
   ContentGateFailure,
   type ContentProvenance,
+  type ContentRefusalReason,
   ContentRefusedError,
   type ContentSource,
   type ContentSourceKind,
+  type ContentVerdict,
   type ContentView,
   countWithheldContent,
   isCopilotPrincipal,
@@ -84,4 +86,5 @@ export {
   requireAdmittedContent,
   runDeclaredContentOperation,
   trackContentDelivery,
+  type WithheldContent,
 } from './content-delivery'

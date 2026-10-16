@@ -523,9 +523,28 @@ describe('countWithheldContent', () => {
       })
     )
     expect(result).toBe(1)
-    expect([...withheld]).toEqual([
-      ['table-row', 2],
-      ['workspace-file', 1],
+    expect([...withheld].map(([kind, reasons]) => [kind, [...reasons]])).toEqual([
+      ['table-row', [['unknown', 2]]],
+      ['workspace-file', [['unknown', 1]]],
+    ])
+  })
+
+  it('keeps the reason a gate gave for each refusal', async () => {
+    const gate: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map((item) =>
+          item.id === 'raw' ? 'opaque' : item.id === 'later' ? 'registry' : true
+        )
+      },
+    }
+    const { withheld } = await observeContentDelivery(gate, () =>
+      countWithheldContent(() =>
+        admitContent(CHAT, [source('raw'), source('later'), source('clean')])
+      )
+    )
+    expect([...(withheld.get('workspace-file') ?? [])]).toEqual([
+      ['opaque', 1],
+      ['registry', 1],
     ])
   })
 

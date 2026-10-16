@@ -43,7 +43,7 @@ beforeEach(() => {
 
 describe('createSessionContentGate', () => {
   it('keeps an unknown item out of the machine and its history', async () => {
-    expect(await gate().admit([item('tainted', { status: 'unknown' })])).toEqual([false])
+    expect(await gate().admit([item('tainted', { status: 'unknown' })])).toEqual(['unknown'])
     expect(history.recordExistingSessionFileInput).not.toHaveBeenCalled()
     expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledWith([
       expect.objectContaining({ resourceId: 'tainted' }),
@@ -55,7 +55,7 @@ describe('createSessionContentGate', () => {
     const refused = Array.from({ length: 50 }, (_, index) =>
       item(`tainted-${index}`, { status: 'unknown' })
     )
-    expect(await gate().admit(refused)).toEqual(refused.map(() => false))
+    expect(await gate().admit(refused)).toEqual(refused.map(() => 'unknown'))
     expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledTimes(1)
     const [reports] = telemetry.reportDurableSecretProvenanceRefusals.mock.calls[0]
     expect(reports).toHaveLength(50)
@@ -68,7 +68,7 @@ describe('createSessionContentGate', () => {
       item('tainted', { status: 'unknown' }),
       item('clean', { status: 'exact', entries: [] }),
     ])
-    expect(verdicts).toEqual([true, false, true])
+    expect(verdicts).toEqual([true, 'unknown', true])
     expect(history.recordExistingSessionFileInput).toHaveBeenCalledTimes(1)
     expect(history.recordExistingSessionFileInput).toHaveBeenCalledWith('session-1', {
       status: 'exact',

@@ -572,7 +572,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     /** The model is told the file it cannot see exists, so it does not read the gap as absence. */
     expect(result.output).toMatchObject({
       stderr: expect.stringContaining(
-        'Note: 1 file was withheld from this result because it could not be shown safely'
+        'Note: 1 file was withheld from this result: its secret provenance is unknown, so reading it again will not return it.'
       ),
     })
   })

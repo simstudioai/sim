@@ -121,7 +121,7 @@ describe('createRegistryContentGate', () => {
   it('refuses an opaque view of an item holding secrets, which no redaction reaches', async () => {
     const registry = newRegistry()
     const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
-    expect(await gate.admit([item('archive', exact(SECRET), 'opaque')])).toEqual([false])
+    expect(await gate.admit([item('archive', exact(SECRET), 'opaque')])).toEqual(['opaque'])
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -138,7 +138,7 @@ describe('createRegistryContentGate', () => {
       item(`legacy-${index}`, { status: 'unknown' })
     )
     const verdicts = await gate.admit([...refused, item('clean', exact())])
-    expect(verdicts).toEqual([...refused.map(() => false), true])
+    expect(verdicts).toEqual([...refused.map(() => 'unknown'), true])
     expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledTimes(1)
     const [reports] = telemetry.reportDurableSecretProvenanceRefusals.mock.calls[0]
     expect(reports).toHaveLength(50)
@@ -147,7 +147,7 @@ describe('createRegistryContentGate', () => {
 
   it('refuses an item holding secrets when there is no registry to redact with', async () => {
     const gate = createRegistryContentGate({ actorUserId: 'user-1' })
-    expect(await gate.admit([item('config', exact(SECRET))])).toEqual([false])
+    expect(await gate.admit([item('config', exact(SECRET))])).toEqual(['registry'])
   })
 
   it('tracks opaque workbench downloads without relaxing model or excerpt admission', async () => {
@@ -159,18 +159,18 @@ describe('createRegistryContentGate', () => {
     })
     expect(await gate.admit([item('download', exact(SECRET), 'opaque')])).toEqual([true])
     expect(modelView(SECRET, registry)).not.toContain(SECRET)
-    expect(await gate.admit([item('snippet', exact(SECRET), 'excerpt')])).toEqual([false])
+    expect(await gate.admit([item('snippet', exact(SECRET), 'excerpt')])).toEqual(['opaque'])
     expect(
       await createRegistryContentGate({ actorUserId: 'user-1', destination: 'workbench' }).admit([
         item('download', exact(SECRET), 'opaque'),
       ])
-    ).toEqual([false])
+    ).toEqual(['registry'])
   })
 
   it('refuses an unknown item without latching the registry', async () => {
     const registry = newRegistry()
     const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
-    expect(await gate.admit([item('tainted', { status: 'unknown' })])).toEqual([false])
+    expect(await gate.admit([item('tainted', { status: 'unknown' })])).toEqual(['unknown'])
     expect(registry.isPermanentlyIncomplete()).toBe(false)
   })
 
@@ -184,7 +184,7 @@ describe('createRegistryContentGate', () => {
 
   it('refuses an unknown item under taint when no registry could withhold the output', async () => {
     const gate = createRegistryContentGate({ actorUserId: 'user-1', unknown: 'taint' })
-    expect(await gate.admit([item('tainted', { status: 'unknown' })])).toEqual([false])
+    expect(await gate.admit([item('tainted', { status: 'unknown' })])).toEqual(['unknown'])
   })
 
   it('refuses only the item whose secrets cannot be imported, keeping the rest of the call', async () => {
@@ -199,7 +199,7 @@ describe('createRegistryContentGate', () => {
       item('config', exact(SECRET)),
       item('clean', { status: 'exact', entries: [] }),
     ])
-    expect(verdicts).toEqual([false, true, true])
+    expect(verdicts).toEqual(['import', true, true])
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     expect(modelView(`token=${SECRET}`, registry)).not.toContain(SECRET)
   })
@@ -213,7 +213,7 @@ describe('createRegistryContentGate', () => {
     const gate = createRegistryContentGate({ registry, actorUserId: 'user-1' })
     expect(await gate.admit([item('existing', exact(...values))])).toEqual([true])
 
-    expect(await gate.admit([item('overflow', exact(SECRET, OTHER_SECRET))])).toEqual([false])
+    expect(await gate.admit([item('overflow', exact(SECRET, OTHER_SECRET))])).toEqual(['import'])
 
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     expect(modelView(`public notes token=${values[0]}`, registry)).toBe(
@@ -236,7 +236,7 @@ describe('createRegistryContentGate', () => {
       gate.admit([item('second', exact(OTHER_SECRET))]),
     ])
 
-    expect(verdicts.flat().sort()).toEqual([false, true])
+    expect(verdicts.flat().sort()).toEqual(['import', true])
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     expect(modelView(`public notes token=${values[0]}`, registry)).toBe(
       'public notes token={{FIXTURE_TOKEN}}'

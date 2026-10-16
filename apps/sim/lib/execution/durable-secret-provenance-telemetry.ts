@@ -50,7 +50,10 @@ export interface DurableSecretProvenanceRefusalReport {
   surface: DurableSecretProvenanceSurface
   cause: DurableSecretProvenanceRefusalCause
   workspaceId?: string
+  /** An opaque id, never a name or path. */
   resourceId?: string
+  /** The record that owns the resource (its document, table or chat). */
+  parentId?: string
 }
 
 /**
@@ -81,38 +84,46 @@ export function reportDurableSecretProvenanceRefusal(
     surface: report.surface,
     cause: report.cause,
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
+    ...(report.parentId ? { parentId: report.parentId } : {}),
     ...(report.resourceId ? { resourceId: report.resourceId } : {}),
   })
 }
 
-/** Resource ids a batched refusal names, enough to find the items without listing a whole page. */
-const REFUSAL_SAMPLE_SIZE = 5
+/** Ids one grouped refusal lists; the ids are opaque, and a page of them stays one line. */
+const REFUSAL_RESOURCE_ID_LIMIT = 200
 
-/** Reports every refusal of one read as a single line: counts per surface and cause, and a sample. */
+/**
+ * Reports the refusals of one read with one line per surface, cause and owning record, each
+ * carrying the same top-level `surface` and `cause` as a single refusal, its `refusedCount`, and
+ * the refused ids, so each id stays paired with its cause.
+ */
 export function reportDurableSecretProvenanceRefusals(
   reports: readonly DurableSecretProvenanceRefusalReport[]
 ): void {
-  const [first] = reports
-  if (!first) return
-  if (reports.length === 1) {
-    reportDurableSecretProvenanceRefusal(first)
-    return
-  }
-  const causes: Record<string, number> = {}
+  const groups = new Map<string, DurableSecretProvenanceRefusalReport[]>()
   for (const report of reports) {
-    const key = `${report.surface}:${report.cause}`
-    causes[key] = (causes[key] ?? 0) + 1
+    const key = JSON.stringify([report.surface, report.cause, report.workspaceId, report.parentId])
+    const group = groups.get(key)
+    if (group) group.push(report)
+    else groups.set(key, [report])
   }
-  const workspaceIds = new Set(reports.map((report) => report.workspaceId))
-  const sampleResourceIds = reports
-    .flatMap((report) => (report.resourceId ? [report.resourceId] : []))
-    .slice(0, REFUSAL_SAMPLE_SIZE)
-  persistenceLogger.warn('Refusing unavailable durable secret provenance', {
-    refusedCount: reports.length,
-    causes,
-    ...(workspaceIds.size === 1 && first.workspaceId ? { workspaceId: first.workspaceId } : {}),
-    ...(sampleResourceIds.length > 0 ? { sampleResourceIds } : {}),
-  })
+  for (const group of groups.values()) {
+    const [first] = group
+    if (group.length === 1) {
+      reportDurableSecretProvenanceRefusal(first)
+      continue
+    }
+    const resourceIds = group.flatMap((report) => (report.resourceId ? [report.resourceId] : []))
+    persistenceLogger.warn('Refusing unavailable durable secret provenance', {
+      surface: first.surface,
+      cause: first.cause,
+      refusedCount: group.length,
+      ...(first.workspaceId ? { workspaceId: first.workspaceId } : {}),
+      ...(first.parentId ? { parentId: first.parentId } : {}),
+      resourceIds: resourceIds.slice(0, REFUSAL_RESOURCE_ID_LIMIT),
+      ...(resourceIds.length > REFUSAL_RESOURCE_ID_LIMIT ? { resourceIdsTruncated: true } : {}),
+    })
+  }
 }
 
 export interface DurableSecretProvenanceUnrecordedReport {

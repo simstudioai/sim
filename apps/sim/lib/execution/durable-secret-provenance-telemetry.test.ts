@@ -53,30 +53,59 @@ describe('durable secret provenance telemetry', () => {
       }
     )
   })
-  it('reports a batch of refusals as one line with counts and a bounded sample', () => {
+  it('reports a batch once per surface, cause and owner, keeping every id paired with its cause', () => {
     logger.warn.mockClear()
-    const reports = Array.from({ length: 8 }, (_, index) => ({
-      surface: 'table-row' as const,
+    const reports = Array.from({ length: 163 }, (_, index) => ({
+      surface: 'knowledge' as const,
       cause:
-        index < 6
-          ? ('table-row-provenance-unavailable' as const)
-          : ('table-row-opaque-secret-content' as const),
+        index < 160
+          ? ('knowledge-chunk-source-unavailable' as const)
+          : ('knowledge-opaque-secret-content' as const),
       workspaceId: 'workspace-1',
-      resourceId: `row-${index}`,
+      parentId: 'document-1',
+      resourceId: `chunk-${index}`,
     }))
     reportDurableSecretProvenanceRefusals(reports)
-    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+    expect(logger.warn).toHaveBeenCalledTimes(2)
+    expect(logger.warn).toHaveBeenNthCalledWith(
+      1,
       'Refusing unavailable durable secret provenance',
       {
-        refusedCount: 8,
-        causes: {
-          'table-row:table-row-provenance-unavailable': 6,
-          'table-row:table-row-opaque-secret-content': 2,
-        },
+        surface: 'knowledge',
+        cause: 'knowledge-chunk-source-unavailable',
+        refusedCount: 160,
         workspaceId: 'workspace-1',
-        sampleResourceIds: ['row-0', 'row-1', 'row-2', 'row-3', 'row-4'],
+        parentId: 'document-1',
+        resourceIds: reports.slice(0, 160).map((report) => report.resourceId),
+      }
+    )
+    expect(logger.warn).toHaveBeenNthCalledWith(
+      2,
+      'Refusing unavailable durable secret provenance',
+      {
+        surface: 'knowledge',
+        cause: 'knowledge-opaque-secret-content',
+        refusedCount: 3,
+        workspaceId: 'workspace-1',
+        parentId: 'document-1',
+        resourceIds: ['chunk-160', 'chunk-161', 'chunk-162'],
       }
     )
     expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('caps the ids of one very large group and says so', () => {
+    logger.warn.mockClear()
+    reportDurableSecretProvenanceRefusals(
+      Array.from({ length: 250 }, (_, index) => ({
+        surface: 'table-row' as const,
+        cause: 'table-row-provenance-unavailable' as const,
+        parentId: 'table-1',
+        resourceId: `row-${index}`,
+      }))
+    )
+    const [[, fields]] = logger.warn.mock.calls
+    expect(fields).toMatchObject({ refusedCount: 250, resourceIdsTruncated: true })
+    expect(fields.resourceIds).toHaveLength(200)
   })
 })

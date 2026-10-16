@@ -1,4 +1,4 @@
-import type { ContentDeliveryGate, ContentSource } from '@/lib/core/application'
+import type { ContentDeliveryGate, ContentSource, ContentVerdict } from '@/lib/core/application'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
   type DurableSecretProvenanceUnrecordedReport,
@@ -37,7 +37,7 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
     source: ContentSource,
     unrecorded: DurableSecretProvenanceUnrecordedReport[],
     { refuse }: ContentRefusals
-  ): Promise<boolean> => {
+  ): Promise<ContentVerdict> => {
     const { provenance } = source
     if (provenance.status === 'unknown') {
       /** Taint needs a registry to latch; without one the bytes would reach the model as is. */
@@ -88,7 +88,7 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
     async admit(sources) {
       const unrecorded: DurableSecretProvenanceUnrecordedReport[] = []
       const refusals = createContentRefusals(scope.workspaceId)
-      const verdicts: boolean[] = []
+      const verdicts: ContentVerdict[] = []
       try {
         for (const source of sources) verdicts.push(await decide(source, unrecorded, refusals))
       } finally {

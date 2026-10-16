@@ -31,18 +31,36 @@ export type ContentView = 'complete' | 'opaque' | 'excerpt' | { derived: unknown
 /** One stored item or tool result whose content a use case is about to return. */
 export interface ContentSource {
   kind: ContentSourceKind
-  /** Canonical id, for attribution and per-item exclusion only. */
+  /** Canonical id, for attribution and per-item exclusion only. Never a name or path. */
   id: string
+  /** The record that owns the item (its document, table or chat), for attribution only. */
+  parentId?: string
   provenance: ContentProvenance
   view: ContentView
 }
+
+/**
+ * Why a gate refused an item. `unknown`: its secret provenance is unknown, so no read returns it.
+ * `opaque`: it holds recorded secrets in a view no redaction reaches (raw bytes, an excerpt), while
+ * its full text can be redacted. `registry`, `import`: its provenance could not be checked now.
+ */
+export type ContentRefusalReason = 'unknown' | 'opaque' | 'registry' | 'import'
+
+/** `true` admits; a reason refuses. A bare `false` refuses for an unstated reason, read as `unknown`. */
+export type ContentVerdict = boolean | ContentRefusalReason
+
+/** What a gate refused inside a {@link countWithheldContent} call, by kind and then reason. */
+export type WithheldContent = ReadonlyMap<
+  ContentSourceKind,
+  ReadonlyMap<ContentRefusalReason, number>
+>
 
 /**
  * Decides, per item, whether content may leave through the surface that installed it. A gate never
  * throws for a refusal: refusing one item must not cost the call the items it admits.
  */
 export interface ContentDeliveryGate {
-  admit(sources: readonly ContentSource[]): Promise<readonly boolean[]>
+  admit(sources: readonly ContentSource[]): Promise<readonly ContentVerdict[]>
   /**
    * Redacts text before cutting, or returns `undefined` when it cannot be shown. The current
    * operation's bounded evidence lets a surface create a redactor only when a cut needs one.
@@ -73,8 +91,8 @@ interface ContentLedger {
   accounted: boolean
   /** Bounded aggregate of admitted provenance, for a surface that persists the delivered bytes. */
   admitted: ContentProvenance[]
-  /** Only on a {@link countWithheldContent} ledger: the items refused inside it, by kind. */
-  withheld?: Map<ContentSourceKind, number>
+  /** Only on a {@link countWithheldContent} ledger: the items refused inside it. */
+  withheld?: Map<ContentSourceKind, Map<ContentRefusalReason, number>>
   /** A committed write's returned item was refused; the operation answers with a refusal. */
   withheldAfterWrite?: ContentSourceKind
   /** The gate itself failed while this ledger was open, whatever the route then answered. */
@@ -207,7 +225,7 @@ export function mustClassifyContent(principal: Principal): boolean {
 export class ContentAdmission {
   private readonly verdicts: ReadonlyMap<ContentSource, boolean>
 
-  constructor(sources: readonly ContentSource[], verdicts: readonly boolean[]) {
+  constructor(sources: readonly ContentSource[], verdicts: readonly ContentVerdict[]) {
     this.verdicts = new Map(sources.map((source, index) => [source, verdicts[index] === true]))
   }
 
@@ -293,7 +311,7 @@ export async function admitContent(
   const gate = gates.getStore()
   if (!gate) throw new ContentDeliveryUnobservedError()
   const ledger = ledgers.getStore()
-  let verdicts: readonly boolean[]
+  let verdicts: readonly ContentVerdict[]
   try {
     verdicts = await gate.admit(sources)
   } catch (error) {
@@ -309,13 +327,18 @@ export async function admitContent(
       const { withheld } = current
       if (!withheld) continue
       sources.forEach(({ kind }, index) => {
-        if (!verdicts[index]) withheld.set(kind, (withheld.get(kind) ?? 0) + 1)
+        const verdict = verdicts[index]
+        if (verdict === true) return
+        const reason = typeof verdict === 'string' ? verdict : 'unknown'
+        const reasons = withheld.get(kind) ?? new Map<ContentRefusalReason, number>()
+        reasons.set(reason, (reasons.get(reason) ?? 0) + 1)
+        withheld.set(kind, reasons)
       })
     }
     const batch = mergeContentProvenance(
       (function* () {
         for (let index = 0; index < sources.length; index++) {
-          if (verdicts[index]) yield sources[index].provenance
+          if (verdicts[index] === true) yield sources[index].provenance
         }
       })()
     )
@@ -475,8 +498,8 @@ export async function trackContentDelivery<T>(
  */
 export async function countWithheldContent<T>(
   execute: () => Promise<T>
-): Promise<{ result: T; withheld: ReadonlyMap<ContentSourceKind, number> }> {
-  const withheld = new Map<ContentSourceKind, number>()
+): Promise<{ result: T; withheld: WithheldContent }> {
+  const withheld = new Map<ContentSourceKind, Map<ContentRefusalReason, number>>()
   const ledger: ContentLedger = {
     parent: ledgers.getStore(),
     sourcedOperationAdmitted: false,
