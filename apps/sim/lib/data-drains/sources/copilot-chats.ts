@@ -144,12 +144,26 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
   }
 }
 
+/** A message written before content blocks keeps its tool calls in a top-level `toolCalls` list. */
+function projectLegacyToolCall(call: unknown): unknown {
+  if (!isRecordLike(call) || call.name !== 'remember') return call
+  return {
+    name: 'remember',
+    ...(typeof call.id === 'string' ? { id: call.id } : {}),
+    ...(typeof call.status === 'string' ? { status: call.status } : {}),
+  }
+}
+
 /** Tool payloads can contain private notes even when their mutation failed or targeted a shared note. */
 function projectExportMessage(message: unknown): unknown {
-  if (!isRecordLike(message) || !Array.isArray(message.contentBlocks)) return message
+  if (!isRecordLike(message)) return message
+  const projected = Array.isArray(message.toolCalls)
+    ? { ...message, toolCalls: message.toolCalls.map(projectLegacyToolCall) }
+    : message
+  if (!Array.isArray(projected.contentBlocks)) return projected
   return {
-    ...message,
-    contentBlocks: message.contentBlocks.map((block: unknown) => {
+    ...projected,
+    contentBlocks: projected.contentBlocks.map((block: unknown) => {
       if (!isRecordLike(block) || !isRecordLike(block.toolCall)) return block
       if (block.toolCall.name !== 'remember') {
         if (!isRecordLike(block.toolCall.result) || !('output' in block.toolCall.result))

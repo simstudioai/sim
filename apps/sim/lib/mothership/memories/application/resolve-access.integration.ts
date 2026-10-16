@@ -242,6 +242,19 @@ it('lets a read-only end user mutate private notes through either chat and keeps
   }
 })
 
+it('resolves overlapping workspace checks that share one Project without deadlocking', async () => {
+  const results = await Promise.all(
+    Array.from({ length: 6 }, (_, index) =>
+      resolveMemoryNotesAccess.execute({
+        principal: principal(index % 2 === 1),
+        input: { target: { scope: 'workspace', workspaceId }, action: 'read' },
+      })
+    )
+  )
+  for (const result of results)
+    expect(result.target).toMatchObject({ scope: 'workspace', currentProject: { id: projectId } })
+})
+
 it('does not turn write in one environment into shared Project write', async () => {
   await db
     .update(permissions)

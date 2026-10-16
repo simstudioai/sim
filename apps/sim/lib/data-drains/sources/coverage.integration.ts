@@ -118,6 +118,22 @@ describe('Drain source coverage and payload safety in PostgreSQL', () => {
     const content = {
       role: 'assistant',
       content: 'Visible reply',
+      toolCalls: [
+        {
+          id: 'legacy',
+          name: 'remember',
+          status: 'success',
+          params: { content: 'hidden-memory-legacy-args' },
+          result: 'hidden-memory-legacy-result',
+          error: 'hidden-memory-legacy-error',
+        },
+        {
+          id: 'legacy-read',
+          name: 'read',
+          status: 'success',
+          params: { path: 'visible-legacy-path' },
+        },
+      ],
       contentBlocks: [
         { type: 'text', content: 'Visible reply' },
         {
@@ -176,6 +192,7 @@ describe('Drain source coverage and payload safety in PostgreSQL', () => {
       expect(wire).not.toContain('hidden-memory')
       expect(wire).toContain('Visible reply')
       expect(wire).toContain('visible-path')
+      expect(wire).toContain('visible-legacy-path')
       const [stored] = await runtime.db
         .select({ content: runtime.schema.copilotMessages.content })
         .from(runtime.schema.copilotMessages)

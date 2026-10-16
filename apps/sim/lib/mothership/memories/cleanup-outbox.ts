@@ -35,12 +35,17 @@ function credentialFingerprint(): string | null {
   return env.COPILOT_API_KEY ? createHash('sha256').update(env.COPILOT_API_KEY).digest('hex') : null
 }
 
-/** Captures configured routes before deletion; notes can outlive a user's environment selection. */
+/**
+ * Captures configured routes before deletion; notes can outlive a user's environment selection.
+ * Without `COPILOT_API_KEY` this Sim never reached a worker, so it holds no notes to erase and
+ * queues nothing rather than an event no delivery could authenticate.
+ */
 export async function enqueueMemoryCleanup(
   executor: Pick<typeof db, 'insert'>,
   targets: MemoryCleanupInput['target'][]
 ): Promise<void> {
   const fingerprint = credentialFingerprint()
+  if (!fingerprint) return
   const sourceHeaders = getMothershipSourceEnvHeaders()
   for (const baseUrl of destinations()) {
     for (const target of targets) {

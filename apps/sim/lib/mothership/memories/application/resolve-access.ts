@@ -21,7 +21,7 @@ import type {
 } from '@/lib/mothership/generated/memory-notes-access'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
-import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { acquirePermissionGroupOrgReadLock } from '@/lib/permission-groups/locks'
 import { loadProjectAccess } from '@/lib/projects/application/authorization'
 import {
   requireCurrentCopilotProjectInvocation,
@@ -91,15 +91,20 @@ async function projectAccess(
   projectId: string,
   scope: { organizationId: string | null; workspaceId?: string }
 ): Promise<Extract<MemoryNotesAccessResult['target'], { scope: 'project' }>> {
-  const access = await loadProjectAccess(tx, principal.subjectUserId, {
-    projectId,
-    ...(scope.organizationId ? { organizationId: scope.organizationId } : {}),
-    ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
-  })
+  const access = await loadProjectAccess(
+    tx,
+    principal.subjectUserId,
+    {
+      projectId,
+      ...(scope.organizationId ? { organizationId: scope.organizationId } : {}),
+      ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+    },
+    'shared'
+  )
   if (scope.organizationId !== access.record.organizationId)
     throw new OrchestrationError('not_found', 'Project not found in this conversation')
   if (access.record.organizationId)
-    await acquirePermissionGroupOrgLock(tx, access.record.organizationId)
+    await acquirePermissionGroupOrgReadLock(tx, access.record.organizationId)
   await requireCurrentCopilotProjectInvocation(
     tx,
     {
