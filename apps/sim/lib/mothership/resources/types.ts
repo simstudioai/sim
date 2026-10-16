@@ -121,6 +121,17 @@ export function normalizeChatResource(
 export function getChatResourceKey(
   resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>
 ): string {
+  return getStoredChatResourceKey(resource)
+}
+
+/**
+ * Identity within a stored chat. The chat's workspace is the fallback scope, so an unscoped tab
+ * and the same tab addressed by that workspace are one tab.
+ */
+export function getStoredChatResourceKey(
+  resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>,
+  chatWorkspaceId?: string
+): string {
   if (resource.owner && resource.owner.entityType !== 'workspace')
     return JSON.stringify([
       resource.owner.entityType,
@@ -128,7 +139,7 @@ export function getChatResourceKey(
       resource.type,
       resource.id,
     ])
-  const workspaceId = getChatResourceWorkspaceId(resource)
+  const workspaceId = getChatResourceWorkspaceId(resource, chatWorkspaceId)
   return workspaceId
     ? JSON.stringify([workspaceId, resource.type, resource.id])
     : `${resource.type}:${resource.id}`

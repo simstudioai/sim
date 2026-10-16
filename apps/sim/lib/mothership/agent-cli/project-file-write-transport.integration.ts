@@ -494,6 +494,33 @@ describe('private native Project writes against PostgreSQL and local storage', (
     })
   }
 
+  check('a cancellation during the name check never forwards the write', async () => {
+    const f = await fixture()
+    const controller = new AbortController()
+    const forwarded: string[] = []
+    const transport = createProjectFileWriteTransport({
+      endpoint: 'http://localhost:3200',
+      projectId: f.projectId,
+      context: { ...f.context, signal: controller.signal },
+      resolveSecretTraceRegistry: async () => {
+        controller.abort()
+        return new ResolvedSecretTraceRegistry([], { userId: f.userId, workspaceId: f.workspaceId })
+      },
+      fallback: async (input, init) => {
+        forwarded.push(new Request(input, init).url)
+        return Response.json({ data: {} })
+      },
+    })
+    await expect(
+      transport(`http://localhost:3200/api/v2/projects/${f.projectId}/files/folders`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Reports' }),
+      })
+    ).rejects.toThrow()
+    expect(forwarded).toEqual([])
+  })
+
   check('a private target cannot write a different Project', async () => {
     const f = await fixture()
     const other = await fixture()

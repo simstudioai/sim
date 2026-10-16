@@ -73,8 +73,11 @@ export function createProjectFileWriteTransport(options: {
         return options.fallback(originalRequest)
       try {
         await requireCleanProjectFileMetadata(await readJsonBody(originalRequest.clone()), options)
+        options.context.signal?.throwIfAborted()
+        originalRequest.signal.throwIfAborted()
       } catch (error) {
         options.context.signal?.throwIfAborted()
+        originalRequest.signal.throwIfAborted()
         const response = v2OrchestrationErrorPolicy.render(error)
         if (response) return response
         throw error

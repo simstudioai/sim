@@ -10,7 +10,6 @@ globs: ["apps/sim/**/*.ts","apps/sim/**/*.tsx"]
 ## Absolute Imports
 
 **Always use absolute imports.** Never use relative imports, except that a barrel `index.ts` re-exports its own siblings relatively (`export { X } from './x'`). `check:source-conventions` ratchets this per file.
-The wire contracts in `lib/mothership/generated/` are also exempt: the worker's `contracts:sync` copies them verbatim and byte-checks the copies, so never hand-edit their imports.
 
 ```typescript
 // ✓ Good

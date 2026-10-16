@@ -552,52 +552,72 @@ describe('canonical file panel ownership compatibility', () => {
 })
 
 describe('first-message file panel persistence', () => {
-  identityCheck(
-    'saves a workspace file panel under its own address with the canonical title',
-    async () => {
-      const f = await fixture()
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: f.userId },
-        session: { id: generateId() },
-      })
-      const fileId = generateId()
-      await db.insert(workspaceFiles).values({
-        id: fileId,
-        workspaceId: f.workspaceId,
-        key: `workspace/${f.workspaceId}/draft.md`,
-        userId: f.userId,
-        context: 'workspace',
-        originalName: 'Canonical file.md',
-        contentType: 'text/markdown',
-        sizeBytes: 8,
-      })
-      try {
-        const panel = { type: 'file' as const, id: fileId, title: 'Draft' }
-        const { tab } = await resolveFileAttachment(panel, {
-          userId: f.userId,
-          workspaceId: f.workspaceId,
-          chatId: f.chatId,
-          requestMode: 'agent',
-        })
-        if (!tab) throw new Error('Expected a persistable tab')
-        await persistChatResources(f.chatId, sanitizeChatResources([tab]))
-        const history = await readMothershipChat(
-          createMockRequest({
-            method: 'GET',
-            url: `http://localhost/api/mothership/chats/${f.chatId}`,
-          }),
-          createRouteContext({ chatId: f.chatId })
-        )
-        expect(history.status).toBe(200)
-        const saved = toRecord(toRecord(await history.json()).chat)
-          .resources as MothershipResource[]
-        expect(saved.map(getChatResourceKey)).toEqual([getChatResourceKey(panel)])
-        expect(saved[0]?.title).toBe('Canonical file.md')
-      } finally {
-        await db.delete(workspaceFiles).where(eq(workspaceFiles.id, fileId))
-      }
-    }
-  )
+  for (const panelForm of ['implicit', 'legacy'] as const)
+    for (const storedForm of ['none', 'legacy'] as const)
+      identityCheck(
+        `saves a ${panelForm} workspace file panel once over a ${storedForm} stored tab`,
+        async () => {
+          const f = await fixture()
+          authMockFns.mockGetSession.mockResolvedValue({
+            user: { id: f.userId },
+            session: { id: generateId() },
+          })
+          const fileId = generateId()
+          await db.insert(workspaceFiles).values({
+            id: fileId,
+            workspaceId: f.workspaceId,
+            key: `workspace/${f.workspaceId}/draft.md`,
+            userId: f.userId,
+            context: 'workspace',
+            originalName: 'Canonical file.md',
+            contentType: 'text/markdown',
+            sizeBytes: 8,
+          })
+          try {
+            const legacy = { type: 'file' as const, id: fileId, workspaceId: f.workspaceId }
+            if (storedForm === 'legacy')
+              await db
+                .update(copilotChats)
+                .set({ resources: [{ ...legacy, title: 'Old title' }] })
+                .where(eq(copilotChats.id, f.chatId))
+            const panel =
+              panelForm === 'legacy'
+                ? { ...legacy, title: 'Draft' }
+                : { type: 'file' as const, id: fileId, title: 'Draft' }
+            const { tab } = await resolveFileAttachment(panel, {
+              userId: f.userId,
+              workspaceId: f.workspaceId,
+              chatId: f.chatId,
+              requestMode: 'agent',
+            })
+            if (!tab) throw new Error('Expected a persistable tab')
+            await persistChatResources(f.chatId, sanitizeChatResources([tab]))
+            const history = await readMothershipChat(
+              createMockRequest({
+                method: 'GET',
+                url: `http://localhost/api/mothership/chats/${f.chatId}`,
+              }),
+              createRouteContext({ chatId: f.chatId })
+            )
+            expect(history.status).toBe(200)
+            const saved = toRecord(toRecord(await history.json()).chat)
+              .resources as MothershipResource[]
+            expect(saved).toHaveLength(1)
+            expect(saved[0]?.id).toBe(fileId)
+            /** An existing tab keeps its specific title; a new tab takes the canonical name. */
+            expect(saved[0]?.title).toBe(
+              storedForm === 'legacy' ? 'Old title' : 'Canonical file.md'
+            )
+            const [stored] = await db
+              .select({ resources: copilotChats.resources })
+              .from(copilotChats)
+              .where(eq(copilotChats.id, f.chatId))
+            expect(stored?.resources).toHaveLength(1)
+          } finally {
+            await db.delete(workspaceFiles).where(eq(workspaceFiles.id, fileId))
+          }
+        }
+      )
 })
 
 describe('legacy browser file address compatibility', () => {
