@@ -43,7 +43,6 @@ import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identit
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { getWorkspaceFileSize, MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
-  formatFileSize,
   MAX_TEXT_EXTRACTION_BYTES,
   needsRenderedArtifact,
   observedMediaType,
@@ -52,6 +51,9 @@ import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/f
 import {
   type ExtractedFileText,
   extractFileTextFromBytes,
+  renderedTextTooLargeMessage,
+  textExtractionTooLargeError,
+  textExtractionUnsupportedError,
 } from '@/lib/workspace-files/application/read-workspace-file-text'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 import {
@@ -89,6 +91,8 @@ interface ArtifactInput extends ProjectFileTarget {
   preview?: boolean
   /** Bytes are only extracted as text, so an unextractable or oversized source is refused unread. */
   text?: boolean
+  /** The caller never reads `file.folderPath`, so the owner's folder tree is not loaded for it. */
+  skipFolderPath?: boolean
 }
 interface SourceSnapshot {
   file: WorkspaceFileRow
@@ -330,7 +334,7 @@ async function renderArtifact(
       ...(input.text
         ? {
             tooLargeMessage: (limit: string) =>
-              `"${file.originalName}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
+              renderedTextTooLargeMessage(file.originalName, limit),
           }
         : {}),
     },
@@ -416,16 +420,10 @@ async function renderArtifact(
 function assertTextExtractable(file: WorkspaceFileRow, maxBytes: number) {
   const name = file.originalName
   if (!workspaceFileTextFormat({ name, type: observedMediaType(file.contentType, name) }))
-    throw new OrchestrationError(
-      'validation',
-      `Text extraction is not supported for "${name}"; download the raw bytes instead of extracting text`
-    )
+    throw textExtractionUnsupportedError(name)
   const size = getWorkspaceFileSize(file)
   if (!needsRenderedArtifact(file.contentType, name) && size > maxBytes)
-    throw new OrchestrationError(
-      'payload_too_large',
-      `"${name}" is ${formatFileSize(size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
-    )
+    throw textExtractionTooLargeError(name, size, maxBytes)
 }
 
 /** Indexing is best effort: a contended or failed requeue never fails a delivered read. */
@@ -489,9 +487,10 @@ function defineArtifactRead(view: ArtifactView) {
       ) {
         throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
       }
-      const folders = source.folderId
-        ? await listFileFolders(context.owner, { scope: 'all' }, tx)
-        : []
+      const folders =
+        source.folderId && !input.skipFolderPath
+          ? await listFileFolders(context.owner, { scope: 'all' }, tx)
+          : []
       const result = {
         file: mapFileRecord(source, context.owner, buildWorkspaceFileFolderPathMap(folders)),
         buffer: prepared.buffer,
@@ -539,6 +538,7 @@ interface ProjectFileTextInput extends ProjectFileTarget {
   maxBytes?: number
   offset?: number
   limit?: number
+  skipFolderPath?: boolean
 }
 
 interface ProjectFileTextResult extends ExtractedFileText {
@@ -580,15 +580,16 @@ export const readProjectFileText: AuthorizingUseCase<
     )
     const artifact = await readProjectFileArtifactAsText.execute({
       ...args,
-      input: { projectId: input.projectId, fileId: input.fileId, maxBytes, text: true },
+      input: {
+        projectId: input.projectId,
+        fileId: input.fileId,
+        maxBytes,
+        text: true,
+        skipFolderPath: input.skipFolderPath,
+      },
     })
     const format = workspaceFileTextFormat({ name: artifact.file.name, type: artifact.contentType })
-    if (!format) {
-      throw new OrchestrationError(
-        'validation',
-        `Text extraction is not supported for "${artifact.file.name}"; download the raw bytes instead of extracting text`
-      )
-    }
+    if (!format) throw textExtractionUnsupportedError(artifact.file.name)
     const extracted = await extractFileTextFromBytes(
       artifact.buffer,
       format,

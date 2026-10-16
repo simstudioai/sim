@@ -3,8 +3,10 @@ import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import {
   executeGrep,
   type GrepMaterialized,
+  grepListingStoppedMessage,
   MAX_GREP_BYTES_PER_FILE,
   MAX_GREP_FILES,
+  MAX_GREP_LIST_PAGES,
   mapGrepFileReads,
   withGrepReadSlot,
 } from '@/lib/mothership/agent-cli/engines/universal-grep'
@@ -27,7 +29,10 @@ export function grepProjectFiles(
   return executeGrep(invocation.positionals, flags, {
     signal: context.signal,
     registry: context.resolvedSecretTraceRegistry,
-    allowedScopes: ['files'],
+    scopeLimit: {
+      scopes: ['files'],
+      refusal: 'Project grep supports only --scope files. Search workspace resources separately.',
+    },
     async materialize(_scopes, nameFilter, reportIncomplete) {
       const selectedFiles: {
         item: Awaited<ReturnType<typeof listProjectFiles.execute>>['files'][number]
@@ -35,7 +40,7 @@ export function grepProjectFiles(
       }[] = []
       let after: CursorKey[] | undefined
       /** Selection runs per page so a full file budget stops the inventory walk. */
-      inventory: for (let pageNumber = 0; pageNumber < 50; pageNumber++) {
+      inventory: for (let pageNumber = 0; pageNumber < MAX_GREP_LIST_PAGES; pageNumber++) {
         context.signal?.throwIfAborted()
         const page = await withGrepReadSlot(
           () =>
@@ -66,10 +71,8 @@ export function grepProjectFiles(
         }
         if (!page.nextKeys) break
         after = page.nextKeys
-        if (pageNumber === 49)
-          reportIncomplete(
-            'files: listing stopped after 50 pages; use files list to continue discovery.'
-          )
+        if (pageNumber === MAX_GREP_LIST_PAGES - 1)
+          reportIncomplete(grepListingStoppedMessage('files'))
       }
       return mapGrepFileReads(selectedFiles, async ({ item, label }): Promise<GrepMaterialized> => {
         context.signal?.throwIfAborted()
@@ -81,7 +84,7 @@ export function grepProjectFiles(
               executeCopilotProjectFileUseCase(
                 context,
                 readProjectFileText,
-                { ...target, maxBytes: MAX_GREP_BYTES_PER_FILE },
+                { ...target, maxBytes: MAX_GREP_BYTES_PER_FILE, skipFolderPath: true },
                 target
               ),
             context.signal
