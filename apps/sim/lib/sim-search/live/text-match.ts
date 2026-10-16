@@ -89,19 +89,14 @@ const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
 /**
- * The clause for a plain query in Jira JQL, over all text fields or the summary alone. `any` ORs
- * every pair of the query's longest terms, so a match contains at least two of them in that field,
- * or either term of a two-term query. Jira stems text search, so a word and its plural share one
- * term.
+ * The `text ~` clause for a plain query in Jira JQL. `any` ORs every pair of the query's longest
+ * terms, so a match contains at least two of them somewhere in the issue, or either term of a
+ * two-term query. Jira stems text search, so a word and its plural share one term.
  */
-export function jiraTextClause(
-  text: string,
-  match: TextMatch = 'all',
-  field: 'text' | 'summary' = 'text'
-): string {
+export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
   const terms = match === 'any' ? distinctTerms(text, singularKey) : []
-  if (terms.length < 2) return `${field} ~ ${escapeSearchPhrase(text)}`
-  const clause = (term: string) => `${field} ~ ${escapeSearchPhrase(term)}`
+  if (terms.length < 2) return `text ~ ${escapeSearchPhrase(text)}`
+  const clause = (term: string) => `text ~ ${escapeSearchPhrase(term)}`
   const groups =
     terms.length === 2
       ? terms.map(clause)
@@ -130,7 +125,7 @@ export function termCoverage(text: string, terms: readonly string[]): number {
  * Query and text words are compared by their singular key, so a word and its regular plural count
  * as one term; a term with punctuation inside it is matched as written.
  */
-export function stemmedTerms(query: string): {
+function stemmedTerms(query: string): {
   count: number
   /** At least half the terms, the minimum a partial match must hold. */
   required: number
