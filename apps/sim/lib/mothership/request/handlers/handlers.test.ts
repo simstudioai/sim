@@ -775,6 +775,37 @@ describe('sse-handlers tool lifecycle', () => {
       expectFailedWith(onEvent, TOOL_DEADLINE_BEFORE_START_MESSAGE)
     })
 
+    it('does not offer an unclaimed client call with less than a minute of its deadline left', async () => {
+      mothershipAsyncRunsMockFns.mockCompletePendingAsyncToolCall.mockImplementationOnce(
+        async (input) => ({ ...input })
+      )
+      const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS + 30_000)
+      await Promise.allSettled(context.pendingToolPromises.values())
+
+      expect(waitForClientToolCompletion).not.toHaveBeenCalled()
+      expectFailedWith(onEvent, TOOL_DEADLINE_BEFORE_START_MESSAGE)
+    })
+
+    it('settles a client call nothing claimed by its deadline as not run', async () => {
+      vi.useFakeTimers()
+      try {
+        waitForClientToolCompletion.mockImplementationOnce(
+          () => new Promise((resolve) => setTimeout(() => resolve(null), 65_000))
+        )
+        mothershipAsyncRunsMockFns.mockCompletePendingAsyncToolCall.mockImplementationOnce(
+          async (input) => ({ ...input })
+        )
+        const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS + 65_000)
+        await vi.advanceTimersByTimeAsync(65_000)
+        await Promise.allSettled(context.pendingToolPromises.values())
+
+        expect(waitForClientToolCompletion).toHaveBeenCalledOnce()
+        expectFailedWith(onEvent, TOOL_DEADLINE_BEFORE_START_MESSAGE)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('reads a claimed call past its deadline and reports its outcome as unknown', async () => {
       const onEvent = await runLocalRead(TOOL_DEADLINE_SETTLE_MARGIN_MS)
       await Promise.allSettled(context.pendingToolPromises.values())

@@ -20,11 +20,11 @@ export const INTERRUPTED_SIM_TOOL_MESSAGE =
   'Tool execution lost its owner before a result was recorded. Its outcome is unknown; inspect current state before retrying a mutation.'
 
 /**
- * A takeover re-runs an interrupted call only with at least this much of its deadline left;
- * otherwise the call fails with {@link DEADLINE_SIM_TOOL_MESSAGE} instead of starting work
- * that could not finish in time.
+ * A call starts, the first time or again after a takeover, only with at least this much of its
+ * deadline left; otherwise it fails as not run instead of starting work that would likely be cut
+ * off with its outcome unknown. About 99% of non-workflow tool calls finish within a minute.
  */
-export const SIM_TOOL_RERUN_MIN_REMAINING_MS = 60_000
+export const SIM_TOOL_MIN_START_BUDGET_MS = 60_000
 
 export const DEADLINE_SIM_TOOL_MESSAGE =
   'Tool execution was interrupted because the Sim server running it stopped, and too little of its time remained to run it again. Its outcome is unknown; inspect current state before retrying a mutation.'

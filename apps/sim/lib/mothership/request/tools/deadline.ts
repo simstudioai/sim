@@ -1,3 +1,4 @@
+import { SIM_TOOL_MIN_START_BUDGET_MS } from '@/lib/mothership/async-runs/execution-lease'
 import { TOOL_DEADLINE_SETTLE_MARGIN_MS } from '@/lib/mothership/generated/protocol'
 
 /** The longest worker wait a frame may name; a larger or malformed value is ignored. */
@@ -27,12 +28,26 @@ export const TOOL_DEADLINE_BEFORE_START_MESSAGE =
 export const TOOL_DEADLINE_EXCEEDED_MESSAGE =
   'This tool call did not finish within its time limit and was abandoned. Its outcome is unknown: it may already have taken effect, so inspect the current state before repeating it.'
 
-/**
- * Whether the call's deadline has passed, so nothing more may start for it: no handler, approval
- * wait, server fallback or allowed decision. A call without a deadline never passes one.
- */
+/** Whether the call's deadline has passed. A call without a deadline never passes one. */
 export function toolDeadlinePassed(deadlineAt: number | undefined, now: number): boolean {
   return deadlineAt !== undefined && now >= deadlineAt
+}
+
+/**
+ * The last moment anything may start for a call: its deadline less the minimum start budget,
+ * since work started later would likely be abandoned mid-flight, its effects unknown.
+ */
+export function lastToolStartAt(deadlineAt: number | undefined): number | undefined {
+  return deadlineAt === undefined ? undefined : deadlineAt - SIM_TOOL_MIN_START_BUDGET_MS
+}
+
+/**
+ * Whether it is too late to start anything for the call: no handler, approval prompt, allowed
+ * decision, server fallback or client pickup. Exactly the minimum budget left still starts.
+ */
+export function toolStartWindowClosed(deadlineAt: number | undefined, now: number): boolean {
+  const lastStartAt = lastToolStartAt(deadlineAt)
+  return lastStartAt !== undefined && now > lastStartAt
 }
 
 /** The column value for a call's deadline. */
