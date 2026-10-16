@@ -23,6 +23,26 @@ export const gumloopProfile: CompetitorProfile = {
   },
   oneLiner:
     'Gumloop is a hosted, no-code visual platform for building and deploying AI agents and automations: a drag-and-drop canvas, an AI copilot ("Gen") for natural-language flow creation, and native MCP (Model Context Protocol) integration support.',
+  leadAnswer: [
+    "Gumloop is a hosted, proprietary no-code platform for building AI agents and automations, sold as a $37/month Pro plan or a custom Enterprise plan, with deployment into the customer's own cloud (VPC) as an optional Enterprise add-on. Sim is an open-source AI workspace with an Apache 2.0-licensed core for building, deploying, and managing agents visually, conversationally, or with code, available as a managed cloud or self-hosted with Docker Compose or Kubernetes. Choose Gumloop when you want a fully managed product aimed at non-technical business users, or a vendor-supported deployment inside your own cloud. Choose Sim when you need to run and inspect the platform yourself or want to start on a free plan.",
+  ],
+  faqs: [
+    {
+      question: 'Can I self-host Gumloop agents, or do I need a platform like Sim?',
+      answer:
+        "Gumloop has no public self-hosted install: its app is proprietary, and the closest option is an optional Enterprise deployment into your own cloud (VPC). Sim's core is Apache 2.0 licensed and can be self-hosted with Docker Compose or Kubernetes (Helm), so your team runs the whole platform. On Gumloop's VPC option, compute is not billed in credits because it runs on your infrastructure, but model, tool-call, and orchestration charges still apply.",
+    },
+    {
+      question: 'How do Sim and Gumloop compare for running AI agent workflows in production?',
+      answer:
+        "Sim gives each tool or API call configurable exponential-backoff retries (up to 10 attempts) and lets any block route failures to an error branch, while Gumloop documents no automatic retries or run replay and handles failures through a manual Error Shield node. Both alert on failures: Gumloop sends failure emails on Pro and above, and Sim's workspace-event trigger can push run failures and cost or latency spikes to Slack, email, or a webhook. Sim publishes its run ceilings (5-minute sync runs on Free, 50 minutes on paid plans, 90-minute async by default), while Gumloop publishes concurrency (5 concurrent runs on Pro) but no maximum run duration.",
+    },
+    {
+      question: 'Is Gumloop open source, and is Sim?',
+      answer:
+        "Gumloop is not: its platform is proprietary, and its public GitHub repositories are client SDKs, forks, and an archived MCP-server project, not the app itself. Sim's core is open source under the Apache 2.0 license and can be self-hosted, with enterprise features such as SSO and audit logs under a separate license. That matters for teams that want to audit or modify the code their agents run on.",
+    },
+  ],
   standoutFeatures: [
     {
       title: '250+ fully hosted MCP servers',
@@ -159,21 +179,21 @@ export const gumloopProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'No public self-host option for the core Gumloop app; enterprise customers can get a managed Virtual Private Cloud (VPC) deployment into their own cloud (e.g. GCP) instead of full self-hosting',
+          'No public self-host option for the Gumloop app; Enterprise customers can optionally deploy it into their own cloud (VPC) in a region of their choice',
         detail:
-          "Gumloop deploys and operates the platform inside the customer's cloud project rather than offering a downloadable, self-managed open-source install. Gumloop's own guMCP_template repo is an open-source starter for self-hosted MCP servers, but it is not an install of the Gumloop app itself.",
-        shortValue: 'No self-host; VPC deployment only',
-        confidence: 'estimated',
+          'There is no downloadable, self-managed install. VPC deployment is an optional Enterprise add-on, and VPC organizations are not charged credits for compute because it runs on their infrastructure.',
+        shortValue: 'No self-host; optional Enterprise VPC',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/solutions/security',
             label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
           {
-            url: 'https://github.com/gumloop/guMCP_template',
-            label: "guMCP_template (Gumloop's self-hosted MCP starter repo)",
-            asOf: '2026-07-02',
+            url: 'https://docs.gumloop.com/core-concepts/credits',
+            label: 'Gumloop Docs: Credits (VPC compute)',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -208,11 +228,15 @@ export const gumloopProfile: CompetitorProfile = {
       license: {
         value: 'Proprietary',
         detail:
-          "The core Gumloop application has no open-source license; it is a closed, hosted commercial SaaS product. Gumloop's own guMCP_template repo is an open-source MCP-server starter, but it is not the Gumloop platform.",
+          "The Gumloop application is closed, hosted commercial software. Gumloop's public GitHub repositories are client SDKs (gumloop-py, gumloop-js, Apache-2.0), forks, and an archived GPL-3.0 MCP-server project, not the platform itself.",
         shortValue: 'Proprietary',
         confidence: 'estimated',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://github.com/gumloop',
+            label: 'Gumloop GitHub organization',
+            asOf: '2026-10-15',
+          },
         ],
       },
       environmentPromotion: {
@@ -562,7 +586,7 @@ export const gumloopProfile: CompetitorProfile = {
         value:
           'Partial: Loop Mode runs multiple list items concurrently (up to 15 at once on the Pro plan), but there is no documented dedicated node for splitting a single run into distinct parallel branches that later join, comparable to a fan-out/fan-in construct',
         detail:
-          'Gumloop docs describe Loop Mode as processing list items simultaneously rather than one at a time, with concurrency limits tied to plan tier (2 concurrent items on Free, 15 on Pro). This is data-parallelism over a list, not branch-level fan-out/fan-in across different paths of logic.',
+          'Gumloop docs describe Loop Mode as processing list items simultaneously rather than one at a time, with concurrency limits tied to plan tier (15 concurrent items on Pro). This is data-parallelism over a list, not branch-level fan-out/fan-in across different paths of logic.',
         shortValue:
           'Partial: concurrent list-item processing (Loop Mode), no branch fan-out/fan-in node',
         confidence: 'estimated',
@@ -596,7 +620,7 @@ export const gumloopProfile: CompetitorProfile = {
       },
       loopIteration: {
         value:
-          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism covered under parallelExecution, which a user manually enables on a node so it runs once per item in a connected list. Per Gumloop's docs this is concurrent (2 items at once on Free, 15 on Pro), not a strictly one-at-a-time sequential container, and no separate while-loop or fixed-iteration-count node is documented, only manually-enabled iteration over an existing list.",
+          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism covered under parallelExecution, which a user manually enables on a node so it runs once per item in a connected list. Per Gumloop's docs this is concurrent (15 items at once on Pro), not a strictly one-at-a-time sequential container, and no separate while-loop or fixed-iteration-count node is documented, only manually-enabled iteration over an existing list.",
         detail:
           "Gumloop docs describe Loop Mode as a mode a user enables on a node ('When you enable Loop Mode on a node...'), which then processes multiple list items simultaneously with concurrency capped by plan tier, distinct from a classic for-each node that guarantees one iteration finishes before the next starts. No dedicated while-loop (condition-based) or fixed-count repeat node is documented; all iteration requires manually enabling Loop Mode with a list as input.",
         shortValue: 'Partial: manually-enabled Loop Mode is concurrent, not a sequential loop node',
@@ -750,43 +774,76 @@ export const gumloopProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Usage-based monthly credit system (credits consumed per task/run), with tiered monthly credit allotments from 5k (free) up to 1.5M+ on paid tiers, plus seat-based distinctions between Free/Pro/Enterprise',
-        shortValue: 'Credit-based usage across tiered plans',
+          'Usage-based credits indexed at $0.005 each: Pro includes 20,000 credits per month and Enterprise is custom. Each agent run bills the list cost of model tokens, compute (5 credits per session-minute on the managed cloud; Enterprise VPC deployments are not charged for compute), and tool calls, plus an 8% orchestration fee',
+        detail:
+          'Pro credits reset monthly and do not roll over (Enterprise credits do). Pro overage is capped at 1,000,000 credits per billing period by default. Enterprise plans can negotiate a different orchestration fee.',
+        shortValue: 'Credits at $0.005 each plus an 8% orchestration fee',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Gumloop Pricing',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/credits',
+            label: 'Gumloop Docs: Credits',
+            asOf: '2026-10-15',
+          },
         ],
       },
       entryPaidPlan: {
         value:
-          'Pro plan at $37/month for 20k+ credits. Includes unlimited seats/teams, 5 concurrent runs, 25 concurrent agent interactions, agent reflections, unified billing, and 1 hosted MCP server instance',
-        detail:
-          "Gumloop's pricing page lists 'MCP Server Hosting (1)' under the Pro plan without clarifying its scope: it is not stated whether this cap limits access to the 100+ pre-built, zero-setup MCP servers described on gumloop.com/mcp, or only applies to a separate custom MCP server that Gumloop hosts on a customer's behalf. That distinction is not resolved anywhere on Gumloop's own pricing or MCP pages.",
-        shortValue: '$37/month Pro plan, 20k+ credits',
+          'Pro plan at $37/month with 20,000 credits/month (7,400 at list price plus 12,600 bonus credits), unlimited seats and teams, 5 concurrent workflow runs, 25 concurrent agent chats, and 1 hosted MCP server',
+        shortValue: '$37/month Pro, 20,000 credits/month',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Gumloop Pricing',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/credits',
+            label: 'Gumloop Docs: Credits',
+            asOf: '2026-10-15',
+          },
         ],
       },
       freeTier: {
         value:
-          'Yes: Free plan with 5,000 credits/month, 1 seat, 1 active trigger, 2 concurrent runs, 5 concurrent agent interactions, unlimited agents/flows, forum-only support',
-        shortValue: '5,000 credits/month, 1 seat',
+          'No free plan: every new account gets a one-time 14-day free trial of Pro that requires a card and rolls into a paid $37/month Pro subscription unless cancelled',
+        detail: 'The plans table lists only Pro ($37/month) and Enterprise (custom).',
+        shortValue: 'No free plan; 14-day Pro trial, card required',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/credits',
+            label: 'Gumloop Docs: Credits (plans and trial)',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Gumloop Pricing',
+            asOf: '2026-10-15',
+          },
         ],
       },
       byok: {
-        value: 'Yes: Bring Your Own API Keys is supported across all plans',
-        shortValue: 'Supported on all plans',
+        value:
+          'Yes, on Pro and Enterprise: with your own model-provider key, token credits drop to zero but the orchestration fee rises from 8% to 16% of what the run would have cost at list price',
+        shortValue: 'Pro and up; token credits waived, fee rises to 16%',
         confidence: 'verified',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
           {
-            url: 'https://www.gumloop.com/solutions/security',
-            label: 'Gumloop Security & Trust',
-            asOf: '2026-07-02',
+            url: 'https://www.gumloop.com/pricing',
+            label: 'Gumloop Pricing (BYOK FAQ)',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://docs.gumloop.com/core-concepts/credits',
+            label: 'Gumloop Docs: Credits (How BYOK works)',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -1101,16 +1158,16 @@ export const gumloopProfile: CompetitorProfile = {
       },
       executionLimits: {
         value:
-          'Gumloop publishes concurrency limits by plan on its pricing page: Free allows 2 concurrent runs and 5 concurrent agent interactions, Pro allows 5 concurrent runs and 25 concurrent agent interactions, and Enterprise has custom, unpublished limits. Gumloop does not publicly document a maximum execution duration or per-request timeout for a single workflow run.',
+          'Gumloop publishes concurrency limits by plan on its pricing page: Pro allows 5 concurrent workflow runs and 25 concurrent agent chats, and Enterprise limits are custom. Gumloop does not publicly document a maximum execution duration or per-request timeout for a single workflow run.',
         detail:
-          "Numbers taken directly from the pricing page comparison table. No max single-execution runtime or timeout figure is published in Gumloop's docs, forum, or pricing page.",
-        shortValue: '2-5 concurrent runs by plan; no published timeout',
+          "Numbers taken from the pricing page comparison table. No max single-execution runtime or timeout figure is published in Gumloop's docs or pricing page.",
+        shortValue: '5 concurrent runs on Pro; no published timeout',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.gumloop.com/pricing',
-            label: 'Gumloop Pricing (concurrent runs / agent interactions by plan)',
-            asOf: '2026-07-02',
+            label: 'Gumloop Pricing (concurrency by plan)',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -1153,11 +1210,11 @@ export const gumloopProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Forum support on Free plan, escalating to dedicated Slack support on higher/Enterprise plans',
-        shortValue: 'Forum on Free, Slack on higher tiers',
+          'Email support on Pro and dedicated Slack support on Enterprise, plus the Gumloop University learning resource',
+        shortValue: 'Email on Pro, dedicated Slack on Enterprise',
         confidence: 'estimated',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-10-15' },
         ],
       },
       sla: {

@@ -9,8 +9,8 @@
  *   import whose every binding the barrel then exports (`export { X }`, or renamed with
  *   `export const Y = X`). A path that leaves the folder (`../x`,
  *   `./../x`), a side-effect import, and an import the barrel keeps for itself are all flagged.
- *   Wire contracts under `lib/mothership/generated/` are exempt: the worker's `contracts:sync`
- *   copies them verbatim and byte-checks the copies, so their sibling imports must stay relative.
+ *   A verbatim Mothership contract copy in `lib/mothership/generated/` is exempt: its imports mirror
+ *   the worker source it is synced from, so it cannot use the app's aliases.
  * - `text-size-literal` (`.claude/rules/sim-styling.md` "Tailwind" 3): an `apps/sim` string or
  *   template literal sets type size with `text-[Npx]` where the documented text scale has a token
  *   for that size (`text-[13px]` → `text-small`). The literal also drops the token's line-height.
@@ -250,12 +250,8 @@ function importTypeSpecifier(node: Node): string | undefined {
   return stringValue(argument.type === 'TSLiteralType' ? argument.literal : argument)
 }
 
-/** Verbatim copies of the mothership worker's contracts; see the `relative-import` note above. */
-const SYNCED_CONTRACTS_DIR = 'apps/sim/lib/mothership/generated/'
-
 function findRelativeImports(file: string, program: Node): Violation[] {
   const violations: Violation[] = []
-  if (file.startsWith(SYNCED_CONTRACTS_DIR)) return violations
   const reExported = isBarrel(file) ? exportedLocals(program) : undefined
   walk(program, (node) => {
     const declared = declarationSpecifier(node)
@@ -528,6 +524,15 @@ function findBareRouteHandlers(file: string, program: Node): Violation[] {
   return violations
 }
 
+const CONTRACT_COPY_DIR = 'apps/sim/lib/mothership/generated/'
+const CONTRACT_COPY_HEADER =
+  '// GENERATED — do not edit. Source of truth: mothership worker packages/contracts/'
+
+/** A file `contracts:sync` copies byte for byte from the Mothership worker. */
+function isContractCopy(file: string, source: string): boolean {
+  return file.startsWith(CONTRACT_COPY_DIR) && source.startsWith(CONTRACT_COPY_HEADER)
+}
+
 /** Unit, integration and live tests, plus fixtures: they bind real boundaries on purpose. */
 function isTestFile(file: string): boolean {
   return /\.(?:test|spec|integration)\.tsx?$/.test(file) || file.includes('/__fixtures__/')
@@ -539,7 +544,7 @@ export function findViolations(file: string, source: string): Violation[] {
   const test = isTestFile(file)
   const isApi = file.startsWith('apps/sim/app/api/') && !test
   // Cheap textual gates; each is a superset of what its rule can match, and the AST decides.
-  const wantsRelative = /['"`]\.\.?\//.test(source)
+  const wantsRelative = !isContractCopy(file, source) && /['"`]\.\.?\//.test(source)
   const wantsTextSize = !test && /text-\[\d/.test(source)
   const wantsStyle = !test && file.endsWith('.tsx') && /\bstyle\s*=\s*\{/.test(source)
   const wantsDb = isApi && source.includes('@sim/db')

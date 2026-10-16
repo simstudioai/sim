@@ -18,7 +18,27 @@ export const pipedreamProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Pipedream is a cloud integration platform, now owned by Workday (acquired Nov 2025), that connects 3,000+ APIs through low-code workflows or custom Node.js/Python/Go code, and exposes those integrations to AI agents as tools through a hosted MCP server.',
+    'Pipedream is a cloud integration platform, now owned by Workday (acquired Nov 2025), whose Connect product gives apps and AI agents managed authentication and prebuilt tools across 3,000+ APIs through SDKs, a REST API, and a hosted MCP server; its Workflows automation product no longer accepts signups and shuts down on March 31, 2027.',
+  leadAnswer: [
+    'Pipedream is an integration layer for AI agents: its Connect product gives developers managed authentication and prebuilt tools across 3,000+ APIs through SDKs, a REST API, and an MCP server, while its Workflows automation product is in maintenance mode and shuts down on March 31, 2027. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents and automations visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Pipedream Connect when you are a developer embedding customer-facing integrations or tools into your own app or agent. Choose Sim when you want to build and run the automations and agents themselves on a visual canvas, including self-hosted.',
+  ],
+  faqs: [
+    {
+      question: 'What is a Pipedream alternative with a visual builder for non-developers?',
+      answer:
+        "Sim offers a visual drag-and-drop canvas and a natural-language Chat surface that builds and edits workflows from plain-language requests. Pipedream's visual builder belongs to its Workflows product, which no longer accepts signups or subscriptions and shuts down on March 31, 2027. Pipedream's ongoing product, Connect, is delivered as SDKs, a REST API, and an MCP server for developers adding integrations to their own apps and agents.",
+    },
+    {
+      question: 'How does Sim compare to Pipedream for building automations?',
+      answer:
+        'Sim is built to create and run automations and agents, while Pipedream now centers on Connect, an integration layer that supplies tools and managed authentication to apps and agents you build yourself. Sim workflows run from webhook, schedule, chat, REST API, and app-event triggers, and can include code blocks for custom logic. Pipedream Workflows supported low-code steps plus custom Node.js, Python, Bash, or Go code, but it is in maintenance mode with no new features and ends on March 31, 2027.',
+    },
+    {
+      question: 'Is Pipedream Workflows shutting down?',
+      answer:
+        'Yes. Pipedream Workflows shuts down on March 31, 2027, and all Workflows data, including stored credentials and OAuth tokens, is deleted by April 30, 2027; Pipedream Connect is not affected. Pipedream provides an export tool that downloads workflow structure as JSON, one project at a time. Sim, with an Apache 2.0-licensed core, can run those automations on Sim Cloud or self-hosted, though workflows need to be rebuilt in Sim rather than imported.',
+    },
+  ],
   standoutFeatures: [
     {
       title: 'Hosted MCP server covering thousands of apps',
@@ -34,9 +54,14 @@ export const pipedreamProfile: CompetitorProfile = {
     {
       title: 'Code-first escape hatch alongside no-code builder',
       description:
-        "Any step in a Pipedream workflow can be replaced with custom Node.js, Python, Bash, or Go code, and pre-built actions can be used as no-code building blocks or 'scaffolded' into code you customize.",
-      shortDescription: 'Every workflow step can drop into custom code in four languages.',
-      source: { url: 'https://pipedream.com/docs', label: 'Pipedream Docs', asOf: '2026-07-02' },
+        "Any step in a Pipedream workflow can be replaced with custom Node.js, Python, Bash, or Go code, and pre-built actions can be used as no-code building blocks or 'scaffolded' into code you customize. This is part of Pipedream Workflows, which shuts down on March 31, 2027.",
+      shortDescription:
+        'Workflow steps drop into custom code in four languages (Workflows, ending 2027).',
+      source: {
+        url: 'https://pipedream.com/docs/workflows',
+        label: 'Pipedream Docs: Workflows',
+        asOf: '2026-10-15',
+      },
     },
     {
       title: 'Source-available component registry on GitHub',
@@ -52,6 +77,17 @@ export const pipedreamProfile: CompetitorProfile = {
   ],
   limitations: [
     {
+      title: 'Workflows product is shutting down',
+      description:
+        'Pipedream Workflows is in maintenance mode, no longer accepts signups or subscriptions, and shuts down on March 31, 2027. All Workflows data, including stored credentials and OAuth tokens, is deleted by April 30, 2027; an export tool saves workflow structure as JSON, one project at a time. Pipedream Connect is not affected.',
+      shortDescription: 'Workflows shuts down on March 31, 2027; Connect continues.',
+      source: {
+        url: 'https://pipedream.com/docs/workflows',
+        label: 'Pipedream Docs: Workflows',
+        asOf: '2026-10-15',
+      },
+    },
+    {
       title: 'Not self-hostable',
       description:
         'Pipedream is a hosted cloud platform only. The public GitHub repo is a source-available component registry, not a deployable self-hosted application, and community requests to self-host on a private server or EC2 instance have not resulted in an official self-hosting path.',
@@ -65,8 +101,8 @@ export const pipedreamProfile: CompetitorProfile = {
     {
       title: 'Proprietary source-available license, not open source',
       description:
-        "The GitHub repository is licensed under the 'Pipedream Source Available License Version 1.0,' which explicitly prohibits using the code to run a competing SaaS/PaaS/IaaS offering. This is not an OSI-approved open-source license.",
-      shortDescription: "The component repo's license bars running a competing service.",
+        "The GitHub repository is licensed under the 'Pipedream Source Available License Version 1.0,' whose Excluded Purpose covers any commercial use of the code, including running a competing SaaS/PaaS/IaaS offering. This is not an OSI-approved open-source license.",
+      shortDescription: "The component repo's license excludes commercial use.",
       source: {
         url: 'https://github.com/PipedreamHQ/pipedream/blob/master/LICENSE',
         label: 'GitHub: LICENSE file',
@@ -126,12 +162,12 @@ export const pipedreamProfile: CompetitorProfile = {
           {
             url: 'https://github.com/PipedreamHQ/pipedream/issues/954',
             label: 'GitHub Issue #954',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://github.com/PipedreamHQ/pipedream',
             label: 'GitHub: PipedreamHQ/pipedream repo description',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -172,14 +208,14 @@ export const pipedreamProfile: CompetitorProfile = {
         value:
           'Proprietary (Pipedream Source Available License v1.0) for the GitHub component registry; hosted platform is closed-source SaaS',
         detail:
-          'Not an OSI-approved open-source license. It bars using the code to run a competing SaaS/PaaS/IaaS.',
+          'Not an OSI-approved open-source license. Its Excluded Purpose covers any commercial use of the software, including running a SaaS, PaaS, IaaS, or other online service that competes with Pipedream.',
         shortValue: 'Proprietary source-available registry license',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/PipedreamHQ/pipedream/blob/master/LICENSE',
             label: 'GitHub: LICENSE file',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -681,51 +717,65 @@ export const pipedreamProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Credit-based compute pricing (per-execution-time credits) plus separate Connect usage/end-user pricing',
+          'Credit-based Connect usage (1 credit per 30 seconds of compute) plus a per-external-user fee; legacy Workflows credit pricing ends with the product on March 31, 2027',
         detail:
-          '1 credit = 30 seconds of workflow compute at 256MB memory; credit burn rate scales with memory allocation. Connect (embedding Pipedream in your own app) bills separately on API usage (actions/tool calls/trigger emits) and number of connected end users.',
-        shortValue: 'Credit-based compute; separate Connect usage pricing',
+          "Pipedream's pricing page now covers Connect only: credits are consumed by action runs, MCP tool calls, Connect proxy requests, and deployed-trigger emits at 1 credit per 30 seconds of compute, and plans also bill per unique external user who connects an account. Pipedream Workflows used the same 30-second credit at 256MB memory, but Workflows no longer accepts signups or subscriptions and shuts down on March 31, 2027.",
+        shortValue: 'Connect credits plus per-user fee',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://pipedream.com/pricing',
+            label: 'Pipedream Pricing',
+            asOf: '2026-10-15',
+          },
+          {
             url: 'https://pipedream.com/docs/pricing',
             label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://pipedream.com/docs/workflows',
+            label: 'Pipedream Docs: Workflows',
+            asOf: '2026-10-15',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'Not publicly listed; third-party estimates range roughly $29–$45/mo for the entry paid tier',
+          'Startup plan: $99/month billed annually ($150 billed monthly), 10,000 usage credits and 100 external users included',
         detail:
-          "Pipedream's own pricing page is JavaScript-rendered and not directly verifiable via static fetch. Third-party sources report conflicting numbers for the entry paid tier, roughly $29/mo to $45/mo for around 2,000 credits/month, but the exact current price is unconfirmed from a primary source.",
-        shortValue: '~$29–$45/mo (unconfirmed)',
-        confidence: 'estimated',
+          'Startup is the entry paid plan and is required to run Connect in production. It includes 10,000 usage credits per month (then $0.012 each) and 100 external users (then $2 per user per month), with email support. Pipedream Workflows subscriptions are no longer sold.',
+        shortValue: '$99/month annual, 10,000 credits',
+        confidence: 'verified',
         sources: [
           {
             url: 'https://pipedream.com/pricing',
-            label:
-              'Pipedream Pricing page (official, JS-rendered, not independently verifiable via fetch)',
-            asOf: '2026-07-02',
+            label: 'Pipedream Pricing',
+            asOf: '2026-10-15',
           },
           {
-            url: 'https://automationatlas.io/answers/pipedream-pricing-explained-2026/',
-            label: 'Automation Atlas: Pipedream Pricing Explained 2026 (third-party)',
-            asOf: '2026-07-02',
+            url: 'https://pipedream.com/docs/workflows',
+            label: 'Pipedream Docs: Workflows',
+            asOf: '2026-10-15',
           },
         ],
       },
       freeTier: {
-        value: 'Yes: free workspace with a daily credit limit',
+        value: 'Yes: free workspace for development only, with a daily credit limit',
         detail:
-          'Free workspaces get a daily limit of free credits (cannot be exceeded/rolled over), a capped number of active workflows and connected accounts, community-only support, and Connect development-environment access only. Developing/testing a workflow with test events in the builder is always free, and public-registry event source triggers are free.',
-        shortValue: 'Free tier with daily credit cap',
+          'The Free plan ($0, no credit card) includes every feature in development, unlimited team members, and community support, with a daily credit limit that cannot be exceeded and a limited number of connected accounts. Serving real external users in production requires the paid Startup plan.',
+        shortValue: 'Free in development, daily credit cap',
         confidence: 'verified',
         sources: [
           {
+            url: 'https://pipedream.com/pricing',
+            label: 'Pipedream Pricing',
+            asOf: '2026-10-15',
+          },
+          {
             url: 'https://pipedream.com/docs/pricing',
             label: 'Pipedream Docs: Plans and Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },

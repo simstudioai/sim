@@ -8,6 +8,16 @@ import {
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  dustProfile,
+  gumloopProfile,
+  langflowProfile,
+  n8nProfile,
+  openClawProfile,
+  pipedreamProfile,
+  vellumProfile,
+} from '@/lib/compare/data'
+import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
  * Crawls a running landing site the way a search or AI crawler does: plain GETs, no JavaScript,
@@ -92,6 +102,23 @@ function jsonLdNodes(html: string): Record<string, unknown>[] {
     }
   }
   return nodes
+}
+
+/** Undoes the entity escaping React applies to text, so rendered copy compares to its source. */
+function decodeHtml(html: string): string {
+  return html
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+/** Question text of every FAQPage entry on the page, in order. */
+function faqQuestions(html: string): string[] {
+  const faqPage = jsonLdNodes(html).find((node) => node['@type'] === 'FAQPage')
+  const entries = (faqPage?.mainEntity ?? []) as { name?: string }[]
+  return entries.map((entry) => entry.name ?? '')
 }
 
 /** Paths and lastmod values from the sitemap, keyed by path. */
@@ -238,6 +265,59 @@ async function run() {
     const product = jsonLdNodes(body).find((node) => Array.isArray(node.offers))
     assert(product, 'Pricing has no offers')
     assert(String(product['@id']).endsWith('#software'), `Offers sit on ${product['@id']}`)
+  })
+
+  await check('comparison pages lead with their answer and their tracked-prompt FAQs', async () => {
+    const failures: string[] = []
+    for (const profile of [
+      n8nProfile,
+      dustProfile,
+      gumloopProfile,
+      vellumProfile,
+      langflowProfile,
+      pipedreamProfile,
+      openClawProfile,
+    ]) {
+      const { status, body } = await get(`/comparisons/${profile.id}`)
+      if (status !== 200) {
+        failures.push(`${profile.id}: status ${status}`)
+        continue
+      }
+      const text = decodeHtml(body)
+      const lead = profile.leadAnswer?.map((part) => (typeof part === 'string' ? part : part.text))
+      const firstSection = text.indexOf('<h2')
+      const leadAt = lead ? text.indexOf(lead.join('')) : -1
+      if (leadAt < 0 || leadAt > firstSection) {
+        failures.push(`${profile.id}: lead answer missing or below the first section`)
+      }
+      const expected = (profile.faqs ?? []).map((faq) => faq.question)
+      const questions = faqQuestions(body).slice(0, expected.length)
+      if (expected.length === 0 || questions.join('|') !== expected.join('|')) {
+        failures.push(`${profile.id}: FAQPage does not open with the profile FAQs`)
+      }
+    }
+    assert.deepEqual(failures, [])
+  })
+
+  await check('rebuilt integration pages render their comparison and FAQs', async () => {
+    const failures: string[] = []
+    for (const slug of ['github', 'shopify', 'snowflake']) {
+      const seo = INTEGRATION_SEO[slug]
+      const { status, body } = await get(`/integrations/${slug}`)
+      if (status !== 200) {
+        failures.push(`${slug}: status ${status}`)
+        continue
+      }
+      const text = decodeHtml(body)
+      if (!seo?.comparison || !text.includes(seo.comparison.heading)) {
+        failures.push(`${slug}: comparison section missing`)
+      }
+      const expected = (seo?.faqs ?? []).map((faq) => faq.question)
+      if (expected.length === 0 || faqQuestions(body).join('|') !== expected.join('|')) {
+        failures.push(`${slug}: FAQPage does not match the hand-written FAQs`)
+      }
+    }
+    assert.deepEqual(failures, [])
   })
 
   await check('blog, library, and changelog advertise their RSS feeds', async () => {

@@ -144,7 +144,9 @@ export interface PersistedMessage {
  * reference when there is nothing to strip, preserving memoized identity for
  * read-side consumers.
  */
-export function stripToolResultOutput(message: PersistedMessage): PersistedMessage {
+export function stripToolResultOutput<T extends Pick<PersistedMessage, 'contentBlocks'>>(
+  message: T
+): T {
   if (!message.contentBlocks?.length) return message
   let changed = false
   const contentBlocks = message.contentBlocks.map((block) => {
