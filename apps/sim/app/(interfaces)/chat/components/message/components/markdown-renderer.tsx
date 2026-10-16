@@ -88,10 +88,7 @@ const COMPONENTS = {
           <span className='font-sans text-[var(--text-tertiary)] text-xs'>
             {codeProps.className?.replace('language-', '') || 'code'}
           </span>
-          <CopyCodeButton
-            code={extractTextContent(codeContent)}
-            className='text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]'
-          />
+          <CopyCodeButton code={extractTextContent(codeContent)} appearance='code-header' />
         </div>
         <pre className='overflow-x-auto bg-[var(--surface-5)] p-4 font-mono text-[var(--text-primary)]'>
           {codeContent}
