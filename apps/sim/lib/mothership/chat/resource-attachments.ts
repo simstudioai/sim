@@ -78,14 +78,15 @@ export async function resolveResourceAttachmentContexts(params: {
     requestId,
   } = params
   const agentContexts: ChatContextItem[] = []
-  const authorizedResources: z.infer<typeof mothershipResourceSchema>[] = []
+  /** Indexed by attachment so concurrent resolution persists tabs in the order the user has them. */
+  const authorizedResources: (z.infer<typeof mothershipResourceSchema> | undefined)[] = []
   if (
     Array.isArray(resourceAttachments) &&
     resourceAttachments.length > 0 &&
     (workspaceId || organizationId)
   ) {
     const results = await Promise.allSettled(
-      resourceAttachments.map(async (resource) => {
+      resourceAttachments.map(async (resource, index) => {
         if (resource.type === 'sources') return null
         // The live browser panel resolves from the attachment itself: its
         // page state is client-held (the desktop app's embedded browser),
@@ -110,9 +111,10 @@ export async function resolveResourceAttachmentContexts(params: {
           )
             return null
           if (persistResources)
-            authorizedResources.push(
-              mothershipResourceSchema.parse({ ...resource, title: 'Search results' })
-            )
+            authorizedResources[index] = mothershipResourceSchema.parse({
+              ...resource,
+              title: 'Search results',
+            })
           return {
             type: 'active_resource',
             tag: resource.active ? '@active_tab' : '@open_tab',
@@ -127,7 +129,7 @@ export async function resolveResourceAttachmentContexts(params: {
             chatId,
             requestMode,
           })
-          if (persistResources && tab) authorizedResources.push(tab)
+          if (persistResources && tab) authorizedResources[index] = tab
           return context
         }
         const target =
@@ -161,15 +163,13 @@ export async function resolveResourceAttachmentContexts(params: {
         )
         if (!ctx) return null
         if (persistResources && isPersistableAttachment(resource))
-          authorizedResources.push(
-            mothershipResourceSchema.parse({
-              ...resource,
-              title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
-              ...(organizationId
-                ? { workspaceId: target.workspaceId }
-                : { workspaceId: undefined, workspaceName: undefined }),
-            })
-          )
+          authorizedResources[index] = mothershipResourceSchema.parse({
+            ...resource,
+            title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
+            ...(organizationId
+              ? { workspaceId: target.workspaceId }
+              : { workspaceId: undefined, workspaceName: undefined }),
+          })
         return {
           ...ctx,
           ...(organizationId
@@ -203,7 +203,8 @@ export async function resolveResourceAttachmentContexts(params: {
     })
   }
 
-  if (chatId && authorizedResources.length)
-    await persistChatResources(chatId, sanitizeChatResources(authorizedResources))
+  const orderedResources = authorizedResources.filter((resource) => resource !== undefined)
+  if (chatId && orderedResources.length)
+    await persistChatResources(chatId, sanitizeChatResources(orderedResources))
   return agentContexts
 }
