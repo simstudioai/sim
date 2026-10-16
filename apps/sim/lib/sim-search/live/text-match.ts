@@ -89,14 +89,19 @@ const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
 /**
- * The `text ~` clause for a plain query in Jira JQL. `any` ORs every pair of the query's longest
- * terms, so a match contains at least two of them somewhere in the issue, or either term of a
- * two-term query. Jira stems text search, so a word and its plural share one term.
+ * The clause for a plain query in Jira JQL, over all text fields or the summary alone. `any` ORs
+ * every pair of the query's longest terms, so a match contains at least two of them in that field,
+ * or either term of a two-term query. Jira stems text search, so a word and its plural share one
+ * term.
  */
-export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
+export function jiraTextClause(
+  text: string,
+  match: TextMatch = 'all',
+  field: 'text' | 'summary' = 'text'
+): string {
   const terms = match === 'any' ? distinctTerms(text, singularKey) : []
-  if (terms.length < 2) return `text ~ ${escapeSearchPhrase(text)}`
-  const clause = (term: string) => `text ~ ${escapeSearchPhrase(term)}`
+  if (terms.length < 2) return `${field} ~ ${escapeSearchPhrase(text)}`
+  const clause = (term: string) => `${field} ~ ${escapeSearchPhrase(term)}`
   const groups =
     terms.length === 2
       ? terms.map(clause)
@@ -104,14 +109,6 @@ export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
           terms.slice(index + 1).map((second) => `(${clause(first)} AND ${clause(second)})`)
         )
   return `(${groups.join(' OR ')})`
-}
-
-/**
- * The `summary ~` clause for a plain query in Jira JQL: issues whose summary holds every word.
- * JQL has no relevance order, so this stands in for a title boost.
- */
-export function jiraSummaryClause(text: string): string {
-  return `summary ~ ${escapeSearchPhrase(text)}`
 }
 
 /**
