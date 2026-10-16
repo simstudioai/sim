@@ -918,7 +918,7 @@ export async function exchangeAndConfigureSlackManagedUsers(params: {
           'This Slack app belongs to another installation owner'
         )
       if (app?.kind === 'shared')
-        await requireSlackSearchAppAvailable(app.id, params.attempt.organizationId)
+        await requireSlackSearchAppAvailable(app.id, params.attempt.organizationId, tx)
       const resolved = app ? await resolveSlackAppCredentials(app) : null
       if (
         !resolved ||

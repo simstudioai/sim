@@ -159,7 +159,8 @@ async function resolveSlackConfiguration(
     .limit(1)
   if (!app) throw new Error('Organization Slack app configuration is missing')
   /** Member grants are verified against the app and team directly; the Search bot is optional. */
-  if (app.kind === 'shared') await requireSlackSearchAppAvailable(app.id, params.organizationId)
+  if (app.kind === 'shared')
+    await requireSlackSearchAppAvailable(app.id, params.organizationId, params.executor)
   const resolved = await resolveSlackAppCredentials(app)
   return {
     appId: app.id,

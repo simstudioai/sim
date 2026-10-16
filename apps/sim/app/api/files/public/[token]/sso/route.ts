@@ -6,7 +6,11 @@ import { parseRequest } from '@/lib/api/server'
 import { RateLimiter, type TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { publicFileAuthDenied, publicFileErrorResponse } from '@/lib/public-shares/api'
+import {
+  logPublicFileError,
+  publicFileAuthDenied,
+  publicFileErrorResponse,
+} from '@/lib/public-shares/api'
 import { getPublicFileShareSsoEligibility } from '@/lib/public-shares/application'
 
 export const dynamic = 'force-dynamic'
@@ -47,7 +51,7 @@ export const POST = withRouteHandler(
         ? NextResponse.json({ eligible: result.eligible })
         : publicFileAuthDenied(result)
     } catch (error) {
-      logger.error('Error checking public file SSO eligibility:', error)
+      logPublicFileError(logger, 'Error checking public file SSO eligibility:', error)
       return publicFileErrorResponse(error, 'Failed to process request')
     }
   }

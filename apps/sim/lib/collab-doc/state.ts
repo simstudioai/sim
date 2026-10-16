@@ -7,6 +7,13 @@ import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 /** Matches the decoded size of the persist endpoint's 16 MiB base64 snapshot limit. */
 export const MAX_COLLAB_DOC_STATE_BYTES = 12 * 1024 * 1024
 
+/**
+ * Body cap of the relay's persist routes: a base64-encoded maximum snapshot plus 1 MiB for its JSON
+ * envelope (17 MiB). Both routes bypass the proxy, whose 10 MB buffer would truncate it.
+ */
+export const MAX_COLLAB_DOC_PERSIST_BODY_BYTES =
+  Math.ceil(MAX_COLLAB_DOC_STATE_BYTES / 3) * 4 + 1024 * 1024
+
 /** Reject oversized snapshots before copying, decoding, or writing them. */
 export function assertCollabDocStateSize(docState: Uint8Array): void {
   if (docState.byteLength > MAX_COLLAB_DOC_STATE_BYTES) {
