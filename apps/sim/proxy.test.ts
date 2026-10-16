@@ -169,7 +169,8 @@ describe('proxy matcher', () => {
     expect(matches('/api/desktop/tool/file')).toBe(false)
   })
 
-  it('leaves the document snapshot persist unbuffered, so a whole snapshot reaches the route', () => {
+  it('leaves the document snapshot persists unbuffered, so a whole snapshot reaches the route', () => {
+    expect(matches('/api/internal/file-doc/persist')).toBe(false)
     expect(matches('/api/internal/project-file-doc/project-1/file-1/persist')).toBe(false)
   })
 
@@ -180,5 +181,7 @@ describe('proxy matcher', () => {
     expect(matches('/api/files/upload')).toBe(true)
     expect(matches('/api/internal/project-file-doc/project-1/file-1/seed')).toBe(true)
     expect(matches('/api/internal/project-file-doc/project-1/file-1/persist/other')).toBe(true)
+    expect(matches('/api/internal/file-doc/persist/other')).toBe(true)
+    expect(matches('/api/internal/file-doc/seed')).toBe(true)
   })
 })
