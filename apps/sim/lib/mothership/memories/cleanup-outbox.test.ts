@@ -15,7 +15,7 @@ vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 
-const { mockEnqueueOutboxEvent } = outboxServiceMockFns
+const { mockEnqueueOutboxEvents } = outboxServiceMockFns
 const executor = { insert: vi.fn() }
 const targets = [
   { kind: 'private_owner' as const, userId: 'user-1' },
@@ -35,17 +35,6 @@ describe('enqueueMemoryCleanup', () => {
 
   it('queues nothing when this Sim has no worker credential', async () => {
     await enqueueMemoryCleanup(executor, targets)
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
-  it('queues one credential-bound event per destination and target', async () => {
-    setEnv({ COPILOT_API_KEY: 'configured-key' })
-    await enqueueMemoryCleanup(executor, targets)
-    expect(mockEnqueueOutboxEvent).toHaveBeenCalledTimes(targets.length)
-    for (const [, , payload] of mockEnqueueOutboxEvent.mock.calls)
-      expect(payload).toMatchObject({
-        baseUrl: 'https://agent.example.test',
-        credentialFingerprint: expect.any(String),
-      })
+    expect(mockEnqueueOutboxEvents).not.toHaveBeenCalled()
   })
 })

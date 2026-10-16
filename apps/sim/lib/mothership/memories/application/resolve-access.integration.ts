@@ -12,6 +12,7 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
@@ -26,7 +27,7 @@ import {
   resolveMemoryNotesAccess,
 } from '@/lib/mothership/memories/application/resolve-access'
 import { executeSimControl } from '@/lib/mothership/transport/control'
-import { splitForkProject } from '@/lib/projects/membership'
+import { lockProject, splitForkProject } from '@/lib/projects/membership'
 import { POST } from '@/app/api/mothership/memories/access/route'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -253,6 +254,41 @@ it('resolves overlapping workspace checks that share one Project without deadloc
   )
   for (const result of results)
     expect(result.target).toMatchObject({ scope: 'workspace', currentProject: { id: projectId } })
+})
+
+it('answers while a writer holds the account row and the Project exclusively', async () => {
+  let release = () => {}
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let held = () => {}
+  const holding = new Promise<void>((resolve) => {
+    held = resolve
+  })
+  const writer = db.transaction(async (tx) => {
+    await tx.select({ id: user.id }).from(user).where(eq(user.id, actorId)).for('update')
+    await lockProject(tx, projectId)
+    held()
+    await released
+  })
+  await holding
+  try {
+    for (const organizationChat of [false, true]) {
+      const result = await Promise.race([
+        resolveMemoryNotesAccess.execute({
+          principal: principal(organizationChat),
+          input: { target: { scope: 'workspace', workspaceId }, action: 'read' },
+        }),
+        sleep(2_000).then(() => {
+          throw new Error('Memory access waited on a writer')
+        }),
+      ])
+      expect(result.target).toMatchObject({ currentProject: { id: projectId } })
+    }
+  } finally {
+    release()
+    await writer
+  }
 })
 
 it('does not turn write in one environment into shared Project write', async () => {
