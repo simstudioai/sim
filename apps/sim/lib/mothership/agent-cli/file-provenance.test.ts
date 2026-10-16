@@ -374,7 +374,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
   })
 
   it('refuses only the unknown item of a forwarded response, naming it, without blanking the invocation', async () => {
-    const refusals = getMockLogger('DurableSecretProvenancePersistence').error
+    const refusals = getMockLogger('DurableSecretProvenancePersistence').warn
     refusals.mockClear()
     const clean = fileSource('clean', { status: 'exact', entries: [] })
     const tainted = fileSource('tainted', { status: 'unknown' })
@@ -552,7 +552,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
       })
     )
     classifySequence('exact', 'unknown')
-    const refusals = getMockLogger('DurableSecretProvenancePersistence').error
+    const refusals = getMockLogger('DurableSecretProvenancePersistence').warn
     refusals.mockClear()
     const trace = registry()
     const result = await runCli(grepFiles('CANARY_FOR_LOCAL_TEST'), trace)
@@ -569,6 +569,12 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
         resourceId: tainted.id,
       })
     )
+    /** The model is told the file it cannot see exists, so it does not read the gap as absence. */
+    expect(result.output).toMatchObject({
+      stderr: expect.stringContaining(
+        'Note: 1 file was withheld from this result: its secret provenance is unknown, so reading it again will not return it.'
+      ),
+    })
   })
 
   describe('grep reshapes a file line only after redacting it', () => {

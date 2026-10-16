@@ -27,10 +27,16 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
+import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import {
+  executeChatFileBlobCopies,
+  persistChatFileCopies,
+  planChatFileCopies,
+} from '@/lib/mothership/chat/fork-chat-files'
 import {
   generateWorkspaceFileKey,
   trackChatUpload,
@@ -48,8 +54,11 @@ import {
   snapshotWorkspaceFileSecretProvenanceInTx,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { uploadFile } from '@/lib/uploads/core/storage-service'
+import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
+import { executeForkFileBlobCopies } from '@/ee/workspace-forking/lib/copy/copy-files'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const CONTENT = 'The same uploaded bytes remain readable after saving.\n'
@@ -139,6 +148,104 @@ afterAll(async () => {
 })
 
 describe('chat upload reads racing with save_upload', () => {
+  it.each(['creator', 'workspace'] as const)(
+    'keeps byte-identical forked files usable with anonymized encrypted origins across a different %s',
+    async (kind) => {
+      const ids = await seedUpload()
+      const encryptedValue = (await encryptSecret(CONTENT)).encrypted
+      await db.transaction((tx) =>
+        replaceWorkspaceFileSecretProvenanceInTx(tx, ids.file.id, ids.file.contentUpdatedAt, {
+          status: 'exact',
+          entries: [
+            {
+              encryptedValue,
+              sourceUserId: ids.aliceId,
+              sourceWorkspaceId: ids.workspaceId,
+              name: 'ORIGINAL_TOKEN',
+            },
+          ],
+        })
+      )
+      const [source] = await db
+        .select()
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.id, ids.file.id))
+      let copyId: string | undefined
+      let targetWorkspaceId = ids.workspaceId
+      let recipientId = ids.bobId
+      if (kind === 'workspace') {
+        const target = await seedUpload()
+        targetWorkspaceId = target.workspaceId
+        recipientId = target.aliceId
+        copyId = `wf_${generateId()}`
+        const copied = await executeForkFileBlobCopies(
+          [
+            {
+              sourceFileId: source.id,
+              sourceContentUpdatedAtMs: source.contentUpdatedAt.getTime(),
+              sourceKey: source.key,
+              targetKey: generateWorkspaceFileKey(targetWorkspaceId, 'copied.txt'),
+              targetFileId: copyId,
+              workspaceId: targetWorkspaceId,
+              userId: recipientId,
+              context: 'mothership',
+              fileName: 'copied.txt',
+              displayName: null,
+              contentType: 'text/plain',
+              size: Buffer.byteLength(CONTENT),
+            },
+          ],
+          'copy-provenance-regression'
+        )
+        expect(copied).toMatchObject({ copied: 1, failed: 0 })
+      } else {
+        const newChatId = generateId()
+        await db.insert(copilotChats).values({
+          id: newChatId,
+          userId: recipientId,
+          workspaceId: targetWorkspaceId,
+          type: 'mothership',
+        })
+        const plan = planChatFileCopies({
+          rows: [source],
+          newChatId,
+          userId: recipientId,
+          now: new Date(),
+        })
+        const copied = await executeChatFileBlobCopies(plan.blobTasks)
+        expect(copied.failed).toBe(0)
+        await db.transaction((tx) => persistChatFileCopies(tx, plan, new Set(copied.failedCopyIds)))
+        copyId = plan.idMap.get(source.id)
+      }
+      if (!copyId) throw new Error('Fork did not map its file')
+      const [copy] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, copyId))
+      const bytes = await downloadFile({ key: copy.key, context: 'mothership' })
+      expect(bytes.toString()).toBe(CONTENT)
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: recipientId,
+        workspaceId: targetWorkspaceId,
+      })
+      expect(
+        await importWorkspaceFileSecretProvenanceForModelView({
+          workspaceId: targetWorkspaceId,
+          identity: {
+            fileId: copy.id,
+            key: copy.key,
+            context: 'mothership',
+            contentUpdatedAt: copy.contentUpdatedAt,
+          },
+          registry,
+          view: 'complete',
+          value: bytes.toString(),
+        })
+      ).toBe(true)
+      expect(projectResolvedSecretModelContent(bytes.toString(), registry)).toMatchObject({
+        safe: true,
+        value: '[REDACTED_SECRET]',
+      })
+    }
+  )
+
   it.each(['legacy', 'exact', 'unrecorded'] as const)(
     'keeps a %s authorized upload read valid across promotion',
     async (kind) => {

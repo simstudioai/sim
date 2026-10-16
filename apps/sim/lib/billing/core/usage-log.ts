@@ -30,7 +30,7 @@ import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
-import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { tryAcquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -700,6 +700,18 @@ export class CumulativeUsagePeriodClosedError extends Error {
   }
 }
 
+/**
+ * Another attempt of the same request holds its ledger lock, so this one cannot know whether that
+ * attempt's charge will land. Waiting would only hold a connection for an answer the caller gets by
+ * retrying later: the monotonic top-up applies whichever cumulative arrives once.
+ */
+export class CumulativeUsageInFlightError extends Error {
+  constructor(readonly eventKey: string) {
+    super(`Cumulative usage event "${eventKey}" is already being recorded`)
+    this.name = 'CumulativeUsageInFlightError'
+  }
+}
+
 interface CumulativeUsageLedgerBinding {
   userId: string
   workspaceId: string | null
@@ -755,11 +767,13 @@ function assertCumulativeUsageLedgerBinding(
 }
 
 /**
- * PostgreSQL 17+ bounds the entire transaction below the callback's five-second
- * deadline. Older supported servers instead bound each idle interval between
- * statements, alongside the per-statement budget. Both policies release an idle
- * lock holder without waiting for its application process to resume; only the
- * newer policy also limits total elapsed transaction time.
+ * PostgreSQL 17+ bounds the transaction's statements and the idle time between
+ * them; older supported servers bound each idle interval instead, alongside the
+ * per-statement budget. Both release an idle lock holder without waiting for its
+ * application process to resume. Neither bounds COMMIT: a commit waiting for a
+ * synchronous standby keeps its locks, including the request's ledger lock, until
+ * the standby confirms, however long that takes. `lock_timeout` bounds the row
+ * locks taken under the ledger lock; the ledger lock itself is never waited for.
  */
 const CUMULATIVE_FLUSH_TRANSACTION_TIMEOUT_MS = 4_000
 const CUMULATIVE_FLUSH_STATEMENT_TIMEOUT_MS = 3_500
@@ -778,10 +792,12 @@ type CumulativeUsageStage = 'pool' | 'configure' | 'lock' | 'read' | 'write' | '
  * (no two flushes can both believe they are first and clobber each other).
  * An existing row must match the incoming actor, workspace, payer, and billing
  * period before either a duplicate no-op or a top-up is accepted.
- * The billing context is resolved BEFORE the transaction and the lock wait is
- * bounded by `lock_timeout`. A server-enforced transaction deadline, or idle
- * transaction deadline on older PostgreSQL, releases a stalled holder. The
- * critical section uses one SELECT plus one INSERT/UPDATE on a single connection.
+ * The billing context is resolved BEFORE the transaction. The lock is taken
+ * without waiting: a held lock means another attempt of the same request is
+ * still being recorded (possibly committing behind a synchronous standby), and
+ * this attempt throws {@link CumulativeUsageInFlightError} instead of holding a
+ * connection while it waits. The critical section uses one SELECT plus one
+ * INSERT/UPDATE on a single connection.
  *
  * Because every leg flushes its cumulative and this converges to the max,
  * there is no under-billing if the request recovers after a partial flush, no
@@ -816,6 +832,7 @@ export async function recordCumulativeUsage(
   const stageDurationsMs: Partial<Record<CumulativeUsageStage, number>> = {}
   let succeeded = false
   let pgCode: string | undefined
+  let inFlight = false
   let toppedUpRowCreatedAt: Date | undefined
   const enterStage = (nextStage: CumulativeUsageStage) => {
     const now = Date.now()
@@ -841,7 +858,9 @@ export async function recordCumulativeUsage(
           set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)
       `)
       enterStage('lock')
-      await acquireAdvisoryXactLock(tx, 'usage_log_event', eventKey)
+      if (!(await tryAcquireAdvisoryXactLock(tx, 'usage_log_event', eventKey))) {
+        throw new CumulativeUsageInFlightError(eventKey)
+      }
 
       enterStage('read')
       const rows = await tx
@@ -997,12 +1016,14 @@ export async function recordCumulativeUsage(
     return result
   } catch (error) {
     pgCode = getPostgresErrorCode(error)
+    // Another attempt holding the lock is an answer, not a slow transaction; the route logs it.
+    if (error instanceof CumulativeUsageInFlightError) inFlight = true
     throw error
   } finally {
     const now = Date.now()
     stageDurationsMs[stage] = now - stageStartedAt
     const durationMs = now - startedAt
-    if (!succeeded || durationMs >= CUMULATIVE_FLUSH_SLOW_MS) {
+    if (!inFlight && (!succeeded || durationMs >= CUMULATIVE_FLUSH_SLOW_MS)) {
       logger.warn('Cumulative usage transaction did not complete promptly', {
         eventKey,
         succeeded,

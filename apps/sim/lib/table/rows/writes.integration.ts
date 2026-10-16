@@ -4,7 +4,7 @@
  * everywhere; the `rows_version` cases also need the migrated deferred trigger and skip without it.
  */
 import { db } from '@sim/db'
-import { userTableDefinitions, userTableRows } from '@sim/db/schema'
+import { userTableDefinitions, userTableRowSecretProvenance, userTableRows } from '@sim/db/schema'
 import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
@@ -12,7 +12,7 @@ import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-
 import { tableWorkflowColumnsMock } from '@sim/testing/mocks/table-workflow-columns.mock'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +21,7 @@ vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { deleteColumn, updateColumnConstraints } from '@/lib/table/columns/service'
 import { getMaxRowSizeBytes } from '@/lib/table/constants'
 import { bulkInsertImportBatch, importAppendRows, importReplaceRows } from '@/lib/table/import-data'
@@ -29,6 +30,7 @@ import type { DbTransaction } from '@/lib/table/planner'
 import { readCurrentRowsVersion } from '@/lib/table/row-changes'
 import { decodeCursor } from '@/lib/table/rows/cursor'
 import { lockLiveTableSchema } from '@/lib/table/rows/live-schema'
+import { loadTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -45,6 +47,8 @@ import { getTableById } from '@/lib/table/service'
 import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
 import type { ColumnDefinition, JsonValue, RowData, TableDefinition } from '@/lib/table/types'
 import { checkBatchUniqueConstraintsDb } from '@/lib/table/validation'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const url = readTestDatabaseUrl()
 if (process.env.DATABASE_URL !== url) {
@@ -90,7 +94,9 @@ async function seedRows(
   tableId: string,
   rows: Array<{ id: string; data: RowData; orderKey: string | null; position?: number }>
 ) {
-  await db.insert(userTableRows).values(rows.map((row) => ({ ...row, tableId, workspaceId })))
+  await db
+    .insert(userTableRows)
+    .values(rows.map((row) => ({ ...row, tableId, workspaceId, createdAt: new Date(0) })))
 }
 
 async function rowsVersion(tableId: string): Promise<number> {
@@ -228,6 +234,105 @@ describe('table row writes against real PostgreSQL', () => {
     await control`DELETE FROM "user" WHERE id = ${userId}`
     await control.end()
   })
+
+  it.each(['upsert', 'single', 'filter', 'batch'] as const)(
+    'preserves the content binding of an identical %s write without healing existing faults',
+    async (kind) => {
+      const secret = 'fixture-no-op-content-secret'
+      const encryptedValue = (await encryptSecret(secret)).encrypted
+      for (const state of ['exact', 'unknown', 'stale'] as const) {
+        const table = await createTable([
+          { id: 'key', name: 'key', type: 'string', unique: true },
+          ...textColumns('note'),
+        ])
+        const rowId = generateId()
+        const data = { key: 'stable', note: secret }
+        const revision = new Date('2026-10-01T00:00:00.000Z')
+        await db.insert(userTableRows).values({
+          id: rowId,
+          tableId: table.id,
+          workspaceId,
+          data,
+          orderKey: 'a0',
+          createdAt: revision,
+          updatedAt: revision,
+          secretProvenanceVersion: 1,
+        })
+        await db.insert(userTableRowSecretProvenance).values({
+          rowId,
+          contentUpdatedAt: state === 'stale' ? new Date(0) : revision,
+          status: state === 'unknown' ? 'unknown' : 'exact',
+          entries:
+            state === 'unknown'
+              ? []
+              : [
+                  {
+                    columnId: 'note',
+                    encryptedValue,
+                    name: 'ROW_TOKEN',
+                    sourceUserId: userId,
+                    sourceWorkspaceId: workspaceId,
+                  },
+                ],
+        })
+        const base = {
+          tableId: table.id,
+          workspaceId,
+          capabilityGovernedUserId: null,
+          secretProvenance: undefined,
+        }
+        const write = async (note: string) => {
+          if (kind === 'upsert')
+            await upsertRow(
+              { ...base, data: { ...data, note }, conflictTarget: 'key' },
+              table,
+              'noop-provenance'
+            )
+          else if (kind === 'single')
+            await updateRow({ ...base, rowId, data: { note } }, table, 'noop-provenance')
+          else if (kind === 'filter') {
+            const result = await updateRowsByFilter(
+              table,
+              {
+                filter: { key: 'stable' },
+                data: { note },
+                secretProvenance: undefined,
+                capabilityGovernedUserId: null,
+              },
+              'noop-provenance'
+            )
+            expect(result.affectedRowIds).toEqual([rowId])
+          } else
+            await batchUpdateRows(
+              { ...base, updates: [{ rowId, data: { note } }] },
+              table,
+              'noop-provenance'
+            )
+        }
+        await write(secret)
+        const [stored] = await db.select().from(userTableRows).where(eq(userTableRows.id, rowId))
+        expect(stored.updatedAt).toEqual(revision)
+        const scope = { userId, workspaceId }
+        const evidence = await loadTableRowSecretProvenance([stored], scope)
+        expect(evidence.complete).toBe(state === 'exact')
+        if (state === 'exact') {
+          const registry = new ResolvedSecretTraceRegistry([], scope)
+          expect(
+            await registry.importProvenance(evidence, { trusted: true, origin: 'no-op-read' })
+          ).toBe(true)
+          const shown = projectResolvedSecretModelContent(stored.data, registry)
+          expect(shown).toMatchObject({ safe: true, value: { note: '{{ROW_TOKEN}}' } })
+        }
+        if (migrated) {
+          await write('changed content')
+          const [changed] = await db.select().from(userTableRows).where(eq(userTableRows.id, rowId))
+          expect(changed.data).toEqual({ key: 'stable', note: 'changed content' })
+          expect(changed.updatedAt.getTime()).toBeGreaterThan(revision.getTime())
+          expect(changed.secretProvenanceVersion).toBeNull()
+        }
+      }
+    }
+  )
 
   describe('unique columns under concurrent writes', () => {
     const uniqueColumns: ColumnDefinition[] = [

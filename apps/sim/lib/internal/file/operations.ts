@@ -1412,14 +1412,6 @@ export async function executeFileManageOperation(
             leafName,
           })
           if (existing) {
-            // Writing into a file someone else owns must not hand its owner an
-            // exact, re-resolvable secret lineage, exactly as appending does.
-            const overwriteProvenance =
-              writeProvenance?.status === 'exact' &&
-              writeProvenance.entries.length > 0 &&
-              existing.uploadedBy !== userId
-                ? { status: 'unknown' as const }
-                : writeProvenance
             const { file: overwritten } = await updateWorkspaceFileContent.execute({
               principal,
               input: {
@@ -1431,7 +1423,7 @@ export async function executeFileManageOperation(
                 provenanceMode: 'replace_empty',
                 expectedUpdatedAt: existing.contentUpdatedAt ?? undefined,
                 expectedRevision,
-                ...(overwriteProvenance ? { secretProvenance: overwriteProvenance } : {}),
+                ...(writeProvenance ? { secretProvenance: writeProvenance } : {}),
               },
             })
 
@@ -1657,14 +1649,9 @@ export async function executeFileManageOperation(
             )
           }
           const appendedProvenance = appendedResolution.provenanceBySelection?.get('content')
-          const secretProvenance =
-            appendedProvenance?.status === 'exact' &&
-            appendedProvenance.entries.length > 0 &&
-            existing.uploadedBy !== userId
-              ? { status: 'unknown' as const }
-              : appendedProvenance
-                ? mergeWorkspaceFileSecretProvenance(existingProvenance, appendedProvenance)
-                : undefined
+          const secretProvenance = appendedProvenance
+            ? mergeWorkspaceFileSecretProvenance(existingProvenance, appendedProvenance)
+            : undefined
           const { content: existingBuffer } = await readWorkspaceFileContent.execute({
             principal,
             input: {

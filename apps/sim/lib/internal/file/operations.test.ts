@@ -1278,55 +1278,6 @@ describe('file manage operations', () => {
     expect(mockUploadWorkspaceFile).toHaveBeenCalled()
   })
 
-  it('downgrades provenance when overwriting a file owned by another user', async () => {
-    const existing = workspaceFile('report', 'other-user')
-    mockResolveWorkspaceFileReference.mockResolvedValue(existing)
-    mockUpdateWorkspaceFileContent.mockResolvedValue(existing)
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          operation: 'write',
-          workspaceId: 'workspace-1',
-          fileName: 'report.txt',
-          content: 'secret-value',
-          overwrite: true,
-          __privateSecretProvenance: {
-            version: 1,
-            complete: true,
-            selections: [
-              {
-                key: 'content',
-                provenance: {
-                  version: 1,
-                  complete: true,
-                  entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
-                  scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-                },
-              },
-            ],
-          },
-        },
-        PRIVATE_SECRET_PROVENANCE_HEADER
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockUpdateWorkspaceFileContent).toHaveBeenCalledWith(
-      'workspace-1',
-      'report',
-      'user-1',
-      Buffer.from('secret-value'),
-      'text/plain',
-      {
-        version: { source: 'workflow', authorUserId: 'user-1' },
-        expectedUpdatedAt: CONTENT_UPDATED_AT,
-        secretProvenancePolicy: { mode: 'replace', provenance: { status: 'unknown' } },
-      }
-    )
-  })
-
   it('atomically binds append provenance to the exact predecessor version', async () => {
     const existing = workspaceFile('file-1')
     mockResolveWorkspaceFileReference.mockResolvedValue(existing)

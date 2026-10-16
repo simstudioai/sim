@@ -12,6 +12,7 @@ import {
   knowledgeBase,
   organization,
   outboxEvent,
+  permissions,
   user,
   workspace,
   workspaceFiles,
@@ -19,7 +20,7 @@ import {
 import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import JSZip from 'jszip'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -64,7 +65,10 @@ vi.mock('@/lib/embeddings', async () => ({
 }))
 
 import { functionExecuteBodySchema } from '@/lib/api/contracts'
-import { fileManageDecompressBodySchema } from '@/lib/api/contracts/tools/file'
+import {
+  fileManageBodySchema,
+  fileManageDecompressBodySchema,
+} from '@/lib/api/contracts/tools/file'
 import { observeContentDelivery } from '@/lib/core/application'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -990,9 +994,121 @@ describe('execution archive durable provenance', () => {
     expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, source.identity)).toBe(true)
   })
 
-  it.each([false, true])(
-    'refuses tracked unknown execution attachments with historical metadata (archivedOnly=%s)',
-    async (archivedOnly) => {
+  it.each(['append', 'write'] as const)(
+    'preserves encrypted origins when another member performs %s',
+    async (operation) => {
+      const ids = await seed()
+      await db
+        .update(permissions)
+        .set({ permissionType: 'write' })
+        .where(and(eq(permissions.userId, ids.bobId), eq(permissions.entityId, ids.workspaceId)))
+      const priorSecret = 'fixture-prior-origin-secret'
+      const previous = {
+        status: 'exact' as const,
+        entries: [
+          {
+            encryptedValue: (await encryptSecret(priorSecret)).encrypted,
+            sourceUserId: ids.aliceId,
+            sourceWorkspaceId: ids.workspaceId,
+            name: 'PRIOR_TOKEN',
+          },
+        ],
+      }
+      const source = await uploadWorkspaceFile(
+        ids.workspaceId,
+        ids.aliceId,
+        Buffer.from(priorSecret),
+        `${generateId()}.txt`,
+        'text/plain',
+        { secretProvenance: previous, notifyWorkspaceChange: false }
+      )
+      const response = await executeFileManageOperation(
+        fileManageBodySchema.parse({
+          operation,
+          workspaceId: ids.workspaceId,
+          fileName: source.name,
+          content: FIXTURE_SECRET,
+          ...(operation === 'write' ? { overwrite: true } : {}),
+          [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+            version: 1,
+            complete: true,
+            selections: [
+              {
+                key: 'content',
+                provenance: {
+                  version: 1,
+                  complete: true,
+                  scope: { userId: ids.bobId, workspaceId: ids.workspaceId },
+                  entries: [
+                    {
+                      name: 'NEW_TOKEN',
+                      encryptedValue: (await encryptSecret(FIXTURE_SECRET)).encrypted,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+        {
+          principal: createWorkspaceFileDelegatedPrincipal({
+            serviceId: 'executor',
+            subjectUserId: ids.bobId,
+            workspaceId: ids.workspaceId,
+            delegationId: generateId(),
+            executionId: ids.executionId,
+          }),
+          workspaceId: ids.workspaceId,
+          attributedUserId: ids.bobId,
+          fileAccessUserId: ids.bobId,
+          workflowId: ids.workflowId,
+          executionId: ids.executionId,
+          headers: new Headers({
+            [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
+          }),
+          requestId: generateId(),
+        }
+      )
+      expect(response.status, await response.text()).toBe(200)
+      const record = await getWorkspaceFile(ids.workspaceId, source.id)
+      if (!record) throw new Error('Edited file disappeared')
+      const bytes = await downloadFile({ key: record.key, context: 'workspace' })
+      expect(bytes.toString()).toBe(
+        operation === 'append' ? priorSecret + FIXTURE_SECRET : FIXTURE_SECRET
+      )
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: ids.bobId,
+        workspaceId: ids.workspaceId,
+      })
+      expect(
+        await importWorkspaceFileSecretProvenanceForRuntime({
+          workspaceId: ids.workspaceId,
+          identity: {
+            fileId: record.id,
+            key: record.key,
+            context: 'workspace',
+            contentUpdatedAt: record.contentUpdatedAt ?? undefined,
+          },
+          registry,
+        })
+      ).toBe(true)
+      const shown = projectResolvedSecretModelContent(bytes.toString(), registry)
+      expect(shown.safe).toBe(true)
+      expect(JSON.stringify(shown)).not.toContain(FIXTURE_SECRET)
+      expect(JSON.stringify(shown)).not.toContain(priorSecret)
+      expect(JSON.stringify(shown)).toContain('{{NEW_TOKEN}}')
+      if (operation === 'append') expect(JSON.stringify(shown)).toContain('[REDACTED_SECRET]')
+    }
+  )
+
+  it.each([
+    ['execution', false],
+    ['execution', true],
+    ['workspace', true],
+    ['mothership', true],
+  ] as const)(
+    'retains refusal evidence for %s attachments (archivedOnly=%s)',
+    async (context, archivedOnly) => {
       const ids = await seed()
       const file = await uploadExecutionFile(
         ids,
@@ -1005,7 +1121,7 @@ describe('execution archive durable provenance', () => {
       if (archivedOnly) {
         await db
           .update(workspaceFiles)
-          .set({ deletedAt: new Date() })
+          .set({ deletedAt: new Date(), context })
           .where(eq(workspaceFiles.key, file.key))
       } else {
         await db.insert(workspaceFiles).values({

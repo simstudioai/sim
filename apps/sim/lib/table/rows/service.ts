@@ -881,7 +881,7 @@ export async function upsertRow(
         mutate: async () => {
           const [row] = await trx
             .update(userTableRows)
-            .set({ data: data.data, updatedAt: now })
+            .set(rowContentUpdate(sql`${JSON.stringify(data.data)}::jsonb`, now))
             .where(
               and(
                 eq(userTableRows.id, matchedRowId),
@@ -1903,6 +1903,14 @@ function jsonbMergePatch(changedColumnIds: string[], coercedRow: RowData): SQL {
   return sql`${userTableRows.data} || ${JSON.stringify(patch)}::jsonb`
 }
 
+function rowContentUpdate(data: SQL, now: Date) {
+  return {
+    data,
+    updatedAt: sql`CASE WHEN ${userTableRows.data} IS DISTINCT FROM ${data}
+      THEN ${now.toISOString()}::timestamp ELSE ${userTableRows.updatedAt} END`,
+  }
+}
+
 export async function updateRow(
   data: UpdateRowData,
   table: TableDefinition,
@@ -2064,7 +2072,7 @@ export async function updateRow(
           patchedColumnIds.size > 0
             ? await trx
                 .update(userTableRows)
-                .set({ data: persistedData, updatedAt: now })
+                .set(rowContentUpdate(persistedData, now))
                 .where(condition)
                 .returning()
             : await trx.select().from(userTableRows).where(condition).for('update')
@@ -2403,10 +2411,7 @@ async function persistBulkUpdateBatch(params: {
           const batchIds = validIds.slice(index, index + TABLE_LIMITS.UPDATE_BATCH_SIZE)
           const updated = await trx
             .update(userTableRows)
-            .set({
-              data: sql`${userTableRows.data} || ${patchJson}::jsonb`,
-              updatedAt: now,
-            })
+            .set(rowContentUpdate(sql`${userTableRows.data} || ${patchJson}::jsonb`, now))
             .where(
               and(
                 eq(userTableRows.tableId, table.id),
@@ -2891,7 +2896,7 @@ export async function batchUpdateRows(
           const dataPromises = batch.map(({ rowId, changedColumnIds, mergedData }) =>
             trx
               .update(userTableRows)
-              .set({ data: jsonbMergePatch(changedColumnIds, mergedData), updatedAt: now })
+              .set(rowContentUpdate(jsonbMergePatch(changedColumnIds, mergedData), now))
               .where(
                 and(
                   eq(userTableRows.id, rowId),
