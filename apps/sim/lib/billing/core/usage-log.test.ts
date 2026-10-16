@@ -5,6 +5,7 @@ import {
   billingSubscriptionUtilsMock,
   billingSubscriptionUtilsMockFns,
 } from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -307,6 +308,11 @@ describe('recordCumulativeUsage', () => {
     expect(select).not.toHaveBeenCalled()
     expect(mockInsert).not.toHaveBeenCalled()
     expect(mockUpdate).not.toHaveBeenCalled()
+    /** The route logs the refusal once; it is not a transaction that failed to complete. */
+    expect(getMockLogger('UsageLog').warn).not.toHaveBeenCalledWith(
+      'Cumulative usage transaction did not complete promptly',
+      expect.anything()
+    )
   })
 
   it('tops up to the higher cumulative and bills only the delta', async () => {

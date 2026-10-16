@@ -832,6 +832,7 @@ export async function recordCumulativeUsage(
   const stageDurationsMs: Partial<Record<CumulativeUsageStage, number>> = {}
   let succeeded = false
   let pgCode: string | undefined
+  let inFlight = false
   let toppedUpRowCreatedAt: Date | undefined
   const enterStage = (nextStage: CumulativeUsageStage) => {
     const now = Date.now()
@@ -1015,12 +1016,14 @@ export async function recordCumulativeUsage(
     return result
   } catch (error) {
     pgCode = getPostgresErrorCode(error)
+    /** Another attempt holding the lock is an answer, not a slow transaction; the route logs it. */
+    if (error instanceof CumulativeUsageInFlightError) inFlight = true
     throw error
   } finally {
     const now = Date.now()
     stageDurationsMs[stage] = now - stageStartedAt
     const durationMs = now - startedAt
-    if (!succeeded || durationMs >= CUMULATIVE_FLUSH_SLOW_MS) {
+    if (!inFlight && (!succeeded || durationMs >= CUMULATIVE_FLUSH_SLOW_MS)) {
       logger.warn('Cumulative usage transaction did not complete promptly', {
         eventKey,
         succeeded,

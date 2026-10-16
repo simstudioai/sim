@@ -521,6 +521,8 @@ async function updateCostInner(req: NextRequest, span: Span): Promise<NextRespon
         eventKey: error.eventKey,
         duration,
       })
+      // The closed outcome set has no in-flight value; the response code and the INFO line above
+      // tell it apart from the retryable settlement 503 that shares this outcome.
       span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
       span.setAttribute(TraceAttr.HttpStatusCode, 503)
       span.setAttribute(TraceAttr.BillingDurationMs, duration)
