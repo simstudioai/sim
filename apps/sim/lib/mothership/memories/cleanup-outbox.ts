@@ -1,8 +1,15 @@
-import { createHash } from 'node:crypto'
 import type { db } from '@sim/db'
+import { createLogger } from '@sim/logger'
+import { chunkArray } from '@sim/utils/helpers'
+import { omit } from '@sim/utils/object'
 import { z } from 'zod'
 import { env } from '@/lib/core/config/env'
-import { enqueueOutboxEvent, type OutboxHandlerRegistry } from '@/lib/core/outbox/service'
+import {
+  deferOutboxHandler,
+  enqueueOutboxEvents,
+  MAX_BULK_ENQUEUE_EVENTS,
+  type OutboxHandlerRegistry,
+} from '@/lib/core/outbox/service'
 import { SIM_AGENT_API_URL } from '@/lib/mothership/constants'
 import {
   MemoryCleanupInput,
@@ -11,13 +18,25 @@ import {
 import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
 import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
-import { getMothershipSourceEnvHeaders } from '@/lib/mothership/server/agent-url'
+import {
+  getMothershipSourceEnvHeaders,
+  MOTHERSHIP_SOURCE_ENV_HEADER,
+} from '@/lib/mothership/server/agent-url'
 
-const cleanupPayloadSchema = z.strictObject({
+const logger = createLogger('MemoryCleanup')
+
+/** Waits for a worker or configuration that is not there yet without spending the retry budget. */
+const UNAVAILABLE_RETRY_MS = 60 * 60 * 1000
+/** Statuses meaning the worker does not serve cleanup yet, not that this request failed. */
+const ENDPOINT_MISSING_STATUSES = new Set([404, 405, 501])
+
+/** Non-strict so rows enqueued with the retired `credentialFingerprint` field still parse. */
+const cleanupPayloadSchema = z.object({
   request: MemoryCleanupInput,
   baseUrl: z.url(),
-  credentialFingerprint: z.string().nullable(),
-  sourceHeaders: z.record(z.string(), z.string()),
+  sourceHeaders: z.object({
+    [MOTHERSHIP_SOURCE_ENV_HEADER]: z.enum(['dev', 'staging', 'prod']).optional(),
+  }),
 })
 
 function destinations(): string[] {
@@ -31,10 +50,6 @@ function destinations(): string[] {
   ]
 }
 
-function credentialFingerprint(): string | null {
-  return env.COPILOT_API_KEY ? createHash('sha256').update(env.COPILOT_API_KEY).digest('hex') : null
-}
-
 /**
  * Captures configured routes before deletion; notes can outlive a user's environment selection.
  * Without `COPILOT_API_KEY` this Sim never reached a worker, so it holds no notes to erase and
@@ -44,50 +59,62 @@ export async function enqueueMemoryCleanup(
   executor: Pick<typeof db, 'insert'>,
   targets: MemoryCleanupInput['target'][]
 ): Promise<void> {
-  const fingerprint = credentialFingerprint()
-  if (!fingerprint) return
+  if (!env.COPILOT_API_KEY) return
   const sourceHeaders = getMothershipSourceEnvHeaders()
-  for (const baseUrl of destinations()) {
-    for (const target of targets) {
-      await enqueueOutboxEvent(
-        executor,
-        MEMORY_CLEANUP_EVENT,
-        cleanupPayloadSchema.parse({
-          request: { version: 1, target },
-          baseUrl,
-          credentialFingerprint: fingerprint,
-          sourceHeaders,
-        })
-      )
-    }
+  const payloads = destinations().flatMap((baseUrl) =>
+    targets.map((target) =>
+      cleanupPayloadSchema.parse({ request: { version: 1, target }, baseUrl, sourceHeaders })
+    )
+  )
+  for (const batch of chunkArray(payloads, MAX_BULK_ENQUEUE_EVENTS)) {
+    await enqueueOutboxEvents(executor, MEMORY_CLEANUP_EVENT, batch)
   }
 }
 
+/**
+ * Sends the processor's current key only to a destination the processor itself configures, and
+ * replays the enqueuing deployment's source env so the worker erases that deployment's notes.
+ * A missing key, destination, or worker endpoint waits without consuming attempts: erasure must
+ * not dead-letter while configuration or the worker rollout catches up.
+ */
 export const memoryCleanupOutboxHandlers = {
   [MEMORY_CLEANUP_EVENT]: async (rawPayload, context) => {
     const payload = cleanupPayloadSchema.parse(rawPayload)
-    if (
-      !payload.credentialFingerprint ||
-      payload.credentialFingerprint !== credentialFingerprint()
-    ) {
-      throw new Error('Memory cleanup credential binding changed; operator reconciliation required')
+    if (!env.COPILOT_API_KEY) {
+      logger.warn('Memory cleanup waiting: COPILOT_API_KEY is not configured', {
+        eventId: context.eventId,
+      })
+      return deferOutboxHandler('COPILOT_API_KEY not configured', UNAVAILABLE_RETRY_MS, false)
     }
-    if (
-      !destinations().includes(payload.baseUrl) ||
-      JSON.stringify(payload.sourceHeaders) !== JSON.stringify(getMothershipSourceEnvHeaders())
-    ) {
-      throw new Error(
-        'Memory cleanup destination binding changed; operator reconciliation required'
-      )
+    if (!destinations().includes(payload.baseUrl)) {
+      logger.warn('Memory cleanup waiting: destination is not configured', {
+        eventId: context.eventId,
+        baseUrl: payload.baseUrl,
+      })
+      return deferOutboxHandler('Destination not configured', UNAVAILABLE_RETRY_MS, false)
     }
+    const sourceEnv = payload.sourceHeaders[MOTHERSHIP_SOURCE_ENV_HEADER]
     const response = await fetchGo(`${payload.baseUrl}/api/memories/cleanup`, {
       method: 'POST',
-      headers: mothershipRequestHeaders(),
+      headers: {
+        ...omit(mothershipRequestHeaders(), [MOTHERSHIP_SOURCE_ENV_HEADER]),
+        ...(sourceEnv ? { [MOTHERSHIP_SOURCE_ENV_HEADER]: sourceEnv } : {}),
+      },
       body: JSON.stringify(payload.request),
       signal: AbortSignal.any([context.signal, AbortSignal.timeout(10_000)]),
       redirect: 'error',
     })
-    if (!response.ok) throw new Error(`Memory cleanup failed (${response.status})`)
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {})
+      if (ENDPOINT_MISSING_STATUSES.has(response.status)) {
+        return deferOutboxHandler(
+          `Memory cleanup endpoint unavailable (${response.status})`,
+          UNAVAILABLE_RETRY_MS,
+          false
+        )
+      }
+      throw new Error(`Memory cleanup failed (${response.status})`)
+    }
     MemoryCleanupResult.parse(await response.json())
   },
 } satisfies OutboxHandlerRegistry
