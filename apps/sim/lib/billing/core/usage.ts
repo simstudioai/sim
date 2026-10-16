@@ -186,8 +186,9 @@ function calculateOrgUsageLimit(
 /**
  * Users created in an auth request, keyed by Better Auth's endpoint context.
  * `user.create.after` and `account.create.after` of one signup receive the same
- * context object, which is how {@link handleNewSignInAccount} tells a signup's
- * first sign-in apart from a sign-in linked to an existing user later.
+ * context object, which is how {@link handleNewSignInAccount} and
+ * {@link ensureUserStatsExists} tell a signup's first sign-in apart from a
+ * sign-in linked to an existing user later.
  */
 const usersCreatedInAuthRequest = new WeakMap<object, string>()
 
@@ -195,14 +196,18 @@ const usersCreatedInAuthRequest = new WeakMap<object, string>()
  * Handle new user setup when they join the platform.
  * Creates the userStats record with the free allowance, which is zero when the
  * user's email or an already-linked social sign-in belongs to an account
- * deleted within the retention window.
+ * deleted within the retention window. Every user Better Auth creates comes
+ * through here, including SCIM- and SSO-provisioned users, so their email is
+ * always checked at creation.
  *
  * @param authRequest Better Auth's endpoint context for the signup request, when there is one
  */
 export async function handleNewUser(userId: string, authRequest?: object | null): Promise<void> {
   if (authRequest) usersCreatedInAuthRequest.set(authRequest, userId)
   try {
-    const freeTierEligible = !(await userHasDeletedAccountIdentity(userId))
+    const freeTierEligible = !(await userHasDeletedAccountIdentity(userId, {
+      includeSignIns: true,
+    }))
     if (!freeTierEligible) {
       logger.info('Withholding the free allowance from a returning deleted-account identity', {
         userId,
@@ -229,9 +234,10 @@ export async function handleNewUser(userId: string, authRequest?: object | null)
 /**
  * The account-creation half of the signup check, for a social sign-in that was
  * not yet linked when {@link handleNewUser} ran. Only an account created in the
- * same auth request as its user is a signup; a sign-in linked to an existing
- * user later, including a SCIM- or SSO-provisioned one, never withholds
- * anything. Integration connections are skipped.
+ * same auth request as its user is a signup. A sign-in linked to an existing
+ * user in a later request never withholds anything; that includes a SCIM- or
+ * SSO-provisioned user, whose email was already checked when it was created.
+ * Integration connections are skipped.
  *
  * @param authRequest Better Auth's endpoint context for the request creating the account
  */
@@ -258,12 +264,19 @@ export async function handleNewSignInAccount(
  * Creates one with default values if missing.
  * This is a fallback for cases where the user.create.after hook didn't fire
  * or failed (e.g., OAuth account linking to existing users). A row created
- * here gets the same deleted-identity check as signup; a failed check leaves
- * the allowance in place and never fails the caller.
+ * here gets only the check signup would have made: the email always, and the
+ * linked sign-ins only when the user was created in `authRequest`, so a sign-in
+ * linked later never withholds. A failed check leaves the allowance in place
+ * and never fails the caller.
  *
  * Always writes to the primary — never takes a read-routing executor.
+ *
+ * @param authRequest Better Auth's endpoint context, when called from an auth hook
  */
-export async function ensureUserStatsExists(userId: string): Promise<void> {
+export async function ensureUserStatsExists(
+  userId: string,
+  authRequest?: object | null
+): Promise<void> {
   const created = await db
     .insert(userStats)
     .values({
@@ -277,7 +290,12 @@ export async function ensureUserStatsExists(userId: string): Promise<void> {
   if (created.length === 0) return
 
   try {
-    if (await userHasDeletedAccountIdentity(userId)) await forfeitFreeTierAllowance(userId)
+    const includeSignIns = authRequest
+      ? usersCreatedInAuthRequest.get(authRequest) === userId
+      : false
+    if (await userHasDeletedAccountIdentity(userId, { includeSignIns })) {
+      await forfeitFreeTierAllowance(userId)
+    }
   } catch (error) {
     logger.error('Failed to withhold the free allowance from a fallback stats row', {
       userId,

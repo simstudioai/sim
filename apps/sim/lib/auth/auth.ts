@@ -651,7 +651,7 @@ export const auth = betterAuth({
 
           try {
             const { ensureUserStatsExists } = await import('@/lib/billing/core/usage')
-            await ensureUserStatsExists(account.userId)
+            await ensureUserStatsExists(account.userId, context)
           } catch (error) {
             logger.error('[databaseHooks.account.create.after] Failed to ensure user stats', {
               userId: account.userId,

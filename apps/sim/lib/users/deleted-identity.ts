@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account, deletedAccountIdentity, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { hmacSha256Hex } from '@sim/security/hmac'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import { isSignInProviderAllowed, SIGN_IN_PROVIDER_IDS } from '@/lib/auth/constants'
 import { env } from '@/lib/core/config/env'
@@ -138,34 +139,47 @@ async function loadSignInIdentity(executor: DbOrTx, userId: string): Promise<Sig
  * Records the sign-in identities of an account being deleted at its holder's
  * request. Runs inside the deletion transaction, before the `user` row and its
  * `account` rows cascade away, so the record and the erasure commit together.
+ *
+ * The write runs in a savepoint and never fails the deletion: an anti-abuse
+ * record must not become a way to block an erasure request. On failure the
+ * savepoint rolls back, nothing is recorded, and the deletion proceeds.
  */
 export async function recordDeletedAccountIdentities(tx: DbOrTx, userId: string): Promise<void> {
   if (!isBillingEnabled) return
 
-  const hashes = identityHashes(await loadSignInIdentity(tx, userId))
-  if (hashes.length === 0) return
+  try {
+    await tx.transaction(async (savepoint) => {
+      const hashes = identityHashes(await loadSignInIdentity(savepoint, userId))
+      if (hashes.length === 0) return
 
-  await tx
-    .delete(deletedAccountIdentity)
-    .where(
-      inArray(
-        deletedAccountIdentity.identityHash,
-        tx
-          .select({ identityHash: deletedAccountIdentity.identityHash })
-          .from(deletedAccountIdentity)
-          .where(lte(deletedAccountIdentity.expiresAt, sql`now()`))
-          .limit(EXPIRED_PURGE_BATCH)
-      )
-    )
+      await savepoint
+        .delete(deletedAccountIdentity)
+        .where(
+          inArray(
+            deletedAccountIdentity.identityHash,
+            savepoint
+              .select({ identityHash: deletedAccountIdentity.identityHash })
+              .from(deletedAccountIdentity)
+              .where(lte(deletedAccountIdentity.expiresAt, sql`now()`))
+              .limit(EXPIRED_PURGE_BATCH)
+          )
+        )
 
-  const expiresAt = new Date(Date.now() + DELETED_IDENTITY_RETENTION_MS)
-  await tx
-    .insert(deletedAccountIdentity)
-    .values(hashes.map((identityHash) => ({ identityHash, expiresAt })))
-    .onConflictDoUpdate({
-      target: deletedAccountIdentity.identityHash,
-      set: { deletedAt: sql`now()`, expiresAt },
+      const expiresAt = new Date(Date.now() + DELETED_IDENTITY_RETENTION_MS)
+      await savepoint
+        .insert(deletedAccountIdentity)
+        .values(hashes.map((identityHash) => ({ identityHash, expiresAt })))
+        .onConflictDoUpdate({
+          target: deletedAccountIdentity.identityHash,
+          set: { deletedAt: sql`now()`, expiresAt },
+        })
     })
+  } catch (error) {
+    logger.warn('Could not record deleted-account identities; continuing the deletion', {
+      userId,
+      error: getErrorMessage(error),
+    })
+  }
 }
 
 /**
@@ -196,15 +210,20 @@ export async function isDeletedAccountIdentity(identity: SignInIdentity): Promis
 }
 
 /**
- * Whether an existing user's email, or any social sign-in already linked to it,
- * belonged to an account deleted within the retention window. Used when the
- * user's stats row is created, which in an OAuth signup happens after its first
- * sign-in account is committed. Fails open like {@link isDeletedAccountIdentity}.
+ * Whether an existing user's identities belonged to an account deleted within
+ * the retention window: always its email, and its linked social sign-ins only
+ * when `includeSignIns` is set, which callers do only for a user created in the
+ * current signup request (a sign-in linked later never withholds anything).
+ * Fails open like {@link isDeletedAccountIdentity}.
  */
-export async function userHasDeletedAccountIdentity(userId: string): Promise<boolean> {
+export async function userHasDeletedAccountIdentity(
+  userId: string,
+  { includeSignIns }: { includeSignIns: boolean }
+): Promise<boolean> {
   if (!isBillingEnabled) return false
   try {
-    return await isDeletedAccountIdentity(await loadSignInIdentity(db, userId))
+    const identity = await loadSignInIdentity(db, userId)
+    return await isDeletedAccountIdentity(includeSignIns ? identity : { email: identity.email })
   } catch (error) {
     logger.error('Deleted-identity lookup failed; granting the free allowance', { userId, error })
     return false

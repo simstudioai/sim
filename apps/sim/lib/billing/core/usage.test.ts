@@ -450,6 +450,25 @@ describe('withholding the free allowance from a returning deleted identity', () 
     expect(forfeited()).toBe(true)
   })
 
+  it('checks a fallback row’s linked sign-ins only for a user created in the same request', async () => {
+    mockUserHasDeletedAccountIdentity.mockImplementation(
+      async (_userId: string, { includeSignIns }: { includeSignIns: boolean }) => includeSignIns
+    )
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'stats-1' }])
+      .mockResolvedValueOnce([{ id: 'stats-1' }])
+
+    await ensureUserStatsExists('user-1', {})
+    await ensureUserStatsExists('user-1')
+    expect(forfeited()).toBe(false)
+
+    const signupRequest = {}
+    await handleNewUser('user-1', signupRequest)
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'stats-1' }])
+    await ensureUserStatsExists('user-1', signupRequest)
+    expect(forfeited()).toBe(true)
+  })
+
   it('never fails the caller when withholding from a fallback row fails', async () => {
     mockUserHasDeletedAccountIdentity.mockResolvedValue(true)
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'stats-1' }])

@@ -248,6 +248,21 @@ describe('deleted account identities and the free allowance', () => {
     expect(await statsOf(stranger)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
   })
 
+  it('never withholds from a stats-less user’s fallback row for a sign-in linked in a later request', async () => {
+    const google = { providerId: 'google', accountId: `google-${generateId()}` }
+    await deleteOwnAccount(
+      await signUp(`google-gone.${generateId()}@deleted-identity.test`, google)
+    )
+    const legacy = await insertUser(`legacy.${generateId()}@deleted-identity.test`)
+    const laterRequest = {}
+    await linkAccount(legacy, google)
+
+    await ensureUserStatsExists(legacy, laterRequest)
+    await handleNewSignInAccount({ userId: legacy, ...google }, laterRequest)
+
+    expect(await statsOf(legacy)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+  })
+
   it('records only sign-in identities, as keyed digests holding no address or subject', async () => {
     const email = `digest.${generateId()}@deleted-identity.test`
     const githubSubject = `gh-${generateId()}`
