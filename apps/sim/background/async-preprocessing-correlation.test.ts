@@ -414,6 +414,20 @@ describe('async preprocessing correlation threading', () => {
       expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
     })
 
+    it('still fails the job when the deadline passes while finalization settles', async () => {
+      const error = recordedError()
+      mockExecuteWorkflowCore.mockRejectedValueOnce(error)
+      let timedOut = false
+      mockIsWorkflowTimedOut.mockImplementation(() => timedOut)
+      loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(async () => {
+        await Promise.resolve()
+        timedOut = true
+      })
+      mockWasExecutionFinalizedByCore.mockReturnValue(true)
+
+      await expect(runRecordedFailure('execution-recorded-deadline')).rejects.toBe(error)
+    })
+
     it('still fails the job when the run passed its deadline', async () => {
       const error = recordedError()
       mockExecuteWorkflowCore.mockRejectedValueOnce(error)
@@ -573,6 +587,7 @@ describe('async preprocessing correlation threading', () => {
       { statusCode: 402, message: 'Usage limit exceeded. Please upgrade your plan to continue.' },
       { statusCode: 429, message: 'Rate limit exceeded. Please try again later.' },
     ])('completes the job for a non-retryable $statusCode', async ({ statusCode, message }) => {
+      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(true)
       await expect(runRejected({ statusCode, message })).resolves.toMatchObject({
         success: false,
         workflowId: 'workflow-1',
@@ -582,6 +597,14 @@ describe('async preprocessing correlation threading', () => {
       expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
         expect.objectContaining({ error: expect.objectContaining({ message }) })
       )
+    })
+
+    it('fails the job when the rejection could not be logged', async () => {
+      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
+
+      await expect(
+        runRejected({ statusCode: 403, message: 'Workflow is not deployed' })
+      ).rejects.toThrow('Workflow is not deployed')
     })
 
     it.each([

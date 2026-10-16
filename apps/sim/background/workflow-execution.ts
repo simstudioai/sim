@@ -332,10 +332,10 @@ export async function executeWorkflowJob(
         if (error instanceof ExecutionTimeoutError) throw error
 
         // A failure core already recorded is the workflow's outcome, not a job fault; a run past
-        // its deadline still fails the job so timeouts keep alerting.
+        // its deadline (checked after the await, which can outlast it) still fails the job.
         if (
-          !timeoutController.isTimedOut() &&
-          (await isRecordedWorkflowFailure(error, executionId, loggingSession))
+          (await isRecordedWorkflowFailure(error, executionId, loggingSession)) &&
+          !timeoutController.isTimedOut()
         ) {
           trace.getActiveSpan()?.recordException(toError(error))
           return buildRecordedJobFailureResult({
@@ -359,7 +359,12 @@ export async function executeWorkflowJob(
           executionState: executionResult?.executionState,
         })
 
-        if (preprocessingRejection && isNonFaultPreprocessingRejection(preprocessingRejection)) {
+        // Complete only when the rejection is durably logged; an unsaved one must still alert.
+        if (
+          preprocessingRejection &&
+          isNonFaultPreprocessingRejection(preprocessingRejection) &&
+          loggingSession.hasCompleted()
+        ) {
           trace.getActiveSpan()?.recordException(toError(error))
           return buildRecordedJobFailureResult({
             workflowId,
