@@ -139,10 +139,10 @@ it('rolls cleanup back with deletion and retries committed account/target erasur
   expect(received.every((request) => request.key === 'memory-cleanup-fixture-key')).toBe(true)
 
   const first = events[0]
-  const replay = async (payload: unknown = first.payload) => {
+  const replay = async (payload: unknown = first.payload, attempts = 9) => {
     await db
       .update(outboxEvent)
-      .set({ status: 'pending', availableAt: new Date(0), attempts: 9, payload })
+      .set({ status: 'pending', availableAt: new Date(0), attempts, payload })
       .where(eq(outboxEvent.id, first.id))
     await runtime.outbox.processOutboxEventById(
       first.id,
@@ -161,11 +161,18 @@ it('rolls cleanup back with deletion and retries committed account/target erasur
   waitsAnHour(await replay())
   expect(received).toHaveLength(before + 1)
 
+  status = 401
+  const rejected = await replay(first.payload, 5)
+  expect(rejected).toMatchObject({ status: 'pending', attempts: 6 })
+  expect(rejected.availableAt.getTime()).toBeGreaterThan(Date.now() + 50 * 60_000)
+  expect(await replay()).toMatchObject({ status: 'dead_letter', attempts: 10 })
+  expect(received).toHaveLength(before + 3)
+
   status = 200
   waitsAnHour(await replay({ ...toRecord(first.payload), baseUrl: 'https://unconfigured.test' }))
-  expect(received).toHaveLength(before + 1)
+  expect(received).toHaveLength(before + 3)
 
   const legacy = await replay({ ...toRecord(first.payload), credentialFingerprint: 'retired' })
   expect(legacy.status).toBe('completed')
-  expect(received).toHaveLength(before + 2)
+  expect(received).toHaveLength(before + 4)
 }, 30_000)

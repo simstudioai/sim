@@ -29,9 +29,15 @@ const logger = createLogger('MemoryCleanup')
 const UNAVAILABLE_RETRY_MS = 60 * 60 * 1000
 /**
  * Statuses meaning the worker does not serve cleanup yet, not that this request failed: a worker
- * that predates the route answers 404 to the hosted key and 401 to a self-hosted customer key.
+ * that predates the route answers 404 to the hosted key.
  */
-const ENDPOINT_MISSING_STATUSES = new Set([401, 404, 405, 501])
+const ENDPOINT_MISSING_STATUSES = new Set([404, 405, 501])
+/**
+ * A worker that predates the route also answers this to a self-hosted customer key, but so does a
+ * worker that revoked the key for good: it waits like a missing route but spends an attempt, so a
+ * revoked key dead-letters after the default attempts (about ten hours), past a worker rollout.
+ */
+const UNAUTHORIZED_STATUS = 401
 
 /** Non-strict so rows enqueued with the retired `credentialFingerprint` field still parse. */
 const cleanupPayloadSchema = z.object({
@@ -74,16 +80,21 @@ export async function enqueueMemoryCleanup(
   }
 }
 
-function waitForWorker(reason: string, eventId: string, detail?: Record<string, string>) {
+function waitForWorker(
+  reason: string,
+  eventId: string,
+  { consumeAttempt = false, ...detail }: { baseUrl?: string; consumeAttempt?: boolean } = {}
+) {
   logger.warn(`Memory cleanup waiting: ${reason}`, { eventId, ...detail })
-  return deferOutboxHandler(reason, UNAVAILABLE_RETRY_MS, false)
+  return deferOutboxHandler(reason, UNAVAILABLE_RETRY_MS, consumeAttempt)
 }
 
 /**
  * Sends the processor's current key only to a destination the processor itself configures, and
  * replays the enqueuing deployment's source env so the worker erases that deployment's notes.
  * A missing key, destination, or worker endpoint waits without consuming attempts: erasure must
- * not dead-letter while configuration or the worker rollout catches up.
+ * not dead-letter while configuration or the worker rollout catches up. A rejected key waits too,
+ * but within the retry budget.
  */
 export const memoryCleanupOutboxHandlers = {
   [MEMORY_CLEANUP_EVENT]: async (rawPayload, context) => {
@@ -109,6 +120,10 @@ export const memoryCleanupOutboxHandlers = {
       await response.body?.cancel().catch(() => {})
       if (ENDPOINT_MISSING_STATUSES.has(response.status))
         return waitForWorker(`endpoint unavailable (${response.status})`, context.eventId)
+      if (response.status === UNAUTHORIZED_STATUS)
+        return waitForWorker('worker rejected the key (401)', context.eventId, {
+          consumeAttempt: true,
+        })
       throw new Error(`Memory cleanup failed (${response.status})`)
     }
     MemoryCleanupResult.parse(await response.json())
