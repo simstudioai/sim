@@ -924,3 +924,27 @@ describe('TriggerDevJobQueue workspace cancellation', () => {
     )
   })
 })
+
+describe('TriggerDevJobQueue workspace cancellation past refusing runs', () => {
+  beforeEach(() => {
+    mockList.mockReset()
+    mockCancel.mockReset()
+  })
+
+  it('reaches later runs when the first ones keep refusing cancellation', async () => {
+    const listed = Array.from({ length: 15 }, (_, index) => ({
+      id: `run-${index}`,
+      tags: ['workspaceId:removed'],
+    }))
+    mockList.mockImplementation(() => createListPage(listed))
+    const refusing = new Set(['run-0', 'run-1', 'run-2'])
+    mockCancel.mockImplementation(async (runId: string) => {
+      if (refusing.has(runId)) throw new MockApiError(500, { message: 'refused' })
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 5 })).rejects.toThrow('refused')
+
+    expect(mockCancel).toHaveBeenCalledWith('run-9')
+  })
+})

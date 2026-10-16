@@ -332,7 +332,9 @@ export async function disableUserResources(userId: string): Promise<void> {
   const stopRuns = async (workspaceIds: string[]): Promise<void> => {
     if (workspaceIds.length === 0) return
     try {
-      const executions = await db.transaction((tx) => recordExecutionStops(tx, { workspaceIds }))
+      const executions = await db.transaction((tx) =>
+        recordExecutionStops(tx, { workspaceIds, ownerId: userId })
+      )
       await signalExecutionStops(executions)
     } catch (error) {
       stopFailed = true

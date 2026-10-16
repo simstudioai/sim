@@ -3,10 +3,10 @@ import { resumeQueue, workflow, workflowExecutionLogs, workspace } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
 import { chunkArray } from '@sim/utils/helpers'
-import { and, eq, inArray, or, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, type SQL } from 'drizzle-orm'
 import { enqueueOutboxEvents, MAX_BULK_ENQUEUE_EVENTS } from '@/lib/core/outbox/service'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
@@ -181,10 +181,28 @@ export async function enqueueExecutionStops(
  * Returns the executions, to signal at once with {@link signalExecutionStops} after commit.
  */
 export async function recordExecutionStops(
-  executor: DbOrTx,
-  scope: ExecutionStopScope
+  executor: DbTransaction,
+  scope: ExecutionStopScope & {
+    /**
+     * Stop only the workspaces this user still owns. Their rows are held `FOR SHARE` until the
+     * caller commits, so an ownership transfer racing the stop waits for it instead of having its
+     * new owner's runs stopped. Only workspace rows are locked, so no lock order is inverted.
+     */
+    ownerId?: string
+  }
 ): Promise<ExecutionStopPlan['executions']> {
-  const plan = await collectExecutionStops(executor, scope)
+  let { workspaceIds } = scope
+  if (scope.ownerId && workspaceIds.length > 0) {
+    const stillOwned = await executor
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(and(inArray(workspace.id, [...workspaceIds]), eq(workspace.ownerId, scope.ownerId)))
+      .orderBy(asc(workspace.id))
+      .for('share')
+    workspaceIds = stillOwned.map((row) => row.id)
+    if (workspaceIds.length === 0 && !scope.workflowsCreatedBy) return []
+  }
+  const plan = await collectExecutionStops(executor, { ...scope, workspaceIds })
   await enqueueExecutionStops(executor, plan)
   return plan.executions
 }

@@ -675,7 +675,6 @@ export class TriggerDevJobQueue implements JobQueueBackend {
   ): Promise<WorkspaceJobCancellationResult> {
     const workspaceTag = buildWorkspaceTag(workspaceId)
     const state: CancellationScanState = { cancelledJobs: 0, failureCount: 0 }
-    let inspectedRuns = 0
     let complete = true
 
     await scanAndCancelTriggerRuns({
@@ -688,16 +687,24 @@ export class TriggerDevJobQueue implements JobQueueBackend {
           from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
           limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
         }),
+      /**
+       * Only cancelled runs count toward the cap, so runs that keep refusing cancellation cannot
+       * hold every retry at the front of the listing; a separate bound on failures keeps one call
+       * finite. Both are counted per chunk, so a call may overshoot `maxRuns` by under a chunk.
+       */
       shouldStop: () => {
-        if (inspectedRuns < options.maxRuns && !options.signal?.aborted) return false
+        if (
+          state.cancelledJobs < options.maxRuns &&
+          state.failureCount < options.maxRuns &&
+          !options.signal?.aborted
+        ) {
+          return false
+        }
         complete = false
         return true
       },
-      selectCandidate: (run) => {
-        if (!run.tags.includes(workspaceTag)) return undefined
-        inspectedRuns += 1
-        return { id: run.id, verifyPayload: false }
-      },
+      selectCandidate: (run) =>
+        run.tags.includes(workspaceTag) ? { id: run.id, verifyPayload: false } : undefined,
       state,
     })
 
