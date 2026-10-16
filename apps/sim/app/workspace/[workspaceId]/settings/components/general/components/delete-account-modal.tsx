@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { formatQuotedNameList, normalizeEmail } from '@sim/utils/string'
 import { signOut } from '@/lib/auth/client'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useAccountDeletionPlan, useDeleteAccount } from '@/hooks/queries/account-deletion'
 import { clearUserData } from '@/stores'
 
@@ -42,6 +43,7 @@ function names(workspaces: { name: string }[]): string {
  */
 export function DeleteAccountModal({ open, onOpenChange, email }: DeleteAccountModalProps) {
   const [confirmEmail, setConfirmEmail] = useState('')
+  const { billingEnabled } = useDeploymentShape()
   const { data: plan, isFetching: isPlanFetching, error: planError } = useAccountDeletionPlan(open)
   const deleteAccount = useDeleteAccount()
 
@@ -128,6 +130,12 @@ export function DeleteAccountModal({ open, onOpenChange, email }: DeleteAccountM
             workflows, chats, files, knowledge bases and credentials.{' '}
             <span className='text-[var(--text-error)]'>This cannot be undone.</span>
           </p>
+          {billingEnabled && (
+            <p className='text-[var(--text-secondary)] text-sm'>
+              Free credits are granted once per person. A new account on this email or sign-in
+              starts without them for a year.
+            </p>
+          )}
           {toDelete.length > 0 && (
             <p className='text-[var(--text-secondary)] text-sm'>
               {toDelete.length === 1 ? 'The workspace ' : 'The workspaces '}

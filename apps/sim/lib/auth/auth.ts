@@ -93,7 +93,7 @@ import {
   syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
-import { handleNewUser } from '@/lib/billing/core/usage'
+import { handleNewSignInAccount, handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
@@ -405,7 +405,7 @@ export const auth = betterAuth({
           }
 
           try {
-            await handleNewUser(user.id)
+            await handleNewUser(user.id, context)
           } catch (error) {
             logger.error('[databaseHooks.user.create.after] Failed to initialize user stats', {
               userId: user.id,
@@ -656,6 +656,15 @@ export const auth = betterAuth({
             logger.error('[databaseHooks.account.create.after] Failed to ensure user stats', {
               userId: account.userId,
               accountId: account.id,
+              error,
+            })
+          }
+
+          try {
+            await handleNewSignInAccount(account, context)
+          } catch (error) {
+            logger.error('[databaseHooks.account.create.after] Deleted-identity check failed', {
+              userId: account.userId,
               error,
             })
           }

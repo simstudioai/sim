@@ -351,10 +351,12 @@ export const GENERATED_SCHEMA_TABLES = {
     'creditBalance',
     'lastPeriodCopilotCost',
     'storageUsedBytes',
+    'freeTierEligible',
     'billingBlocked',
     'billingBlockedReason',
     'limitNotifications',
   ],
+  deletedAccountIdentity: ['identityHash', 'deletedAt', 'expiresAt'],
   customTools: ['id', 'workspaceId', 'userId', 'title', 'schema', 'code', 'createdAt', 'updatedAt'],
   skill: [
     'id',

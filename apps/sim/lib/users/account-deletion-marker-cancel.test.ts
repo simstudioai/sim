@@ -49,7 +49,7 @@ describe('deleteUserAccount and the account’s pre-stamped cell markers', () =>
    * subject then reads as an actorless run with no per-tool gate.
    */
   it('terminalizes the account’s still-unstarted markers', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.tableRowExecutions)
     const filter = markerCancelFilter()
@@ -61,7 +61,7 @@ describe('deleteUserAccount and the account’s pre-stamped cell markers', () =>
 
   /** Only the states a marker sits in before a worker claims it. */
   it('leaves running and terminal cells alone', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(
       hasMockCondition(
@@ -77,7 +77,7 @@ describe('deleteUserAccount and the account’s pre-stamped cell markers', () =>
 
   /** After the FK nulls the subject there is nothing left to match on. */
   it('runs before the user row is deleted', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     const markerCancelOrder = dbChainMockFns.update.mock.calls.reduce(
       (found, call, index) =>

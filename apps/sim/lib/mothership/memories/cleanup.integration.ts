@@ -95,7 +95,7 @@ it('rolls cleanup back with deletion and retries committed account/target erasur
       )
   expect(await pending()).toEqual([])
 
-  await runtime.deletion.deleteUserAccount(userId)
+  await runtime.deletion.deleteUserAccount(userId, { recordIdentity: false })
   expect(await db.select({ id: user.id }).from(user).where(eq(user.id, userId))).toEqual([])
   expect(
     await db.select({ id: workspace.id }).from(workspace).where(eq(workspace.id, workspaceId))

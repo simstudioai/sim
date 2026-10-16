@@ -211,7 +211,7 @@ describe('provisionScimUser', () => {
     expect(error.message).toContain('no available seats')
     expect(mocks.insertScimUser).not.toHaveBeenCalled()
     expect(mocks.reconcile).not.toHaveBeenCalled()
-    expect(mocks.deleteAccount).toHaveBeenCalledWith('u-new')
+    expect(mocks.deleteAccount).toHaveBeenCalledWith('u-new', { recordIdentity: false })
     expect(mocks.recordAudit).not.toHaveBeenCalled()
     expect(mocks.reconcileSeats).not.toHaveBeenCalled()
   })
@@ -221,7 +221,7 @@ describe('provisionScimUser', () => {
     mocks.insertScimUser.mockRejectedValue(new Error('lock timeout'))
     const error = await run(attributes()).catch((caught) => caught)
     expect(error.message).toBe('lock timeout')
-    expect(mocks.deleteAccount).toHaveBeenCalledWith('u-new')
+    expect(mocks.deleteAccount).toHaveBeenCalledWith('u-new', { recordIdentity: false })
   })
 
   it('never deletes a pre-existing account when linking fails', async () => {

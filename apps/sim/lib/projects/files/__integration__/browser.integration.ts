@@ -296,7 +296,7 @@ describe('Project browser real mixed collection', () => {
       const deleted = await f.addFile('deleted.txt', 1, { userId: f.creatorId })
       const deletedFolder = await f.addFolder('deleted-folder', undefined, f.creatorId)
       const live = await f.addFile('live.txt', 1)
-      await deleteUserAccount(f.creatorId)
+      await deleteUserAccount(f.creatorId, { recordIdentity: false })
       const page = await f.list()
       expect(page.items.find((item) => item.id === deleted)?.creator).toMatchObject({
         id: f.ownerId,

@@ -613,7 +613,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     })
     const bystander = await seedRun({ userId: ownerId, workspaceId: await seedWorkspace(ownerId) })
 
-    await deleteUserAccount(departingId)
+    await deleteUserAccount(departingId, { recordIdentity: false })
 
     await expect.poll(pushedStops).toEqual([first.streamId, second.streamId].sort())
     expect(await runControl(first)).toEqual(STOPPED)
@@ -629,7 +629,9 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
       workspaceId: await seedWorkspace(ownerId, [departingId]),
     })
 
-    await expect(deleteUserAccount(departingId)).rejects.toBeInstanceOf(AccountDeletionBlockedError)
+    await expect(deleteUserAccount(departingId, { recordIdentity: false })).rejects.toBeInstanceOf(
+      AccountDeletionBlockedError
+    )
 
     expect(pushedStops()).toEqual([])
     expect(await hasStop(run)).toBe(false)

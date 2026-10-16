@@ -3,6 +3,7 @@ import { member, organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
+import { isSignInProviderAllowed } from '@/lib/auth/constants'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
@@ -31,6 +32,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   canEditUsageLimit,
+  getFreeTierAllowance,
   getFreeTierLimit,
   getPerUserMinimumLimit,
   getPlanPricing,
@@ -43,8 +45,12 @@ import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { DbClient } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import {
+  isDeletedAccountIdentity,
+  userHasDeletedAccountIdentity,
+} from '@/lib/users/deleted-identity'
 
 const logger = createLogger('UsageManagement')
 
@@ -178,15 +184,35 @@ function calculateOrgUsageLimit(
 }
 
 /**
- * Handle new user setup when they join the platform
- * Creates userStats record with default free credits
+ * Users created in an auth request, keyed by Better Auth's endpoint context.
+ * `user.create.after` and `account.create.after` of one signup receive the same
+ * context object, which is how {@link handleNewSignInAccount} tells a signup's
+ * first sign-in apart from a sign-in linked to an existing user later.
  */
-export async function handleNewUser(userId: string): Promise<void> {
+const usersCreatedInAuthRequest = new WeakMap<object, string>()
+
+/**
+ * Handle new user setup when they join the platform.
+ * Creates the userStats record with the free allowance, which is zero when the
+ * user's email or an already-linked social sign-in belongs to an account
+ * deleted within the retention window.
+ *
+ * @param authRequest Better Auth's endpoint context for the signup request, when there is one
+ */
+export async function handleNewUser(userId: string, authRequest?: object | null): Promise<void> {
+  if (authRequest) usersCreatedInAuthRequest.set(authRequest, userId)
   try {
+    const freeTierEligible = !(await userHasDeletedAccountIdentity(userId))
+    if (!freeTierEligible) {
+      logger.info('Withholding the free allowance from a returning deleted-account identity', {
+        userId,
+      })
+    }
     await db.insert(userStats).values({
       id: generateId(),
       userId: userId,
-      currentUsageLimit: getFreeTierLimit().toString(),
+      currentUsageLimit: getFreeTierAllowance(freeTierEligible).toString(),
+      freeTierEligible,
       usageLimitUpdatedAt: new Date(),
     })
 
@@ -201,15 +227,44 @@ export async function handleNewUser(userId: string): Promise<void> {
 }
 
 /**
+ * The account-creation half of the signup check, for a social sign-in that was
+ * not yet linked when {@link handleNewUser} ran. Only an account created in the
+ * same auth request as its user is a signup; a sign-in linked to an existing
+ * user later, including a SCIM- or SSO-provisioned one, never withholds
+ * anything. Integration connections are skipped.
+ *
+ * @param authRequest Better Auth's endpoint context for the request creating the account
+ */
+export async function handleNewSignInAccount(
+  {
+    userId,
+    providerId,
+    accountId,
+  }: {
+    userId: string
+    providerId: string
+    accountId: string
+  },
+  authRequest: object | null | undefined
+): Promise<void> {
+  if (!authRequest || usersCreatedInAuthRequest.get(authRequest) !== userId) return
+  if (!isSignInProviderAllowed(providerId)) return
+  if (!(await isDeletedAccountIdentity({ oauthSubjects: [{ providerId, accountId }] }))) return
+  await forfeitFreeTierAllowance(userId)
+}
+
+/**
  * Ensures a userStats record exists for a user.
  * Creates one with default values if missing.
  * This is a fallback for cases where the user.create.after hook didn't fire
- * (e.g., OAuth account linking to existing users).
+ * or failed (e.g., OAuth account linking to existing users). A row created
+ * here gets the same deleted-identity check as signup; a failed check leaves
+ * the allowance in place and never fails the caller.
  *
  * Always writes to the primary — never takes a read-routing executor.
  */
 export async function ensureUserStatsExists(userId: string): Promise<void> {
-  await db
+  const created = await db
     .insert(userStats)
     .values({
       id: generateId(),
@@ -218,6 +273,17 @@ export async function ensureUserStatsExists(userId: string): Promise<void> {
       usageLimitUpdatedAt: new Date(),
     })
     .onConflictDoNothing({ target: userStats.userId })
+    .returning({ id: userStats.id })
+  if (created.length === 0) return
+
+  try {
+    if (await userHasDeletedAccountIdentity(userId)) await forfeitFreeTierAllowance(userId)
+  } catch (error) {
+    logger.error('Failed to withhold the free allowance from a fallback stats row', {
+      userId,
+      error,
+    })
+  }
 }
 
 interface ResolvedUserUsageData {
@@ -293,7 +359,7 @@ async function getResolvedUserUsageData(
     } else {
       limit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
-        : getFreeTierLimit()
+        : getFreeTierAllowance(stats.freeTierEligible)
     }
 
     const billingPeriodStart = billingPeriod.source === 'default' ? null : billingPeriod.start
@@ -384,8 +450,8 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     } else {
       currentLimit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
-        : getFreeTierLimit()
-      minimumLimit = getPerUserMinimumLimit(subscription)
+        : getFreeTierAllowance(stats.freeTierEligible)
+      minimumLimit = getPerUserMinimumLimit(subscription, stats.freeTierEligible)
       canEdit = canEditUsageLimit(subscription)
     }
 
@@ -433,7 +499,8 @@ export async function updateUserUsageLimit(
       return { success: false, error: 'An active subscription is required to edit usage limits' }
     }
 
-    const minimumLimit = getPerUserMinimumLimit(subscription)
+    // Reached only with a usable paid personal plan, whose floor never depends on the free allowance.
+    const minimumLimit = getPerUserMinimumLimit(subscription, true)
 
     logger.info('Applying plan-based validation', {
       userId,
@@ -511,6 +578,7 @@ export async function getUserUsageLimit(
     .select({
       currentUsageLimit: userStats.currentUsageLimit,
       creditBalance: userStats.creditBalance,
+      freeTierEligible: userStats.freeTierEligible,
     })
     .from(userStats)
     .where(eq(userStats.userId, userId))
@@ -525,8 +593,8 @@ export async function getUserUsageLimit(
   if (!userStatsQuery[0].currentUsageLimit) {
     const baseLimit =
       subscription && hasPaidSubscriptionStatus(subscription.status)
-        ? getPerUserMinimumLimit(subscription)
-        : getFreeTierLimit()
+        ? getPerUserMinimumLimit(subscription, userStatsQuery[0].freeTierEligible)
+        : getFreeTierAllowance(userStatsQuery[0].freeTierEligible)
     const fallbackLimit = toDecimal(baseLimit).plus(toDecimal(userStatsQuery[0].creditBalance))
 
     try {
@@ -598,24 +666,49 @@ export async function checkUsageStatus(userId: string): Promise<{
 }
 
 /**
+ * Withholds the free allowance from a new account found to reuse the sign-in
+ * identity of a recently deleted one after its stats row was created. The flag
+ * and the limit it implies commit together, so a failed re-derivation can never
+ * leave the account flagged but still holding the free limit; repeating the
+ * call is harmless.
+ */
+async function forfeitFreeTierAllowance(userId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.update(userStats).set({ freeTierEligible: false }).where(eq(userStats.userId, userId))
+    await syncUsageLimitsFromSubscription(userId, tx)
+  })
+  logger.info('Withheld the free allowance from a returning deleted-account identity', { userId })
+}
+
+/**
  * Syncs the user's personal billing pool from their exact personal subscription.
  * Organization subscriptions have a separate pool and never clear personal limits.
  */
-export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
-  const [subscription, currentUserStats] = await Promise.all([
-    getHighestPriorityPersonalSubscription(userId, { onError: 'throw' }),
-    db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
-  ])
+export async function syncUsageLimitsFromSubscription(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<void> {
+  const subscription = await getHighestPriorityPersonalSubscription(userId, {
+    onError: 'throw',
+    executor,
+  })
+  const currentUserStats = await executor
+    .select()
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .limit(1)
 
   if (currentUserStats.length === 0) {
     throw new Error(`User stats not found for userId: ${userId}`)
   }
 
-  const baseLimit = toDecimal(getPerUserMinimumLimit(subscription)).toString()
+  const baseLimit = toDecimal(
+    getPerUserMinimumLimit(subscription, currentUserStats[0].freeTierEligible)
+  ).toString()
   const hasEntitledPersonalSubscription =
     subscription !== null && hasPaidSubscriptionStatus(subscription.status)
   const liveMinimum = sql`${baseLimit}::numeric + ${userStats.creditBalance}`
-  await db
+  await executor
     .update(userStats)
     .set({
       currentUsageLimit: hasEntitledPersonalSubscription

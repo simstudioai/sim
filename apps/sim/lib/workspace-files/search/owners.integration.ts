@@ -681,7 +681,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       onError: 'throw',
     })
     expect(removal.success).toBe(true)
-    await deleteUserAccount(f.readerId)
+    await deleteUserAccount(f.readerId, { recordIdentity: false })
     const surviving = { ...f, reader: f.principal }
     await indexWorkspaceFileForSearch({ owner: f.owner, ...(await claim(created.file.id)) }, signal)
     expect((await search(surviving, 'folderneedle', { folderPaths: [] })).results).toEqual([])

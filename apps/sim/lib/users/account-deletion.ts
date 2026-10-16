@@ -60,6 +60,7 @@ import {
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 import { isPublicStorageKey } from '@/lib/uploads/utils/file'
+import { recordDeletedAccountIdentities } from '@/lib/users/deleted-identity'
 import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
 import {
   collectAccountStorageObjects,
@@ -734,6 +735,15 @@ async function announceCancelledTableWork(
   }
 }
 
+interface DeleteUserAccountOptions {
+  /**
+   * Keep keyed digests of the account's sign-in identities so a new account on
+   * them gets no second free allowance. True for a holder-requested erasure;
+   * false for rolling back an account that was never handed to anyone.
+   */
+  recordIdentity: boolean
+}
+
 /**
  * Erases an account and everything only it can reach.
  *
@@ -763,7 +773,10 @@ async function announceCancelledTableWork(
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
  */
-export async function deleteUserAccount(userId: string): Promise<AccountDeletionPlan> {
+export async function deleteUserAccount(
+  userId: string,
+  { recordIdentity }: DeleteUserAccountOptions
+): Promise<AccountDeletionPlan> {
   const plan = await getAccountDeletionPlan(userId)
   if (plan.blockers.length > 0) throw new AccountDeletionBlockedError(plan.blockers)
 
@@ -1002,6 +1015,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ...doomedWorkspaceIds.map((workspaceId) => ({ kind: 'workspace' as const, workspaceId })),
       ...projectIdsToDelete.map((projectId) => ({ kind: 'project' as const, projectId })),
     ])
+
+    if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
 
     try {
       await tx.delete(user).where(eq(user.id, userId))
