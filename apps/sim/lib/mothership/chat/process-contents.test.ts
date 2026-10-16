@@ -1035,6 +1035,19 @@ describe('processContextsServer - file_selection contexts', () => {
     expect(ctx.path).toBeTruthy()
   })
 
+  it('tags an unlabeled selection as a bare mention, never as the active resource', async () => {
+    getWorkspaceFile.mockResolvedValue({ name: 'notes.md', folderPath: null })
+
+    const [ctx] = await processContextsServer(
+      [{ kind: 'file_selection', fileId: 'file-1', label: '', text: 'passage' } as ChatContext],
+      'user-1',
+      'explain this',
+      'ws-1'
+    )
+
+    expect(ctx.tag).toBe('@')
+  })
+
   it('drops the selection when the file does not resolve', async () => {
     getWorkspaceFile.mockResolvedValue(null)
 

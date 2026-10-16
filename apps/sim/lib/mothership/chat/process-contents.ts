@@ -1156,7 +1156,7 @@ export async function resolveOwnedFileContext(
   }
   return {
     type: selected?.kind ?? 'active_resource',
-    tag: selected?.label ? `@${selected.label}` : '@active_resource',
+    tag: selected ? (selected.label ? `@${selected.label}` : '@') : '@active_resource',
     content,
     path: file.path,
     resource: { type: 'file', id: file.id, title: file.name, path: file.path, owner: file.owner },
