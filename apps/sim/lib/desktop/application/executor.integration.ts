@@ -37,6 +37,7 @@ import { createDeferred } from '@sim/testing/helpers/deferred'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq, inArray, sql } from 'drizzle-orm'
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import type { DbTransaction } from '@/lib/db/types'
 import {
@@ -590,7 +591,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
       const desktop = await signedInDesktop()
       const run = await boundRun(desktop)
       const toolCallId = await pendingCall(run.runId)
-      const setRow = (fields: Partial<typeof copilotAsyncToolCalls.$inferInsert>) =>
+      const setRow = (fields: PgUpdateSetSource<typeof copilotAsyncToolCalls>) =>
         db
           .update(copilotAsyncToolCalls)
           .set(fields)
