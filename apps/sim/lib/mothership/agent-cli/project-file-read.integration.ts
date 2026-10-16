@@ -194,6 +194,29 @@ check(
   }
 )
 
+check(
+  'a Project file with no text decoder reads as binary metadata, as in a workspace',
+  async () => {
+    const f = await fixture()
+    const { file } = await createProjectFile.execute({
+      principal: f.principal,
+      input: {
+        projectId: f.projectId,
+        name: 'archive.bin',
+        contentType: 'application/octet-stream',
+        content: Buffer.from([0, 1, 2, 3, 255]).toString('base64'),
+        encoding: 'base64',
+      },
+    })
+    const result = await read(f.projectId, f.context, file.id)
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      representation: 'binary',
+      contentAvailable: false,
+    })
+  }
+)
+
 check('Project grep searches files when no scope is given', async () => {
   const f = await fixture()
   const { file } = await createProjectFile.execute({

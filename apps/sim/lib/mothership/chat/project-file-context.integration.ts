@@ -420,7 +420,9 @@ describe('canonical file panel ownership compatibility', () => {
         principal,
         input: { chatId: f.chatId, change: { kind: 'upsert', resources: [explicit] } },
       })
-      expect(added.resources).toEqual([explicit, implicit, table])
+      /** The healed tab keeps its owner and the address browsers open and close it by. */
+      const healed = { ...explicit, workspaceId: f.workspaceId }
+      expect(added.resources).toEqual([healed, implicit, table])
       const reordered = await changeChatResources.execute({
         principal,
         input: {
@@ -428,12 +430,59 @@ describe('canonical file panel ownership compatibility', () => {
           change: { kind: 'reorder', resources: [table, legacy, implicit] },
         },
       })
-      expect(reordered.resources).toEqual([table, explicit, implicit])
+      expect(reordered.resources).toEqual([table, healed, implicit])
       const [stored] = await db
         .select({ resources: copilotChats.resources })
         .from(copilotChats)
         .where(eq(copilotChats.id, f.chatId))
-      expect(stored?.resources).toEqual([table, explicit, implicit])
+      expect(stored?.resources).toEqual([table, healed, implicit])
+    }
+  )
+
+  identityCheck(
+    'keeps new Project tabs behind the projects flag while stored tabs stay removable',
+    async () => {
+      const f = await fixture()
+      const principal = createSessionPrincipal({ userId: f.userId })
+      const projectTab: MothershipResource = {
+        type: 'file',
+        id: f.fileId,
+        title: 'context.md',
+        owner: { entityType: 'project', entityId: f.projectId },
+      }
+      const stored = async () =>
+        (
+          await db
+            .select({ resources: copilotChats.resources })
+            .from(copilotChats)
+            .where(eq(copilotChats.id, f.chatId))
+        )[0]?.resources ?? []
+      const setProjects = (enabled: boolean) => {
+        featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+          async (flag) => enabled && flag === 'projects'
+        )
+        vi.stubEnv('PROJECTS', enabled ? 'true' : 'false')
+      }
+      const change = (kind: 'upsert' | 'remove') =>
+        changeChatResources.execute({
+          principal,
+          input: { chatId: f.chatId, change: { kind, resources: [projectTab] } },
+        })
+
+      setProjects(false)
+      const before = await stored()
+      await expect(change('upsert')).rejects.toThrow('Projects are not enabled on this deployment')
+      expect(await stored()).toEqual(before)
+
+      setProjects(true)
+      await change('upsert')
+      expect(await stored()).toContainEqual(
+        expect.objectContaining({ id: f.fileId, owner: projectTab.owner })
+      )
+
+      setProjects(false)
+      await change('remove')
+      expect(await stored()).not.toContainEqual(expect.objectContaining({ id: f.fileId }))
     }
   )
 

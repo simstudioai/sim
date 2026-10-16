@@ -97,7 +97,11 @@ export function hasValidChatResourceOwner(
   return resource.owner.entityType === 'project' && resource.workspaceId === undefined
 }
 
-/** Normalizes known file addresses without inferring ownership for older unscoped panels. */
+/**
+ * Adds the explicit owner to a known workspace file address without inferring ownership for older
+ * unscoped panels. The address stays alongside it: browsers read `workspaceId` to open and close a
+ * workspace file tab, and the resource key is the same either way.
+ */
 export function normalizeChatResource(
   resource: MothershipResourceUpdate
 ): MothershipResourceUpdate {
@@ -107,10 +111,9 @@ export function normalizeChatResource(
     !hasValidChatResourceOwner(resource)
   )
     return resource
-  const { workspaceId, ...rest } = resource
   return {
-    ...rest,
-    owner: resource.owner ?? { entityType: 'workspace', entityId: workspaceId },
+    ...resource,
+    owner: resource.owner ?? { entityType: 'workspace', entityId: resource.workspaceId },
   }
 }
 

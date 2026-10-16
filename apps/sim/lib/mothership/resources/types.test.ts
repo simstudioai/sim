@@ -9,6 +9,7 @@ import {
   MothershipResourceType,
   mergeChatResource,
   mergePendingChatResourceUpdate,
+  normalizeChatResource,
   PERSISTED_RESOURCE_TYPES,
   reorderStoredChatResources,
   sanitizeChatResources,
@@ -302,3 +303,15 @@ it.each(['', '   ', 'r1'])(
     expect(sanitizeChatResources([named])[0]?.title).toBe('Canonical workflow')
   }
 )
+
+describe('normalizeChatResource', () => {
+  it('adds the workspace owner while keeping the address current browsers read', () => {
+    const resource = { type: 'file' as const, id: 'file', title: 'notes.md', workspaceId: 'ws' }
+    const normalized = normalizeChatResource(resource)
+    expect(normalized).toMatchObject({
+      workspaceId: 'ws',
+      owner: { entityType: 'workspace', entityId: 'ws' },
+    })
+    expect(getChatResourceKey(normalized)).toBe(getChatResourceKey(resource))
+  })
+})

@@ -82,7 +82,7 @@ export async function readProjectFileForAgent(
      */
     const readsText =
       !explicitVisual &&
-      workspaceFileTextFormat({ name: resolved.file.name, type: resolvedType }) !== null &&
+      Boolean(workspaceFileTextFormat({ name: resolved.file.name, type: resolvedType })) &&
       (textRange || !isDefaultVisual(resolvedType))
     let file: typeof resolved.file
     let result: Awaited<ReturnType<typeof observePrivateFile>>

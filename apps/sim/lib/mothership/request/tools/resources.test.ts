@@ -102,7 +102,11 @@ describe('handleResourceSideEffects', () => {
     {
       chat: 'organization',
       organizationId: 'org',
-      expected: { owner: { entityType: 'workspace', entityId: 'workspace-a' } },
+      /** The address stays beside the owner: browsers open and close the tab by `workspaceId`. */
+      expected: {
+        workspaceId: 'workspace-a',
+        owner: { entityType: 'workspace', entityId: 'workspace-a' },
+      },
     },
     { chat: 'workspace', organizationId: undefined, expected: {} },
   ])(
