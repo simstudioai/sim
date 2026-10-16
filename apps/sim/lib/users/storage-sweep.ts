@@ -1,9 +1,13 @@
 import { db } from '@sim/db'
 import {
+  chat,
   copilotChats,
+  customBlock,
   document,
   executionLargeValues,
   knowledgeBase,
+  oauthClient,
+  organization,
   user,
   workspaceFile,
   workspaceFiles,
@@ -21,6 +25,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   notInArray,
   or,
   type SQL,
@@ -43,7 +48,9 @@ import {
   storageCleanupAvailableAt,
 } from '@/lib/projects/files/prefix-cleanup'
 import type { StorageContext } from '@/lib/uploads/config'
+import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
+import { extractStorageKey } from '@/lib/uploads/utils/file'
 import {
   ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT,
   ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT,
@@ -98,11 +105,24 @@ const OBJECT_CONTEXTS: ReadonlySet<string> = new Set<StorageContext>([
   'execution',
   'table-import',
   'workspace-logos',
-  'profile-pictures',
 ])
 
-/** Keys another lifecycle owns: Project prefix cleanup and the Assistant upload-session sweep. */
-const FOREIGN_LIFECYCLE_ROOTS = ['project/', 'assistant/'] as const
+/**
+ * Keys another lifecycle owns: Project prefix cleanup, the Assistant upload-session sweep,
+ * organization logos, and profile pictures — which account deletion takes only from the
+ * account's own `user.image`, because whitelabel logos were once uploaded as `profile-pictures`
+ * rows under an admin's account.
+ */
+const FOREIGN_LIFECYCLE_ROOTS = [
+  'project/',
+  'assistant/',
+  'profile-pictures/',
+  'organization-logos/',
+] as const
+
+const WORKSPACE_KEYED_ROOTS: ReadonlySet<string> = new Set(
+  WORKSPACE_STORAGE_FAMILIES.map(({ root }) => root)
+)
 
 interface StorageObject {
   key: string
@@ -187,78 +207,213 @@ function parseObjectCleanup(value: unknown): ObjectCleanupPayload {
   return { userId: value.userId, objects, cursor }
 }
 
-/**
- * Keys some surviving row still names. Every row of a deleted workspace or account is gone by
- * the time a sweep runs, so a remaining reference belongs to data that outlived the deletion —
- * a moved knowledge base, a handed-off file, a soft-deleted file elsewhere — and its object stays.
- */
-async function findReferencedStorageKeys(keys: readonly string[]): Promise<Set<string>> {
-  const referenced = new Set<string>()
-  if (keys.length === 0) return referenced
-  const list = [...keys]
-  const rows = [
-    ...(await db
-      .select({ key: workspaceFiles.key })
-      .from(workspaceFiles)
-      .where(inArray(workspaceFiles.key, list))),
-    ...(await db
-      .select({ key: workspaceFile.key })
-      .from(workspaceFile)
-      .where(inArray(workspaceFile.key, list))),
-    ...(await db
-      .select({ key: workspaceFileVersion.key })
-      .from(workspaceFileVersion)
-      .where(inArray(workspaceFileVersion.key, list))),
-    ...(await db
-      .select({ key: document.storageKey })
-      .from(document)
-      .where(inArray(document.storageKey, list))),
-    ...(await db
-      .select({ key: executionLargeValues.key })
-      .from(executionLargeValues)
-      .where(inArray(executionLargeValues.key, list))),
-  ]
-  for (const row of rows) if (row.key) referenced.add(row.key)
-  return referenced
+/** Every string inside a URL column or a JSON settings blob, including JSON held as a string. */
+function collectStrings(value: unknown, into: string[]): void {
+  if (typeof value === 'string') {
+    into.push(value)
+    const trimmed = value.trim()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        collectStrings(JSON.parse(trimmed), into)
+      } catch {}
+    }
+  } else if (Array.isArray(value)) {
+    for (const item of value) collectStrings(item, into)
+  } else if (isRecordLike(value)) {
+    for (const item of Object.values(value)) collectStrings(item, into)
+  }
 }
 
 /**
- * Walks one prefix to its end, deleting every listed object no surviving row references. Cloud
- * listings follow the provider cursor within a run; a local listing restarts from the first key
- * still on disk, so a page made only of kept keys ends the walk rather than looping on it.
+ * The storage keys a stored URL can name: a `/api/files/serve/...` path (relative or absolute,
+ * with or without a provider segment), or a direct bucket URL in virtual-host or path style.
+ * Over-matching only keeps an object.
+ */
+function keysNamedByUrl(value: string): string[] {
+  const keys = new Set<string>()
+  const add = (candidate: string) => {
+    if (!candidate) return
+    keys.add(candidate)
+    try {
+      keys.add(decodeURIComponent(candidate))
+    } catch {}
+  }
+  const path = extractStorageKey(value.trim()).replace(/^\/+/, '')
+  add(path)
+  const slash = path.indexOf('/')
+  if (slash > 0) add(path.slice(slash + 1))
+  return [...keys]
+}
+
+/**
+ * Keys named by the columns that hold a stored asset as a URL rather than a row:
+ * `user.image`, `workspace.logo_url`, `organization.logo`, `organization.whitelabel_settings`,
+ * `organization.metadata`, `custom_block.icon_url`, `chat.customizations` (deployed-chat logo
+ * and avatar), and `oauth_client.icon`.
+ */
+async function loadUrlReferencedKeys(): Promise<Set<string>> {
+  const values: string[] = []
+  const sources = [
+    db
+      .select({ value: user.image })
+      .from(user)
+      .where(or(like(user.image, '%/api/files/serve/%'), like(user.image, '%profile-pictures/%'))),
+    db
+      .select({ value: workspaceTable.logoUrl })
+      .from(workspaceTable)
+      .where(isNotNull(workspaceTable.logoUrl)),
+    db
+      .select({ value: customBlock.iconUrl })
+      .from(customBlock)
+      .where(isNotNull(customBlock.iconUrl)),
+    db
+      .select({ value: chat.customizations })
+      .from(chat)
+      .where(sql`${chat.customizations}::text LIKE '%Url%'`),
+    db.select({ value: oauthClient.icon }).from(oauthClient).where(isNotNull(oauthClient.icon)),
+  ]
+  for (const source of sources) for (const row of await source) collectStrings(row.value, values)
+  const organizations = await db
+    .select({
+      logo: organization.logo,
+      whitelabel: organization.whitelabelSettings,
+      metadata: organization.metadata,
+    })
+    .from(organization)
+    .where(
+      or(
+        isNotNull(organization.logo),
+        isNotNull(organization.whitelabelSettings),
+        isNotNull(organization.metadata)
+      )
+    )
+  for (const row of organizations) collectStrings([row.logo, row.whitelabel, row.metadata], values)
+  const keys = new Set<string>()
+  for (const value of values) for (const key of keysNamedByUrl(value)) keys.add(key)
+  return keys
+}
+
+/**
+ * Builds the check every account-deletion purge runs before deleting a key. A key is kept when:
+ *
+ * - a row still names it: `workspace_files.key`, `workspace_file.key`,
+ *   `workspace_file_version.key`, `document.storage_key`, `execution_large_values.key`; or
+ * - a stored asset URL names it (see {@link loadUrlReferencedKeys}), loaded once per guard.
+ *
+ * Every row of a deleted workspace or account is gone when this runs, so a remaining reference
+ * belongs to data that outlived the deletion — a moved knowledge base, a handed-off file, an
+ * organization logo. References embedded in free-form JSON or text — workflow sub-block values,
+ * chat messages, Markdown links — are not consulted; for the deleted account's own chat
+ * attachments that is the intended erasure.
+ */
+export function createStorageReferenceGuard(): (keys: readonly string[]) => Promise<Set<string>> {
+  let urlKeys: Promise<Set<string>> | undefined
+  return async (keys) => {
+    const referenced = new Set<string>()
+    if (keys.length === 0) return referenced
+    const list = [...new Set(keys)]
+    const rows = [
+      ...(await db
+        .select({ key: workspaceFiles.key })
+        .from(workspaceFiles)
+        .where(inArray(workspaceFiles.key, list))),
+      ...(await db
+        .select({ key: workspaceFile.key })
+        .from(workspaceFile)
+        .where(inArray(workspaceFile.key, list))),
+      ...(await db
+        .select({ key: workspaceFileVersion.key })
+        .from(workspaceFileVersion)
+        .where(inArray(workspaceFileVersion.key, list))),
+      ...(await db
+        .select({ key: document.storageKey })
+        .from(document)
+        .where(inArray(document.storageKey, list))),
+      ...(await db
+        .select({ key: executionLargeValues.key })
+        .from(executionLargeValues)
+        .where(inArray(executionLargeValues.key, list))),
+    ]
+    for (const row of rows) if (row.key) referenced.add(row.key)
+    urlKeys ??= loadUrlReferencedKeys()
+    const named = await urlKeys
+    for (const key of list) if (named.has(key)) referenced.add(key)
+    return referenced
+  }
+}
+
+/**
+ * Exact keys under a workspace-keyed root whose workspace still exists. Such an object stays
+ * readable to that workspace's members by key, so an exact-key cleanup never deletes it, even when
+ * the row that named it cascaded away with the account. A workspace segment that is not a valid id
+ * is kept too.
+ */
+async function keysUnderLiveWorkspaces(keys: readonly string[]): Promise<Set<string>> {
+  const kept = new Set<string>()
+  const keysByWorkspace = new Map<string, string[]>()
+  for (const key of keys) {
+    const [root, workspaceId] = key.split('/')
+    if (!WORKSPACE_KEYED_ROOTS.has(root)) continue
+    if (!workspaceId || !SAFE_ID.test(workspaceId)) {
+      kept.add(key)
+      continue
+    }
+    keysByWorkspace.set(workspaceId, [...(keysByWorkspace.get(workspaceId) ?? []), key])
+  }
+  if (keysByWorkspace.size === 0) return kept
+  const live = await db
+    .select({ id: workspaceTable.id })
+    .from(workspaceTable)
+    .where(inArray(workspaceTable.id, [...keysByWorkspace.keys()]))
+  for (const { id } of live) for (const key of keysByWorkspace.get(id) ?? []) kept.add(key)
+  return kept
+}
+
+/** A local sidecar belongs to its object: it is kept exactly when the object is. */
+function sidecarOwner(key: string): string | null {
+  return key.endsWith(LOCAL_UPLOAD_METADATA_SUFFIX)
+    ? key.slice(0, -LOCAL_UPLOAD_METADATA_SUFFIX.length)
+    : null
+}
+
+/**
+ * Walks one prefix to its end, deleting every listed object the reference guard does not keep.
+ * Cloud listings follow the provider cursor within a run; a local listing restarts from the first
+ * key still on disk, so a page that removes nothing is `stalled` rather than re-listed forever.
  */
 async function sweepWorkspacePrefix(
   prefix: string,
   storageContext: StorageContext,
-  context: OutboxEventContext
-): Promise<{ deleted: number; complete: boolean }> {
+  context: OutboxEventContext,
+  isReferenced: (keys: readonly string[]) => Promise<Set<string>>
+): Promise<{ deleted: number; complete: boolean; stalled: boolean }> {
   let deleted = 0
   let pageToken: string | undefined
   for (;;) {
-    if (deadlineNear(context)) return { deleted, complete: false }
+    if (deadlineNear(context)) return { deleted, complete: false, stalled: false }
     const page = await listStorageKeyPage(prefix, storageContext, context.signal, pageToken)
     if (page.keys.some((key) => !key.startsWith(prefix)))
       throw new Error('Storage provider returned a key outside the workspace prefix')
-    const referenced = await findReferencedStorageKeys(page.keys)
-    if (referenced.size > 0)
-      logger.warn('Keeping objects a surviving row still references', {
-        prefix,
-        kept: referenced.size,
-      })
+    const owners = page.keys.flatMap((key) => sidecarOwner(key) ?? [])
+    const referenced = await isReferenced([...page.keys, ...owners])
+    const kept = (key: string) => referenced.has(key) || referenced.has(sidecarOwner(key) ?? key)
+    const keptCount = page.keys.filter(kept).length
+    if (keptCount > 0)
+      logger.warn('Keeping objects a surviving reference still names', { prefix, kept: keptCount })
     const result = await deleteStorageKeysUnderPrefix(
       prefix,
       storageContext,
-      page.keys.filter((key) => !referenced.has(key)),
+      page.keys.filter((key) => !kept(key)),
       context
     )
     deleted += result.deleted
-    if (!result.complete) return { deleted, complete: false }
-    if (page.done) return { deleted, complete: true }
+    if (!result.complete) return { deleted, complete: false, stalled: false }
+    if (page.done) return { deleted, complete: true, stalled: false }
     if (page.nextPageToken) {
       pageToken = page.nextPageToken
     } else if (result.deleted === 0) {
-      logger.error('Workspace storage sweep stopped at a page of referenced objects', { prefix })
-      return { deleted, complete: true }
+      logger.error('Workspace storage sweep removed nothing from a full local page', { prefix })
+      return { deleted, complete: false, stalled: true }
     }
   }
 }
@@ -281,14 +436,15 @@ const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
     })
     return
   }
+  const isReferenced = createStorageReferenceGuard()
   let progressed = false
   for (let family = payload.family; family < WORKSPACE_STORAGE_FAMILIES.length; family++) {
     const { root, context: storageContext } = WORKSPACE_STORAGE_FAMILIES[family]
     const prefix = workspaceStoragePrefix(root, payload.workspaceId)
-    const result = await sweepWorkspacePrefix(prefix, storageContext, context)
+    const result = await sweepWorkspacePrefix(prefix, storageContext, context, isReferenced)
     if (result.deleted > 0) progressed = true
     if (!result.complete) {
-      return progressed
+      return progressed && !result.stalled
         ? continueOutboxHandler('Continuing workspace storage sweep')
         : deferOutboxHandler('Workspace storage sweep made no progress before its deadline')
     }
@@ -299,7 +455,7 @@ const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
 
 /**
  * Deletes exact keys recorded by an account deletion. The account reappearing refuses the batch
- * as a whole; a key any surviving row references is kept.
+ * as a whole; a key the reference guard keeps, or one under a workspace that still exists, stays.
  */
 const cleanupAccountObjects: OutboxHandler<unknown> = async (raw, context) => {
   const payload = parseObjectCleanup(raw)
@@ -314,10 +470,11 @@ const cleanupAccountObjects: OutboxHandler<unknown> = async (raw, context) => {
     })
     return
   }
-  const pending = payload.objects.slice(payload.cursor)
-  const referenced = await findReferencedStorageKeys(pending.map((object) => object.key))
+  const pending = payload.objects.slice(payload.cursor).map((object) => object.key)
+  const referenced = await keysUnderLiveWorkspaces(pending)
+  for (const key of await createStorageReferenceGuard()(pending)) referenced.add(key)
   if (referenced.size > 0)
-    logger.warn('Keeping objects a surviving row still references', {
+    logger.warn('Keeping objects a surviving reference still names', {
       userId: payload.userId,
       kept: referenced.size,
     })
@@ -427,27 +584,29 @@ async function recordVersionsOf(
   recorder: ObjectRecorder,
   files: readonly ObjectRow[]
 ): Promise<void> {
-  if (files.length === 0 || recorder.full) return
+  if (files.length === 0) return
   const contexts = new Map(files.map((file) => [file.id, file.context]))
-  const versions = await tx
-    .select({
-      id: workspaceFileVersion.id,
-      key: workspaceFileVersion.key,
-      fileId: workspaceFileVersion.fileId,
-    })
-    .from(workspaceFileVersion)
-    .where(
-      inArray(
-        workspaceFileVersion.fileId,
-        files.map((file) => file.id)
+  const fileIds = files.map((file) => file.id)
+  await recordPages(recorder, (afterId) =>
+    tx
+      .select({
+        id: workspaceFileVersion.id,
+        key: workspaceFileVersion.key,
+        fileId: workspaceFileVersion.fileId,
+      })
+      .from(workspaceFileVersion)
+      .where(
+        and(inArray(workspaceFileVersion.fileId, fileIds), gt(workspaceFileVersion.id, afterId))
       )
-    )
-  await recorder.record(
-    versions.map((version) => ({
-      id: version.id,
-      key: version.key,
-      context: contexts.get(version.fileId) ?? null,
-    }))
+      .orderBy(workspaceFileVersion.id)
+      .limit(ROW_PAGE_SIZE)
+      .then((versions) =>
+        versions.map((version) => ({
+          id: version.id,
+          key: version.key,
+          context: contexts.get(version.fileId) ?? null,
+        }))
+      )
   )
 }
 
@@ -460,12 +619,14 @@ async function recordVersionsOf(
  *   whether or not a row ever named it.
  * - Exact keys for the rest of what cascades away: objects in deleted workspaces outside those
  *   prefixes (knowledge-base documents, Copilot uploads), and the account's private files
- *   elsewhere — chat attachments of its own chats, private contexts, and files with no
- *   workspace. Files handed to a successor, Project files, organization files, and attachments
- *   of somebody else's chat are never queued.
+ *   elsewhere — chat attachments of its own chats, private contexts, and Copilot files with no
+ *   workspace. Files handed to a successor, Project and organization files, attachments of
+ *   somebody else's chat, profile pictures, and workspace-less rows of any other context (a
+ *   legacy shared row can lack its workspace) are never queued.
  *
- * Both wait out every upload URL signed before the deletion, and both re-check at run time that
- * the owner is still gone and that no surviving row references a key before deleting it.
+ * Both wait out every upload URL signed before the deletion and re-check at run time that the
+ * owner is still gone and that {@link createStorageReferenceGuard} does not keep the key; the
+ * exact-key cleanup also keeps any key under a workspace that still exists.
  */
 export async function enqueueAccountStorageCleanupInTx(
   tx: DbTransaction,
@@ -562,6 +723,10 @@ export async function enqueueAccountStorageCleanupInTx(
     )
   }
 
+  const ownChats = tx
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(eq(copilotChats.userId, userId))
   await recordPages(
     recorder,
     (afterId) =>
@@ -581,18 +746,19 @@ export async function enqueueAccountStorageCleanupInTx(
               : undefined,
             or(
               and(
-                isNull(workspaceFiles.chatId),
-                or(
-                  isNull(workspaceFiles.workspaceId),
-                  notInArray(workspaceFiles.context, [...HANDED_OFF_FILE_CONTEXTS])
-                )
+                isNull(workspaceFiles.workspaceId),
+                eq(workspaceFiles.context, 'copilot'),
+                or(isNull(workspaceFiles.chatId), inArray(workspaceFiles.chatId, ownChats))
               ),
-              inArray(
-                workspaceFiles.chatId,
-                tx
-                  .select({ id: copilotChats.id })
-                  .from(copilotChats)
-                  .where(eq(copilotChats.userId, userId))
+              and(
+                isNotNull(workspaceFiles.workspaceId),
+                or(
+                  inArray(workspaceFiles.chatId, ownChats),
+                  and(
+                    isNull(workspaceFiles.chatId),
+                    notInArray(workspaceFiles.context, [...HANDED_OFF_FILE_CONTEXTS])
+                  )
+                )
               )
             ),
             gt(workspaceFiles.id, afterId)

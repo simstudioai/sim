@@ -1,7 +1,13 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
 import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
 import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
@@ -12,7 +18,11 @@ vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
-import { accountStorageSweepOutboxHandlers } from '@/lib/users/storage-sweep'
+import type { DbTransaction } from '@/lib/db/types'
+import {
+  accountStorageSweepOutboxHandlers,
+  enqueueAccountStorageCleanupInTx,
+} from '@/lib/users/storage-sweep'
 import {
   ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT,
   ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT,
@@ -128,6 +138,67 @@ describe('deleted workspace storage sweep', () => {
   })
 
   it.each([
+    {
+      name: 'an organization whitelabel logo serve URL',
+      table: 'organization',
+      row: {
+        logo: null,
+        whitelabel: {
+          logoUrl: 'https://sim.test/api/files/serve/s3/workspace-logos%2Fws1%2Flogo.png',
+        },
+        metadata: null,
+      },
+    },
+    {
+      name: 'a custom block icon stored as a direct bucket URL',
+      table: 'customBlock',
+      row: { value: 'https://bucket.s3.amazonaws.com/workspace-logos/ws1/logo.png' },
+    },
+    {
+      name: 'a deployed chat avatar',
+      table: 'chat',
+      row: { value: { imageUrl: '/api/files/serve/workspace-logos/ws1/logo.png?context=chat' } },
+    },
+    {
+      name: 'another account image',
+      table: 'user',
+      row: { value: '/api/files/serve/workspace-logos/ws1/logo.png' },
+    },
+  ] as const)('keeps an object named by $name', async ({ table, row }) => {
+    queueTableRows(schemaMock[table], [row])
+
+    await sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())
+
+    expect(await exists('workspace-logos/ws1/logo.png')).toBe(true)
+    expect(await exists('workspace/ws1/a.txt')).toBe(false)
+  })
+
+  it('keeps the local metadata sidecar of a kept object', async () => {
+    await put('workspace/ws1/a.txt.upload-metadata.json', '{}')
+    await put('workspace/ws1/nested/b.txt.upload-metadata.json', '{}')
+    queueTableRows(schemaMock.document, [{ key: 'workspace/ws1/a.txt' }])
+
+    await sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())
+
+    expect(await exists('workspace/ws1/a.txt')).toBe(true)
+    expect(await exists('workspace/ws1/a.txt.upload-metadata.json')).toBe(true)
+    expect(await exists('workspace/ws1/nested/b.txt.upload-metadata.json')).toBe(false)
+  })
+
+  it('spends an attempt instead of continuing when a full local page removes nothing', async () => {
+    for (let index = 0; index < 520; index++)
+      await put(`workspace/ws1/legacy/legacy file ${index}.txt`)
+
+    const result = await sweep(
+      { version: 1, workspaceId: 'ws1' },
+      outboxContext({ deadlineAt: Date.now() + 5_500 })
+    )
+
+    expect(result).toMatchObject({ outcome: 'deferred' })
+    expect(result).not.toMatchObject({ consumeAttempt: false })
+  })
+
+  it.each([
     { version: 1, workspaceId: '' },
     { version: 1, workspaceId: '../ws1' },
     { version: 1, workspaceId: 'ws1/' },
@@ -198,14 +269,94 @@ describe('account storage object cleanup', () => {
     expect(await exists('copilot/abc/blocked.txt')).toBe(false)
   })
 
+  it('keeps a key under a workspace that still exists', async () => {
+    await put('workspace/ws2/private.txt')
+    await put('copilot/abc/private.txt')
+    queueTableRows(schemaMock.workspace, [{ id: 'ws2' }])
+
+    await cleanup(
+      payload([
+        { key: 'workspace/ws2/private.txt', context: 'mothership' },
+        { key: 'copilot/abc/private.txt', context: 'copilot' },
+      ]),
+      outboxContext()
+    )
+
+    expect(await exists('workspace/ws2/private.txt')).toBe(true)
+    expect(await exists('copilot/abc/private.txt')).toBe(false)
+  })
+
+  it('keeps a key a stored asset URL names', async () => {
+    await put('copilot/abc/icon.png')
+    queueTableRows(schemaMock.oauthClient, [{ value: '/api/files/serve/copilot%2Fabc%2Ficon.png' }])
+
+    await cleanup(payload([{ key: 'copilot/abc/icon.png', context: 'copilot' }]), outboxContext())
+
+    expect(await exists('copilot/abc/icon.png')).toBe(true)
+  })
+
   it.each([
     { key: 'project/p1/file.txt', context: 'workspace' },
     { key: 'assistant/org/user/file.png', context: 'mothership' },
     { key: '../outside.txt', context: 'workspace' },
     { key: 'workspace/ws2/file.txt', context: 'og-images' },
+    { key: 'profile-pictures/user-9/logo.png', context: 'profile-pictures' },
+    { key: 'profile-pictures/user-9/logo.png', context: 'workspace' },
+    { key: 'organization-logos/org-1/logo.png', context: 'workspace' },
   ])('refuses a batch naming %o', async (object) => {
     await expect(cleanup(payload([object]), outboxContext())).rejects.toThrow(
       'Invalid account storage cleanup object'
     )
+  })
+})
+
+describe('queueing account storage cleanup', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  function queuedObjectKeys(): string[] {
+    return dbChainMockFns.values.mock.calls.flatMap(([rows]) =>
+      (rows as { payload: { objects?: { key: string }[] } }[]).flatMap(
+        (row) => row.payload.objects?.map((object) => object.key) ?? []
+      )
+    )
+  }
+
+  it('queues every version of a private file across version pages', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [
+      { id: 'file-1', key: 'copilot/abc/file.txt', context: 'copilot' },
+    ])
+    const versionPage = (start: number, count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `v-${String(start + index).padStart(5, '0')}`,
+        key: `copilot/abc/v${start + index}.txt`,
+        fileId: 'file-1',
+      }))
+    queueTableRows(schemaMock.workspaceFileVersion, versionPage(0, 1000))
+    queueTableRows(schemaMock.workspaceFileVersion, versionPage(1000, 5))
+
+    await enqueueAccountStorageCleanupInTx(dbChainMock.db as unknown as DbTransaction, {
+      userId: 'user-1',
+      workspaceIds: [],
+    })
+
+    const keys = queuedObjectKeys()
+    expect(keys).toHaveLength(1006)
+    expect(keys).toContain('copilot/abc/v1004.txt')
+  })
+
+  it('never queues a profile picture row', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [
+      { id: 'file-1', key: 'profile-pictures/org-logo.png', context: 'profile-pictures' },
+      { id: 'file-2', key: 'copilot/abc/file.txt', context: 'copilot' },
+    ])
+
+    await enqueueAccountStorageCleanupInTx(dbChainMock.db as unknown as DbTransaction, {
+      userId: 'user-1',
+      workspaceIds: [],
+    })
+
+    expect(queuedObjectKeys()).toEqual(['copilot/abc/file.txt'])
   })
 })

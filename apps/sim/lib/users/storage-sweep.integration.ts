@@ -151,6 +151,9 @@ async function seed() {
     privateAttachment: `workspace/${survivingId}/${generateId()}/private.txt`,
     othersChatAttachment: `workspace/${survivingId}/${generateId()}/others.txt`,
     personalCopilot: `copilot/${generateId()}/personal.txt`,
+    legacyWorkspacelessKb: `kb/${generateId()}-legacy.txt`,
+    profilePictureRowLogo: `profile-pictures/${generateId()}/org-logo.png`,
+    logoNamedByUrl: `workspace-logos/${doomedId}/${generateId()}-org-logo.png`,
   }
   await db.insert(workspaceFiles).values([
     fileRow({
@@ -197,7 +200,23 @@ async function seed() {
       workspaceId: null,
       context: 'copilot',
     }),
+    fileRow({
+      key: keys.legacyWorkspacelessKb,
+      userId: departingId,
+      workspaceId: null,
+      context: 'knowledge-base',
+    }),
+    fileRow({
+      key: keys.profilePictureRowLogo,
+      userId: departingId,
+      workspaceId: null,
+      context: 'profile-pictures',
+    }),
   ])
+  await db
+    .update(user)
+    .set({ image: `/api/files/serve/${encodeURIComponent(keys.logoNamedByUrl)}` })
+    .where(eq(user.id, ownerId))
   for (const key of Object.values(keys)) await put(key)
   return { ownerId, departingId, doomedId, survivingId, keys }
 }
@@ -259,6 +278,8 @@ describe('account deletion storage sweep', () => {
       )
       expect(queuedKeys.map((object) => object.key)).not.toContain(f.keys.othersChatAttachment)
       expect(queuedKeys.map((object) => object.key)).not.toContain(f.keys.handedOff)
+      expect(queuedKeys.map((object) => object.key)).not.toContain(f.keys.legacyWorkspacelessKb)
+      expect(queuedKeys.map((object) => object.key)).not.toContain(f.keys.profilePictureRowLogo)
 
       const lateUpload = `workspace/${f.doomedId}/late-${generateId()}.bin`
       await put(lateUpload)
@@ -270,7 +291,6 @@ describe('account deletion storage sweep', () => {
         f.keys.rowlessExecution,
         f.keys.rowlessSnapshot,
         f.keys.rowlessCompiled,
-        f.keys.privateAttachment,
         f.keys.personalCopilot,
         lateUpload,
       ])
@@ -280,6 +300,10 @@ describe('account deletion storage sweep', () => {
         f.keys.neighbor,
         f.keys.handedOff,
         f.keys.othersChatAttachment,
+        f.keys.privateAttachment,
+        f.keys.legacyWorkspacelessKb,
+        f.keys.profilePictureRowLogo,
+        f.keys.logoNamedByUrl,
       ])
         expect(await readFile(join(storageRoot, key), 'utf8')).toBe('x')
       expect(

@@ -7,6 +7,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import {
   continueOutboxHandler,
+  deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxEventContext,
   type OutboxHandler,
@@ -332,7 +333,9 @@ export async function listStorageKeyPage(
 /**
  * Deletes listed keys, each of which must sit under `prefix`, and prunes local directories the
  * deletions empty, never above the prefix itself. Stops before another deletion once the handler
- * deadline is near; `complete` is false when it did.
+ * deadline is near; `complete` is false when it did. `deleted` counts only objects actually
+ * removed: a key already gone (or, locally, one whose on-disk name no storage key resolves to) is
+ * no progress, so a caller re-listing the same page can tell that it is stuck.
  */
 export async function deleteStorageKeysUnderPrefix(
   prefix: string,
@@ -341,17 +344,21 @@ export async function deleteStorageKeysUnderPrefix(
   outbox: Pick<OutboxEventContext, 'signal' | 'deadlineAt'>
 ): Promise<{ deleted: number; complete: boolean }> {
   if (prefix.length < 2 || !prefix.endsWith('/')) throw new Error('Unbounded storage prefix')
+  let attempted = 0
   let deleted = 0
   for (const key of keys) {
     if (!key.startsWith(prefix))
       throw new Error('Storage provider returned a key outside the prefix')
     outbox.signal.throwIfAborted()
-    if (deleted > 0 && outbox.deadlineAt && Date.now() + 5000 >= outbox.deadlineAt)
+    if (attempted > 0 && outbox.deadlineAt && Date.now() + 5000 >= outbox.deadlineAt)
       return { deleted, complete: false }
+    attempted++
+    let removed = true
     try {
       await deleteFile({ key, context, signal: outbox.signal })
     } catch (error) {
       if (describeError(error).code !== 'ENOENT') throw error
+      removed = false
     }
     if (!USE_S3_STORAGE && !USE_BLOB_STORAGE && !USE_GCS_STORAGE) {
       const root = join(UPLOAD_DIR_SERVER, prefix.slice(0, -1))
@@ -361,16 +368,21 @@ export async function deleteStorageKeysUnderPrefix(
         directory = dirname(directory)
       }
     }
-    deleted++
+    if (removed) deleted++
   }
   return { deleted, complete: true }
 }
 
-async function sweepPrefix(projectId: string, context: OutboxEventContext): Promise<boolean> {
+/** `stalled` when a page that must be re-listed removed nothing, so continuing cannot progress. */
+async function sweepPrefix(
+  projectId: string,
+  context: OutboxEventContext
+): Promise<'done' | 'continue' | 'stalled'> {
   const prefix = prefixFor(projectId)
   const { keys } = await listStorageKeyPage(prefix, 'project', context.signal)
-  const { complete } = await deleteStorageKeysUnderPrefix(prefix, 'project', keys, context)
-  return complete && keys.length < PAGE_SIZE
+  const { deleted, complete } = await deleteStorageKeysUnderPrefix(prefix, 'project', keys, context)
+  if (complete && keys.length < PAGE_SIZE) return 'done'
+  return deleted > 0 ? 'continue' : 'stalled'
 }
 
 const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
@@ -410,8 +422,10 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
       return continueOutboxHandler('Continuing retired Project upload cleanup')
     }
   }
-  if (!(await sweepPrefix(payload.projectId, context)))
-    return continueOutboxHandler('Continuing Project storage cleanup')
+  const sweep = await sweepPrefix(payload.projectId, context)
+  if (sweep === 'continue') return continueOutboxHandler('Continuing Project storage cleanup')
+  if (sweep === 'stalled')
+    return deferOutboxHandler('Project storage cleanup removed nothing from a full listing page')
 }
 
 /**

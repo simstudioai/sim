@@ -54,7 +54,10 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
-import { enqueueAccountStorageCleanupInTx } from '@/lib/users/storage-sweep'
+import {
+  createStorageReferenceGuard,
+  enqueueAccountStorageCleanupInTx,
+} from '@/lib/users/storage-sweep'
 import {
   listSharedResourceWorkspaceIdsForUser,
   listUnresolvedSharedResourceWorkspaces,
@@ -638,11 +641,25 @@ async function collectAccountStorageKeys(
  * time this runs the account is already gone, and the request must not report a
  * failure for work that cannot be undone. An orphaned object is recoverable from
  * the log; a deletion the caller believes failed is not.
+ *
+ * Keys a surviving row or stored asset URL still names are kept (a legacy `kb/`
+ * object can back documents in more than one workspace); see
+ * `createStorageReferenceGuard`.
  */
 async function purgeStorageObjects(userId: string, batches: StorageKeyBatch[]): Promise<void> {
-  for (const { context, keys } of batches) {
-    if (keys.length === 0) continue
+  const isReferenced = createStorageReferenceGuard()
+  for (const { context, keys: collected } of batches) {
+    if (collected.length === 0) continue
     try {
+      const referenced = await isReferenced(collected)
+      if (referenced.size > 0) {
+        logger.warn('Keeping objects a surviving reference still names', {
+          context,
+          kept: referenced.size,
+        })
+      }
+      const keys = collected.filter((key) => !referenced.has(key))
+      if (keys.length === 0) continue
       const { failed } = await StorageService.deleteFiles(keys, context)
       for (const { key, error } of failed) {
         logger.error('Failed to erase stored object during account deletion', {
