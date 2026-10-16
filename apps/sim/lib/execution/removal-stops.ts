@@ -1,27 +1,20 @@
-import { createLogger } from '@sim/logger'
-import { describeError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { getInlineJobQueue, getJobQueue } from '@/lib/core/async-jobs'
 import {
   continueOutboxHandler,
   type OutboxHandler,
   type OutboxHandlerRegistry,
-  processOutboxEventById,
   withOutboxHandlerTimeout,
 } from '@/lib/core/outbox/service'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
 import {
   type ExecutionStopPayload,
   signalExecutionStops,
 } from '@/lib/execution/removal-stop-records'
 
-const logger = createLogger('ExecutionRemovalStops')
-
 /** Queue runs one handler attempt cancels before handing the rest to its next run. */
 const SWEEP_MAX_RUNS_PER_ATTEMPT = 1_000
 const HANDLER_TIMEOUT_MS = 5 * 60 * 1000
-const DELIVERY_CONCURRENCY = 4
 
 function parsePayload(payload: unknown): ExecutionStopPayload {
   if (!isRecordLike(payload) || !Array.isArray(payload.executions)) {
@@ -100,32 +93,3 @@ const stopRemovedExecutions: OutboxHandler<unknown> = withOutboxHandlerTimeout(
 export const executionRemovalStopOutboxHandlers = {
   [EXECUTION_REMOVAL_STOP_EVENT]: stopRemovedExecutions,
 } satisfies OutboxHandlerRegistry
-
-/**
- * Delivers committed stops now, a few at a time, and never throws: a stop that cannot be
- * delivered stays in the outbox for its worker to retry, so a removal that already committed is
- * never reported as failed.
- */
-export async function deliverExecutionStops(
-  eventIds: readonly string[],
-  logContext: Record<string, unknown>
-): Promise<void> {
-  await mapWithConcurrency(eventIds, DELIVERY_CONCURRENCY, async (eventId) => {
-    try {
-      const result = await processOutboxEventById(eventId, executionRemovalStopOutboxHandlers)
-      if (result !== 'completed') {
-        logger.warn('Execution removal stop left to the outbox worker', {
-          ...logContext,
-          eventId,
-          result,
-        })
-      }
-    } catch (error) {
-      logger.warn('Execution removal stop failed inline; the outbox worker retries it', {
-        ...logContext,
-        eventId,
-        error: describeError(error),
-      })
-    }
-  })
-}

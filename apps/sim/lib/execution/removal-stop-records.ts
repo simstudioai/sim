@@ -16,6 +16,8 @@ const logger = createLogger('ExecutionRemovalStopRecords')
 /** Executions one event signals; bounds the payload of a workspace with many live runs. */
 const EXECUTIONS_PER_EVENT = 500
 const SIGNAL_CONCURRENCY = 10
+/** Bounds an inline signal pass; whatever it leaves, the outbox stop signals again. */
+const SIGNAL_DEADLINE_MS = 10_000
 
 /**
  * What is being removed. Runs of a removed workspace or workflow lose the rows the ordinary
@@ -87,18 +89,22 @@ async function collectExecutionStops(
     })
     .from(workflowExecutionLogs)
     .where(and(eq(workflowExecutionLogs.status, 'running'), inScope))
+  /** Driven from the scope's log rows, so `resume_queue` is read through its parent index. */
   const resuming = await executor
     .select({
       executionId: resumeQueue.newExecutionId,
       executionDeadlineAt: workflowExecutionLogs.executionDeadlineAt,
       workspaceId: workflowExecutionLogs.workspaceId,
     })
-    .from(resumeQueue)
+    .from(workflowExecutionLogs)
     .innerJoin(
-      workflowExecutionLogs,
-      eq(workflowExecutionLogs.executionId, resumeQueue.parentExecutionId)
+      resumeQueue,
+      and(
+        eq(resumeQueue.parentExecutionId, workflowExecutionLogs.executionId),
+        eq(resumeQueue.status, 'claimed')
+      )
     )
-    .where(and(eq(resumeQueue.status, 'claimed'), inScope))
+    .where(and(inArray(workflowExecutionLogs.status, ['running', 'pending']), inScope))
 
   const executions = new Map<string, PlannedExecutionStop>()
   for (const row of [...running, ...resuming]) {
@@ -176,26 +182,25 @@ export async function enqueueExecutionStops(
   return eventIds
 }
 
-interface RecordedExecutionStops {
-  /** The outbox events; deliver them now with `deliverExecutionStops` where that module may load. */
-  eventIds: string[]
-  executions: PlannedExecutionStop[]
-}
-
-/** {@link collectExecutionStops} then {@link enqueueExecutionStops}, in the caller's transaction. */
+/**
+ * {@link collectExecutionStops} then {@link enqueueExecutionStops}, in the caller's transaction.
+ * Returns the executions, to signal at once with {@link signalExecutionStops} after commit.
+ */
 export async function recordExecutionStops(
   executor: DbOrTx,
   scope: ExecutionStopScope
-): Promise<RecordedExecutionStops> {
+): Promise<ExecutionStopPlan['executions']> {
   const plan = await collectExecutionStops(executor, scope)
-  return { eventIds: await enqueueExecutionStops(executor, plan), executions: plan.executions }
+  await enqueueExecutionStops(executor, plan)
+  return plan.executions
 }
 
 /**
  * Sets the cancellation flag each execution's engine watches, and aborts the ones this process
  * runs, without the queue sweep or the retry the outbox event adds. Callers whose module graph
  * cannot load the delivery stop in-flight runs with it at once and leave the rest to the outbox
- * worker. Returns how many flags Redis refused; never throws.
+ * worker. Returns how many flags Redis refused or the deadline (`signal`, else
+ * {@link SIGNAL_DEADLINE_MS}) left unsent; never throws.
  *
  * Without Redis at all the flag is process-local by design (`markExecutionCancelled`) and a
  * retry from any process could reach no further, so that outcome does not count as refused.
@@ -204,9 +209,10 @@ export async function signalExecutionStops(
   executions: readonly Pick<PlannedExecutionStop, 'executionId' | 'executionDeadlineAt'>[],
   signal?: AbortSignal
 ): Promise<number> {
+  const deadline = signal ?? AbortSignal.timeout(SIGNAL_DEADLINE_MS)
   let refused = 0
   await mapWithConcurrency(executions, SIGNAL_CONCURRENCY, async (execution) => {
-    if (signal?.aborted) {
+    if (deadline.aborted) {
       refused += 1
       return
     }

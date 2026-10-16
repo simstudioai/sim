@@ -39,8 +39,11 @@ import {
 } from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
-import { recordExecutionStops } from '@/lib/execution/removal-stop-records'
-import { deliverExecutionStops } from '@/lib/execution/removal-stops'
+import {
+  type ExecutionStopPlan,
+  recordExecutionStops,
+  signalExecutionStops,
+} from '@/lib/execution/removal-stop-records'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
@@ -784,7 +787,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
   let stoppedRuns: StoppedRun[] = []
-  let executionStopEventIds: string[] = []
+  let executionStops: ExecutionStopPlan['executions'] = []
   /**
    * Resolved while the account's settings still exist to route a superuser's runs. It only
    * routes the best-effort push, so a failed lookup falls back to the default endpoint.
@@ -869,10 +872,10 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
        * Workflow runs in the doomed workspaces lose their log rows to the cascade below, after
        * which no cancel path can find them, and they would keep spending hosted keys for an
        * account that no longer exists. The workspace rows are locked, so no new run can log
-       * here before commit; the stops commit with the erasure and are delivered after it.
+       * here before commit; the stops commit with the erasure. After commit the in-flight runs
+       * are signalled at once and the outbox worker sweeps the job queue.
        */
-      const executionStops = await recordExecutionStops(tx, { workspaceIds: doomedWorkspaceIds })
-      executionStopEventIds = executionStops.eventIds
+      executionStops = await recordExecutionStops(tx, { workspaceIds: doomedWorkspaceIds })
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
        * gained a member since the preview is no longer private, and deleting it
@@ -1024,13 +1027,18 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
     }
   })
 
+  /**
+   * Not awaited: every second a run keeps going spends hosted keys, and nothing below should
+   * wait on Redis. It never throws and stops at its own deadline; the committed outbox stops
+   * repeat it and sweep the job queue.
+   */
+  void signalExecutionStops(executionStops)
+
   await invalidateReportingUsagePrefixes()
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
 
   deliverRunStops(stoppedRuns, { mothershipBaseURL })
-
-  await deliverExecutionStops(executionStopEventIds, { userId })
 
   await purgeStorageObjects(userId, storageKeys)
 

@@ -34,13 +34,14 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
 import {
   collectAccountRemovalStops,
   enqueueExecutionStops,
   signalExecutionStops,
 } from '@/lib/execution/removal-stop-records'
-import { deliverExecutionStops } from '@/lib/execution/removal-stops'
+import { executionRemovalStopOutboxHandlers } from '@/lib/execution/removal-stops'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 
@@ -159,12 +160,12 @@ async function seedActiveResume(workspaceId: string, workflowId: string) {
 }
 
 /** A job the queue has not started yet. */
-async function seedQueuedJob(workspaceId: string) {
+async function seedQueuedJob(workspaceId: string, type = 'webhook-execution') {
   const id = `run_${generateId()}`
   jobIds.push(id)
   await db.insert(asyncJobs).values({
     id,
-    type: 'webhook-execution',
+    type,
     payload: {},
     status: 'pending',
     metadata: { workspaceId },
@@ -191,6 +192,13 @@ async function stopEvents(ids: string[]) {
     .from(outboxEvent)
     .where(eq(outboxEvent.eventType, EXECUTION_REMOVAL_STOP_EVENT))
   return rows.filter((row) => ids.some((id) => JSON.stringify(row.payload).includes(id)))
+}
+
+/** Processes the stop events the way the outbox worker does. */
+async function runOutboxWorker(eventIds: string[]) {
+  for (const eventId of eventIds) {
+    await processOutboxEventById(eventId, executionRemovalStopOutboxHandlers)
+  }
 }
 
 afterAll(async () => {
@@ -242,6 +250,7 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
     const running = await seedExecution(doomedWorkspaceId, doomedWorkflowId)
     const resuming = await seedActiveResume(doomedWorkspaceId, doomedWorkflowId)
     const queued = await seedQueuedJob(doomedWorkspaceId)
+    const unrelatedJob = await seedQueuedJob(doomedWorkspaceId, 'cleanup-logs')
     const keptWorkspaceId = await seedWorkspace(bystanderId)
     const keptRunning = await seedExecution(
       keptWorkspaceId,
@@ -251,9 +260,15 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
 
     await deleteUserAccount(departingId)
 
-    expect(await isCancelled(running)).toBe(true)
-    expect(await isCancelled(resuming)).toBe(true)
+    await expect.poll(() => isCancelled(running)).toBe(true)
+    await expect.poll(() => isCancelled(resuming)).toBe(true)
+    const recorded = await stopEvents([doomedWorkspaceId])
+    expect(recorded.map((event) => event.status)).toEqual(['pending'])
+
+    await runOutboxWorker(recorded.map((event) => event.id))
+
     expect(await jobStatus(queued)).toBe('cancelled')
+    expect(await jobStatus(unrelatedJob)).toBe('pending')
     expect((await stopEvents([doomedWorkspaceId])).map((event) => event.status)).toEqual([
       'completed',
     ])
@@ -289,10 +304,7 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
     const recorded = await stopEvents([ownedWorkspaceId])
     expect(recorded.map((event) => event.status)).toEqual(['pending'])
 
-    await deliverExecutionStops(
-      recorded.map((event) => event.id),
-      { test: 'outbox worker' }
-    )
+    await runOutboxWorker(recorded.map((event) => event.id))
 
     expect(await jobStatus(queued)).toBe('cancelled')
     expect(await jobStatus(keptQueued)).toBe('pending')
@@ -300,8 +312,7 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
 
   /**
    * Mirrors the Better Auth user delete hooks around `/admin/remove-user`: read before the bare
-   * delete, enqueued and signalled once it has committed. The delivery stands in for the outbox
-   * worker that sweeps the queue.
+   * delete, enqueued and signalled once it has committed.
    */
   it('stops the runs of workflows a directly deleted user created in someone else’s workspace', async () => {
     const removedId = await seedUser()
@@ -325,7 +336,7 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
     expect(await isCancelled(removedUsersRun)).toBe(true)
     expect(await isCancelled(bystandersRun)).toBe(false)
 
-    await deliverExecutionStops(eventIds, { test: 'outbox worker' })
+    await runOutboxWorker(eventIds)
 
     expect(await jobStatus(bystandersQueued)).toBe('pending')
     expect((await stopEvents([removedUsersRun])).map((event) => event.status)).toEqual([

@@ -1,4 +1,9 @@
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { asyncJobs } from '@sim/db'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  resetDbChainMock,
+} from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -501,5 +506,26 @@ describe('DatabaseJobQueue a workflow job that completed with a recorded failure
       error: undefined,
       output,
     })
+  })
+})
+
+describe('DatabaseJobQueue workspace cancellation', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('cancels only workflow job types, so the workspace’s other jobs keep running', async () => {
+    await new DatabaseJobQueue().cancelByWorkspace('workspace-1')
+
+    const typeFilter = flattenMockConditions(dbChainMockFns.where.mock.calls[0][0]).find(
+      (node) => node.type === 'inArray' && node.column === asyncJobs.type
+    )
+    expect(typeFilter?.values).toEqual([
+      'workflow-execution',
+      'schedule-execution',
+      'webhook-execution',
+      'resume-execution',
+      'workflow-group-cell',
+    ])
   })
 })
