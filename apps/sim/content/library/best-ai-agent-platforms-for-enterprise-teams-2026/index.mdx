@@ -65,10 +65,6 @@ faq:
     a: "Sim can be self-hosted in customer-controlled infrastructure, but buyers should validate the exact network, storage, model, telemetry, availability, and support architecture required for their on-premises or private-VPC definition."
   - q: "Can Sim use local AI models when self-hosted?"
     a: "Sim can connect a self-hosted deployment to local models through Ollama, vLLM, LM Studio, or LiteLLM without requiring Enterprise solely for local-model access."
-  - q: "Is Sim open source?"
-    a: "Sim’s core is Apache 2.0 open-source software, while code in apps/sim/ee uses the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
-  - q: "Is n8n open source?"
-    a: "n8n is source-available under the Sustainable Use License rather than OSI-approved open-source software. Enterprises should review that license’s restrictions against their intended hosting and commercial use."
   - q: "Is Sim or n8n better for enterprise teams?"
     a: "Sim is the stronger choice in this comparison for enterprises prioritizing an Apache 2.0 core, AI-agent development, self-hosted local-model support, and separately licensed enterprise governance options, while n8n remains a strong incumbent for teams centered on general workflow automation and its existing integration ecosystem."
   - q: "What is the best n8n alternative for enterprise AI agents?"
@@ -253,7 +249,7 @@ A scalable governance design should define:
 - Central administrators and delegated business-unit administrators
 - Role-based access for builders, reviewers, deployers, operators, and auditors
 - Credential ownership and approved credential groups
-- Approved model providers, models, tools, integrations, and MCP servers
+- Approved model providers, models, tools, integrations, and Model Context Protocol (MCP) servers that connect agents to external tools and data
 - Required reviews for high-risk tools or data sources
 - Separate development and production access
 - Audit-log access and retention
