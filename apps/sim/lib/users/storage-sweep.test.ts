@@ -191,11 +191,13 @@ describe('deleted workspace storage sweep', () => {
 
     const result = await sweep(
       { version: 1, workspaceId: 'ws1' },
-      outboxContext({ deadlineAt: Date.now() + 5_500 })
+      outboxContext({ deadlineAt: Date.now() + 120_000 })
     )
 
-    expect(result).toMatchObject({ outcome: 'deferred' })
-    expect(result).not.toMatchObject({ consumeAttempt: false })
+    expect(result).toEqual({
+      outcome: 'deferred',
+      reason: 'Workspace storage sweep removed nothing from a full listing page',
+    })
   })
 
   it.each([
@@ -286,13 +288,42 @@ describe('account storage object cleanup', () => {
     expect(await exists('copilot/abc/private.txt')).toBe(false)
   })
 
-  it('keeps a key a stored asset URL names', async () => {
+  it('keeps a publicly served key a stored asset URL names', async () => {
+    await put('workspace-logos/ws9/icon.png')
+    queueTableRows(schemaMock.oauthClient, [
+      { value: '/api/files/serve/workspace-logos%2Fws9%2Ficon.png' },
+    ])
+
+    await cleanup(
+      payload([{ key: 'workspace-logos/ws9/icon.png', context: 'workspace-logos' }]),
+      outboxContext()
+    )
+
+    expect(await exists('workspace-logos/ws9/icon.png')).toBe(true)
+  })
+
+  it('reads no URL column for keys that are never served without a row', async () => {
     await put('copilot/abc/icon.png')
     queueTableRows(schemaMock.oauthClient, [{ value: '/api/files/serve/copilot%2Fabc%2Ficon.png' }])
 
     await cleanup(payload([{ key: 'copilot/abc/icon.png', context: 'copilot' }]), outboxContext())
 
-    expect(await exists('copilot/abc/icon.png')).toBe(true)
+    expect(await exists('copilot/abc/icon.png')).toBe(false)
+    for (const table of ['organization', 'customBlock', 'chat', 'oauthClient'] as const)
+      expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock[table])
+  })
+
+  it('still purges when a stored URL has malformed percent-encoding', async () => {
+    await put('workspace-logos/ws9/old.png')
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.user, [{ value: '/api/files/serve/%E0%A4%A' }])
+
+    await cleanup(
+      payload([{ key: 'workspace-logos/ws9/old.png', context: 'workspace-logos' }]),
+      outboxContext()
+    )
+
+    expect(await exists('workspace-logos/ws9/old.png')).toBe(false)
   })
 
   it.each([

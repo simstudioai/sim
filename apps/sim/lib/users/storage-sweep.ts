@@ -224,10 +224,13 @@ function collectStrings(value: unknown, into: string[]): void {
   }
 }
 
+const SERVE_PATH = '/api/files/serve/'
+
 /**
  * The storage keys a stored URL can name: a `/api/files/serve/...` path (relative or absolute,
  * with or without a provider segment), or a direct bucket URL in virtual-host or path style.
- * Over-matching only keeps an object.
+ * Over-matching only keeps an object. Never throws: a value whose percent-encoding is malformed
+ * falls back to its raw path, so one bad stored string cannot disable every purge.
  */
 function keysNamedByUrl(value: string): string[] {
   const keys = new Set<string>()
@@ -238,7 +241,16 @@ function keysNamedByUrl(value: string): string[] {
       keys.add(decodeURIComponent(candidate))
     } catch {}
   }
-  const path = extractStorageKey(value.trim()).replace(/^\/+/, '')
+  const trimmed = value.trim()
+  let path: string
+  try {
+    path = extractStorageKey(trimmed)
+  } catch {
+    const raw = trimmed.split('?')[0]
+    const serveAt = raw.indexOf(SERVE_PATH)
+    path = serveAt >= 0 ? raw.slice(serveAt + SERVE_PATH.length) : raw
+  }
+  path = path.replace(/^\/+/, '')
   add(path)
   const slash = path.indexOf('/')
   if (slash > 0) add(path.slice(slash + 1))
@@ -246,31 +258,68 @@ function keysNamedByUrl(value: string): string[] {
 }
 
 /**
+ * Key prefixes the file-serve route answers without a row or a session
+ * (`isPublicByKeyPrefix` in `app/api/files/serve/[...path]/route.ts`). Only these objects can be
+ * live through a stored URL alone, so only they need the URL-column check.
+ */
+const PUBLIC_SERVE_PREFIXES = [
+  'profile-pictures/',
+  'og-images/',
+  'workspace-logos/',
+  'organization-logos/',
+] as const
+
+const MIN_NEEDLE_LENGTH = 4
+const NEEDLES_PER_QUERY = 50
+
+/**
+ * The longest run of URL-safe characters after a key's root. Percent-encoding never splits such a
+ * run, so any stored URL naming the key contains it; `null` when the key has none long enough.
+ */
+function urlNeedle(key: string): string | null {
+  let best = ''
+  for (const run of key.slice(key.indexOf('/') + 1).match(/[A-Za-z0-9_-]+/g) ?? [])
+    if (run.length > best.length) best = run
+  return best.length >= MIN_NEEDLE_LENGTH ? best : null
+}
+
+/**
  * Keys named by the columns that hold a stored asset as a URL rather than a row:
  * `user.image`, `workspace.logo_url`, `organization.logo`, `organization.whitelabel_settings`,
  * `organization.metadata`, `custom_block.icon_url`, `chat.customizations` (deployed-chat logo
- * and avatar), and `oauth_client.icon`.
+ * and avatar), and `oauth_client.icon`. With `needles`, reads only rows whose value contains one;
+ * without, every row that holds a URL.
  */
-async function loadUrlReferencedKeys(): Promise<Set<string>> {
+async function loadUrlReferencedKeys(needles: readonly string[] | null): Promise<Set<string>> {
+  const matching = (column: SQLWrapper, fallback: SQL | undefined): SQL | undefined =>
+    needles ? or(...needles.map((needle) => sql`${column}::text LIKE ${`%${needle}%`}`)) : fallback
   const values: string[] = []
   const sources = [
     db
       .select({ value: user.image })
       .from(user)
-      .where(or(like(user.image, '%/api/files/serve/%'), like(user.image, '%profile-pictures/%'))),
+      .where(
+        matching(
+          user.image,
+          or(like(user.image, '%/api/files/serve/%'), like(user.image, '%profile-pictures/%'))
+        )
+      ),
     db
       .select({ value: workspaceTable.logoUrl })
       .from(workspaceTable)
-      .where(isNotNull(workspaceTable.logoUrl)),
+      .where(matching(workspaceTable.logoUrl, isNotNull(workspaceTable.logoUrl))),
     db
       .select({ value: customBlock.iconUrl })
       .from(customBlock)
-      .where(isNotNull(customBlock.iconUrl)),
+      .where(matching(customBlock.iconUrl, isNotNull(customBlock.iconUrl))),
     db
       .select({ value: chat.customizations })
       .from(chat)
-      .where(sql`${chat.customizations}::text LIKE '%Url%'`),
-    db.select({ value: oauthClient.icon }).from(oauthClient).where(isNotNull(oauthClient.icon)),
+      .where(matching(chat.customizations, sql`${chat.customizations}::text LIKE '%Url%'`)),
+    db
+      .select({ value: oauthClient.icon })
+      .from(oauthClient)
+      .where(matching(oauthClient.icon, isNotNull(oauthClient.icon))),
   ]
   for (const source of sources) for (const row of await source) collectStrings(row.value, values)
   const organizations = await db
@@ -282,9 +331,9 @@ async function loadUrlReferencedKeys(): Promise<Set<string>> {
     .from(organization)
     .where(
       or(
-        isNotNull(organization.logo),
-        isNotNull(organization.whitelabelSettings),
-        isNotNull(organization.metadata)
+        matching(organization.logo, isNotNull(organization.logo)),
+        matching(organization.whitelabelSettings, isNotNull(organization.whitelabelSettings)),
+        matching(organization.metadata, isNotNull(organization.metadata))
       )
     )
   for (const row of organizations) collectStrings([row.logo, row.whitelabel, row.metadata], values)
@@ -298,16 +347,37 @@ async function loadUrlReferencedKeys(): Promise<Set<string>> {
  *
  * - a row still names it: `workspace_files.key`, `workspace_file.key`,
  *   `workspace_file_version.key`, `document.storage_key`, `execution_large_values.key`; or
- * - a stored asset URL names it (see {@link loadUrlReferencedKeys}), loaded once per guard.
+ * - it sits under a {@link PUBLIC_SERVE_PREFIXES} root and a stored asset URL names it (see
+ *   {@link loadUrlReferencedKeys}). Only rows containing the key's longest URL-safe run are read,
+ *   each run at most once per guard. Any other key is unreadable without a row, so no URL column
+ *   is read for it.
  *
  * Every row of a deleted workspace or account is gone when this runs, so a remaining reference
  * belongs to data that outlived the deletion — a moved knowledge base, a handed-off file, an
  * organization logo. References embedded in free-form JSON or text — workflow sub-block values,
  * chat messages, Markdown links — are not consulted; for the deleted account's own chat
- * attachments that is the intended erasure.
+ * attachments that is the intended erasure. A failed lookup throws, so nothing is deleted.
  */
 export function createStorageReferenceGuard(): (keys: readonly string[]) => Promise<Set<string>> {
-  let urlKeys: Promise<Set<string>> | undefined
+  const loadedNeedles = new Set<string>()
+  const named = new Set<string>()
+  let loadedAll = false
+  const loadNamedKeys = async (publicKeys: readonly string[]) => {
+    if (loadedAll || publicKeys.length === 0) return
+    const needles = publicKeys.map(urlNeedle)
+    if (needles.includes(null)) {
+      for (const key of await loadUrlReferencedKeys(null)) named.add(key)
+      loadedAll = true
+      return
+    }
+    const pending = [...new Set(needles.flatMap((needle) => needle ?? []))].filter(
+      (needle) => !loadedNeedles.has(needle)
+    )
+    for (const batch of chunkArray(pending, NEEDLES_PER_QUERY)) {
+      for (const key of await loadUrlReferencedKeys(batch)) named.add(key)
+      for (const needle of batch) loadedNeedles.add(needle)
+    }
+  }
   return async (keys) => {
     const referenced = new Set<string>()
     if (keys.length === 0) return referenced
@@ -335,9 +405,11 @@ export function createStorageReferenceGuard(): (keys: readonly string[]) => Prom
         .where(inArray(executionLargeValues.key, list))),
     ]
     for (const row of rows) if (row.key) referenced.add(row.key)
-    urlKeys ??= loadUrlReferencedKeys()
-    const named = await urlKeys
-    for (const key of list) if (named.has(key)) referenced.add(key)
+    const publicKeys = list.filter((key) =>
+      PUBLIC_SERVE_PREFIXES.some((prefix) => key.startsWith(prefix))
+    )
+    await loadNamedKeys(publicKeys)
+    for (const key of publicKeys) if (named.has(key)) referenced.add(key)
     return referenced
   }
 }
@@ -444,7 +516,11 @@ const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
     const result = await sweepWorkspacePrefix(prefix, storageContext, context, isReferenced)
     if (result.deleted > 0) progressed = true
     if (!result.complete) {
-      return progressed && !result.stalled
+      if (result.stalled)
+        return deferOutboxHandler(
+          'Workspace storage sweep removed nothing from a full listing page'
+        )
+      return progressed
         ? continueOutboxHandler('Continuing workspace storage sweep')
         : deferOutboxHandler('Workspace storage sweep made no progress before its deadline')
     }
