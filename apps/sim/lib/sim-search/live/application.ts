@@ -167,6 +167,12 @@ interface LiveSearchOptions {
   topK: number
   filters?: WorkspaceSearchFilters
   nativeQueries?: NativeSearchQuery[]
+  /**
+   * Orders a plain query's results across sources by the query terms they hold, for a person
+   * reading the list. Agent clients keep fusion order, which interleaves sources: an end-to-end
+   * client benchmark found no gain from relevance order, and the agent searched less.
+   */
+  rankByRelevance?: boolean
   signal?: AbortSignal
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
@@ -736,7 +742,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
      * Native queries carry provider operators and keep fusion order.
      */
     const relevanceOf =
-      dateSorted || queries || !input.query.trim() ? undefined : queryRelevance(input.query)
+      !input.rankByRelevance || dateSorted || queries || !input.query.trim()
+        ? undefined
+        : queryRelevance(input.query)
     const ranked = [...fused.values()]
       .map((entry) => ({
         ...entry,

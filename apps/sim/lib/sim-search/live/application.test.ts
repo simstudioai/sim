@@ -557,7 +557,7 @@ describe('authorized live retrieval', () => {
     expect(statusOf('mail')?.nextCursor).toBeUndefined()
     expect(statusOf('account')).toMatchObject({ nextCursor: 'next' })
   })
-  it('ranks results across accounts by the query terms they hold, not by account order', async () => {
+  it('ranks across accounts by query terms only for a reader; agents keep fusion order', async () => {
     const gmail = { ...account, id: 'mail', provider: 'gmail', displayName: 'Mail' }
     mocks.accounts.mockResolvedValue([account, gmail])
     const result = (id: string, title: string, content: string) => ({
@@ -576,15 +576,15 @@ describe('authorized live retrieval', () => {
             ]
           : [result('sheet', 'Question bank', 'Questions')],
     }))
-    const { results } = await searchLiveKnowledge.execute({
-      principal,
-      input: { ...input, query: 'merge train' },
-    })
-    expect(results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
-      'named',
-      'notes',
-      'sheet',
-    ])
+    const order = async (rankByRelevance?: boolean) =>
+      (
+        await searchLiveKnowledge.execute({
+          principal,
+          input: { ...input, query: 'merge train', rankByRelevance },
+        })
+      ).results.map((row) => decodeLiveReference(row.documentId).id)
+    expect(await order(true)).toEqual(['named', 'notes', 'sheet'])
+    expect(await order()).toEqual(['sheet', 'notes', 'named'])
   })
   it('applies date filters before spending provider verification', async () => {
     const verify = vi.fn(async () => true)
