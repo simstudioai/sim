@@ -54,6 +54,7 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { enqueueAccountStorageCleanupInTx } from '@/lib/users/storage-sweep'
 import {
   listSharedResourceWorkspaceIdsForUser,
   listUnresolvedSharedResourceWorkspaces,
@@ -861,6 +862,11 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      * workspace and user deletes cascade their rows away; delivered after commit.
      */
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
+    /**
+     * Queued while the doomed workspaces are locked and their rows still exist: every object
+     * that cascades away below gets a durable, delayed cleanup that commits with the deletion.
+     */
+    await enqueueAccountStorageCleanupInTx(tx, { userId, workspaceIds: doomedWorkspaceIds })
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that

@@ -19,6 +19,7 @@ import {
 } from '@/lib/projects/files/outbox-events'
 import {
   getStorageConfig,
+  type StorageContext,
   USE_BLOB_STORAGE,
   USE_GCS_STORAGE,
   USE_S3_STORAGE,
@@ -45,6 +46,11 @@ interface CleanupPayload {
 
 /** Expired signatures stop new transfers, but a transfer already in progress may finish later. */
 export function projectUploadCleanupAvailableAt(now = new Date()): Date {
+  return storageCleanupAvailableAt(now)
+}
+
+/** Earliest moment no upload URL signed before `now` can still write an object. */
+export function storageCleanupAvailableAt(now = new Date()): Date {
   return new Date(now.getTime() + UPLOAD_URL_TTL_MS + CLOCK_SKEW_MS)
 }
 
@@ -242,57 +248,113 @@ async function localKeys(prefix: string, signal: AbortSignal): Promise<string[]>
   return keys
 }
 
-async function listKeys(prefix: string, signal: AbortSignal): Promise<string[]> {
+/** One provider page of object keys; `done` once the listing has nothing after this page. */
+interface StorageKeyPage {
+  keys: string[]
+  done: boolean
+  /** Provider cursor for the following page, valid only within the current run. */
+  nextPageToken?: string
+}
+
+/**
+ * Lists one page of object keys under `prefix` in the bucket serving `context`. A local listing
+ * has no cursor: it returns the first keys still on disk, so callers advance by deleting them.
+ */
+export async function listStorageKeyPage(
+  prefix: string,
+  context: StorageContext,
+  signal: AbortSignal,
+  pageToken?: string
+): Promise<StorageKeyPage> {
   signal.throwIfAborted()
   if (USE_S3_STORAGE) {
     const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
     const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
-    const config = getStorageConfig('project')
+    const config = getStorageConfig(context)
     const page = await getS3Client().send(
-      new ListObjectsV2Command({ Bucket: config.bucket, Prefix: prefix, MaxKeys: PAGE_SIZE }),
+      new ListObjectsV2Command({
+        Bucket: config.bucket,
+        Prefix: prefix,
+        MaxKeys: PAGE_SIZE,
+        ...(pageToken ? { ContinuationToken: pageToken } : {}),
+      }),
       { abortSignal: signal }
     )
-    return (page.Contents ?? []).flatMap((object) => (object.Key ? [object.Key] : []))
+    const nextPageToken = page.IsTruncated ? page.NextContinuationToken : undefined
+    return {
+      keys: (page.Contents ?? []).flatMap((object) => (object.Key ? [object.Key] : [])),
+      done: !nextPageToken,
+      ...(nextPageToken ? { nextPageToken } : {}),
+    }
   }
   if (USE_BLOB_STORAGE) {
     const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
-    const config = getStorageConfig('project')
-    if (!config.containerName) throw new Error('Project blob container missing')
+    const config = getStorageConfig(context)
+    if (!config.containerName) throw new Error(`Blob container missing for ${context} storage`)
     const pages = (await getBlobServiceClient())
       .getContainerClient(config.containerName)
       .listBlobsFlat({ prefix, abortSignal: signal })
-      .byPage({ maxPageSize: PAGE_SIZE })
+      .byPage({ maxPageSize: PAGE_SIZE, ...(pageToken ? { continuationToken: pageToken } : {}) })
     const page = await pages.next()
-    return page.done ? [] : page.value.segment.blobItems.map((object) => object.name)
+    if (page.done) return { keys: [], done: true }
+    const nextPageToken = page.value.continuationToken || undefined
+    return {
+      keys: page.value.segment.blobItems.map((object) => object.name),
+      done: !nextPageToken,
+      ...(nextPageToken ? { nextPageToken } : {}),
+    }
   }
   if (USE_GCS_STORAGE) {
     const { getGcsClient } = await import('@/lib/uploads/providers/google-cloud-storage/client')
-    const config = getStorageConfig('project')
-    if (!config.bucket) throw new Error('Project bucket missing')
-    const [files] = await (await getGcsClient())
-      .bucket(config.bucket)
-      .getFiles({ prefix, maxResults: PAGE_SIZE, autoPaginate: false })
+    const config = getStorageConfig(context)
+    if (!config.bucket) throw new Error(`Bucket missing for ${context} storage`)
+    const [files, nextQuery] = await (await getGcsClient()).bucket(config.bucket).getFiles({
+      prefix,
+      maxResults: PAGE_SIZE,
+      autoPaginate: false,
+      ...(pageToken ? { pageToken } : {}),
+    })
     signal.throwIfAborted()
-    return files.map((file) => file.name)
+    const nextPageToken =
+      isRecordLike(nextQuery) && typeof nextQuery.pageToken === 'string' && nextQuery.pageToken
+        ? nextQuery.pageToken
+        : undefined
+    return {
+      keys: files.map((file) => file.name),
+      done: !nextPageToken,
+      ...(nextPageToken ? { nextPageToken } : {}),
+    }
   }
-  return localKeys(prefix, signal)
+  const keys = await localKeys(prefix, signal)
+  return { keys, done: keys.length < PAGE_SIZE }
 }
 
-async function sweepPrefix(projectId: string, context: OutboxEventContext): Promise<boolean> {
-  const prefix = prefixFor(projectId)
-  const keys = await listKeys(prefix, context.signal)
+/**
+ * Deletes listed keys, each of which must sit under `prefix`, and prunes local directories the
+ * deletions empty, never above the prefix itself. Stops before another deletion once the handler
+ * deadline is near; `complete` is false when it did.
+ */
+export async function deleteStorageKeysUnderPrefix(
+  prefix: string,
+  context: StorageContext,
+  keys: readonly string[],
+  outbox: Pick<OutboxEventContext, 'signal' | 'deadlineAt'>
+): Promise<{ deleted: number; complete: boolean }> {
+  if (prefix.length < 2 || !prefix.endsWith('/')) throw new Error('Unbounded storage prefix')
   let deleted = 0
   for (const key of keys) {
-    if (!key.startsWith(prefix)) throw new Error('Storage provider returned a foreign Project key')
-    context.signal.throwIfAborted()
-    if (deleted > 0 && context.deadlineAt && Date.now() + 5000 >= context.deadlineAt) return false
+    if (!key.startsWith(prefix))
+      throw new Error('Storage provider returned a key outside the prefix')
+    outbox.signal.throwIfAborted()
+    if (deleted > 0 && outbox.deadlineAt && Date.now() + 5000 >= outbox.deadlineAt)
+      return { deleted, complete: false }
     try {
-      await deleteFile({ key, context: 'project', signal: context.signal })
+      await deleteFile({ key, context, signal: outbox.signal })
     } catch (error) {
       if (describeError(error).code !== 'ENOENT') throw error
     }
     if (!USE_S3_STORAGE && !USE_BLOB_STORAGE && !USE_GCS_STORAGE) {
-      const root = join(UPLOAD_DIR_SERVER, 'project', projectId)
+      const root = join(UPLOAD_DIR_SERVER, prefix.slice(0, -1))
       let directory = dirname(join(UPLOAD_DIR_SERVER, key))
       while (directory === root || directory.startsWith(`${root}/`)) {
         await removeEmptyDirectory(directory)
@@ -301,7 +363,14 @@ async function sweepPrefix(projectId: string, context: OutboxEventContext): Prom
     }
     deleted++
   }
-  return keys.length < PAGE_SIZE
+  return { deleted, complete: true }
+}
+
+async function sweepPrefix(projectId: string, context: OutboxEventContext): Promise<boolean> {
+  const prefix = prefixFor(projectId)
+  const { keys } = await listStorageKeyPage(prefix, 'project', context.signal)
+  const { complete } = await deleteStorageKeysUnderPrefix(prefix, 'project', keys, context)
+  return complete && keys.length < PAGE_SIZE
 }
 
 const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
