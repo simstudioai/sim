@@ -7,6 +7,7 @@ import { db } from '@sim/db'
 import {
   account,
   deletedAccountIdentity,
+  outboxEvent,
   permissions,
   user,
   userStats,
@@ -19,17 +20,17 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
 import { authMock } from '@sim/testing/mocks/auth.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
-  forfeitFreeTierAllowance,
+  handleNewSignInAccount,
   handleNewUser,
   syncUsageLimitsFromSubscription,
 } from '@/lib/billing/core/usage'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
+import { EXECUTION_STOP_OUTBOX_EVENT } from '@/lib/execution/stop-event'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
-import { isDeletedAccountIdentity } from '@/lib/users/deleted-identity'
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   ...envFlagsMock,
@@ -41,6 +42,7 @@ vi.mock('@/lib/auth', () => authMock)
 const userIds: string[] = []
 const workspaceIds: string[] = []
 const recordedHashes: string[] = []
+const stoppedExecutionIds: string[] = []
 
 /** Creates a user the way signup does: the row, then `handleNewUser` from `user.create.after`. */
 async function signUp(email: string): Promise<string> {
@@ -64,6 +66,12 @@ async function linkAccount(userId: string, providerId: string, accountId: string
   await db
     .insert(account)
     .values({ id: generateId(), userId, providerId, accountId, createdAt: now, updatedAt: now })
+}
+
+/** Links a sign-in account the way `account.create.after` sees it: the row, then the check. */
+async function signInWith(userId: string, providerId: string, accountId: string) {
+  await linkAccount(userId, providerId, accountId)
+  await handleNewSignInAccount({ userId, providerId, accountId })
 }
 
 async function seedWorkspace(ownerId: string): Promise<string> {
@@ -147,6 +155,16 @@ async function deleteOwnAccount(userId: string): Promise<string[]> {
 }
 
 afterAll(async () => {
+  if (stoppedExecutionIds.length) {
+    await db
+      .delete(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, EXECUTION_STOP_OUTBOX_EVENT),
+          inArray(sql<string>`${outboxEvent.payload}->>'executionId'`, stoppedExecutionIds)
+        )
+      )
+  }
   if (recordedHashes.length) {
     await db
       .delete(deletedAccountIdentity)
@@ -185,6 +203,18 @@ describe('deleted account identities and the free allowance', () => {
     expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
   })
 
+  it('folds +tags only where the provider delivers them to the same mailbox', async () => {
+    const local = `tagged${generateId().replaceAll('-', '')}`
+    await deleteOwnAccount(await signUp(`${local}+one@deleted-identity.test`))
+
+    const sameLocalPart = await signUp(`${local}@deleted-identity.test`)
+
+    expect(await statsOf(sameLocalPart)).toEqual({
+      freeTierEligible: true,
+      limit: getFreeTierLimit(),
+    })
+  })
+
   it('still grants the allowance to a different person and to a record past its retention', async () => {
     const email = `expired.${generateId()}@deleted-identity.test`
     const written = await deleteOwnAccount(await signUp(email))
@@ -214,21 +244,32 @@ describe('deleted account identities and the free allowance', () => {
     expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 10 })
   })
 
-  it('recognises a returning GitHub identity whose primary email changed', async () => {
+  it('withholds the allowance when a signup arrives on a deleted GitHub identity under a new email', async () => {
     const githubSubject = `gh-${generateId()}`
     const original = await signUp(`gh-old.${generateId()}@deleted-identity.test`)
     await linkAccount(original, 'github', githubSubject)
     await deleteOwnAccount(original)
+
     const returning = await signUp(`gh-new.${generateId()}@deleted-identity.test`)
-    expect((await statsOf(returning)).freeTierEligible).toBe(true)
+    await signInWith(returning, 'github', githubSubject)
 
-    const matched = await isDeletedAccountIdentity({
-      oauthSubjects: [{ providerId: 'github', accountId: githubSubject }],
-    })
-    await forfeitFreeTierAllowance(returning)
-
-    expect(matched).toBe(true)
     expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
+  })
+
+  it('never withholds for a sign-in linked after signup, or for an integration connection', async () => {
+    const githubSubject = `gh-${generateId()}`
+    const original = await signUp(`gh-gone.${generateId()}@deleted-identity.test`)
+    await linkAccount(original, 'github', githubSubject)
+    await deleteOwnAccount(original)
+
+    const existing = await signUp(`linker.${generateId()}@deleted-identity.test`)
+    await signInWith(existing, 'google', `google-${generateId()}`)
+    await signInWith(existing, 'github', githubSubject)
+    const connector = await signUp(`connector.${generateId()}@deleted-identity.test`)
+    await signInWith(connector, 'github-repo', githubSubject)
+
+    expect(await statsOf(existing)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    expect(await statsOf(connector)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
   })
 
   it('records only sign-in identities, as keyed digests holding no address or subject', async () => {
@@ -271,6 +312,7 @@ describe('deleting an account stops its running workflows', () => {
     const bystander = await signUp(`bystander.${generateId()}@deleted-identity.test`)
     const doomedRun = await seedRunningExecution(departing, await seedWorkspace(departing))
     const otherRun = await seedRunningExecution(bystander, await seedWorkspace(bystander))
+    stoppedExecutionIds.push(doomedRun, otherRun)
     const cancelled = new Set<string>()
     const unsubscribers = await Promise.all(
       [doomedRun, otherRun].map((executionId) =>
@@ -283,6 +325,19 @@ describe('deleting an account stops its running workflows', () => {
 
       await expect.poll(() => cancelled.has(doomedRun)).toBe(true)
       expect(cancelled.has(otherRun)).toBe(false)
+      const stops = await db
+        .select({
+          status: outboxEvent.status,
+          executionId: sql<string>`${outboxEvent.payload}->>'executionId'`,
+        })
+        .from(outboxEvent)
+        .where(
+          and(
+            eq(outboxEvent.eventType, EXECUTION_STOP_OUTBOX_EVENT),
+            inArray(sql<string>`${outboxEvent.payload}->>'executionId'`, [doomedRun, otherRun])
+          )
+        )
+      expect(stops).toEqual([{ status: 'completed', executionId: doomedRun }])
     } finally {
       for (const unsubscribe of unsubscribers) unsubscribe()
     }

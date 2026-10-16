@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
-import { member, organization, userStats } from '@sim/db/schema'
+import { account, member, organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { isSignInProviderAllowed } from '@/lib/auth/constants'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
@@ -44,7 +45,7 @@ import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { DbClient } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { isDeletedAccountIdentity } from '@/lib/users/deleted-identity'
 
@@ -214,6 +215,32 @@ export async function handleNewUser({
     })
     throw error
   }
+}
+
+/**
+ * The account-creation half of the signup check. A GitHub or Microsoft identity
+ * whose primary email changed since its account was deleted passes the email
+ * check in {@link handleNewUser}, so a signup's first sign-in account is checked
+ * by provider subject. Only a user's first account is a signup; linking another
+ * sign-in later never withholds anything. Integration connections are skipped.
+ */
+export async function handleNewSignInAccount({
+  userId,
+  providerId,
+  accountId,
+}: {
+  userId: string
+  providerId: string
+  accountId: string
+}): Promise<void> {
+  if (!isSignInProviderAllowed(providerId)) return
+  const [{ value: accountCount }] = await db
+    .select({ value: count() })
+    .from(account)
+    .where(eq(account.userId, userId))
+  if (accountCount !== 1) return
+  if (!(await isDeletedAccountIdentity({ oauthSubjects: [{ providerId, accountId }] }))) return
+  await forfeitFreeTierAllowance(userId)
 }
 
 /**
@@ -617,17 +644,16 @@ export async function checkUsageStatus(userId: string): Promise<{
 
 /**
  * Withholds the free allowance from a new account found to reuse the sign-in
- * identity of a recently deleted one after its stats row was created, then
- * re-derives its limit so only prepaid credit or a paid plan remains.
+ * identity of a recently deleted one after its stats row was created. The flag
+ * and the limit it implies commit together, so a failed re-derivation can never
+ * leave the account flagged but still holding the free limit; repeating the
+ * call is harmless.
  */
 export async function forfeitFreeTierAllowance(userId: string): Promise<void> {
-  const forfeited = await db
-    .update(userStats)
-    .set({ freeTierEligible: false })
-    .where(and(eq(userStats.userId, userId), eq(userStats.freeTierEligible, true)))
-    .returning({ userId: userStats.userId })
-  if (forfeited.length === 0) return
-  await syncUsageLimitsFromSubscription(userId)
+  await db.transaction(async (tx) => {
+    await tx.update(userStats).set({ freeTierEligible: false }).where(eq(userStats.userId, userId))
+    await syncUsageLimitsFromSubscription(userId, tx)
+  })
   logger.info('Withheld the free allowance from a returning deleted-account identity', { userId })
 }
 
@@ -635,11 +661,19 @@ export async function forfeitFreeTierAllowance(userId: string): Promise<void> {
  * Syncs the user's personal billing pool from their exact personal subscription.
  * Organization subscriptions have a separate pool and never clear personal limits.
  */
-export async function syncUsageLimitsFromSubscription(userId: string): Promise<void> {
-  const [subscription, currentUserStats] = await Promise.all([
-    getHighestPriorityPersonalSubscription(userId, { onError: 'throw' }),
-    db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
-  ])
+export async function syncUsageLimitsFromSubscription(
+  userId: string,
+  executor: DbOrTx = db
+): Promise<void> {
+  const subscription = await getHighestPriorityPersonalSubscription(userId, {
+    onError: 'throw',
+    executor,
+  })
+  const currentUserStats = await executor
+    .select()
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .limit(1)
 
   if (currentUserStats.length === 0) {
     throw new Error(`User stats not found for userId: ${userId}`)
@@ -651,7 +685,7 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
   const hasEntitledPersonalSubscription =
     subscription !== null && hasPaidSubscriptionStatus(subscription.status)
   const liveMinimum = sql`${baseLimit}::numeric + ${userStats.creditBalance}`
-  await db
+  await executor
     .update(userStats)
     .set({
       currentUsageLimit: hasEntitledPersonalSubscription

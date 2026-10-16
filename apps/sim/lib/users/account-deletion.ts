@@ -40,7 +40,7 @@ import {
 } from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
-import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { enqueueExecutionStops, processExecutionStopsNow } from '@/lib/execution/stop-outbox'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
@@ -774,34 +774,6 @@ async function announceCancelledTableWork(
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
  */
-interface LiveExecution {
-  executionId: string
-  executionDeadlineAt: Date | null
-}
-
-/**
- * Stops workflow runs still executing in the deleted workspaces. Their log rows
- * cascade away with the workspace, so the ordinary cancel path cannot find them;
- * the cancellation flag needs only the execution id, and a run that keeps going
- * would spend hosted provider keys for an account that no longer exists.
- */
-async function stopLiveExecutions(executions: LiveExecution[]): Promise<void> {
-  const results = await Promise.allSettled(
-    executions.map(({ executionId, executionDeadlineAt }) =>
-      markExecutionCancelled(executionId, { executionDeadlineAt })
-    )
-  )
-  const failed = results.filter(
-    (result) => result.status === 'rejected' || !result.value.durablyRecorded
-  ).length
-  if (failed > 0) {
-    logger.warn('Some workflow runs of the deleted account were not durably cancelled', {
-      failed,
-      total: executions.length,
-    })
-  }
-}
-
 export interface DeleteUserAccountOptions {
   /**
    * Keep keyed digests of the account's sign-in identities so a new account on
@@ -825,7 +797,7 @@ export async function deleteUserAccount(
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
   let stoppedRuns: StoppedRun[] = []
-  let liveExecutions: LiveExecution[] = []
+  let executionStopEventIds: string[] = []
   /**
    * Resolved while the account's settings still exist to route a superuser's runs. It only
    * routes the best-effort push, so a failed lookup falls back to the default endpoint.
@@ -906,7 +878,13 @@ export async function deleteUserAccount(
      */
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
     if (doomedWorkspaceIds.length > 0) {
-      liveExecutions = await tx
+      /**
+       * Runs still executing in the doomed workspaces lose their log rows to the cascade below,
+       * after which the ordinary cancel path cannot find them and they would keep spending
+       * hosted provider keys for an account that no longer exists. The stops commit with the
+       * erasure, so a crash or a Redis outage after commit only delays them.
+       */
+      const liveExecutions = await tx
         .select({
           executionId: workflowExecutionLogs.executionId,
           executionDeadlineAt: workflowExecutionLogs.executionDeadlineAt,
@@ -918,6 +896,7 @@ export async function deleteUserAccount(
             eq(workflowExecutionLogs.status, 'running')
           )
         )
+      executionStopEventIds = await enqueueExecutionStops(tx, liveExecutions)
 
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -1078,7 +1057,7 @@ export async function deleteUserAccount(
 
   deliverRunStops(stoppedRuns, { mothershipBaseURL })
 
-  await stopLiveExecutions(liveExecutions)
+  await processExecutionStopsNow(executionStopEventIds, { userId })
 
   await purgeStorageObjects(userId, storageKeys)
 

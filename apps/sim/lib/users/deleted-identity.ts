@@ -35,17 +35,37 @@ const EXPIRED_PURGE_BATCH = 100
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com'])
 
 /**
+ * Providers whose documented sub-addressing delivers `name+tag@` to `name@`.
+ * Plus-addressing is a provider feature, not an email standard: elsewhere the
+ * two can be different mailboxes, so tags are only stripped where it holds.
+ */
+const PLUS_ADDRESSING_DOMAINS = new Set([
+  ...GMAIL_DOMAINS,
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'msn.com',
+  'icloud.com',
+  'me.com',
+  'mac.com',
+  'fastmail.com',
+  'proton.me',
+  'protonmail.com',
+  'pm.me',
+])
+
+/**
  * One social sign-in identity: the provider and that provider's stable subject
  * id. Only `SIGN_IN_PROVIDER_IDS` count; integration connections share the
  * `account` table but carry per-connection ids, and the email/password row's
  * `accountId` is the user id itself.
  */
-export interface OAuthSubject {
+interface OAuthSubject {
   providerId: string
   accountId: string
 }
 
-export interface SignInIdentity {
+interface SignInIdentity {
   email?: string | null
   oauthSubjects?: OAuthSubject[]
 }
@@ -59,8 +79,9 @@ function getIdentityKey(): string {
 }
 
 /**
- * Collapses the address variants that deliver to the same mailbox: case,
- * `+tag` sub-addressing, and Gmail's ignored dots and `googlemail.com` alias.
+ * Collapses the address variants that deliver to the same mailbox: case, `+tag`
+ * sub-addressing at providers that support it, and Gmail's ignored dots and
+ * `googlemail.com` alias.
  */
 function canonicalizeEmail(email: string): string | null {
   const normalized = email.trim().toLowerCase()
@@ -69,7 +90,7 @@ function canonicalizeEmail(email: string): string | null {
   let local = normalized.slice(0, at)
   let domain = normalized.slice(at + 1)
   const plus = local.indexOf('+')
-  if (plus > 0) local = local.slice(0, plus)
+  if (plus > 0 && PLUS_ADDRESSING_DOMAINS.has(domain)) local = local.slice(0, plus)
   if (GMAIL_DOMAINS.has(domain)) {
     local = local.replaceAll('.', '')
     domain = 'gmail.com'

@@ -108,7 +108,7 @@ describe('getUserUsageLimit', () => {
 
   it('heals a null limit to the free-tier default for free users', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
-      { currentUsageLimit: null, creditBalance: '0.006' },
+      { currentUsageLimit: null, creditBalance: '0.006', freeTierEligible: true },
     ])
     dbChainMockFns.returning.mockResolvedValueOnce([{ currentUsageLimit: '10.006' }])
     mockGetFreeTierLimit.mockReturnValue(10)
@@ -129,7 +129,9 @@ describe('getUserUsageLimit', () => {
   })
 
   it('heals a null limit to the plan minimum for paid personal subscriptions', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: null, creditBalance: '1.25' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { currentUsageLimit: null, creditBalance: '1.25', freeTierEligible: true },
+    ])
     dbChainMockFns.returning.mockResolvedValueOnce([{ currentUsageLimit: '41.25' }])
     mockHasPaidSubscriptionStatus.mockReturnValue(true)
     mockGetPerUserMinimumLimit.mockReturnValue(40)
@@ -137,7 +139,7 @@ describe('getUserUsageLimit', () => {
     const limit = await getUserUsageLimit('user-1', PRO_SUBSCRIPTION)
 
     expect(limit).toBe(41.25)
-    expect(mockGetPerUserMinimumLimit).toHaveBeenCalledWith(PRO_SUBSCRIPTION)
+    expect(mockGetPerUserMinimumLimit).toHaveBeenCalledWith(PRO_SUBSCRIPTION, true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       currentUsageLimit: '41.25',
       usageLimitUpdatedAt: expect.any(Date),
@@ -221,15 +223,18 @@ describe('syncUsageLimitsFromSubscription', () => {
       })
       mockIsOrgScopedSubscription.mockReturnValue(true)
       mockGetPerUserMinimumLimit.mockReturnValue(minimum)
-      dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '80', creditBalance: '1' }])
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { currentUsageLimit: '80', creditBalance: '1', freeTierEligible: true },
+      ])
 
       await syncUsageLimitsFromSubscription('user-1')
 
-      expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledExactlyOnceWith('user-1', {
-        onError: 'throw',
-      })
+      expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledExactlyOnceWith(
+        'user-1',
+        expect.objectContaining({ onError: 'throw' })
+      )
       expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
-      expect(mockGetPerUserMinimumLimit).toHaveBeenCalledWith(personalSubscription)
+      expect(mockGetPerUserMinimumLimit).toHaveBeenCalledWith(personalSubscription, true)
       const update = dbChainMockFns.set.mock.calls[0]?.[0]
       expect(update?.currentUsageLimit).not.toBeNull()
       expect(JSON.stringify(update?.currentUsageLimit)).toContain('greatest')
@@ -264,7 +269,7 @@ describe('syncUsageLimitsFromSubscription', () => {
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
     mockGetPerUserMinimumLimit.mockReturnValue(10)
     dbChainMockFns.limit.mockResolvedValueOnce([
-      { currentUsageLimit: null, creditBalance: '0.006' },
+      { currentUsageLimit: null, creditBalance: '0.006', freeTierEligible: true },
     ])
 
     await syncUsageLimitsFromSubscription('user-1')
@@ -280,7 +285,7 @@ describe('syncUsageLimitsFromSubscription', () => {
     mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
     mockGetPerUserMinimumLimit.mockReturnValue(10)
     dbChainMockFns.limit.mockResolvedValueOnce([
-      { currentUsageLimit: '100', creditBalance: '0.006' },
+      { currentUsageLimit: '100', creditBalance: '0.006', freeTierEligible: true },
     ])
 
     await syncUsageLimitsFromSubscription('user-1')

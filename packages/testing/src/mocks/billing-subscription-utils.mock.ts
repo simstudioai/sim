@@ -164,9 +164,17 @@ function isOrgScopedSubscription(
   return subscription.referenceId !== userId
 }
 
-function getPerUserMinimumLimit(subscription: SubscriptionLike | null | undefined): number {
+/** Routes through the mock fn so a test's `mockGetFreeTierLimit` override applies. */
+function getFreeTierAllowance(freeTierEligible: boolean): number {
+  return freeTierEligible ? billingSubscriptionUtilsMockFns.mockGetFreeTierLimit() : 0
+}
+
+function getPerUserMinimumLimit(
+  subscription: SubscriptionLike | null | undefined,
+  freeTierEligible: boolean
+): number {
   if (!subscription || !hasPaidSubscriptionStatus(subscription.status)) {
-    return getFreeTierLimit()
+    return getFreeTierAllowance(freeTierEligible)
   }
   if (isPro(subscription.plan)) {
     const tierCredits = getPlanTierCredits(subscription.plan)
@@ -174,7 +182,7 @@ function getPerUserMinimumLimit(subscription: SubscriptionLike | null | undefine
     return getProTierLimit()
   }
   if (isOrgPlan(subscription.plan)) return 0
-  return getFreeTierLimit()
+  return getFreeTierAllowance(freeTierEligible)
 }
 
 function canEditUsageLimit(subscription: SubscriptionLike | null | undefined): boolean {
@@ -205,6 +213,7 @@ export const billingSubscriptionUtilsMockFns = {
   mockHasUsableSubscriptionStatus: vi.fn(hasUsableSubscriptionStatus),
   mockHasUsableSubscriptionAccess: vi.fn(hasUsableSubscriptionAccess),
   mockGetFreeTierLimit: vi.fn(getFreeTierLimit),
+  mockGetFreeTierAllowance: vi.fn(getFreeTierAllowance),
   mockGetProTierLimit: vi.fn(getProTierLimit),
   mockGetTeamTierLimitPerSeat: vi.fn(getTeamTierLimitPerSeat),
   mockGetEnterpriseTierLimitPerSeat: vi.fn(getEnterpriseTierLimitPerSeat),
@@ -236,6 +245,7 @@ export const billingSubscriptionUtilsMock = {
   hasUsableSubscriptionStatus: billingSubscriptionUtilsMockFns.mockHasUsableSubscriptionStatus,
   hasUsableSubscriptionAccess: billingSubscriptionUtilsMockFns.mockHasUsableSubscriptionAccess,
   getFreeTierLimit: billingSubscriptionUtilsMockFns.mockGetFreeTierLimit,
+  getFreeTierAllowance: billingSubscriptionUtilsMockFns.mockGetFreeTierAllowance,
   getProTierLimit: billingSubscriptionUtilsMockFns.mockGetProTierLimit,
   getTeamTierLimitPerSeat: billingSubscriptionUtilsMockFns.mockGetTeamTierLimitPerSeat,
   getEnterpriseTierLimitPerSeat: billingSubscriptionUtilsMockFns.mockGetEnterpriseTierLimitPerSeat,

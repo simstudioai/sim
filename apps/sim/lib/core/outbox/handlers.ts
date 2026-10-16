@@ -14,6 +14,7 @@ import {
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import type { LazyOutboxHandlerGroup } from '@/lib/core/outbox/service'
+import { EXECUTION_STOP_OUTBOX_EVENT } from '@/lib/execution/stop-event'
 import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
 import { SLACK_SEARCH_TURN_EVENT } from '@/lib/knowledge/application/slack-search/turn-event'
 import {
@@ -184,6 +185,13 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
         '@/lib/organizations/resource-cleanup'
       )
       return organizationResourceCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [EXECUTION_STOP_OUTBOX_EVENT],
+    load: async () => {
+      const { executionStopOutboxHandlers } = await import('@/lib/execution/stop-outbox')
+      return executionStopOutboxHandlers
     },
   },
   {

@@ -92,7 +92,7 @@ import {
   syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
-import { handleNewUser } from '@/lib/billing/core/usage'
+import { handleNewSignInAccount, handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
@@ -176,7 +176,6 @@ import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
-import { isDeletedAccountIdentity } from '@/lib/users/deleted-identity'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
@@ -656,30 +655,13 @@ export const auth = betterAuth({
             })
           }
 
-          /**
-           * The email check at user creation misses a GitHub or Microsoft identity whose
-           * primary address changed since its account was deleted, so a signup's first
-           * sign-in identity is checked by provider subject too.
-           */
-          if (isSignInProviderAllowed(account.providerId)) {
-            try {
-              const [{ value: accountCount }] = await db
-                .select({ value: count() })
-                .from(schema.account)
-                .where(eq(schema.account.userId, account.userId))
-              if (
-                accountCount === 1 &&
-                (await isDeletedAccountIdentity({ oauthSubjects: [account] }))
-              ) {
-                const { forfeitFreeTierAllowance } = await import('@/lib/billing/core/usage')
-                await forfeitFreeTierAllowance(account.userId)
-              }
-            } catch (error) {
-              logger.error('[databaseHooks.account.create.after] Deleted-identity check failed', {
-                userId: account.userId,
-                error,
-              })
-            }
+          try {
+            await handleNewSignInAccount(account)
+          } catch (error) {
+            logger.error('[databaseHooks.account.create.after] Deleted-identity check failed', {
+              userId: account.userId,
+              error,
+            })
           }
 
           try {
