@@ -137,7 +137,7 @@ async function createWorkflowChat(
     id: workflowId,
     userId: ownerId,
     workspaceId,
-    name: 'Transcript pages workflow',
+    name: `Transcript pages workflow ${workflowId}`,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,

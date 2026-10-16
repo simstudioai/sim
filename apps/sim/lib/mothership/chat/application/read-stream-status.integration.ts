@@ -35,7 +35,7 @@ async function createWorkflowChat(
     id: workflowId,
     userId: ownerId,
     workspaceId,
-    name: 'Chat stream status workflow',
+    name: `Chat stream status workflow ${workflowId}`,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,
