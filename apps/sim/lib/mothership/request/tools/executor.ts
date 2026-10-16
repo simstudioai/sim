@@ -757,7 +757,19 @@ async function executeToolAndReportInner(
   if (context.runId) {
     const claim = await lifetime.claim(context.runId, execContext.userId)
     if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
-    if (claim.outcome === 'existing') {
+    // Settled as never run instead of claimed, so a crash before the handler refuses to start
+    // cannot leave it recovered as an unknown outcome. Losing that settlement leaves another writer's.
+    if (
+      claim.outcome === 'too_late' &&
+      (await failUnstartedToolCall(
+        toolCall.id,
+        context,
+        execContext,
+        TOOL_DEADLINE_BEFORE_START_MESSAGE
+      ))
+    )
+      return terminalCompletionFromToolCall(toolCall)
+    if (claim.outcome !== 'claimed') {
       /** The winning controller owns execution; this promise observes its durable result. */
       const completion = await waitForToolConfirmation(
         toolCall.id,
