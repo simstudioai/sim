@@ -1,5 +1,6 @@
 import {
   type OrganizationDelegatedPrincipal,
+  type PersonalChatDelegatedPrincipal,
   type Principal,
   requirePrincipalSubjectUserId,
   type SubjectDelegatedPrincipal,
@@ -201,7 +202,11 @@ export async function requireCurrentCopilotProjectInvocation(
 /** Shared owner policy keeps compound copies subject to the same live Project edit rule. */
 export async function requireProjectFileOwnerRole(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
+  principal:
+    | ProjectFilePrincipal
+    | SubjectDelegatedPrincipal
+    | OrganizationDelegatedPrincipal
+    | PersonalChatDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   accessMode: 'read' | 'write',
   mode: 'hold' | 'snapshot' = 'hold'
@@ -232,7 +237,11 @@ export async function requireProjectFileOwnerRole(
 /** Credential and Files capability checks apply to every currently visible environment. */
 export async function requireProjectFileOwnerCapabilities(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
+  principal:
+    | ProjectFilePrincipal
+    | SubjectDelegatedPrincipal
+    | OrganizationDelegatedPrincipal
+    | PersonalChatDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   capability: ProjectFileOperation['capability']
 ): Promise<void> {

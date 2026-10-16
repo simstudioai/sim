@@ -4,6 +4,7 @@ import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   createCopilotChatPrincipal,
   createTrustedOrganizationCopilotPrincipal,
+  createTrustedPersonalChatPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import {
   authorizeChatWorkspaceTarget,
@@ -41,10 +42,19 @@ export async function resolveInvocationWorkspace(owner: InvocationOwner, request
           },
           { audience: WORKSPACE_TARGET_AUDIENCE, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS }
         )
-      : createCopilotChatPrincipal(
-          { userId: owner.userId, workspaceId, chatId: owner.chatId },
-          WORKSPACE_TARGET_AUDIENCE
-        )
+      : !owner.workspaceId
+        ? createTrustedPersonalChatPrincipal(
+            {
+              userId: owner.userId,
+              chatId: owner.chatId,
+              delegationId: `workspace-target:${owner.chatId}`,
+            },
+            { audience: WORKSPACE_TARGET_AUDIENCE, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS }
+          )
+        : createCopilotChatPrincipal(
+            { userId: owner.userId, workspaceId, chatId: owner.chatId },
+            WORKSPACE_TARGET_AUDIENCE
+          )
     return authorizeChatWorkspaceTarget.execute({
       principal,
       input: { chatId: owner.chatId, workspaceId },

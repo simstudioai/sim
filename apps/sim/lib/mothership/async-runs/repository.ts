@@ -8,7 +8,10 @@ import {
   copilotChats,
   copilotOrganizationRequestStops,
   copilotRequestStops,
+  copilotRunStops,
   copilotRuns,
+  organization,
+  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
@@ -166,6 +169,7 @@ interface RunStopInput extends ResourceOwner {
 }
 
 function stopLocation(input: RunStopInput) {
+  if (input.workspaceId == null && input.organizationId == null) return null
   const owner = resourceScopeFromOwner(input)
   const table =
     owner.kind === 'organization' ? copilotOrganizationRequestStops : copilotRequestStops
@@ -184,7 +188,7 @@ export async function requestRunStop(
     chatId?: string
   }
 ) {
-  resourceScopeFromOwner(input)
+  stopLocation(input)
   return withRunAdmissionLock(input.userId, input.streamId, async (tx) => {
     const [run] = await tx
       .select()
@@ -210,17 +214,31 @@ export async function requestRunStop(
  */
 async function recordRunStopTx(tx: DbTransaction, input: RunStopInput, admitted = true) {
   const { userId, streamId } = input
-  const owner = resourceScopeFromOwner(input)
-  if (owner.kind === 'organization') {
-    await tx
-      .insert(copilotOrganizationRequestStops)
-      .values({ userId, organizationId: owner.organizationId, streamId })
-      .onConflictDoNothing()
-  } else {
-    await tx
-      .insert(copilotRequestStops)
-      .values({ userId, workspaceId: owner.workspaceId, streamId })
-      .onConflictDoNothing()
+  const legacy = stopLocation(input)
+  await tx.insert(copilotRunStops).values({ userId, streamId }).onConflictDoNothing()
+  const owner = legacy ? resourceScopeFromOwner(input) : null
+  if (owner?.kind === 'organization') {
+    const [source] = await tx
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, owner.organizationId))
+      .for('key share')
+    if (source)
+      await tx
+        .insert(copilotOrganizationRequestStops)
+        .values({ userId, organizationId: owner.organizationId, streamId })
+        .onConflictDoNothing()
+  } else if (owner?.kind === 'workspace') {
+    const [source] = await tx
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.id, owner.workspaceId))
+      .for('key share')
+    if (source)
+      await tx
+        .insert(copilotRequestStops)
+        .values({ userId, workspaceId: owner.workspaceId, streamId })
+        .onConflictDoNothing()
   }
   if (!admitted) return
   const stoppedRuns = and(eq(copilotRuns.userId, userId), eq(copilotRuns.streamId, streamId))
@@ -335,9 +353,7 @@ export async function stopLiveRunsTx(
     organizationId,
     desktopDeviceId,
   } of rows) {
-    /** A run with no single owner has no Stop row to write; run control already answers Stop. */
-    if (Boolean(workspaceId) !== Boolean(organizationId))
-      await recordRunStopTx(tx, { streamId, userId, workspaceId, organizationId })
+    await recordRunStopTx(tx, { streamId, userId, workspaceId, organizationId })
     stopped.push({
       id,
       streamId,
@@ -416,10 +432,30 @@ async function cancelOpenDesktopToolCalls(
   }
 }
 
+/** Only the original admission scope selects legacy intent; unified intent is actor/stream bound. */
+async function readRunStop(database: DbOrTx, input: RunStopInput) {
+  const legacy = stopLocation(input)
+  const unified = database
+    .select({ stoppedAt: copilotRunStops.stoppedAt })
+    .from(copilotRunStops)
+    .where(
+      and(eq(copilotRunStops.userId, input.userId), eq(copilotRunStops.streamId, input.streamId))
+    )
+  const rows = legacy
+    ? await unified
+        .unionAll(
+          database
+            .select({ stoppedAt: legacy.table.stoppedAt })
+            .from(legacy.table)
+            .where(legacy.predicate)
+        )
+        .limit(1)
+    : await unified.limit(1)
+  return rows[0]
+}
+
 export async function isRunStopRequested(input: RunStopInput): Promise<boolean> {
-  const { table, predicate } = stopLocation(input)
-  const [stop] = await db.select({ streamId: table.streamId }).from(table).where(predicate).limit(1)
-  return !!stop
+  return Boolean(await readRunStop(db, input))
 }
 
 export async function createRunSegment(input: CreateRunSegmentInput) {
@@ -457,15 +493,10 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
     .from(copilotChats)
     .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
     .for('share')
-  const inheritsOwner = !input.workspaceId && !input.organizationId
+  const inheritsOwner = input.workspaceId === undefined && input.organizationId === undefined
   const workspaceId = inheritsOwner ? chat?.workspaceId : input.workspaceId
   const organizationId = inheritsOwner ? chat?.organizationId : input.organizationId
-  const { table, predicate } = stopLocation({ ...input, workspaceId, organizationId })
-  const [stop] = await tx
-    .select({ stoppedAt: table.stoppedAt })
-    .from(table)
-    .where(predicate)
-    .limit(1)
+  const stop = await readRunStop(tx, { ...input, workspaceId, organizationId })
   const closedAt = stop?.stoppedAt ?? chat?.deletedAt
   const [run] = await tx
     .insert(copilotRuns)

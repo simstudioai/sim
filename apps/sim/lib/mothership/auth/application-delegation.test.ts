@@ -1,6 +1,8 @@
+import { parsePrincipal, serializePrincipal } from '@sim/auth/principal'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createCopilotApplicationPrincipal,
+  createTrustedCopilotPrincipal,
   requireInteractiveCopilotExecutionContext,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/mothership/auth/application-delegation'
@@ -17,6 +19,27 @@ const trustedContext = {
 describe('Copilot application delegation', () => {
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('does not persist transient callback correlation as workflow authority', () => {
+    const principal = createTrustedCopilotPrincipal(
+      {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        chatId: 'chat-1',
+        delegationId: 'callback',
+        executionStreamId: 'non-uuid-stream',
+      },
+      { audience: 'sim:copilot-callback', ttlMs: 60_000 }
+    )
+    const restored = parsePrincipal(serializePrincipal(principal))
+    expect(restored).not.toHaveProperty('executionStreamId')
+    expect(restored).toMatchObject({
+      kind: 'delegated',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      resourceScope: { chatId: 'chat-1' },
+    })
   })
 
   it.each([

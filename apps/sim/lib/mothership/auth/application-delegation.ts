@@ -1,5 +1,10 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  OrganizationDelegatedPrincipal,
+  PersonalChatDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
+import { RunControlRequest } from '@/lib/mothership/generated/run-control'
 
 /**
  * Delegated authority is minted per operation and must outlive the longest single
@@ -55,6 +60,7 @@ interface CreateCopilotApplicationPrincipalOptions extends CopilotDelegationConf
 }
 
 interface CreateTrustedCopilotPrincipalInput {
+  executionStreamId?: string
   userId: string
   workspaceId: string
   delegationId: string
@@ -136,6 +142,8 @@ export function createTrustedCopilotPrincipal(
   input: CreateTrustedCopilotPrincipalInput,
   options: CreateTrustedCopilotPrincipalOptions
 ): DelegatedPrincipal {
+  if (input.executionStreamId !== undefined)
+    RunControlRequest.shape.streamId.parse(input.executionStreamId)
   requireNonEmpty(input.userId, 'an authenticated user ID')
   requireNonEmpty(input.workspaceId, 'a workspace ID')
   requireNonEmpty(input.delegationId, 'a delegation ID')
@@ -176,6 +184,9 @@ export function createTrustedCopilotPrincipal(
   return Object.freeze({
     kind: 'delegated',
     serviceId: 'copilot',
+    ...(input.executionStreamId !== undefined
+      ? { executionStreamId: input.executionStreamId }
+      : {}),
     subjectUserId: input.userId,
     workspaceId: input.workspaceId,
     delegationId: input.delegationId,
@@ -206,9 +217,17 @@ export function createCopilotApplicationPrincipal(
 
 /** Creates a chat-bound organization delegation from authenticated service context. */
 export function createTrustedOrganizationCopilotPrincipal(
-  input: { userId: string; organizationId: string; chatId: string; delegationId: string },
+  input: {
+    userId: string
+    organizationId: string
+    chatId: string
+    delegationId: string
+    executionStreamId?: string
+  },
   options: { audience: string; ttlMs: number }
 ): OrganizationDelegatedPrincipal {
+  if (input.executionStreamId !== undefined)
+    RunControlRequest.shape.streamId.parse(input.executionStreamId)
   requireNonEmpty(input.userId, 'an authenticated user ID')
   requireNonEmpty(input.organizationId, 'an organization ID')
   requireNonEmpty(input.chatId, 'a chat ID')
@@ -220,6 +239,9 @@ export function createTrustedOrganizationCopilotPrincipal(
   const issuedAt = new Date()
   return Object.freeze({
     kind: 'organization_delegated',
+    ...(input.executionStreamId !== undefined
+      ? { executionStreamId: input.executionStreamId }
+      : {}),
     serviceId: 'copilot',
     subjectUserId: input.userId,
     organizationId: input.organizationId,
@@ -255,5 +277,34 @@ export function requireTrustedOrganizationCopilotContext(
     organizationId: context.organizationId,
     chatId: context.chatId,
     toolCallId: context.toolCallId,
+  })
+}
+
+/** Personal chat callbacks are bounded to the authenticated actor and exact chat. */
+export function createTrustedPersonalChatPrincipal(
+  input: { userId: string; chatId: string; delegationId: string; executionStreamId?: string },
+  options: { audience: string; ttlMs: number }
+): PersonalChatDelegatedPrincipal {
+  requireNonEmpty(input.userId, 'an authenticated user ID')
+  requireNonEmpty(input.chatId, 'a chat ID')
+  requireNonEmpty(input.delegationId, 'a delegation ID')
+  requireNonEmpty(options.audience, 'a delegation audience')
+  if (!Number.isInteger(options.ttlMs) || options.ttlMs <= 0)
+    throw new Error('Copilot application delegation requires a positive integer TTL')
+  if (input.executionStreamId !== undefined)
+    RunControlRequest.shape.streamId.parse(input.executionStreamId)
+  const issuedAt = new Date()
+  return Object.freeze({
+    kind: 'personal_chat_delegated',
+    serviceId: 'copilot',
+    subjectUserId: input.userId,
+    delegationId: input.delegationId,
+    audience: options.audience,
+    issuedAt,
+    expiresAt: new Date(issuedAt.getTime() + options.ttlMs),
+    resourceScope: Object.freeze({ chatId: input.chatId }),
+    ...(input.executionStreamId !== undefined
+      ? { executionStreamId: input.executionStreamId }
+      : {}),
   })
 }

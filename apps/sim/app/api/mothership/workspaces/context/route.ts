@@ -13,7 +13,7 @@ import { WORKSPACE_TARGET_AUDIENCE } from '@/lib/mothership/chat/application/wor
 
 export const POST = defineInternalJsonRoute({
   contract: readWorkspaceContextContract,
-  auth: internalCopilotAuth(WORKSPACE_TARGET_AUDIENCE, { organization: true }),
+  auth: internalCopilotAuth(WORKSPACE_TARGET_AUDIENCE, { organization: true, personal: true }),
   operation: readWorkspaceContextOperation,
   rateLimit: internalRateLimits.none({
     reason:

@@ -34,6 +34,7 @@ import {
   copilotAsyncToolCalls,
   copilotChats,
   copilotRequestStops,
+  copilotRunStops,
   copilotRuns,
   permissions,
   user,
@@ -282,6 +283,21 @@ describe.runIf(Boolean(redisUrl))('Chat runs no controller owns', () => {
         .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
       return row
     }
+
+    it('settles personal runs from unified-only Stop intent', async () => {
+      const run = await admittedRun({ idleMinutes: 90 })
+      await db
+        .update(copilotRuns)
+        .set({ workspaceId: null, organizationId: null })
+        .where(eq(copilotRuns.id, run.runId))
+      await db.insert(copilotRunStops).values({ userId, streamId: run.streamId })
+      expect(await settleStoppedRunWithoutController(run.runId)).toBe(true)
+      const [settled] = await db
+        .select({ status: copilotRuns.status, error: copilotRuns.error })
+        .from(copilotRuns)
+        .where(eq(copilotRuns.id, run.runId))
+      expect(settled).toEqual({ status: 'cancelled', error: null })
+    })
 
     it('leaves an admitted pending call unclaimed for its caller to settle as never run', async () => {
       const run = await admittedRun()

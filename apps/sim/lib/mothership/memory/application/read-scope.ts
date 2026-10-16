@@ -1,4 +1,8 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  OrganizationDelegatedPrincipal,
+  PersonalChatDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -21,6 +25,8 @@ export const readMemoryScopeOperation = defineWorkspaceOperation({
 
 /** Canonical, currently authorized ownership; never a model-selected graph namespace. */
 export const readMemoryScope = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: MEMORY_SCOPE_AUDIENCE,
   operation: readMemoryScopeOperation,
   organizationOperation: defineOrganizationOperation({
     id: readMemoryScopeOperation.id,
@@ -35,7 +41,7 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal | PersonalChatDelegatedPrincipal
     input: MemoryScopeRequest
   }) => resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: {

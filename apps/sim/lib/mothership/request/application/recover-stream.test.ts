@@ -157,9 +157,11 @@ describe('authorized chat stream recovery', () => {
     }
   )
 
-  it('rejects mismatched canonical workspaces before acquiring a controller', async () => {
+  it('rejects saved recovery admission that differs from the original run workspace', async () => {
     mocks.run.mockResolvedValue({ ...run, workspaceId: 'another-workspace' })
-    await expect(readChatStream.execute({ principal, input })).rejects.toThrow('Stream not found')
+    await expect(readChatStream.execute({ principal, input })).rejects.toThrow(
+      'Saved stream identity does not match its chat'
+    )
     expect(mocks.acquire).not.toHaveBeenCalled()
   })
 
@@ -267,10 +269,12 @@ describe('authorized chat stream recovery', () => {
     expect(mocks.start).not.toHaveBeenCalled()
   })
 
-  it('refuses a run from a different organization before taking its controller', async () => {
+  it('rejects saved recovery admission that differs from the original run organization', async () => {
     mocks.run.mockResolvedValue({ ...run, workspaceId: null, organizationId: 'org-1' })
     mocks.chat.mockResolvedValue({ userId: 'user', chatId: run.chatId, organizationId: 'org-2' })
-    await expect(readChatStream.execute({ principal, input })).rejects.toThrow('Stream not found')
+    await expect(readChatStream.execute({ principal, input })).rejects.toThrow(
+      'Saved stream identity does not match its chat'
+    )
     expect(mocks.acquire).not.toHaveBeenCalled()
   })
 

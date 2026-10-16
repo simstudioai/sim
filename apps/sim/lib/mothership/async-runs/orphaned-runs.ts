@@ -5,6 +5,7 @@ import {
   copilotChats,
   copilotOrganizationRequestStops,
   copilotRequestStops,
+  copilotRunStops,
   copilotRuns,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -119,11 +120,15 @@ const legacyRunIdle = and(
 const orphanIdle = or(leasedRunIdle, legacyRunIdle)
 
 /** The user pressed Stop on this stream; a newer turn also closes tool admission, without one. */
-const stopRequested = sql`(EXISTS (SELECT 1 FROM ${copilotRequestStops} s
+const stopRequested = sql`(EXISTS (SELECT 1 FROM ${copilotRunStops} s
+    WHERE s.user_id = ${copilotRuns.userId} AND s.stream_id = ${copilotRuns.streamId})
+  OR EXISTS (SELECT 1 FROM ${copilotRequestStops} s
     WHERE s.user_id = ${copilotRuns.userId} AND s.workspace_id = ${copilotRuns.workspaceId}
+      AND ${copilotRuns.organizationId} IS NULL
       AND s.stream_id = ${copilotRuns.streamId})
   OR EXISTS (SELECT 1 FROM ${copilotOrganizationRequestStops} s
     WHERE s.user_id = ${copilotRuns.userId} AND s.organization_id = ${copilotRuns.organizationId}
+      AND ${copilotRuns.workspaceId} IS NULL
       AND s.stream_id = ${copilotRuns.streamId}))`
 
 export interface UnownedRun {
