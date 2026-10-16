@@ -32,3 +32,21 @@ export async function importProjectFileProvenance(
     )
   }
 }
+
+/**
+ * Imports one search candidate's bound entries without latching the registry. False means this
+ * file's text must stay out of the result; the search continues and reports it incomplete, so an
+ * unknown sidecar on a file the agent never sees does not refuse the rest of the turn.
+ */
+export async function admitProjectFileProvenance(
+  registry: ResolvedSecretTraceRegistry | undefined,
+  source: WorkspaceFileSecretProvenance | undefined
+): Promise<boolean> {
+  if (!registry || registry.isPermanentlyIncomplete()) return false
+  if (source?.status === 'unrecorded') return true
+  if (source?.status !== 'exact') return false
+  return (
+    source.entries.length === 0 ||
+    (await importDurableSecretProvenance(registry, source, undefined, { atomic: true }))
+  )
+}

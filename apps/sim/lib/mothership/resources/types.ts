@@ -117,18 +117,12 @@ export function normalizeChatResource(
   }
 }
 
-/** Scope is part of identity for aliases such as integration names and folder paths. */
-export function getChatResourceKey(
-  resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>
-): string {
-  return getStoredChatResourceKey(resource)
-}
-
 /**
- * Identity within a stored chat. The chat's workspace is the fallback scope, so an unscoped tab
- * and the same tab addressed by that workspace are one tab.
+ * Tab identity, shared by the server store and the browser. Scope is part of identity for aliases
+ * such as integration names and folder paths. The chat's workspace is the fallback scope, so an
+ * unscoped tab and the same tab addressed by that workspace are one tab on both sides.
  */
-export function getStoredChatResourceKey(
+export function getChatResourceKey(
   resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>,
   chatWorkspaceId?: string
 ): string {
@@ -286,7 +280,8 @@ export function sanitizeChatResources(
  */
 export function reorderStoredChatResources(
   storedResources: readonly MothershipResource[],
-  requestedOrder: readonly MothershipResource[]
+  requestedOrder: readonly MothershipResource[],
+  chatWorkspaceId?: string
 ): MothershipResource[] | null {
   const stored = sanitizeChatResources(storedResources)
   const requested = sanitizeChatResources(requestedOrder)
@@ -296,8 +291,9 @@ export function reorderStoredChatResources(
   // writers) sends one fewer entry from the deduplicated client. Matching on
   // sets keeps that reorder valid and collapses the duplicate on write, where
   // a length check would reject every reorder for that chat forever.
-  const storedByKey = new Map(stored.map((resource) => [getChatResourceKey(resource), resource]))
-  const requestedKeys = Array.from(new Set(requested.map(getChatResourceKey)))
+  const keyOf = (resource: MothershipResource) => getChatResourceKey(resource, chatWorkspaceId)
+  const storedByKey = new Map(stored.map((resource) => [keyOf(resource), resource]))
+  const requestedKeys = Array.from(new Set(requested.map(keyOf)))
   if (requestedKeys.length !== storedByKey.size) return null
 
   const reordered: MothershipResource[] = []

@@ -20,10 +20,16 @@ export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
 }).transform(
   ({ byokApiKey, delegationToken, receivedTextChars, receivedActivity, ...request }) => request
 )
+/**
+ * Marks a durable turn admitted to author resources, so recovery restores the admission. Every
+ * writer and the recovery reader share this one value.
+ */
+export const RESOURCE_AUTHORING_VERSION = 1
+
 export const StreamRecoveryConfigSchema = z
   .object({
     kind: z.literal('interactive_stream'),
-    resourceAuthoringVersion: z.literal(1).optional(),
+    resourceAuthoringVersion: z.literal(RESOURCE_AUTHORING_VERSION).optional(),
     billingAdmission: BillingAdmissionSchema.optional(),
     request: DurableChatRequestSchema,
     goRoute: z.enum(['/api/mothership', '/api/copilot']),
@@ -62,7 +68,7 @@ export function streamRecoveryConfig(
       copilotResourceAdmission:
         options.executionContext?.copilotResourceAdmission ?? options.copilotResourceAdmission,
     })
-      ? 1
+      ? RESOURCE_AUTHORING_VERSION
       : undefined,
   })
 }

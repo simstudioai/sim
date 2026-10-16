@@ -84,10 +84,28 @@ export async function proxySandboxFileCopyRequest(
   await recordSandboxResourceEffects(
     token,
     scope,
-    effects.map((effect, index) => ({
-      ...effect,
-      effectId: `${scope.runId}:${scope.toolCallId}:${requestId}:${index}`,
-    }))
+    effects.map((effect, index): ResourceChange & { effectId: string } => {
+      const effectId = `${scope.runId}:${scope.toolCallId}:${requestId}:${index}`
+      if (!scope.organizationId) return { ...effect, effectId }
+      /** Organization chats address workspace resources explicitly, as the workspace route does. */
+      if (effect.op === 'upsert' && effect.resource.owner?.entityType === 'workspace')
+        return {
+          ...effect,
+          effectId,
+          resource: { ...effect.resource, workspaceId: effect.resource.owner.entityId },
+        }
+      if (
+        effect.op === 'refresh' &&
+        'owner' in effect.resource &&
+        effect.resource.owner?.entityType === 'workspace'
+      )
+        return {
+          ...effect,
+          effectId,
+          resource: { ...effect.resource, workspaceId: effect.resource.owner.entityId },
+        }
+      return { ...effect, effectId }
+    })
   )
   return response
 }

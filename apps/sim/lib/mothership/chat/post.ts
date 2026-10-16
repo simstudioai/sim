@@ -87,6 +87,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
+import { RESOURCE_AUTHORING_VERSION } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/mothership/request/otel'
 import {
@@ -679,7 +680,7 @@ async function resolveAgentContexts(params: {
             : workspaceId
               ? { workspaceId }
               : null
-        if (!target) throw new Error('Resource target requires a workspace')
+        if (!target) return null
         if (
           resource.owner &&
           (resource.owner.entityType !== 'workspace' ||
@@ -720,13 +721,27 @@ async function resolveAgentContexts(params: {
       })
     )
 
-    for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        agentContexts.push(result.value)
-      } else if (result.status === 'rejected') {
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        if (result.value) agentContexts.push(result.value)
+        return
+      }
+      // A tab can outlive its resource or the viewer's access to it; the turn
+      // goes without that context.
+      const resourceType = resourceAttachments[index]?.type
+      const code = asOrchestrationError(result.reason)?.code
+      if (code === 'not_found') {
+        logger.info(`[${requestId}] Skipped resource attachment that no longer exists`, {
+          resourceType,
+        })
+      } else if (code === 'forbidden') {
+        logger.warn(`[${requestId}] Skipped resource attachment the user can no longer access`, {
+          resourceType,
+        })
+      } else {
         logger.error(`[${requestId}] Failed to resolve resource attachment`, result.reason)
       }
-    }
+    })
   }
 
   if (chatId && authorizedResources.length)
@@ -1574,7 +1589,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             },
             recovery: {
               kind: 'interactive_stream',
-              resourceAuthoringVersion: 1,
+              resourceAuthoringVersion: RESOURCE_AUTHORING_VERSION,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
               goRoute: branch.goRoute,
               clientToolPickupExpected,

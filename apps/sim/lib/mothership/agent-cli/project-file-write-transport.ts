@@ -22,10 +22,10 @@ import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { requireCleanProjectFileMetadata } from '@/lib/mothership/agent-cli/project-file-write-provenance'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import { requireTrustedCopilotResourceExecutionContext } from '@/lib/mothership/auth/application-delegation'
+import { toCreateProjectFileInput } from '@/lib/projects/files/api/create-input'
 import { toV2ProjectFile } from '@/lib/projects/files/api/presenters'
 import { createProjectFile, updateProjectFileContent } from '@/lib/projects/files/application'
 import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { v2Data, v2Error } from '@/app/api/v2/lib/response'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -141,13 +141,7 @@ export function createProjectFileWriteTransport(options: {
           options.context,
           createProjectFile,
           {
-            projectId: params.projectId,
-            name: body.name,
-            contentType: body.contentType ?? getMimeTypeFromExtension(getFileExtension(body.name)),
-            content: body.content,
-            encoding: body.encoding,
-            folderPath: body.folderPath ?? '/',
-            exactName: true,
+            ...toCreateProjectFileInput(params.projectId, body),
             secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
           },
           { projectId }

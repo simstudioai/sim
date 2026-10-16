@@ -102,6 +102,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
+  const keyOf = (resource: MothershipResource) => getChatResourceKey(resource, chatWorkspaceId)
   if (payload.op === 'upsert' && payload.readOnly) return
   if (payload.resource.type === 'settings') {
     const settings = payload.resource
@@ -135,9 +136,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       search,
     }
     if (payload.op === 'remove') {
-      setResources((current) =>
-        current.filter((item) => getChatResourceKey(item) !== getChatResourceKey(resource))
-      )
+      setResources((current) => current.filter((item) => keyOf(item) !== keyOf(resource)))
       return
     }
     const scopeKey =
@@ -181,9 +180,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     if (ctx.deps.citedSourcesEnabled) return
     if (payload.effectId)
       setResources((current) => {
-        const found = current.find(
-          (item) => getChatResourceKey(item) === getChatResourceKey(resource)
-        )
+        const found = current.find((item) => keyOf(item) === keyOf(resource))
         return found
           ? current.map((item) => (item === found ? mergeChatResource(item, resource) : item))
           : [...current, resource]
@@ -257,7 +254,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     const resourceType = resource.type
     if (payload.effectId) {
       applyResourceEffect(ctx, (current) =>
-        current.filter((item) => getChatResourceKey(item) !== getChatResourceKey(resource))
+        current.filter((item) => keyOf(item) !== keyOf(resource))
       )
       ctx.deps.setActiveResourceId((current) =>
         current === getChatResourceSelectionId(resource) ? null : current
@@ -308,13 +305,11 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
         !shouldAutoActivatePreviewSession(previewForResource)))
   const wasAdded =
     shouldSuppressFileResourceActivation || payload.effectId
-      ? !resourcesRef.current.some((r) => getChatResourceKey(r) === getChatResourceKey(resource))
+      ? !resourcesRef.current.some((r) => keyOf(r) === keyOf(resource))
       : addResource(resourceUpdate)
   if (payload.effectId) {
     applyResourceEffect(ctx, (current) => {
-      const previous = current.find(
-        (item) => getChatResourceKey(item) === getChatResourceKey(resource)
-      )
+      const previous = current.find((item) => keyOf(item) === keyOf(resource))
       const next = {
         ...previous,
         ...resource,
@@ -326,9 +321,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     })
   } else if (shouldSuppressFileResourceActivation && wasAdded) {
     setResources((current) =>
-      current.some((r) => getChatResourceKey(r) === getChatResourceKey(resource))
-        ? current
-        : [...current, resource]
+      current.some((r) => keyOf(r) === keyOf(resource)) ? current : [...current, resource]
     )
   }
   if (completedPreviewHandoff && isCompletedPreviewHandoffCurrent) {
@@ -341,14 +334,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     // report "added", while only the first updater actually inserted — the
     // updater is idempotent, so it simply runs every time.
     setResources((current) =>
-      current.some(
-        (r) => getChatResourceKey(r) === getChatResourceKey(resource) && r.viewId !== pinnedViewId
-      )
-        ? current.map((r) =>
-            getChatResourceKey(r) === getChatResourceKey(resource)
-              ? { ...r, viewId: pinnedViewId }
-              : r
-          )
+      current.some((r) => keyOf(r) === keyOf(resource) && r.viewId !== pinnedViewId)
+        ? current.map((r) => (keyOf(r) === keyOf(resource) ? { ...r, viewId: pinnedViewId } : r))
         : current
     )
     // Consumed by the embedded table once its views list carries the view —

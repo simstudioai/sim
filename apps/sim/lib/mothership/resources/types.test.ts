@@ -274,6 +274,11 @@ describe('reorderStoredChatResources', () => {
     // length comparison would reject every reorder for that chat forever.
     expect(reorderStoredChatResources([table, table, file], [file, table])).toEqual([file, table])
   })
+
+  it('matches a stored unscoped tab to the client tab its chat workspace owns', () => {
+    const owned = { ...file, owner: { entityType: 'workspace' as const, entityId: 'ws' } }
+    expect(reorderStoredChatResources([file, table], [table, owned], 'ws')).toEqual([table, file])
+  })
 })
 
 describe('organization resource identity', () => {

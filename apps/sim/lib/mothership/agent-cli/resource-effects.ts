@@ -180,24 +180,23 @@ const EFFECT_ROUTES: EffectRoute[] = [
   after(v2CompleteProjectFileUploadContract, ({ data }) =>
     data.file ? upsert('file', data.file) : []
   ),
-  after(v2CopyFileItemsContract, ({ data }) => [
-    ...data.files.flatMap((file) =>
-      upsert('file', {
+  /** A single copied file opens as a tab; a bulk or folder copy refreshes the destination owner. */
+  after(v2CopyFileItemsContract, ({ data }) => {
+    const [file] = data.files
+    if (file && data.files.length === 1 && data.folders.length === 0)
+      return upsert('file', {
         ...file,
         folderPath: buildFolderPath(
           file.folderPath ? parseWorkspaceFileFolderDisplayPath(file.folderPath) : []
         ),
       })
-    ),
-    ...(data.folders[0]
-      ? [
-          {
-            op: 'refresh' as const,
-            resource: { type: 'filefolder' as const, owner: data.folders[0].owner },
-          },
-        ]
-      : []),
-  ]),
+    const owner = file?.owner ?? data.folders[0]?.owner
+    if (!owner) return []
+    return [
+      { op: 'refresh', resource: { type: 'file', owner } },
+      { op: 'refresh', resource: { type: 'filefolder', owner } },
+    ]
+  }),
   {
     ...after(projectFiles.v2GetProjectFileMetadataContract, ({ data }) =>
       upsert('file', data, true)

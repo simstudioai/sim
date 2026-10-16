@@ -97,6 +97,7 @@ describe('private sandbox v2 resource transport', () => {
       token
     )
     expect(await response.json()).toEqual({ data: { inserted: 1 } })
+    expect(fetcher).toHaveBeenCalledTimes(1)
     expect(recordEffects).toHaveBeenCalledWith(token, scope, [
       {
         op: 'upsert',
@@ -114,6 +115,7 @@ describe('private sandbox v2 resource transport', () => {
     )
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Forbidden' })
+    expect(fetcher).toHaveBeenCalledTimes(1)
     expect(fetcher.mock.calls[0]?.[0].url).toBe(
       'http://internal-sim/api/v2/tables/table/rows?workspaceId=other'
     )
@@ -230,6 +232,7 @@ describe('private sandbox v2 resource transport', () => {
       token
     )
     expect(response.status).toBe(400)
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('rejects unknown v2 routes and methods without dispatch or network fallback', async () => {
@@ -270,6 +273,7 @@ it('records nothing into the workbench for a route that returns no stored conten
     token
   )
   expect(await response.json()).toEqual({ data: { id: 'agent' } })
+  expect(fetcher).toHaveBeenCalledOnce()
   expect(recordInput).not.toHaveBeenCalled()
 })
 
@@ -408,5 +412,17 @@ it('keeps workspace file copies on the workspace route when the lease has no fil
     token
   )
   expect(response.status).toBe(200)
+  expect(fetcher).toHaveBeenCalledOnce()
+})
+
+it('answers an invalid copy body on an unnegotiated lease from the workspace route', async () => {
+  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: undefined })
+  routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
+  fetcher.mockResolvedValue(Response.json({ error: 'Invalid request body' }, { status: 400 }))
+  const response = await proxySandboxResourceRequest(
+    request('/api/v2/files/copy', { method: 'POST', body: JSON.stringify({ source: {} }) }),
+    token
+  )
+  expect(response.status).toBe(400)
   expect(fetcher).toHaveBeenCalledOnce()
 })

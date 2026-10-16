@@ -68,7 +68,14 @@ describe('Project grep corpus', () => {
     expect(result.exitCode).toBe(1)
     expect(list).not.toHaveBeenCalled()
   })
-  it('refuses to match text without exact source evidence', async () => {
+  it('withholds one file without exact source evidence and keeps searching the rest', async () => {
+    list.mockResolvedValue({
+      files: [
+        { id: 'file', name: 'notes.txt', folderPath: '/' },
+        { id: 'other', name: 'notes-2.txt', folderPath: '/' },
+      ],
+      nextKeys: null,
+    })
     textRead.mockResolvedValueOnce({
       file: { id: 'file', name: 'notes.txt' },
       contentType: 'text/plain',
@@ -78,9 +85,11 @@ describe('Project grep corpus', () => {
       degradedReason: null,
       secretProvenance: { status: 'unknown' },
     })
-    await expect(grepProjectFiles(invocation, context(), 'project')).rejects.toThrow(
-      'secret provenance'
-    )
+    const ctx = context()
+    const result = await grepProjectFiles(invocation, ctx, 'project')
+    expect(result.stdout).toBe('files/notes-2.txt (other):2: needle')
+    expect(result.stderr).toContain('files/notes.txt (file): text withheld without its secret')
+    expect(ctx.resolvedSecretTraceRegistry.isPermanentlyIncomplete()).toBe(false)
   })
   it('marks truncated inventory incomplete instead of claiming a missing selector has no matches', async () => {
     list.mockResolvedValue({ files: [], nextKeys: [{ value: 'cursor', direction: 'asc' }] })

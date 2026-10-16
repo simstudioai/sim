@@ -324,7 +324,7 @@ it.each([
       {
         ...identity,
         resourceAdmitted: admitted,
-        mothershipBaseURL: 'https://selected-worker.invalid',
+        mothershipBaseURL: `https://worker-${supported ? 'current' : 'previous'}.invalid`,
       },
       new AbortController().signal,
       undefined,

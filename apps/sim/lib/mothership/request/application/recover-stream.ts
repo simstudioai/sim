@@ -30,7 +30,10 @@ import {
   claimRunController,
   planRecovery,
 } from '@/lib/mothership/request/lifecycle/controller-ownership'
-import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
+import {
+  RESOURCE_AUTHORING_VERSION,
+  StreamRecoveryConfigSchema,
+} from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
 import {
@@ -274,7 +277,7 @@ async function recoverStreamRun(context: StreamRunContext, admission?: AbortSign
         workflowId: run.workflowId ?? undefined,
         goRoute: config.data.goRoute,
         copilotResourceAdmission:
-          config.data.resourceAuthoringVersion === 1
+          config.data.resourceAuthoringVersion === RESOURCE_AUTHORING_VERSION
             ? createCopilotResourceAdmission({ userId, invocation: { kind: 'chat', chatId } })
             : undefined,
         billingAttribution,

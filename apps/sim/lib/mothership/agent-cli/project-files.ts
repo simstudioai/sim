@@ -70,8 +70,7 @@ export async function executeProjectFileCliRequest(
   const transport = createResourceEffectTransport(
     endpoint,
     createTracedCliTransport(endpoint, observed),
-    resources,
-    true
+    resources
   )
   const identity: EmbeddedCliIdentity = {
     endpoint,

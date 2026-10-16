@@ -42,7 +42,12 @@ import {
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { getWorkspaceFileSize, MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
+import {
+  formatFileSize,
+  MAX_TEXT_EXTRACTION_BYTES,
+  needsRenderedArtifact,
+  observedMediaType,
+} from '@/lib/uploads/utils/file'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import {
   type ExtractedFileText,
@@ -82,6 +87,8 @@ interface ArtifactInput extends ProjectFileTarget {
   maxBytes: number
   forModel?: boolean
   preview?: boolean
+  /** Bytes are only extracted as text, so an unextractable or oversized source is refused unread. */
+  text?: boolean
 }
 interface SourceSnapshot {
   file: WorkspaceFileRow
@@ -317,7 +324,16 @@ async function renderArtifact(
   const { file, owner } = snapshot
   const artifact = await resolveDocumentRender(
     file.originalName,
-    { maxBytes: input.maxBytes, signal },
+    {
+      maxBytes: input.maxBytes,
+      signal,
+      ...(input.text
+        ? {
+            tooLargeMessage: (limit: string) =>
+              `"${file.originalName}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
+          }
+        : {}),
+    },
     async (): Promise<PreparedArtifact> => {
       const content = await downloadFile({
         key: file.key,
@@ -393,6 +409,25 @@ async function renderArtifact(
   return { ...artifact, ...derivative }
 }
 
+/**
+ * Refuses a text read before any byte is fetched, as the workspace text path does. The stored size
+ * is authoritative only for an ordinary upload; a generation source is bounded by the render.
+ */
+function assertTextExtractable(file: WorkspaceFileRow, maxBytes: number) {
+  const name = file.originalName
+  if (!workspaceFileTextFormat({ name, type: observedMediaType(file.contentType, name) }))
+    throw new OrchestrationError(
+      'validation',
+      `Text extraction is not supported for "${name}"; download the raw bytes instead of extracting text`
+    )
+  const size = getWorkspaceFileSize(file)
+  if (!needsRenderedArtifact(file.contentType, name) && size > maxBytes)
+    throw new OrchestrationError(
+      'payload_too_large',
+      `"${name}" is ${formatFileSize(size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
+    )
+}
+
 /** Indexing is best effort: a contended or failed requeue never fails a delivered read. */
 async function requeueRenderedSearchArtifact(completion: FileSearchArtifactCompletion) {
   try {
@@ -425,6 +460,7 @@ function defineArtifactRead(view: ArtifactView) {
         throw new OrchestrationError('validation', 'Invalid document byte limit')
       }
       const snapshot = await snapshotSource.execute({ principal, input })
+      if (input.text) assertTextExtractable(snapshot.file, input.maxBytes)
       return runWithOutboundOrganization(snapshot.organizationId, () =>
         renderArtifact(principal, input, snapshot, snapshotDependencies, request?.signal)
       )
@@ -515,6 +551,10 @@ interface ProjectFileTextResult extends ExtractedFileText {
  * Reads a Project file's text the way a workspace file's text is read: the source and every input
  * a render embeds are admitted as `complete`, the registry masks their secrets, and only text
  * leaves. A generated document is read from its rendered artifact, like the workspace path.
+ *
+ * Only a ranged read is redacted here, before the window is cut. Whole-file text comes back raw:
+ * the caller must import `secretProvenance` into its egress registry before the text reaches an
+ * agent, as `importProjectFileProvenance` does.
  */
 export const readProjectFileText: AuthorizingUseCase<
   typeof projectFileOperations.readArtifact,
@@ -540,7 +580,7 @@ export const readProjectFileText: AuthorizingUseCase<
     )
     const artifact = await readProjectFileArtifactAsText.execute({
       ...args,
-      input: { projectId: input.projectId, fileId: input.fileId, maxBytes },
+      input: { projectId: input.projectId, fileId: input.fileId, maxBytes, text: true },
     })
     const format = workspaceFileTextFormat({ name: artifact.file.name, type: artifact.contentType })
     if (!format) {

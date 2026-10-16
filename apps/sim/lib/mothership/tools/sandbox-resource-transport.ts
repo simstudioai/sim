@@ -44,10 +44,14 @@ export async function proxySandboxResourceRequest(
   const scope = await readSandboxResourceScope(token, request.headers.get('x-api-key'))
   if (!scope)
     return Response.json({ error: 'Sandbox tool execution is no longer active' }, { status: 403 })
-  /** Paired owners need the negotiated protocol; workspace-only copies keep the workspace route. */
+  /**
+   * Paired owners need the negotiated protocol. Without it, only a copy that names a non-workspace
+   * owner is refused there; workspace copies and invalid bodies keep the workspace route and its
+   * v2 validation response.
+   */
   if (
     path === v2CopyFileItemsContract.path &&
-    (scope.fileOwnerProtocolVersion === 1 || !(await copiesWithinWorkspaces(request)))
+    (scope.fileOwnerProtocolVersion === 1 || (await copiesBeyondWorkspaces(request)))
   )
     return proxySandboxFileCopyRequest(request, token, scope)
   const ownerHeader = request.headers.get('x-mothership-file-owner')
@@ -209,8 +213,8 @@ async function proxyAuthorizedSandboxRequest(
   })
 }
 
-/** A copy whose source and destination are both workspaces predates the file-owner protocol. */
-async function copiesWithinWorkspaces(request: Request): Promise<boolean> {
+/** A valid copy naming a non-workspace source or destination needs the file-owner protocol. */
+async function copiesBeyondWorkspaces(request: Request): Promise<boolean> {
   let body: unknown
   try {
     body = await request.clone().json()
@@ -220,7 +224,7 @@ async function copiesWithinWorkspaces(request: Request): Promise<boolean> {
   const parsed = fileCopyInputSchema.safeParse(body)
   return (
     parsed.success &&
-    parsed.data.source.owner.entityType === 'workspace' &&
-    parsed.data.destination.owner.entityType === 'workspace'
+    (parsed.data.source.owner.entityType !== 'workspace' ||
+      parsed.data.destination.owner.entityType !== 'workspace')
   )
 }

@@ -3,7 +3,7 @@ import { copilotChats, mothershipResourceEffects } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  getStoredChatResourceKey,
+  getChatResourceKey,
   hasValidChatResourceOwner,
   type MothershipResource,
   type MothershipResourceUpdate,
@@ -83,7 +83,7 @@ export async function changeStoredChatResources(
         .for('update')
       if (!chat) throw new OrchestrationError('not_found', 'Chat not found')
       const keyOf = (resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>) =>
-        getStoredChatResourceKey(resource, chat.workspaceId ?? undefined)
+        getChatResourceKey(resource, chat.workspaceId ?? undefined)
       const existing = sanitizeChatResources(Array.isArray(chat.resources) ? chat.resources : [])
       if (effectId) {
         const [applied] = await tx
