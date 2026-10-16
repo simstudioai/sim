@@ -126,6 +126,7 @@ export function createProjectFileUploadTransport(
       if (!secretProvenance) {
         return v2Error('SERVICE_UNAVAILABLE', 'Workbench upload source has not finished streaming')
       }
+      throwIfCancelled(context.signal, request.signal)
       const result = await executeCopilotProjectFileUseCase(
         context,
         completeProjectFileUploadSession,
