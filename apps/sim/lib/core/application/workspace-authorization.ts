@@ -191,7 +191,10 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   }
 }
 
-function requirePermission(permission: PermissionType | null, required: PermissionType): void {
+function requirePermission(
+  permission: PermissionType | null,
+  required: PermissionType
+): asserts permission is PermissionType {
   if (permission === null) {
     throw new NoWorkspaceAccessError()
   }
@@ -324,7 +327,7 @@ export async function requireCurrentHumanRole<C extends WorkspaceAuthorizationCo
   context: C,
   required: PermissionType,
   options?: WorkspaceAuthorizationOptions<C>
-): Promise<void> {
+): Promise<PermissionType> {
   const permission = await resolveEffectiveWorkspacePermission(
     userId,
     context.workspaceId,
@@ -333,6 +336,7 @@ export async function requireCurrentHumanRole<C extends WorkspaceAuthorizationCo
     { forUpdate: options?.forUpdate }
   )
   requirePermission(permission, required)
+  return permission
 }
 
 /**

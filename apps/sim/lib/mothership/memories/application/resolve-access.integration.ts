@@ -257,14 +257,8 @@ it('resolves overlapping workspace checks that share one Project without deadloc
 })
 
 it('answers while a writer holds the account row and the Project exclusively', async () => {
-  let release = () => {}
-  const released = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  let held = () => {}
-  const holding = new Promise<void>((resolve) => {
-    held = resolve
-  })
+  const { promise: released, resolve: release } = Promise.withResolvers<void>()
+  const { promise: holding, resolve: held } = Promise.withResolvers<void>()
   const writer = db.transaction(async (tx) => {
     await tx.select({ id: user.id }).from(user).where(eq(user.id, actorId)).for('update')
     await lockProject(tx, projectId)

@@ -1,18 +1,12 @@
 import type { OrganizationDelegatedPrincipal, SubjectDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, project, workspace } from '@sim/db/schema'
-import {
-  permissionSatisfies,
-  resolveEffectiveWorkspacePermission,
-} from '@sim/platform-authz/workspace'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { and, eq, isNull } from 'drizzle-orm'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
-import {
-  InsufficientWorkspacePermissionsError,
-  NoWorkspaceAccessError,
-} from '@/lib/core/application/workspace-authorization'
+import { requireCurrentHumanRole } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
@@ -30,7 +24,7 @@ import {
   requireProjectFileOwnerCapabilities,
   requireProjectFileOwnerRole,
 } from '@/lib/projects/files/application/authorization'
-import { isProjectsEnabled, ProjectUnavailableError } from '@/lib/projects/rollout.server'
+import { isProjectsEnabled, requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import { requireCurrentFileSubject } from '@/lib/workspace-files/application/subject'
 
 export const MEMORY_NOTES_ACCESS_AUDIENCE = 'sim:memory-access'
@@ -72,19 +66,13 @@ async function workspaceAccess(tx: DbTransaction, userId: string, workspaceId: s
       workspaceId: workspace.id,
       name: workspace.name,
       workspaceOrganizationId: workspace.organizationId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
     })
     .from(workspace)
     .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
     .limit(1)
   if (!target) throw new OrchestrationError('not_found', 'Workspace not found')
-  const permission = await resolveEffectiveWorkspacePermission(
-    userId,
-    workspaceId,
-    target.workspaceOrganizationId,
-    tx
-  )
-  if (!permission) throw new NoWorkspaceAccessError()
-  if (!permissionSatisfies(permission, 'read')) throw new InsufficientWorkspacePermissionsError()
+  const permission = await requireCurrentHumanRole(userId, target, 'read', { executor: tx })
   await assertWorkspaceCapability(
     userId,
     workspaceId,
@@ -230,7 +218,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
           permissions: { read: true, privateMutation: true, sharedMutation: false },
         }
       } else if (input.target.scope === 'project') {
-        if (!projectsEnabled) throw new ProjectUnavailableError()
+        if (!projectsEnabled) await requireProjectApiEnabled()
         if (chat.workspaceId && origin?.id !== input.target.projectId)
           throw new OrchestrationError('not_found', 'Project not found in this conversation')
         target = await projectAccess(tx, principal, context.chatId, input.target.projectId, scope)

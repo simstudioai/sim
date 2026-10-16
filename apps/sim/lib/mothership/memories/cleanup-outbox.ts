@@ -74,6 +74,11 @@ export async function enqueueMemoryCleanup(
   }
 }
 
+function waitForWorker(reason: string, eventId: string, detail?: Record<string, string>) {
+  logger.warn(`Memory cleanup waiting: ${reason}`, { eventId, ...detail })
+  return deferOutboxHandler(reason, UNAVAILABLE_RETRY_MS, false)
+}
+
 /**
  * Sends the processor's current key only to a destination the processor itself configures, and
  * replays the enqueuing deployment's source env so the worker erases that deployment's notes.
@@ -83,19 +88,12 @@ export async function enqueueMemoryCleanup(
 export const memoryCleanupOutboxHandlers = {
   [MEMORY_CLEANUP_EVENT]: async (rawPayload, context) => {
     const payload = cleanupPayloadSchema.parse(rawPayload)
-    if (!env.COPILOT_API_KEY) {
-      logger.warn('Memory cleanup waiting: COPILOT_API_KEY is not configured', {
-        eventId: context.eventId,
-      })
-      return deferOutboxHandler('COPILOT_API_KEY not configured', UNAVAILABLE_RETRY_MS, false)
-    }
-    if (!destinations().includes(payload.baseUrl)) {
-      logger.warn('Memory cleanup waiting: destination is not configured', {
-        eventId: context.eventId,
+    if (!env.COPILOT_API_KEY)
+      return waitForWorker('COPILOT_API_KEY is not configured', context.eventId)
+    if (!destinations().includes(payload.baseUrl))
+      return waitForWorker('destination is not configured', context.eventId, {
         baseUrl: payload.baseUrl,
       })
-      return deferOutboxHandler('Destination not configured', UNAVAILABLE_RETRY_MS, false)
-    }
     const sourceEnv = payload.sourceHeaders[MOTHERSHIP_SOURCE_ENV_HEADER]
     const response = await fetchGo(`${payload.baseUrl}/api/memories/cleanup`, {
       method: 'POST',
@@ -109,13 +107,8 @@ export const memoryCleanupOutboxHandlers = {
     })
     if (!response.ok) {
       await response.body?.cancel().catch(() => {})
-      if (ENDPOINT_MISSING_STATUSES.has(response.status)) {
-        return deferOutboxHandler(
-          `Memory cleanup endpoint unavailable (${response.status})`,
-          UNAVAILABLE_RETRY_MS,
-          false
-        )
-      }
+      if (ENDPOINT_MISSING_STATUSES.has(response.status))
+        return waitForWorker(`endpoint unavailable (${response.status})`, context.eventId)
       throw new Error(`Memory cleanup failed (${response.status})`)
     }
     MemoryCleanupResult.parse(await response.json())
