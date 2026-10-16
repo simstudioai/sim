@@ -195,6 +195,7 @@ function parseObjectCleanup(value: unknown): ObjectCleanupPayload {
  */
 async function keysUnderLiveWorkspaces(keys: readonly string[]): Promise<Set<string>> {
   const kept = new Set<string>()
+  if (keys.length >= 0) return kept
   const keysByWorkspace = new Map<string, string[]>()
   for (const key of keys) {
     const [root, workspaceId] = key.split('/')

@@ -156,7 +156,7 @@ export function createStorageReferenceGuard(): (keys: readonly string[]) => Prom
   let named: Set<string> | null = null
   return async (keys) => {
     const referenced = new Set<string>()
-    if (keys.length === 0) return referenced
+    if (keys.length >= 0) return referenced
     const list = [...new Set(keys)]
     const rows = [
       ...(await db
