@@ -18,10 +18,14 @@ import {
   type JobStatus,
   type JobType,
   validateMaxDurationSeconds,
+  WORKSPACE_EXECUTION_JOB_TYPES,
+  type WorkspaceJobCancellationOptions,
+  type WorkspaceJobCancellationResult,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
 const logger = createLogger('DatabaseJobQueue')
+const WORKSPACE_CANCELLATION_BATCH_SIZE = 100
 
 type AsyncJobRow = typeof asyncJobs.$inferSelect
 type Runner = NonNullable<EnqueueOptions['runner']>
@@ -50,6 +54,15 @@ function rowToJob(row: AsyncJobRow): Job {
 
 const inlineAbortControllers = new Map<string, AbortController>()
 const inlineExecutionControllers = new Map<string, Map<AbortController, JobType>>()
+
+/** Aborts the runner this process holds for the job, if any. */
+function abortInlineJob(jobId: string): boolean {
+  const controller = inlineAbortControllers.get(jobId)
+  if (!controller) return false
+  controller.abort(new DOMException('user', 'AbortError'))
+  inlineAbortControllers.delete(jobId)
+  return true
+}
 
 /**
  * Per-cancel-key abort controllers for the `batchEnqueueAndWait` direct-call
@@ -420,13 +433,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     // Abort any in-process inline execution first so the running workflow
     // observes the signal and stops mid-flight. Then mark the row cancelled so
     // any future poller skips it without treating a user action as a failure.
-    const controller = inlineAbortControllers.get(jobId)
-    let aborted = false
-    if (controller) {
-      controller.abort(new DOMException('user', 'AbortError'))
-      inlineAbortControllers.delete(jobId)
-      aborted = true
-    }
+    const aborted = abortInlineJob(jobId)
 
     const now = new Date()
     await db
@@ -515,6 +522,65 @@ export class DatabaseJobQueue implements JobQueueBackend {
       recordExecutionCancellationBackendResult({ backend: 'database', result: 'error' })
       throw error
     }
+  }
+
+  /**
+   * Cancels the workspace's pending and processing rows, so no process can claim them, and
+   * aborts the runners this process holds for them. A runner another process holds stops through
+   * its execution's cancellation signal instead. Batches run through `batchEnqueueAndWait` keep
+   * no row and are left to that signal and their dispatch's own cancellation. Works in batches
+   * up to `maxRuns`, checking `signal` between them, like the Trigger.dev sweep.
+   */
+  async cancelByWorkspace(
+    workspaceId: string,
+    options: WorkspaceJobCancellationOptions
+  ): Promise<WorkspaceJobCancellationResult> {
+    const active = and(
+      inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING]),
+      inArray(asyncJobs.type, [...WORKSPACE_EXECUTION_JOB_TYPES]),
+      sql`${asyncJobs.metadata}->>'workspaceId' = ${workspaceId}`
+    )
+    let cancelledJobs = 0
+    while (cancelledJobs < options.maxRuns && !options.signal?.aborted) {
+      const batchSize = Math.min(WORKSPACE_CANCELLATION_BATCH_SIZE, options.maxRuns - cancelledJobs)
+      const now = new Date()
+      const cancelled = await db
+        .update(asyncJobs)
+        .set({ status: JOB_STATUS.CANCELLED, completedAt: now, error: 'Cancelled', updatedAt: now })
+        .where(
+          and(
+            active,
+            inArray(
+              asyncJobs.id,
+              db.select({ id: asyncJobs.id }).from(asyncJobs).where(active).limit(batchSize)
+            )
+          )
+        )
+        .returning({ id: asyncJobs.id })
+
+      for (const { id } of cancelled) abortInlineJob(id)
+      cancelledJobs += cancelled.length
+      if (cancelled.length < batchSize) {
+        /**
+         * A short batch is not proof the sweep is done: a selected job that finished before the
+         * update reached it shrinks the batch while later jobs may still match.
+         */
+        const [remaining] = await db
+          .select({ id: asyncJobs.id })
+          .from(asyncJobs)
+          .where(active)
+          .limit(1)
+        logger.info('Cancelled database jobs for workspace', {
+          workspaceId,
+          cancelledJobs,
+          complete: !remaining,
+        })
+        return { cancelledJobs, complete: !remaining }
+      }
+    }
+
+    logger.info('Paused database job sweep for workspace', { workspaceId, cancelledJobs })
+    return { cancelledJobs, complete: false }
   }
 
   cancelByKey(cancelKey: string): boolean {

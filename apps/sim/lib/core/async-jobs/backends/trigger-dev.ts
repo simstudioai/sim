@@ -24,6 +24,9 @@ import {
   type JobType,
   TERMINAL_JOB_STATUSES,
   validateMaxDurationSeconds,
+  WORKSPACE_EXECUTION_JOB_TYPES,
+  type WorkspaceJobCancellationOptions,
+  type WorkspaceJobCancellationResult,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
@@ -38,6 +41,7 @@ const ACTIVE_TRIGGER_RUN_STATUSES = [
 ] as const
 const CANCELLATION_LIST_PAGE_SIZE = 25
 const CANCELLATION_OPERATION_CHUNK_SIZE = 10
+const WORKSPACE_CANCELLATION_LIST_PAGE_SIZE = 100
 function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
   if (error instanceof ApiError && error.status && error.status >= 400 && error.status < 500) {
     return new AsyncJobEnqueueError(toError(error).message, {
@@ -124,6 +128,10 @@ function buildExecutionTag(executionId: string): string {
   return tag.length <= 128 ? tag : `executionIdHash:${sha256Hex(executionId)}`
 }
 
+function buildWorkspaceTag(workspaceId: string): string {
+  return `workspaceId:${workspaceId}`
+}
+
 function buildWorkflowTag(workflowId: string): string {
   const tag = `workflowId:${workflowId}`
   return tag.length <= 128 ? tag : `workflowIdHash:${sha256Hex(workflowId)}`
@@ -168,10 +176,13 @@ interface CancellationListRun {
 }
 
 interface CancellationScanOptions {
-  binding: ExecutionJobBinding
+  /** Required by any candidate that sets `verifyPayload`. */
+  binding?: ExecutionJobBinding
   cancelJob: (jobId: string) => Promise<void>
   listRuns: () => AsyncIterable<CancellationListRun>
   selectCandidate: (run: CancellationListRun) => CancellationCandidate | undefined
+  /** Checked before each listed run; true ends the scan there. */
+  shouldStop?: () => boolean
   state: CancellationScanState
 }
 
@@ -182,7 +193,7 @@ function recordCancellationCandidateFailure(state: CancellationScanState, error:
 
 async function processCancellationCandidateBatch(
   candidates: readonly CancellationCandidate[],
-  binding: ExecutionJobBinding,
+  binding: ExecutionJobBinding | undefined,
   state: CancellationScanState,
   cancelJob: (jobId: string) => Promise<void>
 ): Promise<void> {
@@ -196,7 +207,7 @@ async function processCancellationCandidateBatch(
     uniqueCandidates.map(async (candidate) => {
       if (candidate.verifyPayload) {
         const legacyRun = await runs.retrieve(candidate.id)
-        if (!payloadMatchesExecution(legacyRun.payload, binding)) return false
+        if (!binding || !payloadMatchesExecution(legacyRun.payload, binding)) return false
       }
       await cancelJob(candidate.id)
       return true
@@ -228,6 +239,7 @@ async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promi
 
   try {
     for await (const run of options.listRuns()) {
+      if (options.shouldStop?.()) break
       const candidate = options.selectCandidate(run)
       if (!candidate) continue
       candidates.push(candidate)
@@ -238,6 +250,45 @@ async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promi
   } finally {
     await flushCandidates()
   }
+}
+
+/**
+ * Lists a workspace's active workflow runs however old they are: a removal must reach a run that
+ * has been queued or waiting for longer than any recent window. Trigger.dev searches only the
+ * last 7 days unless a time bound is given, and passing only `to` removes the lower bound. When
+ * Trigger.dev refuses that search as too expensive (422) before returning a run, the listing
+ * falls back to the queue-wait retention window rather than sweeping nothing.
+ */
+async function* listActiveWorkspaceRuns(
+  workspaceId: string,
+  workspaceTag: string
+): AsyncIterable<CancellationListRun> {
+  const filter = {
+    tag: workspaceTag,
+    taskIdentifier: [...WORKSPACE_EXECUTION_JOB_TYPES],
+    status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+    limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
+  }
+  let listed = false
+  try {
+    for await (const run of runs.list({ ...filter, to: new Date() })) {
+      listed = true
+      yield run
+    }
+    return
+  } catch (error) {
+    if (listed || !(error instanceof ApiError) || error.status !== 422) throw error
+    logger.warn(
+      'Trigger.dev refused an unbounded workspace run search; using the retention window',
+      {
+        workspaceId,
+      }
+    )
+  }
+  yield* runs.list({
+    ...filter,
+    from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
+  })
 }
 
 /**
@@ -657,6 +708,55 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     }
   }
 
+  async cancelByWorkspace(
+    workspaceId: string,
+    options: WorkspaceJobCancellationOptions
+  ): Promise<WorkspaceJobCancellationResult> {
+    const workspaceTag = buildWorkspaceTag(workspaceId)
+    const state: CancellationScanState = { cancelledJobs: 0, failureCount: 0 }
+    let complete = true
+
+    await scanAndCancelTriggerRuns({
+      cancelJob: (jobId) => this.cancelJob(jobId),
+      listRuns: () => listActiveWorkspaceRuns(workspaceId, workspaceTag),
+      /**
+       * Only cancelled runs count toward the cap, so runs that keep refusing cancellation cannot
+       * hold every retry at the front of the listing; a separate bound on failures keeps one call
+       * finite. Both are counted per chunk, so a call may overshoot `maxRuns` by under a chunk.
+       */
+      shouldStop: () => {
+        if (
+          state.cancelledJobs < options.maxRuns &&
+          state.failureCount < options.maxRuns &&
+          !options.signal?.aborted
+        ) {
+          return false
+        }
+        complete = false
+        return true
+      },
+      selectCandidate: (run) =>
+        run.tags.includes(workspaceTag) ? { id: run.id, verifyPayload: false } : undefined,
+      state,
+    })
+
+    if (state.firstError) {
+      logger.error('Failed to cancel trigger.dev runs for workspace', {
+        workspaceId,
+        cancelledJobs: state.cancelledJobs,
+        failureCount: state.failureCount,
+        error: state.firstError.message,
+      })
+      throw state.firstError
+    }
+    logger.info('Cancelled trigger.dev runs for workspace', {
+      workspaceId,
+      cancelledJobs: state.cancelledJobs,
+      complete,
+    })
+    return { cancelledJobs: state.cancelledJobs, complete }
+  }
+
   cancelByKey(_cancelKey: string): boolean {
     // No in-process AbortControllers to abort — trigger.dev runs are cancelled
     // by jobId or via tag sweep (see `cancelCellRunsByTags`). Callers that
@@ -684,7 +784,7 @@ function buildTags(options?: EnqueueOptions): string[] {
   const workflowId =
     meta?.correlation?.workflowId ??
     (typeof meta?.workflowId === 'string' ? meta.workflowId : undefined)
-  if (meta?.workspaceId) tags.push(`workspaceId:${meta.workspaceId}`)
+  if (meta?.workspaceId) tags.push(buildWorkspaceTag(meta.workspaceId))
   if (workflowId) tags.push(buildWorkflowTag(workflowId))
   if (meta?.userId) tags.push(`userId:${meta.userId}`)
 

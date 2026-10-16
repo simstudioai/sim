@@ -38,6 +38,7 @@ import { readAttributionProperties } from '@/lib/analytics/attribution'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
+import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import {
@@ -469,11 +470,15 @@ export const auth = betterAuth({
       },
       /**
        * The admin plugin's `/admin/remove-user` deletes the user row through Better Auth, so its
-       * usage rows cascade away without `deleteUserAccount`. Better Auth runs this once the delete
-       * commits, which is when the stored reporting prefixes that counted them must be discarded.
+       * usage rows cascade away without `deleteUserAccount`. Better Auth runs `after` once the
+       * delete commits, which is when the stored reporting prefixes that counted them must be
+       * discarded, and when the runs the cascade orphaned are stopped: in-flight ones at once,
+       * queued ones by the outbox worker, since this module cannot load that delivery.
        */
       delete: {
-        after: async () => {
+        before: holdAdminRemovalStops,
+        after: async (user) => {
+          await stopAdminRemovedRuns(user)
           await invalidateReportingUsagePrefixes()
         },
       },
