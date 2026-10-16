@@ -20,7 +20,6 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/attribution'
-import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
@@ -30,7 +29,6 @@ import {
 } from '@/lib/knowledge/access/availability'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { chatOperations } from '@/lib/mothership/application/operations'
-import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {
   authoringInvocation,
   createCopilotResourceAdmission,
@@ -51,7 +49,6 @@ import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
-import { resolveFileAttachment } from '@/lib/mothership/chat/file-attachment'
 import {
   type ChatLoadResult,
   loadChatMcpServerIds,
@@ -59,10 +56,8 @@ import {
 } from '@/lib/mothership/chat/lifecycle'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
-import {
-  processContextsServer,
-  resolveActiveResourceContext,
-} from '@/lib/mothership/chat/process-contents'
+import { processContextsServer } from '@/lib/mothership/chat/process-contents'
+import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
 import {
   MAX_FILE_SELECTION_TEXT_LENGTH,
   MAX_TABLE_SELECTION_COLUMNS,
@@ -100,13 +95,7 @@ import {
 } from '@/lib/mothership/request/session'
 import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
-import { persistChatResources } from '@/lib/mothership/resources/persistence'
-import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
-import {
-  hasAddressableId,
-  isEphemeralResource,
-  sanitizeChatResources,
-} from '@/lib/mothership/resources/types'
+import { hasAddressableId } from '@/lib/mothership/resources/types'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
@@ -134,38 +123,6 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
   path: z.string().optional(),
 })
-
-const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
-  search: 'Search results',
-  sources: 'Sources',
-  workflow: 'Workflow',
-  table: 'Table',
-  integration: 'Integration',
-  file: 'File',
-  dashboard: 'Dashboard',
-  test: 'Test',
-  knowledgebase: 'Knowledge Base',
-  folder: 'Folder',
-  filefolder: 'File Folder',
-  task: 'Task',
-  log: 'Log',
-  generic: 'Resource',
-  browser: 'Browser',
-  terminal: 'Terminal',
-}
-
-/**
- * Synthetic client-side panels are context-only: never persisted to the chat.
- * Browser tabs are among them — the desktop app restores its own pages — so
- * their page title and URL remain request context only.
- */
-function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
-  return !isEphemeralResource({
-    type: resource.type,
-    id: resource.id,
-    title: resource.title ?? '',
-  })
-}
 
 /**
  * Drops open tabs the client cannot address, so one unusable tab does not fail
@@ -622,133 +579,19 @@ async function resolveAgentContexts(params: {
     }
   }
 
-  const authorizedResources: z.infer<typeof mothershipResourceSchema>[] = []
-  if (
-    Array.isArray(resourceAttachments) &&
-    resourceAttachments.length > 0 &&
-    (workspaceId || organizationId)
-  ) {
-    const results = await Promise.allSettled(
-      resourceAttachments.map(async (resource) => {
-        if (resource.type === 'sources') return null
-        // The live browser panel resolves from the attachment itself: its
-        // page state is client-held (the desktop app's embedded browser),
-        // not a workspace entity the server could look up.
-        if (resource.type === 'browser') {
-          if (!resource.url) return null
-          const title = resource.title?.trim()
-          return {
-            type: 'active_resource',
-            tag: resource.active ? '@active_tab' : '@open_tab',
-            content: `The user's ${
-              resource.active ? 'currently visible browser tab' : 'other open browser tab'
-            } is open on: ${
-              title ? `"${title}" — ` : ''
-            }${resource.url}. ${browserAvailable ? 'Browser tools are available for inspecting and interacting with this tab.' : 'This attachment supplies only the title and URL; browser tools are unavailable.'}`,
-          }
-        }
-        if (resource.type === 'search') {
-          if (
-            !resource.search ||
-            !searchResourceMatchesOwner(resource.search, { organizationId, workspaceId })
-          )
-            return null
-          if (persistResources)
-            authorizedResources.push(
-              mothershipResourceSchema.parse({ ...resource, title: 'Search results' })
-            )
-          return {
-            type: 'active_resource',
-            tag: resource.active ? '@active_tab' : '@open_tab',
-            content: `The user's Search results tab has this retrieval address: ${JSON.stringify(resource.search)}. This is query context, not retrieved evidence; use the search tools for current authorized results.`,
-          }
-        }
-        if (resource.type === 'file') {
-          const { context, tab } = await resolveFileAttachment(resource, {
-            userId,
-            workspaceId,
-            organizationId,
-            chatId,
-            requestMode,
-          })
-          if (persistResources && tab) authorizedResources.push(tab)
-          return context
-        }
-        const target =
-          organizationId || resource.workspaceId
-            ? await resolveInvocationWorkspace(
-                { userId, workspaceId, organizationId, chatId },
-                resource.workspaceId
-              )
-            : workspaceId
-              ? { workspaceId }
-              : null
-        if (!target) return null
-        if (
-          resource.owner &&
-          (resource.owner.entityType !== 'workspace' ||
-            resource.owner.entityId !== target.workspaceId)
-        )
-          throw new Error('File owner does not match the selected workspace')
-        const ctx = await withWorkspaceInvocationScope(
-          { workspaceId: target.workspaceId, organizationId },
-          () =>
-            resolveActiveResourceContext(
-              resource.type,
-              resource.id,
-              target.workspaceId,
-              userId,
-              chatId,
-              resource.viewId,
-              resource.currentView
-            )
-        )
-        if (!ctx) return null
-        if (persistResources && isPersistableAttachment(resource))
-          authorizedResources.push(
-            mothershipResourceSchema.parse({
-              ...resource,
-              title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
-              ...(organizationId
-                ? { workspaceId: target.workspaceId }
-                : { workspaceId: undefined, workspaceName: undefined }),
-            })
-          )
-        return {
-          ...ctx,
-          ...(organizationId
-            ? { content: `Workspace ${target.workspaceId}:\n${ctx.content}` }
-            : {}),
-          tag: resource.active ? '@active_tab' : '@open_tab',
-        }
-      })
-    )
-
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        if (result.value) agentContexts.push(result.value)
-        return
-      }
-      // A tab can outlive its resource or the viewer's access to it; the turn
-      // goes without that context.
-      const resourceType = resourceAttachments[index]?.type
-      const code = asOrchestrationError(result.reason)?.code
-      if (code === 'not_found') {
-        logger.info(`[${requestId}] Skipped resource attachment that no longer exists`, {
-          resourceType,
-        })
-      } else if (code === 'forbidden') {
-        logger.warn(`[${requestId}] Skipped resource attachment the user can no longer access`, {
-          resourceType,
-        })
-      } else {
-        logger.error(`[${requestId}] Failed to resolve resource attachment`, result.reason)
-      }
-    })
-  }
-
-  if (chatId && authorizedResources.length)
-    await persistChatResources(chatId, sanitizeChatResources(authorizedResources))
+  agentContexts.push(
+    ...(await resolveResourceAttachmentContexts({
+      resourceAttachments,
+      userId,
+      workspaceId,
+      organizationId,
+      chatId,
+      requestMode,
+      persistResources,
+      browserAvailable,
+      requestId,
+    }))
+  )
   return agentContexts
 }
 

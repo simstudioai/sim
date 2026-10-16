@@ -3,6 +3,7 @@ import { dirname } from 'node:path'
 import { db } from '@sim/db'
 import { copilotChats, permissions, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { Logger } from '@sim/logger'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createRouteContext } from '@sim/testing/helpers/http'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
@@ -11,13 +12,14 @@ import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
 import { resolveFileAttachment } from '@/lib/mothership/chat/file-attachment'
 import { copyPersistedMessageContext } from '@/lib/mothership/chat/persisted-message'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
+import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
 import { createEvent } from '@/lib/mothership/request/session/event'
 import { encodeSSEEnvelope } from '@/lib/mothership/request/session/sse'
 import { persistResourceEffect } from '@/lib/mothership/resources/persist-effect'
@@ -614,6 +616,140 @@ describe('first-message file panel persistence', () => {
           }
         }
       )
+})
+
+describe('open tabs that no longer resolve', () => {
+  /** The real module loggers, observed so each skipped tab's log level is the asserted output. */
+  function observeLogs() {
+    const spies = {
+      info: vi.spyOn(Logger.prototype, 'info'),
+      warn: vi.spyOn(Logger.prototype, 'warn'),
+      error: vi.spyOn(Logger.prototype, 'error'),
+    }
+    return {
+      calls: (level: keyof typeof spies, message: string) =>
+        spies[level].mock.calls
+          .filter(([text]) => text.includes(message))
+          .map(([, detail]) => detail),
+      restore: () => {
+        for (const spy of Object.values(spies)) spy.mockRestore()
+      },
+    }
+  }
+
+  async function insertWorkspaceFile(
+    f: Awaited<ReturnType<typeof fixture>>,
+    name: string,
+    deletedAt: Date | null = null
+  ) {
+    const id = generateId()
+    await db.insert(workspaceFiles).values({
+      id,
+      workspaceId: f.workspaceId,
+      key: `workspace/${f.workspaceId}/${id}.md`,
+      userId: f.userId,
+      context: 'workspace',
+      originalName: name,
+      contentType: 'text/markdown',
+      sizeBytes: 4,
+      deletedAt,
+    })
+    return id
+  }
+
+  const browserTab = {
+    type: 'browser' as const,
+    id: 'browser-tab',
+    title: 'Docs',
+    url: 'https://docs.invalid/page',
+  }
+
+  identityCheck(
+    'skips a deleted file tab at info and a rejected tab at error while live tabs reach the turn and persist',
+    async () => {
+      const f = await fixture()
+      const liveId = await insertWorkspaceFile(f, 'Live.md')
+      const deletedId = await insertWorkspaceFile(f, 'Deleted.md', new Date())
+      const logs = observeLogs()
+      try {
+        const contexts = await resolveResourceAttachmentContexts({
+          resourceAttachments: [
+            { type: 'file', id: deletedId, title: 'Deleted.md' },
+            { type: 'file', id: generateId(), title: 'Rejected', viewId: generateId() },
+            { type: 'file', id: liveId, title: 'Live.md' },
+            browserTab,
+          ],
+          userId: f.userId,
+          workspaceId: f.workspaceId,
+          chatId: f.chatId,
+          requestMode: 'agent',
+          persistResources: true,
+          requestId: generateId(),
+        })
+        expect(contexts).toHaveLength(2)
+        expect(contexts[0]).toMatchObject({
+          tag: '@open_tab',
+          resource: { type: 'file', id: liveId, title: 'Live.md' },
+        })
+        expect(contexts[1]?.content).toContain(browserTab.url)
+        expect(logs.calls('info', 'Skipped resource attachment that no longer exists')).toEqual([
+          { resourceType: 'file' },
+        ])
+        expect(logs.calls('error', 'Failed to resolve resource attachment')).toHaveLength(1)
+        expect(
+          logs.calls('warn', 'Skipped resource attachment the user can no longer access')
+        ).toEqual([])
+      } finally {
+        logs.restore()
+        await db.delete(workspaceFiles).where(inArray(workspaceFiles.id, [liveId, deletedId]))
+      }
+      const [stored] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, f.chatId))
+      expect((stored?.resources as MothershipResource[]).map((resource) => resource.id)).toEqual([
+        liveId,
+      ])
+    }
+  )
+
+  identityCheck(
+    'skips a file tab the user can no longer read at warning level and keeps tabs that need no access',
+    async () => {
+      const f = await fixture()
+      const fileId = await insertWorkspaceFile(f, 'Revoked.md')
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, f.userId), eq(permissions.entityId, f.workspaceId)))
+      const logs = observeLogs()
+      try {
+        const contexts = await resolveResourceAttachmentContexts({
+          resourceAttachments: [{ type: 'file', id: fileId, title: 'Revoked.md' }, browserTab],
+          userId: f.userId,
+          workspaceId: f.workspaceId,
+          chatId: f.chatId,
+          requestMode: 'agent',
+          persistResources: true,
+          requestId: generateId(),
+        })
+        expect(contexts).toHaveLength(1)
+        expect(contexts[0]?.content).toContain(browserTab.url)
+        expect(
+          logs.calls('warn', 'Skipped resource attachment the user can no longer access')
+        ).toEqual([{ resourceType: 'file' }])
+        expect(logs.calls('info', 'Skipped resource attachment that no longer exists')).toEqual([])
+        expect(logs.calls('error', 'Failed to resolve resource attachment')).toEqual([])
+      } finally {
+        logs.restore()
+        await db.delete(workspaceFiles).where(eq(workspaceFiles.id, fileId))
+      }
+      const [stored] = await db
+        .select({ resources: copilotChats.resources })
+        .from(copilotChats)
+        .where(eq(copilotChats.id, f.chatId))
+      expect(stored?.resources).toEqual([])
+    }
+  )
 })
 
 describe('legacy browser file address compatibility', () => {

@@ -14,6 +14,7 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { Logger } from '@sim/logger'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -326,12 +327,8 @@ describe('Mothership origin navigation and independent Project authority', () =>
     }
   }
 
-  check('origin A discovers accessible B while current-parent hints remain A', async () => {
-    const f = await fixture()
-    const b = await target(f)
-    const execution = context(f)
-    const listed = await executeCopilotProjectDiscovery(execution, listProjects, { limit: 100 })
-    expect(listed.projects.map((row) => row.id).sort()).toEqual([f.projectId, b.projectId].sort())
+  /** A worker that advertises the file-owner protocol, so turn hints are actually negotiated. */
+  async function withProtocolPeer(run: (workerURL: string) => Promise<void>) {
     const peer = createServer((_request, response) => {
       response.setHeader('X-Mothership-File-Owner-Protocol', '1')
       response.end()
@@ -340,6 +337,21 @@ describe('Mothership origin navigation and independent Project authority', () =>
     try {
       const address = peer.address()
       if (!address || typeof address === 'string') throw new Error('Protocol peer unavailable')
+      await run(`http://127.0.0.1:${address.port}`)
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        peer.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
+  }
+
+  check('origin A discovers accessible B while current-parent hints remain A', async () => {
+    const f = await fixture()
+    const b = await target(f)
+    const execution = context(f)
+    const listed = await executeCopilotProjectDiscovery(execution, listProjects, { limit: 100 })
+    expect(listed.projects.map((row) => row.id).sort()).toEqual([f.projectId, b.projectId].sort())
+    await withProtocolPeer(async (workerURL) => {
       for (const [workspaceId, projectId] of [
         [f.workspaces[0], f.projectId],
         [b.workspaceId, b.projectId],
@@ -352,23 +364,77 @@ describe('Mothership origin navigation and independent Project authority', () =>
             invocation: { kind: 'workspace', workspaceId },
           }),
         }
-        const hints = await withFileOwnerContext(
-          {},
-          current,
-          `http://127.0.0.1:${address.port}`,
-          '/api/mothership'
-        )
+        const hints = await withFileOwnerContext({}, current, workerURL, '/api/mothership')
         expect(hints.project).toMatchObject({ id: projectId })
       }
-    } finally {
-      await new Promise<void>((resolve, reject) =>
-        peer.close((error) => (error ? reject(error) : resolve()))
-      )
-    }
+    })
     await db
       .delete(permissions)
       .where(and(eq(permissions.userId, f.readerId), eq(permissions.entityId, b.workspaceId)))
     const revoked = await executeCopilotProjectDiscovery(execution, listProjects, { limit: 100 })
     expect(revoked.projects.map((row) => row.id)).toEqual([f.projectId])
   })
+
+  check(
+    'sends the turn without Project hints, warning only when the lookup fails unexpectedly',
+    async () => {
+      const f = await fixture()
+      const forged = {
+        message: 'hello',
+        fileOwnerProtocolVersion: 1,
+        project: { id: generateId(), name: 'Forged' },
+        fileOwnerCapabilities: [
+          {
+            owner: { entityType: 'project', entityId: generateId() },
+            canRead: true,
+            canWrite: true,
+          },
+        ],
+      }
+      const noProject = {
+        message: 'hello',
+        fileOwnerProtocolVersion: 1,
+        project: null,
+        fileOwnerCapabilities: [],
+      }
+      const warn = vi.spyOn(Logger.prototype, 'warn')
+      const hintWarnings = () =>
+        warn.mock.calls.filter(([message]) =>
+          message.includes('Sending turn without Project file owner hints')
+        )
+      try {
+        await withProtocolPeer(async (workerURL) => {
+          const send = () => withFileOwnerContext(forged, context(f), workerURL, '/api/mothership')
+
+          featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async () => false)
+          expect(await send()).toEqual({ message: 'hello' })
+
+          featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+            async (flag) => flag === 'projects'
+          )
+          expect((await send()).project).toEqual({ id: f.projectId, name: 'Project files' })
+
+          await db
+            .update(project)
+            .set({ archivedAt: new Date() })
+            .where(eq(project.id, f.projectId))
+          expect(await send()).toEqual(noProject)
+          await db.update(project).set({ archivedAt: null }).where(eq(project.id, f.projectId))
+
+          await db.delete(permissions).where(eq(permissions.userId, f.readerId))
+          expect(await send()).toEqual(noProject)
+          expect(hintWarnings()).toEqual([])
+
+          /** The rollout switches off between admitting the turn and reading its Project. */
+          featureFlagsMockFns.mockIsFeatureEnabled
+            .mockImplementation(async () => false)
+            .mockResolvedValueOnce(true)
+          expect(await send()).toEqual(noProject)
+          expect(hintWarnings()).toHaveLength(1)
+        })
+      } finally {
+        warn.mockRestore()
+      }
+    }
+  )
 })
