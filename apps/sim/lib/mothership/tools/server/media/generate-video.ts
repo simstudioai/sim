@@ -107,9 +107,9 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         negativePrompt: params.negativePrompt,
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
+        signal: context.abortSignal,
+        onCost: (cost) => recordServiceCost('falai_video', cost.costDollars),
       })
-
-      await recordServiceCost('falai_video', result.cost.costDollars)
 
       const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || 'files/generated-video.mp4'

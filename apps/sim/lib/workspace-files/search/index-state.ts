@@ -298,18 +298,26 @@ export async function publishFileSearchBuild(
           publication.dependencies.map((dependency) => ({ ...dependency, buildId: build.id }))
         )
     }
+    /**
+     * A skipped build stays published, with its bound artifact key, so a rendered read of the same
+     * artifact sees it as current instead of requeueing it. It keeps no text.
+     */
+    if (publication.status === 'skipped')
+      await tx
+        .delete(workspaceFileSearchChunk)
+        .where(eq(workspaceFileSearchChunk.buildId, build.id))
     await tx
       .update(workspaceFileSearchBuild)
       .set({
-        expiresAt: publication.status === 'ready' ? null : sql`clock_timestamp()`,
-        artifactKey: publication.status === 'ready' ? (publication.artifactKey ?? null) : null,
+        expiresAt: null,
+        ...(publication.status === 'ready' ? { artifactKey: publication.artifactKey ?? null } : {}),
       })
       .where(eq(workspaceFileSearchBuild.id, build.id))
     await tx
       .update(workspaceFileSearchRevision)
       .set({
         status: publication.status,
-        buildId: publication.status === 'ready' ? build.id : null,
+        buildId: build.id,
         failureReason: publication.status === 'skipped' ? publication.failureReason : null,
         lineCount: publication.status === 'ready' ? publication.lineCount : 0,
         indexedBytes: publication.status === 'ready' ? publication.indexedBytes : 0,

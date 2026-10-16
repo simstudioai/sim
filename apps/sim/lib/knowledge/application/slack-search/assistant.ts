@@ -49,7 +49,7 @@ import {
   startAbortPoller,
   unregisterActiveStream,
 } from '@/lib/mothership/request/session/abort'
-import { isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
+import { AbortReason, isExplicitStopReason } from '@/lib/mothership/request/session/abort-reason'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
@@ -206,6 +206,11 @@ export async function runSlackSearchAssistant(
     })
     if (!run) throw new Error('Could not persist Assistant execution')
     runId = run.id
+    /** Admission found the turn stopped or its chat deleted: it ends as that Stop would. */
+    if (run.status === 'cancelled') {
+      controller.abort(AbortReason.UserStop)
+      controller.signal.throwIfAborted()
+    }
     const responseStream = new SlackSearchAssistantStream({
       token: secret.botToken,
       channel: job.message.channelId,

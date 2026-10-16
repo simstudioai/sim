@@ -9,6 +9,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  logPublicFileError,
   publicFileAuthDenied,
   publicFileErrorResponse,
   publicFileShareCredential,
@@ -48,7 +49,7 @@ export const GET = withRouteHandler(
         ownerName,
       })
     } catch (error) {
-      logger.error('Error fetching public file metadata:', error)
+      logPublicFileError(logger, 'Error fetching public file metadata:', error)
       return publicFileErrorResponse(error, 'Failed to fetch file')
     }
   }
@@ -70,7 +71,7 @@ export const POST = withRouteHandler(
       response.cookies.set(auth.cookie)
       return response
     } catch (error) {
-      logger.error('Error authenticating public file share:', error)
+      logPublicFileError(logger, 'Error authenticating public file share:', error)
       return publicFileErrorResponse(error, 'Failed to authenticate')
     }
   }

@@ -1446,19 +1446,26 @@ async function runCheckpointLoop(
         }
         for (const [toolCallId, promise] of context.pendingToolPromises) {
           if (pendingWatchdogs.get(toolCallId)?.promise === promise) continue
+          const toolCall = context.toolCalls.get(toolCallId)
           const waitBudgetMs =
-            pendingToolWaitBudgetMs(context.toolCalls.get(toolCallId), context.desktopDeviceId) +
+            pendingToolWaitBudgetMs(toolCall, context.desktopDeviceId) +
             TOOL_WATCHDOG_RESUME_GRACE_MS
+          const clientCapAt = now + Math.max(waitBudgetMs, CLIENT_TOOL_RESULT_TIMEOUT_MS)
+          // Neither the wait nor a lease carries a call past the deadline the worker named for it.
+          const ceilingAt =
+            toolCall?.deadlineAt === undefined
+              ? clientCapAt
+              : Math.min(clientCapAt, toolCall.deadlineAt + TOOL_WATCHDOG_RESUME_GRACE_MS)
           pendingWatchdogs.set(toolCallId, {
             promise,
             settlement: promise.then(
               () => ({ toolCallId, promise }),
               () => ({ toolCallId, promise })
             ),
-            deadlineAt: now + waitBudgetMs,
+            deadlineAt: Math.min(now + waitBudgetMs, ceilingAt),
             waitBudgetMs,
             startedAt: now,
-            ceilingAt: now + Math.max(waitBudgetMs, CLIENT_TOOL_RESULT_TIMEOUT_MS),
+            ceilingAt,
           })
           maximumWaitBudgetMs = Math.max(maximumWaitBudgetMs, waitBudgetMs)
         }

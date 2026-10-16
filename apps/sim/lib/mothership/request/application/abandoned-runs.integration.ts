@@ -100,6 +100,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
+  DEADLINE_SIM_TOOL_MESSAGE,
   EXHAUSTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_MAX_ATTEMPTS,
 } from '@/lib/mothership/async-runs/execution-lease'
@@ -162,7 +163,14 @@ function frameFor(streamId: string, chatId: string) {
  * chat, and the tool's execution lease lapsed with no result recorded.
  */
 async function runAbandonedMidTool(
-  options: { attempts?: number; leaseLive?: boolean; toolName?: string; runId?: string } = {}
+  options: {
+    attempts?: number
+    leaseLive?: boolean
+    toolName?: string
+    runId?: string
+    /** Seconds left of the deadline the worker named when it first handed the call. */
+    deadlineInSeconds?: number
+  } = {}
 ) {
   const chatId = generateId()
   chatIds.push(chatId)
@@ -214,6 +222,11 @@ async function runAbandonedMidTool(
     .update(copilotAsyncToolCalls)
     .set({
       executionAttempts: options.attempts ?? 1,
+      ...(options.deadlineInSeconds === undefined
+        ? {}
+        : {
+            executionDeadlineAt: sql`clock_timestamp() + ${options.deadlineInSeconds} * interval '1 second'`,
+          }),
       ...(options.leaseLive
         ? {}
         : { executionLeaseExpiresAt: sql`clock_timestamp() - interval '1 second'` }),
@@ -238,6 +251,7 @@ async function runAbandonedMidTool(
         executor: 'sim',
         mode: 'async',
         arguments: TOOL_ARGS,
+        ...(options.deadlineInSeconds === undefined ? {} : { deadlineMs: 900_000 }),
       }),
       frame(4, 'run', {
         kind: 'checkpoint_pause',
@@ -274,6 +288,7 @@ async function storedTool(toolCallId: string) {
       attempts: copilotAsyncToolCalls.executionAttempts,
       ownerToken: copilotAsyncToolCalls.executionOwnerToken,
       error: copilotAsyncToolCalls.error,
+      deadlineAt: copilotAsyncToolCalls.executionDeadlineAt,
     })
     .from(copilotAsyncToolCalls)
     .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
@@ -493,6 +508,29 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     expect(tool.attempts).toBe(SIM_TOOL_EXECUTION_MAX_ATTEMPTS)
   })
 
+  it('fails an interrupted tool whose deadline leaves too little time to run it again', async () => {
+    const { streamId, runId, toolCallId } = await runAbandonedMidTool({ deadlineInSeconds: 30 })
+
+    await takeOverAbandonedRuns()
+
+    expect(await waitForTerminal(runId)).toBe('complete')
+    const result = resumedResult(streamId)
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result)).toContain(DEADLINE_SIM_TOOL_MESSAGE)
+    expect(await storedTool(toolCallId)).toMatchObject({ status: 'failed', attempts: 1 })
+  })
+
+  it('runs an interrupted tool again within what remains of its first deadline', async () => {
+    const { streamId, runId, toolCallId } = await runAbandonedMidTool({ deadlineInSeconds: 600 })
+    const recorded = (await storedTool(toolCallId)).deadlineAt
+
+    await takeOverAbandonedRuns()
+
+    expect(await waitForTerminal(runId)).toBe('complete')
+    expectResumedSuccess(streamId)
+    expect(await storedTool(toolCallId)).toMatchObject({ attempts: 2, deadlineAt: recorded })
+  })
+
   /**
    * A workflow tool reaches the Sim executor through the browser-or-server pickup race; the
    * dead controller's server run left it claimed, so only the server may pick it up again.
@@ -510,6 +548,32 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
       await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
     }
   })
+
+  it.each([
+    [30, false],
+    [600, true],
+  ])(
+    'a browser claims a workflow call with %is of its deadline left: %s',
+    async (seconds, claimable) => {
+      const { runId, toolCallId } = await runAbandonedMidTool({ toolName: 'run_workflow' })
+      /** Offered to a browser and not yet picked up, with `seconds` of its deadline left. */
+      await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: null,
+          executionStartedAt: null,
+          executionOwnerToken: null,
+          executionDeadlineAt: sql`clock_timestamp() + ${seconds} * interval '1 second'`,
+        })
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      try {
+        const claim = await claimWorkflowToolExecution(toolCallId, generateId(), 'client')
+        expect(claim !== null).toBe(claimable)
+      } finally {
+        await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+      }
+    }
+  )
 
   it('fails an exhausted workflow run before a takeover offers it to anyone', async () => {
     const { runId, toolCallId } = await runAbandonedMidTool({

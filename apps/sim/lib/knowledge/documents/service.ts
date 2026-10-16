@@ -89,6 +89,7 @@ import {
   requiresConnectorIndexing,
 } from '@/lib/knowledge/connectors/indexing-policy'
 import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
+import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { documentConnectorIsActive } from '@/lib/knowledge/documents/connector-lifecycle'
 import { createEmbeddingCheckpoints } from '@/lib/knowledge/documents/embedding-checkpoints'
 import {
@@ -2066,7 +2067,6 @@ export async function processDocumentAsync(
                   `Embedding generation returned ${embeddings.length} vectors for ${processed.chunks.length} chunks`
                 )
               }
-              const documentTags = ctx
 
               logger.info(
                 `[${documentId}] Embeddings generated, creating embedding records with tags`
@@ -2082,40 +2082,6 @@ export async function processDocumentAsync(
                     : EXACT_EMPTY_DURABLE_SECRET_PROVENANCE
                   : undefined
               )
-              const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-                id: generateId(),
-                knowledgeBaseId,
-                documentId,
-                chunkIndex,
-                chunkHash: sha256Hex(chunk.text),
-                content: chunk.text,
-                secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
-                contentLength: chunk.text.length,
-                tokenCount: chunkTokenCounts[chunkIndex],
-                ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
-                embeddingModel: kbEmbeddingModel,
-                startOffset: chunk.metadata.startIndex,
-                endOffset: chunk.metadata.endIndex,
-                tag1: documentTags.tag1,
-                tag2: documentTags.tag2,
-                tag3: documentTags.tag3,
-                tag4: documentTags.tag4,
-                tag5: documentTags.tag5,
-                tag6: documentTags.tag6,
-                tag7: documentTags.tag7,
-                number1: documentTags.number1,
-                number2: documentTags.number2,
-                number3: documentTags.number3,
-                number4: documentTags.number4,
-                number5: documentTags.number5,
-                date1: documentTags.date1,
-                date2: documentTags.date2,
-                boolean1: documentTags.boolean1,
-                boolean2: documentTags.boolean2,
-                boolean3: documentTags.boolean3,
-                createdAt: now,
-                updatedAt: now,
-              }))
 
               signal.throwIfAborted()
               /**
@@ -2149,7 +2115,26 @@ export async function processDocumentAsync(
                    * through the embedding foreign key and projection triggers.
                    */
                   const activeDocument = await tx
-                    .select({ id: document.id })
+                    .select({
+                      id: document.id,
+                      tag1: document.tag1,
+                      tag2: document.tag2,
+                      tag3: document.tag3,
+                      tag4: document.tag4,
+                      tag5: document.tag5,
+                      tag6: document.tag6,
+                      tag7: document.tag7,
+                      number1: document.number1,
+                      number2: document.number2,
+                      number3: document.number3,
+                      number4: document.number4,
+                      number5: document.number5,
+                      date1: document.date1,
+                      date2: document.date2,
+                      boolean1: document.boolean1,
+                      boolean2: document.boolean2,
+                      boolean3: document.boolean3,
+                    })
                     .from(document)
                     .where(
                       and(
@@ -2168,6 +2153,42 @@ export async function processDocumentAsync(
                   if (activeDocument.length === 0) {
                     return false
                   }
+
+                  const documentTags = activeDocument[0]
+                  const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
+                    id: generateId(),
+                    knowledgeBaseId,
+                    documentId,
+                    chunkIndex,
+                    chunkHash: sha256Hex(chunk.text),
+                    content: chunk.text,
+                    secretProvenanceVersion: chunkProvenances[chunkIndex] ? 1 : null,
+                    contentLength: chunk.text.length,
+                    tokenCount: chunkTokenCounts[chunkIndex],
+                    ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[chunkIndex]),
+                    embeddingModel: kbEmbeddingModel,
+                    startOffset: chunk.metadata.startIndex,
+                    endOffset: chunk.metadata.endIndex,
+                    tag1: documentTags.tag1,
+                    tag2: documentTags.tag2,
+                    tag3: documentTags.tag3,
+                    tag4: documentTags.tag4,
+                    tag5: documentTags.tag5,
+                    tag6: documentTags.tag6,
+                    tag7: documentTags.tag7,
+                    number1: documentTags.number1,
+                    number2: documentTags.number2,
+                    number3: documentTags.number3,
+                    number4: documentTags.number4,
+                    number5: documentTags.number5,
+                    date1: documentTags.date1,
+                    date2: documentTags.date2,
+                    boolean1: documentTags.boolean1,
+                    boolean2: documentTags.boolean2,
+                    boolean3: documentTags.boolean3,
+                    createdAt: now,
+                    updatedAt: now,
+                  }))
 
                   /**
                    * A pass that indexes nothing (a decorative image) still replaces what an
@@ -4008,25 +4029,6 @@ export async function updateDocument(
     boolean2: boolean | null
     boolean3: boolean | null
   }> = {}
-  const ALL_TAG_SLOTS = [
-    'tag1',
-    'tag2',
-    'tag3',
-    'tag4',
-    'tag5',
-    'tag6',
-    'tag7',
-    'number1',
-    'number2',
-    'number3',
-    'number4',
-    'number5',
-    'date1',
-    'date2',
-    'boolean1',
-    'boolean2',
-    'boolean3',
-  ] as const
   type TagSlot = (typeof ALL_TAG_SLOTS)[number]
 
   if (updateData.filename !== undefined) dbUpdateData.filename = updateData.filename
@@ -4073,6 +4075,14 @@ export async function updateDocument(
   })
 
   const doc = await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(document)
+      .where(eq(document.id, documentId))
+      .limit(1)
+      .for('update')
+    if (!current) return undefined
+
     const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
@@ -4090,14 +4100,6 @@ export async function updateDocument(
         .set(embeddingUpdateData)
         .where(eq(embedding.documentId, documentId))
     }
-
-    const [current] = await tx
-      .select()
-      .from(document)
-      .where(eq(document.id, documentId))
-      .limit(1)
-      .for('update')
-    if (!current) return undefined
 
     const [sidecar] =
       current.secretProvenanceVersion === 1
@@ -4484,29 +4486,24 @@ async function hardDeleteDocumentBatch(
      * embedding delete and the document delete are scoped to this re-verified
      * ID set rather than the stale `existingIds`.
      */
-    const stillTargetedIds =
-      scopedConnectorId || scopedKnowledgeBaseId || accessCondition
-        ? (
-            await tx
-              .select({ id: document.id })
-              .from(document)
-              .where(
-                and(
-                  inArray(document.id, existingIds),
-                  scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
-                  scopedKnowledgeBaseId
-                    ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId)
-                    : undefined,
-                  requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
-                  requireEligibleDocument ? isNull(document.archivedAt) : undefined,
-                  requireVisibleDocument ? isNull(document.deletedAt) : undefined,
-                  accessCondition
-                )
-              )
-              .orderBy(asc(document.id))
-              .for('update')
-          ).map((d) => d.id)
-        : existingIds
+    const stillTargetedIds = (
+      await tx
+        .select({ id: document.id })
+        .from(document)
+        .where(
+          and(
+            inArray(document.id, existingIds),
+            scopedConnectorId ? eq(document.connectorId, scopedConnectorId) : undefined,
+            scopedKnowledgeBaseId ? eq(document.knowledgeBaseId, scopedKnowledgeBaseId) : undefined,
+            requireEligibleDocument ? eq(document.userExcluded, false) : undefined,
+            requireEligibleDocument ? isNull(document.archivedAt) : undefined,
+            requireVisibleDocument ? isNull(document.deletedAt) : undefined,
+            accessCondition
+          )
+        )
+        .orderBy(asc(document.id))
+        .for('update')
+    ).map((d) => d.id)
 
     await tx.delete(embedding).where(inArray(embedding.documentId, stillTargetedIds))
     const deletedRows = await tx

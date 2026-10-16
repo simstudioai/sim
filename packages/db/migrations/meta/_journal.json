@@ -3011,6 +3011,20 @@
       "when": 1792023339381,
       "tag": "0430_tool_execution_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 431,
+      "version": "7",
+      "when": 1792093861456,
+      "tag": "0431_large_table_vacuum_throttle",
+      "breakpoints": true
+    },
+    {
+      "idx": 432,
+      "version": "7",
+      "when": 1792096505838,
+      "tag": "0432_tool_execution_deadline",
+      "breakpoints": true
     }
   ]
 }

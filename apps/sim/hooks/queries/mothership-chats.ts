@@ -370,29 +370,12 @@ async function readMothershipChatHistory(
   windowStartCursor: string | null | undefined,
   signal?: AbortSignal
 ): Promise<MothershipChatHistory> {
-  try {
-    const data = await requestJson(getMothershipChatContract, {
-      params: { chatId },
-      query: windowStartCursor ? { from: windowStartCursor } : { window: 'latest' },
-      signal,
-    })
-    return parseChatHistory(data)
-  } catch (error) {
-    if (!isApiClientError(error) || error.status !== 404) throw error
-  }
-
-  // boundary-raw-fetch: legacy alias path /api/mothership/chat?chatId=... returns the
-  // copilot lifecycle shape (activeStreamId, not conversationId) for chats stored under
-  // the older copilot table; no contract exists for this alias path
-  const copilotRes = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`, {
+  const data = await requestJson(getMothershipChatContract, {
+    params: { chatId },
+    query: windowStartCursor ? { from: windowStartCursor } : { window: 'latest' },
     signal,
   })
-
-  if (!copilotRes.ok) {
-    throw new Error('Failed to load chat')
-  }
-
-  return parseChatHistory(await copilotRes.json())
+  return parseChatHistory(data)
 }
 
 /**

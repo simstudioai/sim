@@ -1,7 +1,8 @@
-import type {
-  ComputerUseActivity,
-  ComputerUseAppPermission,
-  ComputerUseStatus,
+import {
+  type ComputerUseActivity,
+  type ComputerUseAppPermission,
+  ComputerUseError,
+  type ComputerUseStatus,
 } from '@sim/desktop-bridge'
 import {
   type ComputerUseInput,
@@ -179,7 +180,18 @@ export class ComputerUseService {
       return Promise.reject(new Error('Computer Use has too many queued actions.'))
     if (this.queued.has(toolCallId))
       return Promise.reject(new Error('This Computer Use action is already running.'))
-    const input = ComputerUseSchema.parse(raw)
+    // A newer server can send arguments this build predates; nothing has been queued yet.
+    const parsed = ComputerUseSchema.safeParse(raw)
+    if (!parsed.success)
+      return Promise.reject(
+        new ComputerUseError({
+          code: 'invalid_arguments',
+          message:
+            'This desktop app does not support these Computer Use arguments; update Sim Desktop.',
+          dispatchState: 'not_started',
+        })
+      )
+    const input = parsed.data
     const work: ToolWork = { toolCallId, scopeId, input, controller: new AbortController() }
     this.queued.set(toolCallId, work)
     const result = this.tail.then(() => this.run(work))
@@ -227,16 +239,45 @@ export class ComputerUseService {
       }
       this.check(work)
       const owner = 'snapshotId' in input ? this.snapshots.get(input.snapshotId) : undefined
+      const elementId = 'elementId' in input ? input.elementId : undefined
+      /**
+       * Element and coordinate calls observe the window they acted on. An untargeted key keeps the
+       * focused-window default, so a key that closes the window still returns fresh state.
+       */
       const windowId =
-        'windowId' in input
-          ? input.windowId
-          : 'elementId' in input
-            ? (owner?.elementWindows.get(input.elementId) ?? owner?.windowId)
-            : undefined
+        ('windowId' in input ? input.windowId : undefined) ??
+        (elementId
+          ? (owner?.elementWindows.get(elementId) ?? owner?.windowId)
+          : 'x' in input
+            ? owner?.windowId
+            : undefined)
       if ('snapshotId' in input) this.snapshots.delete(input.snapshotId)
-      const params =
-        'observeAfter' in input ? omit(input, ['action', 'observeAfter']) : omit(input, ['action'])
-      const result = await this.deps.native.request(input.action, params)
+      /** Mutations accept includeScreenshot as shorthand for observeAfter.includeScreenshot. */
+      const isMutation = input.action !== 'get_app_state'
+      const observeAfter = {
+        ...('observeAfter' in input ? input.observeAfter : {}),
+        ...(isMutation && 'includeScreenshot' in input && input.includeScreenshot !== undefined
+          ? { includeScreenshot: input.includeScreenshot }
+          : {}),
+      }
+      const fields: Record<string, unknown> = input
+      const params = isMutation
+        ? omit(fields, ['action', 'observeAfter', 'includeScreenshot'])
+        : omit(fields, ['action'])
+      let result: ComputerUseResult
+      try {
+        result = await this.deps.native.request(input.action, params)
+      } catch (error) {
+        /** The helper keeps a snapshot nothing was sent through, so its ownership stays too. */
+        if (
+          owner &&
+          'snapshotId' in input &&
+          error instanceof ComputerUseError &&
+          error.details.dispatchState === 'not_started'
+        )
+          this.snapshots.set(input.snapshotId, owner)
+        throw error
+      }
       this.check(work)
       if (result.kind === 'state') this.rememberSnapshot(work, result, windowId)
       if (result.kind === 'action') {
@@ -250,7 +291,7 @@ export class ComputerUseService {
           const observation = await this.deps.native.request('get_app_state', {
             bundleId: input.bundleId,
             ...(windowId ? { windowId } : {}),
-            ...('observeAfter' in input ? input.observeAfter : {}),
+            ...observeAfter,
           })
           this.check(work)
           if (observation.kind !== 'state')

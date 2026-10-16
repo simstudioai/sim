@@ -1,4 +1,9 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  type OrganizationDelegatedPrincipal,
+  type Principal,
+  requirePrincipalSubjectUserId,
+  type SubjectDelegatedPrincipal,
+} from '@sim/auth/principal'
 import {
   copilotChats,
   permissions,
@@ -93,19 +98,26 @@ function requirePrincipal(
   }
 }
 
-/** Rechecks canonical conversation ownership and authoring capability while authorization locks are held. */
+/**
+ * Rechecks canonical conversation ownership and authoring capability while authorization locks
+ * are held; `snapshot` reads the same rows unlocked inside the caller's read-only snapshot.
+ */
 export async function requireCurrentCopilotProjectInvocation(
   tx: DbTransaction,
-  principal: Extract<ProjectFilePrincipal, { kind: 'resource_delegated'; serviceId: 'copilot' }>,
+  principal: Pick<
+    Extract<ProjectFilePrincipal, { kind: 'resource_delegated'; serviceId: 'copilot' }>,
+    'subjectUserId' | 'invocation'
+  >,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
-  scope: Awaited<ReturnType<typeof resolveCopilotProjectScope>>
+  scope: Awaited<ReturnType<typeof resolveCopilotProjectScope>>,
+  mode: 'hold' | 'snapshot' = 'hold'
 ) {
   if (scope.organizationId !== access.record.organizationId) {
     throw new OrchestrationError('not_found', 'Project not found in this conversation')
   }
   let workspaceId: string | null
   if (principal.invocation.kind === 'chat') {
-    const [chat] = await tx
+    const chatQuery = tx
       .select({
         userId: copilotChats.userId,
         workspaceId: copilotChats.workspaceId,
@@ -115,8 +127,8 @@ export async function requireCurrentCopilotProjectInvocation(
       })
       .from(copilotChats)
       .where(and(eq(copilotChats.id, principal.invocation.chatId), isNull(copilotChats.deletedAt)))
-      .for('share')
       .limit(1)
+    const [chat] = await (mode === 'hold' ? chatQuery.for('share') : chatQuery)
     if (
       !chat ||
       chat.userId !== principal.subjectUserId ||
@@ -150,7 +162,7 @@ export async function requireCurrentCopilotProjectInvocation(
   if (!workspaceId || workspaceId !== scope.workspaceId) {
     throw new OrchestrationError('not_found', 'Project not found in this conversation')
   }
-  const [origin] = await tx
+  const originQuery = tx
     .select({
       workspaceId: workspace.id,
       workspaceOrganizationId: workspace.organizationId,
@@ -158,22 +170,24 @@ export async function requireCurrentCopilotProjectInvocation(
     })
     .from(workspace)
     .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    .for('share')
     .limit(1)
+  const [origin] = await (mode === 'hold' ? originQuery.for('share') : originQuery)
   if (!origin || origin.workspaceOrganizationId !== scope.organizationId)
     throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
-  // Hold origin grants without upgrading the target's existing SHARE locks.
-  await tx
-    .select({ id: permissions.id })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, principal.subjectUserId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
+  if (mode === 'hold') {
+    // Hold origin grants without upgrading the target's existing SHARE locks.
+    await tx
+      .select({ id: permissions.id })
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.userId, principal.subjectUserId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId)
+        )
       )
-    )
-    .for('share')
+      .for('share')
+  }
   await requireCurrentHumanRole(principal.subjectUserId, origin, 'read', { executor: tx })
   await assertWorkspaceCapability(
     principal.subjectUserId,
@@ -187,12 +201,13 @@ export async function requireCurrentCopilotProjectInvocation(
 /** Shared owner policy keeps compound copies subject to the same live Project edit rule. */
 export async function requireProjectFileOwnerRole(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal,
+  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
-  accessMode: 'read' | 'write'
+  accessMode: 'read' | 'write',
+  mode: 'hold' | 'snapshot' = 'hold'
 ): Promise<ProjectFileAuthorizationContext> {
   if (access.record.archivedAt) throw new OrchestrationError('conflict', 'Project is archived')
-  await requireCurrentFileSubject(tx, principal)
+  await requireCurrentFileSubject(tx, principal, mode)
   const canWrite =
     access.orgAdmin ||
     access.active.some((row) => row.permission === 'admin') ||
@@ -217,7 +232,7 @@ export async function requireProjectFileOwnerRole(
 /** Credential and Files capability checks apply to every currently visible environment. */
 export async function requireProjectFileOwnerCapabilities(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal,
+  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   capability: ProjectFileOperation['capability']
 ): Promise<void> {

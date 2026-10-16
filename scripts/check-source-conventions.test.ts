@@ -103,6 +103,26 @@ describe('relative-import', () => {
       hits('packages/utils/src/object.ts', "import { a } from './a'", 'relative-import')
     ).toEqual([])
   })
+
+  it('exempts a Mothership contract copy only where contracts:sync writes it', () => {
+    const copy = [
+      '// GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/sim-transport.ts',
+      "import { MemoryNotesAccessInput } from './memory-notes-access'",
+    ].join('\n')
+    expect(
+      hits('apps/sim/lib/mothership/generated/sim-transport.ts', copy, 'relative-import')
+    ).toEqual([])
+    expect(hits('apps/sim/lib/feature/service.ts', copy, 'relative-import')).toEqual([
+      './memory-notes-access',
+    ])
+    expect(
+      hits(
+        'apps/sim/lib/mothership/generated/handwritten.ts',
+        "import { a } from './a'",
+        'relative-import'
+      )
+    ).toEqual(['./a'])
+  })
 })
 
 describe('text-size-literal', () => {

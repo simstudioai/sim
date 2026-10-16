@@ -5,6 +5,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   decryptCredentialGroupProviderConfiguration,
   encryptCredentialGroupProviderConfiguration,
+  type SlackCredentialGroupConfiguration,
 } from '@/lib/credential-groups/provider-configuration'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -47,6 +48,57 @@ export async function loadOrganizationSlackMemberApps(
     }))
   )
   return configurations.filter((row) => row.configuration.slack !== undefined)
+}
+
+/**
+ * Resolves the one Slack app and workspace the organization's members connect through, with the
+ * union of their scopes. Fails when member configurations reference more than one app.
+ */
+export async function resolveOrganizationSlackMemberApp(
+  organizationId: string,
+  executor: DbOrTx = db
+) {
+  const rows = await loadOrganizationSlackMemberApps(organizationId, executor)
+  const configurations = rows.flatMap((row) =>
+    row.configuration.slack ? [row.configuration.slack] : []
+  )
+  const first = configurations[0]
+  if (
+    first &&
+    configurations.some(
+      (configuration) =>
+        configuration.appId !== first.appId || configuration.teamId !== first.teamId
+    )
+  )
+    throw new OrchestrationError(
+      'conflict',
+      'Organization Slack member accounts reference multiple apps. Consolidate them before configuring Search.'
+    )
+  return {
+    app: first ? { appId: first.appId, teamId: first.teamId } : null,
+    scopes: [...new Set(configurations.flatMap((configuration) => configuration.scopes))],
+  }
+}
+
+type SlackAppIdentity = Pick<SlackCredentialGroupConfiguration, 'appId' | 'teamId'>
+
+/**
+ * Refuses a Search bot outside the members' Slack workspace, or on a different app unless the
+ * bot runs on the shared Sim Search app.
+ */
+export function requireSearchBotMatchesMemberApp(
+  memberApp: SlackAppIdentity | null | undefined,
+  bot: SlackAppIdentity,
+  sharedBot: boolean
+) {
+  if (
+    memberApp &&
+    ((!sharedBot && memberApp.appId !== bot.appId) || memberApp.teamId !== bot.teamId)
+  )
+    throw new OrchestrationError(
+      'conflict',
+      'Install the same Slack app and workspace connected by your members'
+    )
 }
 
 /** Replaces legacy duplicated secrets without changing member grants or their scope policies. */

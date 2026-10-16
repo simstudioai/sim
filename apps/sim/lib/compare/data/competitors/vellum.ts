@@ -16,6 +16,26 @@ export const vellumProfile: CompetitorProfile = {
   },
   oneLiner:
     'Vellum is an enterprise AI development platform for building, evaluating, and deploying LLM prompts, workflows, and agents.',
+  leadAnswer: [
+    "Vellum's enterprise platform is a hosted AI development product for building, evaluating, and deploying LLM prompts, workflows, and agents through a visual builder, a code SDK, or natural language, with self-hosted and VPC installs for enterprises; its public website now leads with a separate consumer assistant, and the platform's pricing is not published. Sim is an open-source AI workspace with an Apache 2.0-licensed core for building, deploying, and managing agents visually, conversationally, or with code, with a Free plan, a $25 per user/month Pro plan, and self-hosting via Docker Compose or Kubernetes. Choose Vellum when test-suite evaluations, HIPAA coverage with a signed BAA, or a vendor-managed single-tenant VPC are requirements. Choose Sim when you want published self-serve pricing, an open-source core, or live multiplayer editing of the same workflow.",
+  ],
+  faqs: [
+    {
+      question: 'Which is easier for non-engineers to use, Sim or Vellum?',
+      answer:
+        "Both offer a natural-language path: Vellum turns a plain-language goal into a working agent, and Sim's Chat and in-editor Copilot build and edit workflows from natural-language requests on top of a visual canvas. The practical difference is access: Sim has a Free plan and a published $25 per user/month Pro plan, while Vellum's enterprise platform publishes no pricing and its self-hosted option is arranged through a sales demo.",
+    },
+    {
+      question: 'How do Sim and Vellum compare for building and deploying agents?',
+      answer:
+        'Both build agents with a visual builder, code, or natural language, and both deploy to managed cloud or self-hosted infrastructure; Vellum adds a vendor-managed VPC install on AWS, Azure, or GCP, while Sim self-hosts with Docker Compose or Kubernetes. For promotion, Vellum offers Dev, Staging, and Prod environments with one-click promotion, and Sim (on the Enterprise plan) forks a whole workspace into a dev/qa/prod-style child, diffs it, and requires credential remapping before each promote. Sim also deploys a workflow as a public chat interface or as a tool on an MCP server.',
+    },
+    {
+      question: 'Is Vellum still an enterprise agent platform or a personal assistant?',
+      answer:
+        "Both exist under one brand: vellum.ai, including its pricing page, now presents a consumer 'Personal Intelligence' assistant with $30 to $200 monthly packages, while docs.vellum.ai still documents the enterprise workflow and evaluation platform. The most recent entries in those platform docs are a February 2026 changelog and a self-hosted release dated February 6, 2026. Sim is a single product, an AI workspace for building and deploying agents, with its plans published on its own pricing page.",
+    },
+  ],
   standoutFeatures: [
     {
       title: 'HIPAA compliance with a signable BAA',
@@ -54,15 +74,15 @@ export const vellumProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Enterprise BYOK policy no longer verifiable',
+      title: 'Enterprise pricing no longer published',
       description:
-        "Vellum's pricing page has been replaced by a consumer 'Personal Intelligence' pricing model (subscription plus pay-as-you-go credits); the original enterprise LLM-cost-pass-through pricing this claim describes, including any bring-your-own-API-key policy, is no longer published at this URL.",
+        "Vellum's pricing page now shows a consumer 'Personal Intelligence' product (subscription plus pay-as-you-go credits). The enterprise platform's pricing, including how your own provider API keys affect billing, is no longer published.",
       shortDescription:
-        'Pricing page now shows a different consumer product; enterprise BYOK policy unconfirmed.',
+        'Pricing page now shows a different consumer product; enterprise pricing unpublished.',
       source: {
         url: 'https://www.vellum.ai/pricing',
         label: 'Vellum Pricing (now shows the consumer product)',
-        asOf: '2026-07-08',
+        asOf: '2026-10-15',
       },
     },
     {
@@ -122,19 +142,19 @@ export const vellumProfile: CompetitorProfile = {
       selfHostOption: {
         value: 'Yes: self-hosted / VPC install available for enterprise customers',
         detail:
-          "A 'Self-Hosted Vellum' path and a VPC Install option (via a Replicated-based deployment) let enterprises run the platform in their own AWS/Azure/GCP VPC or on-prem.",
+          "Vellum's self-hosting docs describe running 'the complete Vellum platform within your own infrastructure', including air-gapped environments, available through a sales demo. A 2024 announcement describes VPC installs on AWS, Azure, and GCP supported via Replicated. The most recent self-hosted release listed is v0.3.44 (February 6, 2026).",
         shortValue: 'Self-hosted / VPC for enterprise',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.vellum.ai/self-hosting/getting-started/introduction',
             label: 'Self-Hosted Vellum: Vellum Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://www.vellum.ai/blog/announcing-vellum-vpc',
             label: 'Announcing Vellum VPC',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -166,14 +186,14 @@ export const vellumProfile: CompetitorProfile = {
         value:
           "Proprietary/commercial for the core enterprise Vellum platform. A separate consumer 'Vellum Assistant' product is open-sourced under MIT license.",
         detail:
-          'github.com/vellum-ai/vellum-assistant is MIT-licensed (confirmed live, 825+ stars). No evidence the enterprise workflow/evaluations platform itself is open source.',
+          'github.com/vellum-ai/vellum-assistant is MIT-licensed (1,400+ stars). No evidence the enterprise workflow/evaluations platform itself is open source.',
         shortValue: 'Proprietary enterprise platform; MIT consumer app',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://github.com/vellum-ai/vellum-assistant',
             label: 'vellum-ai/vellum-assistant: GitHub',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -697,19 +717,19 @@ export const vellumProfile: CompetitorProfile = {
         value:
           "Not publicly listed for the B2B enterprise platform: Vellum's current pricing page has been fully replaced by the unrelated consumer 'Personal Intelligence' product's plans. A September 2025 third-party pricing analysis, published before that switch, described the enterprise platform as execution-credit-based with per-tier seat caps (Free, Pro, Enterprise) rather than the prepaid-credit model now shown.",
         detail:
-          "Current pricing pages (vellum.ai/pricing, vellum.ai/docs/pricing) describe the consumer 'Personal Intelligence' product's plans (Base/Free and Pro $50/mo tiers with configurable vCPU/RAM/storage add-ons), not the enterprise workflow platform. The last third-party description of the enterprise platform's model itself states Vellum 'does not publicly list pricing details on its website,' so the figures below are third-party estimates, not Vellum-published prices.",
+          "Current pricing pages (vellum.ai/pricing, vellum.ai/docs/pricing) describe the consumer 'Personal Intelligence' assistant: a free Base plan and Pro packages at $30, $100, and $200 per month or a Custom configuration from $50/month. None of this covers the enterprise workflow platform. The last third-party description of the enterprise platform (ZenML, September 2025) states Vellum 'does not publicly list pricing details on its website,' so the figures below are third-party estimates, not Vellum-published prices.",
         shortValue: 'Not publicly listed; third-party analysis describes credit-based tiers',
         confidence: 'unknown',
         sources: [
           {
             url: 'https://www.zenml.io/blog/vellum-ai-pricing',
             label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-07-04',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://www.vellum.ai/pricing',
             label: 'Vellum Pricing (now shows the consumer product)',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -717,14 +737,14 @@ export const vellumProfile: CompetitorProfile = {
         value:
           'Unconfirmed: a third-party analysis reports a Pro tier around $500/month for the enterprise platform, but Vellum does not publish this figure itself',
         detail:
-          "The cited third-party breakdown describes Pro at roughly $500/month with 5,000 prompt executions/day, 250 workflow executions/day, RBAC, and monitoring integrations, still capped at 5 users; Enterprise tiers above that are custom/'Contact us' pricing. None of this is confirmed on Vellum's own site, which currently shows only the unrelated consumer product's $50/mo Pro plan.",
+          "The cited third-party breakdown describes Pro at roughly $500/month with 5,000 prompt executions/day and 250 workflow executions/day; Enterprise tiers above that are custom pricing. None of this is confirmed on Vellum's own site, which currently shows only the unrelated consumer product's Pro packages starting at $30/month.",
         shortValue: '~$500/mo reported by a third party, unconfirmed by Vellum',
         confidence: 'unknown',
         sources: [
           {
             url: 'https://www.zenml.io/blog/vellum-ai-pricing',
             label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-07-04',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -739,22 +759,27 @@ export const vellumProfile: CompetitorProfile = {
           {
             url: 'https://www.zenml.io/blog/vellum-ai-pricing',
             label: 'Vellum AI Pricing: ZenML Blog',
-            asOf: '2026-07-04',
+            asOf: '2026-10-15',
           },
         ],
       },
       byok: {
         value:
-          "Unconfirmed for the enterprise platform: Vellum's pricing page has been replaced by an unrelated consumer 'Personal Intelligence' product page, so BYOK availability can no longer be verified from vellum.ai/pricing.",
+          "Yes, per Vellum's platform docs: most provider models are enabled in a workspace by adding your own API key from that provider, and private models (OpenAI on Azure, OpenAI fine-tunes, Fireworks-hosted fine-tunes) can be connected. How this interacts with billing is not published",
         detail:
-          "The current pricing page describes Vellum-provided credits for the consumer product, not the enterprise platform's LLM-cost pass-through model; no bring-your-own-API-key policy is described for either product on this page.",
-        shortValue: 'Unverifiable after the pricing page pivoted to the consumer product',
-        confidence: 'unknown',
+          "The marketing pricing page now describes only the consumer 'Personal Intelligence' product, so this rests on the platform documentation, which carries no publication date.",
+        shortValue: 'Own provider keys per platform docs; billing effect unpublished',
+        confidence: 'estimated',
         sources: [
+          {
+            url: 'https://docs.vellum.ai/product/prompts/custom-models',
+            label: 'Vellum Docs: Custom Models',
+            asOf: '2026-10-15',
+          },
           {
             url: 'https://www.vellum.ai/pricing',
             label: 'Vellum Pricing (now shows the consumer product)',
-            asOf: '2026-07-08',
+            asOf: '2026-10-15',
           },
         ],
       },

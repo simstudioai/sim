@@ -1,4 +1,5 @@
 import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
+import { countWithheldContent } from '@/lib/core/application'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
@@ -16,6 +17,7 @@ import {
   createCopilotChatPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
+import { describeWithheldContent } from '@/lib/mothership/content-delivery/telemetry'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
@@ -36,6 +38,18 @@ export interface AgentCliExecutionContext extends Omit<ServerToolContext, 'abort
  * credential crossing to the worker. Success here means only "the invocation ran".
  */
 export async function executeAgentCliRequest(
+  request: AgentCliRequest,
+  context: AgentCliExecutionContext
+): Promise<AgentCliRawResult> {
+  const { result, withheld } = await countWithheldContent(() =>
+    executeUncountedAgentCliRequest(request, context)
+  )
+  const note = describeWithheldContent(withheld)
+  if (!note) return result
+  return { ...result, stderr: result.stderr ? `${result.stderr}\n${note}` : note }
+}
+
+async function executeUncountedAgentCliRequest(
   request: AgentCliRequest,
   context: AgentCliExecutionContext
 ): Promise<AgentCliRawResult> {

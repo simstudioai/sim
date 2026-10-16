@@ -889,13 +889,13 @@ describe('workspace file secret provenance', () => {
     )
   })
 
-  it('does not remint named provenance into a copied file with a different owner scope', async () => {
+  it('rejects malformed copied evidence without a source identity', async () => {
     const targetContentUpdatedAt = new Date('2026-08-04T00:00:02.000Z')
     dbChainMockFns.limit
       .mockResolvedValueOnce([
         {
-          userId: 'target-user',
-          workspaceId: 'target-workspace',
+          userId: 'source-user',
+          workspaceId: 'source-workspace',
           contentUpdatedAt: targetContentUpdatedAt,
         },
       ])

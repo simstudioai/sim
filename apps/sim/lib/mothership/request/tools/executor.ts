@@ -11,6 +11,7 @@ import type {
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
   type CompleteAsyncToolCallInput,
+  completePendingAsyncToolCall,
   getAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
@@ -62,6 +63,12 @@ import {
   setTerminalToolCallState,
 } from '@/lib/mothership/request/tool-call-state'
 import { settleToolCallFailure } from '@/lib/mothership/request/tools/call-failure'
+import {
+  capToToolDeadline,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  toDeadlineDate,
+  toolStartWindowClosed,
+} from '@/lib/mothership/request/tools/deadline'
 import { desktopToolNotStarted } from '@/lib/mothership/request/tools/desktop-wait'
 import {
   type ToolExecutionLifetime,
@@ -248,17 +255,33 @@ export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
     : TOOL_WATCHDOG_DEFAULT_MS
 }
 
+type PendingToolCall = Pick<ToolCallState, 'name' | 'status'> &
+  Partial<Pick<ToolCallState, 'params' | 'execName' | 'deadlineAt'>>
+
 /**
- * How long the resume gate may wait on one pending tool call. Permission
- * prompts wait as long as the permission wait itself. Browser calls share the renderer's
- * budget so authorization and native queueing cannot outlive the resume gate. A desktop call on a
- * device-bound run gets the full client budget: its wait fails it once the device is offline, its
- * pickup window closes or its lease lapses, and otherwise it runs as long as the device renews it.
+ * How long the resume gate may wait on one pending tool call, from now: its own budget below,
+ * ended by the call's deadline when the worker named one.
  */
 export function pendingToolWaitBudgetMs(
-  toolCall:
-    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
-    | undefined,
+  toolCall: PendingToolCall | undefined,
+  desktopDeviceId?: string | null
+): number {
+  return capToToolDeadline(
+    ownPendingToolWaitBudgetMs(toolCall, desktopDeviceId),
+    toolCall?.deadlineAt,
+    Date.now()
+  )
+}
+
+/**
+ * Permission prompts wait as long as the permission wait itself. Browser calls share the
+ * renderer's budget so authorization and native queueing cannot outlive the resume gate. A
+ * desktop call on a device-bound run gets the full client budget: its wait fails it once the
+ * device is offline, its pickup window closes or its lease lapses, and otherwise it runs as long
+ * as the device renews it.
+ */
+function ownPendingToolWaitBudgetMs(
+  toolCall: PendingToolCall | undefined,
   desktopDeviceId?: string | null
 ): number {
   if (toolCall?.status === 'awaiting_approval') return PERMISSION_WAIT_TIMEOUT_MS
@@ -353,7 +376,15 @@ async function executeToolWithWatchdog(
   // The frame's wire name can be a display identity (the worker's cli_* names);
   // execution always dispatches on the model's real tool name.
   const executableName = toolCall.execName ?? toolCall.name
-  const timeoutMs = toolWatchdogTimeoutMs(executableName)
+  const now = Date.now()
+  // Admission or approval can leave too little time to finish; the handler then never starts.
+  if (toolStartWindowClosed(toolCall.deadlineAt, now))
+    throw new Error(TOOL_DEADLINE_BEFORE_START_MESSAGE)
+  const timeoutMs = capToToolDeadline(
+    toolWatchdogTimeoutMs(executableName),
+    toolCall.deadlineAt,
+    now
+  )
   const controller = new AbortController()
   lifetime.signal.throwIfAborted()
   const signal = AbortSignal.any([
@@ -463,6 +494,25 @@ export async function failPendingToolCall(
     data: { error: message, outcomeUnknown: true, doNotRetry: true },
     unclaimedOnly: false,
     resultLost: failureMessage === undefined,
+  })
+}
+
+/**
+ * Fails a call with `message` only while nothing has claimed it, so it provably never started.
+ * Reports whether that applied.
+ */
+export async function failUnstartedToolCall(
+  toolCallId: string,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  message: string
+): Promise<boolean> {
+  const toolCall = context.toolCalls.get(toolCallId)
+  if (!toolCall || toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return false
+  return settleAbandonedToolCall(toolCall, context, execContext, {
+    message,
+    data: { error: message, notStarted: true },
+    unclaimedOnly: true,
   })
 }
 
@@ -660,6 +710,8 @@ export async function executeToolAndReport(
   )
 }
 
+type CancelledSpanDetail = { cancelReason: string; error?: string | undefined }
+
 async function executeToolAndReportInner(
   toolCall: ToolCallState,
   context: StreamingContext,
@@ -692,20 +744,39 @@ async function executeToolAndReportInner(
   }
 
   toolCall.status = 'executing'
-  await upsertAsyncToolCall({
+  const record = await upsertAsyncToolCall({
     runId: context.runId,
     toolCallId: toolCall.id,
     ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
     toolName: toolCall.name,
     args: toolCall.params,
+    executionDeadlineAt: toDeadlineDate(toolCall.deadlineAt),
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
     throw new Error('Tool could not start because its execution record is unavailable')
   })
+  /** A re-run after a takeover gets what remains of the call's first deadline, never a fresh one. */
+  if (record?.executionDeadlineAt) toolCall.deadlineAt = record.executionDeadlineAt.getTime()
   if (context.runId) {
     const claim = await lifetime.claim(context.runId, execContext.userId)
-    if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
-    if (claim.outcome === 'existing') {
+    if (claim.outcome === 'closed') {
+      /** A call another controller already started keeps its own result, observed below. */
+      const stopped = await settleCancelledIfUnstarted('Run stopped before tool admission')
+      if (stopped) return stopped
+    }
+    // Settled as never run instead of claimed, so a crash before the handler refuses to start
+    // cannot leave it recovered as an unknown outcome. Losing that settlement leaves another writer's.
+    if (
+      claim.outcome === 'too_late' &&
+      (await failUnstartedToolCall(
+        toolCall.id,
+        context,
+        execContext,
+        TOOL_DEADLINE_BEFORE_START_MESSAGE
+      ))
+    )
+      return terminalCompletionFromToolCall(toolCall)
+    if (claim.outcome !== 'claimed') {
       /** The winning controller owns execution; this promise observes its durable result. */
       const completion = await waitForToolConfirmation(
         toolCall.id,
@@ -771,21 +842,39 @@ async function executeToolAndReportInner(
   // never evaluated (and the span does not exist yet there anyway).
   async function settleCancelled(
     message: string,
-    span?: { cancelReason: string; error?: string | undefined }
+    span?: CancelledSpanDetail
   ): Promise<AsyncCompletionSignal> {
     markToolCallCancelled(message)
     const cancellationResult = toolCall.result
     markToolResultSeen(context, toolCall.id)
-    await lifetime.complete({
+    await lifetime.complete(cancellationRecord(message))
+    if (toolCall.result !== cancellationResult) {
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    return publishCancellation(message, span)
+  }
+
+  /** Cancels the call only while nothing has started it; otherwise reports nothing settled. */
+  async function settleCancelledIfUnstarted(
+    message: string
+  ): Promise<AsyncCompletionSignal | undefined> {
+    if (!(await completePendingAsyncToolCall(cancellationRecord(message)))) return undefined
+    markToolCallCancelled(message)
+    markToolResultSeen(context, toolCall.id)
+    return publishCancellation(message)
+  }
+
+  function cancellationRecord(message: string): CompleteAsyncToolCallInput {
+    return {
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
       status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
       result: { cancelled: true },
       error: message,
-    })
-    if (toolCall.result !== cancellationResult) {
-      return terminalCompletionFromToolCall(toolCall)
     }
+  }
+
+  function publishCancellation(message: string, span?: CancelledSpanDetail): AsyncCompletionSignal {
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
       ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),

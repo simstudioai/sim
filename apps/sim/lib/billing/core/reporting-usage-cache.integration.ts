@@ -186,6 +186,10 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
     transaction.mockClear()
     summedPeriods.length = 0
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis)
+    redisConfigMockFns.mockReleaseLock.mockImplementation(async (key: string, value: string) => {
+      if ((await redis.get(key)) !== value) return false
+      return (await redis.del(key)) === 1
+    })
     payer = { type: 'organization', id: generateId() }
     await connection`INSERT INTO usage_log (id, cost, billing_entity_type, billing_entity_id, created_at)
       VALUES (${generateId()}, 4.25, 'organization', ${payer.id}, '2026-03-01'),
@@ -388,6 +392,29 @@ describe.runIf(Boolean(redisUrl))('shared reporting usage read', () => {
 
     await expect(readInNewProcess(payer, period)).resolves.toBe(9)
     expect(await exactSum(payer, period)).toBe(9)
+  })
+
+  it('refreshes a prefix discarded by a top-up once, instead of summing the window on every read', async () => {
+    const period = openReportingWindow()
+    await insertUsage(payer, 3, new Date(Date.now() - MINUTE_MS))
+    const eventKey = await startCumulativeCharge(
+      payer,
+      2,
+      new Date(period.start.getTime() + DAY_MS)
+    )
+    await expect(readInNewProcess(payer, period)).resolves.toBe(5)
+    await prefixStored(payer, period)
+    await vi.waitFor(async () => expect(await redis.exists(prefixLeaseKey(payer, period))).toBe(0))
+
+    await recordCumulativeUsage(cumulativeCharge(payer, eventKey, 6))
+    await vi.waitFor(async () => expect(await redis.exists(payerEpochKey(payer))).toBe(1))
+    await redis.del(sharedKey(payer, period))
+    await expect(readInNewProcess(payer, period)).resolves.toBe(9)
+    await redis.del(sharedKey(payer, period))
+    await expect(readInNewProcess(payer, period)).resolves.toBe(9)
+
+    expect(await exactSum(payer, period)).toBe(9)
+    expect(windowStartSums(period)).toHaveLength(2)
   })
 
   it('leaves the prefix in place for a top-up to a row still in the tail, and reads it exactly', async () => {

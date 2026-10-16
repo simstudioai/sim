@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { withinDeadline } from '@/lib/core/utils/deadline'
 import { ringDesktopInbox } from '@/lib/desktop/executor/doorbell'
 import { getRunDesktopDeviceId } from '@/lib/desktop/executor/repository'
 import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
@@ -7,7 +8,7 @@ import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
 } from '@/lib/mothership/async-runs/lifecycle'
-import { upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
+import { getAsyncToolCall, upsertAsyncToolCall } from '@/lib/mothership/async-runs/repository'
 import {
   CLIENT_TOOL_RESULT_TIMEOUT_MS,
   COPILOT_WORKFLOW_TOOL_CLIENT_GRACE_MS,
@@ -33,8 +34,21 @@ import { markToolResultSeen, wasToolResultSeen } from '@/lib/mothership/request/
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
 import { waitForClientToolCompletion } from '@/lib/mothership/request/tools/client'
 import { sealClientToolContext } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import {
+  capToToolDeadline,
+  frameToolDeadlineAt,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  TOOL_DEADLINE_EXCEEDED_MESSAGE,
+  toDeadlineDate,
+  toolDeadlinePassed,
+  toolStartWindowClosed,
+} from '@/lib/mothership/request/tools/deadline'
 import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
-import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
+import {
+  executeToolAndReport,
+  failPendingToolCall,
+  failUnstartedToolCall,
+} from '@/lib/mothership/request/tools/executor'
 import {
   runGatedToolExecution,
   TOOL_AWAITING_APPROVAL_STATUS,
@@ -351,6 +365,7 @@ export async function prePersistClientExecutableToolCall(
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
     permissionRequested: gated,
+    executionDeadlineAt: toDeadlineDate(frameToolDeadlineAt(data.deadlineMs, Date.now())),
   }).catch((err) => {
     if (err instanceof AsyncToolCallOwnershipError) throw err
     logger.warn('Failed to pre-persist async tool row before forwarding call frame', {
@@ -500,6 +515,48 @@ function stampToolCallBlockEnd(
   }
 }
 
+/** How long a client wait lasts at least: enough to read a result the client already saved. */
+const STORED_RESULT_READ_MS = 5_000
+
+/**
+ * The completion a client wait reports for a call Sim settled itself: whatever the settlement
+ * left on the call, which is the desktop's own result when that landed first.
+ */
+function settledClientCompletion(toolCall: ToolCallState): AsyncTerminalCompletionSnapshot {
+  const status =
+    toolCall.status === MothershipStreamV1ToolOutcome.success ||
+    toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+      ? toolCall.status
+      : MothershipStreamV1ToolOutcome.error
+  return {
+    status,
+    ...(toolCall.error ? { message: toolCall.error } : {}),
+    ...(toolCall.result?.output !== undefined ? { data: toolCall.result.output } : {}),
+  }
+}
+
+/**
+ * Adopts the deadline recorded when the call was first handed (a takeover re-hands its parked
+ * calls), so an approval or client wait gets only what remains of it. Server executions adopt it
+ * from their own upsert. A recorded deadline that cannot be read before the frame's runs out
+ * counts as spent: the frame's could be later than the one the worker is holding the call to.
+ */
+async function adoptRecordedToolDeadline(toolCall: ToolCallState): Promise<void> {
+  if (toolCall.deadlineAt === undefined) return
+  try {
+    const recorded = (
+      await withinDeadline(() => getAsyncToolCall(toolCall.id), toolCall.deadlineAt)
+    )?.executionDeadlineAt
+    if (recorded) toolCall.deadlineAt = recorded.getTime()
+  } catch (error) {
+    logger.warn('Could not read a tool call deadline; treating it as spent', {
+      toolCallId: toolCall.id,
+      error: getErrorMessage(error),
+    })
+    toolCall.deadlineAt = Date.now()
+  }
+}
+
 async function handleCallPhase(
   data: ToolCallStreamEvent['payload'],
   context: StreamingContext,
@@ -610,6 +667,7 @@ async function handleCallPhase(
   // apply_file_edit intent handoff to one file subagent under concurrency.
   if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
   if (data.execName) toolCall.execName = data.execName
+  toolCall.deadlineAt ??= frameToolDeadlineAt(data.deadlineMs, Date.now())
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
@@ -888,7 +946,9 @@ async function dispatchToolExecution(
     return fireToolExecution()
   }
 
-  if (toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)) {
+  const gated = toolCallNeedsApproval(toolName, context, options, frameRequestsApproval, args)
+  if (gated || clientExecutable) await adoptRecordedToolDeadline(toolCall)
+  if (gated) {
     registerPendingToolPromise(
       context,
       toolCallId,
@@ -918,7 +978,12 @@ async function dispatchToolExecution(
    */
   function waitForClientExecution(): Promise<AsyncCompletionSignal> {
     toolCall.status = 'executing'
-    const timeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
+    const ownTimeoutMs = options.timeout || CLIENT_TOOL_RESULT_TIMEOUT_MS
+    // Even past its deadline a wait lasts long enough to read a result the client already saved.
+    const timeoutMs = Math.max(
+      capToToolDeadline(ownTimeoutMs, toolCall.deadlineAt, Date.now()),
+      Math.min(ownTimeoutMs, STORED_RESULT_READ_MS)
+    )
     return withCopilotSpan(
       TraceSpan.CopilotToolWaitForClientResult,
       {
@@ -932,7 +997,20 @@ async function dispatchToolExecution(
         const desktopDeviceId = isBackgroundDesktopToolCall(toolName, args)
           ? await resolveRunDesktopDevice(context)
           : null
-        if (isWorkflowToolName(toolName)) {
+        // An approval wait or a spent recorded deadline left no time. Only a call nothing claimed
+        // provably never ran; a claimed one (a takeover re-hands calls) is read, then settled
+        // below as outcome unknown.
+        if (
+          toolStartWindowClosed(toolCall.deadlineAt, Date.now()) &&
+          (await failUnstartedToolCall(
+            toolCallId,
+            context,
+            execContext,
+            TOOL_DEADLINE_BEFORE_START_MESSAGE
+          ))
+        ) {
+          completion = settledClientCompletion(toolCall)
+        } else if (isWorkflowToolName(toolName)) {
           const race = await raceWorkflowToolClientPickup({
             toolCallId,
             select:
@@ -943,6 +1021,7 @@ async function dispatchToolExecution(
                 : undefined,
             workflowId: resolveWorkflowToolTargetId(args, execContext.workflowId),
             timeoutMs,
+            deadlineAt: toolCall.deadlineAt,
             // The caller declared its executors at turn setup (ChatRequest.clientCapabilities):
             // no pickup capability → zero grace, the race resolves straight to the server
             // claim. Same claim arbitration either way — the grace only encodes how long a
@@ -1000,6 +1079,25 @@ async function dispatchToolExecution(
           })
         }
         span.setAttribute(TraceAttr.ToolExecutor, MothershipStreamV1ToolExecutor.client)
+        if (completion === null && toolDeadlinePassed(toolCall.deadlineAt, Date.now())) {
+          // A call nothing claimed never ran. A claimed one is settled durably as outcome
+          // unknown, so a desktop that claimed it stops renewing it.
+          if (
+            !(await failUnstartedToolCall(
+              toolCallId,
+              context,
+              execContext,
+              TOOL_DEADLINE_BEFORE_START_MESSAGE
+            ))
+          )
+            await failPendingToolCall(
+              toolCallId,
+              context,
+              execContext,
+              TOOL_DEADLINE_EXCEEDED_MESSAGE
+            )
+          completion = settledClientCompletion(toolCall)
+        }
         // Both waiters resolve `T | null`, never undefined — comparing against
         // undefined made this a constant `true` and hid every timeout.
         span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== null)

@@ -77,6 +77,7 @@ import { env } from '@/lib/core/config/env'
 import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transaction'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
@@ -1781,6 +1782,7 @@ export async function removeDashboardOrganizationMember(
     organizationId,
     memberId,
   })
+  deliverRunStops(result.stoppedRuns)
   if (!result.success) throw new Error(result.error ?? 'Failed to remove member')
   try {
     await reconcileOrganizationSeats({

@@ -1,9 +1,17 @@
 import { permissions, workspace } from '@sim/db/schema'
-import type { PermissionType } from '@sim/platform-authz/workspace'
+import {
+  type PermissionType,
+  resolveEffectiveWorkspacePermission,
+} from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import {
+  findWorkspacesWithLiveRunsTx,
+  type StoppedRun,
+  stopLiveRunsTx,
+} from '@/lib/mothership/async-runs/repository'
 import { lockProjectsForResourceDepartureTx } from '@/lib/projects/resource-handoff'
 import { removeWorkspaceSkillMembershipsTx } from '@/lib/skills/access'
 import { reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx } from '@/lib/workspaces/resource-handoff'
@@ -113,8 +121,13 @@ export async function lowerWorkspaceAccessTx(
 }
 
 export type RevokeWorkspaceAccessResult =
-  /** `ownershipTransferred` is true when the departing user owned the workspace and it moved to the billed account. */
-  | { revoked: true; ownershipTransferred: boolean }
+  /**
+   * `ownershipTransferred` is true when the departing user owned the workspace and it moved to
+   * the billed account. `stoppedRuns` are the user's Chat runs there, stopped in this
+   * transaction when no access remains (see {@link stopRunsWithoutWorkspaceAccessTx}); deliver
+   * them with `deliverRunStops` after commit.
+   */
+  | { revoked: true; ownershipTransferred: boolean; stoppedRuns: StoppedRun[] }
   /** Workspace IDs whose shared resources or ownership lack a successor; access remains unchanged. */
   | { revoked: false; reason: 'unresolved-workflows'; unresolvedWorkspaceIds: string[] }
   /** The requested membership no longer exists; a replacement grant must remain untouched. */
@@ -123,7 +136,16 @@ export type RevokeWorkspaceAccessResult =
 /** Reassigns shared resources and workspace ownership before revoking access in the same transaction. */
 export async function revokeWorkspaceAccessTx(
   tx: DbTransaction,
-  params: { workspaceId: string; userId: string; expectedPermissionId?: string }
+  params: {
+    workspaceId: string
+    userId: string
+    expectedPermissionId?: string
+    /**
+     * Leaves the user's runs to a caller that changes more access in this transaction and
+     * stops runs once that access is final; `stoppedRuns` is then empty.
+     */
+    deferRunStops?: boolean
+  }
 ): Promise<RevokeWorkspaceAccessResult> {
   await lockProjectsForResourceDepartureTx(tx, [params.workspaceId])
   if (params.expectedPermissionId !== undefined) {
@@ -183,8 +205,35 @@ export async function revokeWorkspaceAccessTx(
 
   await revokeWorkspaceCredentialMembershipsTx(tx, params.workspaceId, params.userId)
   await removeWorkspaceSkillMembershipsTx(tx, params.workspaceId, params.userId)
+  const stoppedRuns = params.deferRunStops
+    ? []
+    : await stopRunsWithoutWorkspaceAccessTx(tx, params.userId, [params.workspaceId])
 
-  return { revoked: true, ownershipTransferred }
+  return { revoked: true, ownershipTransferred, stoppedRuns }
+}
+
+/**
+ * Stops the user's live Chat runs in each of these workspaces where they hold no effective
+ * access any more. An organization admin keeps derived access without an explicit grant, so
+ * withdrawing a grant or a role ends runs only where access actually ended.
+ */
+export async function stopRunsWithoutWorkspaceAccessTx(
+  tx: DbTransaction,
+  userId: string,
+  workspaceIds: string[]
+): Promise<StoppedRun[]> {
+  /** Access is checked only where a run could be ended, not across a whole organization. */
+  const withRuns = await findWorkspacesWithLiveRunsTx(tx, userId, workspaceIds)
+  if (withRuns.length === 0) return []
+  const owners = await tx
+    .select({ id: workspace.id, organizationId: workspace.organizationId })
+    .from(workspace)
+    .where(inArray(workspace.id, withRuns))
+  const lost: string[] = []
+  for (const { id, organizationId } of owners) {
+    if (!(await resolveEffectiveWorkspacePermission(userId, id, organizationId, tx))) lost.push(id)
+  }
+  return stopLiveRunsTx(tx, { userId, workspaceIds: lost })
 }
 
 /** The permission a user currently holds on a workspace, if any. */

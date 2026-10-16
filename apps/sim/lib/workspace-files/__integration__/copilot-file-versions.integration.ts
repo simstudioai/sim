@@ -46,7 +46,10 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/file-manager'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
+import {
+  markWorkspaceFileSecretProvenanceUnknown,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -86,7 +89,10 @@ describe('chat-delegated file version history', () => {
   })
 
   /** Version 2 holds a named secret; version 3 replaced it with public text. */
-  async function seedVersionedFile(historicalProvenance?: WorkspaceFileSecretProvenance) {
+  async function seedVersionedFile(
+    historicalProvenance?: WorkspaceFileSecretProvenance,
+    markHistoricalUnknown = false
+  ) {
     const ids = createKnowledgeAclFixtureIds()
     fixtures.push(ids)
     await seedKnowledgeAclFixture(ids)
@@ -124,6 +130,9 @@ describe('chat-delegated file version history', () => {
           secretProvenancePolicy: { mode: 'replace', provenance },
         }
       )
+      if (markHistoricalUnknown && content.startsWith('token=')) {
+        await markWorkspaceFileSecretProvenanceUnknown(ids.workspaceId, [file.id])
+      }
     }
     return { ...ids, fileId: file.id }
   }
@@ -395,6 +404,31 @@ describe('chat-delegated file version history', () => {
     expect(response.status).toBe(403)
     expect(await response.text()).not.toContain(SECRET)
     expect(registry.isPermanentlyIncomplete()).toBe(false)
+  })
+
+  it('retains a classification-only refusal when the current version becomes historical and is reverted', async () => {
+    const fixture = await seedVersionedFile(undefined, true)
+    const chat = chatTransport(fixture, fixture.aliceId, registryFor(fixture, fixture.aliceId))
+    const older = await chat(
+      `/api/v2/files/${fixture.fileId}/versions/1/text?workspaceId=${fixture.workspaceId}`
+    )
+    expect(older.status).toBe(200)
+    const historical = await chat(
+      `/api/v2/files/${fixture.fileId}/versions/2/text?workspaceId=${fixture.workspaceId}`
+    )
+    expect(historical.status).toBe(403)
+    expect(await historical.text()).not.toContain(SECRET)
+    const reverted = await chat(`/api/v2/files/${fixture.fileId}/versions/2/revert`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workspaceId: fixture.workspaceId }),
+    })
+    expect(reverted.status).toBe(200)
+    const current = await chat(
+      `/api/v2/files/${fixture.fileId}/text?workspaceId=${fixture.workspaceId}`
+    )
+    expect(current.status).toBe(403)
+    expect(await current.text()).not.toContain(SECRET)
   })
 
   it('keeps a secret redacted after Chat reverts the file to the version holding it', async () => {

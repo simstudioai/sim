@@ -124,6 +124,7 @@ import {
   sealClientToolCompletion,
   sealClientToolContext,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import { TOOL_DEADLINE_BEFORE_START_MESSAGE } from '@/lib/mothership/request/tools/deadline'
 import {
   buildToolExecutionContext,
   executeToolAndReport,
@@ -302,6 +303,40 @@ describe('pendingToolWaitBudgetMs', () => {
       TOOL_WATCHDOG_DEFAULT_MS
     )
   })
+
+  describe('when the worker named a deadline for the call', () => {
+    const now = new Date('2026-10-15T12:00:00Z').getTime()
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(now)
+    })
+    afterEach(() => vi.useRealTimers())
+
+    it('ends a long tool, an approval and a desktop call at that deadline', () => {
+      const deadlineAt = now + 10 * 60_000
+      expect(
+        pendingToolWaitBudgetMs({ name: 'generate_audio', status: 'executing', deadlineAt })
+      ).toBe(10 * 60_000)
+      expect(
+        pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'awaiting_approval', deadlineAt })
+      ).toBe(10 * 60_000)
+      expect(
+        pendingToolWaitBudgetMs(
+          { name: 'terminal', status: 'executing', params: { operation: 'run' }, deadlineAt },
+          'device-1'
+        )
+      ).toBe(10 * 60_000)
+    })
+
+    it('keeps a shorter budget of its own, and waits no longer once the deadline passed', () => {
+      expect(
+        pendingToolWaitBudgetMs({ name: 'read', status: 'executing', deadlineAt: now + 600_000 })
+      ).toBe(TOOL_WATCHDOG_DEFAULT_MS)
+      expect(
+        pendingToolWaitBudgetMs({ name: 'run_code', status: 'executing', deadlineAt: now - 1 })
+      ).toBe(0)
+    })
+  })
 })
 
 describe('buildToolExecutionContext', () => {
@@ -334,8 +369,10 @@ describe('executeToolAndReport provenance isolation', () => {
   beforeEach(() => {
     executeTool.mockReset()
     completeAsyncToolCall.mockResolvedValue(null)
+    completePendingAsyncToolCall.mockReset()
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
+    claimToolExecution.mockReset()
     claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
     settleSimToolExecution.mockResolvedValue(undefined)
     waitForToolConfirmation.mockReset()
@@ -590,12 +627,44 @@ describe('executeToolAndReport provenance isolation', () => {
 
   it('refuses a late tool after durable Stop closed admission', async () => {
     claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
     const tool = buildPendingToolCall()
     const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
       userId: 'user-1',
       workflowId: 'workflow-1',
     })
-    expect(result.status).toBe('cancelled')
+    expect(result).toMatchObject({
+      status: 'cancelled',
+      message: 'Run stopped before tool admission',
+      data: { cancelled: true },
+    })
+    expect(completePendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith({
+      toolCallId: tool.id,
+      status: 'cancelled',
+      result: { cancelled: true },
+      error: 'Run stopped before tool admission',
+    })
+    expect(publishToolConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: tool.id, status: 'cancelled' })
+    )
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(settleSimToolExecution).not.toHaveBeenCalled()
+  })
+
+  it('keeps the result of a call another controller started before Stop closed admission', async () => {
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+    waitForToolConfirmation.mockResolvedValueOnce({ status: 'success', data: { ran: true } })
+    const tool = buildPendingToolCall()
+    const result = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+    expect(result.status).toBe('success')
+    expect(tool.result?.output).toEqual({ ran: true })
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
     expect(executeTool).not.toHaveBeenCalled()
     expect(settleSimToolExecution).not.toHaveBeenCalled()
   })
@@ -618,6 +687,176 @@ describe('executeToolAndReport provenance isolation', () => {
       expect.any(String)
     )
     expect(settleSimToolExecution).toHaveBeenCalledExactlyOnceWith(tool.id, expect.any(String))
+  })
+
+  it('aborts a hung long tool at the call deadline instead of its own watchdog', async () => {
+    vi.useFakeTimers()
+    let signal: AbortSignal | undefined
+    executeTool.mockImplementation(async (_name, _params, context: ExecutionContext) => {
+      signal = context.abortSignal
+      return new Promise(() => {})
+    })
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 120_000,
+    }
+    const pending = executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+
+    await vi.advanceTimersByTimeAsync(120_000)
+
+    expect(signal?.aborted).toBe(true)
+    expect((await pending).status).toBe('error')
+    expect(upsertAsyncToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({ executionDeadlineAt: new Date(tool.deadlineAt ?? 0) })
+    )
+  })
+
+  it('never starts a handler once the call deadline has passed', async () => {
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() - 1,
+    }
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(completion.status).toBe('error')
+    expect(tool.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
+  })
+
+  it('settles a call its claim found too late to start as never run, without claiming it', async () => {
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'too_late' })
+    completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 30_000,
+    }
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(completePendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        toolCallId: tool.id,
+        status: 'failed',
+        error: TOOL_DEADLINE_BEFORE_START_MESSAGE,
+      })
+    )
+    expect(completion.status).toBe('error')
+    expect(tool.result?.output).toMatchObject({
+      error: TOOL_DEADLINE_BEFORE_START_MESSAGE,
+      notStarted: true,
+    })
+  })
+
+  it('settles the call of a stopped run as stopped even past its start window', async () => {
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    completePendingAsyncToolCall.mockImplementation(async (input) => ({ ...input }))
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 30_000,
+    }
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(completePendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ status: 'cancelled', error: 'Run stopped before tool admission' })
+    )
+    expect(completion).toMatchObject({
+      status: 'cancelled',
+      message: 'Run stopped before tool admission',
+    })
+  })
+
+  it('claims a call without a deadline without trying to settle it first', async () => {
+    executeTool.mockResolvedValue({ success: true, output: {} })
+    const tool: ToolCallState = { ...buildPendingToolCall(), name: 'generate_audio' }
+    await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
+    expect(claimToolExecution).toHaveBeenCalledOnce()
+    expect(executeTool).toHaveBeenCalledOnce()
+  })
+
+  it('runs a call again only until the deadline recorded when it was first handed', async () => {
+    vi.useFakeTimers()
+    let signal: AbortSignal | undefined
+    executeTool.mockImplementation(async (_name, _params, context: ExecutionContext) => {
+      signal = context.abortSignal
+      return new Promise(() => {})
+    })
+    upsertAsyncToolCall.mockResolvedValueOnce({
+      executionDeadlineAt: new Date(Date.now() + 90_000),
+    })
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 15 * 60_000,
+    }
+    const pending = executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+
+    await vi.advanceTimersByTimeAsync(90_000)
+
+    expect(signal?.aborted).toBe(true)
+    expect((await pending).status).toBe('error')
+  })
+
+  it('starts a handler with exactly the minimum budget of its deadline left', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-15T12:00:00Z'))
+    executeTool.mockResolvedValue({ success: true, output: {} })
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 60_000,
+    }
+    await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(executeTool).toHaveBeenCalledOnce()
+  })
+
+  it('does not start a handler with less than a minute of its deadline left', async () => {
+    const tool: ToolCallState = {
+      ...buildPendingToolCall(),
+      name: 'generate_audio',
+      deadlineAt: Date.now() + 30_000,
+    }
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+    })
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(completion.status).toBe('error')
+    expect(tool.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
   })
 
   it('aborts a timed-out handler without cancelling a parallel tool', async () => {

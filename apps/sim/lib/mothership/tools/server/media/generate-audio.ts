@@ -130,9 +130,9 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         lyrics: params.lyrics,
         instrumental: params.instrumental,
         voiceSampleDataUri,
+        signal: context.abortSignal,
+        onCost: (cost) => recordServiceCost('falai_audio', cost.costDollars),
       })
-
-      await recordServiceCost('falai_audio', result.cost.costDollars)
 
       const outputFile = params.outputs?.files?.[0]
       const ext = audioExtFromContentType(result.contentType)

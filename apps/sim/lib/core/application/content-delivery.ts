@@ -38,11 +38,27 @@ export interface ContentSource {
 }
 
 /**
+ * Why a gate refused an item. `unknown`: its secret provenance is unknown, so no read returns it.
+ * `opaque`: it holds recorded secrets in a view no redaction reaches (raw bytes, an excerpt), while
+ * its full text can be redacted. `registry`, `import`: its provenance could not be checked now.
+ */
+export type ContentRefusalReason = 'unknown' | 'opaque' | 'registry' | 'import'
+
+/** `true` admits; a reason refuses. A bare `false` refuses for an unstated reason, read as `unknown`. */
+export type ContentVerdict = boolean | ContentRefusalReason
+
+/** What a gate refused inside a {@link countWithheldContent} call, by kind and then reason. */
+export type WithheldContent = ReadonlyMap<
+  ContentSourceKind,
+  ReadonlyMap<ContentRefusalReason, number>
+>
+
+/**
  * Decides, per item, whether content may leave through the surface that installed it. A gate never
  * throws for a refusal: refusing one item must not cost the call the items it admits.
  */
 export interface ContentDeliveryGate {
-  admit(sources: readonly ContentSource[]): Promise<readonly boolean[]>
+  admit(sources: readonly ContentSource[]): Promise<readonly ContentVerdict[]>
   /**
    * Redacts text before cutting, or returns `undefined` when it cannot be shown. The current
    * operation's bounded evidence lets a surface create a redactor only when a cut needs one.
@@ -73,6 +89,8 @@ interface ContentLedger {
   accounted: boolean
   /** Bounded aggregate of admitted provenance, for a surface that persists the delivered bytes. */
   admitted: ContentProvenance[]
+  /** Only on a {@link countWithheldContent} ledger: the items refused inside it. */
+  withheld?: Map<ContentSourceKind, Map<ContentRefusalReason, number>>
   /** A committed write's returned item was refused; the operation answers with a refusal. */
   withheldAfterWrite?: ContentSourceKind
   /** The gate itself failed while this ledger was open, whatever the route then answered. */
@@ -205,7 +223,7 @@ export function mustClassifyContent(principal: Principal): boolean {
 export class ContentAdmission {
   private readonly verdicts: ReadonlyMap<ContentSource, boolean>
 
-  constructor(sources: readonly ContentSource[], verdicts: readonly boolean[]) {
+  constructor(sources: readonly ContentSource[], verdicts: readonly ContentVerdict[]) {
     this.verdicts = new Map(sources.map((source, index) => [source, verdicts[index] === true]))
   }
 
@@ -291,7 +309,7 @@ export async function admitContent(
   const gate = gates.getStore()
   if (!gate) throw new ContentDeliveryUnobservedError()
   const ledger = ledgers.getStore()
-  let verdicts: readonly boolean[]
+  let verdicts: readonly ContentVerdict[]
   try {
     verdicts = await gate.admit(sources)
   } catch (error) {
@@ -303,10 +321,22 @@ export async function admitContent(
   }
   markAccounted()
   if (ledger) {
+    for (let current: ContentLedger | undefined = ledger; current; current = current.parent) {
+      const { withheld } = current
+      if (!withheld) continue
+      sources.forEach(({ kind }, index) => {
+        const verdict = verdicts[index]
+        if (verdict === true) return
+        const reason = typeof verdict === 'string' ? verdict : 'unknown'
+        const reasons = withheld.get(kind) ?? new Map<ContentRefusalReason, number>()
+        reasons.set(reason, (reasons.get(reason) ?? 0) + 1)
+        withheld.set(kind, reasons)
+      })
+    }
     const batch = mergeContentProvenance(
       (function* () {
         for (let index = 0; index < sources.length; index++) {
-          if (verdicts[index]) yield sources[index].provenance
+          if (verdicts[index] === true) yield sources[index].provenance
         }
       })()
     )
@@ -457,6 +487,26 @@ export async function trackContentDelivery<T>(
     admitted: ledger.admitted,
     ...(ledger.gateFailure === undefined ? {} : { gateFailure: ledger.gateFailure }),
   }
+}
+
+/**
+ * Runs `execute` and counts, by kind, the items a gate refused inside it, across every request and
+ * use case it ran. A refused item is left out of the result it was read in, so a surface reporting
+ * to Chat uses this to say what is missing rather than let it read as absent.
+ */
+export async function countWithheldContent<T>(
+  execute: () => Promise<T>
+): Promise<{ result: T; withheld: WithheldContent }> {
+  const withheld = new Map<ContentSourceKind, Map<ContentRefusalReason, number>>()
+  const ledger: ContentLedger = {
+    parent: ledgers.getStore(),
+    sourcedOperationAdmitted: false,
+    accounted: false,
+    admitted: [],
+    withheld,
+  }
+  const result = await ledgers.run(ledger, execute)
+  return { result, withheld }
 }
 
 /** Route admission records that Chat was admitted to an operation, in the request's ledger. */

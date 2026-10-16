@@ -7,11 +7,8 @@ import {
   internalRateLimits,
 } from '@/lib/api/server/routes'
 import { realtimeProjectFileAuth } from '@/lib/auth/realtime-file-delegation'
-import { MAX_COLLAB_DOC_STATE_BYTES } from '@/lib/collab-doc/state'
+import { MAX_COLLAB_DOC_PERSIST_BODY_BYTES } from '@/lib/collab-doc/state'
 import { persistProjectFileDoc } from '@/lib/projects/files/application/documents'
-
-/** A base64-encoded maximum snapshot plus 1 MiB for its JSON envelope (17 MiB). */
-const PERSIST_MAX_BODY_BYTES = Math.ceil(MAX_COLLAB_DOC_STATE_BYTES / 3) * 4 + 1024 * 1024
 
 const persist = defineInternalJsonRoute({
   contract: projectFileDocPersistContract,
@@ -27,7 +24,7 @@ const persist = defineInternalJsonRoute({
     expectedVersion: body.expectedVersion,
   }),
   useCase: persistProjectFileDoc,
-  parseOptions: { maxBodyBytes: PERSIST_MAX_BODY_BYTES, bypassesProxy: true },
+  parseOptions: { maxBodyBytes: MAX_COLLAB_DOC_PERSIST_BODY_BYTES, bypassesProxy: true },
 })
 
 /** Excluded from the proxy matcher, so the route refuses the dedicated MCP host before auth itself. */

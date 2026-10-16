@@ -50,6 +50,12 @@ export interface ToolCallState {
   startTime?: number
   endTime?: number
   /**
+   * Epoch ms by which every wait and execution for this call must end: from the frame's
+   * `deadlineMs`, or the persisted deadline of a call handed before a takeover. Undefined when
+   * the worker named none.
+   */
+  deadlineAt?: number
+  /**
    * For a subagent-scoped tool call, the invoking subagent's channel id (its
    * outer tool_use id, = event.scope.parentToolCallId). Captured at dispatch so
    * the executor can thread it into the server tool context and scope the

@@ -33,17 +33,17 @@ export const simProfile: CompetitorProfile = {
       shortDescription:
         'Chat builds and manages work across the workspace; in-editor Copilot edits a single workflow.',
       source: {
-        url: 'https://docs.sim.ai/copilot',
-        label: 'Sim Docs: Copilot',
+        url: 'https://docs.sim.ai/chat/workflows',
+        label: 'Sim Docs: Chat (build and edit workflows)',
         asOf: '2026-07-08',
       },
     },
     {
       title: 'Hybrid semantic + keyword knowledge base',
       description:
-        'Built-in RAG with pgvector embeddings and a generated tsvector column for combined vector + full-text search, plus a token-based chunker with configurable chunk size/overlap and 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml).',
+        'Built-in RAG with pgvector embeddings and a generated tsvector column for combined vector + full-text search, plus a token-based chunker with configurable chunk size/overlap and 15 supported file types (csv, doc, docx, htm, html, json, jsonl, md, pdf, pptx, txt, xls, xlsx, yaml, yml).',
       shortDescription:
-        'Combines vector and full-text search with configurable chunking across 11 file formats.',
+        'Combines vector and full-text search with configurable chunking across 15 file types.',
       source: {
         url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
         label: 'Sim codebase: KB schema + file-parsers',
@@ -80,7 +80,7 @@ export const simProfile: CompetitorProfile = {
       shortDescription:
         'Pause a run for human approval and resume later via a durable snapshot link.',
       source: {
-        url: 'https://docs.sim.ai/blocks/human-in-the-loop',
+        url: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
         label: 'Sim Docs: Human in the Loop Block',
         asOf: '2026-07-02',
       },
@@ -88,8 +88,8 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'Self-hostable under Apache 2.0',
       description:
-        'Fully open source (Apache 2.0), with Docker Compose files and a Helm chart for Kubernetes deployment, alongside a managed cloud-hosted option.',
-      shortDescription: 'Fully open source with Docker Compose and Helm deployment options.',
+        'Open-source core under Apache 2.0, with Docker Compose files and a Helm chart for Kubernetes deployment, alongside a managed cloud-hosted option. Enterprise features (SSO, SCIM, audit logs, access control, workspace forks) are separately licensed and require an Enterprise subscription for production use.',
+      shortDescription: 'Apache 2.0 core with Docker Compose and Helm deployment options.',
       source: {
         url: 'https://docs.sim.ai/introduction',
         label: 'Sim Docs: Introduction (FAQ - Open Source License)',
@@ -166,12 +166,12 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/self-hosting/docker',
+            url: 'https://docs.sim.ai/platform/self-hosting/docker',
             label: 'Sim Docs: Self-Hosting with Docker',
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.sim.ai/self-hosting/kubernetes',
+            url: 'https://docs.sim.ai/platform/self-hosting/kubernetes',
             label: 'Sim Docs: Kubernetes (Helm) self-hosting',
             asOf: '2026-07-02',
           },
@@ -211,8 +211,9 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       license: {
-        value: 'Apache License 2.0',
-        shortValue: 'Apache 2.0',
+        value:
+          'Apache License 2.0 for the core; enterprise features are under the separate Sim Enterprise License, which requires an Enterprise subscription for production use',
+        shortValue: 'Apache 2.0 core; enterprise features separately licensed',
         confidence: 'verified',
         sources: [
           {
@@ -366,9 +367,9 @@ export const simProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          '21 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Groq, Cerebras, Mistral, xAI, Bedrock, Vertex, Ollama, OpenRouter, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 21 named providers',
-        detail: 'apps/sim/providers/models.ts defines 21 provider entries.',
-        shortValue: '21 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
+          '28 provider integrations (OpenAI, Anthropic, Google/Gemini, Azure OpenAI, Azure Anthropic, Vertex, Bedrock, xAI, Mistral, DeepSeek, Groq, Cerebras, Fireworks, Together, Ollama, OpenRouter, and more), with OpenRouter, LiteLLM, vLLM, and Ollama resolving models dynamically at runtime rather than from a fixed list, so effective model reach extends well beyond the 28 named providers',
+        detail: 'apps/sim/providers/models.ts defines 28 provider entries.',
+        shortValue: '28 providers plus dynamic-resolution aggregators (OpenRouter, LiteLLM, etc.)',
         confidence: 'verified',
         sources: [
           {
@@ -398,15 +399,15 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/copilot',
-            label: 'Sim Docs: Copilot',
+            url: 'https://docs.sim.ai/chat/workflows',
+            label: 'Sim Docs: Chat (build and edit workflows)',
             asOf: '2026-07-02',
           },
         ],
       },
       knowledgeBaseRag: {
-        value: `Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 11 supported file formats (csv, doc, docx, html, json, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus ${CONNECTOR_COUNT_LABEL} connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload`,
-        shortValue: `Hybrid vector + full-text search, 11 file formats, ${CONNECTOR_COUNT_LABEL} connectors`,
+        value: `Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 15 supported file types (csv, doc, docx, htm, html, json, jsonl, md, pdf, pptx, txt, xls, xlsx, yaml, yml), configurable chunking, plus ${CONNECTOR_COUNT_LABEL} connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload`,
+        shortValue: `Hybrid vector + full-text search, 15 file types, ${CONNECTOR_COUNT_LABEL} connectors`,
         confidence: 'verified',
         sources: [
           {
@@ -433,7 +434,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/mcp',
+            url: 'https://docs.sim.ai/agents/mcp',
             label: 'Sim Docs: Using MCP Tools',
             asOf: '2026-07-02',
           },
@@ -453,12 +454,12 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/blocks/evaluator',
+            url: 'https://docs.sim.ai/workflows/blocks/evaluator',
             label: 'Sim Docs: Evaluator Block',
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.sim.ai/blocks/guardrails',
+            url: 'https://docs.sim.ai/workflows/blocks/guardrails',
             label: 'Sim Docs: Guardrails Block',
             asOf: '2026-07-02',
           },
@@ -471,7 +472,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/blocks/human-in-the-loop',
+            url: 'https://docs.sim.ai/workflows/blocks/human-in-the-loop',
             label: 'Sim Docs: Human in the Loop Block',
             asOf: '2026-07-02',
           },
@@ -549,7 +550,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/skills',
+            url: 'https://docs.sim.ai/agents/skills',
             label: 'Sim Docs: Agent skills',
             asOf: '2026-07-02',
           },
@@ -642,7 +643,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-10-13',
           },
           {
-            url: 'https://docs.sim.ai/tools',
+            url: 'https://docs.sim.ai/integrations',
             label: 'Sim Docs: Integrations / Tools Overview',
             asOf: '2026-07-02',
           },
@@ -659,7 +660,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/triggers',
+            url: 'https://docs.sim.ai/workflows#triggers',
             label: 'Sim Docs: Triggers overview',
             asOf: '2026-07-02',
           },
@@ -721,7 +722,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://docs.sim.ai/execution/api',
+            url: 'https://docs.sim.ai/api-reference/getting-started',
             label: 'Sim Docs: External API',
             asOf: '2026-07-08',
           },
@@ -744,7 +745,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-04',
           },
           {
-            url: 'https://docs.sim.ai/mcp',
+            url: 'https://docs.sim.ai/agents/mcp',
             label: 'Sim Docs: Using MCP Tools',
             asOf: '2026-07-02',
           },
@@ -772,14 +773,14 @@ export const simProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Credit-based usage billing (Stripe), with bring-your-own-key exemption from metered caps',
-        shortValue: 'Credit-based billing, BYOK exempt from caps',
+          "Credit-based usage billing (Stripe); bring-your-own-key calls skip Sim's model and tool usage charge, while the base per-run charge still applies",
+        shortValue: 'Credit-based billing; BYOK skips model usage charges',
         confidence: 'verified',
         sources: [
           {
             url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -791,7 +792,7 @@ export const simProfile: CompetitorProfile = {
           {
             url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -804,35 +805,35 @@ export const simProfile: CompetitorProfile = {
           {
             url: `${SITE_URL}/pricing`,
             label: 'Sim Pricing',
-            asOf: '2026-08-26',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/constants.ts',
             label: 'Sim codebase: DEFAULT_FREE_CREDITS',
-            asOf: '2026-08-26',
+            asOf: '2026-10-15',
           },
         ],
       },
       byok: {
         value:
-          'Yes: bring-your-own-key support exempts usage from metered credit caps, and multiple keys stored for the same provider are automatically round-robin rotated, with automatic fallback past any key that fails to decrypt',
-        shortValue: 'BYOK exempts credit caps; multi-key round-robin rotation',
+          "Yes: bring-your-own-key provider calls skip Sim's model and tool usage charge (the base per-run charge still applies); workspace keys work on any plan, organization keys need a team or Enterprise plan, and multiple keys stored for the same provider are round-robin rotated, skipping any key that fails to decrypt",
+        shortValue: 'BYOK skips model usage charges; multi-key round-robin rotation',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.sim.ai/platform/costs#bring-your-own-key-byok',
             label: 'Sim Docs: Bring Your Own Key (BYOK)',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/billing/calculations/usage-monitor.ts',
             label: 'Sim codebase: BYOK usage-monitor logic',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/lib/api-key/byok.ts',
             label: 'Sim codebase: BYOK key rotation',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -863,7 +864,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/self-hosting/docker',
+            url: 'https://docs.sim.ai/platform/self-hosting/docker',
             label: 'Sim Docs: Self-Hosting with Docker',
             asOf: '2026-07-02',
           },
@@ -946,7 +947,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.sim.ai/permissions/roles-and-permissions',
+            url: 'https://docs.sim.ai/platform/permissions',
             label: 'Sim Docs: Roles and Permissions',
             asOf: '2026-07-02',
           },
@@ -961,7 +962,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/permissions/roles-and-permissions',
+            url: 'https://docs.sim.ai/platform/permissions',
             label: 'Sim Docs: Roles and Permissions',
             asOf: '2026-07-02',
           },
@@ -1005,7 +1006,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.sim.ai/blocks/guardrails',
+            url: 'https://docs.sim.ai/workflows/blocks/guardrails',
             label: 'Sim Docs: Guardrails Block',
             asOf: '2026-07-02',
           },
@@ -1075,7 +1076,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.sim.ai/execution/logging',
+            url: 'https://docs.sim.ai/logs-debugging/logging',
             label: 'Sim Docs: Logging',
             asOf: '2026-07-02',
           },
@@ -1201,7 +1202,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://docs.sim.ai/triggers',
+            url: 'https://docs.sim.ai/workflows#triggers',
             label: 'Sim Docs: Triggers',
             asOf: '2026-07-02',
           },

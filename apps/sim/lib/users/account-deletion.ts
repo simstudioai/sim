@@ -18,7 +18,7 @@ import {
   workspace as workspaceTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { formatQuotedNameList } from '@sim/utils/string'
 import { and, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or, sql } from 'drizzle-orm'
 import type {
@@ -39,6 +39,10 @@ import {
 } from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
+import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
+import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import {
   getProjectAccountDeletionBlockers,
   prepareProjectsForAccountDeletion,
@@ -777,6 +781,18 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
 
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
+  let stoppedRuns: StoppedRun[] = []
+  /**
+   * Resolved while the account's settings still exist to route a superuser's runs. It only
+   * routes the best-effort push, so a failed lookup falls back to the default endpoint.
+   */
+  const mothershipBaseURL = await getMothershipBaseURL({ userId }).catch((error) => {
+    logger.warn('Run routing for the deleted account could not be read', {
+      userId,
+      error: getErrorMessage(error),
+    })
+    return undefined
+  })
 
   await db.transaction(async (tx) => {
     /** Organization and Project gates precede workspace rows, which precede user FK barriers. */
@@ -840,6 +856,11 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       true
     )
     if (executionBlockers.length) throw new AccountDeletionBlockedError(executionBlockers)
+    /**
+     * A deleted person's Chat runs stop like their table runs below. Collected before the
+     * workspace and user deletes cascade their rows away; delivered after commit.
+     */
+    stoppedRuns = await stopLiveRunsTx(tx, { userId })
     if (doomedWorkspaceIds.length > 0) {
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
@@ -965,6 +986,12 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      */
     cancelledMarkers = await cancelPendingMarkersForGovernedSubject(tx, userId)
 
+    await enqueueMemoryCleanup(tx, [
+      { kind: 'private_owner', userId },
+      ...doomedWorkspaceIds.map((workspaceId) => ({ kind: 'workspace' as const, workspaceId })),
+      ...projectIdsToDelete.map((projectId) => ({ kind: 'project' as const, projectId })),
+    ])
+
     try {
       await tx.delete(user).where(eq(user.id, userId))
     } catch (error) {
@@ -989,6 +1016,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   await invalidateReportingUsagePrefixes()
 
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
+
+  deliverRunStops(stoppedRuns, { mothershipBaseURL })
 
   await purgeStorageObjects(userId, storageKeys)
 

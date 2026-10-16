@@ -16,6 +16,19 @@ export class MockOrganizationMembershipNotFoundError extends Error {
 }
 
 /**
+ * Mirrors `OrganizationDelegationAuthorizationError`: same `name` (`OrchestrationError`), `code`
+ * (`forbidden`) and message, extending plain `Error` like the class above.
+ */
+class MockOrganizationDelegationAuthorizationError extends Error {
+  readonly code = 'forbidden' as const
+
+  constructor() {
+    super('Organization delegation is no longer valid')
+    this.name = 'OrchestrationError'
+  }
+}
+
+/**
  * Controllable mock functions for `@/lib/core/application/organization-authorization`.
  * Both are bare `vi.fn()`s (resolve `undefined`); set the membership context per test.
  *
@@ -43,6 +56,7 @@ export const organizationAuthorizationMockFns = {
  */
 export const organizationAuthorizationMock = {
   OrganizationMembershipNotFoundError: MockOrganizationMembershipNotFoundError,
+  OrganizationDelegationAuthorizationError: MockOrganizationDelegationAuthorizationError,
   requireOrganizationMembership: organizationAuthorizationMockFns.mockRequireOrganizationMembership,
   authorizeOrganizationOperation:
     organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,

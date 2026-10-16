@@ -4,7 +4,7 @@ import {
   workspaceFileSearchBuild,
   workspaceFileSearchRevision,
 } from '@sim/db/schema'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
 import { FILE_SEARCH_ARTIFACT_READY_LOCK_TIMEOUT_MS } from '@/lib/workspace-files/search/constants'
@@ -51,7 +51,8 @@ function artifactRevisionCondition(input: FileSearchArtifactCompletion, owner: E
 
 /**
  * Lock-free form of {@link markFileSearchArtifactReadyInTx}'s no-op test: the file's current
- * revision is already built from this artifact, ready or still under a live build lease.
+ * revision is already built from this artifact, published (ready or skipped) or still under a live
+ * build lease.
  */
 async function isFileSearchArtifactCurrent(
   input: FileSearchArtifactCompletion,
@@ -69,7 +70,7 @@ async function isFileSearchArtifactCurrent(
         artifactRevisionCondition(input, owner),
         eq(workspaceFileSearchBuild.artifactKey, input.artifactKey),
         or(
-          eq(workspaceFileSearchRevision.status, 'ready'),
+          inArray(workspaceFileSearchRevision.status, ['ready', 'skipped']),
           and(
             eq(workspaceFileSearchRevision.status, 'pending'),
             sql`${workspaceFileSearchBuild.expiresAt} > clock_timestamp()`
@@ -128,7 +129,9 @@ export async function markFileSearchArtifactReadyInTx(
       .for('update')
     if (
       build?.artifactKey === input.artifactKey &&
-      (state.status === 'ready' || (state.status === 'pending' && build.live))
+      (state.status === 'ready' ||
+        state.status === 'skipped' ||
+        (state.status === 'pending' && build.live))
     )
       return false
     await tx
