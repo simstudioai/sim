@@ -7,6 +7,8 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   loadOrganizationSlackMemberApps,
   lockOrganizationSlackApp,
+  requireSearchBotMatchesMemberApp,
+  resolveOrganizationSlackMemberApp,
 } from '@/lib/credential-groups/organization-slack-app'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
@@ -239,6 +241,8 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
       }
       if (!identity || !secret)
         throw new OrchestrationError('not_found', 'Slack Search installation not found')
+      const member = await resolveOrganizationSlackMemberApp(context.organizationId, tx)
+      requireSearchBotMatchesMemberApp(member.app, identity, app?.kind === 'shared')
       const [created] = await tx
         .insert(slackSearchInstallation)
         .values({
