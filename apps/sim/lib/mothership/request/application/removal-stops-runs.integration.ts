@@ -4,6 +4,7 @@
  * paths and the worker's run-control read. A local HTTP server stands in for the worker and
  * records each Stop pushed to it.
  */
+import type { Principal } from '@sim/auth/principal'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
@@ -55,6 +56,9 @@ import {
   member,
   organization,
   permissions,
+  scimConnection,
+  scimGroupMapping,
+  scimGroupMember,
   user,
   workspace,
 } from '@sim/db/schema'
@@ -87,6 +91,10 @@ import { AccountDeletionBlockedError, deleteUserAccount } from '@/lib/users/acco
 import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-access'
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
 import { DELETE as deleteWorkspace } from '@/app/api/workspaces/[id]/route'
+import { replaceScimGroup } from '@/ee/scim/lib/application/groups/manage-groups'
+import { reconcileUsersProjectionInBatches } from '@/ee/scim/lib/projection/reconcile-user'
+import { insertScimGroup } from '@/ee/scim/lib/repository/groups'
+import { insertScimUser } from '@/ee/scim/lib/repository/users'
 
 const userIds: string[] = []
 const workspaceIds: string[] = []
@@ -341,6 +349,87 @@ async function queueOnChat<A, D>(
     await lockWaiterBehind(holder, waiter)
     return queued
   })
+}
+
+/** A directory connection for the organization, with one group mapped to `target`. */
+async function seedDirectory(
+  organizationId: string,
+  target: { workspaceId: string } | { role: 'admin' }
+) {
+  const connectionId = generateId()
+  await db.insert(scimConnection).values({ id: connectionId, organizationId })
+  const group = await insertScimGroup(db, { connectionId, displayName: generateId() })
+  await db.insert(scimGroupMapping).values({
+    id: generateId(),
+    groupId: group.id,
+    ...('workspaceId' in target
+      ? {
+          targetKind: 'workspace',
+          workspaceId: target.workspaceId,
+          permissionType: 'write' as const,
+        }
+      : { targetKind: 'org_role', role: target.role }),
+  })
+  const principal: Principal = {
+    kind: 'scim_connection',
+    organizationId,
+    connectionId,
+    credentialId: generateId(),
+    scopes: ['groups:write'],
+  }
+  /** Sets the group's members, as a directory's full-group PUT does. */
+  const setGroupMembers = (memberIds: string[]) =>
+    replaceScimGroup.execute({
+      principal,
+      input: { groupId: group.id, group: { displayName: group.displayName, memberIds } },
+    })
+  return { connectionId, groupId: group.id, setGroupMembers }
+}
+
+/** An organization member the directory provisions, returning their directory user id. */
+async function seedDirectoryMember(connectionId: string, organizationId: string) {
+  const userId = await seedUser()
+  await db.insert(member).values({ id: generateId(), organizationId, userId, role: 'member' })
+  const { id } = await insertScimUser(db, {
+    connectionId,
+    userId,
+    attributes: {
+      userName: `${userId}@run-removal.test`,
+      active: true,
+      name: { formatted: 'Run removal fixture' },
+      emails: [{ value: `${userId}@run-removal.test`, primary: true }],
+    },
+    active: true,
+  })
+  return { userId, scimUserId: id }
+}
+
+/** Fails, inside its transaction, any projection that records a grant for this directory user. */
+async function refuseGrantsFor(scimUserId: string) {
+  const name = `refuse_grant_${scimUserId.replaceAll('-', '_')}`
+  await db.execute(
+    sql.raw(`CREATE FUNCTION ${name}() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'projection refused'; END $$`)
+  )
+  await db.execute(
+    sql.raw(`CREATE TRIGGER ${name} BEFORE INSERT ON scim_projection_grant FOR EACH ROW
+      WHEN (NEW.scim_user_id = '${scimUserId}') EXECUTE FUNCTION ${name}()`)
+  )
+  return async () => {
+    await db.execute(sql.raw(`DROP TRIGGER ${name} ON scim_projection_grant`))
+    await db.execute(sql.raw(`DROP FUNCTION ${name}()`))
+  }
+}
+
+const REFUSED = { cause: { message: 'projection refused' } }
+
+/** Two directory members, ordered as a projection visits them. */
+async function seedDirectoryMembersInOrder(connectionId: string, organizationId: string) {
+  const members = [
+    await seedDirectoryMember(connectionId, organizationId),
+    await seedDirectoryMember(connectionId, organizationId),
+  ]
+  return members.sort((left, right) => (left.scimUserId < right.scimUserId ? -1 : 1))
 }
 
 const STOPPED = { status: 200, body: { stopped: true } }
@@ -618,6 +707,100 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     })
 
     expect(await hasStop(run)).toBe(true)
+    expect(await runControl(run)).toEqual(STOPPED)
+  })
+
+  it('pushes Stop for a directory group removal once its transaction commits', async () => {
+    const ownerId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const directory = await seedDirectory(organizationId, { workspaceId })
+    const removed = await seedDirectoryMember(directory.connectionId, organizationId)
+    await directory.setGroupMembers([removed.scimUserId])
+    const run = await seedRun({ userId: removed.userId, workspaceId })
+    const ownerRun = await seedRun({ userId: ownerId, workspaceId })
+
+    await directory.setGroupMembers([])
+
+    await expect.poll(pushedStops).toEqual([run.streamId])
+    expect(await runControl(run)).toEqual(STOPPED)
+    expect(await runControl(ownerRun)).toEqual(LIVE)
+  })
+
+  it('pushes Stop for a directory demotion that ends an admin’s derived access', async () => {
+    const ownerId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const directory = await seedDirectory(organizationId, { role: 'admin' })
+    const demoted = await seedDirectoryMember(directory.connectionId, organizationId)
+    await directory.setGroupMembers([demoted.scimUserId])
+    const derived = await seedRun({ userId: demoted.userId, workspaceId })
+
+    await directory.setGroupMembers([])
+
+    await expect.poll(pushedStops).toEqual([derived.streamId])
+    expect(await runControl(derived)).toEqual(STOPPED)
+  })
+
+  it('pushes no Stop when the directory group write that stopped the run rolls back', async () => {
+    const ownerId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const directory = await seedDirectory(organizationId, { workspaceId })
+    const [removed, added] = await seedDirectoryMembersInOrder(
+      directory.connectionId,
+      organizationId
+    )
+    await directory.setGroupMembers([removed.scimUserId])
+    const run = await seedRun({ userId: removed.userId, workspaceId })
+    const allowGrants = await refuseGrantsFor(added.scimUserId)
+
+    try {
+      /** The removal is projected first and stops the run; the addition then fails the write. */
+      await expect(directory.setGroupMembers([added.scimUserId])).rejects.toMatchObject(REFUSED)
+    } finally {
+      await allowGrants()
+    }
+
+    await sleep(200)
+    expect(pushedStops()).toEqual([])
+    expect(await hasStop(run)).toBe(false)
+    expect(await runControl(run)).toEqual(LIVE)
+  })
+
+  it('pushes Stop for each reconciled batch that commits, and none for one that rolls back', async () => {
+    const ownerId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const directory = await seedDirectory(organizationId, { workspaceId })
+    const [removed, added] = await seedDirectoryMembersInOrder(
+      directory.connectionId,
+      organizationId
+    )
+    await directory.setGroupMembers([removed.scimUserId])
+    const run = await seedRun({ userId: removed.userId, workspaceId })
+    /** Membership drifts behind the projection's back, as the scheduled pass repairs it. */
+    await db.delete(scimGroupMember).where(eq(scimGroupMember.scimUserId, removed.scimUserId))
+    await db
+      .insert(scimGroupMember)
+      .values({ id: generateId(), groupId: directory.groupId, scimUserId: added.scimUserId })
+    const reconcile = () =>
+      reconcileUsersProjectionInBatches({
+        connectionId: directory.connectionId,
+        organizationId,
+        scimUserIds: [removed.scimUserId, added.scimUserId],
+        settings: {},
+      })
+    const allowGrants = await refuseGrantsFor(added.scimUserId)
+
+    try {
+      await expect(reconcile()).rejects.toMatchObject(REFUSED)
+    } finally {
+      await allowGrants()
+    }
+    await sleep(200)
+    expect(pushedStops()).toEqual([])
+    expect(await runControl(run)).toEqual(LIVE)
+
+    await reconcile()
+
+    await expect.poll(pushedStops).toEqual([run.streamId])
     expect(await runControl(run)).toEqual(STOPPED)
   })
 

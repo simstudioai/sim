@@ -154,7 +154,7 @@ export async function removeWorkspaceMemberRecord(
         })
         /** The workspace's runs were delivered with the revocation above. */
         const delivered = new Set(revocation.stoppedRuns.map((run) => run.streamId))
-        deliverRunStops((removal.stoppedRuns ?? []).filter((run) => !delivered.has(run.streamId)))
+        deliverRunStops(removal.stoppedRuns.filter((run) => !delivered.has(run.streamId)))
 
         if (removal.success && removal.removed) {
           organizationRemoval = true
