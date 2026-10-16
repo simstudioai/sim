@@ -884,7 +884,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      * workspace and user deletes cascade their rows away; delivered after commit.
      */
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
-    /** Inserts only: the exact keys were read before the transaction took its locks. */
+    /** Queues the pre-read keys plus a delta of the account's rows written since, read under the account lock. */
     await enqueueAccountStorageCleanupInTx(tx, {
       userId,
       workspaceIds: doomedWorkspaceIds,
