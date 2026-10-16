@@ -1,5 +1,9 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadataMockFns,
+} from '@sim/testing/mocks/read-workspace-file-metadata.mock'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +11,6 @@ const {
   loadCompiledDocMock,
   publishCompiledDocArtifactMock,
   readWorkspaceFileContentMock,
-  readWorkspaceFileMetadataMock,
   storeCompiledDocMock,
   runSandboxTaskMock,
 } = vi.hoisted(() => ({
@@ -15,7 +18,6 @@ const {
   loadCompiledDocMock: vi.fn(),
   publishCompiledDocArtifactMock: vi.fn(),
   readWorkspaceFileContentMock: vi.fn(),
-  readWorkspaceFileMetadataMock: vi.fn(),
   storeCompiledDocMock: vi.fn(),
 }))
 
@@ -26,9 +28,10 @@ vi.mock('@/lib/execution/languages', () => ({
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: { execute: readWorkspaceFileContentMock },
 }))
-vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
-  readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadataMock },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-workspace-file-metadata',
+  () => readWorkspaceFileMetadataMock
+)
 vi.mock('@/lib/execution/sandbox/run-task', () => ({ runSandboxTask: runSandboxTaskMock }))
 vi.mock('@/lib/uploads/documents/compiled-store', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/uploads/documents/compiled-store')>()),
@@ -49,6 +52,7 @@ import {
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 const executeInSandboxMock = remoteSandboxMockFns.mockExecuteInSandbox
+const readMetadataMock = readWorkspaceFileMetadataMockFns.mockReadWorkspaceFileMetadata
 
 const ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = createSessionPrincipal()
@@ -194,7 +198,7 @@ describe('collectReferencedFileIds', () => {
         filePrincipal: FILE_PRINCIPAL,
       })
     ).rejects.toThrow('More than 500 referenced input files; maximum is 500')
-    expect(readWorkspaceFileMetadataMock).not.toHaveBeenCalled()
+    expect(readMetadataMock).not.toHaveBeenCalled()
     expect(executeInSandboxMock).not.toHaveBeenCalled()
   })
 
@@ -214,7 +218,7 @@ describe('collectReferencedFileIds', () => {
       contentUpdatedAt,
       storageContext: 'workspace' as const,
     }
-    readWorkspaceFileMetadataMock.mockResolvedValue({ file: record, share: null })
+    readMetadataMock.mockResolvedValue({ file: record, share: null })
     loadCompiledDocMock.mockResolvedValue(null)
     readWorkspaceFileContentMock.mockResolvedValue({ file: record, content: Buffer.from('image') })
     executeInSandboxMock.mockResolvedValue({
@@ -270,7 +274,7 @@ describe('collectReferencedFileIds', () => {
       contentUpdatedAt,
       storageContext: 'workspace',
     }
-    readWorkspaceFileMetadataMock.mockResolvedValue({ file: record, share: null })
+    readMetadataMock.mockResolvedValue({ file: record, share: null })
     loadCompiledDocMock.mockResolvedValue(Buffer.from('%PDF-cached'))
 
     await expect(
@@ -348,7 +352,7 @@ function buildReadingReferencedFile() {
       _input: unknown,
       options: { onWorkspaceFileAccess?: (identity: unknown) => void }
     ) => {
-      const { file } = await readWorkspaceFileMetadataMock()
+      const { file } = await readMetadataMock()
       options.onWorkspaceFileAccess?.({
         fileId: ID,
         key: file.key,
@@ -386,7 +390,7 @@ describe('isolated-VM compile for Chat', () => {
           filePrincipal: chat,
         })
       )
-    readWorkspaceFileMetadataMock.mockResolvedValue({
+    readMetadataMock.mockResolvedValue({
       file: referencedFileVersion('2026-08-05T00:00:00.000Z'),
       share: null,
     })
@@ -394,7 +398,7 @@ describe('isolated-VM compile for Chat', () => {
     await compile()
     expect(runSandboxTaskMock).toHaveBeenCalledOnce()
 
-    readWorkspaceFileMetadataMock.mockResolvedValue({
+    readMetadataMock.mockResolvedValue({
       file: referencedFileVersion('2026-08-06T00:00:00.000Z'),
       share: null,
     })
@@ -418,7 +422,7 @@ describe('isolated-VM compile for a session', () => {
 
   it('rebuilds a cached build whose referenced file was edited, reporting the current version', async () => {
     buildReadingReferencedFile()
-    readWorkspaceFileMetadataMock.mockResolvedValue({
+    readMetadataMock.mockResolvedValue({
       file: referencedFileVersion('2026-08-05T00:00:00.000Z'),
       share: null,
     })
@@ -427,7 +431,7 @@ describe('isolated-VM compile for a session', () => {
     expect(runSandboxTaskMock).toHaveBeenCalledOnce()
 
     const edited = referencedFileVersion('2026-08-06T00:00:00.000Z')
-    readWorkspaceFileMetadataMock.mockResolvedValue({ file: edited, share: null })
+    readMetadataMock.mockResolvedValue({ file: edited, share: null })
     const rebuilt = await compile('session-edited')
     expect(runSandboxTaskMock).toHaveBeenCalledTimes(2)
     expect(rebuilt.contributingFiles).toEqual([
@@ -437,14 +441,12 @@ describe('isolated-VM compile for a session', () => {
 
   it('rebuilds a cached build whose referenced file was deleted', async () => {
     buildReadingReferencedFile()
-    readWorkspaceFileMetadataMock.mockResolvedValue({
+    readMetadataMock.mockResolvedValue({
       file: referencedFileVersion('2026-08-05T00:00:00.000Z'),
       share: null,
     })
     await compile('session-deleted')
-    readWorkspaceFileMetadataMock.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'File not found')
-    )
+    readMetadataMock.mockRejectedValueOnce(new OrchestrationError('not_found', 'File not found'))
     await compile('session-deleted')
     expect(runSandboxTaskMock).toHaveBeenCalledTimes(2)
   })

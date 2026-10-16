@@ -90,7 +90,10 @@ import {
 } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
-import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  MothershipStreamV1CompletionStatus,
+  type MothershipStreamV1EventEnvelope,
+} from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -942,7 +945,9 @@ describe('useChat remount send recovery', () => {
       id: 'chat-reconnecting-search',
       title: 'Search',
       activeStreamId: 'accepted-search',
-      messages: [{ id: 'accepted-search', role: 'user', content: 'Find the policy' }],
+      messages: [
+        { id: 'accepted-search', role: 'user', content: 'Find the policy', timestamp: '' },
+      ],
       resources: [
         {
           type: 'search',
@@ -4860,7 +4865,12 @@ describe('useChat remount send recovery', () => {
         title: 'Trace inspection',
         activeStreamId: status === 'active' ? 'accepted-request' : null,
         messages: [
-          { id: 'accepted-request', role: 'user', content: 'check the trace for this req' },
+          {
+            id: 'accepted-request',
+            role: 'user',
+            content: 'check the trace for this req',
+            timestamp: '',
+          },
           ...(status === 'active'
             ? []
             : [
@@ -4868,11 +4878,14 @@ describe('useChat remount send recovery', () => {
                   id: 'accepted-answer',
                   role: 'assistant' as const,
                   content: '',
+                  timestamp: '',
                   contentBlocks: [
                     {
                       type: 'complete' as const,
                       status:
-                        status === 'cancelled' ? ('cancelled' as const) : ('success' as const),
+                        status === 'cancelled'
+                          ? MothershipStreamV1CompletionStatus.cancelled
+                          : MothershipStreamV1CompletionStatus.complete,
                     },
                   ],
                 },
@@ -4898,7 +4911,12 @@ describe('useChat remount send recovery', () => {
       title: 'Trace inspection',
       activeStreamId: null,
       messages: [
-        { id: 'different-request', role: 'user', content: 'check the trace for this req' },
+        {
+          id: 'different-request',
+          role: 'user',
+          content: 'check the trace for this req',
+          timestamp: '',
+        },
       ],
       resources: [],
     })

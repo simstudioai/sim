@@ -62,8 +62,12 @@ best match rather than repeating similar searches, then run
 === END AGENT COMMAND DISCOVERY ===
 `
 
-/** Executable but unpublished until launch, so kept out of `--help` and `sim cli` search. */
-const UNPUBLISHED_GROUPS: ReadonlySet<string> = new Set(['projects'])
+/**
+ * Executable but unpublished until launch, so kept out of `--help` and `sim cli` search. The
+ * Mothership command inventory still lists them, marked `unpublished`, because the worker routes
+ * to them only when Sim enables the feature for a turn.
+ */
+export const UNPUBLISHED_GROUPS: ReadonlySet<string> = new Set(['projects'])
 
 /** The root's own value-taking options, which consume the token after them. */
 const ROOT_VALUE_FLAGS: ReadonlySet<string> = new Set([

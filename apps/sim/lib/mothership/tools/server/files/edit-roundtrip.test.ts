@@ -1,3 +1,4 @@
+import { readWorkspaceFileMetadataMock } from '@sim/testing/mocks/read-workspace-file-metadata.mock'
 import { generateId } from '@sim/utils/id'
 import { describe, expect, it, vi } from 'vitest'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
@@ -40,9 +41,10 @@ vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: { execute: vi.fn() },
 }))
-vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
-  readWorkspaceFileMetadata: { execute: vi.fn() },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-workspace-file-metadata',
+  () => readWorkspaceFileMetadataMock
+)
 vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
   renameWorkspaceFile: { execute: vi.fn() },
 }))

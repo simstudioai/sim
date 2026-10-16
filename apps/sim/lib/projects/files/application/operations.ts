@@ -1,4 +1,8 @@
-import type { Principal, ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  Principal,
+  ResourceDelegatedPrincipal,
+  ResourceDelegationScope,
+} from '@sim/auth/principal'
 import {
   type ApplicationOperation,
   assertOperationCapability,
@@ -26,6 +30,19 @@ interface ProjectFilePolicy extends ApplicationOperation {
 }
 
 export const PROJECT_FILE_DELEGATION_TTL_MS = 60_000
+
+/** The grant a delegated Project file call carries: the Project, narrowed to one file when targeted. */
+export function projectFileDelegationScope(target: {
+  projectId: string
+  fileId?: string
+}): ResourceDelegationScope {
+  return {
+    kind: 'entity',
+    entityType: 'project',
+    entityId: target.projectId,
+    ...(target.fileId ? { fileId: target.fileId } : {}),
+  }
+}
 
 function defineProjectFileOperation<const O extends ProjectFilePolicy>(operation: O): O {
   assertOperationCapability(operation)

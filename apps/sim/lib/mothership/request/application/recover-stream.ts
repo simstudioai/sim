@@ -21,6 +21,7 @@ import {
   hasLiveSimToolExecution,
   revokeExhaustedSimToolExecutions,
 } from '@/lib/mothership/async-runs/repository'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
@@ -29,7 +30,10 @@ import {
   claimRunController,
   planRecovery,
 } from '@/lib/mothership/request/lifecycle/controller-ownership'
-import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
+import {
+  RESOURCE_AUTHORING_VERSION,
+  StreamRecoveryConfigSchema,
+} from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream } from '@/lib/mothership/request/lifecycle/start'
 import { isTerminalStreamStatus } from '@/lib/mothership/request/session'
 import {
@@ -272,6 +276,10 @@ async function recoverStreamRun(context: StreamRunContext, admission?: AbortSign
         executionId: run.executionId,
         workflowId: run.workflowId ?? undefined,
         goRoute: config.data.goRoute,
+        copilotResourceAdmission:
+          config.data.resourceAuthoringVersion === RESOURCE_AUTHORING_VERSION
+            ? createCopilotResourceAdmission({ userId, invocation: { kind: 'chat', chatId } })
+            : undefined,
         billingAttribution,
         userPermission: userPermission ?? undefined,
         interactive: true,

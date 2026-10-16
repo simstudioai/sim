@@ -203,7 +203,6 @@
     "apps/sim/lib/mothership/chat/persisted-message.test.ts": 1,
     "apps/sim/lib/mothership/chat/post.test.ts": 1,
     "apps/sim/lib/mothership/chat/process-contents.ts": 1,
-    "apps/sim/lib/mothership/chat/selection-clipboard.test.ts": 1,
     "apps/sim/lib/mothership/chat/selection-context.test.ts": 1,
     "apps/sim/lib/mothership/chat/sim-key-redaction.test.ts": 1,
     "apps/sim/lib/mothership/chat/terminal-state.test.ts": 1,

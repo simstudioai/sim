@@ -3,7 +3,8 @@ import { copilotChats, mothershipResourceEffects } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  getChatResourceKey,
+  chatResourceKeyFor,
+  hasValidChatResourceOwner,
   type MothershipResource,
   type MothershipResourceUpdate,
   mergeChatResource,
@@ -54,7 +55,10 @@ export async function serializeChatResourceWrite<T>(
 
 export type ChatResourceChange =
   | { kind: 'upsert'; resources: MothershipResourceUpdate[] }
-  | { kind: 'remove'; resources: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>[] }
+  | {
+      kind: 'remove'
+      resources: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>[]
+    }
   | { kind: 'reorder'; resources: MothershipResource[] }
   | { kind: 'clear-view'; tableId: string; viewId: string; workspaceId?: string }
 
@@ -64,15 +68,21 @@ export async function changeStoredChatResources(
   change: ChatResourceChange,
   effectId?: string
 ): Promise<MothershipResource[]> {
+  if (
+    change.kind !== 'clear-view' &&
+    change.resources.some((resource) => !hasValidChatResourceOwner(resource))
+  )
+    throw new OrchestrationError('validation', 'Resource owner conflicts with its address')
   return serializeChatResourceWrite(chatId, () =>
     db.transaction(async (tx) => {
       await setChatResourceTxTimeouts(tx)
       const [chat] = await tx
-        .select({ resources: copilotChats.resources })
+        .select({ resources: copilotChats.resources, workspaceId: copilotChats.workspaceId })
         .from(copilotChats)
         .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
         .for('update')
       if (!chat) throw new OrchestrationError('not_found', 'Chat not found')
+      const keyOf = chatResourceKeyFor(chat.workspaceId ?? undefined)
       const existing = sanitizeChatResources(Array.isArray(chat.resources) ? chat.resources : [])
       if (effectId) {
         const [applied] = await tx
@@ -96,24 +106,15 @@ export async function changeStoredChatResources(
           return unPinned
         })
       } else if (change.kind === 'remove') {
-        resources = existing.filter(
-          (resource) =>
-            !change.resources.some(
-              (removed) =>
-                removed.type === resource.type &&
-                removed.workspaceId === resource.workspaceId &&
-                (removed.id === resource.id ||
-                  removed.type === 'browser' ||
-                  removed.type === 'terminal')
-            )
-        )
+        const removedKeys = new Set(change.resources.map(keyOf))
+        resources = existing.filter((resource) => !removedKeys.has(keyOf(resource)))
       } else {
         const incoming = sanitizeChatResources(
           change.resources.filter((resource) => resource.id !== 'streaming-file')
         )
-        const byKey = new Map(existing.map((resource) => [getChatResourceKey(resource), resource]))
+        const byKey = new Map(existing.map((resource) => [keyOf(resource), resource]))
         if (change.kind === 'reorder') {
-          const keys = incoming.map(getChatResourceKey)
+          const keys = incoming.map(keyOf)
           if (
             keys.length !== byKey.size ||
             new Set(keys).size !== keys.length ||
@@ -131,7 +132,7 @@ export async function changeStoredChatResources(
           })
         } else {
           for (const resource of incoming) {
-            const key = getChatResourceKey(resource)
+            const key = keyOf(resource)
             const previous = byKey.get(key)
             const merged = mergeChatResource(previous, resource)
             byKey.set(key, effectId ? { ...merged, title: resource.title || merged.title } : merged)

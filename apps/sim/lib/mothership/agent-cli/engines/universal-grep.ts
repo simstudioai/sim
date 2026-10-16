@@ -49,9 +49,9 @@ const MAX_LINE_CHARS = 2_000
 const FETCH_CONCURRENCY = 8
 /** Past any catalog's size: the use case builds the full list in memory and slices it. */
 const CATALOG_ALL = 100_000
-const MAX_FILES = 300
+export const MAX_GREP_FILES = 300
 const FILE_READ_CONCURRENCY = 5
-const MAX_BYTES_PER_FILE = 262_144
+export const MAX_GREP_BYTES_PER_FILE = 262_144
 /** Bound scanning after materialization without charging backend read latency. */
 const MAX_SCAN_TIME_MS = 5_000
 const SCAN_YIELD_INTERVAL_MS = 10
@@ -71,7 +71,11 @@ const NESTED_REQUEST_CONCURRENCY = 8
 let activeRequests = 0
 const waiting: Array<() => void> = []
 
-async function gated<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+/** Runs one backend read in the shared grep read queue; a released slot passes to the next waiter. */
+export async function withGrepReadSlot<T>(
+  work: () => Promise<T>,
+  signal?: AbortSignal
+): Promise<T> {
   signal?.throwIfAborted()
   if (activeRequests >= NESTED_REQUEST_CONCURRENCY) {
     await new Promise<void>((resolve, reject) => {
@@ -105,12 +109,12 @@ function gatedRuntime(runtime: GrepRuntime): GrepRuntime {
     ...runtime,
     client: {
       request: (path, options) =>
-        gated(() => runtime.client.request(path, options), runtime.signal),
+        withGrepReadSlot(() => runtime.client.request(path, options), runtime.signal),
     },
   }
 }
 
-interface Materialized {
+export interface GrepMaterialized {
   scope: Scope
   /** Display identity: the resource's name when it has one, else its id. */
   label: string
@@ -127,10 +131,18 @@ function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
+/** Inventory pages one scope lists before reporting the search incomplete. */
+export const MAX_GREP_LIST_PAGES = 50
+
+/** The incomplete-search note for a scope whose inventory hit {@link MAX_GREP_LIST_PAGES}. */
+export function grepListingStoppedMessage(scope: string): string {
+  return `${scope}: listing stopped after ${MAX_GREP_LIST_PAGES} pages; use ${scope} list to continue discovery.`
+}
+
 async function listAll(runtime: GrepRuntime, path: string): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = []
   let cursor: string | undefined
-  for (let pages = 0; pages < 50; pages++) {
+  for (let pages = 0; pages < MAX_GREP_LIST_PAGES; pages++) {
     const page = await runtime.client.request<Page>(path, {
       query: { workspaceId: runtime.workspaceId, limit: '100', ...(cursor ? { cursor } : {}) },
     })
@@ -138,11 +150,13 @@ async function listAll(runtime: GrepRuntime, path: string): Promise<Record<strin
     if (!page.nextCursor) return out
     cursor = page.nextCursor
   }
-  const scope = path.slice('/api/v2/'.length)
-  runtime.reportIncomplete(
-    `${scope}: listing stopped after 50 pages; use ${scope} list to continue discovery.`
-  )
+  runtime.reportIncomplete(grepListingStoppedMessage(path.slice('/api/v2/'.length)))
   return out
+}
+
+/** File adapters share bounded reads and wait for every provenance import before returning. */
+export function mapGrepFileReads<T, R>(items: T[], read: (item: T) => Promise<R>): Promise<R[]> {
+  return mapConcurrent(items, FILE_READ_CONCURRENCY, read)
 }
 
 async function mapConcurrent<T, R>(
@@ -176,7 +190,7 @@ async function settleAll<T>(tasks: Promise<T>[]): Promise<T[]> {
  * The searchable text leads with the resource's own name and description: a workflow's
  * state carries neither, so `grep fx-` in an `fx-*` workspace found nothing.
  */
-function render(scope: Scope, id: string, label: string, value: unknown): Materialized {
+function render(scope: Scope, id: string, label: string, value: unknown): GrepMaterialized {
   const description =
     isRecordLike(value) && typeof (value as Record<string, unknown>).description === 'string'
       ? (value as Record<string, unknown>).description
@@ -226,7 +240,7 @@ const INDEXERS: Record<Scope, (runtime: GrepRuntime) => Promise<IndexEntry[]>> =
     // runs answers in one call, same authorization, same projection.
     if (runtime.principal) {
       const principal = enginePrincipal(runtime, listCatalogTools)!
-      const page = await gated(
+      const page = await withGrepReadSlot(
         () =>
           listCatalogTools.execute({
             principal,
@@ -288,7 +302,10 @@ const INDEXERS: Record<Scope, (runtime: GrepRuntime) => Promise<IndexEntry[]>> =
 }
 
 /** One fetch per scope; a null text preserves the identity of an unreadable resource. */
-const FETCHERS: Record<Scope, (runtime: GrepRuntime, item: IndexEntry) => Promise<Materialized>> = {
+const FETCHERS: Record<
+  Scope,
+  (runtime: GrepRuntime, item: IndexEntry) => Promise<GrepMaterialized>
+> = {
   workflows: async (runtime, item) => {
     // The draft state, not the export: export is sanitized for sharing and nulls
     // workspace-specific fields (a Table block's `tableId`), so a grep for a table id
@@ -317,7 +334,7 @@ const FETCHERS: Record<Scope, (runtime: GrepRuntime, item: IndexEntry) => Promis
     try {
       const response = await runtime.client.request<ReadFileTextResponse>(
         `/api/v2/files/${encodeURIComponent(item.id)}/text`,
-        { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_BYTES_PER_FILE) } }
+        { query: { workspaceId: runtime.workspaceId, maxBytes: String(MAX_GREP_BYTES_PER_FILE) } }
       )
       if (response.data.degraded || response.data.truncated) {
         runtime.reportIncomplete(
@@ -361,21 +378,21 @@ async function fetchAll(
   runtime: GrepRuntime,
   scope: Scope,
   entries: IndexEntry[]
-): Promise<Materialized[]> {
-  if (scope === 'files' && entries.length > MAX_FILES) {
+): Promise<GrepMaterialized[]> {
+  if (scope === 'files' && entries.length > MAX_GREP_FILES) {
     runtime.reportIncomplete(
-      `files: searched the first ${MAX_FILES} of ${entries.length} selected files; narrow with --in files/<name-or-id>.`
+      `files: searched the first ${MAX_GREP_FILES} of ${entries.length} selected files; narrow with --in files/<name-or-id>.`
     )
   }
-  const selected = scope === 'files' ? entries.slice(0, MAX_FILES) : entries
+  const selected = scope === 'files' ? entries.slice(0, MAX_GREP_FILES) : entries
   return mapConcurrent(selected, concurrencyFor(scope), (item) => FETCHERS[scope](runtime, item))
 }
 
 /** A whole world, for a search with no `--in`: every resource the index lists. */
-async function materializeScope(runtime: GrepRuntime, scope: Scope): Promise<Materialized[]> {
+async function materializeScope(runtime: GrepRuntime, scope: Scope): Promise<GrepMaterialized[]> {
   if (scope === 'blocks' && runtime.principal) {
     const principal = enginePrincipal(runtime, readBlockCatalog)!
-    const { blocks } = await gated(
+    const { blocks } = await withGrepReadSlot(
       () =>
         readBlockCatalog.execute({
           principal,
@@ -402,10 +419,10 @@ async function materializeWithin(
   runtime: GrepRuntime,
   scopes: Scope[],
   nameFilter: string
-): Promise<Materialized[]> {
+): Promise<GrepMaterialized[]> {
   // Cheapest platform world first: a block id answers from 65 definitions, and only a
   // miss there pays for the tool catalog's 5,000 entries.
-  const platform: Materialized[] = []
+  const platform: GrepMaterialized[] = []
   for (const scope of scopes.filter((scope) => PLATFORM_SCOPES.has(scope))) {
     const corpus = await materializeScope(runtime, scope)
     const exact = corpus.filter((m) => m.id.toLowerCase() === nameFilter)
@@ -539,142 +556,176 @@ function parseContext(flags: AgentCliFlags): ContextWindow | string {
   return { before: before ?? around ?? 0, after: after ?? around ?? 0 }
 }
 
+/**
+ * An owner-specific corpus for {@link executeGrep}: `materialize` returns only authorized text
+ * and reports skipped items through `reportIncomplete`; `scopeLimit` refuses any other
+ * `--scope`/`--in`.
+ */
+export interface GrepSource {
+  signal?: AbortSignal
+  registry?: AgentCliRuntime['resolvedSecretTraceRegistry']
+  /** The only scopes this corpus holds, and the refusal for a search that names another. */
+  scopeLimit?: { scopes: readonly Scope[]; refusal: string }
+  materialize(
+    scopes: Scope[],
+    nameFilter: string | undefined,
+    reportIncomplete: (message: string) => void
+  ): Promise<GrepMaterialized[]>
+}
+
+/** Shared bounded matching over a corpus authorized by its owner-specific source. */
+export async function executeGrep(positionals: string[], flags: AgentCliFlags, source: GrepSource) {
+  const pattern = positionals[0]
+  if (!pattern) {
+    return agentCliFail(
+      'Usage: sim grep <pattern> [--scope workflows,blocks,...] [--in <world|id|name|world/id>] [-i] [-C n] [-A n] [-B n] [--count] [--limit n]'
+    )
+  }
+  const scopes = parseScopes(flags)
+  if (typeof scopes === 'string') return agentCliFail(scopes)
+  const limit = parseLimit(flags)
+  if (typeof limit === 'string') return agentCliFail(limit)
+  const context = parseContext(flags)
+  if (typeof context === 'string') return agentCliFail(context)
+  const ignoreCase = flags.i === true
+  const countOnly = flags.count === true
+  // `--in tables` reads as "search the tables world", so a world name narrows the scope;
+  // `--in blocks/table_v2` is the path a match line prints (world, then resource); a bare
+  // value is a resource id or name inside the searched worlds.
+  const within = typeof flags.in === 'string' ? flags.in : undefined
+  const [withinHead, ...withinRest] = within ? within.toLowerCase().split('/') : []
+  if (within && withinHead && KNOWLEDGE_SELECTOR_HEADS.has(withinHead)) {
+    return agentCliFail(knowledgeWithin(within))
+  }
+  const withinScope = SCOPES.find((scope) => scope === withinHead)
+  const withinResource = withinScope ? withinRest.join('/') : within?.toLowerCase()
+  const searched: Scope[] = withinScope ? [withinScope] : scopes
+  const scopeLimit = source.scopeLimit
+  if (
+    scopeLimit &&
+    (scopes.length === 0 ||
+      scopes.some((scope) => !scopeLimit.scopes.includes(scope)) ||
+      searched.some((scope) => !scopeLimit.scopes.includes(scope)))
+  ) {
+    return agentCliFail(scopeLimit.refusal)
+  }
+  const nameFilter = withinResource || undefined
+  /**
+   * Refused before any fetch: the model learns the accepted forms without paying for
+   * a full materialization it would only get an empty result from.
+   */
+  if (within && nameFilter && PREFIX_SELECTOR.test(nameFilter)) {
+    return agentCliFail(unknownWithin(within))
+  }
+  const matches = compilePattern(pattern, ignoreCase)
+  const issues: string[] = []
+  let issueCount = 0
+  const reportIncomplete = (message: string) => {
+    issueCount++
+    if (issues.length < 10) issues.push(clip(message))
+  }
+  const finish = (stdout: string) =>
+    issueCount === 0
+      ? agentCliOk(stdout)
+      : {
+          exitCode: 1,
+          stdout,
+          stderr: `Search incomplete (${issueCount} issue${issueCount === 1 ? '' : 's'}); matches and counts cover only the content read.\n${issues.join('\n')}${issueCount > issues.length ? `\n${issueCount - issues.length} further issues omitted.` : ''}`,
+        }
+  const candidates = await source.materialize(searched, nameFilter, reportIncomplete)
+  source.signal?.throwIfAborted()
+  /**
+   * A resource nothing in the searched worlds answers to is a wrong selector, not a
+   * search with no hits — a silent "No matches" would hide the misspelling.
+   */
+  if (within && nameFilter && candidates.length === 0) {
+    return issueCount ? finish('') : agentCliFail(unknownWithin(within))
+  }
+
+  const out: string[] = []
+  let total = 0
+  let shownMatches = 0
+  const perScope = new Map<Scope, number>()
+  const scanStartedAt = performance.now()
+  let lastYieldAt = scanStartedAt
+  const checkScan = () => {
+    source.signal?.throwIfAborted()
+    const now = performance.now()
+    if (now - scanStartedAt >= MAX_SCAN_TIME_MS) {
+      throw new Error(
+        'Search incomplete: scanning exceeded the time budget. Narrow with --scope or --in.'
+      )
+    }
+    return now
+  }
+  const egress = source.registry?.forkForPropagatedEntries()
+  for (const resource of candidates) {
+    if (resource.text === null) continue
+    const text = redactForModel(resource.text, egress)
+    if (text === null) {
+      reportIncomplete(
+        `${resource.scope}/${resource.label} (${resource.id}): could not be checked for secret values, so it was not searched.`
+      )
+      continue
+    }
+    const lines = text.split('\n')
+    const selected = new Map<number, boolean>()
+    const remainingLines = limit - out.length
+    let nextContextLine = 0
+    for (let i = 0; i < lines.length; i++) {
+      if (checkScan() - lastYieldAt >= SCAN_YIELD_INTERVAL_MS) {
+        await sleep(0)
+        lastYieldAt = checkScan()
+      }
+      if (!matches(lines[i])) continue
+      total++
+      perScope.set(resource.scope, (perScope.get(resource.scope) ?? 0) + 1)
+      if (countOnly) continue
+      for (
+        let j = Math.max(nextContextLine, i - context.before);
+        j <= Math.min(lines.length - 1, i + context.after) && selected.size < remainingLines;
+        j++
+      ) {
+        selected.set(j, false)
+        nextContextLine = j + 1
+      }
+      if (selected.has(i)) selected.set(i, true)
+    }
+    if (countOnly || selected.size === 0 || out.length >= limit) continue
+    const header = `${resource.scope}/${resource.label}${resource.label === resource.id ? '' : ` (${resource.id})`}`
+    for (const [i, isMatch] of selected) {
+      out.push(`${header}:${i + 1}: ${clip(lines[i])}`)
+      if (isMatch) shownMatches++
+    }
+  }
+  checkScan()
+
+  if (countOnly) {
+    const breakdown = [...perScope.entries()].map(([s, n]) => `${s}=${n}`).join(' ')
+    return finish(`${total}${breakdown ? ` (${breakdown})` : ''}`)
+  }
+  if (out.length === 0) {
+    return finish(
+      `No matches for ${JSON.stringify(pattern)} in ${searched.join(', ')}${nameFilter ? ` within "${nameFilter}"` : ''}.`
+    )
+  }
+  const truncated =
+    total > shownMatches
+      ? `\n[${shownMatches} of ${total} matching lines shown — narrow with --scope, --in, or a tighter pattern]`
+      : ''
+  return finish(out.join('\n') + truncated)
+}
+
 export const universalGrepCommand: AgentCliEngine = {
-  async execute(positionals, runtime, flags) {
-    const pattern = positionals[0]
-    if (!pattern) {
-      return agentCliFail(
-        'Usage: sim grep <pattern> [--scope workflows,blocks,...] [--in <world|id|name|world/id>] [-i] [-C n] [-A n] [-B n] [--count] [--limit n]'
-      )
-    }
-    const scopes = parseScopes(flags)
-    if (typeof scopes === 'string') return agentCliFail(scopes)
-    const limit = parseLimit(flags)
-    if (typeof limit === 'string') return agentCliFail(limit)
-    const context = parseContext(flags)
-    if (typeof context === 'string') return agentCliFail(context)
-    const ignoreCase = flags.i === true
-    const countOnly = flags.count === true
-    // `--in tables` reads as "search the tables world", so a world name narrows the scope;
-    // `--in blocks/table_v2` is the path a match line prints (world, then resource); a bare
-    // value is a resource id or name inside the searched worlds.
-    const within = typeof flags.in === 'string' ? flags.in : undefined
-    const [withinHead, ...withinRest] = within ? within.toLowerCase().split('/') : []
-    if (within && withinHead && KNOWLEDGE_SELECTOR_HEADS.has(withinHead)) {
-      return agentCliFail(knowledgeWithin(within))
-    }
-    const withinScope = SCOPES.find((scope) => scope === withinHead)
-    const withinResource = withinScope ? withinRest.join('/') : within?.toLowerCase()
-    const searched: Scope[] = withinScope ? [withinScope] : scopes
-    const nameFilter = withinResource || undefined
-    /**
-     * Refused before any fetch: the model learns the accepted forms without paying for
-     * a full materialization it would only get an empty result from.
-     */
-    if (within && nameFilter && PREFIX_SELECTOR.test(nameFilter)) {
-      return agentCliFail(unknownWithin(within))
-    }
-    const matches = compilePattern(pattern, ignoreCase)
-    const issues: string[] = []
-    let issueCount = 0
-    const bounded = gatedRuntime({
-      ...runtime,
-      reportIncomplete: (message) => {
-        issueCount++
-        if (issues.length < 10) issues.push(clip(message))
+  execute: (positionals, runtime, flags) =>
+    executeGrep(positionals, flags, {
+      signal: runtime.signal,
+      registry: runtime.resolvedSecretTraceRegistry,
+      async materialize(scopes, nameFilter, reportIncomplete) {
+        const bounded = gatedRuntime({ ...runtime, reportIncomplete })
+        return nameFilter
+          ? materializeWithin(bounded, scopes, nameFilter)
+          : (await settleAll(scopes.map((scope) => materializeScope(bounded, scope)))).flat()
       },
-    })
-    const finish = (stdout: string) =>
-      issueCount === 0
-        ? agentCliOk(stdout)
-        : {
-            exitCode: 1,
-            stdout,
-            stderr: `Search incomplete (${issueCount} issue${issueCount === 1 ? '' : 's'}); matches and counts cover only the content read.\n${issues.join('\n')}${issueCount > issues.length ? `\n${issueCount - issues.length} further issues omitted.` : ''}`,
-          }
-    const candidates = nameFilter
-      ? await materializeWithin(bounded, searched, nameFilter)
-      : (await settleAll(searched.map((scope) => materializeScope(bounded, scope)))).flat()
-    runtime.signal?.throwIfAborted()
-    /**
-     * A resource nothing in the searched worlds answers to is a wrong selector, not a
-     * search with no hits — a silent "No matches" would hide the misspelling.
-     */
-    if (within && nameFilter && candidates.length === 0) {
-      return issueCount ? finish('') : agentCliFail(unknownWithin(within))
-    }
-
-    const out: string[] = []
-    let total = 0
-    let shownMatches = 0
-    const perScope = new Map<Scope, number>()
-    const scanStartedAt = performance.now()
-    let lastYieldAt = scanStartedAt
-    const checkScan = () => {
-      runtime.signal?.throwIfAborted()
-      const now = performance.now()
-      if (now - scanStartedAt >= MAX_SCAN_TIME_MS) {
-        throw new Error(
-          'Search incomplete: scanning exceeded the time budget. Narrow with --scope or --in.'
-        )
-      }
-      return now
-    }
-    const egress = runtime.resolvedSecretTraceRegistry?.forkForPropagatedEntries()
-    for (const resource of candidates) {
-      if (resource.text === null) continue
-      const text = redactForModel(resource.text, egress)
-      if (text === null) {
-        bounded.reportIncomplete(
-          `${resource.scope}/${resource.label} (${resource.id}): could not be checked for secret values, so it was not searched.`
-        )
-        continue
-      }
-      const lines = text.split('\n')
-      const selected = new Map<number, boolean>()
-      const remainingLines = limit - out.length
-      let nextContextLine = 0
-      for (let i = 0; i < lines.length; i++) {
-        if (checkScan() - lastYieldAt >= SCAN_YIELD_INTERVAL_MS) {
-          await sleep(0)
-          lastYieldAt = checkScan()
-        }
-        if (!matches(lines[i])) continue
-        total++
-        perScope.set(resource.scope, (perScope.get(resource.scope) ?? 0) + 1)
-        if (countOnly) continue
-        for (
-          let j = Math.max(nextContextLine, i - context.before);
-          j <= Math.min(lines.length - 1, i + context.after) && selected.size < remainingLines;
-          j++
-        ) {
-          selected.set(j, false)
-          nextContextLine = j + 1
-        }
-        if (selected.has(i)) selected.set(i, true)
-      }
-      if (countOnly || selected.size === 0 || out.length >= limit) continue
-      const header = `${resource.scope}/${resource.label}${resource.label === resource.id ? '' : ` (${resource.id})`}`
-      for (const [i, isMatch] of selected) {
-        out.push(`${header}:${i + 1}: ${clip(lines[i])}`)
-        if (isMatch) shownMatches++
-      }
-    }
-    checkScan()
-
-    if (countOnly) {
-      const breakdown = [...perScope.entries()].map(([s, n]) => `${s}=${n}`).join(' ')
-      return finish(`${total}${breakdown ? ` (${breakdown})` : ''}`)
-    }
-    if (out.length === 0) {
-      return finish(
-        `No matches for ${JSON.stringify(pattern)} in ${searched.join(', ')}${nameFilter ? ` within "${nameFilter}"` : ''}.`
-      )
-    }
-    const truncated =
-      total > shownMatches
-        ? `\n[${shownMatches} of ${total} matching lines shown — narrow with --scope, --in, or a tighter pattern]`
-        : ''
-    return finish(out.join('\n') + truncated)
-  },
+    }),
 }
