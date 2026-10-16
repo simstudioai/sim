@@ -16,7 +16,10 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/attribution'
 import { isHosted } from '@/lib/core/config/env-flags'
-import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
+import {
+  findDatabaseQueryError,
+  getUserFacingErrorMessage,
+} from '@/lib/core/errors/database-query-error'
 import {
   classifyFailure,
   logFailureOnce,
@@ -1265,7 +1268,7 @@ async function processFileOutputs(
     return {
       ...result,
       success: false,
-      error: `Failed to store file outputs for ${tool.id}: ${normalizedError.message}`,
+      error: `Failed to store file outputs for ${tool.id}: ${getUserFacingErrorMessage(error)}`,
       output: {},
     }
   }
