@@ -21,6 +21,7 @@ import {
   wireFallback,
 } from '@sim/deployment-config/env-capabilities'
 import { env } from '@/lib/core/config/env'
+import { getGoogleOAuthClientValues } from '@/lib/core/config/google-oauth'
 
 export function getConfiguredStorageProviderId() {
   return requireCapability(STORAGE_CAPABILITY, env).providerId
@@ -47,7 +48,7 @@ export function getConfiguredCacheProvider() {
 }
 
 export function inspectConfiguredOAuthClient(serviceId: string) {
-  return inspectOAuthClientCapability(serviceId, env)
+  return inspectOAuthClientCapability(serviceId, getGoogleOAuthClientValues(serviceId))
 }
 
 export function requireConfiguredOAuthClient<const TCapabilityId extends OAuthClientCapabilityId>(
@@ -55,7 +56,7 @@ export function requireConfiguredOAuthClient<const TCapabilityId extends OAuthCl
 ): ConfiguredOAuthClient<OAuthClientCapabilityField<TCapabilityId>>
 export function requireConfiguredOAuthClient(serviceId: string): ConfiguredOAuthClient
 export function requireConfiguredOAuthClient(serviceId: string): ConfiguredOAuthClient {
-  return requireOAuthClientCapability(serviceId, env)
+  return requireOAuthClientCapability(serviceId, getGoogleOAuthClientValues(serviceId))
 }
 
 export function wireServerFallback<

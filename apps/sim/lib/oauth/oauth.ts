@@ -80,6 +80,7 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import {
@@ -1757,22 +1758,19 @@ function getConfiguredClientCredentials<const TCapabilityId extends OAuthClientC
  */
 function getProviderAuthConfig(
   provider: string,
-  clientOverride?: Pick<QuickBooksOAuthClientConfig, 'clientId' | 'clientSecret'>
+  clientOverride?: Pick<QuickBooksOAuthClientConfig, 'clientId' | 'clientSecret'>,
+  serviceId = provider
 ): ProviderAuthConfig {
   if (clientOverride && provider !== 'quickbooks') {
     throw new Error(`OAuth client override is not supported for provider ${provider}`)
   }
   switch (provider) {
     case 'google': {
-      const { clientId, clientSecret } = getConfiguredClientCredentials(
-        'google',
-        'GOOGLE_CLIENT_ID',
-        'GOOGLE_CLIENT_SECRET'
-      )
+      const { values } = requireConfiguredOAuthClient(serviceId)
       return {
         tokenEndpoint: 'https://oauth2.googleapis.com/token',
-        clientId,
-        clientSecret,
+        clientId: values.GOOGLE_CLIENT_ID,
+        clientSecret: values.GOOGLE_CLIENT_SECRET,
         useBasicAuth: false,
       }
     }
@@ -2513,7 +2511,7 @@ export async function refreshOAuthToken(
   try {
     const provider = getBaseProviderForService(providerId)
 
-    const config = getProviderAuthConfig(provider, clientOverride)
+    const config = getProviderAuthConfig(provider, clientOverride, providerId)
     if (config.clientSecret) exactSecrets.push(config.clientSecret)
 
     if (config.refreshStrategy === 'instagram_long_lived') {

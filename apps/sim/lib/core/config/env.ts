@@ -500,6 +500,8 @@ export const env = createEnv({
     // OAuth Integration Credentials - All optional, enables third-party integrations
     GOOGLE_CLIENT_ID:                      z.string().optional(),                  // Google OAuth client ID for Google services
     GOOGLE_CLIENT_SECRET:                  z.string().optional(),                  // Google OAuth client secret
+    GOOGLE_VERIFICATION_CLIENT_ID:         z.string().optional(),                  // Isolated Ads, Meet and Chat OAuth app; reconnect these credentials when changed
+    GOOGLE_VERIFICATION_CLIENT_SECRET:     z.string().optional(),                  // Isolated Google OAuth secret; configure together with the client ID in app and worker
     GITHUB_CLIENT_ID:                      z.string().optional(),                  // GitHub OAuth client ID for GitHub integration
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
     GITHUB_APP_CLIENT_ID: z.string().optional(),

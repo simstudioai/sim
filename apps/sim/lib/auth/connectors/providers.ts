@@ -8,7 +8,11 @@ import { getOAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { syntheticConnectorEmail } from '@/lib/auth/connector-email'
 import { env } from '@/lib/core/config/env'
-import { inspectConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
+import {
+  inspectConfiguredOAuthClient,
+  requireConfiguredOAuthClient,
+} from '@/lib/core/config/env-capabilities.server'
+import { isGoogleVerificationProvider } from '@/lib/core/config/google-oauth'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -2943,7 +2947,16 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
   ]
 
-  return providers.filter(
-    ({ providerId }) => inspectConfiguredOAuthClient(providerId).state === 'ready'
-  )
+  return providers
+    .filter(({ providerId }) => inspectConfiguredOAuthClient(providerId).state === 'ready')
+    .map((provider) => {
+      if (!isGoogleVerificationProvider(provider.providerId)) return provider
+      const { values } = requireConfiguredOAuthClient(provider.providerId)
+      return {
+        ...provider,
+        clientId: values.GOOGLE_CLIENT_ID,
+        clientSecret: values.GOOGLE_CLIENT_SECRET,
+        authorizationUrlParams: { include_granted_scopes: 'false' },
+      }
+    })
 }

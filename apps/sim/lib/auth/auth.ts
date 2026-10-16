@@ -39,6 +39,7 @@ import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
+import { getGoogleOAuthVerificationRefusal } from '@/lib/auth/connectors/google-verification'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import {
   applyRegistrationGate,
@@ -981,6 +982,22 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       try {
+        const googleOAuthProviderId =
+          ctx.path === '/oauth2/link' || ctx.path === '/sign-in/oauth2'
+            ? ctx.body?.providerId
+            : ctx.path === '/sign-in/social' || ctx.path === '/link-social'
+              ? ctx.body?.provider
+              : ctx.path.startsWith('/oauth2/callback/')
+                ? ctx.params?.providerId
+                : undefined
+        const googleOAuthRefusal = await getGoogleOAuthVerificationRefusal(
+          googleOAuthProviderId,
+          ctx.body?.scopes
+        )
+        if (googleOAuthRefusal) {
+          throw new APIError('FORBIDDEN', { message: googleOAuthRefusal })
+        }
+
         /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
         if (
           ((ctx.path.startsWith('/oauth2/') &&

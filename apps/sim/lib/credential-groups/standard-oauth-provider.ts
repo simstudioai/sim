@@ -6,6 +6,7 @@ import {
   type OAuth2Tokens,
   validateAuthorizationCode,
 } from 'better-auth/oauth2'
+import { getGoogleOAuthVerificationRefusal } from '@/lib/auth/connectors/google-verification'
 import {
   type ConnectorProviderConfig,
   getManagedOAuthConnectorPolicy,
@@ -249,6 +250,11 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
       return getCurrentProvider(provider).policy
     },
     async prepareAuthorization(_context, policy) {
+      const refusal = await getGoogleOAuthVerificationRefusal(
+        policy.providerId,
+        policy.requiredScopes
+      )
+      if (refusal) throw new CredentialGroupOAuthError(refusal, 403)
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
       const managed = current.connector.managedOAuth
@@ -292,6 +298,11 @@ export function createStandardOAuthCredentialGroupProviderAdapter(
       }
     },
     async exchangeAndVerify({ attempt, code, policy }) {
+      const refusal = await getGoogleOAuthVerificationRefusal(
+        policy.providerId,
+        policy.requiredScopes
+      )
+      if (refusal) throw new CredentialGroupOAuthError(refusal, 403)
       const current = getCurrentProvider(provider)
       assertCurrentPolicy(policy, current.policy)
       const redirectUri = getRedirectUri(provider, current)
