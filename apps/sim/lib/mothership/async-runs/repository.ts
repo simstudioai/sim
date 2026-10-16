@@ -441,28 +441,31 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
   )
 }
 
-/** Caller holds the Stop/admission lock; its related chat writes commit with this run. */
+/**
+ * Caller holds the Stop/admission lock; its related chat writes commit with this run. The
+ * chat row is read FOR SHARE, after that lock as chat admission takes it, so a soft delete
+ * either commits first and this run starts stopped, or waits and then stops this run.
+ */
 export async function insertRunSegment(tx: RunAdmissionTransaction, input: CreateRunSegmentInput) {
-  let workspaceId = input.workspaceId
-  let organizationId = input.organizationId
-  if (!workspaceId && !organizationId) {
-    const [chat] = await tx
-      .select({
-        workspaceId: copilotChats.workspaceId,
-        organizationId: copilotChats.organizationId,
-      })
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
-      .limit(1)
-    workspaceId = chat?.workspaceId
-    organizationId = chat?.organizationId
-  }
+  const [chat] = await tx
+    .select({
+      workspaceId: copilotChats.workspaceId,
+      organizationId: copilotChats.organizationId,
+      deletedAt: copilotChats.deletedAt,
+    })
+    .from(copilotChats)
+    .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
+    .for('share')
+  const inheritsOwner = !input.workspaceId && !input.organizationId
+  const workspaceId = inheritsOwner ? chat?.workspaceId : input.workspaceId
+  const organizationId = inheritsOwner ? chat?.organizationId : input.organizationId
   const { table, predicate } = stopLocation({ ...input, workspaceId, organizationId })
   const [stop] = await tx
     .select({ stoppedAt: table.stoppedAt })
     .from(table)
     .where(predicate)
     .limit(1)
+  const closedAt = stop?.stoppedAt ?? chat?.deletedAt
   const [run] = await tx
     .insert(copilotRuns)
     .values({
@@ -481,8 +484,8 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       provider: input.provider ?? null,
       requestContext: input.requestContext ?? {},
       desktopDeviceId: input.desktopDeviceId ?? null,
-      status: stop ? 'cancelled' : (input.status ?? 'active'),
-      ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
+      status: closedAt ? 'cancelled' : (input.status ?? 'active'),
+      ...(closedAt ? { completedAt: sql`now()`, toolAdmissionClosedAt: closedAt } : {}),
     })
     .returning()
   if (!run) throw new Error('Run admission did not return its persisted identity')
