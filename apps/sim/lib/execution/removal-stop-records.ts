@@ -43,7 +43,7 @@ export interface ExecutionStopPlan {
   executions: PlannedExecutionStop[]
 }
 
-export interface ExecutionStopPayload {
+interface ExecutionStopPayload {
   /** Workspace whose queued and running jobs this event sweeps. */
   workspaceId?: string
   executions: { executionId: string; executionDeadlineAt: string | null }[]
@@ -89,7 +89,6 @@ export async function collectExecutionStops(
     })
     .from(workflowExecutionLogs)
     .where(and(eq(workflowExecutionLogs.status, 'running'), inScope))
-  /** Driven from the scope's log rows, so `resume_queue` is read through its parent index. */
   const resuming = await executor
     .select({
       executionId: resumeQueue.newExecutionId,
@@ -142,17 +141,14 @@ function toPayloadExecutions(
 
 /** One event per removed workspace carries its sweep; executions beyond one event's share spill over. */
 function buildPayloads(plan: ExecutionStopPlan): ExecutionStopPayload[] {
-  const removedWorkspaces = new Set(plan.workspaceIds)
   const byWorkspace = new Map<string, PlannedExecutionStop[]>(
     plan.workspaceIds.map((workspaceId) => [workspaceId, []])
   )
   const elsewhere: PlannedExecutionStop[] = []
   for (const execution of plan.executions) {
-    if (execution.workspaceId && removedWorkspaces.has(execution.workspaceId)) {
-      byWorkspace.get(execution.workspaceId)?.push(execution)
-    } else {
-      elsewhere.push(execution)
-    }
+    const removed = execution.workspaceId ? byWorkspace.get(execution.workspaceId) : undefined
+    if (removed) removed.push(execution)
+    else elsewhere.push(execution)
   }
 
   const payloads: ExecutionStopPayload[] = []
@@ -174,12 +170,10 @@ function buildPayloads(plan: ExecutionStopPlan): ExecutionStopPayload[] {
 export async function enqueueExecutionStops(
   executor: Pick<typeof db, 'insert'>,
   plan: ExecutionStopPlan
-): Promise<string[]> {
-  const eventIds: string[] = []
+): Promise<void> {
   for (const chunk of chunkArray(buildPayloads(plan), MAX_BULK_ENQUEUE_EVENTS)) {
-    eventIds.push(...(await enqueueOutboxEvents(executor, EXECUTION_REMOVAL_STOP_EVENT, chunk)))
+    await enqueueOutboxEvents(executor, EXECUTION_REMOVAL_STOP_EVENT, chunk)
   }
-  return eventIds
 }
 
 /**

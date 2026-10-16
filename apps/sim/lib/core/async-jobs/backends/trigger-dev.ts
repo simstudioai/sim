@@ -128,6 +128,10 @@ function buildExecutionTag(executionId: string): string {
   return tag.length <= 128 ? tag : `executionIdHash:${sha256Hex(executionId)}`
 }
 
+function buildWorkspaceTag(workspaceId: string): string {
+  return `workspaceId:${workspaceId}`
+}
+
 function buildWorkflowTag(workflowId: string): string {
   const tag = `workflowId:${workflowId}`
   return tag.length <= 128 ? tag : `workflowIdHash:${sha256Hex(workflowId)}`
@@ -172,10 +176,13 @@ interface CancellationListRun {
 }
 
 interface CancellationScanOptions {
-  binding: ExecutionJobBinding
+  /** Required by any candidate that sets `verifyPayload`. */
+  binding?: ExecutionJobBinding
   cancelJob: (jobId: string) => Promise<void>
   listRuns: () => AsyncIterable<CancellationListRun>
   selectCandidate: (run: CancellationListRun) => CancellationCandidate | undefined
+  /** Checked before each listed run; true ends the scan there. */
+  shouldStop?: () => boolean
   state: CancellationScanState
 }
 
@@ -186,7 +193,7 @@ function recordCancellationCandidateFailure(state: CancellationScanState, error:
 
 async function processCancellationCandidateBatch(
   candidates: readonly CancellationCandidate[],
-  binding: ExecutionJobBinding,
+  binding: ExecutionJobBinding | undefined,
   state: CancellationScanState,
   cancelJob: (jobId: string) => Promise<void>
 ): Promise<void> {
@@ -200,7 +207,7 @@ async function processCancellationCandidateBatch(
     uniqueCandidates.map(async (candidate) => {
       if (candidate.verifyPayload) {
         const legacyRun = await runs.retrieve(candidate.id)
-        if (!payloadMatchesExecution(legacyRun.payload, binding)) return false
+        if (!binding || !payloadMatchesExecution(legacyRun.payload, binding)) return false
       }
       await cancelJob(candidate.id)
       return true
@@ -232,6 +239,7 @@ async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promi
 
   try {
     for await (const run of options.listRuns()) {
+      if (options.shouldStop?.()) break
       const candidate = options.selectCandidate(run)
       if (!candidate) continue
       candidates.push(candidate)
@@ -665,44 +673,33 @@ export class TriggerDevJobQueue implements JobQueueBackend {
     workspaceId: string,
     options: WorkspaceJobCancellationOptions
   ): Promise<WorkspaceJobCancellationResult> {
-    const workspaceTag = `workspaceId:${workspaceId}`
+    const workspaceTag = buildWorkspaceTag(workspaceId)
     const state: CancellationScanState = { cancelledJobs: 0, failureCount: 0 }
-    let pending: string[] = []
     let inspectedRuns = 0
     let complete = true
 
-    const flush = async (): Promise<void> => {
-      const runIds = pending
-      pending = []
-      const results = await Promise.allSettled(runIds.map((runId) => this.cancelJob(runId)))
-      for (const result of results) {
-        if (result.status === 'rejected') recordCancellationCandidateFailure(state, result.reason)
-        else state.cancelledJobs += 1
-      }
-    }
-
-    try {
-      for await (const run of runs.list({
-        tag: workspaceTag,
-        taskIdentifier: [...WORKSPACE_EXECUTION_JOB_TYPES],
-        status: [...ACTIVE_TRIGGER_RUN_STATUSES],
-        from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
-        limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
-      })) {
-        if (inspectedRuns >= options.maxRuns || options.signal?.aborted) {
-          complete = false
-          break
-        }
-        if (!run.tags.includes(workspaceTag)) continue
+    await scanAndCancelTriggerRuns({
+      cancelJob: (jobId) => this.cancelJob(jobId),
+      listRuns: () =>
+        runs.list({
+          tag: workspaceTag,
+          taskIdentifier: [...WORKSPACE_EXECUTION_JOB_TYPES],
+          status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+          from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
+          limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
+        }),
+      shouldStop: () => {
+        if (inspectedRuns < options.maxRuns && !options.signal?.aborted) return false
+        complete = false
+        return true
+      },
+      selectCandidate: (run) => {
+        if (!run.tags.includes(workspaceTag)) return undefined
         inspectedRuns += 1
-        pending.push(run.id)
-        if (pending.length >= CANCELLATION_OPERATION_CHUNK_SIZE) await flush()
-      }
-    } catch (error) {
-      recordCancellationCandidateFailure(state, error)
-    } finally {
-      await flush()
-    }
+        return { id: run.id, verifyPayload: false }
+      },
+      state,
+    })
 
     if (state.firstError) {
       logger.error('Failed to cancel trigger.dev runs for workspace', {
@@ -748,7 +745,7 @@ function buildTags(options?: EnqueueOptions): string[] {
   const workflowId =
     meta?.correlation?.workflowId ??
     (typeof meta?.workflowId === 'string' ? meta.workflowId : undefined)
-  if (meta?.workspaceId) tags.push(`workspaceId:${meta.workspaceId}`)
+  if (meta?.workspaceId) tags.push(buildWorkspaceTag(meta.workspaceId))
   if (workflowId) tags.push(buildWorkflowTag(workflowId))
   if (meta?.userId) tags.push(`userId:${meta.userId}`)
 

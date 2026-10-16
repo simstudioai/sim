@@ -12,7 +12,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -312,10 +312,11 @@ export async function disableUserResources(userId: string): Promise<void> {
   /** Revoked first: the keys are the ban's access boundary, and an archive may fail. */
   await db.delete(apiKey).where(eq(apiKey.userId, userId))
 
-  const ownedWorkspaces = await db
-    .select({ id: workspace.id })
+  const owned = await db
+    .select({ id: workspace.id, archivedAt: workspace.archivedAt })
     .from(workspace)
-    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
+    .where(eq(workspace.ownerId, userId))
+  const ownedWorkspaces = owned.filter((row) => !row.archivedAt)
 
   const { recordExecutionStops, signalExecutionStops } = await import(
     '@/lib/execution/removal-stop-records'
@@ -340,8 +341,8 @@ export async function disableUserResources(userId: string): Promise<void> {
   }
 
   const failures: { workspaceId: string; error: unknown }[] = []
-  const stopping: Promise<void>[] = []
-  const stoppedWorkspaceIds = new Set<string>()
+  /** Workspaces archived before this ban still have the runs an archive leaves going. */
+  const stopping = [stopRuns(owned.filter((row) => row.archivedAt).map((row) => row.id))]
   // Sequential: environments of one Project contend on its exclusive lock.
   for (const row of ownedWorkspaces) {
     try {
@@ -350,7 +351,6 @@ export async function disableUserResources(userId: string): Promise<void> {
         expectedOwnerId: userId,
         /** Called once the archive commits, before its slower post-commit cleanup. */
         deliverStops: () => {
-          stoppedWorkspaceIds.add(row.id)
           stopping.push(stopRuns([row.id]))
         },
       })
@@ -359,14 +359,6 @@ export async function disableUserResources(userId: string): Promise<void> {
     }
   }
 
-  /** Workspaces archived before this ban still have the runs an archive leaves going. */
-  const earlierArchived = await db
-    .select({ id: workspace.id })
-    .from(workspace)
-    .where(and(eq(workspace.ownerId, userId), isNotNull(workspace.archivedAt)))
-  stopping.push(
-    stopRuns(earlierArchived.map((row) => row.id).filter((id) => !stoppedWorkspaceIds.has(id)))
-  )
   await Promise.all(stopping)
 
   if (failures.length > 0) {

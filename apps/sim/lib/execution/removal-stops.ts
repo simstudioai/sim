@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { isRecordLike } from '@sim/utils/object'
+import { z } from 'zod'
 import { getInlineJobQueue, getJobQueue } from '@/lib/core/async-jobs'
 import {
   continueOutboxHandler,
@@ -8,40 +8,24 @@ import {
   withOutboxHandlerTimeout,
 } from '@/lib/core/outbox/service'
 import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
-import {
-  collectExecutionStops,
-  type ExecutionStopPayload,
-  signalExecutionStops,
-} from '@/lib/execution/removal-stop-records'
+import { collectExecutionStops, signalExecutionStops } from '@/lib/execution/removal-stop-records'
 
 /** Queue runs one handler attempt cancels before handing the rest to its next run. */
 const SWEEP_MAX_RUNS_PER_ATTEMPT = 1_000
 const HANDLER_TIMEOUT_MS = 5 * 60 * 1000
 
-function parsePayload(payload: unknown): ExecutionStopPayload {
-  if (!isRecordLike(payload) || !Array.isArray(payload.executions)) {
-    throw new Error('Execution removal stop payload is malformed')
-  }
-  let workspaceId: string | undefined
-  if (payload.workspaceId !== undefined) {
-    if (typeof payload.workspaceId !== 'string' || payload.workspaceId.length === 0) {
-      throw new Error('Execution removal stop payload has an invalid workspaceId')
-    }
-    workspaceId = payload.workspaceId
-  }
-  const executions = payload.executions.map((entry: unknown) => {
-    if (
-      !isRecordLike(entry) ||
-      typeof entry.executionId !== 'string' ||
-      entry.executionId.length === 0 ||
-      (entry.executionDeadlineAt !== null && typeof entry.executionDeadlineAt !== 'string')
-    ) {
-      throw new Error('Execution removal stop payload has an invalid execution')
-    }
-    return { executionId: entry.executionId, executionDeadlineAt: entry.executionDeadlineAt }
-  })
-  return { ...(workspaceId ? { workspaceId } : {}), executions }
-}
+const payloadSchema = z.object({
+  workspaceId: z.string().min(1).optional(),
+  executions: z.array(
+    z.object({
+      executionId: z.string().min(1),
+      executionDeadlineAt: z
+        .string()
+        .nullable()
+        .transform((deadline) => (deadline ? new Date(deadline) : null)),
+    })
+  ),
+})
 
 /**
  * Sweeps the primary queue and the database queue that inline webhook runs use even when
@@ -70,15 +54,9 @@ async function sweepWorkspaceJobs(workspaceId: string, signal: AbortSignal) {
  */
 const stopRemovedExecutions: OutboxHandler<unknown> = withOutboxHandlerTimeout(
   async (rawPayload, context) => {
-    const payload = parsePayload(rawPayload)
+    const payload = payloadSchema.parse(rawPayload)
     const executions = new Map(
-      payload.executions.map(({ executionId, executionDeadlineAt }) => [
-        executionId,
-        {
-          executionId,
-          executionDeadlineAt: executionDeadlineAt ? new Date(executionDeadlineAt) : null,
-        },
-      ])
+      payload.executions.map((execution) => [execution.executionId, execution])
     )
     /**
      * An archived workspace keeps its rows, so a run that passed admission before the archive
@@ -90,10 +68,12 @@ const stopRemovedExecutions: OutboxHandler<unknown> = withOutboxHandlerTimeout(
       })
       for (const execution of live) executions.set(execution.executionId, execution)
     }
-    const unrecorded = await signalExecutionStops([...executions.values()], context.signal)
-    const sweep = payload.workspaceId
-      ? await sweepWorkspaceJobs(payload.workspaceId, context.signal)
-      : { cancelledJobs: 0, complete: true }
+    const [unrecorded, sweep] = await Promise.all([
+      signalExecutionStops([...executions.values()], context.signal),
+      payload.workspaceId
+        ? sweepWorkspaceJobs(payload.workspaceId, context.signal)
+        : { cancelledJobs: 0, complete: true },
+    ])
     if (unrecorded > 0) {
       throw new Error(`${unrecorded} execution cancellations were not recorded`)
     }

@@ -55,6 +55,15 @@ function rowToJob(row: AsyncJobRow): Job {
 const inlineAbortControllers = new Map<string, AbortController>()
 const inlineExecutionControllers = new Map<string, Map<AbortController, JobType>>()
 
+/** Aborts the runner this process holds for the job, if any. */
+function abortInlineJob(jobId: string): boolean {
+  const controller = inlineAbortControllers.get(jobId)
+  if (!controller) return false
+  controller.abort(new DOMException('user', 'AbortError'))
+  inlineAbortControllers.delete(jobId)
+  return true
+}
+
 /**
  * Per-cancel-key abort controllers for the `batchEnqueueAndWait` direct-call
  * path. Distinct from `inlineAbortControllers` (which keys by jobId) — this
@@ -424,13 +433,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     // Abort any in-process inline execution first so the running workflow
     // observes the signal and stops mid-flight. Then mark the row cancelled so
     // any future poller skips it without treating a user action as a failure.
-    const controller = inlineAbortControllers.get(jobId)
-    let aborted = false
-    if (controller) {
-      controller.abort(new DOMException('user', 'AbortError'))
-      inlineAbortControllers.delete(jobId)
-      aborted = true
-    }
+    const aborted = abortInlineJob(jobId)
 
     const now = new Date()
     await db
@@ -538,7 +541,6 @@ export class DatabaseJobQueue implements JobQueueBackend {
       sql`${asyncJobs.metadata}->>'workspaceId' = ${workspaceId}`
     )
     let cancelledJobs = 0
-    let complete = false
     while (cancelledJobs < options.maxRuns && !options.signal?.aborted) {
       const batchSize = Math.min(WORKSPACE_CANCELLATION_BATCH_SIZE, options.maxRuns - cancelledJobs)
       const now = new Date()
@@ -556,21 +558,16 @@ export class DatabaseJobQueue implements JobQueueBackend {
         )
         .returning({ id: asyncJobs.id })
 
-      for (const { id } of cancelled) {
-        const controller = inlineAbortControllers.get(id)
-        if (!controller) continue
-        controller.abort(new DOMException('user', 'AbortError'))
-        inlineAbortControllers.delete(id)
-      }
+      for (const { id } of cancelled) abortInlineJob(id)
       cancelledJobs += cancelled.length
       if (cancelled.length < batchSize) {
-        complete = true
-        break
+        logger.info('Cancelled database jobs for workspace', { workspaceId, cancelledJobs })
+        return { cancelledJobs, complete: true }
       }
     }
 
-    logger.info('Cancelled database jobs for workspace', { workspaceId, cancelledJobs, complete })
-    return { cancelledJobs, complete }
+    logger.info('Paused database job sweep for workspace', { workspaceId, cancelledJobs })
+    return { cancelledJobs, complete: false }
   }
 
   cancelByKey(cancelKey: string): boolean {
