@@ -47,11 +47,14 @@ import { encryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { approveSearchIntegration } from '@/lib/knowledge/application/search-integrations'
 import {
+  configureSlackSearchInstallation,
   listSlackSearchInstallations,
   removeSlackSearchInstallation,
 } from '@/lib/knowledge/application/slack-search/installations'
 import { revokeSlackSearchAccess } from '@/lib/knowledge/application/slack-search/lifecycle'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
 import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
+import { SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 import { getSharedSlackSearchAppConfiguration } from '@/lib/slack-search/shared-app-env'
 
 vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
@@ -156,8 +159,8 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
       input: { state, code: 'fixture-code' },
     })
 
-  async function installBot(appId: string, teamId: string, executor: DbOrTx = db) {
-    const secret = (await encryptSecret('fixture-bot')).encrypted
+  async function upsertSlackApp(appId: string, executor: DbOrTx = db) {
+    const secret = (await encryptSecret('fixture-app')).encrypted
     await executor
       .insert(slackApp)
       .values(
@@ -174,6 +177,11 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
             }
       )
       .onConflictDoNothing()
+  }
+
+  async function installBot(appId: string, teamId: string, executor: DbOrTx = db) {
+    await upsertSlackApp(appId, executor)
+    const secret = (await encryptSecret('fixture-bot')).encrypted
     const botId = generateId()
     await executor.insert(credential).values({
       id: botId,
@@ -280,6 +288,99 @@ describe('Slack member accounts on the shared app without a Search bot', () => {
     })
     restoreSlackHttp = () => spy.mockRestore()
   }
+
+  /** Answers bot verification as a bot of `appId` installed in `teamId`. */
+  function provideSlackBot(appId: string, teamId: string) {
+    restoreSlackHttp?.()
+    const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = new URL(String(input))
+      switch (`${url.origin}${url.pathname}`) {
+        case 'https://slack.com/api/auth.test':
+          return Response.json(
+            { ok: true, team_id: teamId, team: 'Fixture team', user_id: 'UBOT', bot_id: 'BBOT' },
+            { headers: { 'x-oauth-scopes': SLACK_SHARED_SEARCH_BOT_SCOPES.join(',') } }
+          )
+        case 'https://slack.com/api/bots.info':
+          return Response.json({ ok: true, bot: { id: 'BBOT', app_id: appId } })
+        default:
+          throw new Error(`Unexpected Slack fixture request: ${url}`)
+      }
+    })
+    restoreSlackHttp = () => spy.mockRestore()
+  }
+
+  async function connectMembersOnSharedApp() {
+    const groupId = (await approveSlack()).memberAccounts?.groupId
+    if (!groupId) throw new Error('Approval did not provision organization accounts')
+    const pending = new URL((await startSetup(groupId)).authorizationUrl)
+    provideSlackConsent(MEMBER_TEAM)
+    await completeSetup(pending.searchParams.get('state') ?? '')
+  }
+
+  /** A bot credential left without a Search installation, as after removing its binding. */
+  async function insertLeftoverBot(appId: string, teamId: string) {
+    await upsertSlackApp(appId)
+    const { encrypted } = await encryptSecret(
+      JSON.stringify({
+        type: SLACK_CUSTOM_BOT_SECRET_TYPE,
+        botToken: 'xoxb-fixture',
+        teamId,
+        botUserId: 'UBOT',
+        teamName: 'Fixture team',
+      })
+    )
+    const credentialId = generateId()
+    await db.insert(credential).values({
+      id: credentialId,
+      organizationId: ids.organization,
+      type: 'service_account',
+      providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
+      displayName: 'Leftover Slack bot',
+      createdBy: ids.owner,
+      encryptedServiceAccountKey: encrypted,
+      slackAppId: appId,
+    })
+    return credentialId
+  }
+
+  const enableBot = (credentialId: string) =>
+    configureSlackSearchInstallation.execute({
+      principal: principal(),
+      input: { organizationId: ids.organization, credentialId, enabled: true },
+    })
+
+  const installations = () =>
+    db
+      .select()
+      .from(slackSearchInstallation)
+      .where(eq(slackSearchInstallation.organizationId, ids.organization))
+
+  it('refuses to bind a leftover bot to a different app or workspace than members', async () => {
+    await connectMembersOnSharedApp()
+    const credentialId = await insertLeftoverBot(CUSTOM_APP_ID, OTHER_TEAM)
+    provideSlackBot(CUSTOM_APP_ID, OTHER_TEAM)
+    await expect(enableBot(credentialId)).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Install the same Slack app and workspace connected by your members',
+    })
+    expect(await installations()).toEqual([])
+  })
+
+  it('binds a leftover shared-app bot in the members workspace', async () => {
+    await connectMembersOnSharedApp()
+    const credentialId = await insertLeftoverBot(SHARED_APP_ID, MEMBER_TEAM)
+    provideSlackBot(SHARED_APP_ID, MEMBER_TEAM)
+    const created = await enableBot(credentialId)
+    expect(await installations()).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        credentialId,
+        appId: SHARED_APP_ID,
+        teamId: MEMBER_TEAM,
+        enabled: true,
+      }),
+    ])
+  })
 
   it('approves Slack, verifies the workspace from the admin grant, and resolves member sign-in', async () => {
     const approval = await approveSlack()
