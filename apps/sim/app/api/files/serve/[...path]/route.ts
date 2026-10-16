@@ -389,6 +389,7 @@ export const GET = withRouteHandler(
         request.method === 'HEAD'
       )
     } catch (error) {
+      if (request.signal.aborted) throw error
       if (error instanceof InternalUnauthenticatedError) {
         logger.warn('Unauthorized file access attempt', { error: error.message })
         return NextResponse.json(
@@ -599,6 +600,7 @@ async function handleLocalFile(
       options.ifNoneMatch
     )
   } catch (error) {
+    if (signal?.aborted) throw error
     logServeFailure('Error reading local file:', error)
     throw error
   }
@@ -689,6 +691,7 @@ async function handleCloudProxy(
       options.ifNoneMatch
     )
   } catch (error) {
+    if (signal?.aborted) throw error
     logServeFailure('Error downloading from cloud storage:', error)
     throw error
   }

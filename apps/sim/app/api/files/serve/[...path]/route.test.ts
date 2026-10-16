@@ -34,6 +34,7 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
@@ -322,6 +323,24 @@ describe('File Serve API Route', () => {
     )
 
     expect(response.status).toBe(413)
+    expect(serveLogger.error).not.toHaveBeenCalled()
+  })
+
+  it('answers 499 without an error log when the client disconnects mid-read', async () => {
+    const controller = new AbortController()
+    mockReadLocalFileWithinLimit.mockImplementation(async () => {
+      controller.abort()
+      throw new Error('Request aborted')
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/report.md', {
+        signal: controller.signal,
+      }),
+      createRouteContext({ path: ['workspace', 'ws', 'report.md'] })
+    )
+
+    expect(response.status).toBe(499)
     expect(serveLogger.error).not.toHaveBeenCalled()
   })
 
