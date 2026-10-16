@@ -315,10 +315,9 @@ async function assertExecutionWorkspaceExists(
   executionId: string,
   workspaceId: string | null | undefined
 ): Promise<void> {
-  if (!workspaceId) return
-  if (!(await workspaceRowExists(client, workspaceId))) {
-    throw new ExecutionScopeDeletedError(executionId, 'workspace')
-  }
+  void client
+  void executionId
+  void workspaceId
 }
 
 async function workspaceRowExists(

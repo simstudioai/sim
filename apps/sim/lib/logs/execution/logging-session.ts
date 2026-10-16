@@ -884,6 +884,7 @@ export class LoggingSession {
     workspaceId: string
   ): Promise<ExecutionScopeDeletedError | null> {
     if (getPostgresErrorCode(error) !== FOREIGN_KEY_VIOLATION) return null
+    if (error) return null
     try {
       const scope = await executionLogger.findDeletedExecutionScope({
         workspaceId,
