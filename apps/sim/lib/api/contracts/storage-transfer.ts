@@ -200,6 +200,10 @@ export const fileExportParamsSchema = z.object({
   id: workspaceFileIdSchema,
 })
 
+const fileExportQuerySchema = z.object({
+  format: z.literal('pdf').optional(),
+})
+
 export const jupyterUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/jupyter/upload',
@@ -331,6 +335,7 @@ export const fileExportContract = defineRouteContract({
   method: 'GET',
   path: '/api/files/export/[id]',
   params: fileExportParamsSchema,
+  query: fileExportQuerySchema,
   response: { mode: 'binary' },
 })
 
@@ -369,3 +374,4 @@ export type FileServeParams = ContractParamsInput<typeof fileServeContract>
 export type FileServeQuery = ContractQueryInput<typeof fileServeContract>
 export type FileViewParams = ContractParamsInput<typeof fileViewContract>
 export type FileExportParams = ContractParamsInput<typeof fileExportContract>
+export type FileExportQuery = ContractQueryInput<typeof fileExportContract>
