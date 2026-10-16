@@ -66,6 +66,7 @@ import { NextRequest } from 'next/server'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
+import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { deleteCopilotChat, softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
 import { chatPubSub } from '@/lib/mothership/chat-status'
@@ -203,6 +204,37 @@ async function seedRun(
   return { userId: owner.userId, chatId, streamId, runId, ...scope }
 }
 
+/** A chat with no run yet, as a task wake, inbox email, API or Slack turn finds it. */
+async function seedChat(userId: string, workspaceId: string) {
+  const chatId = generateId()
+  await db.insert(copilotChats).values({ id: chatId, userId, workspaceId, type: 'mothership' })
+  return chatId
+}
+
+/** Admits a headless turn's run the way those surfaces do, without the chat view's admission. */
+async function admitHeadlessRun(userId: string, chatId: string, workspaceId: string) {
+  const streamId = generateId()
+  testStreams.add(streamId)
+  const run = await createRunSegment({
+    id: generateId(),
+    executionId: generateId(),
+    chatId,
+    userId,
+    workspaceId,
+    streamId,
+    requestContext: { source: 'headless_lifecycle' },
+  })
+  return { run, seeded: { userId, chatId, streamId, runId: run.id, workspaceId } }
+}
+
+async function toolAdmissionClosedAt(run: SeededRun) {
+  const [row] = await db
+    .select({ closedAt: copilotRuns.toolAdmissionClosedAt })
+    .from(copilotRuns)
+    .where(eq(copilotRuns.id, run.runId))
+  return row?.closedAt ?? null
+}
+
 /** What the worker's heartbeat reads, through the outbound control transport. */
 async function runControl(run: SeededRun) {
   const result = await executeSimControl({
@@ -292,6 +324,23 @@ async function whileHolding<T>(chatId: string, run: (holder: number) => Promise<
     release.resolve()
     await holding
   }
+}
+
+/** Queues admission and deletion behind a held chat row in the order `first` names. */
+async function queueOnChat<A, D>(
+  chatId: string,
+  first: 'admission' | 'deletion',
+  admit: () => Promise<A>,
+  remove: () => Promise<D>
+): Promise<{ admission: Promise<A>; deletion: Promise<D> }> {
+  return whileHolding(chatId, async (holder) => {
+    const admission = first === 'admission' ? admit() : undefined
+    const deletion = admission ? undefined : remove()
+    const waiter = await lockWaiterBehind(holder)
+    const queued = { admission: admission ?? admit(), deletion: deletion ?? remove() }
+    await lockWaiterBehind(holder, waiter)
+    return queued
+  })
 }
 
 const STOPPED = { status: 200, body: { stopped: true } }
@@ -674,12 +723,9 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     async (first) => {
       const ownerId = await seedUser()
       const workspaceId = await seedWorkspace(ownerId)
-      const chatId = generateId()
+      const chatId = await seedChat(ownerId, workspaceId)
       const streamId = generateId()
       testStreams.add(streamId)
-      await db
-        .insert(copilotChats)
-        .values({ id: chatId, userId: ownerId, workspaceId, type: 'mothership' })
       const sendClaim = { normalizedKey: `run-removal:${generateId()}`, claimToken: generateId() }
       await db
         .insert(idempotencyKey)
@@ -725,20 +771,7 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
           .finally(() => releasePendingChatStream(chatId, streamId, lease))
       const remove = () => softDeleteMothershipChat({ chatId, userId: ownerId })
 
-      const { admission, deletion } = await whileHolding(chatId, async (holder) => {
-        if (first === 'admission') {
-          const admission = admit()
-          const waiter = await lockWaiterBehind(holder)
-          const deletion = remove()
-          await lockWaiterBehind(holder, waiter)
-          return { admission, deletion }
-        }
-        const deletion = remove()
-        const waiter = await lockWaiterBehind(holder)
-        const admission = admit()
-        await lockWaiterBehind(holder, waiter)
-        return { admission, deletion }
-      })
+      const { admission, deletion } = await queueOnChat(chatId, first, admit, remove)
 
       const admitted = await admission
       expect(await deletion).not.toBeNull()
@@ -749,6 +782,63 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
         expect(await hasStop(run)).toBe(true)
       }
       expect(await runControl(run)).toEqual(STOPPED)
+    }
+  )
+
+  it('admits a headless run of a live chat as live', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+
+    const { run, seeded } = await admitHeadlessRun(
+      ownerId,
+      await seedChat(ownerId, workspaceId),
+      workspaceId
+    )
+
+    expect(run).toMatchObject({ status: 'active', toolAdmissionClosedAt: null, completedAt: null })
+    expect(await runControl(seeded)).toEqual(LIVE)
+  })
+
+  it('admits a headless run of a chat deleted before it as already stopped', async () => {
+    const ownerId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId)
+    const chatId = await seedChat(ownerId, workspaceId)
+    expect(await softDeleteMothershipChat({ chatId, userId: ownerId })).not.toBeNull()
+
+    const { run, seeded } = await admitHeadlessRun(ownerId, chatId, workspaceId)
+
+    expect(run.status).toBe('cancelled')
+    expect(run.toolAdmissionClosedAt).not.toBeNull()
+    expect(run.completedAt).not.toBeNull()
+    expect(await runControl(seeded)).toEqual(STOPPED)
+  })
+
+  /**
+   * A headless run is admitted without writing the chat row, so only its read of the chat
+   * serializes it with a deletion: holding the row queues both in a chosen order.
+   */
+  it.each(['admission', 'deletion'] as const)(
+    'never leaves a headless run live while its chat is being deleted, when %s reaches the chat first',
+    async (first) => {
+      const ownerId = await seedUser()
+      const workspaceId = await seedWorkspace(ownerId)
+      const chatId = await seedChat(ownerId, workspaceId)
+      const admit = () => admitHeadlessRun(ownerId, chatId, workspaceId)
+      const remove = () => softDeleteMothershipChat({ chatId, userId: ownerId })
+
+      const { admission, deletion } = await queueOnChat(chatId, first, admit, remove)
+
+      const { run, seeded } = await admission
+      expect(await deletion).not.toBeNull()
+      if (first === 'admission') {
+        await expect.poll(pushedStops).toEqual([seeded.streamId])
+        expect(await hasStop(seeded)).toBe(true)
+      } else {
+        expect(run.status).toBe('cancelled')
+        expect(pushedStops()).toEqual([])
+      }
+      expect(await toolAdmissionClosedAt(seeded)).not.toBeNull()
+      expect(await runControl(seeded)).toEqual(STOPPED)
     }
   )
 })
