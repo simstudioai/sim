@@ -118,8 +118,9 @@ async function sites(client: NativeClient) {
 }
 
 /**
- * Pair matches fetched for the half-the-terms summary fallback; the page is filtered to summaries
- * holding enough terms, so it starts from a wider pool than the caller's limit.
+ * Pair matches fetched for the half-the-terms summary fallback. Jira returns them newest first,
+ * not by relevance, and the page is then filtered to summaries holding enough terms, so it starts
+ * from a wider pool than the caller's limit or the any-term fallback's.
  */
 const HALF_TERM_CANDIDATES = 50
 
@@ -182,8 +183,11 @@ export async function searchAtlassian(
       const cloudId = string(site.id)
       const origin = string(site.url).replace(/\/$/, '')
       if (provider === 'jira') {
-        /** One JQL page, each issue with its summary and description. */
-        const searchIssues = async (jql: string, cursor?: string, maxResults = input.limit) => {
+        /** One JQL page, each issue with its summary and raw fields. */
+        const searchIssues = async (
+          jql: string,
+          { cursor, maxResults = input.limit }: { cursor?: string; maxResults?: number } = {}
+        ) => {
           const data = object(
             await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
               body: {
@@ -201,7 +205,7 @@ export async function searchAtlassian(
               return {
                 document: issue(row, cloudId, origin),
                 summary: string(fields.summary),
-                description: textContent(fields.description),
+                fields,
               }
             }),
             next: string(data.nextPageToken) || undefined,
@@ -209,12 +213,13 @@ export async function searchAtlassian(
         }
         const exact = await searchIssues(
           input.native?.query || (text ? jiraTextClause(text, input.textMatch) : ''),
-          input.native?.cursor && single ? input.native.cursor : undefined
+          { cursor: input.native?.cursor && single ? input.native.cursor : undefined }
         )
         const exactPage: SitePage = {
           documents: exact.issues
             .filter(
-              ({ summary, description }) => !relevant || relevant(`${summary}\n${description}`)
+              ({ summary, fields }) =>
+                !relevant || relevant(`${summary}\n${textContent(fields.description)}`)
             )
             .map(({ document }) => document),
           excluded: false,
@@ -229,22 +234,22 @@ export async function searchAtlassian(
         const [every, half] = await Promise.allSettled([
           searchIssues(jiraTextClause(text, 'all', 'summary')),
           terms.count >= 3
-            ? searchIssues(jiraTextClause(text, 'any', 'summary'), undefined, HALF_TERM_CANDIDATES)
+            ? searchIssues(jiraTextClause(text, 'any', 'summary'), {
+                maxResults: HALF_TERM_CANDIDATES,
+              })
             : undefined,
         ])
         // A cancelled search stops here; any other failure keeps the all-terms page.
         input.signal?.throwIfAborted()
-        const required = Math.ceil(terms.count / 2)
-        const titled =
-          every.status === 'fulfilled' && every.value.issues.length
-            ? every.value.issues.map(({ document }) => document)
-            : half.status === 'fulfilled' && half.value
-              ? half.value.issues
-                  .map(({ document, summary }) => ({ document, held: terms.held(summary) }))
-                  .filter(({ held }) => held >= required)
-                  .sort((left, right) => right.held - left.held)
-                  .map(({ document }) => document)
-              : []
+        let titled =
+          every.status === 'fulfilled' ? every.value.issues.map(({ document }) => document) : []
+        if (!titled.length && half.status === 'fulfilled' && half.value) {
+          titled = half.value.issues
+            .map(({ document, summary }) => ({ document, held: terms.held(summary) }))
+            .filter(({ held }) => held >= terms.required)
+            .sort((left, right) => right.held - left.held)
+            .map(({ document }) => document)
+        }
         if (!titled.length) return exactPage
         const leading = new Set(titled.map((document) => document.id))
         return {

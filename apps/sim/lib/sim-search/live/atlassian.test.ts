@@ -344,24 +344,19 @@ describe('Jira plain search ranking', () => {
     titled: Issue[] | (() => never),
     half: Issue[] | (() => never) = []
   ) {
-    const issues = (rows: Issue[] | (() => never)) =>
-      (typeof rows === 'function' ? rows() : rows).map((row) =>
-        typeof row === 'string'
-          ? { key: row, fields: { summary: row } }
-          : { key: row.key, fields: { summary: row.summary } }
-      )
+    const toRow = (row: Issue) => (typeof row === 'string' ? { key: row, summary: row } : row)
+    const issues = (rows: Issue[]) =>
+      rows.map(toRow).map(({ key, summary }) => ({ key, fields: { summary } }))
     const json = vi.fn(
       async (path: string, options?: { body?: { jql?: string; maxResults?: number } }) => {
         if (path === '/oauth/token/accessible-resources') return [SITE]
         if (path !== search) throw new Error(`Unexpected request: ${path}`)
         const jql = options?.body?.jql ?? ''
-        if (jql.includes('summary ~'))
-          return {
-            issues: issues(jql.includes(' OR ') ? half : titled).slice(
-              0,
-              options?.body?.maxResults
-            ),
-          }
+        if (jql.includes('summary ~')) {
+          const rows = jql.includes(' OR ') ? half : titled
+          const picked = typeof rows === 'function' ? rows() : rows
+          return { issues: issues(picked).slice(0, options?.body?.maxResults) }
+        }
         return { issues: issues(exact.ids), ...(exact.more ? { nextPageToken: 'page-2' } : {}) }
       }
     )
