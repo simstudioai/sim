@@ -37,7 +37,11 @@ import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { sniffImageContentType } from '@/lib/uploads/utils/validation'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
-import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import {
+  isSimPageSource,
+  ProjectPageForeignEmbedError,
+  SIM_PAGE_CONTENT_TYPE,
+} from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocument } from '@/lib/workspace-files/page-document'
 import {
   collectSimPageFileReferences,
@@ -68,6 +72,16 @@ function present(snapshot: PublicFileShareSnapshot) {
       uploadedBy: file.userId,
       updatedAt: file.updatedAt,
     },
+  }
+}
+/** A Project page embedding another owner's file reads as a missing input, as for members. */
+function renderSharedPage(source: string, snapshot: PublicFileShareSnapshot) {
+  try {
+    return renderSimPageDocument(source, snapshot.adapter.pageOptions(snapshot.owner.entityId))
+  } catch (error) {
+    if (error instanceof ProjectPageForeignEmbedError)
+      throw new OrchestrationError('not_found', 'Document input not found')
+    throw error
   }
 }
 function requireRevision(current: WorkspaceFileRow, expected: WorkspaceFileRow) {
@@ -287,7 +301,7 @@ export async function readPublicFileShareContent({
           (snapshot.file.contentType === SIM_PAGE_CONTENT_TYPE ||
             snapshot.file.originalName.toLowerCase().endsWith('.html')) &&
           isSimPageSource(source)
-            ? renderSimPageDocument(source, snapshot.adapter.pageOptions(snapshot.owner.entityId))
+            ? renderSharedPage(source, snapshot)
             : undefined
         const references = pageHtml ? collectSimPageFileReferences(pageHtml) : []
         if (
@@ -386,9 +400,7 @@ export async function readPublicFileShareInline({
       operation,
       async (tx, snapshot): Promise<PublicManifest> => {
         requireRevision(snapshot.file, initial.file)
-        const pageHtml = isSimPageSource(source)
-          ? renderSimPageDocument(source, snapshot.adapter.pageOptions(snapshot.owner.entityId))
-          : undefined
+        const pageHtml = isSimPageSource(source) ? renderSharedPage(source, snapshot) : undefined
         const reference = fileId ? { fileId } : key ? { key } : null
         const references = pageHtml ? collectSimPageFileReferences(pageHtml) : []
         const embedded =

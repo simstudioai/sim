@@ -1,3 +1,4 @@
+import type { Logger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import {
   asOrchestrationError,
@@ -37,6 +38,12 @@ function classifyPublicFileError(error: unknown, fallback: string) {
             fallback
           ),
   }
+}
+
+/** A classified client failure, such as a missing share or the wrong auth mode, is only a warning. */
+export function logPublicFileError(logger: Logger, message: string, error: unknown) {
+  if (classifyPublicFileError(error, '').status < 500) logger.warn(message, error)
+  else logger.error(message, error)
 }
 
 /** Conceal unavailable targets and driver failures while preserving classified domain failures. */

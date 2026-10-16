@@ -1,5 +1,6 @@
 export { publicFileShareCredential } from './credentials'
 export {
+  logPublicFileError,
   publicFileAuthDenied,
   publicFileBinaryErrorResponse,
   publicFileErrorResponse,
