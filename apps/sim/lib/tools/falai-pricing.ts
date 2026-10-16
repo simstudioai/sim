@@ -173,10 +173,16 @@ async function estimateFalAICallCost(
     return { error: `Fal.ai pricing estimate failed: ${response.status} ${error}` }
   }
 
-  const data = await readResponseJsonWithLimit(response, {
-    maxBytes: FALAI_PRICING_RESPONSE_MAX_BYTES,
-    label: 'Fal.ai pricing estimate response',
-  })
+  let data: unknown
+  try {
+    data = await readResponseJsonWithLimit(response, {
+      maxBytes: FALAI_PRICING_RESPONSE_MAX_BYTES,
+      label: 'Fal.ai pricing estimate response',
+    })
+  } catch (error) {
+    signal?.throwIfAborted()
+    return { error: getErrorMessage(error, 'Unknown error') }
+  }
   const totalCost = isRecordLike(data) ? getNumber(data.total_cost) : undefined
   if (totalCost === undefined) {
     return { error: 'Fal.ai pricing estimate missing total_cost' }
