@@ -11,6 +11,7 @@ vi.mock('@/lib/core/execution-limits/metrics', () => ({
 }))
 
 import { DatabaseJobQueue } from '@/lib/core/async-jobs/backends/database'
+import { buildRecordedJobFailureResult } from '@/lib/core/async-jobs/recorded-failure'
 import { AsyncJobEnqueueError, MAX_JOB_DURATION_SECONDS } from '@/lib/core/async-jobs/types'
 
 const EXISTING_JOB = {
@@ -447,6 +448,58 @@ describe('DatabaseJobQueue cancellation', () => {
     expect(mockRecordCancellationResult).toHaveBeenCalledWith({
       backend: 'database',
       result: 'cancelled',
+    })
+  })
+})
+
+describe('DatabaseJobQueue a workflow job that completed with a recorded failure', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  const settledJob = {
+    ...EXISTING_JOB,
+    startedAt: new Date('2026-07-10T00:00:01.000Z'),
+    completedAt: new Date('2026-07-10T00:00:04.000Z'),
+    attempts: 1,
+  }
+
+  it('reads exactly as the row markJobFailed wrote before the runner stopped throwing', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { ...settledJob, status: 'failed', error: 'No start block found', output: null },
+    ])
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        ...settledJob,
+        status: 'completed',
+        error: null,
+        output: buildRecordedJobFailureResult({
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          error: 'No start block found',
+        }),
+      },
+    ])
+    const queue = new DatabaseJobQueue()
+
+    const failedJob = await queue.getJob('workflow:1')
+    const recordedFailure = await queue.getJob('workflow:1')
+
+    expect(failedJob).toMatchObject({ status: 'failed', error: 'No start block found' })
+    expect(recordedFailure).toStrictEqual(failedJob)
+  })
+
+  it('leaves a completed webhook job that reported an unsuccessful execution completed', async () => {
+    const output = { success: false, workflowId: 'workflow-1', executionId: 'execution-1' }
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { ...settledJob, type: 'webhook-execution', status: 'completed', output },
+    ])
+    const queue = new DatabaseJobQueue()
+
+    await expect(queue.getJob('workflow:1')).resolves.toMatchObject({
+      status: 'completed',
+      error: undefined,
+      output,
     })
   })
 })

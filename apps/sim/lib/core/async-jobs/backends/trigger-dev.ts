@@ -7,6 +7,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { taskContext } from '@trigger.dev/core/v3'
 import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
+import { getRecordedJobFailureError } from '@/lib/core/async-jobs/recorded-failure'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
 import {
   AsyncJobEnqueueError,
@@ -482,7 +483,12 @@ export class TriggerDevJobQueue implements JobQueueBackend {
             : undefined,
       }
 
-      const status = mapTriggerDevStatus(run.status)
+      const runStatus = mapTriggerDevStatus(run.status)
+      const recordedFailure =
+        runStatus === JOB_STATUS.COMPLETED
+          ? getRecordedJobFailureError(run.taskIdentifier, run.output)
+          : undefined
+      const status = recordedFailure === undefined ? runStatus : JOB_STATUS.FAILED
 
       return {
         id: run.id,
@@ -494,8 +500,8 @@ export class TriggerDevJobQueue implements JobQueueBackend {
         completedAt: resolveRunCompletedAt(run.finishedAt, run.updatedAt, status),
         attempts: run.attemptCount ?? 1,
         maxAttempts: 3,
-        error: run.error?.message,
-        output: run.output as unknown,
+        error: recordedFailure ?? run.error?.message,
+        output: recordedFailure === undefined ? (run.output as unknown) : undefined,
         metadata,
       }
     } catch (error) {

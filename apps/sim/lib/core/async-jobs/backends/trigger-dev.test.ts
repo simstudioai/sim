@@ -22,6 +22,7 @@ vi.mock('@/lib/core/execution-limits/metrics', () => ({
 vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
 import { TriggerDevJobQueue } from '@/lib/core/async-jobs/backends/trigger-dev'
+import { buildRecordedJobFailureResult } from '@/lib/core/async-jobs/recorded-failure'
 import { AsyncJobEnqueueError, JOB_PENDING_RETENTION_HOURS } from '@/lib/core/async-jobs/types'
 
 const {
@@ -279,6 +280,80 @@ describe('TriggerDevJobQueue status mapping', () => {
     await expect(queue.getJob('run_1')).resolves.toMatchObject({
       status: 'completed',
       completedAt: new Date('2026-08-05T12:00:04.000Z'),
+    })
+  })
+
+  describe('a workflow run that completed with a recorded failure', () => {
+    const runTimes = {
+      createdAt: new Date('2026-08-05T12:00:00.000Z'),
+      startedAt: new Date('2026-08-05T12:00:01.000Z'),
+      finishedAt: new Date('2026-08-05T12:00:04.000Z'),
+      updatedAt: new Date('2026-08-05T12:00:05.000Z'),
+    }
+    const payload = { workflowId: 'workflow-1', userId: 'user-1' }
+
+    it('reads exactly as the failed run it was before the runner stopped throwing', async () => {
+      mockRetrieve.mockResolvedValueOnce({
+        id: 'run_1',
+        payload,
+        status: 'FAILED',
+        taskIdentifier: 'workflow-execution',
+        error: { message: 'No start block found' },
+        ...runTimes,
+      })
+      mockRetrieve.mockResolvedValueOnce({
+        id: 'run_1',
+        payload,
+        status: 'COMPLETED',
+        taskIdentifier: 'workflow-execution',
+        output: buildRecordedJobFailureResult({
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+          error: 'No start block found',
+        }),
+        ...runTimes,
+      })
+      const queue = new TriggerDevJobQueue()
+
+      const failedRun = await queue.getJob('run_1')
+      const recordedFailure = await queue.getJob('run_1')
+
+      expect(failedRun).toMatchObject({ status: 'failed', error: 'No start block found' })
+      expect(recordedFailure).toStrictEqual(failedRun)
+    })
+
+    it.each([
+      {
+        name: 'a webhook run that reported an unsuccessful execution',
+        taskIdentifier: 'webhook-execution',
+        output: { success: false, workflowId: 'workflow-1', executionId: 'execution-1' },
+      },
+      {
+        name: 'a workflow run whose execution was cancelled',
+        taskIdentifier: 'workflow-execution',
+        output: { success: false, workflowId: 'workflow-1', executionId: 'execution-1' },
+      },
+      {
+        name: 'a run of another task whose output carries an error',
+        taskIdentifier: 'schedule-execution',
+        output: { success: false, error: 'boom' },
+      },
+    ])('leaves $name completed', async ({ taskIdentifier, output }) => {
+      mockRetrieve.mockResolvedValueOnce({
+        id: 'run_1',
+        payload,
+        status: 'COMPLETED',
+        taskIdentifier,
+        output,
+        ...runTimes,
+      })
+      const queue = new TriggerDevJobQueue()
+
+      await expect(queue.getJob('run_1')).resolves.toMatchObject({
+        status: 'completed',
+        error: undefined,
+        output,
+      })
     })
   })
 

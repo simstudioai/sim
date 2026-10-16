@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import {
   parsePrincipal,
   type SerializedPrincipalV1,
@@ -15,6 +16,7 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
+import { buildRecordedJobFailureResult } from '@/lib/core/async-jobs/recorded-failure'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
@@ -27,15 +29,13 @@ import {
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
 import type { RequestAttribution } from '@/lib/core/utils/request-attribution'
-import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { type PreprocessExecutionError, preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
-import {
-  executeWorkflowCore,
-  wasExecutionFinalizedByCore,
-} from '@/lib/workflows/executor/execution-core'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import { isRecordedWorkflowFailure } from '@/lib/workflows/executor/recorded-failure'
 import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -103,6 +103,28 @@ type LegacyWorkflowExecutionPayload = Omit<WorkflowExecutionPayload, 'principal'
 }
 
 type WorkflowExecutionJobPayload = WorkflowExecutionPayload | LegacyWorkflowExecutionPayload
+
+/**
+ * Preprocessing rejections that are an outcome of the workflow's or account's
+ * state — deleted or undeployed workflow, suspended account, exhausted usage
+ * or rate quota — rather than a fault. A retryable rejection (concurrency
+ * capacity, an unreadable usage ledger, reservation infrastructure) and every
+ * 5xx still fail the job.
+ */
+const NON_FAULT_PREPROCESSING_STATUS_CODES: ReadonlySet<number> = new Set([402, 403, 404, 429])
+
+function isNonFaultPreprocessingRejection(rejection: PreprocessExecutionError): boolean {
+  return (
+    NON_FAULT_PREPROCESSING_STATUS_CODES.has(rejection.statusCode) && rejection.retryable !== true
+  )
+}
+
+/** Completes the job with a failure already in the execution log, keeping it on the run's span. */
+function completeWithRecordedFailure(workflowId: string, executionId: string, error: unknown) {
+  const failure = toError(error)
+  trace.getActiveSpan()?.recordException(failure)
+  return buildRecordedJobFailureResult({ workflowId, executionId, error: failure.message })
+}
 
 function requireLegacyWorkflowJobString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) {
@@ -194,6 +216,7 @@ export async function executeWorkflowJob(
         loggingSession.setTrustedExecutionCorrelation(correlation)
       }
       loggingSession.setExecutionDeadlineAt(getExecutionDeadlineAt(timeoutController.signal))
+      let preprocessingRejection: PreprocessExecutionError | undefined
 
       try {
         const preprocessResult = await preprocessExecution({
@@ -217,6 +240,7 @@ export async function executeWorkflowJob(
             workflowId,
             statusCode: preprocessResult.error?.statusCode,
           })
+          preprocessingRejection = preprocessResult.error
 
           throw new Error(preprocessResult.error?.message || 'Preprocessing failed')
         }
@@ -314,8 +338,11 @@ export async function executeWorkflowJob(
 
         if (error instanceof ExecutionTimeoutError) throw error
 
-        if (wasExecutionFinalizedByCore(error, executionId)) {
-          throw error
+        // A failure core already recorded is the workflow's outcome, not a job fault; a run past
+        // its deadline (checked after the await, which can outlast it) still fails the job.
+        if (await isRecordedWorkflowFailure(error, executionId, loggingSession)) {
+          if (timeoutController.isTimedOut()) throw error
+          return completeWithRecordedFailure(workflowId, executionId, error)
         }
 
         const executionResult = hasExecutionResult(error) ? error.executionResult : undefined
@@ -331,6 +358,15 @@ export async function executeWorkflowJob(
           traceSpans,
           executionState: executionResult?.executionState,
         })
+
+        // Complete only when the rejection is durably logged; an unsaved one must still alert.
+        if (
+          preprocessingRejection &&
+          isNonFaultPreprocessingRejection(preprocessingRejection) &&
+          loggingSession.hasCompleted()
+        ) {
+          return completeWithRecordedFailure(workflowId, executionId, error)
+        }
 
         throw error
       } finally {
