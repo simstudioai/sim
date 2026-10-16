@@ -19,6 +19,7 @@ vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
+import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
 import {
   accountStorageSweepOutboxHandlers,
   collectAccountStorageObjects,
@@ -133,6 +134,23 @@ describe('deleted workspace storage sweep', () => {
     const remaining = await Promise.all(keys.map(exists))
     expect(remaining.filter(Boolean).length).toBeGreaterThan(0)
     expect(await exists('workspace-logos/wsdoomed1/logo.png')).toBe(true)
+  })
+
+  it('keeps a public object a URL written mid-sweep names', async () => {
+    const logos = Array.from(
+      { length: 510 },
+      (_, index) => `workspace-logos/wsdoomed1/l/${String(index).padStart(3, '0')}.png`
+    )
+    for (const key of logos) await put(key)
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.user, [
+      { id: 'user-9', value: '/api/files/serve/workspace-logos%2Fwsdoomed1%2Fl%2F505.png' },
+    ])
+
+    await sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())
+
+    expect(await exists('workspace-logos/wsdoomed1/l/505.png')).toBe(true)
+    expect(await exists('workspace-logos/wsdoomed1/l/504.png')).toBe(false)
   })
 
   it('walks past a full listing page within one run', async () => {
@@ -406,6 +424,23 @@ describe('account storage object cleanup', () => {
   })
 })
 
+describe('storage reference guard', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('keeps a key under a workspace that still exists for every caller', async () => {
+    queueTableRows(schemaMock.workspace, [{ id: 'wsliving2' }])
+
+    const kept = await createStorageReferenceGuard()([
+      'execution/wsliving2/wf/ex/file.json',
+      'execution/wsdoomed1/wf/ex/file.json',
+    ])
+
+    expect([...kept]).toEqual(['execution/wsliving2/wf/ex/file.json'])
+  })
+})
+
 describe('queueing account storage cleanup', () => {
   beforeEach(() => {
     resetDbChainMock()
@@ -481,6 +516,17 @@ describe('queueing account storage cleanup', () => {
     queueTableRows(schemaMock.user, [
       { image: '/api/files/serve/s3/profile-pictures%2Fupload-0002-someone-else.png' },
     ])
+
+    await queueCleanup()
+
+    expect(queuedObjectKeys()).toEqual([])
+  })
+
+  it('never queues an avatar key that could escape its root', async () => {
+    queueTableRows(schemaMock.user, [
+      { image: '/api/files/serve/profile-pictures%2Fx%2F..%2F..%2Fworkspace%2Fother.png' },
+    ])
+    queueTableRows(schemaMock.uploadSession, [{ id: 'upload-0003' }])
 
     await queueCleanup()
 

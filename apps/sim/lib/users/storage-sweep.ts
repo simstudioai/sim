@@ -53,6 +53,7 @@ import {
   ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT,
   ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT,
 } from '@/lib/users/storage-sweep-events'
+import { STORAGE_ID_PATTERN, WORKSPACE_STORAGE_FAMILIES } from '@/lib/users/workspace-storage'
 
 const logger = createLogger('AccountStorageSweep')
 
@@ -64,22 +65,6 @@ const OBJECTS_PER_EVENT = 100
  * and left; the workspace prefix sweeps are unaffected, since they list storage instead.
  */
 const MAX_DURABLE_OBJECTS = 100_000
-
-const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/
-
-/**
- * Every storage family whose keys embed their workspace as the second path segment, in the
- * bucket that serves it. A deleted workspace's objects in these families are found by listing,
- * so neither a missing row nor a row written after the deletion read its keys can strand one.
- */
-const WORKSPACE_STORAGE_FAMILIES = [
-  { root: 'workspace', context: 'workspace' },
-  { root: 'table-import', context: 'table-import' },
-  { root: 'execution', context: 'execution' },
-  { root: 'table-snapshots', context: 'execution' },
-  { root: 'copilot-doc-compiled', context: 'copilot' },
-  { root: 'workspace-logos', context: 'workspace-logos' },
-] as const satisfies readonly { root: string; context: StorageContext }[]
 
 const OBJECT_CONTEXTS: ReadonlySet<string> = new Set<StorageContext>([
   'workspace',
@@ -106,10 +91,6 @@ const FOREIGN_LIFECYCLE_ROOTS = [
   'organization-logos/',
 ] as const
 
-const WORKSPACE_KEYED_ROOTS: ReadonlySet<string> = new Set(
-  WORKSPACE_STORAGE_FAMILIES.map(({ root }) => root)
-)
-
 interface StorageObject {
   key: string
   context: StorageContext
@@ -128,7 +109,7 @@ interface ObjectCleanupPayload {
 
 /** The trailing slash keeps `workspace/ws1/` from matching `workspace/ws10/...`. */
 function workspaceStoragePrefix(root: string, workspaceId: string): string {
-  if (!SAFE_ID.test(workspaceId)) throw new Error('Invalid workspace storage identity')
+  if (!STORAGE_ID_PATTERN.test(workspaceId)) throw new Error('Invalid workspace storage identity')
   return `${root}/${workspaceId}/`
 }
 
@@ -188,7 +169,7 @@ function parseObjectCleanup(value: unknown): ObjectCleanupPayload {
     !isRecordLike(value) ||
     value.version !== 1 ||
     typeof value.userId !== 'string' ||
-    !SAFE_ID.test(value.userId) ||
+    !STORAGE_ID_PATTERN.test(value.userId) ||
     !Array.isArray(value.objects) ||
     value.objects.length > OBJECTS_PER_EVENT
   )
@@ -215,35 +196,6 @@ function parseObjectCleanup(value: unknown): ObjectCleanupPayload {
   )
     throw new Error('Invalid account storage cleanup cursor')
   return { userId: value.userId, objects, cursor }
-}
-
-/**
- * Exact keys under a workspace-keyed root whose workspace still exists. Such an object stays
- * readable to that workspace's members by key, so an exact-key cleanup never deletes it, even when
- * the row that named it cascaded away with the account. A workspace segment that is not a valid id
- * is kept too.
- */
-async function keysUnderLiveWorkspaces(keys: readonly string[]): Promise<Set<string>> {
-  const kept = new Set<string>()
-  const keysByWorkspace = new Map<string, string[]>()
-  for (const key of keys) {
-    const [root, workspaceId] = key.split('/')
-    if (!WORKSPACE_KEYED_ROOTS.has(root)) continue
-    if (!workspaceId || !SAFE_ID.test(workspaceId)) {
-      kept.add(key)
-      continue
-    }
-    const workspaceKeys = keysByWorkspace.get(workspaceId)
-    if (workspaceKeys) workspaceKeys.push(key)
-    else keysByWorkspace.set(workspaceId, [key])
-  }
-  if (keysByWorkspace.size === 0) return kept
-  const live = await db
-    .select({ id: workspaceTable.id })
-    .from(workspaceTable)
-    .where(inArray(workspaceTable.id, [...keysByWorkspace.keys()]))
-  for (const { id } of live) for (const key of keysByWorkspace.get(id) ?? []) kept.add(key)
-  return kept
 }
 
 /** A local sidecar belongs to its object: it is kept exactly when the object is. */
@@ -363,8 +315,7 @@ const cleanupAccountObjects: OutboxHandler<unknown> = async (raw, context) => {
     return
   }
   const pending = payload.objects.slice(payload.cursor).map((object) => object.key)
-  const referenced = await keysUnderLiveWorkspaces(pending)
-  for (const key of await createStorageReferenceGuard()(pending)) referenced.add(key)
+  const referenced = await createStorageReferenceGuard()(pending)
   if (referenced.size > 0)
     logger.warn('Keeping objects a surviving reference still names', {
       userId: payload.userId,
@@ -442,7 +393,8 @@ class ObjectCollector implements AccountStorageObjects {
   }
 
   addProfilePicture(key: string): void {
-    if (this.seen.has(key)) return
+    if (!isSafeKey(key) || !isAccountProfilePicture(key, 'profile-pictures') || this.seen.has(key))
+      return
     if (this.objects.length >= MAX_DURABLE_OBJECTS) {
       this.capped = true
       return
@@ -719,7 +671,7 @@ async function collectInto(
 }
 
 function sweepableWorkspaceIds(workspaceIds: readonly string[]): string[] {
-  return workspaceIds.filter((id) => SAFE_ID.test(id))
+  return workspaceIds.filter((id) => STORAGE_ID_PATTERN.test(id))
 }
 
 /**

@@ -16,6 +16,7 @@ import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { and, gt, inArray, or, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
 import { extractStorageKey, isPublicStorageKey } from '@/lib/uploads/utils/file'
+import { keysUnderLiveWorkspaces } from '@/lib/users/workspace-storage'
 
 /** Every string inside a URL column or a JSON settings blob, including JSON held as a string. */
 function collectStrings(value: unknown, into: string[]): void {
@@ -200,19 +201,20 @@ async function loadKeysNamedByUrls(runs: readonly string[], named: Set<string>):
  * Builds the check every account-deletion purge runs before deleting a key. A key is kept when:
  *
  * - a row still names it: `workspace_files.key`, `workspace_file.key`,
- *   `workspace_file_version.key`, `document.storage_key`, `execution_large_values.key`; or
+ *   `workspace_file_version.key`, `document.storage_key`, `execution_large_values.key`;
+ * - it sits under a workspace-keyed root of a workspace that still exists
+ *   ({@link keysUnderLiveWorkspaces}); or
  * - it sits under a world-readable root (`isPublicStorageKey`, the same prefixes the file-serve
  *   route's `isPublicByKeyPrefix` answers without a session) and a stored asset URL names it.
- *   Only URL rows that mention the key's {@link ownerRun} are read, each run at most once per
- *   guard; a public key without one is kept unread. A URL that hand-encodes characters of that
+ *   Only URL rows that mention the key's {@link ownerRun} are read, on every call so a reference
+ *   written mid-sweep still counts; a public key without one is kept unread. A URL that hand-encodes characters of that
  *   run is missed. Account deletion asks about public keys only under a deleted workspace's
  *   prefix (its logos) and for an avatar the account is proven to have uploaded, so such a URL can
  *   cost an object of a deleted workspace or of the erased account's own uploads, never one a
  *   surviving workspace, organization, or user uploaded.
  *
  * No URL column is read for any other key: `verifyFileAccess` serves it only through a row, by its
- * key path under a workspace that still exists (which exact-key cleanup keeps; see
- * `keysUnderLiveWorkspaces`), or by object metadata to a signed-in holder of a hand-pasted URL to
+ * key path under a workspace that still exists (kept above), or by object metadata to a signed-in holder of a hand-pasted URL to
  * a private file this deletion means to erase.
  *
  * Every row of a deleted workspace or account is gone when this runs, so a remaining reference
@@ -222,8 +224,6 @@ async function loadKeysNamedByUrls(runs: readonly string[], named: Set<string>):
  * attachments that is the intended erasure. A failed lookup throws, so nothing is deleted.
  */
 export function createStorageReferenceGuard(): (keys: readonly string[]) => Promise<Set<string>> {
-  const loadedRuns = new Set<string>()
-  const named = new Set<string>()
   return async (keys) => {
     const referenced = new Set<string>()
     if (keys.length === 0) return referenced
@@ -252,17 +252,17 @@ export function createStorageReferenceGuard(): (keys: readonly string[]) => Prom
     ]
     for (const row of rows) if (row.key) referenced.add(row.key)
     const publicKeys = list.filter(isPublicStorageKey)
-    const pendingRuns = new Set<string>()
+    const runs = new Set<string>()
     for (const key of publicKeys) {
       const run = ownerRun(key)
-      if (!run) referenced.add(key)
-      else if (!loadedRuns.has(run)) pendingRuns.add(run)
+      if (run) runs.add(run)
+      else referenced.add(key)
     }
-    for (const runs of chunkArray([...pendingRuns], OWNER_RUNS_PER_QUERY)) {
-      await loadKeysNamedByUrls(runs, named)
-      for (const run of runs) loadedRuns.add(run)
-    }
+    const named = new Set<string>()
+    for (const batch of chunkArray([...runs], OWNER_RUNS_PER_QUERY))
+      await loadKeysNamedByUrls(batch, named)
     for (const key of publicKeys) if (named.has(key)) referenced.add(key)
+    for (const key of await keysUnderLiveWorkspaces(list)) referenced.add(key)
     return referenced
   }
 }
