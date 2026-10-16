@@ -334,7 +334,8 @@ describe('Confluence plain search ranking', () => {
 
 describe('Jira plain search ranking', () => {
   const search = '/ex/jira/cloud/rest/api/3/search/jql'
-  type Issue = string | { key: string; summary: string }
+  /** `outsideMatch`: the issue lacks a query term, so a `text ~` all-terms clause drops it. */
+  type Issue = string | { key: string; summary: string; outsideMatch?: boolean }
   /**
    * Answers the all-terms query with `exact`, the all-terms summary query with `titled`, and the
    * half-the-terms summary query with `half`, or their failures.
@@ -344,7 +345,8 @@ describe('Jira plain search ranking', () => {
     titled: Issue[] | (() => never),
     half: Issue[] | (() => never) = []
   ) {
-    const toRow = (row: Issue) => (typeof row === 'string' ? { key: row, summary: row } : row)
+    const toRow = (row: Issue): Exclude<Issue, string> =>
+      typeof row === 'string' ? { key: row, summary: row } : row
     const issues = (rows: Issue[]) =>
       rows.map(toRow).map(({ key, summary }) => ({ key, fields: { summary } }))
     const json = vi.fn(
@@ -354,7 +356,9 @@ describe('Jira plain search ranking', () => {
         const jql = options?.body?.jql ?? ''
         if (jql.includes('summary ~')) {
           const rows = jql.includes(' OR ') ? half : titled
-          const picked = typeof rows === 'function' ? rows() : rows
+          const picked = (typeof rows === 'function' ? rows() : rows)
+            .map(toRow)
+            .filter((row) => !(row.outsideMatch && jql.includes('text ~')))
           return { issues: issues(picked).slice(0, options?.body?.maxResults) }
         }
         return { issues: issues(exact.ids), ...(exact.more ? { nextPageToken: 'page-2' } : {}) }
@@ -501,5 +505,18 @@ describe('Jira plain search ranking', () => {
     )
     const page = await searchAtlassian(api, 'jira', query)
     expect(page.documents.map((document) => document.id)).toEqual(['ALL-1', 'HALF-1', 'NEW-3'])
+  })
+
+  it('keeps half-the-terms summaries to issues that match every term somewhere', async () => {
+    const api = jira(
+      overflowing,
+      [],
+      [
+        { key: 'OUTSIDE-1', summary: 'Merged results dashboard', outsideMatch: true },
+        { key: 'INSIDE-1', summary: 'Merged results broke the dashboard' },
+      ]
+    )
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['INSIDE-1', 'NEW-3', 'NEW-2'])
   })
 })

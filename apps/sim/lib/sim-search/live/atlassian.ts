@@ -118,9 +118,10 @@ async function sites(client: NativeClient) {
 }
 
 /**
- * Pair matches fetched for the half-the-terms summary fallback. Jira returns them newest first,
- * not by relevance, and the page is then filtered to summaries holding enough terms, so it starts
- * from a wider pool than the caller's limit or the any-term fallback's.
+ * Issues fetched for the half-the-terms summary tier: summary pair matches within the all-terms
+ * match. Jira returns them newest first, not by relevance, and the page is then filtered to
+ * summaries holding enough terms, so it starts from a wider pool than the caller's limit or the
+ * any-term fallback's.
  */
 const HALF_TERM_CANDIDATES = 50
 
@@ -226,17 +227,19 @@ export async function searchAtlassian(
           next: exact.next,
         }
         // JQL has no relevance order, so an all-terms match larger than a page comes back newest
-        // first; issues whose summary holds every term lead it instead, then those holding at
-        // least half of three or more terms (most terms first).
+        // first. Within that match, issues whose summary holds every term lead it instead, then
+        // those whose summary holds at least half of three or more terms (most terms first); a
+        // summary match never brings in an issue lacking one of the terms.
         if (!text || input.native || order || input.textMatch === 'any' || !exact.next)
           return exactPage
         const terms = stemmedTerms(text)
         const [every, half] = await Promise.allSettled([
           searchIssues(jiraTextClause(text, 'all', 'summary')),
           terms.count >= 3
-            ? searchIssues(jiraTextClause(text, 'any', 'summary'), {
-                maxResults: HALF_TERM_CANDIDATES,
-              })
+            ? searchIssues(
+                `${jiraTextClause(text, 'any', 'summary')} AND ${jiraTextClause(text)}`,
+                { maxResults: HALF_TERM_CANDIDATES }
+              )
             : undefined,
         ])
         // A cancelled search stops here; any other failure keeps the all-terms page.
