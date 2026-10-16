@@ -350,13 +350,21 @@ describe('Jira plain search ranking', () => {
           ? { key: row, fields: { summary: row } }
           : { key: row.key, fields: { summary: row.summary } }
       )
-    const json = vi.fn(async (path: string, options?: { body?: { jql?: string } }) => {
-      if (path === '/oauth/token/accessible-resources') return [SITE]
-      if (path !== search) throw new Error(`Unexpected request: ${path}`)
-      const jql = options?.body?.jql ?? ''
-      if (jql.includes('summary ~')) return { issues: issues(jql.includes(' OR ') ? half : titled) }
-      return { issues: issues(exact.ids), ...(exact.more ? { nextPageToken: 'page-2' } : {}) }
-    })
+    const json = vi.fn(
+      async (path: string, options?: { body?: { jql?: string; maxResults?: number } }) => {
+        if (path === '/oauth/token/accessible-resources') return [SITE]
+        if (path !== search) throw new Error(`Unexpected request: ${path}`)
+        const jql = options?.body?.jql ?? ''
+        if (jql.includes('summary ~'))
+          return {
+            issues: issues(jql.includes(' OR ') ? half : titled).slice(
+              0,
+              options?.body?.maxResults
+            ),
+          }
+        return { issues: issues(exact.ids), ...(exact.more ? { nextPageToken: 'page-2' } : {}) }
+      }
+    )
     return { json, text: vi.fn(), bytes: vi.fn() } satisfies NativeClient
   }
   const query = { query: 'merged results pipelines', limit: 3, scopes: [] }
@@ -430,8 +438,8 @@ describe('Jira plain search ranking', () => {
       overflowing,
       [],
       [
-        { key: 'HALF-1', summary: 'Merged results broke the pipelines' },
         { key: 'LOOSE-1', summary: 'Pipelines dashboard' },
+        { key: 'HALF-1', summary: 'Merged results broke the dashboard' },
       ]
     )
     const page = await searchAtlassian(api, 'jira', query)
@@ -453,5 +461,37 @@ describe('Jira plain search ranking', () => {
     const page = await searchAtlassian(api, 'jira', query)
     expect(page.documents.map((document) => document.id)).toEqual(['NEW-3', 'NEW-2', 'NEW-1'])
     expect(page.nextCursor).toBe('page-2')
+  })
+
+  it('counts a word and its plural as one term before allowing the half-the-terms fallback', async () => {
+    const api = jira(overflowing, [], [{ key: 'ONE-1', summary: 'Rotation schedule' }])
+    const page = await searchAtlassian(api, 'jira', { ...query, query: 'token tokens rotation' })
+    expect(page.documents.map((document) => document.id)).toEqual(['NEW-3', 'NEW-2', 'NEW-1'])
+  })
+
+  it('orders half-the-terms summaries by how many terms they hold', async () => {
+    const api = jira(
+      overflowing,
+      [],
+      [
+        { key: 'TWO-1', summary: 'Merged results dashboard' },
+        { key: 'THREE-1', summary: 'Merged results in release pipelines' },
+      ]
+    )
+    const page = await searchAtlassian(api, 'jira', {
+      ...query,
+      query: 'merged results release pipelines',
+    })
+    expect(page.documents.map((document) => document.id)).toEqual(['THREE-1', 'TWO-1', 'NEW-3'])
+  })
+
+  it('finds half-the-terms summaries beyond the first page of pair matches', async () => {
+    const pairs = Array.from({ length: 10 }, (_, index) => ({
+      key: `PAIR-${index}`,
+      summary: 'Pipelines dashboard',
+    }))
+    const api = jira(overflowing, [], [...pairs, { key: 'HALF-9', summary: 'Merged pipelines' }])
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)[0]).toBe('HALF-9')
   })
 })

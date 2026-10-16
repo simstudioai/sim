@@ -13,7 +13,7 @@ import {
   confluenceTextClause,
   holdsHalfTheTerms,
   jiraTextClause,
-  significantTerms,
+  stemmedTerms,
 } from '@/lib/sim-search/live/text-match'
 import type {
   NativeClient,
@@ -118,6 +118,12 @@ async function sites(client: NativeClient) {
 }
 
 /**
+ * Pair matches fetched for the half-the-terms summary fallback; the page is filtered to summaries
+ * holding enough terms, so it starts from a wider pool than the caller's limit.
+ */
+const HALF_TERM_CANDIDATES = 50
+
+/**
  * One Atlassian site's page; `ranking` marks a page whose order or completeness differs from the
  * all-terms search.
  */
@@ -176,17 +182,13 @@ export async function searchAtlassian(
       const cloudId = string(site.id)
       const origin = string(site.url).replace(/\/$/, '')
       if (provider === 'jira') {
-        /** One JQL page, keeping only issues whose summary and description pass `keep`. */
-        const searchIssues = async (
-          jql: string,
-          cursor?: string,
-          keep?: (summary: string, description: string) => boolean
-        ): Promise<SitePage> => {
+        /** One JQL page, each issue with its summary and description. */
+        const searchIssues = async (jql: string, cursor?: string, maxResults = input.limit) => {
           const data = object(
             await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
               body: {
                 jql: scopeAtlassianQuery(jql, scope, order),
-                maxResults: input.limit,
+                maxResults,
                 fields: ['summary', 'description', 'updated', 'creator', 'status'],
                 ...(cursor ? { nextPageToken: cursor } : {}),
               },
@@ -194,49 +196,61 @@ export async function searchAtlassian(
             })
           )
           return {
-            documents: array(data.issues)
-              .filter((row) => {
-                const fields = object(row.fields)
-                return !keep || keep(string(fields.summary), textContent(fields.description))
-              })
-              .map((row) => issue(row, cloudId, origin)),
-            excluded: false,
+            issues: array(data.issues).map((row) => {
+              const fields = object(row.fields)
+              return {
+                document: issue(row, cloudId, origin),
+                summary: string(fields.summary),
+                description: textContent(fields.description),
+              }
+            }),
             next: string(data.nextPageToken) || undefined,
           }
         }
         const exact = await searchIssues(
           input.native?.query || (text ? jiraTextClause(text, input.textMatch) : ''),
-          input.native?.cursor && single ? input.native.cursor : undefined,
-          relevant && ((summary, description) => relevant(`${summary}\n${description}`))
+          input.native?.cursor && single ? input.native.cursor : undefined
         )
+        const exactPage: SitePage = {
+          documents: exact.issues
+            .filter(
+              ({ summary, description }) => !relevant || relevant(`${summary}\n${description}`)
+            )
+            .map(({ document }) => document),
+          excluded: false,
+          next: exact.next,
+        }
         // JQL has no relevance order, so an all-terms match larger than a page comes back newest
         // first; issues whose summary holds every term, or else at least half of three or more
-        // terms, lead it instead.
-        if (!text || input.native || order || input.textMatch === 'any' || !exact.next) return exact
+        // terms (most terms first), lead it instead.
+        if (!text || input.native || order || input.textMatch === 'any' || !exact.next)
+          return exactPage
+        const terms = stemmedTerms(text)
         const [every, half] = await Promise.allSettled([
           searchIssues(jiraTextClause(text, 'all', 'summary')),
-          significantTerms(text).length >= 3
-            ? searchIssues(
-                jiraTextClause(text, 'any', 'summary'),
-                undefined,
-                holdsHalfTheTerms(text)
-              )
+          terms.count >= 3
+            ? searchIssues(jiraTextClause(text, 'any', 'summary'), undefined, HALF_TERM_CANDIDATES)
             : undefined,
         ])
         // A cancelled search stops here; any other failure keeps the all-terms page.
         input.signal?.throwIfAborted()
+        const required = Math.ceil(terms.count / 2)
         const titled =
-          every.status === 'fulfilled' && every.value.documents.length
-            ? every.value.documents
-            : half.status === 'fulfilled'
-              ? (half.value?.documents ?? [])
+          every.status === 'fulfilled' && every.value.issues.length
+            ? every.value.issues.map(({ document }) => document)
+            : half.status === 'fulfilled' && half.value
+              ? half.value.issues
+                  .map(({ document, summary }) => ({ document, held: terms.held(summary) }))
+                  .filter(({ held }) => held >= required)
+                  .sort((left, right) => right.held - left.held)
+                  .map(({ document }) => document)
               : []
-        if (!titled.length) return exact
+        if (!titled.length) return exactPage
         const leading = new Set(titled.map((document) => document.id))
         return {
           documents: [
             ...titled,
-            ...exact.documents.filter((document) => !leading.has(document.id)),
+            ...exactPage.documents.filter((document) => !leading.has(document.id)),
           ].slice(0, input.limit),
           excluded: false,
           ranking: 'relevance',
@@ -304,7 +318,7 @@ export async function searchAtlassian(
         : '') +
       (pages.some((result) => result.ranking === 'relevance')
         ? provider === 'jira'
-          ? ' More issues contained every word than fit on one page, so issues whose summary holds the most query words come first; refine the query, or page with a native JQL query.'
+          ? ' More issues contained every word than fit on one page, so issues whose summary holds every word, or else most of them, come first; refine the query, or page with a native JQL query.'
           : ' More pages contained every word than fit on one page, so this page is ordered by Confluence relevance search; refine the query, or page with a native CQL query.'
         : '') +
       (pages.some((result) => result.ranking === 'unavailable')

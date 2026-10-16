@@ -126,19 +126,27 @@ export function termCoverage(text: string, terms: readonly string[]): number {
 }
 
 /**
- * A test for whether a text holds at least half the query's distinct terms. Query and text words
- * are compared by their singular key, so a word and its regular plural count as one term as a
- * stemmed search matches them; a term with punctuation inside it is matched as written.
+ * The query's distinct terms as a stemmed search counts them, and how many of them a text holds.
+ * Query and text words are compared by their singular key, so a word and its regular plural count
+ * as one term; a term with punctuation inside it is matched as written.
  */
-export function holdsHalfTheTerms(query: string): (text: string) => boolean {
+export function stemmedTerms(query: string): { count: number; held: (text: string) => number } {
   const terms = distinctTerms(query, singularKey)
   const keys = terms.map(singularKey)
-  const required = Math.ceil(terms.length / 2)
-  return (text) => {
-    const words = new Set(textWords(text).map(singularKey))
-    const present = terms.filter(
-      (term, index) => words.has(keys[index]) || findTermMatches(text, [term]).length > 0
-    )
-    return present.length >= required
+  return {
+    count: terms.length,
+    held: (text) => {
+      const words = new Set(textWords(text).map(singularKey))
+      return terms.filter(
+        (term, index) => words.has(keys[index]) || findTermMatches(text, [term]).length > 0
+      ).length
+    },
   }
+}
+
+/** A test for whether a text holds at least half the query's distinct terms, as `stemmedTerms` counts them. */
+export function holdsHalfTheTerms(query: string): (text: string) => boolean {
+  const { count, held } = stemmedTerms(query)
+  const required = Math.ceil(count / 2)
+  return (text) => held(text) >= required
 }
