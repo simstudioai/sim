@@ -7,6 +7,7 @@ import {
   copilotChats,
   outboxEvent,
   permissions,
+  uploadSession,
   user,
   workspace,
   workspaceFiles,
@@ -103,6 +104,30 @@ async function insertAdminWorkspace(id: string, ownerId: string) {
   })
 }
 
+/** The ownership record a finished profile-picture upload leaves behind. */
+function completedAvatarUpload(userId: string, key: string) {
+  return {
+    id: generateId(),
+    tokenHash: generateId(),
+    userId,
+    purpose: 'profile_picture' as const,
+    method: 'put' as const,
+    storageContext: 'profile-pictures',
+    finalKey: key,
+    storageProvider: 'local' as const,
+    fileName: 'avatar.png',
+    contentType: 'image/png',
+    fileSize: 1,
+    status: 'completed' as const,
+    expiresAt: new Date(),
+    completedAt: new Date(),
+  }
+}
+
+function avatarUrl(key: string): string {
+  return `/api/files/serve/${encodeURIComponent(key)}?context=profile-pictures`
+}
+
 function fileRow(values: {
   key: string
   userId: string
@@ -155,6 +180,8 @@ async function seed() {
     profilePictureRowLogo: `profile-pictures/${generateId()}/org-logo.png`,
     logoNamedByUrl: `workspace-logos/${doomedId}/${generateId()}-org-logo.png`,
     logoNamedByEncodedUrl: `workspace-logos/${doomedId}/${generateId()}-workspace-logo.png`,
+    ownAvatar: `profile-pictures/${generateId()}-departing-avatar.png`,
+    othersAvatar: `profile-pictures/${generateId()}-owner-avatar.png`,
   }
   await db.insert(workspaceFiles).values([
     fileRow({
@@ -224,6 +251,16 @@ async function seed() {
       logoUrl: `/api/files/serve/s3/${encodeURIComponent(keys.logoNamedByEncodedUrl)}`,
     })
     .where(eq(workspace.id, survivingId))
+  await db
+    .insert(uploadSession)
+    .values([
+      completedAvatarUpload(departingId, keys.ownAvatar),
+      completedAvatarUpload(ownerId, keys.othersAvatar),
+    ])
+  await db
+    .update(user)
+    .set({ image: avatarUrl(keys.ownAvatar) })
+    .where(eq(user.id, departingId))
   for (const key of Object.values(keys)) await put(key)
   return { ownerId, departingId, doomedId, survivingId, keys }
 }
@@ -299,6 +336,7 @@ describe('account deletion storage sweep', () => {
         f.keys.rowlessSnapshot,
         f.keys.rowlessCompiled,
         f.keys.personalCopilot,
+        f.keys.ownAvatar,
         lateUpload,
       ])
         expect({ key, exists: await exists(key) }).toEqual({ key, exists: false })
@@ -312,6 +350,7 @@ describe('account deletion storage sweep', () => {
         f.keys.profilePictureRowLogo,
         f.keys.logoNamedByUrl,
         f.keys.logoNamedByEncodedUrl,
+        f.keys.othersAvatar,
       ])
         expect(await readFile(join(storageRoot, key), 'utf8')).toBe('x')
       expect(
@@ -319,6 +358,24 @@ describe('account deletion storage sweep', () => {
       ).toMatchObject([{ userId: f.ownerId }])
     }
   )
+
+  check('never purges an avatar the account points at but did not upload', async () => {
+    const f = await seed()
+    await db
+      .update(user)
+      .set({ image: avatarUrl(f.keys.othersAvatar) })
+      .where(eq(user.id, f.departingId))
+    await deleteUserAccount(f.departingId)
+
+    const objects = await objectEvents(f.departingId)
+    const queuedKeys = objects.flatMap((event) =>
+      (event.payload as { objects: { key: string }[] }).objects.map((object) => object.key)
+    )
+    expect(queuedKeys).not.toContain(f.keys.othersAvatar)
+    await runNow(objects.map((event) => event.id))
+
+    expect(await readFile(join(storageRoot, f.keys.othersAvatar), 'utf8')).toBe('x')
+  })
 
   check('a sweep for a workspace that exists again completes without deleting', async () => {
     const f = await seed()
@@ -346,6 +403,7 @@ afterAll(async () => {
         )
       )
     await db.delete(workspaceFiles).where(inArray(workspaceFiles.userId, userIds))
+    await db.delete(uploadSession).where(inArray(uploadSession.userId, userIds))
     await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
     await db.delete(user).where(inArray(user.id, userIds))
     await rm(storageRoot, { recursive: true, force: true })

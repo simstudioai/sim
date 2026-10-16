@@ -205,8 +205,10 @@ async function loadKeysNamedByUrls(runs: readonly string[], named: Set<string>):
  *   route's `isPublicByKeyPrefix` answers without a session) and a stored asset URL names it.
  *   Only URL rows that mention the key's {@link ownerRun} are read, each run at most once per
  *   guard; a public key without one is kept unread. A URL that hand-encodes characters of that
- *   run is missed, and the run belongs to the workspace, organization, or upload being erased, so
- *   only an object of the erased account can be lost that way.
+ *   run is missed. Account deletion asks about public keys only under a deleted workspace's
+ *   prefix (its logos) and for an avatar the account is proven to have uploaded, so such a URL can
+ *   cost an object of a deleted workspace or of the erased account's own uploads, never one a
+ *   surviving workspace, organization, or user uploaded.
  *
  * No URL column is read for any other key: `verifyFileAccess` serves it only through a row, by its
  * key path under a workspace that still exists (which exact-key cleanup keeps; see

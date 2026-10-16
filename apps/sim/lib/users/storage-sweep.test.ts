@@ -470,10 +470,21 @@ describe('queueing account storage cleanup', () => {
     queueTableRows(schemaMock.user, [
       { image: '/api/files/serve/s3/profile-pictures%2Fupload-0001-avatar.png' },
     ])
+    queueTableRows(schemaMock.uploadSession, [{ id: 'upload-0001' }])
 
     await queueCleanup()
 
     expect(queuedObjectKeys()).toEqual(['profile-pictures/upload-0001-avatar.png'])
+  })
+
+  it('never queues an avatar key the account did not upload', async () => {
+    queueTableRows(schemaMock.user, [
+      { image: '/api/files/serve/s3/profile-pictures%2Fupload-0002-someone-else.png' },
+    ])
+
+    await queueCleanup()
+
+    expect(queuedObjectKeys()).toEqual([])
   })
 
   it('never queues a profile picture row', async () => {

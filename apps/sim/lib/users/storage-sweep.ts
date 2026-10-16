@@ -3,6 +3,7 @@ import {
   copilotChats,
   document,
   knowledgeBase,
+  uploadSession,
   user,
   workspaceFile,
   workspaceFiles,
@@ -94,8 +95,9 @@ const OBJECT_CONTEXTS: ReadonlySet<string> = new Set<StorageContext>([
 /**
  * Keys no row collected here may name: Project prefix cleanup, the Assistant upload-session
  * sweep, organization logos, and profile pictures — which account deletion takes only from the
- * account's own `user.image` (see {@link extractProfilePictureKey}), because whitelabel logos were
- * once uploaded as `profile-pictures` rows under an admin's account.
+ * account's own `user.image`, and only once {@link uploadedProfilePicture} proves the account
+ * uploaded it, because whitelabel logos were once uploaded as `profile-pictures` rows under an
+ * admin's account.
  */
 const FOREIGN_LIFECYCLE_ROOTS = [
   'project/',
@@ -517,6 +519,44 @@ async function collectVersionsOf(
   )
 }
 
+/**
+ * Whether the account itself uploaded `key`. `user.image` is settable to any serve URL, so it
+ * names a key without proving whose it is; the proof is the account's completed `profile_picture`
+ * upload session (kept for a week after completion), or the `workspace_files` row an older
+ * profile-picture upload wrote. Without either the avatar is left in place.
+ */
+async function uploadedProfilePicture(
+  executor: DbOrTx,
+  userId: string,
+  key: string
+): Promise<boolean> {
+  const [session] = await executor
+    .select({ id: uploadSession.id })
+    .from(uploadSession)
+    .where(
+      and(
+        eq(uploadSession.finalKey, key),
+        eq(uploadSession.userId, userId),
+        eq(uploadSession.purpose, 'profile_picture'),
+        eq(uploadSession.status, 'completed')
+      )
+    )
+    .limit(1)
+  if (session) return true
+  const [row] = await executor
+    .select({ id: workspaceFiles.id })
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.key, key),
+        eq(workspaceFiles.userId, userId),
+        eq(workspaceFiles.context, 'profile-pictures')
+      )
+    )
+    .limit(1)
+  return Boolean(row)
+}
+
 interface CollectionScope {
   userId: string
   workspaceIds: string[]
@@ -542,7 +582,8 @@ async function collectInto(
     .where(eq(user.id, userId))
     .limit(1)
   const profilePicture = extractProfilePictureKey(account?.image ?? null)
-  if (profilePicture) collector.addProfilePicture(profilePicture)
+  if (profilePicture && (await uploadedProfilePicture(executor, userId, profilePicture)))
+    collector.addProfilePicture(profilePicture)
 
   const filesSince = since
     ? and(eq(workspaceFiles.userId, userId), gte(workspaceFiles.uploadedAt, since))
