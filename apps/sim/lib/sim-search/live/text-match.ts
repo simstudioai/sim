@@ -107,6 +107,14 @@ export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
 }
 
 /**
+ * The `summary ~` clause for a plain query in Jira JQL: issues whose summary holds every word.
+ * JQL has no relevance order, so this stands in for a title boost.
+ */
+export function jiraSummaryClause(text: string): string {
+  return `summary ~ ${escapeSearchPhrase(text)}`
+}
+
+/**
  * The text clause for a plain query in Confluence CQL. `any` uses `siteSearch`, Confluence's own
  * relevance search, which ranks a page with the query's rarer words above the many pages sharing
  * one common word, where a `text ~` OR query ranks them the other way round.
