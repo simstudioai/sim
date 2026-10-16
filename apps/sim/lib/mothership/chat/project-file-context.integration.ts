@@ -24,6 +24,7 @@ import { createEvent } from '@/lib/mothership/request/session/event'
 import { encodeSSEEnvelope } from '@/lib/mothership/request/session/sse'
 import { persistResourceEffect } from '@/lib/mothership/resources/persist-effect'
 import { persistChatResources } from '@/lib/mothership/resources/persistence'
+import { createSearchResource } from '@/lib/mothership/resources/search'
 import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
 import { executeTool, registerHandler } from '@/lib/mothership/tool-executor/executor'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
@@ -748,6 +749,40 @@ describe('open tabs that no longer resolve', () => {
         .from(copilotChats)
         .where(eq(copilotChats.id, f.chatId))
       expect(stored?.resources).toEqual([])
+    }
+  )
+
+  identityCheck(
+    'persists new-chat tabs in the order the user has them, not the order they resolve',
+    async () => {
+      const f = await fixture()
+      const fileId = await insertWorkspaceFile(f, 'First.md')
+      /** The search tab resolves synchronously, so it finishes before the file tab's lookups. */
+      const search = createSearchResource({
+        query: 'notes',
+        scope: { kind: 'workspace', workspaceId: f.workspaceId },
+      })
+      try {
+        await resolveResourceAttachmentContexts({
+          resourceAttachments: [{ type: 'file', id: fileId, title: 'First.md' }, search],
+          userId: f.userId,
+          workspaceId: f.workspaceId,
+          chatId: f.chatId,
+          requestMode: 'agent',
+          persistResources: true,
+          requestId: generateId(),
+        })
+        const [stored] = await db
+          .select({ resources: copilotChats.resources })
+          .from(copilotChats)
+          .where(eq(copilotChats.id, f.chatId))
+        expect((stored?.resources as MothershipResource[]).map((resource) => resource.id)).toEqual([
+          fileId,
+          search.id,
+        ])
+      } finally {
+        await db.delete(workspaceFiles).where(eq(workspaceFiles.id, fileId))
+      }
     }
   )
 })

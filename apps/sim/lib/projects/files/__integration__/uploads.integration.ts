@@ -669,9 +669,11 @@ function workbench(f: Awaited<ReturnType<typeof fixture>>, bytes: Buffer) {
 
 async function privateUploadTransport(
   f: Awaited<ReturnType<typeof fixture>>,
-  uploadProvenance: () => WorkspaceFileSecretProvenance
+  uploadProvenance: () => WorkspaceFileSecretProvenance,
+  signal?: AbortSignal
 ) {
   const context = {
+    signal,
     userId: f.editorId,
     workspaceId: f.workspaceId,
     toolCallId: generateId(),
@@ -885,6 +887,45 @@ describe.skipIf(!redisUrl)('private Project upload transport', () => {
       expect(current.metadata.projectFileSecretProvenance).toMatchObject({ pending: true })
     }
   )
+
+  for (const signalOwner of ['request', 'invocation'] as const) {
+    check(
+      `private Project upload never registers a file when the ${signalOwner} is cancelled while its provenance resolves`,
+      async () => {
+        const f = await fixture()
+        const bytes = Buffer.from('cancelled upload')
+        const controller = new AbortController()
+        /** Resolves cleanly after the abort, so only a recheck before completion can stop it. */
+        const cancelling = () => {
+          controller.abort(new Error('cancelled during upload provenance'))
+          return { status: 'exact' as const, entries: [] }
+        }
+        const transport = await privateUploadTransport(
+          f,
+          cancelling,
+          signalOwner === 'invocation' ? controller.signal : undefined
+        )
+        const { session } = await createPrivateUpload(transport, f.projectId, bytes)
+        await put(session, bytes)
+        await expect(
+          transport(
+            `http://localhost:3000/api/v2/projects/${f.projectId}/files/uploads/${session.id}/complete`,
+            {
+              method: 'POST',
+              headers: { 'upload-token': session.uploadToken },
+              signal: signalOwner === 'request' ? controller.signal : undefined,
+            }
+          )
+        ).rejects.toThrow('cancelled during upload provenance')
+        const current = await sessions.verifyUploadSessionToken(session.uploadToken)
+        expect(current.completedFileId).toBeNull()
+        expect(
+          await db.select().from(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
+        ).toEqual([])
+        expect(await usage(f.organizationId)).toBe(0)
+      }
+    )
+  }
 })
 
 afterAll(async () => {
