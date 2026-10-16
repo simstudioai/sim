@@ -3,12 +3,13 @@
 
 import { z } from "zod";
 
-const permissionsSchema = z.strictObject({
+// Answers tolerate fields a newer peer adds; requests stay strict.
+const permissionsSchema = z.object({
   read: z.literal(true),
   privateMutation: z.literal(true),
   sharedMutation: z.boolean(),
 });
-const projectSchema = z.strictObject({
+const projectSchema = z.object({
   scope: z.literal("project"),
   id: z.uuid(),
   name: z.string(),
@@ -25,17 +26,17 @@ export const MemoryNotesAccessInput = z.strictObject({
 });
 export type MemoryNotesAccessInput = z.infer<typeof MemoryNotesAccessInput>;
 
-export const MemoryNotesAccessResult = z.strictObject({
+export const MemoryNotesAccessResult = z.object({
   success: z.literal(true),
   version: z.literal(1),
-  actor: z.strictObject({ userId: z.string().min(1), chatId: z.uuid() }),
+  actor: z.object({ userId: z.string().min(1), chatId: z.uuid() }),
   target: z.discriminatedUnion("scope", [
-    z.strictObject({
+    z.object({
       scope: z.literal("personal"),
       permissions: permissionsSchema.extend({ sharedMutation: z.literal(false) }),
     }),
     projectSchema,
-    z.strictObject({
+    z.object({
       scope: z.literal("workspace"),
       id: z.uuid(),
       name: z.string(),
@@ -55,4 +56,4 @@ export const MemoryCleanupInput = z.strictObject({
   ]),
 });
 export type MemoryCleanupInput = z.infer<typeof MemoryCleanupInput>;
-export const MemoryCleanupResult = z.strictObject({ success: z.literal(true) });
+export const MemoryCleanupResult = z.object({ success: z.literal(true) });
