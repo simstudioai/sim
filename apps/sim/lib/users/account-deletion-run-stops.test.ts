@@ -45,7 +45,7 @@ describe('stopping a deleted account’s Chat runs', () => {
       new Error('settings unavailable')
     )
 
-    await expect(deleteUserAccount('user-1')).resolves.toBeDefined()
+    await expect(deleteUserAccount('user-1', { recordIdentity: false })).resolves.toBeDefined()
     expect(dbChainMockFns.transaction).toHaveBeenCalled()
   })
 })

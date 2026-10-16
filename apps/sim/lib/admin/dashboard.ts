@@ -1515,10 +1515,11 @@ export async function grantDashboardUserBalance(
       .from(member)
       .where(eq(member.userId, userId))
       .limit(1)
+    // A stats row first created here was never marked as a returning identity.
     const initialUsageLimit =
       initialMembership || isOrgScopedSubscription(initialSubscription, userId)
         ? null
-        : getPerUserMinimumLimit(initialSubscription).toString()
+        : getPerUserMinimumLimit(initialSubscription, true).toString()
     await tx
       .insert(userStats)
       .values({
@@ -1533,6 +1534,7 @@ export async function grantDashboardUserBalance(
       .select({
         creditBalance: userStats.creditBalance,
         currentUsageLimit: userStats.currentUsageLimit,
+        freeTierEligible: userStats.freeTierEligible,
       })
       .from(userStats)
       .where(eq(userStats.userId, userId))
@@ -1566,7 +1568,9 @@ export async function grantDashboardUserBalance(
         }
 
         const grantDollarDelta = toDecimal(amountDollars).toString()
-        const usageLimitFallback = toDecimal(getPerUserMinimumLimit(billingSubscription))
+        const usageLimitFallback = toDecimal(
+          getPerUserMinimumLimit(billingSubscription, stats.freeTierEligible)
+        )
           .plus(toDecimal(stats.creditBalance))
           .toString()
         const nextUsageLimit =

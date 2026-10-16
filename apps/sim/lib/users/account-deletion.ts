@@ -11,6 +11,7 @@ import {
   tableRunDispatches,
   uploadSession,
   user,
+  workflowExecutionLogs,
   workflowMcpServer,
   workspaceFile,
   workspaceFiles,
@@ -39,6 +40,7 @@ import {
 } from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
@@ -54,6 +56,7 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { recordDeletedAccountIdentities } from '@/lib/users/deleted-identity'
 import {
   listSharedResourceWorkspaceIdsForUser,
   listUnresolvedSharedResourceWorkspaces,
@@ -771,7 +774,47 @@ async function announceCancelledTableWork(
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
  */
-export async function deleteUserAccount(userId: string): Promise<AccountDeletionPlan> {
+interface LiveExecution {
+  executionId: string
+  executionDeadlineAt: Date | null
+}
+
+/**
+ * Stops workflow runs still executing in the deleted workspaces. Their log rows
+ * cascade away with the workspace, so the ordinary cancel path cannot find them;
+ * the cancellation flag needs only the execution id, and a run that keeps going
+ * would spend hosted provider keys for an account that no longer exists.
+ */
+async function stopLiveExecutions(executions: LiveExecution[]): Promise<void> {
+  const results = await Promise.allSettled(
+    executions.map(({ executionId, executionDeadlineAt }) =>
+      markExecutionCancelled(executionId, { executionDeadlineAt })
+    )
+  )
+  const failed = results.filter(
+    (result) => result.status === 'rejected' || !result.value.durablyRecorded
+  ).length
+  if (failed > 0) {
+    logger.warn('Some workflow runs of the deleted account were not durably cancelled', {
+      failed,
+      total: executions.length,
+    })
+  }
+}
+
+export interface DeleteUserAccountOptions {
+  /**
+   * Keep keyed digests of the account's sign-in identities so a new account on
+   * them gets no second free allowance. True for a holder-requested erasure;
+   * false for rolling back an account that was never handed to anyone.
+   */
+  recordIdentity: boolean
+}
+
+export async function deleteUserAccount(
+  userId: string,
+  { recordIdentity }: DeleteUserAccountOptions
+): Promise<AccountDeletionPlan> {
   const plan = await getAccountDeletionPlan(userId)
   if (plan.blockers.length > 0) throw new AccountDeletionBlockedError(plan.blockers)
 
@@ -782,6 +825,7 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
   let stoppedRuns: StoppedRun[] = []
+  let liveExecutions: LiveExecution[] = []
   /**
    * Resolved while the account's settings still exist to route a superuser's runs. It only
    * routes the best-effort push, so a failed lookup falls back to the default endpoint.
@@ -862,6 +906,19 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      */
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
     if (doomedWorkspaceIds.length > 0) {
+      liveExecutions = await tx
+        .select({
+          executionId: workflowExecutionLogs.executionId,
+          executionDeadlineAt: workflowExecutionLogs.executionDeadlineAt,
+        })
+        .from(workflowExecutionLogs)
+        .where(
+          and(
+            inArray(workflowExecutionLogs.workspaceId, doomedWorkspaceIds),
+            eq(workflowExecutionLogs.status, 'running')
+          )
+        )
+
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
        * gained a member since the preview is no longer private, and deleting it
@@ -992,6 +1049,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ...projectIdsToDelete.map((projectId) => ({ kind: 'project' as const, projectId })),
     ])
 
+    if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
+
     try {
       await tx.delete(user).where(eq(user.id, userId))
     } catch (error) {
@@ -1018,6 +1077,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
   await announceCancelledTableWork(cancelledDispatches, cancelledMarkers)
 
   deliverRunStops(stoppedRuns, { mothershipBaseURL })
+
+  await stopLiveExecutions(liveExecutions)
 
   await purgeStorageObjects(userId, storageKeys)
 

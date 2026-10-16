@@ -31,6 +31,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   canEditUsageLimit,
+  getFreeTierAllowance,
   getFreeTierLimit,
   getPerUserMinimumLimit,
   getPlanPricing,
@@ -45,6 +46,7 @@ import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbClient } from '@/lib/db/types'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { isDeletedAccountIdentity } from '@/lib/users/deleted-identity'
 
 const logger = createLogger('UsageManagement')
 
@@ -178,15 +180,29 @@ function calculateOrgUsageLimit(
 }
 
 /**
- * Handle new user setup when they join the platform
- * Creates userStats record with default free credits
+ * Handle new user setup when they join the platform.
+ * Creates the userStats record with the free allowance, which is zero when the
+ * email belongs to an account deleted within the retention window.
  */
-export async function handleNewUser(userId: string): Promise<void> {
+export async function handleNewUser({
+  id: userId,
+  email,
+}: {
+  id: string
+  email: string
+}): Promise<void> {
   try {
+    const freeTierEligible = !(await isDeletedAccountIdentity({ email }))
+    if (!freeTierEligible) {
+      logger.info('Withholding the free allowance from a returning deleted-account identity', {
+        userId,
+      })
+    }
     await db.insert(userStats).values({
       id: generateId(),
       userId: userId,
-      currentUsageLimit: getFreeTierLimit().toString(),
+      currentUsageLimit: getFreeTierAllowance(freeTierEligible).toString(),
+      freeTierEligible,
       usageLimitUpdatedAt: new Date(),
     })
 
@@ -293,7 +309,7 @@ async function getResolvedUserUsageData(
     } else {
       limit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
-        : getFreeTierLimit()
+        : getFreeTierAllowance(stats.freeTierEligible)
     }
 
     const billingPeriodStart = billingPeriod.source === 'default' ? null : billingPeriod.start
@@ -384,8 +400,8 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     } else {
       currentLimit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
-        : getFreeTierLimit()
-      minimumLimit = getPerUserMinimumLimit(subscription)
+        : getFreeTierAllowance(stats.freeTierEligible)
+      minimumLimit = getPerUserMinimumLimit(subscription, stats.freeTierEligible)
       canEdit = canEditUsageLimit(subscription)
     }
 
@@ -433,7 +449,8 @@ export async function updateUserUsageLimit(
       return { success: false, error: 'An active subscription is required to edit usage limits' }
     }
 
-    const minimumLimit = getPerUserMinimumLimit(subscription)
+    // Reached only with a usable paid personal plan, whose floor never depends on the free allowance.
+    const minimumLimit = getPerUserMinimumLimit(subscription, true)
 
     logger.info('Applying plan-based validation', {
       userId,
@@ -511,6 +528,7 @@ export async function getUserUsageLimit(
     .select({
       currentUsageLimit: userStats.currentUsageLimit,
       creditBalance: userStats.creditBalance,
+      freeTierEligible: userStats.freeTierEligible,
     })
     .from(userStats)
     .where(eq(userStats.userId, userId))
@@ -525,8 +543,8 @@ export async function getUserUsageLimit(
   if (!userStatsQuery[0].currentUsageLimit) {
     const baseLimit =
       subscription && hasPaidSubscriptionStatus(subscription.status)
-        ? getPerUserMinimumLimit(subscription)
-        : getFreeTierLimit()
+        ? getPerUserMinimumLimit(subscription, userStatsQuery[0].freeTierEligible)
+        : getFreeTierAllowance(userStatsQuery[0].freeTierEligible)
     const fallbackLimit = toDecimal(baseLimit).plus(toDecimal(userStatsQuery[0].creditBalance))
 
     try {
@@ -598,6 +616,22 @@ export async function checkUsageStatus(userId: string): Promise<{
 }
 
 /**
+ * Withholds the free allowance from a new account found to reuse the sign-in
+ * identity of a recently deleted one after its stats row was created, then
+ * re-derives its limit so only prepaid credit or a paid plan remains.
+ */
+export async function forfeitFreeTierAllowance(userId: string): Promise<void> {
+  const forfeited = await db
+    .update(userStats)
+    .set({ freeTierEligible: false })
+    .where(and(eq(userStats.userId, userId), eq(userStats.freeTierEligible, true)))
+    .returning({ userId: userStats.userId })
+  if (forfeited.length === 0) return
+  await syncUsageLimitsFromSubscription(userId)
+  logger.info('Withheld the free allowance from a returning deleted-account identity', { userId })
+}
+
+/**
  * Syncs the user's personal billing pool from their exact personal subscription.
  * Organization subscriptions have a separate pool and never clear personal limits.
  */
@@ -611,7 +645,9 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
     throw new Error(`User stats not found for userId: ${userId}`)
   }
 
-  const baseLimit = toDecimal(getPerUserMinimumLimit(subscription)).toString()
+  const baseLimit = toDecimal(
+    getPerUserMinimumLimit(subscription, currentUserStats[0].freeTierEligible)
+  ).toString()
   const hasEntitledPersonalSubscription =
     subscription !== null && hasPaidSubscriptionStatus(subscription.status)
   const liveMinimum = sql`${baseLimit}::numeric + ${userStats.creditBalance}`

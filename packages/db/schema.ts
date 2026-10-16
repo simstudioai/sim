@@ -1450,6 +1450,13 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  /**
+   * Whether the personal free-tier allowance counts toward this user's limit.
+   * False when the account reuses an identity from a recently deleted account
+   * (see `deletedAccountIdentity`): the free allowance is granted once per
+   * person, not once per account row. Prepaid credit and paid plans are unaffected.
+   */
+  freeTierEligible: boolean('free_tier_eligible').notNull().default(true),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
   /**
@@ -1472,6 +1479,27 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .default({}),
 })
+
+/**
+ * Keyed one-way digests of the sign-in identities (canonical email, OAuth
+ * provider subject) of accounts deleted at their holder's request, kept for a
+ * bounded window so a new account on the same identity does not receive a
+ * second free-tier allowance. Holds no user id, address, or other profile
+ * data: a row cannot be reversed or linked back without the server key, and it
+ * is purged once `expiresAt` passes.
+ */
+export const deletedAccountIdentity = pgTable(
+  'deleted_account_identity',
+  {
+    /** HMAC-SHA256 (hex) of `<kind>:<canonical identity>`. */
+    identityHash: text('identity_hash').primaryKey(),
+    deletedAt: timestamp('deleted_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    expiresAtIdx: index('deleted_account_identity_expires_at_idx').on(table.expiresAt),
+  })
+)
 
 export const customTools = pgTable(
   'custom_tools',

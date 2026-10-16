@@ -242,7 +242,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
        * directory's retry starts from a clean slate instead of a half-state.
        */
       if (createdAccount) {
-        await deleteUserAccount(userId).catch((cleanupError) =>
+        await deleteUserAccount(userId, { recordIdentity: false }).catch((cleanupError) =>
           logger.error('Failed to remove an account after provisioning was refused', {
             userId,
             cleanupError,

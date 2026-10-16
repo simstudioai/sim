@@ -70,7 +70,7 @@ describe('account deletion of private organization Assistant images', () => {
       mockIsUsingCloudStorage.mockReturnValue(cloudStorage)
       queueTableRows(schemaMock.uploadSession, [{ id: 'upload-1', key: IMAGE_KEY }])
 
-      const plan = await deleteUserAccount('user-1')
+      const plan = await deleteUserAccount('user-1', { recordIdentity: false })
 
       expect(plan.workspacesToDelete).toEqual([])
       expect(mockDeleteFiles).toHaveBeenCalledWith([IMAGE_KEY], 'mothership')
@@ -93,7 +93,7 @@ describe('account deletion of private organization Assistant images', () => {
   it('retains ownership while an issued upload URL could recreate a purged object', async () => {
     queueTableRows(schemaMock.uploadSession, [{ id: 'upload-1', key: IMAGE_KEY }])
 
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(
       hasMockCondition(
@@ -117,7 +117,7 @@ describe('account deletion of private organization Assistant images', () => {
       failed: [{ key: FAILED_IMAGE_KEY, error: 'Storage unavailable' }],
     })
 
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(
       hasMockCondition(
@@ -145,7 +145,9 @@ describe('account deletion of private organization Assistant images', () => {
         })
       }
 
-      await expect(deleteUserAccount('user-1')).resolves.toMatchObject({ blockers: [] })
+      await expect(deleteUserAccount('user-1', { recordIdentity: false })).resolves.toMatchObject({
+        blockers: [],
+      })
 
       expect(dbChainMockFns.delete).not.toHaveBeenCalledWith(schemaMock.uploadSession)
     }
@@ -155,7 +157,9 @@ describe('account deletion of private organization Assistant images', () => {
     queueTableRows(schemaMock.uploadSession, [{ id: 'upload-1', key: IMAGE_KEY }])
     dbChainMockFns.transaction.mockRejectedValueOnce(new Error('Transaction rolled back'))
 
-    await expect(deleteUserAccount('user-1')).rejects.toThrow('Transaction rolled back')
+    await expect(deleteUserAccount('user-1', { recordIdentity: false })).rejects.toThrow(
+      'Transaction rolled back'
+    )
 
     expect(mockDeleteFiles).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalledWith(schemaMock.uploadSession)
@@ -164,7 +168,9 @@ describe('account deletion of private organization Assistant images', () => {
   it('leaves storage untouched when deletion is blocked for an active account', async () => {
     mocks.getPersonalSubscription.mockResolvedValueOnce({ plan: 'pro' })
 
-    await expect(deleteUserAccount('user-1')).rejects.toMatchObject({ code: 'conflict' })
+    await expect(deleteUserAccount('user-1', { recordIdentity: false })).rejects.toMatchObject({
+      code: 'conflict',
+    })
 
     expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.uploadSession)
     expect(mockDeleteFiles).not.toHaveBeenCalled()

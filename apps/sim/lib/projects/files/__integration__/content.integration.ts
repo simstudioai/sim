@@ -1003,7 +1003,7 @@ describe('Project file content against PostgreSQL and the local object store', (
         })
       ).rejects.toMatchObject({ code: 'not_found' })
       expect((await rows(f.projectId))[0].userId).toBe(f.editorId)
-      await deleteUserAccount(f.editorId)
+      await deleteUserAccount(f.editorId, { recordIdentity: false })
       const principal = createSessionPrincipal({ userId: f.ownerId })
       const read = await readProjectFileContent.execute({
         principal,
