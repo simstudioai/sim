@@ -331,3 +331,84 @@ describe('Confluence plain search ranking', () => {
     expect(own.nextCursor).toBe('page-2')
   })
 })
+
+describe('Jira plain search ranking', () => {
+  const search = '/ex/jira/cloud/rest/api/3/search/jql'
+  /** Answers the all-terms query with `exact` and the summary query with `titled`, or its failure. */
+  function jira(exact: { ids: string[]; more: boolean }, titled: string[] | (() => never)) {
+    const issues = (ids: string[]) => ids.map((key) => ({ key, fields: { summary: key } }))
+    const json = vi.fn(async (path: string, options?: { body?: { jql?: string } }) => {
+      if (path === '/oauth/token/accessible-resources') return [SITE]
+      if (path !== search) throw new Error(`Unexpected request: ${path}`)
+      if (options?.body?.jql?.includes('summary ~'))
+        return { issues: issues(typeof titled === 'function' ? titled() : titled) }
+      return { issues: issues(exact.ids), ...(exact.more ? { nextPageToken: 'page-2' } : {}) }
+    })
+    return { json, text: vi.fn(), bytes: vi.fn() } satisfies NativeClient
+  }
+  const query = { query: 'merged results pipelines', limit: 3, scopes: [] }
+  const overflowing = { ids: ['NEW-3', 'NEW-2', 'NEW-1'], more: true }
+
+  it('leads an all-terms match too large for one page with issues whose summary holds every term', async () => {
+    const api = jira(overflowing, ['TOP-1', 'NEW-2'])
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['TOP-1', 'NEW-2', 'NEW-3'])
+    expect(page.hasMore).toBe(true)
+    expect(page.partial).toBe(true)
+    expect(page.nextCursor).toBeUndefined()
+  })
+
+  it('keeps the all-terms page and its cursor when no summary holds every term', async () => {
+    const page = await searchAtlassian(jira(overflowing, []), 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['NEW-3', 'NEW-2', 'NEW-1'])
+    expect(page.nextCursor).toBe('page-2')
+    expect(page.partial).toBe(false)
+  })
+
+  it.each([
+    ['a provider refusal', new NativeSearchError('rate_limited', 'Rate limited.', 30)],
+    ['a request timeout', new Error('Request timed out after 10000ms')],
+  ])(
+    'keeps the all-terms page and its cursor when the summary search fails on %s',
+    async (_, failure) => {
+      const api = jira(overflowing, () => {
+        throw failure
+      })
+      const page = await searchAtlassian(api, 'jira', query)
+      expect(page.documents.map((document) => document.id)).toEqual(['NEW-3', 'NEW-2', 'NEW-1'])
+      expect(page.nextCursor).toBe('page-2')
+    }
+  )
+
+  it('propagates a cancellation during the summary search', async () => {
+    const caller = new AbortController()
+    const reason = new DOMException('Search cancelled', 'AbortError')
+    const api = jira(overflowing, () => {
+      caller.abort(reason)
+      throw reason
+    })
+    await expect(searchAtlassian(api, 'jira', { ...query, signal: caller.signal })).rejects.toBe(
+      reason
+    )
+  })
+
+  it('keeps an all-terms match that fits on one page without a summary search', async () => {
+    const api = jira({ ids: ['ONLY-1'], more: false }, ['TOP-1'])
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['ONLY-1'])
+    expect(api.json).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps date order, native queries and any-term matches on their own page', async () => {
+    for (const input of [
+      { ...query, filters: { sortBy: 'newest' as const } },
+      { ...query, native: { provider: 'jira' as const, query: 'text ~ "merged results"' } },
+      { ...query, textMatch: 'any' as const },
+    ]) {
+      const api = jira({ ids: ['NEW-3', 'NEW-2'], more: true }, ['TOP-1'])
+      const page = await searchAtlassian(api, 'jira', input)
+      expect(page.documents.map((document) => document.id)).not.toContain('TOP-1')
+      expect(api.json).toHaveBeenCalledTimes(2)
+    }
+  })
+})
