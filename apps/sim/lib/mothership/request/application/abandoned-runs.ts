@@ -12,6 +12,7 @@ import {
 import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
+  createTrustedPersonalChatPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import {
   RUN_TAKEOVER_AUDIENCE,
@@ -43,13 +44,18 @@ async function takeOver(run: UnownedRun): Promise<void> {
   const { userId, chatId, workspaceId, organizationId } = run
   const principal = organizationId
     ? createTrustedOrganizationCopilotPrincipal(
-        { userId, organizationId, chatId, delegationId },
+        { userId, organizationId, chatId, delegationId, executionStreamId: run.streamId },
         delegation
       )
     : workspaceId
-      ? createTrustedCopilotPrincipal({ userId, workspaceId, chatId, delegationId }, delegation)
-      : null
-  if (!principal) return
+      ? createTrustedCopilotPrincipal(
+          { userId, workspaceId, chatId, delegationId, executionStreamId: run.streamId },
+          delegation
+        )
+      : createTrustedPersonalChatPrincipal(
+          { userId, chatId, delegationId, executionStreamId: run.streamId },
+          delegation
+        )
   const input = { streamId: run.streamId }
   try {
     await takeOverStreamRun.authorize({ principal, input })

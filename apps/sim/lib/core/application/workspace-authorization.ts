@@ -55,6 +55,7 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'slack_installation':
     case 'slack_app':
       return null
+    case 'personal_chat_delegated':
     case 'resource_delegated':
     case 'organization_delegated':
       return principal.subjectUserId

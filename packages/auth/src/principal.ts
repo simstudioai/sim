@@ -6,6 +6,7 @@ export type Principal =
   | DelegatedPrincipal
   | ResourceDelegatedPrincipal
   | OrganizationDelegatedPrincipal
+  | PersonalChatDelegatedPrincipal
   | SystemPrincipal
   | CredentialGroupEnrollmentPrincipal
   | ScimConnectionPrincipal
@@ -128,6 +129,8 @@ export interface WebhookSystemPrincipal {
 type SystemPrincipal = ActorlessSystemPrincipal | ChatSystemPrincipal | WebhookSystemPrincipal
 
 interface DelegatedPrincipalBase {
+  /** Correlation to an original Chat admission, not a target resource grant. */
+  executionStreamId?: string
   kind: 'delegated'
   workspaceId: string
   delegationId: string
@@ -248,6 +251,7 @@ export type ResourceDelegatedPrincipal = ResourceDelegatedPrincipalBase &
 
 /** Search-only authority delegated by a current organization member. */
 interface OrganizationDelegatedPrincipalBase {
+  executionStreamId?: string
   kind: 'organization_delegated'
   organizationId: string
   subjectUserId: string
@@ -265,6 +269,19 @@ export type OrganizationDelegatedPrincipal = OrganizationDelegatedPrincipalBase 
         resourceScope: { installationId: string; eventId: string }
       }
   )
+
+/** Internal authority for one personal chat; it grants no workspace or organization access. */
+export interface PersonalChatDelegatedPrincipal {
+  kind: 'personal_chat_delegated'
+  serviceId: 'copilot'
+  subjectUserId: string
+  delegationId: string
+  audience: string
+  issuedAt: Date
+  expiresAt: Date
+  resourceScope: { chatId: string }
+  executionStreamId?: string
+}
 
 /** Bearer identity established by a currently valid Credential Group invitation. */
 interface CredentialGroupEnrollmentIdentity {
@@ -474,15 +491,18 @@ export function serializePrincipal(principal: WorkflowExecutionPrincipal): Seria
         }
       }
       return { version: 1, principal: { ...principal } }
-    case 'delegated':
+    case 'delegated': {
+      // Callback correlation is transient authority, not a persisted workflow grant.
+      const { executionStreamId: _executionStreamId, ...workflowPrincipal } = principal
       return {
         version: 1,
         principal: {
-          ...principal,
+          ...workflowPrincipal,
           issuedAt: principal.issuedAt.toISOString(),
           expiresAt: principal.expiresAt.toISOString(),
         },
       }
+    }
     default:
       throw new Error('Principal cannot be persisted for workflow execution')
   }
@@ -640,6 +660,12 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
 export type PrincipalActor =
   | Omit<SlackAppPrincipal, 'receivedAt'>
   | {
+      kind: 'personal_chat_delegated'
+      serviceId: 'copilot'
+      subjectUserId: string
+      delegationId: string
+    }
+  | {
       kind: 'resource_delegated'
       serviceId: ResourceDelegatedPrincipal['serviceId']
       subjectUserId: string
@@ -722,6 +748,7 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'personal_api_key':
     case 'oauth_access_token':
       return { kind: 'sim_user', userId: principal.userId }
+    case 'personal_chat_delegated':
     case 'resource_delegated':
     case 'organization_delegated':
       return { kind: 'sim_user', userId: principal.subjectUserId }
@@ -798,6 +825,13 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
         ...(principal.subjectUserId ? { subjectUserId: principal.subjectUserId } : {}),
         delegationId: principal.delegationId,
       }
+    case 'personal_chat_delegated':
+      return {
+        kind: principal.kind,
+        serviceId: principal.serviceId,
+        subjectUserId: principal.subjectUserId,
+        delegationId: principal.delegationId,
+      }
     case 'resource_delegated':
       return {
         kind: principal.kind,
@@ -862,6 +896,7 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
     case 'personal_api_key':
     case 'oauth_access_token':
       return { actor, actorId: actor.userId }
+    case 'personal_chat_delegated':
     case 'resource_delegated':
     case 'organization_delegated':
       return { actor, actorId: actor.subjectUserId }
@@ -909,6 +944,7 @@ export function resolvePrincipalAttribution(
     }
     case 'system':
       throw new Error('System principals do not support user attribution')
+    case 'personal_chat_delegated':
     case 'resource_delegated':
     case 'organization_delegated':
       return { actor, attributedUserId: actor.subjectUserId }

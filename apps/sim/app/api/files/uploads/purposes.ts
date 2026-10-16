@@ -250,6 +250,11 @@ function requireSessionScope(value: string | null, label = 'scope'): string {
 
 async function principalUserId(principal: Principal, workspaceId?: string): Promise<string> {
   switch (principal.kind) {
+    case 'personal_chat_delegated':
+      throw new UploadSessionError(
+        'forbidden',
+        'Personal chat delegation cannot create workspace uploads'
+      )
     case 'resource_delegated':
       throw new UploadSessionError(
         'forbidden',

@@ -21,6 +21,8 @@ const targetOperation = defineWorkspaceOperation({
 
 /** Chat ownership and target membership are separate grants, rechecked before every operation. */
 export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: WORKSPACE_TARGET_AUDIENCE,
   operation: targetOperation,
   organizationOperation: defineOrganizationOperation({
     id: targetOperation.id,
@@ -50,7 +52,8 @@ export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
     const target = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
     if (
       (context.workspaceId && context.workspaceId !== target.workspaceId) ||
-      (context.organizationId && context.organizationId !== target.workspaceOrganizationId)
+      (context.organizationId && context.organizationId !== target.workspaceOrganizationId) ||
+      (!context.workspaceId && !context.organizationId && target.workspaceOrganizationId !== null)
     )
       throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
     const principal = createCopilotChatPrincipal(

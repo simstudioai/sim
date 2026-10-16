@@ -255,6 +255,7 @@ async function executeCopilotRun(params: {
 }): Promise<ExecutionResult> {
   if (
     params.principal.kind === 'resource_delegated' ||
+    params.principal.kind === 'personal_chat_delegated' ||
     params.principal.kind === 'organization_delegated' ||
     params.principal.kind === 'slack_app' ||
     params.principal.kind === 'slack_installation' ||

@@ -1134,6 +1134,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'createdAt',
     'updatedAt',
   ],
+  copilotRunStops: ['userId', 'streamId', 'stoppedAt'],
   copilotRequestStops: ['userId', 'workspaceId', 'streamId', 'stoppedAt'],
   copilotOrganizationRequestStops: ['userId', 'organizationId', 'streamId', 'stoppedAt'],
   desktopDevices: [

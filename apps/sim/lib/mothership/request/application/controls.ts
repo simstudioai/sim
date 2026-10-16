@@ -70,20 +70,17 @@ async function resolveAdmittedRunContext(
   if (input.chatId && input.chatId !== run.chatId) {
     throw new OrchestrationError('forbidden', 'Stream does not belong to this chat')
   }
-  const chat = await resolveOwnedChatContext(principal, run.chatId, options)
-  if (
-    (run.workspaceId ?? null) !== (chat.workspaceId ?? null) ||
-    (run.organizationId ?? null) !== (chat.organizationId ?? null)
-  ) {
-    throw new OrchestrationError('not_found', 'Stream not found')
-  }
+  const chat = await resolveOwnedChatContext(principal, run.chatId, {
+    ...options,
+    allowPersonal: true,
+  })
   if (input.workspaceId && input.workspaceId !== chat.workspaceId) {
     throw new OrchestrationError('forbidden', 'Stream does not belong to this workspace')
   }
   if (input.organizationId && input.organizationId !== chat.organizationId) {
     throw new OrchestrationError('forbidden', 'Stream does not belong to this organization')
   }
-  return chat
+  return { ...chat, admittedRun: run }
 }
 
 async function resolveAbortContext({
@@ -101,14 +98,14 @@ async function resolveAbortContext({
   if (run?.chatId)
     return resolveAdmittedRunContext(principal, input, run, { allowBlockedOwner: true })
   if (input.chatId) {
-    const chat = await resolveOwnedChatContext(principal, input.chatId)
+    const chat = await resolveOwnedChatContext(principal, input.chatId, { allowPersonal: true })
     if (input.workspaceId && input.workspaceId !== chat.workspaceId) {
       throw new OrchestrationError('forbidden', 'Chat does not belong to this workspace')
     }
     if (input.organizationId && input.organizationId !== chat.organizationId) {
       throw new OrchestrationError('forbidden', 'Chat does not belong to this organization')
     }
-    return chat
+    return { ...chat, admittedRun: undefined }
   }
   if (Boolean(input.workspaceId) === Boolean(input.organizationId))
     throw new OrchestrationError('not_found', 'Stream not found')
@@ -121,16 +118,19 @@ async function resolveAbortContext({
       workspaceId: undefined,
       userId: principal.userId,
       chatId: undefined,
+      admittedRun: undefined,
     }
   return {
     ...(await resolveActiveWorkspaceApplicationContext(input.workspaceId!)),
     organizationId: undefined,
     userId: principal.userId,
     chatId: undefined,
+    admittedRun: undefined,
   }
 }
 
 export const abortRun = defineAuthorizedChatUseCase({
+  personal: true,
   operation: runControlOperations.abort,
   /** permission-group-exempt: stopping owned execution remains available after Assistant access is withheld. */
   organizationOperation: defineOrganizationOperation({
@@ -147,8 +147,8 @@ export const abortRun = defineAuthorizedChatUseCase({
     const run = await requestRunStop({
       streamId,
       userId,
-      workspaceId,
-      organizationId,
+      workspaceId: context.admittedRun ? context.admittedRun.workspaceId : workspaceId,
+      organizationId: context.admittedRun ? context.admittedRun.organizationId : organizationId,
       ...(input.chatId ? { chatId: input.chatId } : {}),
     })
     if (!run) return { aborted: true, settled: true }
@@ -159,6 +159,21 @@ export const abortRun = defineAuthorizedChatUseCase({
       run,
       { allowBlockedOwner: true }
     )
+    // Admission may have won with a different original scope after the first lookup.
+    // Only after authorizing its actual chat may we persist Stop under that admission.
+    const expectedWorkspace =
+      (context.admittedRun ? context.admittedRun.workspaceId : workspaceId) ?? null
+    const expectedOrganization =
+      (context.admittedRun ? context.admittedRun.organizationId : organizationId) ?? null
+    if (run.workspaceId !== expectedWorkspace || run.organizationId !== expectedOrganization) {
+      await requestRunStop({
+        userId,
+        streamId,
+        chatId,
+        workspaceId: run.workspaceId,
+        organizationId: run.organizationId,
+      })
+    }
     /** Read alongside the signals, which need none of it. */
     const work = Promise.all([
       getUnsettledClientWorkflowExecutions(streamId, userId).catch((error) => {
@@ -202,6 +217,7 @@ export class SteeringNotQueuedError extends Error {
 }
 
 export const steerRun = defineAuthorizedChatUseCase({
+  personal: true,
   operation: runControlOperations.steer,
   organizationOperation: defineOrganizationOperation({
     id: runControlOperations.steer.id,

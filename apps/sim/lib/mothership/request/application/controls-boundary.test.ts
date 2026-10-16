@@ -79,7 +79,7 @@ describe('abort authorization before service signaling', () => {
       chatId: 'chat',
       userId: 'actor',
       organizationId: 'organization',
-      workspaceId: undefined,
+      workspaceId: null,
     })
     expect(mocks.signal).toHaveBeenCalledWith({
       streamId: 'stream',
@@ -88,6 +88,29 @@ describe('abort authorization before service signaling', () => {
       timeoutMs: 6000,
     })
     expect(mocks.permissions).not.toHaveBeenCalled()
+  })
+
+  it('records the admitted original scope before signaling when admission wins an early Stop race', async () => {
+    mocks.latest.mockResolvedValue(null)
+    queueTableRows(schemaMock.copilotChats, [ownedChat])
+    queueTableRows(schemaMock.copilotChats, [ownedChat])
+    queueTableRows(schemaMock.member, [{ role: 'member' }])
+    mocks.stop.mockResolvedValue({
+      chatId: 'chat',
+      workspaceId: null,
+      organizationId: 'original-organization',
+    })
+    await abortRun.execute({ principal, input })
+    expect(mocks.stop).toHaveBeenNthCalledWith(2, {
+      userId: 'actor',
+      streamId: 'stream',
+      chatId: 'chat',
+      workspaceId: null,
+      organizationId: 'original-organization',
+    })
+    expect(mocks.stop.mock.invocationCallOrder[1]).toBeLessThan(
+      mocks.signal.mock.invocationCallOrder[0]
+    )
   })
 
   it('rejects a removed member before persisting or forwarding Stop', async () => {

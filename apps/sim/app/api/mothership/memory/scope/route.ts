@@ -13,7 +13,7 @@ import {
 
 export const POST = defineInternalJsonRoute({
   contract: readMemoryScopeContract,
-  auth: internalCopilotAuth(MEMORY_SCOPE_AUDIENCE, { organization: true }),
+  auth: internalCopilotAuth(MEMORY_SCOPE_AUDIENCE, { organization: true, personal: true }),
   operation: readMemoryScopeOperation,
   rateLimit: internalRateLimits.none({
     reason: 'Authenticated worker resolves its current private chat memory scope.',

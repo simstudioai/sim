@@ -59,6 +59,7 @@ export async function authorizeLifecycleContinuation(
 ) {
   await authorizeCopilotChatCallback({
     userId: context.userId,
+    executionStreamId: context.messageId,
     workspaceId: context.workspaceId,
     organizationId: context.organizationId,
     chatId: context.chatId,

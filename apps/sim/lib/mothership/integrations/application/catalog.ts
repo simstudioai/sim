@@ -1,6 +1,7 @@
 import {
   type DelegatedPrincipal,
   type OrganizationDelegatedPrincipal,
+  type PersonalChatDelegatedPrincipal,
   type Principal,
   parsePrincipal,
   resolvePrincipalExecutionActorUserId,
@@ -128,6 +129,8 @@ function resolveServiceFilter(
 
 /** Catalog access rechecks current grants; worker state carries scope and provenance, never schemas. */
 const catalogUseCase = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: INTEGRATION_CATALOG_AUDIENCE,
   operation: readIntegrationCatalogOperation,
   organizationOperation: defineOrganizationOperation({
     id: readIntegrationCatalogOperation.id,
@@ -142,10 +145,13 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal | PersonalChatDelegatedPrincipal
     input: IntegrationCatalogRequest
   }) {
-    if (principal.kind === 'organization_delegated') {
+    if (
+      principal.kind === 'organization_delegated' ||
+      principal.kind === 'personal_chat_delegated'
+    ) {
       if (!('chatId' in principal.resourceScope))
         throw new OrchestrationError('forbidden', 'Integration discovery requires a conversation')
       const context = await resolveOwnedChatContext(principal, principal.resourceScope.chatId)
@@ -174,7 +180,7 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     if (input.mcpExecution && context.organizationId)
       throw new OrchestrationError('forbidden', 'Executor catalogs require workspace agent scope')
     let workspaceId = context.workspaceId
-    if (context.organizationId && input.workspaceId) {
+    if (!context.workspaceId && input.workspaceId) {
       workspaceId = (await resolveInvocationWorkspace(context, input.workspaceId)).workspaceId
     }
     const mcpOnly = input.toolId?.startsWith('mcp-') || input.service?.startsWith('mcp:')
@@ -213,7 +219,7 @@ const catalogUseCase = defineAuthorizedChatUseCase({
           (!input.service || input.service === `mcp:${serverId}`) &&
           (!input.toolId || input.toolId.startsWith(`${serverId}-`))
       )
-      if (context.organizationId && candidates.length) {
+      if (!context.workspaceId && candidates.length) {
         const { servers } = await listMcpServersUseCase.execute({
           principal: createCopilotChatPrincipal(
             { userId: context.userId, workspaceId },

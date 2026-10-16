@@ -627,6 +627,11 @@ export function createUploadSessionAuthBinding(
   options: { executorDelegationAudience?: string; copilotDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
+    case 'personal_chat_delegated':
+      throw new UploadSessionError(
+        'forbidden',
+        'Personal chat delegation cannot create workspace uploads'
+      )
     case 'resource_delegated':
       throw new UploadSessionError(
         'forbidden',
