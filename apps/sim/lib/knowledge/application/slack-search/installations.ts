@@ -175,7 +175,7 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
         ? await tx.select().from(slackApp).where(eq(slackApp.id, current.slackAppId)).limit(1)
         : []
       if (input.enabled && current.slackAppId)
-        await requireSlackSearchAppAvailable(current.slackAppId, context.organizationId)
+        await requireSlackSearchAppAvailable(current.slackAppId, context.organizationId, tx)
       if (current.slackAppId && !app) throw new Error('Slack app configuration is missing')
       const appRevision =
         app && secret ? (await resolveSlackAppCredentials(app)).revision : undefined
