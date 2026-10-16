@@ -92,10 +92,10 @@ const OBJECT_CONTEXTS: ReadonlySet<string> = new Set<StorageContext>([
 ])
 
 /**
- * Keys another lifecycle owns: Project prefix cleanup, the Assistant upload-session sweep,
- * organization logos, and profile pictures — which account deletion takes only from the
- * account's own `user.image`, because whitelabel logos were once uploaded as `profile-pictures`
- * rows under an admin's account.
+ * Keys no row collected here may name: Project prefix cleanup, the Assistant upload-session
+ * sweep, organization logos, and profile pictures — which account deletion takes only from the
+ * account's own `user.image` (see {@link extractProfilePictureKey}), because whitelabel logos were
+ * once uploaded as `profile-pictures` rows under an admin's account.
  */
 const FOREIGN_LIFECYCLE_ROOTS = [
   'project/',
@@ -145,14 +145,40 @@ function parseWorkspaceSweep(value: unknown): WorkspaceSweepPayload {
   return { workspaceId: value.workspaceId, family }
 }
 
-function isDisposableKey(key: string): boolean {
+function isSafeKey(key: string): boolean {
   return (
-    key.length > 0 &&
-    key.length <= 2048 &&
-    !key.startsWith('/') &&
-    !key.split('/').includes('..') &&
-    !FOREIGN_LIFECYCLE_ROOTS.some((root) => key.startsWith(root))
+    key.length > 0 && key.length <= 2048 && !key.startsWith('/') && !key.split('/').includes('..')
   )
+}
+
+function isDisposableKey(key: string): boolean {
+  return isSafeKey(key) && !FOREIGN_LIFECYCLE_ROOTS.some((root) => key.startsWith(root))
+}
+
+function isAccountProfilePicture(key: string, context: string): boolean {
+  return context === 'profile-pictures' && key.startsWith('profile-pictures/')
+}
+
+/**
+ * The account's own uploaded avatar, as a storage key. `user.image` holds either a
+ * `/api/files/serve/...` path (an upload this app owns) or an absolute URL from an OAuth provider,
+ * which must not be deleted; only the former yields a key, and only under `profile-pictures/`.
+ * The image is personal data, so an erasure that leaves it in the bucket is not an erasure.
+ */
+export function extractProfilePictureKey(image: string | null): string | null {
+  if (!image) return null
+  try {
+    const parsed = new URL(image, 'http://placeholder')
+    if (parsed.origin !== 'http://placeholder') return null
+    const segments = parsed.pathname.split('/')
+    if (segments[1] !== 'api' || segments[2] !== 'files' || segments[3] !== 'serve') return null
+    let keySegments = segments.slice(4)
+    if (['s3', 'blob', 'gcs'].includes(keySegments[0])) keySegments = keySegments.slice(1)
+    const key = decodeURIComponent(keySegments.join('/'))
+    return key.startsWith('profile-pictures/') ? key : null
+  } catch {
+    return null
+  }
 }
 
 function parseObjectCleanup(value: unknown): ObjectCleanupPayload {
@@ -169,9 +195,11 @@ function parseObjectCleanup(value: unknown): ObjectCleanupPayload {
     if (
       !isRecordLike(object) ||
       typeof object.key !== 'string' ||
-      !isDisposableKey(object.key) ||
       typeof object.context !== 'string' ||
-      !OBJECT_CONTEXTS.has(object.context)
+      !(
+        (isDisposableKey(object.key) && OBJECT_CONTEXTS.has(object.context)) ||
+        (isSafeKey(object.key) && isAccountProfilePicture(object.key, object.context))
+      )
     )
       throw new Error('Invalid account storage cleanup object')
     return { key: object.key, context: object.context as StorageContext }
@@ -233,12 +261,13 @@ async function sweepWorkspacePrefix(
   prefix: string,
   storageContext: StorageContext,
   context: OutboxEventContext,
-  isReferenced: (keys: readonly string[]) => Promise<Set<string>>
-): Promise<{ deleted: number; complete: boolean; stalled: boolean }> {
+  isReferenced: (keys: readonly string[]) => Promise<Set<string>>,
+  workspaceExists: () => Promise<boolean>
+): Promise<{ deleted: number; status: 'done' | 'partial' | 'stalled' | 'refused' }> {
   let deleted = 0
   let pageToken: string | undefined
   for (;;) {
-    if (outboxDeadlineNear(context)) return { deleted, complete: false, stalled: false }
+    if (outboxDeadlineNear(context)) return { deleted, status: 'partial' }
     const page = await listStorageKeyPage(prefix, storageContext, context.signal, pageToken)
     if (page.keys.some((key) => !key.startsWith(prefix)))
       throw new Error('Storage provider returned a key outside the workspace prefix')
@@ -248,6 +277,7 @@ async function sweepWorkspacePrefix(
     const keptCount = page.keys.filter(kept).length
     if (keptCount > 0)
       logger.warn('Keeping objects a surviving reference still names', { prefix, kept: keptCount })
+    if (await workspaceExists()) return { deleted, status: 'refused' }
     const result = await deleteStorageKeysUnderPrefix(
       prefix,
       storageContext,
@@ -255,14 +285,14 @@ async function sweepWorkspacePrefix(
       context
     )
     deleted += result.deleted
-    if (!result.complete) return { deleted, complete: false, stalled: false }
-    if (page.done) return { deleted, complete: true, stalled: false }
+    if (!result.complete) return { deleted, status: 'partial' }
+    if (page.done) return { deleted, status: 'done' }
     const advanced = page.nextPageToken !== undefined && page.nextPageToken !== pageToken
     if (advanced) {
       pageToken = page.nextPageToken
     } else if (result.deleted === 0) {
       logger.error('Workspace storage sweep made no progress on a full listing page', { prefix })
-      return { deleted, complete: false, stalled: true }
+      return { deleted, status: 'stalled' }
     }
   }
 }
@@ -270,37 +300,44 @@ async function sweepWorkspacePrefix(
 /**
  * Deletes a deleted workspace's objects by prefix in each bucket. A workspace row with the same
  * id means the database no longer agrees the workspace is gone (a restore, a point-in-time
- * recovery), so the sweep completes without touching storage.
+ * recovery), so the sweep stops without touching storage; it looks again before every page it
+ * deletes from.
  */
 const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
   const payload = parseWorkspaceSweep(raw)
-  const [existing] = await db
-    .select({ id: workspaceTable.id })
-    .from(workspaceTable)
-    .where(eq(workspaceTable.id, payload.workspaceId))
-    .limit(1)
-  if (existing) {
-    logger.error('Refusing to sweep storage for a workspace that exists', {
-      workspaceId: payload.workspaceId,
-    })
-    return
+  const workspaceExists = async () => {
+    const [existing] = await db
+      .select({ id: workspaceTable.id })
+      .from(workspaceTable)
+      .where(eq(workspaceTable.id, payload.workspaceId))
+      .limit(1)
+    if (existing)
+      logger.error('Refusing to sweep storage for a workspace that exists', {
+        workspaceId: payload.workspaceId,
+      })
+    return Boolean(existing)
   }
+  if (await workspaceExists()) return
   const isReferenced = createStorageReferenceGuard()
   let progressed = false
   for (let family = payload.family; family < WORKSPACE_STORAGE_FAMILIES.length; family++) {
     const { root, context: storageContext } = WORKSPACE_STORAGE_FAMILIES[family]
     const prefix = workspaceStoragePrefix(root, payload.workspaceId)
-    const result = await sweepWorkspacePrefix(prefix, storageContext, context, isReferenced)
+    const result = await sweepWorkspacePrefix(
+      prefix,
+      storageContext,
+      context,
+      isReferenced,
+      workspaceExists
+    )
+    if (result.status === 'refused') return
     if (result.deleted > 0) progressed = true
-    if (!result.complete) {
-      if (result.stalled)
-        return deferOutboxHandler(
-          'Workspace storage sweep removed nothing from a full listing page'
-        )
+    if (result.status === 'stalled')
+      return deferOutboxHandler('Workspace storage sweep made no progress on a full listing page')
+    if (result.status === 'partial')
       return progressed
         ? continueOutboxHandler('Continuing workspace storage sweep')
         : deferOutboxHandler('Workspace storage sweep made no progress before its deadline')
-    }
     await context.checkpointPayload({ family: family + 1 })
     progressed = true
   }
@@ -402,6 +439,15 @@ class ObjectCollector implements AccountStorageObjects {
     return collector
   }
 
+  addProfilePicture(key: string): void {
+    if (this.seen.has(key)) return
+    if (this.objects.length >= MAX_DURABLE_OBJECTS) {
+      this.capped = true
+      return
+    }
+    this.push({ key, context: 'profile-pictures' })
+  }
+
   add(rows: readonly ObjectRow[]): void {
     for (const row of rows) {
       if (!row.key || !isDisposableKey(row.key)) continue
@@ -473,7 +519,7 @@ async function collectVersionsOf(
 
 interface CollectionScope {
   userId: string
-  workspaceIds: readonly string[]
+  workspaceIds: string[]
   /** Set for the in-transaction delta: only the account's rows written since then. */
   since?: Date
 }
@@ -490,6 +536,14 @@ async function collectInto(
   collector: ObjectCollector,
   { userId, workspaceIds, since }: CollectionScope
 ): Promise<void> {
+  const [account] = await executor
+    .select({ image: user.image })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1)
+  const profilePicture = extractProfilePictureKey(account?.image ?? null)
+  if (profilePicture) collector.addProfilePicture(profilePicture)
+
   const filesSince = since
     ? and(eq(workspaceFiles.userId, userId), gte(workspaceFiles.uploadedAt, since))
     : undefined

@@ -54,6 +54,7 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { isPublicStorageKey } from '@/lib/uploads/utils/file'
 import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
 import {
   collectAccountStorageObjects,
@@ -498,31 +499,6 @@ function countKeys(batches: StorageKeyBatch[]): number {
 }
 
 /**
- * The account's own uploaded avatar, as a storage key.
- *
- * `user.image` holds either a `/api/files/serve/...` path (an upload we own) or
- * an absolute URL from an OAuth provider (which we must not try to delete). Only
- * the former yields a key, and only under the `profile-pictures/` prefix — the
- * image is personal data, so an erasure that leaves it in the bucket is not an
- * erasure.
- */
-export function extractProfilePictureKey(image: string | null): string | null {
-  if (!image) return null
-  try {
-    const parsed = new URL(image, 'http://placeholder')
-    if (parsed.origin !== 'http://placeholder') return null
-    const segments = parsed.pathname.split('/')
-    if (segments[1] !== 'api' || segments[2] !== 'files' || segments[3] !== 'serve') return null
-    let keySegments = segments.slice(4)
-    if (['s3', 'blob', 'gcs'].includes(keySegments[0])) keySegments = keySegments.slice(1)
-    const key = decodeURIComponent(keySegments.join('/'))
-    return key.startsWith('profile-pictures/') ? key : null
-  } catch {
-    return null
-  }
-}
-
-/**
  * Collects the account's private images and stored objects in workspaces that go with it.
  *
  * This has to run *before* the rows are deleted: they disappear with the
@@ -559,16 +535,6 @@ async function collectAccountStorageKeys(
   )
 
   if (!isUsingCloudStorage()) return batches
-
-  const [profile] = await db
-    .select({ image: user.image })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
-  const profilePictureKey = extractProfilePictureKey(profile?.image ?? null)
-  if (profilePictureKey) {
-    batches.push({ context: 'profile-pictures', keys: [profilePictureKey] })
-  }
 
   if (workspaceIds.length === 0) return batches
 
@@ -643,13 +609,15 @@ async function collectAccountStorageKeys(
  * failure for work that cannot be undone. An orphaned object is recoverable from
  * the log; a deletion the caller believes failed is not.
  *
- * Keys a surviving row or stored asset URL still names are kept (a legacy `kb/`
- * object can back documents in more than one workspace); see
- * `createStorageReferenceGuard`.
+ * Keys a surviving row still names are kept (a legacy `kb/` object can back
+ * documents in more than one workspace); see `createStorageReferenceGuard`.
+ * World-readable keys are left to the delayed durable cleanup, whose guard also
+ * reads stored asset URLs, so this request never does.
  */
 async function purgeStorageObjects(userId: string, batches: StorageKeyBatch[]): Promise<void> {
   const isReferenced = createStorageReferenceGuard()
-  for (const { context, keys: collected } of batches) {
+  for (const { context, keys: listed } of batches) {
+    const collected = listed.filter((key) => !isPublicStorageKey(key))
     if (collected.length === 0) continue
     try {
       const referenced = await isReferenced(collected)

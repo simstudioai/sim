@@ -12,8 +12,9 @@ import {
   workspaceFileVersion,
   workspace as workspaceTable,
 } from '@sim/db/schema'
+import { chunkArray } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
-import { inArray, isNotNull, like, or } from 'drizzle-orm'
+import { and, gt, inArray, or, type SQL, type SQLWrapper, sql } from 'drizzle-orm'
 import { extractStorageKey, isPublicStorageKey } from '@/lib/uploads/utils/file'
 
 /** Every string inside a URL column or a JSON settings blob, including JSON held as a string. */
@@ -77,60 +78,122 @@ function keysNamedByUrl(value: string): string[] {
   return [...keys]
 }
 
+const MIN_OWNER_RUN_LENGTH = 8
+const OWNER_RUNS_PER_QUERY = 50
+const URL_ROW_PAGE_SIZE = 500
+
 /**
- * Keys named by the columns that hold a stored asset as a URL rather than a row:
- * `user.image`, `workspace.logo_url`, `organization.logo`, `organization.whitelabel_settings`,
- * `organization.metadata`, `custom_block.icon_url`, `chat.customizations` (deployed-chat logo
- * and avatar), and `oauth_client.icon`. Every non-empty value is read and decoded here rather than
- * matched in SQL, since a URL may percent-encode any character of the key it names. Only
- * `user.image`, mostly external OAuth avatars, is narrowed, to values that point at this app's
- * file-serve route or name a world-readable root.
+ * The run of `[A-Za-z0-9_-]` that opens the segment after a public key's root: the owning
+ * workspace or organization id (`workspace-logos/<id>/...`), or the upload id a flat key starts
+ * with (`profile-pictures/<id>-<name>`). `encodeURIComponent` and `encodeURI` never escape those
+ * characters, so every URL this app writes for the key holds the run literally. `null` when the
+ * run is too short to narrow a lookup.
  */
-async function loadUrlReferencedKeys(): Promise<Set<string>> {
-  const values: string[] = []
-  const sources = [
+function ownerRun(key: string): string | null {
+  const run = /^[A-Za-z0-9_-]+/.exec(key.split('/')[1] ?? '')?.[0] ?? ''
+  return run.length >= MIN_OWNER_RUN_LENGTH ? run : null
+}
+
+type UrlRowPage = (
+  mentions: (column: SQLWrapper) => SQL,
+  afterId: string
+) => Promise<{ id: string; values: unknown[] }[]>
+
+/**
+ * The columns that hold a stored asset as a URL rather than a row: `user.image`,
+ * `workspace.logo_url`, `custom_block.icon_url`, `chat.customizations` (deployed-chat logo and
+ * avatar), `oauth_client.icon`, and `organization.logo`, `.whitelabel_settings`, `.metadata`.
+ */
+const URL_ROW_PAGES: readonly UrlRowPage[] = [
+  (mentions, afterId) =>
     db
-      .select({ value: user.image })
+      .select({ id: user.id, value: user.image })
       .from(user)
-      .where(
-        or(
-          like(user.image, '%/api/files/serve/%'),
-          like(user.image, '%profile-pictures%'),
-          like(user.image, '%og-images%'),
-          like(user.image, '%workspace-logos%'),
-          like(user.image, '%organization-logos%')
-        )
-      ),
+      .where(and(mentions(user.image), gt(user.id, afterId)))
+      .orderBy(user.id)
+      .limit(URL_ROW_PAGE_SIZE)
+      .then((rows) => rows.map((row) => ({ id: row.id, values: [row.value] }))),
+  (mentions, afterId) =>
     db
-      .select({ value: workspaceTable.logoUrl })
+      .select({ id: workspaceTable.id, value: workspaceTable.logoUrl })
       .from(workspaceTable)
-      .where(isNotNull(workspaceTable.logoUrl)),
+      .where(and(mentions(workspaceTable.logoUrl), gt(workspaceTable.id, afterId)))
+      .orderBy(workspaceTable.id)
+      .limit(URL_ROW_PAGE_SIZE)
+      .then((rows) => rows.map((row) => ({ id: row.id, values: [row.value] }))),
+  (mentions, afterId) =>
     db
-      .select({ value: customBlock.iconUrl })
+      .select({ id: customBlock.id, value: customBlock.iconUrl })
       .from(customBlock)
-      .where(isNotNull(customBlock.iconUrl)),
-    db.select({ value: chat.customizations }).from(chat).where(isNotNull(chat.customizations)),
-    db.select({ value: oauthClient.icon }).from(oauthClient).where(isNotNull(oauthClient.icon)),
-  ]
-  for (const source of sources) for (const row of await source) collectStrings(row.value, values)
-  const organizations = await db
-    .select({
-      logo: organization.logo,
-      whitelabel: organization.whitelabelSettings,
-      metadata: organization.metadata,
-    })
-    .from(organization)
-    .where(
-      or(
-        isNotNull(organization.logo),
-        isNotNull(organization.whitelabelSettings),
-        isNotNull(organization.metadata)
+      .where(and(mentions(customBlock.iconUrl), gt(customBlock.id, afterId)))
+      .orderBy(customBlock.id)
+      .limit(URL_ROW_PAGE_SIZE)
+      .then((rows) => rows.map((row) => ({ id: row.id, values: [row.value] }))),
+  (mentions, afterId) =>
+    db
+      .select({ id: chat.id, value: chat.customizations })
+      .from(chat)
+      .where(and(mentions(chat.customizations), gt(chat.id, afterId)))
+      .orderBy(chat.id)
+      .limit(URL_ROW_PAGE_SIZE)
+      .then((rows) => rows.map((row) => ({ id: row.id, values: [row.value] }))),
+  (mentions, afterId) =>
+    db
+      .select({ id: oauthClient.id, value: oauthClient.icon })
+      .from(oauthClient)
+      .where(and(mentions(oauthClient.icon), gt(oauthClient.id, afterId)))
+      .orderBy(oauthClient.id)
+      .limit(URL_ROW_PAGE_SIZE)
+      .then((rows) => rows.map((row) => ({ id: row.id, values: [row.value] }))),
+  (mentions, afterId) =>
+    db
+      .select({
+        id: organization.id,
+        logo: organization.logo,
+        whitelabel: organization.whitelabelSettings,
+        metadata: organization.metadata,
+      })
+      .from(organization)
+      .where(
+        and(
+          or(
+            mentions(organization.logo),
+            mentions(organization.whitelabelSettings),
+            mentions(organization.metadata)
+          ),
+          gt(organization.id, afterId)
+        )
       )
-    )
-  for (const row of organizations) collectStrings([row.logo, row.whitelabel, row.metadata], values)
-  const keys = new Set<string>()
-  for (const value of values) for (const key of keysNamedByUrl(value)) keys.add(key)
-  return keys
+      .orderBy(organization.id)
+      .limit(URL_ROW_PAGE_SIZE)
+      .then((rows) =>
+        rows.map((row) => ({ id: row.id, values: [row.logo, row.whitelabel, row.metadata] }))
+      ),
+]
+
+/**
+ * Adds to `named` every key a stored asset URL names, reading only rows whose URL columns mention
+ * one of `runs` (see {@link ownerRun}), page by page.
+ */
+async function loadKeysNamedByUrls(runs: readonly string[], named: Set<string>): Promise<void> {
+  const mentions = (column: SQLWrapper): SQL =>
+    sql`(${sql.join(
+      runs.map((run) => sql`${column}::text LIKE ${`%${run}%`}`),
+      sql` OR `
+    )})`
+  for (const page of URL_ROW_PAGES) {
+    let afterId = ''
+    for (;;) {
+      const rows = await page(mentions, afterId)
+      for (const row of rows) {
+        const values: string[] = []
+        collectStrings(row.values, values)
+        for (const value of values) for (const key of keysNamedByUrl(value)) named.add(key)
+      }
+      if (rows.length < URL_ROW_PAGE_SIZE) break
+      afterId = rows[rows.length - 1].id
+    }
+  }
 }
 
 /**
@@ -139,12 +202,16 @@ async function loadUrlReferencedKeys(): Promise<Set<string>> {
  * - a row still names it: `workspace_files.key`, `workspace_file.key`,
  *   `workspace_file_version.key`, `document.storage_key`, `execution_large_values.key`; or
  * - it sits under a world-readable root (`isPublicStorageKey`, the same prefixes the file-serve
- *   route's `isPublicByKeyPrefix` answers without a session) and a stored asset URL names it (see
- *   {@link loadUrlReferencedKeys}), read at most once per guard and only once a public key comes
- *   up. No URL column is read for any other key:
- *   `verifyFileAccess` serves it only through a row, by its key path under a workspace that still
- *   exists (which exact-key cleanup keeps; see `keysUnderLiveWorkspaces`), or by object metadata
- *   to a signed-in holder of a hand-pasted URL to a private file this deletion means to erase.
+ *   route's `isPublicByKeyPrefix` answers without a session) and a stored asset URL names it.
+ *   Only URL rows that mention the key's {@link ownerRun} are read, each run at most once per
+ *   guard; a public key without one is kept unread. A URL that hand-encodes characters of that
+ *   run is missed, and the run belongs to the workspace, organization, or upload being erased, so
+ *   only an object of the erased account can be lost that way.
+ *
+ * No URL column is read for any other key: `verifyFileAccess` serves it only through a row, by its
+ * key path under a workspace that still exists (which exact-key cleanup keeps; see
+ * `keysUnderLiveWorkspaces`), or by object metadata to a signed-in holder of a hand-pasted URL to
+ * a private file this deletion means to erase.
  *
  * Every row of a deleted workspace or account is gone when this runs, so a remaining reference
  * belongs to data that outlived the deletion — a moved knowledge base, a handed-off file, an
@@ -153,7 +220,8 @@ async function loadUrlReferencedKeys(): Promise<Set<string>> {
  * attachments that is the intended erasure. A failed lookup throws, so nothing is deleted.
  */
 export function createStorageReferenceGuard(): (keys: readonly string[]) => Promise<Set<string>> {
-  let named: Set<string> | null = null
+  const loadedRuns = new Set<string>()
+  const named = new Set<string>()
   return async (keys) => {
     const referenced = new Set<string>()
     if (keys.length === 0) return referenced
@@ -182,10 +250,17 @@ export function createStorageReferenceGuard(): (keys: readonly string[]) => Prom
     ]
     for (const row of rows) if (row.key) referenced.add(row.key)
     const publicKeys = list.filter(isPublicStorageKey)
-    if (publicKeys.length > 0) {
-      named ??= await loadUrlReferencedKeys()
-      for (const key of publicKeys) if (named.has(key)) referenced.add(key)
+    const pendingRuns = new Set<string>()
+    for (const key of publicKeys) {
+      const run = ownerRun(key)
+      if (!run) referenced.add(key)
+      else if (!loadedRuns.has(run)) pendingRuns.add(run)
     }
+    for (const runs of chunkArray([...pendingRuns], OWNER_RUNS_PER_QUERY)) {
+      await loadKeysNamedByUrls(runs, named)
+      for (const run of runs) loadedRuns.add(run)
+    }
+    for (const key of publicKeys) if (named.has(key)) referenced.add(key)
     return referenced
   }
 }

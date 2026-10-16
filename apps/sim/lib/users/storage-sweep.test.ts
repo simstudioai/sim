@@ -61,21 +61,21 @@ async function exists(key: string): Promise<boolean> {
 }
 
 const DOOMED_KEYS = [
-  'workspace/ws1/a.txt',
-  'workspace/ws1/nested/b.txt',
-  'table-import/ws1/import-1/rows.csv',
-  'execution/ws1/wf/ex/large-value-lv_1.json',
-  'table-snapshots/ws1/table-1/v1-hash.csv',
-  'copilot-doc-compiled/ws1/hash.pdf',
-  'workspace-logos/ws1/logo.png',
+  'workspace/wsdoomed1/a.txt',
+  'workspace/wsdoomed1/nested/b.txt',
+  'table-import/wsdoomed1/import-1/rows.csv',
+  'execution/wsdoomed1/wf/ex/large-value-lv_1.json',
+  'table-snapshots/wsdoomed1/table-1/v1-hash.csv',
+  'copilot-doc-compiled/wsdoomed1/hash.pdf',
+  'workspace-logos/wsdoomed1/logo.png',
 ]
 
 const NEIGHBOR_KEYS = [
-  'workspace/ws10/keep.txt',
-  'workspace/ws1-archive/keep.txt',
-  'execution/ws10/wf/ex/keep.json',
-  'project/ws1/keep.txt',
-  'kb/ws1/keep.txt',
+  'workspace/wsdoomed10/keep.txt',
+  'workspace/wsdoomed1-archive/keep.txt',
+  'execution/wsdoomed10/wf/ex/keep.json',
+  'project/wsdoomed1/keep.txt',
+  'kb/wsdoomed1/keep.txt',
 ]
 
 describe('deleted workspace storage sweep', () => {
@@ -91,19 +91,19 @@ describe('deleted workspace storage sweep', () => {
   })
 
   it('deletes every family under the workspace prefix and nothing under a neighboring id', async () => {
-    await expect(sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())).resolves.toBe(
+    await expect(sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())).resolves.toBe(
       undefined
     )
 
     for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(false)
     for (const key of NEIGHBOR_KEYS) expect(await exists(key)).toBe(true)
-    expect(await exists('workspace/ws1')).toBe(false)
+    expect(await exists('workspace/wsdoomed1')).toBe(false)
   })
 
   it('touches nothing while a workspace row with that id exists', async () => {
-    queueTableRows(schemaMock.workspace, [{ id: 'ws1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'wsdoomed1' }])
 
-    await expect(sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())).resolves.toBe(
+    await expect(sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())).resolves.toBe(
       undefined
     )
 
@@ -111,19 +111,35 @@ describe('deleted workspace storage sweep', () => {
   })
 
   it('keeps an object a surviving row still references', async () => {
-    queueTableRows(schemaMock.document, [{ key: 'workspace/ws1/a.txt' }])
+    queueTableRows(schemaMock.document, [{ key: 'workspace/wsdoomed1/a.txt' }])
 
-    await sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())
+    await sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())
 
-    expect(await exists('workspace/ws1/a.txt')).toBe(true)
-    expect(await exists('workspace/ws1/nested/b.txt')).toBe(false)
+    expect(await exists('workspace/wsdoomed1/a.txt')).toBe(true)
+    expect(await exists('workspace/wsdoomed1/nested/b.txt')).toBe(false)
+  })
+
+  it('stops deleting once the workspace reappears mid-sweep', async () => {
+    const keys = Array.from({ length: 510 }, (_, index) => `workspace/wsdoomed1/bulk/${index}.bin`)
+    for (const key of keys) await put(key)
+    queueTableRows(schemaMock.workspace, [])
+    queueTableRows(schemaMock.workspace, [])
+    queueTableRows(schemaMock.workspace, [{ id: 'wsdoomed1' }])
+
+    await expect(sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())).resolves.toBe(
+      undefined
+    )
+
+    const remaining = await Promise.all(keys.map(exists))
+    expect(remaining.filter(Boolean).length).toBeGreaterThan(0)
+    expect(await exists('workspace-logos/wsdoomed1/logo.png')).toBe(true)
   })
 
   it('walks past a full listing page within one run', async () => {
-    const keys = Array.from({ length: 510 }, (_, index) => `workspace/ws1/bulk/${index}.bin`)
+    const keys = Array.from({ length: 510 }, (_, index) => `workspace/wsdoomed1/bulk/${index}.bin`)
     for (const key of keys) await put(key)
 
-    await expect(sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())).resolves.toBe(
+    await expect(sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())).resolves.toBe(
       undefined
     )
 
@@ -131,11 +147,11 @@ describe('deleted workspace storage sweep', () => {
   })
 
   it('resumes from its checkpointed family', async () => {
-    await sweep({ version: 1, workspaceId: 'ws1', family: 2 }, outboxContext())
+    await sweep({ version: 1, workspaceId: 'wsdoomed1', family: 2 }, outboxContext())
 
-    expect(await exists('workspace/ws1/a.txt')).toBe(true)
-    expect(await exists('table-import/ws1/import-1/rows.csv')).toBe(true)
-    expect(await exists('execution/ws1/wf/ex/large-value-lv_1.json')).toBe(false)
+    expect(await exists('workspace/wsdoomed1/a.txt')).toBe(true)
+    expect(await exists('table-import/wsdoomed1/import-1/rows.csv')).toBe(true)
+    expect(await exists('execution/wsdoomed1/wf/ex/large-value-lv_1.json')).toBe(false)
   })
 
   it.each([
@@ -145,7 +161,7 @@ describe('deleted workspace storage sweep', () => {
       row: {
         logo: null,
         whitelabel: {
-          logoUrl: 'https://sim.test/api/files/serve/s3/workspace-logos%2Fws1%2Flogo.png',
+          logoUrl: 'https://sim.test/api/files/serve/s3/workspace-logos%2Fwsdoomed1%2Flogo.png',
         },
         metadata: null,
       },
@@ -153,47 +169,49 @@ describe('deleted workspace storage sweep', () => {
     {
       name: 'a custom block icon stored as a direct bucket URL',
       table: 'customBlock',
-      row: { value: 'https://bucket.s3.amazonaws.com/workspace-logos/ws1/logo.png' },
+      row: { value: 'https://bucket.s3.amazonaws.com/workspace-logos/wsdoomed1/logo.png' },
     },
     {
       name: 'a deployed chat avatar',
       table: 'chat',
-      row: { value: { imageUrl: '/api/files/serve/workspace-logos/ws1/logo.png?context=chat' } },
+      row: {
+        value: { imageUrl: '/api/files/serve/workspace-logos/wsdoomed1/logo.png?context=chat' },
+      },
     },
     {
       name: 'another account image',
       table: 'user',
-      row: { value: '/api/files/serve/workspace-logos/ws1/logo.png' },
+      row: { value: '/api/files/serve/workspace-logos/wsdoomed1/logo.png' },
     },
   ] as const)('keeps an object named by $name', async ({ table, row }) => {
     queueTableRows(schemaMock[table], [row])
 
-    await sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())
+    await sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())
 
-    expect(await exists('workspace-logos/ws1/logo.png')).toBe(true)
-    expect(await exists('workspace/ws1/a.txt')).toBe(false)
+    expect(await exists('workspace-logos/wsdoomed1/logo.png')).toBe(true)
+    expect(await exists('workspace/wsdoomed1/a.txt')).toBe(false)
   })
 
   it('keeps the local metadata sidecar of a kept object', async () => {
-    await put('workspace/ws1/a.txt.upload-metadata.json', '{}')
-    await put('workspace/ws1/nested/b.txt.upload-metadata.json', '{}')
-    queueTableRows(schemaMock.document, [{ key: 'workspace/ws1/a.txt' }])
+    await put('workspace/wsdoomed1/a.txt.upload-metadata.json', '{}')
+    await put('workspace/wsdoomed1/nested/b.txt.upload-metadata.json', '{}')
+    queueTableRows(schemaMock.document, [{ key: 'workspace/wsdoomed1/a.txt' }])
 
-    await sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())
+    await sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())
 
-    expect(await exists('workspace/ws1/a.txt')).toBe(true)
-    expect(await exists('workspace/ws1/a.txt.upload-metadata.json')).toBe(true)
-    expect(await exists('workspace/ws1/nested/b.txt.upload-metadata.json')).toBe(false)
+    expect(await exists('workspace/wsdoomed1/a.txt')).toBe(true)
+    expect(await exists('workspace/wsdoomed1/a.txt.upload-metadata.json')).toBe(true)
+    expect(await exists('workspace/wsdoomed1/nested/b.txt.upload-metadata.json')).toBe(false)
   })
 
   it('pages past a full page of kept objects to the ones behind it', async () => {
     const keptKeys = Array.from(
       { length: 520 },
-      (_, index) => `workspace/ws1/a-kept/${String(index).padStart(3, '0')}.bin`
+      (_, index) => `workspace/wsdoomed1/a-kept/${String(index).padStart(3, '0')}.bin`
     )
     const unkeptKeys = Array.from(
       { length: 10 },
-      (_, index) => `workspace/ws1/z-unkept/${index}.bin`
+      (_, index) => `workspace/wsdoomed1/z-unkept/${index}.bin`
     )
     for (const key of [...keptKeys, ...unkeptKeys]) await put(key)
     queueTableRows(
@@ -205,7 +223,7 @@ describe('deleted workspace storage sweep', () => {
       keptKeys.map((key) => ({ key }))
     )
 
-    await expect(sweep({ version: 1, workspaceId: 'ws1' }, outboxContext())).resolves.toBe(
+    await expect(sweep({ version: 1, workspaceId: 'wsdoomed1' }, outboxContext())).resolves.toBe(
       undefined
     )
 
@@ -215,10 +233,10 @@ describe('deleted workspace storage sweep', () => {
 
   it.each([
     { version: 1, workspaceId: '' },
-    { version: 1, workspaceId: '../ws1' },
-    { version: 1, workspaceId: 'ws1/' },
+    { version: 1, workspaceId: '../wsdoomed1' },
+    { version: 1, workspaceId: 'wsdoomed1/' },
     { version: 1, workspaceId: '*' },
-    { workspaceId: 'ws1' },
+    { workspaceId: 'wsdoomed1' },
   ])('rejects an unbounded or malformed payload %o', async (payload) => {
     await expect(sweep(payload, outboxContext())).rejects.toThrow()
     for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(true)
@@ -244,20 +262,20 @@ describe('account storage object cleanup', () => {
 
   it('deletes unreferenced objects and keeps referenced ones', async () => {
     await put('copilot/abc/private.txt')
-    await put('workspace/ws2/handed-off.txt')
-    queueTableRows(schemaMock.workspaceFiles, [{ key: 'workspace/ws2/handed-off.txt' }])
+    await put('workspace/wsliving2/handed-off.txt')
+    queueTableRows(schemaMock.workspaceFiles, [{ key: 'workspace/wsliving2/handed-off.txt' }])
 
     await cleanup(
       payload([
         { key: 'copilot/abc/private.txt', context: 'copilot' },
-        { key: 'workspace/ws2/handed-off.txt', context: 'workspace' },
+        { key: 'workspace/wsliving2/handed-off.txt', context: 'workspace' },
         { key: 'copilot/abc/already-gone.txt', context: 'copilot' },
       ]),
       outboxContext()
     )
 
     expect(await exists('copilot/abc/private.txt')).toBe(false)
-    expect(await readFile(join(root, 'workspace/ws2/handed-off.txt'), 'utf8')).toBe('x')
+    expect(await readFile(join(root, 'workspace/wsliving2/handed-off.txt'), 'utf8')).toBe('x')
   })
 
   it('touches nothing while the account exists', async () => {
@@ -285,34 +303,55 @@ describe('account storage object cleanup', () => {
   })
 
   it('keeps a key under a workspace that still exists', async () => {
-    await put('workspace/ws2/private.txt')
+    await put('workspace/wsliving2/private.txt')
     await put('copilot/abc/private.txt')
-    queueTableRows(schemaMock.workspace, [{ id: 'ws2' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'wsliving2' }])
 
     await cleanup(
       payload([
-        { key: 'workspace/ws2/private.txt', context: 'mothership' },
+        { key: 'workspace/wsliving2/private.txt', context: 'mothership' },
         { key: 'copilot/abc/private.txt', context: 'copilot' },
       ]),
       outboxContext()
     )
 
-    expect(await exists('workspace/ws2/private.txt')).toBe(true)
+    expect(await exists('workspace/wsliving2/private.txt')).toBe(true)
     expect(await exists('copilot/abc/private.txt')).toBe(false)
   })
 
   it('keeps a publicly served key a stored asset URL names', async () => {
-    await put('workspace-logos/ws9/icon.png')
+    await put('workspace-logos/wsforeign9/icon.png')
     queueTableRows(schemaMock.oauthClient, [
-      { value: '/api/files/serve/workspace-logos%2Fws9%2Ficon.png' },
+      { value: '/api/files/serve/workspace-logos%2Fwsforeign9%2Ficon.png' },
     ])
 
     await cleanup(
-      payload([{ key: 'workspace-logos/ws9/icon.png', context: 'workspace-logos' }]),
+      payload([{ key: 'workspace-logos/wsforeign9/icon.png', context: 'workspace-logos' }]),
       outboxContext()
     )
 
-    expect(await exists('workspace-logos/ws9/icon.png')).toBe(true)
+    expect(await exists('workspace-logos/wsforeign9/icon.png')).toBe(true)
+  })
+
+  it('keeps a public key without an owner id to narrow on, reading no URL column', async () => {
+    await put('og-images/logo.png')
+
+    await cleanup(payload([{ key: 'og-images/logo.png', context: 'workspace' }]), outboxContext())
+
+    expect(await exists('og-images/logo.png')).toBe(true)
+    for (const table of ['organization', 'customBlock', 'chat', 'oauthClient'] as const)
+      expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock[table])
+  })
+
+  it("deletes the account's own uploaded avatar", async () => {
+    await put('profile-pictures/upload-0001-avatar.png')
+
+    await cleanup(
+      payload([{ key: 'profile-pictures/upload-0001-avatar.png', context: 'profile-pictures' }]),
+      outboxContext()
+    )
+
+    expect(await exists('profile-pictures/upload-0001-avatar.png')).toBe(false)
   })
 
   it('reads no URL column for keys that are never served without a row', async () => {
@@ -327,25 +366,25 @@ describe('account storage object cleanup', () => {
   })
 
   it('still purges when a stored URL has malformed percent-encoding', async () => {
-    await put('workspace-logos/ws9/old.png')
+    await put('workspace-logos/wsforeign9/old.png')
     queueTableRows(schemaMock.user, [])
     queueTableRows(schemaMock.user, [{ value: '/api/files/serve/%E0%A4%A' }])
 
     await cleanup(
-      payload([{ key: 'workspace-logos/ws9/old.png', context: 'workspace-logos' }]),
+      payload([{ key: 'workspace-logos/wsforeign9/old.png', context: 'workspace-logos' }]),
       outboxContext()
     )
 
-    expect(await exists('workspace-logos/ws9/old.png')).toBe(false)
+    expect(await exists('workspace-logos/wsforeign9/old.png')).toBe(false)
   })
 
   it('keeps a legacy key holding a literal percent sign that a malformed URL names', async () => {
-    const key = 'workspace-logos/ws9/brand logo%.png'
-    const storedAs = 'workspace-logos/ws9/brand_logo_.png'
+    const key = 'workspace-logos/wsforeign9/brand logo%.png'
+    const storedAs = 'workspace-logos/wsforeign9/brand_logo_.png'
     await put(storedAs)
     queueTableRows(schemaMock.user, [])
     queueTableRows(schemaMock.user, [
-      { value: '/api/files/serve/workspace-logos/ws9/brand%20logo%.png' },
+      { value: '/api/files/serve/workspace-logos/wsforeign9/brand%20logo%.png' },
     ])
 
     await cleanup(payload([{ key, context: 'workspace-logos' }]), outboxContext())
@@ -357,8 +396,7 @@ describe('account storage object cleanup', () => {
     { key: 'project/p1/file.txt', context: 'workspace' },
     { key: 'assistant/org/user/file.png', context: 'mothership' },
     { key: '../outside.txt', context: 'workspace' },
-    { key: 'workspace/ws2/file.txt', context: 'og-images' },
-    { key: 'profile-pictures/user-9/logo.png', context: 'profile-pictures' },
+    { key: 'workspace/wsliving2/file.txt', context: 'og-images' },
     { key: 'profile-pictures/user-9/logo.png', context: 'workspace' },
     { key: 'organization-logos/org-1/logo.png', context: 'workspace' },
   ])('refuses a batch naming %o', async (object) => {
@@ -426,6 +464,16 @@ describe('queueing account storage cleanup', () => {
     })
 
     expect(queuedObjectKeys()).toEqual(['copilot/abc/early.txt', 'copilot/abc/late.txt'])
+  })
+
+  it("queues the account's own uploaded avatar", async () => {
+    queueTableRows(schemaMock.user, [
+      { image: '/api/files/serve/s3/profile-pictures%2Fupload-0001-avatar.png' },
+    ])
+
+    await queueCleanup()
+
+    expect(queuedObjectKeys()).toEqual(['profile-pictures/upload-0001-avatar.png'])
   })
 
   it('never queues a profile picture row', async () => {

@@ -103,14 +103,6 @@ async function insertAdminWorkspace(id: string, ownerId: string) {
   })
 }
 
-/** A legal URL for `key` that shares no literal run with it, as a hand-written link can be. */
-function percentEncodeEveryCharacter(key: string): string {
-  return Array.from(
-    key,
-    (character) => `%${character.charCodeAt(0).toString(16).padStart(2, '0')}`
-  ).join('')
-}
-
 function fileRow(values: {
   key: string
   userId: string
@@ -229,7 +221,7 @@ async function seed() {
   await db
     .update(workspace)
     .set({
-      logoUrl: `/api/files/serve/s3/${percentEncodeEveryCharacter(keys.logoNamedByEncodedUrl)}`,
+      logoUrl: `/api/files/serve/s3/${encodeURIComponent(keys.logoNamedByEncodedUrl)}`,
     })
     .where(eq(workspace.id, survivingId))
   for (const key of Object.values(keys)) await put(key)
