@@ -36,6 +36,8 @@ vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
 import { observeContentDelivery } from '@/lib/core/application/content-delivery'
+import { encryptSecret } from '@/lib/core/security/encryption'
+import { createDurableSecretProvenanceRegistry } from '@/lib/execution/durable-secret-provenance'
 import {
   createProjectFile,
   readProjectFileContent,
@@ -45,6 +47,7 @@ import { createProjectFileFolder } from '@/lib/projects/files/application/folder
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
@@ -1414,7 +1417,7 @@ describe('Project ZIP extraction against PostgreSQL and local storage', () => {
           status: 'exact' as const,
           entries: [
             {
-              encryptedValue: 'archive-fixture',
+              encryptedValue: (await encryptSecret('extracted-secret-value')).encrypted,
               sourceUserId: 'origin',
             },
           ],
@@ -1422,7 +1425,7 @@ describe('Project ZIP extraction against PostgreSQL and local storage', () => {
       ]
       for (const classification of classifications) {
         const f = await fixture()
-        const source = await archive(f, { 'data.txt': 'extracted' }, classification)
+        const source = await archive(f, { 'data.txt': 'extracted-secret-value' }, classification)
         await extractProjectFile.execute({
           principal: f.principal,
           input: { projectId: f.projectId, fileId: source.file.id },
@@ -1433,15 +1436,23 @@ describe('Project ZIP extraction against PostgreSQL and local storage', () => {
           .select()
           .from(workspaceFileSecretProvenance)
           .where(eq(workspaceFileSecretProvenance.fileId, child.id))
-        const expected =
-          classification.status === 'exact'
-            ? classification.entries.length
-              ? 'unknown'
-              : 'exact'
-            : classification.status
-        expect(provenance.status).toBe(expected)
-        expect(provenance.entries).toEqual([])
-        expect(await readFile(join(localStorageRoot, child.key), 'utf8')).toBe('extracted')
+        expect(provenance.status).toBe(classification.status)
+        const read = await readProjectFileContent.execute({
+          principal: f.principal,
+          input: { projectId: f.projectId, fileId: child.id, includeSecretProvenance: true },
+        })
+        expect(read.content.toString()).toBe('extracted-secret-value')
+        if (classification.status === 'exact' && classification.entries.length > 0) {
+          if (read.secretProvenance?.status !== 'exact')
+            throw new Error('Child lost its recorded evidence')
+          const registry = await createDurableSecretProvenanceRegistry(read.secretProvenance, {
+            userId: f.ownerId,
+            workspaceId: f.workspaceId,
+          })
+          expect(
+            projectResolvedSecretModelContent(read.content.toString(), registry)
+          ).toMatchObject({ safe: true, value: '[REDACTED_SECRET]' })
+        } else expect(provenance.entries).toEqual([])
       }
     }
   )

@@ -1028,7 +1028,7 @@ function envelopeFromClassifications(
 export class TableRowProvenanceReader {
   private readonly accumulator: ResolvedSecretTraceProvenanceAccumulator
   /** Every row captured, classified on its own. A row never captured has no classification. */
-  private readonly rows = new Map<string, DurableSecretProvenance>()
+  private readonly rows = new Map<string, TableRowClassification>()
 
   constructor(
     private readonly scope: ResolvedSecretTraceScopeV1,
@@ -1060,25 +1060,28 @@ export class TableRowProvenanceReader {
       executor
     )
     for (const [rowId, classification] of classifications) {
-      this.rows.set(
-        rowId,
-        classification.status === 'unknown'
-          ? { status: 'unknown' }
-          : {
-              status: 'exact',
-              entries: classification.entries.map(({ columnId: _column, ...entry }) => entry),
-            }
-      )
+      this.rows.set(rowId, classification)
     }
     this.accumulator.record(envelopeFromClassifications(classifications, rows.length, this.scope))
   }
 
-  exportProvenance(): ResolvedSecretTraceProvenanceV1 {
-    return this.accumulator.exportProvenance()
+  exportProvenance(deliveredRowIds?: readonly string[]): ResolvedSecretTraceProvenanceV1 {
+    if (!deliveredRowIds) return this.accumulator.exportProvenance()
+    const delivered = new Map<string, TableRowClassification>()
+    for (const rowId of deliveredRowIds) {
+      delivered.set(rowId, this.rows.get(rowId) ?? { status: 'unknown', cause: 'uncaptured-row' })
+    }
+    return envelopeFromClassifications(delivered, deliveredRowIds.length, this.scope)
   }
 
   /** One captured row's classification; a row this reader never captured is unknown. */
   rowProvenance(rowId: string): DurableSecretProvenance {
-    return this.rows.get(rowId) ?? { status: 'unknown' }
+    const classification = this.rows.get(rowId)
+    return !classification || classification.status === 'unknown'
+      ? { status: 'unknown' }
+      : {
+          status: 'exact',
+          entries: classification.entries.map(({ columnId: _column, ...entry }) => entry),
+        }
   }
 }

@@ -1475,7 +1475,6 @@
     "apps/sim/lib/knowledge/__integration__/knowledge-projection.integration.ts": 3,
     "apps/sim/lib/knowledge/__integration__/listing-continuation.integration.ts": 22,
     "apps/sim/lib/knowledge/__integration__/ocr-input-failures.integration.ts": 2,
-    "apps/sim/lib/knowledge/__integration__/processing-lock-scope.integration.ts": 2,
     "apps/sim/lib/knowledge/__integration__/provider-admission.integration.ts": 1,
     "apps/sim/lib/knowledge/__integration__/provider-processing-recovery.integration.ts": 3,
     "apps/sim/lib/knowledge/__integration__/providers-live.integration.ts": 10,

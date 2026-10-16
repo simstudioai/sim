@@ -107,29 +107,6 @@ function requireChunkWritable(context: ActiveKnowledgeDocumentContext): void {
   }
 }
 
-function documentTags(context: ActiveKnowledgeDocumentContext) {
-  const document = context.document
-  return {
-    tag1: document.tag1 ?? null,
-    tag2: document.tag2 ?? null,
-    tag3: document.tag3 ?? null,
-    tag4: document.tag4 ?? null,
-    tag5: document.tag5 ?? null,
-    tag6: document.tag6 ?? null,
-    tag7: document.tag7 ?? null,
-    number1: document.number1 ?? null,
-    number2: document.number2 ?? null,
-    number3: document.number3 ?? null,
-    number4: document.number4 ?? null,
-    number5: document.number5 ?? null,
-    date1: document.date1 ?? null,
-    date2: document.date2 ?? null,
-    boolean1: document.boolean1 ?? null,
-    boolean2: document.boolean2 ?? null,
-    boolean3: document.boolean3 ?? null,
-  }
-}
-
 export const listKnowledgeChunks = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listChunks,
   resolveContext: ({
@@ -226,7 +203,6 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
       createChunk(
         context.knowledgeBaseId,
         context.documentId,
-        documentTags(context),
         { content: input.content, enabled: input.enabled },
         generateRequestId(),
         context.workspaceId,

@@ -129,11 +129,6 @@ export async function commitFileArchiveInTx(
     tx
   )
   const folders = new Map<string, string>([['[]', root.id]])
-  const provenance: WorkspaceFileSecretProvenance =
-    args.secretProvenance.status === 'unrecorded' ||
-    (args.secretProvenance.status === 'exact' && args.secretProvenance.entries.length === 0)
-      ? args.secretProvenance
-      : { status: 'unknown' }
   for (const entry of args.staged.entries) {
     args.signal.throwIfAborted()
     let parentId = root.id
@@ -161,7 +156,7 @@ export async function commitFileArchiveInTx(
       staged: entry.content,
       folderId: parentId,
       exactName: false,
-      secretProvenance: provenance,
+      secretProvenance: args.secretProvenance,
     })
   }
   args.signal.throwIfAborted()
