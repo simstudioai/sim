@@ -1,6 +1,13 @@
 /** Exercises transcript windows and the stored UI projection against real PostgreSQL. */
 import { db } from '@sim/db'
-import { copilotChats, copilotMessages, permissions, user, workspace } from '@sim/db/schema'
+import {
+  copilotChats,
+  copilotMessages,
+  permissions,
+  user,
+  workflow,
+  workspace,
+} from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
@@ -113,6 +120,32 @@ async function createChat(type: 'mothership' | 'copilot' = 'mothership'): Promis
   const [chat] = await db
     .insert(copilotChats)
     .values({ userId: ownerId, workspaceId, type })
+    .returning({ id: copilotChats.id })
+  return chat.id
+}
+
+/** A workflow Copilot panel chat, as the panel stores it. */
+async function createWorkflowChat(options: { archivedWorkflow?: boolean } = {}): Promise<string> {
+  const workflowId = generateId()
+  const now = new Date()
+  await db.insert(workflow).values({
+    id: workflowId,
+    userId: ownerId,
+    workspaceId,
+    name: 'Transcript pages workflow',
+    lastSynced: now,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: options.archivedWorkflow ? now : null,
+  })
+  const [chat] = await db
+    .insert(copilotChats)
+    .values({
+      userId: ownerId,
+      workflowId,
+      workspaceId,
+      type: 'copilot',
+    })
     .returning({ id: copilotChats.id })
   return chat.id
 }
@@ -334,22 +367,7 @@ describe('chat transcript pages in PostgreSQL', () => {
     )
   })
 
-  it('reads a transcript only for a chat of the requested type', async () => {
-    const copilotChatId = await createChat('copilot')
-    const mothershipChatId = await createChat('mothership')
-    await appendTurns(copilotChatId, 1)
-    await appendTurns(mothershipChatId, 1)
-
-    expect(
-      await getAccessibleCopilotChatWithMessages(copilotChatId, ownerId, { type: 'mothership' })
-    ).toBeNull()
-    const mothership = await getAccessibleCopilotChatWithMessages(mothershipChatId, ownerId, {
-      type: 'mothership',
-    })
-    expect(mothership?.messages).toHaveLength(2)
-  })
-
-  it("serves older pages only to the chat's owner, only for mothership chats and issued cursors", async () => {
+  it("serves older pages only to the chat's owner and only for issued cursors", async () => {
     const chatId = await createChat()
     await appendTurns(chatId, 40)
     const before = (await latestWindow(chatId))?.olderCursor
@@ -364,12 +382,28 @@ describe('chat transcript pages in PostgreSQL', () => {
     await expect(
       readChatOlderMessages.execute({ principal: outsider, input: { chatId, before } })
     ).rejects.toThrow('Chat not found')
-    const copilotChatId = await createChat('copilot')
-    await expect(
-      readChatOlderMessages.execute({ principal: owner, input: { chatId: copilotChatId, before } })
-    ).rejects.toThrow('Chat not found')
     await expect(
       readChatOlderMessages.execute({ principal: owner, input: { chatId, before: 'tampered' } })
     ).rejects.toThrow('Invalid cursor')
+  })
+
+  it('serves older pages of a workflow copilot chat while its owner may read the workflow', async () => {
+    const chatId = await createWorkflowChat()
+    const archivedChatId = await createWorkflowChat({ archivedWorkflow: true })
+    for (const id of [chatId, archivedChatId]) await appendTurns(id, 40)
+
+    const before = (await latestWindow(chatId))?.olderCursor
+    if (!before) throw new Error('latest window reaches the first message')
+    const page = await readChatOlderMessages.execute({
+      principal: owner,
+      input: { chatId, before },
+    })
+    expect(page.messages.length).toBeGreaterThan(0)
+    await expect(
+      readChatOlderMessages.execute({ principal: outsider, input: { chatId, before } })
+    ).rejects.toThrow('Chat not found')
+    await expect(
+      readChatOlderMessages.execute({ principal: owner, input: { chatId: archivedChatId, before } })
+    ).rejects.toThrow('Chat not found')
   })
 })

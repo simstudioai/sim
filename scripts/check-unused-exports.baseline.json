@@ -1310,7 +1310,6 @@
   "apps/sim/lib/api/contracts/copilot.ts#ValidateCopilotByokBody",
   "apps/sim/lib/api/contracts/copilot.ts#copilotApiKeySchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotChatAbortBodySchema",
-  "apps/sim/lib/api/contracts/copilot.ts#copilotChatGetQuerySchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotChatListItemSchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotChatSteerBodySchema",
   "apps/sim/lib/api/contracts/copilot.ts#copilotChatStreamQuerySchema",

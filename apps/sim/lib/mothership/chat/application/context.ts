@@ -6,6 +6,7 @@ import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import type { WorkspaceAuthorizationContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
+import { authorizeChatWorkflowRead, isChatModeAvailable } from '@/lib/mothership/chat/lifecycle'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export type ChatOwnerContext =
@@ -25,6 +26,7 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
       userId: copilotChats.userId,
       workspaceId: copilotChats.workspaceId,
       organizationId: copilotChats.organizationId,
+      workflowId: copilotChats.workflowId,
       type: copilotChats.type,
       mode: conversationModeSelection,
       memorySpaceId: copilotChats.memorySpaceId,
@@ -53,8 +55,24 @@ export async function resolveOwnedChatContext(principal: Principal, chatId: stri
     ...owner,
     chatId,
     userId: chat.userId,
+    workflowId: chat.workflowId,
     type: chat.type,
     mode: chat.mode,
     memorySpaceId: chat.memorySpaceId ?? null,
   }
+}
+
+/**
+ * Refuses a chat its owner may no longer read, as the chat detail read does: a workflow chat
+ * whose workflow they cannot read, or a workspace Plan chat while Plan mode is off for them.
+ */
+export async function requireOwnedChatReadable(
+  context: Awaited<ReturnType<typeof resolveOwnedChatContext>>
+) {
+  if (
+    (context.workflowId &&
+      !(await authorizeChatWorkflowRead(context.chatId, context.userId, context.workflowId))) ||
+    !(await isChatModeAvailable(context, context.userId))
+  )
+    throw new OrchestrationError('not_found', 'Chat not found')
 }

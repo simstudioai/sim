@@ -6,7 +6,10 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import {
+  requireOwnedChatReadable,
+  resolveOwnedChatContext,
+} from '@/lib/mothership/chat/application/context'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
 
 interface ReadChatStreamStatusInput {
@@ -44,6 +47,7 @@ export const readChatStreamStatus = defineAuthorizedChatUseCase({
   },
   authorizationOptions: {},
   async execute({ context }) {
+    await requireOwnedChatReadable(context)
     const [chat] = await db
       .select({ conversationId: copilotChats.conversationId })
       .from(copilotChats)
@@ -51,7 +55,6 @@ export const readChatStreamStatus = defineAuthorizedChatUseCase({
         and(
           eq(copilotChats.id, context.chatId),
           eq(copilotChats.userId, context.userId),
-          eq(copilotChats.type, 'mothership'),
           isNull(copilotChats.deletedAt)
         )
       )

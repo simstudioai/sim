@@ -3,7 +3,10 @@ import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import {
+  requireOwnedChatReadable,
+  resolveOwnedChatContext,
+} from '@/lib/mothership/chat/application/context'
 import { loadCopilotChatMessagesBefore } from '@/lib/mothership/chat/lifecycle'
 import { compactToolCallParams, normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { decodeTranscriptCursor } from '@/lib/mothership/chat/transcript-cursor'
@@ -14,7 +17,7 @@ interface ReadChatOlderMessagesInput {
 }
 
 /**
- * A page of the owner's mothership chat transcript before a cursor the chat detail read
+ * A page of the owner's chat transcript before a cursor the chat detail read
  * issued, normalized and compacted exactly as that read returns its messages, so a message
  * the backfill has not reached still arrives without its bulk tool-call params.
  */
@@ -47,7 +50,7 @@ export const readChatOlderMessages = defineAuthorizedChatUseCase({
   async execute({ context, input }) {
     const position = decodeTranscriptCursor(input.before)
     if (!position) throw new OrchestrationError('validation', 'Invalid cursor')
-    if (context.type !== 'mothership') throw new OrchestrationError('not_found', 'Chat not found')
+    await requireOwnedChatReadable(context)
     const page = await loadCopilotChatMessagesBefore(context.chatId, position)
     return {
       messages: page.messages.map((message) =>

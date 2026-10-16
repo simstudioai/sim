@@ -53,7 +53,6 @@ export const GET = withRouteHandler(
 
       const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, {
         principal,
-        type: 'mothership',
         window: fromPosition
           ? { kind: 'from', position: fromPosition }
           : window === 'latest'
