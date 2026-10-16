@@ -74,9 +74,9 @@ import { readSlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-confi
 import {
   executeWorkflowCore,
   type PreloadedExecutionEnvironment,
-  wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import { isRecordedWorkflowFailure } from '@/lib/workflows/executor/recorded-failure'
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
@@ -1277,15 +1277,11 @@ async function executeWebhookJobInternal(
       executionId,
     })
 
-    // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
-    // signal is reliable and the failure is fully persisted before we decide fault vs error.
-    await loggingSession.waitForPostExecution()
-
     // A failure inside workflow execution (block error, provider 4xx, missing required field, etc.)
     // is finalized by core and already recorded in the execution logs. That is a user/workflow error,
     // not a trigger.dev job fault — complete the run normally so we don't fire a false alert. Errors
     // that were not finalized came from the webhook pipeline itself, so we re-throw to fault below.
-    if (wasExecutionFinalizedByCore(error, executionId)) {
+    if (await isRecordedWorkflowFailure(error, executionId, loggingSession)) {
       return {
         success: false,
         workflowId: payload.workflowId,

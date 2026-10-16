@@ -34,11 +34,9 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
-import {
-  executeWorkflowCore,
-  wasExecutionFinalizedByCore,
-} from '@/lib/workflows/executor/execution-core'
+import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import { isRecordedWorkflowFailure } from '@/lib/workflows/executor/recorded-failure'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
 import type { ScheduleDisableReason } from '@/lib/workflows/schedules/disable-reasons'
@@ -730,7 +728,7 @@ async function runWorkflowExecution({
       }
     }
 
-    if (wasExecutionFinalizedByCore(error, executionId)) {
+    if (await isRecordedWorkflowFailure(error, executionId, loggingSession)) {
       throw error
     }
 

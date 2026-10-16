@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
+import { getRecordedJobFailureError } from '@/lib/core/async-jobs/recorded-failure'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
@@ -26,18 +27,23 @@ type AsyncJobRow = typeof asyncJobs.$inferSelect
 type Runner = NonNullable<EnqueueOptions['runner']>
 
 function rowToJob(row: AsyncJobRow): Job {
+  const recordedFailure =
+    row.status === JOB_STATUS.COMPLETED
+      ? getRecordedJobFailureError(row.type, row.output)
+      : undefined
   return {
     id: row.id,
     type: row.type as JobType,
     payload: row.payload,
-    status: row.status as JobStatus,
+    status: recordedFailure === undefined ? (row.status as JobStatus) : JOB_STATUS.FAILED,
     createdAt: row.createdAt,
     startedAt: row.startedAt ?? undefined,
     completedAt: row.completedAt ?? undefined,
     attempts: row.attempts,
     maxAttempts: row.maxAttempts,
-    error: row.error ?? undefined,
-    output: row.output as unknown,
+    error: recordedFailure ?? row.error ?? undefined,
+    // markJobFailed never writes an output, so a failed row reads back null.
+    output: recordedFailure === undefined ? (row.output as unknown) : null,
     metadata: (row.metadata ?? {}) as JobMetadata,
   }
 }
