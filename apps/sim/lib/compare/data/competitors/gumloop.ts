@@ -774,7 +774,7 @@ export const gumloopProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Usage-based credits indexed at $0.005 each: Pro includes 20,000 credits per month and Enterprise is custom. Each agent run bills the list cost of model tokens, compute (5 credits per session-minute), and tool calls, plus an 8% orchestration fee',
+          'Usage-based credits indexed at $0.005 each: Pro includes 20,000 credits per month and Enterprise is custom. Each agent run bills the list cost of model tokens, compute (5 credits per session-minute on the managed cloud; Enterprise VPC deployments are not charged for compute), and tool calls, plus an 8% orchestration fee',
         detail:
           'Pro credits reset monthly and do not roll over (Enterprise credits do). Pro overage is capped at 1,000,000 credits per billing period by default. Enterprise plans can negotiate a different orchestration fee.',
         shortValue: 'Credits at $0.005 each plus an 8% orchestration fee',
