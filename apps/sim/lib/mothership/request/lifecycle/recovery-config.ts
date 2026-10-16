@@ -3,6 +3,7 @@ import { hasCopilotResourceAdmission } from '@/lib/mothership/auth/application-d
 import { COPILOT_REQUEST_MODES } from '@/lib/mothership/constants'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
+import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 
 export const BillingAdmissionSchema = z
   .object({
@@ -25,6 +26,17 @@ export const DurableChatRequestSchema = ChatPayloadSchema.safeExtend({
  * writer and the recovery reader share this one value.
  */
 export const RESOURCE_AUTHORING_VERSION = 1
+
+/**
+ * The marker an admitted turn stores for recovery. Builds before it parse recovery strictly and
+ * would refuse to recover the run, and only Project authoring reads it, so it is written only
+ * while Projects are on.
+ */
+export async function durableResourceAuthoringVersion(
+  admitted: boolean
+): Promise<typeof RESOURCE_AUTHORING_VERSION | undefined> {
+  return admitted && (await isProjectsEnabled()) ? RESOURCE_AUTHORING_VERSION : undefined
+}
 
 export const StreamRecoveryConfigSchema = z
   .object({
@@ -49,11 +61,20 @@ export const StreamRecoveryConfigSchema = z
     }
   )
 
-export function streamRecoveryConfig(
+export async function streamRecoveryConfig(
   options: CopilotLifecycleOptions,
   request: Record<string, unknown>
 ) {
   if (options.interactive !== true) return undefined
+  const resourceAuthoringVersion = await durableResourceAuthoringVersion(
+    hasCopilotResourceAdmission({
+      ...options,
+      ...options.executionContext,
+      copilotToolExecution: true,
+      copilotResourceAdmission:
+        options.executionContext?.copilotResourceAdmission ?? options.copilotResourceAdmission,
+    })
+  )
   return StreamRecoveryConfigSchema.parse({
     kind: 'interactive_stream',
     request,
@@ -61,14 +82,6 @@ export function streamRecoveryConfig(
     clientToolPickupExpected: options.clientToolPickupExpected ?? true,
     userTimezone: options.executionContext?.userTimezone,
     requestMode: options.executionContext?.requestMode,
-    resourceAuthoringVersion: hasCopilotResourceAdmission({
-      ...options,
-      ...options.executionContext,
-      copilotToolExecution: true,
-      copilotResourceAdmission:
-        options.executionContext?.copilotResourceAdmission ?? options.copilotResourceAdmission,
-    })
-      ? RESOURCE_AUTHORING_VERSION
-      : undefined,
+    ...(resourceAuthoringVersion ? { resourceAuthoringVersion } : {}),
   })
 }

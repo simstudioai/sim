@@ -85,7 +85,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
-import { RESOURCE_AUTHORING_VERSION } from '@/lib/mothership/request/lifecycle/recovery-config'
+import { durableResourceAuthoringVersion } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/mothership/request/otel'
 import {
@@ -1406,6 +1406,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         if (!lease || !sendClaim?.claimToken || sendClaim.storageMethod !== 'database') {
           throw new Error('Chat admission requires its controller and durable send claim')
         }
+        const resourceAuthoringVersion = await durableResourceAuthoringVersion(
+          executionContext.copilotResourceAdmission !== undefined
+        )
         admittedRun = await admitChatTurn.execute({
           principal: {
             kind: 'session',
@@ -1429,7 +1432,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             },
             recovery: {
               kind: 'interactive_stream',
-              resourceAuthoringVersion: RESOURCE_AUTHORING_VERSION,
+              resourceAuthoringVersion,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
               goRoute: branch.goRoute,
               clientToolPickupExpected,

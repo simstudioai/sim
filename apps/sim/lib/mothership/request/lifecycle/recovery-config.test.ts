@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest'
-import { StreamRecoveryConfigSchema } from '@/lib/mothership/request/lifecycle/recovery-config'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { describe, expect, it, vi } from 'vitest'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
+import {
+  StreamRecoveryConfigSchema,
+  streamRecoveryConfig,
+} from '@/lib/mothership/request/lifecycle/recovery-config'
+
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 const identity = {
   userId: 'actor',
@@ -83,4 +90,29 @@ it('preserves the explicit Plan wire mode on recovery', () => {
     StreamRecoveryConfigSchema.parse(config({ ...workspaceRequest, mode: 'plan' }, 'plan')).request
       .mode
   ).toBe('plan')
+})
+
+describe('recovery marker written by an admitted turn', () => {
+  const options = {
+    interactive: true,
+    userId: identity.userId,
+    chatId: identity.chatId,
+    goRoute: '/api/mothership',
+    copilotResourceAdmission: createCopilotResourceAdmission({
+      userId: identity.userId,
+      invocation: { kind: 'chat', chatId: identity.chatId },
+    }),
+  }
+
+  it('stays off a recovery config older builds must still parse while Projects are off', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(false)
+    const recovery = await streamRecoveryConfig(options, workspaceRequest)
+    expect(recovery).not.toHaveProperty('resourceAuthoringVersion')
+  })
+
+  it('restores authoring admission on recovery while Projects are on', async () => {
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async (flag) => flag === 'projects')
+    const recovery = await streamRecoveryConfig(options, workspaceRequest)
+    expect(recovery?.resourceAuthoringVersion).toBe(1)
+  })
 })
