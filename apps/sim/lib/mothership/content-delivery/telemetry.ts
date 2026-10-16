@@ -61,7 +61,7 @@ const CAUSES: Record<
 
 /**
  * Collects the items one admission refuses and reports them once per surface and cause, naming
- * each item by its opaque id and why, never its content. A page of legacy rows is one line.
+ * each item by its id and why, never its content. A page of legacy rows is one line.
  */
 export interface ContentRefusals {
   /** Records the refusal of `source`; returns the verdict, its reason. */
@@ -79,7 +79,6 @@ export function createContentRefusals(workspaceId: string | undefined): ContentR
         cause: CAUSES[source.kind][reason],
         workspaceId,
         resourceId: source.id,
-        ...(source.parentId ? { parentId: source.parentId } : {}),
       })
       return reason
     },

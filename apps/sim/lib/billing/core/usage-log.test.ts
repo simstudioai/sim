@@ -308,7 +308,7 @@ describe('recordCumulativeUsage', () => {
     expect(select).not.toHaveBeenCalled()
     expect(mockInsert).not.toHaveBeenCalled()
     expect(mockUpdate).not.toHaveBeenCalled()
-    /** The route logs the refusal once; it is not a transaction that failed to complete. */
+    // The route logs the refusal once; it is not a transaction that failed to complete.
     expect(getMockLogger('UsageLog').warn).not.toHaveBeenCalledWith(
       'Cumulative usage transaction did not complete promptly',
       expect.anything()

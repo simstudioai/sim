@@ -50,10 +50,7 @@ export interface DurableSecretProvenanceRefusalReport {
   surface: DurableSecretProvenanceSurface
   cause: DurableSecretProvenanceRefusalCause
   workspaceId?: string
-  /** An opaque id, never a name or path. */
   resourceId?: string
-  /** The record that owns the resource (its document, table or chat). */
-  parentId?: string
 }
 
 /**
@@ -84,16 +81,15 @@ export function reportDurableSecretProvenanceRefusal(
     surface: report.surface,
     cause: report.cause,
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
-    ...(report.parentId ? { parentId: report.parentId } : {}),
     ...(report.resourceId ? { resourceId: report.resourceId } : {}),
   })
 }
 
-/** Ids one grouped refusal lists; the ids are opaque, and a page of them stays one line. */
+/** Ids one grouped refusal lists, so a page of them stays one line. */
 const REFUSAL_RESOURCE_ID_LIMIT = 200
 
 /**
- * Reports the refusals of one read with one line per surface, cause and owning record, each
+ * Reports the refusals of one read with one line per surface and cause, each
  * carrying the same top-level `surface` and `cause` as a single refusal, its `refusedCount`, and
  * the refused ids, so each id stays paired with its cause.
  */
@@ -102,7 +98,7 @@ export function reportDurableSecretProvenanceRefusals(
 ): void {
   const groups = new Map<string, DurableSecretProvenanceRefusalReport[]>()
   for (const report of reports) {
-    const key = JSON.stringify([report.surface, report.cause, report.workspaceId, report.parentId])
+    const key = JSON.stringify([report.surface, report.cause, report.workspaceId])
     const group = groups.get(key)
     if (group) group.push(report)
     else groups.set(key, [report])
@@ -119,7 +115,6 @@ export function reportDurableSecretProvenanceRefusals(
       cause: first.cause,
       refusedCount: group.length,
       ...(first.workspaceId ? { workspaceId: first.workspaceId } : {}),
-      ...(first.parentId ? { parentId: first.parentId } : {}),
       resourceIds: resourceIds.slice(0, REFUSAL_RESOURCE_ID_LIMIT),
       ...(resourceIds.length > REFUSAL_RESOURCE_ID_LIMIT ? { resourceIdsTruncated: true } : {}),
     })

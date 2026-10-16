@@ -212,7 +212,7 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
         surface: 'knowledge',
         cause: 'knowledge-chunk-source-unavailable',
         workspaceId: context.workspaceId,
-        parentId: context.documentId,
+        resourceId: context.documentId,
       })
       throw new OrchestrationError('validation', 'Knowledge chunk secret provenance is unavailable')
     }
@@ -288,7 +288,7 @@ export const updateKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
         surface: 'knowledge',
         cause: 'knowledge-chunk-source-unavailable',
         workspaceId: context.workspaceId,
-        parentId: context.documentId,
+        resourceId: context.documentId,
       })
       throw new OrchestrationError('validation', 'Knowledge chunk secret provenance is unavailable')
     }

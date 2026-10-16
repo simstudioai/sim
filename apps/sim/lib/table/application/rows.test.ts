@@ -950,13 +950,7 @@ describe('row delivery to Chat', () => {
     expect(mockRowProvenance).toHaveBeenCalledWith(ROW.id)
     expect(admit).toHaveBeenCalledTimes(1)
     expect(admit).toHaveBeenCalledWith([
-      {
-        kind: 'table-row',
-        id: ROW.id,
-        parentId: TABLE.id,
-        provenance,
-        view: { derived: ROW.data },
-      },
+      { kind: 'table-row', id: ROW.id, provenance, view: { derived: ROW.data } },
     ])
   })
 

@@ -31,10 +31,8 @@ export type ContentView = 'complete' | 'opaque' | 'excerpt' | { derived: unknown
 /** One stored item or tool result whose content a use case is about to return. */
 export interface ContentSource {
   kind: ContentSourceKind
-  /** Canonical id, for attribution and per-item exclusion only. Never a name or path. */
+  /** Canonical id, for attribution and per-item exclusion only. */
   id: string
-  /** The record that owns the item (its document, table or chat), for attribution only. */
-  parentId?: string
   provenance: ContentProvenance
   view: ContentView
 }

@@ -20,7 +20,6 @@ export async function readScratchFile(
         ? { organizationId: runtime.chatOrganizationId }
         : { workspaceId: runtime.workspaceId }),
       path: reference,
-      view: 'complete',
       maxBytes: options.maxBytes,
       signal: runtime.signal,
     },

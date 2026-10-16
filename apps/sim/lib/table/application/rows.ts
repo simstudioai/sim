@@ -171,7 +171,7 @@ async function deliverRows<R extends { id: string; data: RowData }>(
   principal: Principal,
   reader: TableRowProvenanceReader | undefined,
   rows: readonly R[],
-  options: { tableId: string; written?: boolean }
+  options: { written?: boolean } = {}
 ): Promise<R[]> {
   if (!reader || !mustClassifyContent(principal)) {
     await admitContent(principal, [])
@@ -180,7 +180,6 @@ async function deliverRows<R extends { id: string; data: RowData }>(
   const sources = rows.map((row) => ({
     kind: 'table-row' as const,
     id: row.id,
-    parentId: options.tableId,
     provenance: reader.rowProvenance(row.id),
     view: { derived: row.data },
   }))
@@ -523,9 +522,7 @@ export const listTableRows = defineAuthorizedTableUseCase({
         requestId(input),
         readProvenance
       )
-      const rows = await deliverRows(principal, readProvenance, result.rows, {
-        tableId: context.table.id,
-      })
+      const rows = await deliverRows(principal, readProvenance, result.rows)
       return {
         table: context.table,
         rows: rowsForReader(principal, rows),
@@ -650,9 +647,7 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         requestId(input),
         readProvenance
       )
-      const rows = await deliverRows(principal, readProvenance, result.rows, {
-        tableId: context.table.id,
-      })
+      const rows = await deliverRows(principal, readProvenance, result.rows)
       return {
         table: context.table,
         ...result,
@@ -743,10 +738,7 @@ export const readTableRow = defineAuthorizedTableUseCase({
           budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
         })
       : undefined
-    if (
-      (await deliverRows(principal, readProvenance, [row], { tableId: context.table.id }))
-        .length === 0
-    ) {
+    if ((await deliverRows(principal, readProvenance, [row])).length === 0) {
       throw new ContentRefusedError('table-row')
     }
     return {
@@ -815,10 +807,7 @@ export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
       loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
     ])
     const runState = executions[input.groupId] ?? null
-    if (
-      (await deliverRows(principal, readProvenance, [row], { tableId: context.table.id }))
-        .length === 0
-    ) {
+    if ((await deliverRows(principal, readProvenance, [row])).length === 0) {
       throw new ContentRefusedError('table-row')
     }
     return {
@@ -921,10 +910,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
         requestId(input),
         writeOptions
       )
-      await deliverRows(principal, readProvenance, [row], {
-        tableId: context.table.id,
-        written: true,
-      })
+      await deliverRows(principal, readProvenance, [row], { written: true })
       return {
         kind: 'single',
         table: context.table,
@@ -980,10 +966,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
       requestId(input),
       batchWriteOptions
     )
-    await deliverRows(principal, readProvenance, created, {
-      tableId: context.table.id,
-      written: true,
-    })
+    await deliverRows(principal, readProvenance, created, { written: true })
     return {
       kind: 'batch',
       table: context.table,
@@ -1323,10 +1306,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       { ...rowWriteOptions(input), readProvenance }
     )
     if (!row) throw new Error('Unconditional table row update was rejected')
-    await deliverRows(principal, readProvenance, [row], {
-      tableId: context.table.id,
-      written: true,
-    })
+    await deliverRows(principal, readProvenance, [row], { written: true })
     return {
       table: context.table,
       row,
@@ -1693,10 +1673,7 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       requestId(input),
       { ...rowWriteOptions(input), readProvenance }
     )
-    await deliverRows(principal, readProvenance, [result.row], {
-      tableId: context.table.id,
-      written: true,
-    })
+    await deliverRows(principal, readProvenance, [result.row], { written: true })
     return {
       table: context.table,
       row: result.row,

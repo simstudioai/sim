@@ -1,6 +1,5 @@
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
-import { sha256Hex } from '@sim/security/hash'
 import { defineWorkspaceOperation, requireAdmittedContent } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -33,17 +32,7 @@ interface ReadSandboxFileInput {
   organizationId?: string
   path: string
   maxBytes?: number
-  /** How the bytes leave: as text redaction can cover, or `opaque` (an image) it cannot reach. */
-  view: 'complete' | 'opaque'
   signal?: AbortSignal
-}
-
-/**
- * Names a sandbox file in provenance attribution without its path, which carries the user's file
- * name: stable for one path in one chat, and meaningless outside it.
- */
-function sandboxFileAttributionId(chatId: string, path: string): string {
-  return `sandbox:${sha256Hex(`${chatId}\0${path}`).slice(0, 32)}`
 }
 
 /** Reads a fixed snapshot from the caller's existing private chat machine, never server disk. */
@@ -125,10 +114,9 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
       const receipt = provenance.uploadProvenance()
       await requireAdmittedContent(principal, {
         kind: 'workspace-file',
-        id: sandboxFileAttributionId(context.chatId, path),
-        parentId: context.chatId,
+        id: path,
         provenance: receipt,
-        view: input.view,
+        view: 'complete',
       })
       input.signal?.throwIfAborted()
       return {

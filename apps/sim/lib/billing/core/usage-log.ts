@@ -1016,7 +1016,7 @@ export async function recordCumulativeUsage(
     return result
   } catch (error) {
     pgCode = getPostgresErrorCode(error)
-    /** Another attempt holding the lock is an answer, not a slow transaction; the route logs it. */
+    // Another attempt holding the lock is an answer, not a slow transaction; the route logs it.
     if (error instanceof CumulativeUsageInFlightError) inFlight = true
     throw error
   } finally {

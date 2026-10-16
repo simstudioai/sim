@@ -53,7 +53,7 @@ describe('durable secret provenance telemetry', () => {
       }
     )
   })
-  it('reports a batch once per surface, cause and owner, keeping every id paired with its cause', () => {
+  it('reports a batch once per surface and cause, keeping every id paired with its cause', () => {
     logger.warn.mockClear()
     const reports = Array.from({ length: 163 }, (_, index) => ({
       surface: 'knowledge' as const,
@@ -62,7 +62,6 @@ describe('durable secret provenance telemetry', () => {
           ? ('knowledge-chunk-source-unavailable' as const)
           : ('knowledge-opaque-secret-content' as const),
       workspaceId: 'workspace-1',
-      parentId: 'document-1',
       resourceId: `chunk-${index}`,
     }))
     reportDurableSecretProvenanceRefusals(reports)
@@ -75,7 +74,6 @@ describe('durable secret provenance telemetry', () => {
         cause: 'knowledge-chunk-source-unavailable',
         refusedCount: 160,
         workspaceId: 'workspace-1',
-        parentId: 'document-1',
         resourceIds: reports.slice(0, 160).map((report) => report.resourceId),
       }
     )
@@ -87,7 +85,6 @@ describe('durable secret provenance telemetry', () => {
         cause: 'knowledge-opaque-secret-content',
         refusedCount: 3,
         workspaceId: 'workspace-1',
-        parentId: 'document-1',
         resourceIds: ['chunk-160', 'chunk-161', 'chunk-162'],
       }
     )
@@ -100,7 +97,6 @@ describe('durable secret provenance telemetry', () => {
       Array.from({ length: 250 }, (_, index) => ({
         surface: 'table-row' as const,
         cause: 'table-row-provenance-unavailable' as const,
-        parentId: 'table-1',
         resourceId: `row-${index}`,
       }))
     )
