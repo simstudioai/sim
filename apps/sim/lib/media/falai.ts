@@ -258,7 +258,8 @@ export type FalCostRecorder = (cost: FalAICostMetadata) => Promise<void>
 
 /**
  * Bills a request fal has completed. fal charges for it whatever happens next, so the lookup
- * ignores the caller's Stop (it has its own bound) and runs before the download a Stop can end.
+ * ignores the caller's Stop (it has its own bound) and runs before anything that can still fail
+ * the generation on our side: reading the media URL and the download a Stop can end.
  */
 export async function recordFalCost(
   apiKey: string,

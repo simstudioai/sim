@@ -178,11 +178,11 @@ export async function generateFalVideo(params: GenerateFalVideoParams): Promise<
   }
 
   const { requestId, data } = await runFalQueue(endpoint, input, apiKey, params.signal)
+  const cost = await recordFalCost(apiKey, endpoint, requestId, params.onCost)
   const url = extractFalMediaUrl(data, ['video', 'output'])
   if (!url) throw new Error('No video URL in Fal.ai response')
 
   const videoNode = isRecordLike(data.video) ? data.video : undefined
-  const cost = await recordFalCost(apiKey, endpoint, requestId, params.onCost)
   const { buffer, contentType } = await downloadFalMedia(url, params.signal)
 
   return {

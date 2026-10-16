@@ -106,9 +106,9 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
       model_type: 'F5-TTS',
     }
     const { requestId, data } = await runFalQueue(model, input, apiKey, params.signal)
+    const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
     const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
     if (!url) throw new Error('No audio URL in Fal.ai clone response')
-    const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
     const { buffer, contentType } = await downloadFalMedia(url, params.signal)
     return {
       buffer,
@@ -125,10 +125,10 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
 
   // For fal audio models the model ID is the queue endpoint.
   const { requestId, data } = await runFalQueue(model, input, apiKey, params.signal)
+  const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
   const url = extractFalMediaUrl(data, ['audio', 'audio_url', 'audio_file', 'output'])
   if (!url) throw new Error('No audio URL in Fal.ai response')
 
-  const cost = await recordFalCost(apiKey, model, requestId, params.onCost)
   const { buffer, contentType } = await downloadFalMedia(url, params.signal)
 
   return {

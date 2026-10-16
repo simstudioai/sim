@@ -221,15 +221,17 @@ const BILLED_NANO_USD = 40_000_000
  * A fal queue whose request completes on the first poll. The billing-event lookup answers at
  * once, answers only once `answered` settles (whatever its caller does), or (`hangs`) never.
  */
-function stubCompletedFalQueue(billing: { answered?: Promise<void>; hangs?: boolean } = {}) {
+function stubCompletedFalQueue(
+  billing: { answered?: Promise<void>; hangs?: boolean } = {},
+  result: Record<string, unknown> = { audio: { url: MEDIA_URL }, video: { url: MEDIA_URL } }
+) {
   const billingLookups: string[] = []
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string | URL, init: RequestInit = {}) => {
       const url = String(input)
       if (url === STATUS_URL) return jsonResponse({ status: 'COMPLETED' })
-      if (url.endsWith('/requests/req-1/response'))
-        return jsonResponse({ audio: { url: MEDIA_URL }, video: { url: MEDIA_URL } })
+      if (url.endsWith('/requests/req-1/response')) return jsonResponse(result)
       if (!url.startsWith('https://api.fal.ai/v1/models/billing-events'))
         return jsonResponse({ request_id: 'req-1', status_url: STATUS_URL })
       billingLookups.push(url)
@@ -312,6 +314,21 @@ describe('billing a fal generation', () => {
       expect(onCost).toHaveBeenCalledWith(
         expect.objectContaining({ source: 'billing_events', costDollars: 0.04 })
       )
+    }
+  )
+
+  it.each(generators)(
+    'bills a completed %s generation once when its result has no media URL',
+    async (_kind, generate) => {
+      stubCompletedFalQueue({}, { unexpected: true })
+      const onCost = vi.fn().mockResolvedValue(undefined)
+      const generation = generate(onCost).catch((error: unknown) => String(error))
+
+      await vi.advanceTimersByTimeAsync(3_000)
+
+      expect(await generation).toMatch(/No (audio|video) URL/)
+      expect(onCost).toHaveBeenCalledTimes(1)
+      expect(onCost).toHaveBeenCalledWith(expect.objectContaining({ source: 'billing_events' }))
     }
   )
 
