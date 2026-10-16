@@ -30,6 +30,27 @@ export const n8nProfile: CompetitorProfile = {
   },
   oneLiner:
     'n8n is a fair-code workflow automation platform combining a visual, node-based builder with custom code and built-in AI/agent nodes, available as a self-hosted or cloud-hosted product.',
+  leadAnswer: [
+    'n8n is a fair-code workflow automation platform with a visual node-based builder, custom code nodes, and built-in AI Agent nodes, available as a free self-hosted Community Edition or on n8n Cloud. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose n8n when you want execution-based pricing with unlimited users on every plan and dataset-based evaluations for AI workflows. Choose Sim when you want a permissively licensed core, a built-in hybrid-search knowledge base that syncs external sources, or live multiplayer editing of the same canvas.',
+  ],
+  faqs: [
+    {
+      question:
+        'n8n is fair-code with license restrictions. Is there a permissively licensed alternative?',
+      answer:
+        "Sim's core is licensed under Apache 2.0, a permissive OSI-approved license, while n8n's Sustainable Use License is not OSI open source. n8n's license permits use or modification only for internal business purposes or for non-commercial or personal use, and allows distribution only free of charge for non-commercial purposes. Both products keep enterprise features under a separate paid license: files marked '.ee.' in n8n, and the enterprise directory in Sim. Sim's Apache 2.0 core has no field-of-use limits and can be self-hosted with Docker Compose or Kubernetes.",
+    },
+    {
+      question: "What is a good n8n alternative for teams that don't want to self-host?",
+      answer:
+        "Sim Cloud is a managed option that includes a Free plan, while n8n Cloud offers a trial with no credit card but no ongoing free cloud plan. Both are fully managed, so neither requires you to operate infrastructure. n8n's Business plan is currently available only for self-hosted n8n, so managed n8n customers choose among the Starter, Pro, and Enterprise cloud plans.",
+    },
+    {
+      question: 'What does Sim do differently from n8n for building AI agents?',
+      answer:
+        "Sim builds a knowledge base into the workspace, while n8n assembles retrieval from separate nodes. n8n provides an AI Agent node that calls tools, including MCP tools, a RAG pipeline built from loaders, embeddings, and external vector stores such as Pinecone, Qdrant, or PGVector, and an Evaluations feature that scores workflows against test datasets. Sim provides agent blocks, a knowledge base with hybrid vector and full-text search plus connectors that continuously sync sources such as Google Drive and Confluence, and Chat and Copilot surfaces that build and edit workflows from natural language. Sim's Evaluator and Guardrails blocks score individual calls rather than running a batch dataset suite.",
+    },
+  ],
   standoutFeatures: [
     {
       title: 'Unlimited users on every plan, including the entry tier',
@@ -161,7 +182,7 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://docs.n8n.io/choose-how-to-use-n8n.md',
             label: 'n8n docs: Choose how to use n8n',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -210,7 +231,7 @@ export const n8nProfile: CompetitorProfile = {
           {
             url: 'https://raw.githubusercontent.com/n8n-io/n8n/master/LICENSE.md',
             label: 'n8n LICENSE.md',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -814,51 +835,73 @@ export const n8nProfile: CompetitorProfile = {
       pricingModel: {
         value: 'Per-workflow-execution pricing tiers, unlimited users at every tier',
         detail:
-          "n8n's pricing page states workflows are billed by monthly execution count. A workflow that runs start-to-finish counts as one execution regardless of the number of steps or nodes. Unlimited users are included at every paid tier.",
+          "n8n's pricing page states that an execution is a single run of an entire workflow, regardless of how many steps it has or how much data it processes, and that all plans include unlimited users and workflows. The Business plan is currently only available for self-hosted n8n.",
         shortValue: 'Billed by monthly workflow executions',
         confidence: 'verified',
-        sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' }],
+        sources: [
+          {
+            url: 'https://n8n.io/pricing/',
+            label: 'n8n Pricing',
+            asOf: '2026-10-15',
+          },
+        ],
       },
       entryPaidPlan: {
         value: 'Starter plan: €20/month (billed annually), 2,500 executions/month, cloud-hosted',
         detail:
-          'Starter includes 2,500 workflow executions per month, 5 concurrent executions, 1 shared project, unlimited users, 2,300 AI credits, and forum support.',
+          'Starter includes 2,500 workflow executions per month, 5 concurrent executions, 1 shared project, unlimited users and workflows, 1,600 Assistant credits per month, and forum support.',
         shortValue: '€20/month, 2,500 executions',
         confidence: 'verified',
-        sources: [{ url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-08' }],
+        sources: [
+          {
+            url: 'https://n8n.io/pricing/',
+            label: 'n8n Pricing',
+            asOf: '2026-10-15',
+          },
+        ],
       },
       freeTier: {
-        value: 'Yes: free self-hosted Community Edition, plus a free cloud trial (no credit card)',
+        value:
+          'Yes: free self-hosted Community Edition, plus a free n8n Cloud trial (no credit card); no free cloud plan',
         detail:
-          "The Community Edition is a free, self-hosted version of n8n runnable on a user's own infrastructure. Separately, n8n Cloud offers a free trial of the Starter/Pro plans without requiring a credit card.",
+          'The Community Edition is a free, self-hosted version of n8n with almost the complete feature set. n8n Cloud offers a trial with 1,000 executions and 5 concurrent executions with no credit card required; there is no ongoing free cloud plan.',
         shortValue: 'Free self-hosted edition and cloud trial',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.n8n.io/choose-how-to-use-n8n.md',
             label: 'n8n docs: Choose how to use n8n',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
-          { url: 'https://n8n.io/pricing/', label: 'n8n Pricing', asOf: '2026-07-02' },
+          {
+            url: 'https://n8n.io/pricing/',
+            label: 'n8n Pricing',
+            asOf: '2026-10-15',
+          },
         ],
       },
       byok: {
         value:
-          'De facto yes: Chat Model nodes require users\' own provider API credentials, though n8n does not name this "BYOK"',
+          'Yes: self-hosted n8n is BYOK with no credit limits; n8n Cloud Starter and Pro also offer prepaid Gateway credits to use supported models without your own API keys',
         detail:
-          "n8n's OpenAI and Anthropic credential docs both walk users through generating an API key in the provider's own console and entering it as the node credential; no n8n-hosted key is supplied for these Chat Model nodes. Separately, n8n's pricing page describes plan-included 'AI credits' (2,300 on Starter, up to 13,700+ on higher tiers) for n8n's own in-app AI Assistant feature, which is distinct from the provider credentials Chat Model nodes require. n8n does not name a bring-your-own-API-key policy, but requiring each provider's own key for Chat Model nodes makes BYOK the de facto default for workflow-level LLM calls.",
-        shortValue: 'De facto via provider API keys, not named',
-        confidence: 'estimated',
+          "n8n's pricing page states that on self-hosted n8n you bring your own key (BYOK), so no credit limits apply. On n8n Cloud Starter and Pro, Chat Model nodes can use either your own provider credential or Gateway credits, a prepaid balance that runs supported AI models and services without provider accounts; Gateway credits are not available on Cloud Enterprise or self-hosted n8n. Assistant credits are a separate allowance for n8n's in-app Assistant.",
+        shortValue: 'BYOK; Cloud also offers keyless Gateway credits',
+        confidence: 'verified',
         sources: [
+          {
+            url: 'https://n8n.io/pricing/',
+            label: 'n8n Pricing',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://docs.n8n.io/deploy/use-n8n-cloud/gateway-credits.md',
+            label: 'n8n docs: Gateway credits',
+            asOf: '2026-10-15',
+          },
           {
             url: 'https://docs.n8n.io/integrations/builtin/credentials/openai',
             label: 'n8n docs: OpenAI credentials',
-            asOf: '2026-07-08',
-          },
-          {
-            url: 'https://docs.n8n.io/integrations/builtin/credentials/anthropic',
-            label: 'n8n docs: Anthropic credentials',
-            asOf: '2026-07-08',
+            asOf: '2026-10-15',
           },
         ],
       },
