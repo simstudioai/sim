@@ -313,12 +313,34 @@ async function assertExecutionWorkspaceExists(
   workspaceId: string | null | undefined
 ): Promise<void> {
   if (!workspaceId) return
+  if (!(await workspaceExists(client, workspaceId))) {
+    throw new ExecutionScopeDeletedError(executionId, 'workspace')
+  }
+}
+
+async function workspaceExists(
+  client: Pick<typeof db, 'select'>,
+  workspaceId: string
+): Promise<boolean> {
   const [row] = await client
     .select({ id: workspace.id })
     .from(workspace)
     .where(eq(workspace.id, workspaceId))
     .limit(1)
-  if (!row) throw new ExecutionScopeDeletedError(executionId, 'workspace')
+  return row !== undefined
+}
+
+/**
+ * Whether a missing workflow is explained by its whole workspace having been deleted, which the
+ * completion then reports as a deleted run. A failed lookup reports `false`, keeping the error.
+ */
+async function isWorkspaceDeleted(workspaceId: string | null | undefined): Promise<boolean> {
+  if (!workspaceId) return false
+  try {
+    return !(await workspaceExists(execDb, workspaceId))
+  } catch {
+    return false
+  }
 }
 
 function countTraceSpans(traceSpans?: TraceSpan[]): number {
@@ -1238,7 +1260,8 @@ export class ExecutionLogger {
         executionId,
         actorUserId,
         exactBillingContext,
-        status !== 'pending'
+        status !== 'pending',
+        existingLog.workspaceId
       )
     }
 
@@ -1491,7 +1514,9 @@ export class ExecutionLogger {
      * reconcile across boundaries, so they are written once — at the terminal
      * boundary, where the summary already holds the run's cumulative tokens.
      */
-    isTerminalBoundary = true
+    isTerminalBoundary = true,
+    /** The run's workspace, read only to explain a missing workflow. */
+    workspaceId?: string | null
   ): Promise<ExecutionUsageRecording> {
     const statsLog = logger.withMetadata({ workflowId: workflowId ?? undefined, executionId })
 
@@ -1517,7 +1542,11 @@ export class ExecutionLogger {
         .limit(1)
 
       if (!workflowRecord) {
-        statsLog.error('Workflow not found for usage recording')
+        if (await isWorkspaceDeleted(workspaceId)) {
+          statsLog.info("Skipped usage recording: the run's workspace was deleted")
+        } else {
+          statsLog.error('Workflow not found for usage recording')
+        }
         return NO_USAGE_RECORDED
       }
 

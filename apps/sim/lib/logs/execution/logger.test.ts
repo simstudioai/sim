@@ -1,7 +1,8 @@
-import { usageLog, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { usageLog, workflow, workflowExecutionLogs, workspace } from '@sim/db/schema'
 import {
   dbChainMockFns,
   flattenMockConditions,
+  loggerMock,
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
@@ -746,6 +747,66 @@ describe('ExecutionLogger', () => {
       expect(files).toHaveLength(1)
       expect(files[0].name).toBe('nested.json')
     })
+  })
+})
+
+describe('recordExecutionUsage for a workflow that no longer exists', () => {
+  const executionLoggerLog =
+    loggerMock.createLogger.mock.results[
+      loggerMock.createLogger.mock.calls.findIndex(([name]) => name === 'ExecutionLogger')
+    ]?.value
+  const costSummary = {
+    totalCost: 0.005,
+    totalInputCost: 0,
+    totalOutputCost: 0,
+    totalTokens: 0,
+    totalPromptTokens: 0,
+    totalCompletionTokens: 0,
+    baseExecutionCharge: 0.005,
+    models: {},
+  }
+
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  const record = () =>
+    (
+      new ExecutionLogger() as unknown as {
+        recordExecutionUsage: (...args: unknown[]) => Promise<unknown>
+      }
+    ).recordExecutionUsage(
+      'workflow-1',
+      costSummary,
+      'api',
+      'exec-1',
+      'user-1',
+      undefined,
+      true,
+      'ws-1'
+    )
+
+  test('records nothing and logs at info when the whole workspace was deleted', async () => {
+    queueTableRows(workflow, [])
+    queueTableRows(workspace, [])
+
+    await expect(record()).resolves.toEqual({ recordedIncrement: 0, costTotalRefined: false })
+
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.error).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.info).toHaveBeenCalledWith(
+      "Skipped usage recording: the run's workspace was deleted"
+    )
+  })
+
+  test('still logs an error when the workflow is missing from a live workspace', async () => {
+    queueTableRows(workflow, [])
+    queueTableRows(workspace, [{ id: 'ws-1' }])
+
+    await expect(record()).resolves.toEqual({ recordedIncrement: 0, costTotalRefined: false })
+
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(executionLoggerLog?.error).toHaveBeenCalledWith('Workflow not found for usage recording')
   })
 })
 

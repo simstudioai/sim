@@ -123,7 +123,8 @@ export class FileToolProcessor {
         signal?.throwIfAborted()
         logger.error(`Error processing file output '${outputKey}':`, error)
         throw new Error(
-          `Failed to process file output '${outputKey}': ${getUserFacingErrorMessage(error)}`
+          `Failed to process file output '${outputKey}': ${getUserFacingErrorMessage(error)}`,
+          { cause: error }
         )
       }
     }
