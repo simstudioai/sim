@@ -13,6 +13,7 @@ import {
   readResponseTextWithLimit,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { type FalAICostMetadata, getFalAICostMetadata } from '@/lib/tools/falai-pricing'
 
 const logger = createLogger('FalMediaClient')
 
@@ -250,6 +251,25 @@ async function cancelFalRequest(cancelUrl: string, apiKey: string, requestId: st
       error: getErrorMessage(error),
     })
   }
+}
+
+/** Records a completed generation's cost; called at most once per generation. */
+export type FalCostRecorder = (cost: FalAICostMetadata) => Promise<void>
+
+/**
+ * Bills a request fal has completed. fal charges for it whatever happens next, so the lookup
+ * ignores the caller's Stop (it has its own bound) and runs before anything that can still fail
+ * the generation on our side: reading the media URL and the download a Stop can end.
+ */
+export async function recordFalCost(
+  apiKey: string,
+  endpointId: string,
+  requestId: string,
+  onCost: FalCostRecorder
+): Promise<FalAICostMetadata> {
+  const cost = await getFalAICostMetadata({ apiKey, endpointId, requestId })
+  await onCost(cost)
+  return cost
 }
 
 /**

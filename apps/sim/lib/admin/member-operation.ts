@@ -515,7 +515,7 @@ async function applyMembership(
       usageLimitDollars: request.usageLimitDollars,
       setBy: request.actor.id ?? undefined,
     })
-    deliverRunStops(transferred.stoppedRuns ?? [])
+    deliverRunStops(transferred.stoppedRuns)
     if (!transferred.success || !transferred.memberId) {
       throw new Error(transferred.error ?? 'Failed to transfer organization member')
     }

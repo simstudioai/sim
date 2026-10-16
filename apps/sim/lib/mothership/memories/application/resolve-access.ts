@@ -1,15 +1,12 @@
 import type { OrganizationDelegatedPrincipal, SubjectDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { copilotChats, workspace } from '@sim/db/schema'
+import { copilotChats, project, workspace } from '@sim/db/schema'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { and, eq, isNull } from 'drizzle-orm'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
-import {
-  InsufficientWorkspacePermissionsError,
-  requireCurrentHumanRole,
-} from '@/lib/core/application/workspace-authorization'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { requireCurrentHumanRole } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
@@ -21,15 +18,13 @@ import type {
 } from '@/lib/mothership/generated/memory-notes-access'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
-import { acquirePermissionGroupOrgReadLock } from '@/lib/permission-groups/locks'
 import { loadProjectAccess } from '@/lib/projects/application/authorization'
 import {
   requireCurrentCopilotProjectInvocation,
   requireProjectFileOwnerCapabilities,
   requireProjectFileOwnerRole,
 } from '@/lib/projects/files/application/authorization'
-import { lockWorkspaceProject } from '@/lib/projects/membership'
-import { requireProjectApiEnabled } from '@/lib/projects/rollout.server'
+import { isProjectsEnabled, requireProjectApiEnabled } from '@/lib/projects/rollout.server'
 import { requireCurrentFileSubject } from '@/lib/workspace-files/application/subject'
 
 export const MEMORY_NOTES_ACCESS_AUDIENCE = 'sim:memory-access'
@@ -52,6 +47,18 @@ const organizationOperation = defineOrganizationOperation({
   delegationAudience: MEMORY_NOTES_ACCESS_AUDIENCE,
 })
 type MemoryPrincipal = SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal
+/** The worker acts on the answer after commit, so a consistent unlocked snapshot is enough. */
+const READ_SNAPSHOT = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const
+
+async function workspaceProject(tx: DbTransaction, workspaceId: string) {
+  const [row] = await tx
+    .select({ id: project.id, organizationId: project.organizationId })
+    .from(workspace)
+    .innerJoin(project, eq(project.id, workspace.projectId))
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+  return row ?? null
+}
 
 async function workspaceAccess(tx: DbTransaction, userId: string, workspaceId: string) {
   const [target] = await tx
@@ -63,10 +70,9 @@ async function workspaceAccess(tx: DbTransaction, userId: string, workspaceId: s
     })
     .from(workspace)
     .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    .for('share')
     .limit(1)
   if (!target) throw new OrchestrationError('not_found', 'Workspace not found')
-  await requireCurrentHumanRole(userId, target, 'read', { executor: tx })
+  const permission = await requireCurrentHumanRole(userId, target, 'read', { executor: tx })
   await assertWorkspaceCapability(
     userId,
     workspaceId,
@@ -74,14 +80,7 @@ async function workspaceAccess(tx: DbTransaction, userId: string, workspaceId: s
     target.workspaceOrganizationId,
     tx
   )
-  let sharedMutation = true
-  try {
-    await requireCurrentHumanRole(userId, target, 'write', { executor: tx })
-  } catch (error) {
-    if (!(error instanceof InsufficientWorkspacePermissionsError)) throw error
-    sharedMutation = false
-  }
-  return { target, sharedMutation }
+  return { target, sharedMutation: permissionSatisfies(permission, 'write') }
 }
 
 async function projectAccess(
@@ -99,12 +98,10 @@ async function projectAccess(
       ...(scope.organizationId ? { organizationId: scope.organizationId } : {}),
       ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
     },
-    'shared'
+    'snapshot'
   )
   if (scope.organizationId !== access.record.organizationId)
     throw new OrchestrationError('not_found', 'Project not found in this conversation')
-  if (access.record.organizationId)
-    await acquirePermissionGroupOrgReadLock(tx, access.record.organizationId)
   await requireCurrentCopilotProjectInvocation(
     tx,
     {
@@ -112,9 +109,10 @@ async function projectAccess(
       invocation: { kind: 'chat', chatId },
     },
     access,
-    scope
+    scope,
+    'snapshot'
   )
-  const owner = await requireProjectFileOwnerRole(tx, principal, access, 'read')
+  const owner = await requireProjectFileOwnerRole(tx, principal, access, 'read', 'snapshot')
   let sharedMutation = owner.canWrite
   if (sharedMutation) {
     try {
@@ -167,8 +165,9 @@ const resolveAccess = defineAuthorizedChatUseCase({
     },
   },
   async execute({ principal, context, input }): Promise<MemoryNotesAccessResult> {
+    const projectsEnabled = input.target.scope !== 'personal' && (await isProjectsEnabled())
     return db.transaction(async (tx) => {
-      await requireCurrentFileSubject(tx, principal)
+      await requireCurrentFileSubject(tx, principal, 'snapshot')
       const [chat] = await tx
         .select({
           userId: copilotChats.userId,
@@ -179,7 +178,6 @@ const resolveAccess = defineAuthorizedChatUseCase({
         })
         .from(copilotChats)
         .where(and(eq(copilotChats.id, context.chatId), isNull(copilotChats.deletedAt)))
-        .for('share')
         .limit(1)
       if (
         !chat ||
@@ -204,9 +202,11 @@ const resolveAccess = defineAuthorizedChatUseCase({
       }
       const origin =
         chat.workspaceId && input.target.scope !== 'personal'
-          ? await lockWorkspaceProject(tx, chat.workspaceId)
+          ? await workspaceProject(tx, chat.workspaceId)
           : null
-      if (chat.workspaceId) await workspaceAccess(tx, principal.subjectUserId, chat.workspaceId)
+      const originAccess = chat.workspaceId
+        ? await workspaceAccess(tx, principal.subjectUserId, chat.workspaceId)
+        : null
       const scope = {
         organizationId: chat.organizationId ?? origin?.organizationId ?? null,
         ...(chat.workspaceId ? { workspaceId: chat.workspaceId } : {}),
@@ -218,7 +218,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
           permissions: { read: true, privateMutation: true, sharedMutation: false },
         }
       } else if (input.target.scope === 'project') {
-        await requireProjectApiEnabled()
+        if (!projectsEnabled) await requireProjectApiEnabled()
         if (chat.workspaceId && origin?.id !== input.target.projectId)
           throw new OrchestrationError('not_found', 'Project not found in this conversation')
         target = await projectAccess(tx, principal, context.chatId, input.target.projectId, scope)
@@ -227,13 +227,15 @@ const resolveAccess = defineAuthorizedChatUseCase({
           throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
         const membership = chat.workspaceId
           ? origin
-          : await lockWorkspaceProject(tx, input.target.workspaceId)
+          : await workspaceProject(tx, input.target.workspaceId)
         if (!membership || membership.organizationId !== scope.organizationId)
           throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
-        const access = await workspaceAccess(tx, principal.subjectUserId, input.target.workspaceId)
+        const access =
+          originAccess ??
+          (await workspaceAccess(tx, principal.subjectUserId, input.target.workspaceId))
         if (access.target.workspaceOrganizationId !== scope.organizationId)
           throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
-        const currentProject = (await isFeatureEnabled('projects'))
+        const currentProject = projectsEnabled
           ? await projectAccess(tx, principal, context.chatId, membership.id, scope)
           : null
         target = {
@@ -252,7 +254,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
         actor: { userId: principal.subjectUserId, chatId: context.chatId },
         target,
       }
-    })
+    }, READ_SNAPSHOT)
   },
 })
 

@@ -148,9 +148,10 @@ describe('run admission and early Stop', () => {
       [copilotRequestStops.workspaceId, scope.workspaceId],
       [copilotRequestStops.streamId, scope.streamId],
     ]) {
+      /** The chat row is read first; the Stop lookup follows it. */
       expect(
         hasMockCondition(
-          dbChainMockFns.where.mock.calls[0]?.[0],
+          dbChainMockFns.where.mock.calls[1]?.[0],
           (condition) =>
             condition.type === 'eq' && condition.left === column && condition.right === value
         )

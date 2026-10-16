@@ -151,7 +151,7 @@ export const POST = withRouteHandler(
         memberId: selfMember.id,
         spareSessionToken: session.session.token,
       })
-      deliverRunStops(removeResult.stoppedRuns ?? [])
+      deliverRunStops(removeResult.stoppedRuns)
 
       if (!removeResult.success) {
         logger.error('Transfer succeeded but self-removal failed', {

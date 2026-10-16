@@ -54,7 +54,7 @@ export const dustProfile: CompetitorProfile = {
     {
       question: 'Sim vs Dust for building company knowledge agents: which is better?',
       answer:
-        "It depends on where the agent needs to live. Dust connects agents to sources such as Slack, Notion, Google Drive, Confluence, and GitHub and serves them in its web chat, Slack, and Microsoft Teams, with access scoped by Spaces. Sim's knowledge base combines vector and full-text search over 12 document formats with connectors that keep sources such as Google Drive, Confluence, and Slack in sync, and a knowledge agent can be published as a chat interface, a REST API, or an MCP server. Dust suits a managed assistant used mainly in chat; Sim suits a knowledge agent that also has to feed workflows or other systems.",
+        "It depends on where the agent needs to live. Dust connects agents to sources such as Slack, Notion, Google Drive, Confluence, and GitHub and serves them in its web chat, Slack, and Microsoft Teams, with access scoped by Spaces. Sim's knowledge base combines vector and full-text search over 15 file types with connectors that keep sources such as Google Drive, Confluence, and Slack in sync, and a knowledge agent can be published as a chat interface, a REST API, or an MCP server. Dust suits a managed assistant used mainly in chat; Sim suits a knowledge agent that also has to feed workflows or other systems.",
     },
     {
       question: 'How does Sim compare to Dust for shared team AI assistants?',

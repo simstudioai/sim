@@ -55,6 +55,7 @@ import {
   isAwaitingToolPermission,
   SIM_TOOL_EXECUTION_VERSION,
 } from '@/lib/mothership/async-runs/lifecycle'
+import { TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/mothership/constants'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import {
@@ -441,28 +442,31 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
   )
 }
 
-/** Caller holds the Stop/admission lock; its related chat writes commit with this run. */
+/**
+ * Caller holds the Stop/admission lock; its related chat writes commit with this run. The
+ * chat row is read FOR SHARE, after that lock as chat admission takes it, so a soft delete
+ * either commits first and this run starts stopped, or waits and then stops this run.
+ */
 export async function insertRunSegment(tx: RunAdmissionTransaction, input: CreateRunSegmentInput) {
-  let workspaceId = input.workspaceId
-  let organizationId = input.organizationId
-  if (!workspaceId && !organizationId) {
-    const [chat] = await tx
-      .select({
-        workspaceId: copilotChats.workspaceId,
-        organizationId: copilotChats.organizationId,
-      })
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
-      .limit(1)
-    workspaceId = chat?.workspaceId
-    organizationId = chat?.organizationId
-  }
+  const [chat] = await tx
+    .select({
+      workspaceId: copilotChats.workspaceId,
+      organizationId: copilotChats.organizationId,
+      deletedAt: copilotChats.deletedAt,
+    })
+    .from(copilotChats)
+    .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
+    .for('share')
+  const inheritsOwner = !input.workspaceId && !input.organizationId
+  const workspaceId = inheritsOwner ? chat?.workspaceId : input.workspaceId
+  const organizationId = inheritsOwner ? chat?.organizationId : input.organizationId
   const { table, predicate } = stopLocation({ ...input, workspaceId, organizationId })
   const [stop] = await tx
     .select({ stoppedAt: table.stoppedAt })
     .from(table)
     .where(predicate)
     .limit(1)
+  const closedAt = stop?.stoppedAt ?? chat?.deletedAt
   const [run] = await tx
     .insert(copilotRuns)
     .values({
@@ -481,8 +485,8 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
       provider: input.provider ?? null,
       requestContext: input.requestContext ?? {},
       desktopDeviceId: input.desktopDeviceId ?? null,
-      status: stop ? 'cancelled' : (input.status ?? 'active'),
-      ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
+      status: closedAt ? 'cancelled' : (input.status ?? 'active'),
+      ...(closedAt ? { completedAt: sql`now()`, toolAdmissionClosedAt: closedAt } : {}),
     })
     .returning()
   if (!run) throw new Error('Run admission did not return its persisted identity')
@@ -867,6 +871,12 @@ export type ToolExecutionClaim =
   /** Already claimed or settled. */
   | { outcome: 'existing' }
 
+/** A Sim handler's claim, which also reports an unclaimed call too late to start. */
+export type SimToolExecutionClaim =
+  | ToolExecutionClaim
+  /** Admitted but unclaimed, with too little of its deadline left to start: nothing ran it. */
+  | { outcome: 'too_late' }
+
 /**
  * Every condition at once, typed as a condition: drizzle's `and` may return undefined, which a
  * negation would render as `NOT (NULL)` and match nothing.
@@ -898,6 +908,19 @@ const unfinishedSimExecution = allOf(
 const tooLateToStart = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} < clock_timestamp() + ${SIM_TOOL_MIN_START_BUDGET_MS} * interval '1 millisecond')`
 
 /**
+ * A call past its deadline plus the resume grace: the resume wait's ceiling for it (`run.ts`), past
+ * which nothing still waits for its result. A call without a deadline never matches.
+ */
+const pastResumeGiveUp = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} + ${TOOL_WATCHDOG_RESUME_GRACE_MS} * interval '1 millisecond' <= clock_timestamp())`
+
+/** A call nothing claimed or started whose deadline leaves too little to start it. */
+const pendingTooLateToStart = allOf(
+  eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+  isNull(copilotAsyncToolCalls.executionStartedAt),
+  tooLateToStart
+)
+
+/**
  * A Sim execution whose owner died before recording a result: its lease lapsed, which a live
  * owner's heartbeat never lets happen. A takeover runs it again until it has started
  * {@link SIM_TOOL_EXECUTION_MAX_ATTEMPTS} times, while enough of its deadline remains.
@@ -925,11 +948,12 @@ const rerunnableSimExecution = allOf(
  * Sim claims a call it is about to execute under an execution lease; a terminal result never
  * releases it. The claim takes a call's first execution, or re-runs one whose owner died
  * mid-execution: the new owner token fences the dead owner out, since its renewals and its
- * result both require the token and an unexpired lease.
+ * result both require the token and an unexpired lease. A pending call too late to start is left
+ * unclaimed, under the same admission check, for its caller to settle as never run.
  */
 export async function claimToolExecution(
   owner: SimToolExecutionOwner
-): Promise<ToolExecutionClaim> {
+): Promise<SimToolExecutionClaim> {
   return await claimUnderRunAdmission(owner, 'sim-stream', true, async (tx, thisCall) => {
     const startedAt = new Date()
     const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
@@ -954,7 +978,8 @@ export async function claimToolExecution(
                 inArray(copilotAsyncToolCalls.status, [
                   ASYNC_TOOL_STATUS.pending,
                   ASYNC_TOOL_STATUS.running,
-                ])
+                ]),
+                not(pendingTooLateToStart)
               ),
               interruptedSimExecution
             )
@@ -964,10 +989,13 @@ export async function claimToolExecution(
     )
     if (claimed) return { outcome: 'claimed' } as const
     const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
-      tx.select({ id: copilotAsyncToolCalls.id }).from(copilotAsyncToolCalls).where(thisCall)
+      tx
+        .select({ tooLate: sql<boolean>`${pendingTooLateToStart}` })
+        .from(copilotAsyncToolCalls)
+        .where(thisCall)
     )
     if (!record) throw new Error('Tool execution record is unavailable')
-    return { outcome: 'existing' } as const
+    return record.tooLate ? ({ outcome: 'too_late' } as const) : ({ outcome: 'existing' } as const)
   })
 }
 
@@ -1069,7 +1097,8 @@ export async function claimDesktopToolCall(
 /**
  * Expired ownership cannot be renewed, even before a follower has observed the expiry. With
  * `desktop`, the call must still be running on a run bound to that device, so a call Stop settled
- * cannot be renewed either.
+ * cannot be renewed either, nor one past its deadline plus the resume grace: its lease then lapses
+ * and the call settles as outcome unknown.
  */
 export async function renewSimToolExecutionLease(
   owner: SimToolExecutionOwner,
@@ -1092,6 +1121,7 @@ export async function renewSimToolExecutionLease(
         desktop
           ? and(
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+              not(pastResumeGiveUp),
               'deviceId' in desktop
                 ? sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.desktop_device_id = ${desktop.deviceId})`
                 : and(

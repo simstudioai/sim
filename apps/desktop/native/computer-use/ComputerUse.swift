@@ -651,7 +651,9 @@ final class Driver {
             let element = try snapshot.element(p.elementId); let action = try required(p.accessibilityAction, "accessibilityAction")
             var names: CFArray?; try axCheck(AXUIElementCopyActionNames(element, &names))
             guard (names as? [String] ?? []).contains(action) else { throw ComputerError("unsupported_action", "Action was not advertised by the selected element.") }
-            try dispatchAX(element, press: true) { AXUIElementPerformAction($0, action as CFString) }
+            // Actions that open UI (a sheet, a menu) hold the reply like a press; others fail as uncertain on timeout.
+            let opensUI = [kAXPressAction, kAXPickAction, kAXShowMenuAction].contains(action)
+            try dispatchAX(element, press: opensUI) { AXUIElementPerformAction($0, action as CFString) }
             if action == kAXPressAction || action == kAXPickAction { try await completeMenuPress(element, pid: pid) }
         case "set_value":
             let element = try snapshot.element(p.elementId); let value = try required(p.value, "value")

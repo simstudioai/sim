@@ -17,19 +17,23 @@ export async function requireFileSubject(principal: FileSubjectPrincipal): Promi
   return userId
 }
 
-/** Holds the acting account stable through a file transaction without substituting an owner. */
+/**
+ * Holds the acting account stable through a file transaction without substituting an owner.
+ * `snapshot` reads it without a lock, for a caller in a read-only snapshot that acts on nothing.
+ */
 export async function requireCurrentFileSubject(
   tx: DbTransaction,
-  principal: FileSubjectPrincipal
+  principal: FileSubjectPrincipal,
+  mode: 'hold' | 'snapshot' = 'hold'
 ): Promise<void> {
   // actorless-unsupported: Project files and cross-owner copies require a human; their operation registries reject workspace keys and executors.
   const userId = requirePrincipalSubjectUserId(principal)
-  const [actor] = await tx
+  const query = tx
     .select({ banned: user.banned, banExpires: user.banExpires, suspendedAt: user.suspendedAt })
     .from(user)
     .where(eq(user.id, userId))
-    .for('share')
     .limit(1)
+  const [actor] = await (mode === 'hold' ? query.for('share') : query)
   if (!actor || isAccountBlocked(actor)) {
     throw new OrchestrationError('forbidden', 'User account is suspended')
   }

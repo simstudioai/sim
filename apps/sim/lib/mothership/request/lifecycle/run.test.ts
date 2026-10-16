@@ -3672,6 +3672,41 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
+  it('fails a call whose deadline already passed at that deadline plus grace, not a grace from now', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(50_000)
+      const turn = runImportTurn(Date.now() - 10_000)
+      await vi.advanceTimersByTimeAsync(19_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+      expect(
+        mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs
+      ).not.toHaveBeenCalled()
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  it('a call without a deadline keeps its full budget and grace', async () => {
+    vi.useFakeTimers()
+    try {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockResolvedValue(null)
+      const turn = runImportTurn()
+      await vi.advanceTimersByTimeAsync(89_000)
+      expect(turn.bodies).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect((await turn.lifecycle).success).toBe(true)
+      expect(turn.resumedWithLostImport()).toBe(true)
+    } finally {
+      mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
   it('a lease lookup that fails is checked again instead of failing a renewed import', async () => {
     vi.useFakeTimers()
     try {

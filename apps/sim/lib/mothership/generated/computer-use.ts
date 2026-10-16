@@ -32,7 +32,6 @@ const InputSequenceStep = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("press_key"), key: z.string().min(1).max(128) }),
 ]);
 const ElementTarget = { bundleId: BundleId, snapshotId: SnapshotId, elementId: ElementId };
-const WindowTarget = { bundleId: BundleId, snapshotId: SnapshotId, windowId: WindowId };
 const PointTarget = {
   bundleId: BundleId,
   snapshotId: SnapshotId,
@@ -61,7 +60,7 @@ const ScrollOffsets = {
     .describe("Vertical scroll distance in points; positive scrolls down, negative up. Defaults to 0."),
 };
 
-const hasScrollDistance = (input: { deltaX?: number; deltaY?: number }) =>
+const hasScrollDistance = (input: { deltaX?: number | undefined; deltaY?: number | undefined }) =>
   input.deltaX !== undefined || input.deltaY !== undefined;
 
 /** Strict branches require an observed, unambiguous target before native input. */
@@ -97,8 +96,12 @@ export const ComputerUseSchema = z.union([
     elementId: ElementId.optional().describe("Focus this element from the snapshot before pressing the key."),
     key: z.string().min(1).max(128).describe("One key or chord, such as Enter, Tab, Escape, or Cmd+A."),
   }),
-  z.strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets }).refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
-  z.strictObject({ action: z.literal("scroll"), ...PointTarget, ...ObserveAfter, ...ScrollOffsets }).refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
+  z
+    .strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets })
+    .refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
+  z
+    .strictObject({ action: z.literal("scroll"), ...PointTarget, ...ObserveAfter, ...ScrollOffsets })
+    .refine(hasScrollDistance, "Scroll needs deltaX or deltaY."),
   z.strictObject({
     action: z.literal("drag"),
     ...PointTarget,

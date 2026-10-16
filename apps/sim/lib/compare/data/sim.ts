@@ -41,9 +41,9 @@ export const simProfile: CompetitorProfile = {
     {
       title: 'Hybrid semantic + keyword knowledge base',
       description:
-        'Built-in RAG with pgvector embeddings and a generated tsvector column for combined vector + full-text search, plus a token-based chunker with configurable chunk size/overlap and 12 supported document formats (csv, doc, docx, html, json, jsonl, md, pdf, pptx, txt, xlsx, yaml).',
+        'Built-in RAG with pgvector embeddings and a generated tsvector column for combined vector + full-text search, plus a token-based chunker with configurable chunk size/overlap and 15 supported file types (csv, doc, docx, htm, html, json, jsonl, md, pdf, pptx, txt, xls, xlsx, yaml, yml).',
       shortDescription:
-        'Combines vector and full-text search with configurable chunking across 12 document formats.',
+        'Combines vector and full-text search with configurable chunking across 15 file types.',
       source: {
         url: 'https://github.com/simstudioai/sim/blob/main/packages/db/schema.ts',
         label: 'Sim codebase: KB schema + file-parsers',
@@ -406,8 +406,8 @@ export const simProfile: CompetitorProfile = {
         ],
       },
       knowledgeBaseRag: {
-        value: `Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 12 supported document formats (csv, doc, docx, html, json, jsonl, md, pdf, pptx, txt, xlsx, yaml), configurable chunking, plus ${CONNECTOR_COUNT_LABEL} connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload`,
-        shortValue: `Hybrid vector + full-text search, 12 document formats, ${CONNECTOR_COUNT_LABEL} connectors`,
+        value: `Yes: hybrid vector (pgvector) plus full-text (tsvector) search knowledge base, 15 supported file types (csv, doc, docx, htm, html, json, jsonl, md, pdf, pptx, txt, xls, xlsx, yaml, yml), configurable chunking, plus ${CONNECTOR_COUNT_LABEL} connectors that continuously sync external sources (Google Drive, Confluence, Slack, Gmail, GitHub, HubSpot, Linear, Jira, and more) into the knowledge base rather than a one-shot upload`,
+        shortValue: `Hybrid vector + full-text search, 15 file types, ${CONNECTOR_COUNT_LABEL} connectors`,
         confidence: 'verified',
         sources: [
           {

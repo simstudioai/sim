@@ -136,7 +136,16 @@ export type RevokeWorkspaceAccessResult =
 /** Reassigns shared resources and workspace ownership before revoking access in the same transaction. */
 export async function revokeWorkspaceAccessTx(
   tx: DbTransaction,
-  params: { workspaceId: string; userId: string; expectedPermissionId?: string }
+  params: {
+    workspaceId: string
+    userId: string
+    expectedPermissionId?: string
+    /**
+     * Leaves the user's runs to a caller that changes more access in this transaction and
+     * stops runs once that access is final; `stoppedRuns` is then empty.
+     */
+    deferRunStops?: boolean
+  }
 ): Promise<RevokeWorkspaceAccessResult> {
   await lockProjectsForResourceDepartureTx(tx, [params.workspaceId])
   if (params.expectedPermissionId !== undefined) {
@@ -196,9 +205,9 @@ export async function revokeWorkspaceAccessTx(
 
   await revokeWorkspaceCredentialMembershipsTx(tx, params.workspaceId, params.userId)
   await removeWorkspaceSkillMembershipsTx(tx, params.workspaceId, params.userId)
-  const stoppedRuns = await stopRunsWithoutWorkspaceAccessTx(tx, params.userId, [
-    params.workspaceId,
-  ])
+  const stoppedRuns = params.deferRunStops
+    ? []
+    : await stopRunsWithoutWorkspaceAccessTx(tx, params.userId, [params.workspaceId])
 
   return { revoked: true, ownershipTransferred, stoppedRuns }
 }

@@ -11,13 +11,13 @@ const userId = generateId()
 const workspaceId = generateId()
 const projectId = generateId()
 const received: { body: unknown; key: string | string[] | undefined }[] = []
-let fail = true
+let status = 503
 const server = createServer(async (req, res) => {
   let body = ''
   for await (const chunk of req) body += chunk
   received.push({ body: JSON.parse(body), key: req.headers['x-api-key'] })
-  res.writeHead(fail ? 503 : 200, { 'content-type': 'application/json' })
-  res.end(JSON.stringify({ success: !fail }))
+  res.writeHead(status, { 'content-type': 'application/json' })
+  res.end(JSON.stringify({ success: status === 200 }))
 })
 let runtime: {
   deletion: typeof import('@/lib/users/account-deletion')
@@ -117,7 +117,7 @@ it('rolls cleanup back with deletion and retries committed account/target erasur
   expect(
     (await pending()).every((event) => event.status === 'pending' && event.attempts === 1)
   ).toBe(true)
-  fail = false
+  status = 200
   await db
     .update(outboxEvent)
     .set({ availableAt: new Date(0) })
@@ -139,18 +139,33 @@ it('rolls cleanup back with deletion and retries committed account/target erasur
   expect(received.every((request) => request.key === 'memory-cleanup-fixture-key')).toBe(true)
 
   const first = events[0]
-  await db
-    .update(outboxEvent)
-    .set({
-      status: 'pending',
-      availableAt: new Date(0),
-      payload: { ...toRecord(first.payload), credentialFingerprint: 'changed-credential' },
-    })
-    .where(and(eq(outboxEvent.id, first.id), eq(outboxEvent.status, 'completed')))
+  const replay = async (payload: unknown = first.payload) => {
+    await db
+      .update(outboxEvent)
+      .set({ status: 'pending', availableAt: new Date(0), attempts: 9, payload })
+      .where(eq(outboxEvent.id, first.id))
+    await runtime.outbox.processOutboxEventById(
+      first.id,
+      runtime.cleanup.memoryCleanupOutboxHandlers
+    )
+    const [row] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, first.id))
+    return row
+  }
+  const waitsAnHour = (row: typeof outboxEvent.$inferSelect) => {
+    expect(row).toMatchObject({ status: 'pending', attempts: 9 })
+    expect(row.availableAt.getTime()).toBeGreaterThan(Date.now() + 50 * 60_000)
+  }
+
+  status = 404
   const before = received.length
-  await runtime.outbox.processOutboxEventById(first.id, runtime.cleanup.memoryCleanupOutboxHandlers)
-  expect(received).toHaveLength(before)
-  const [blocked] = await db.select().from(outboxEvent).where(eq(outboxEvent.id, first.id))
-  expect(blocked.status).toBe('pending')
-  expect(blocked.lastError).toContain('credential binding changed')
+  waitsAnHour(await replay())
+  expect(received).toHaveLength(before + 1)
+
+  status = 200
+  waitsAnHour(await replay({ ...toRecord(first.payload), baseUrl: 'https://unconfigured.test' }))
+  expect(received).toHaveLength(before + 1)
+
+  const legacy = await replay({ ...toRecord(first.payload), credentialFingerprint: 'retired' })
+  expect(legacy.status).toBe('completed')
+  expect(received).toHaveLength(before + 2)
 }, 30_000)
