@@ -364,7 +364,11 @@ export function mergeChatResource(
   const { viewId: _previousViewId, ...prevWithoutViewId } = prev
   const merged: MothershipResource = {
     ...(next.clearViewId === true ? prevWithoutViewId : prev),
-    ...(next.owner !== undefined ? { owner: next.owner } : {}),
+    ...(next.owner !== undefined &&
+    (next.owner.entityType !== prev.owner?.entityType ||
+      next.owner.entityId !== prev.owner.entityId)
+      ? { owner: next.owner }
+      : {}),
     ...(next.workspaceId !== undefined ? { workspaceId: next.workspaceId } : {}),
     ...(next.workspaceName !== undefined ? { workspaceName: next.workspaceName } : {}),
     ...(next.path !== undefined ? { path: next.path } : {}),

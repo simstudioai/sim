@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { NextRequest } from 'next/server'
+import type { AnyApiRouteContract } from '@/lib/api/contracts/types'
+import {
+  v2CreateProjectFileFolderContract,
+  v2UpdateProjectFileFolderContract,
+} from '@/lib/api/contracts/v2/project-file-folders'
+import { v2RenameProjectFileContract } from '@/lib/api/contracts/v2/project-file-lifecycle'
 import {
   v2CreateProjectFileContract,
   v2UpdateProjectFileContentContract,
@@ -26,19 +32,34 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 const logger = createLogger('ProjectFileWriteTransport')
 
-/** Routes that publish a caller-chosen name; other forwarded writes reference existing items only. */
-const NAME_WRITES = new Set([
-  'PATCH /api/v2/projects/{projectId}/files/{fileId}',
-  'POST /api/v2/projects/{projectId}/files/folders',
-  'PATCH /api/v2/projects/{projectId}/files/folders/{folderId}',
-])
-
-/** Malformed JSON is left for the route to reject; only parsed values can publish a name. */
-async function readJsonBody(request: Request): Promise<unknown> {
-  try {
-    return await request.json()
-  } catch {
-    return null
+/**
+ * Parses a write that publishes a caller-chosen name under its route's size limit, or returns
+ * undefined for forwarded writes that reference existing items only.
+ */
+function parseNameWrite(original: Request, route: string, params: Record<string, string>) {
+  const parse = <C extends AnyApiRouteContract>(contract: C) => {
+    /** Only a name write is copied, so forwarded upload bodies are never teed. */
+    const request = new NextRequest(original.clone())
+    return parseRequest(
+      contract,
+      request,
+      { params },
+      {
+        ...V2_PARSE_DEFAULTS,
+        maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+        invalidJsonResponse: () => v2InvalidBodyResponse(request),
+      }
+    )
+  }
+  switch (route) {
+    case 'PATCH /api/v2/projects/{projectId}/files/{fileId}':
+      return parse(v2RenameProjectFileContract)
+    case 'POST /api/v2/projects/{projectId}/files/folders':
+      return parse(v2CreateProjectFileFolderContract)
+    case 'PATCH /api/v2/projects/{projectId}/files/folders/{folderId}':
+      return parse(v2UpdateProjectFileFolderContract)
+    default:
+      return undefined
   }
 }
 
@@ -69,10 +90,16 @@ export function createProjectFileWriteTransport(options: {
       originalRequest.method === 'PUT' &&
       matched.pattern === '/api/v2/projects/{projectId}/files/{fileId}/content'
     if (!create && !update) {
-      if (!NAME_WRITES.has(`${originalRequest.method} ${matched.pattern}`))
-        return options.fallback(originalRequest)
+      const nameWrite = parseNameWrite(
+        originalRequest,
+        `${originalRequest.method} ${matched.pattern}`,
+        matched.params
+      )
+      if (!nameWrite) return options.fallback(originalRequest)
       try {
-        await requireCleanProjectFileMetadata(await readJsonBody(originalRequest.clone()), options)
+        const parsed = await nameWrite
+        if (!parsed.success) return parsed.response
+        await requireCleanProjectFileMetadata(parsed.data.body, options)
         options.context.signal?.throwIfAborted()
         originalRequest.signal.throwIfAborted()
       } catch (error) {

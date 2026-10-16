@@ -166,6 +166,12 @@ describe('mergeChatResource', () => {
     expect(mergeChatResource(stored, { ...stored })).toBe(stored)
   })
 
+  it('keeps the stored entry when the newcomer repeats an equal owner', () => {
+    const owner = { entityType: 'project' as const, entityId: 'project-1' }
+    const file = resource({ type: 'file', id: 'file-1', title: 'Notes', owner })
+    expect(mergeChatResource(file, { ...file, owner: { ...owner } })).toBe(file)
+  })
+
   it('replaces a placeholder title but never a specific one', () => {
     const placeholder = resource({ type: 'table', id: 'tbl-1', title: 'Table' })
     expect(mergeChatResource(placeholder, stored).title).toBe('Invoices')

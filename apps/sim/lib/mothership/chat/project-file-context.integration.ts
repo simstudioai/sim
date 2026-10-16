@@ -22,11 +22,7 @@ import { createEvent } from '@/lib/mothership/request/session/event'
 import { encodeSSEEnvelope } from '@/lib/mothership/request/session/sse'
 import { persistResourceEffect } from '@/lib/mothership/resources/persist-effect'
 import { persistChatResources } from '@/lib/mothership/resources/persistence'
-import {
-  getChatResourceKey,
-  type MothershipResource,
-  sanitizeChatResources,
-} from '@/lib/mothership/resources/types'
+import { type MothershipResource, sanitizeChatResources } from '@/lib/mothership/resources/types'
 import { executeTool, registerHandler } from '@/lib/mothership/tool-executor/executor'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import {

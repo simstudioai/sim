@@ -68,6 +68,7 @@ import {
   verifyUploadSessionToken,
 } from '@/lib/uploads/upload-session/service'
 import { workspaceFileRevision } from '@/lib/workspace-files/application/file-revision'
+import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const callbackRedisKeys: string[] = []
@@ -493,6 +494,30 @@ describe('private native Project writes against PostgreSQL and local storage', (
       expect(forwarded).toEqual([JSON.stringify(body('renamed.txt'))])
     })
   }
+
+  check('an oversized name write is refused before it is buffered or forwarded', async () => {
+    const f = await fixture()
+    const forwarded: string[] = []
+    const transport = createProjectFileWriteTransport({
+      endpoint: 'http://localhost:3200',
+      projectId: f.projectId,
+      context: f.context,
+      fallback: async (input, init) => {
+        forwarded.push(new Request(input, init).url)
+        return Response.json({ data: {} })
+      },
+    })
+    const response = await transport(
+      `http://localhost:3200/api/v2/projects/${f.projectId}/files/folders`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'x'.repeat(MAX_WORKSPACE_FILE_INLINE_BODY_BYTES + 1) }),
+      }
+    )
+    expect(response.status).toBe(413)
+    expect(forwarded).toEqual([])
+  })
 
   check('a cancellation during the name check never forwards the write', async () => {
     const f = await fixture()
