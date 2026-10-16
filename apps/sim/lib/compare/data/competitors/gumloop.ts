@@ -586,7 +586,7 @@ export const gumloopProfile: CompetitorProfile = {
         value:
           'Partial: Loop Mode runs multiple list items concurrently (up to 15 at once on the Pro plan), but there is no documented dedicated node for splitting a single run into distinct parallel branches that later join, comparable to a fan-out/fan-in construct',
         detail:
-          'Gumloop docs describe Loop Mode as processing list items simultaneously rather than one at a time, with concurrency limits tied to plan tier (2 concurrent items on Free, 15 on Pro). This is data-parallelism over a list, not branch-level fan-out/fan-in across different paths of logic.',
+          'Gumloop docs describe Loop Mode as processing list items simultaneously rather than one at a time, with concurrency limits tied to plan tier (15 concurrent items on Pro). This is data-parallelism over a list, not branch-level fan-out/fan-in across different paths of logic.',
         shortValue:
           'Partial: concurrent list-item processing (Loop Mode), no branch fan-out/fan-in node',
         confidence: 'estimated',
@@ -620,7 +620,7 @@ export const gumloopProfile: CompetitorProfile = {
       },
       loopIteration: {
         value:
-          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism covered under parallelExecution, which a user manually enables on a node so it runs once per item in a connected list. Per Gumloop's docs this is concurrent (2 items at once on Free, 15 on Pro), not a strictly one-at-a-time sequential container, and no separate while-loop or fixed-iteration-count node is documented, only manually-enabled iteration over an existing list.",
+          "Partial: Gumloop's only documented iteration primitive is 'Loop Mode', the same mechanism covered under parallelExecution, which a user manually enables on a node so it runs once per item in a connected list. Per Gumloop's docs this is concurrent (15 items at once on Pro), not a strictly one-at-a-time sequential container, and no separate while-loop or fixed-iteration-count node is documented, only manually-enabled iteration over an existing list.",
         detail:
           "Gumloop docs describe Loop Mode as a mode a user enables on a node ('When you enable Loop Mode on a node...'), which then processes multiple list items simultaneously with concurrency capped by plan tier, distinct from a classic for-each node that guarantees one iteration finishes before the next starts. No dedicated while-loop (condition-based) or fixed-count repeat node is documented; all iteration requires manually enabling Loop Mode with a list as input.",
         shortValue: 'Partial: manually-enabled Loop Mode is concurrent, not a sequential loop node',
@@ -1210,11 +1210,11 @@ export const gumloopProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Forum support on Free plan, escalating to dedicated Slack support on higher/Enterprise plans',
-        shortValue: 'Forum on Free, Slack on higher tiers',
+          'Email support on Pro and dedicated Slack support on Enterprise, plus the Gumloop University learning resource',
+        shortValue: 'Email on Pro, dedicated Slack on Enterprise',
         confidence: 'estimated',
         sources: [
-          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-07-02' },
+          { url: 'https://www.gumloop.com/pricing', label: 'Gumloop Pricing', asOf: '2026-10-15' },
         ],
       },
       sla: {

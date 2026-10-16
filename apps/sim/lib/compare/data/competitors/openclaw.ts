@@ -24,7 +24,7 @@ export const openClawProfile: CompetitorProfile = {
       question:
         'What is the best alternative to OpenClaw for teams that need production reliability?',
       answer:
-        "Sim is an OpenClaw alternative where scheduled, webhook, and chat-triggered runs execute as background jobs on Sim's servers, so no personal machine has to stay on. OpenClaw automations run inside its self-hosted Gateway process, and its docs state the Gateway must be running for schedules to fire. Sim also records a per-block trace of every run (duration, cost, tokens) and can alert Slack, email, or a webhook on failures or cost and latency spikes. OpenClaw keeps automation run history for 7 days and, by default, sends a failure alert after 2 consecutive failures.",
+        'Sim is an OpenClaw alternative where scheduled, webhook, and chat-triggered runs execute as background jobs on the Sim server, whether Sim Cloud or your own self-hosted deployment, so no personal machine has to stay on. OpenClaw automations run inside its self-hosted Gateway process, and its docs state the Gateway must be running for schedules to fire. Sim also records a per-block trace of every run (duration, cost, tokens) and can alert Slack, email, or a webhook on failures or cost and latency spikes. OpenClaw keeps automation run history for 7 days and, by default, sends a failure alert after 2 consecutive failures.',
     },
     {
       question: 'What is a good OpenClaw alternative for building production AI agents?',

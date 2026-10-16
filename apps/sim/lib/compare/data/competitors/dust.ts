@@ -59,7 +59,7 @@ export const dustProfile: CompetitorProfile = {
     {
       question: 'How does Sim compare to Dust for shared team AI assistants?',
       answer:
-        'Both are built for teams, but they share different things. Dust shares agents and conversations: people and agents work in a common workspace, access is set by roles plus Spaces, and Pro seats cost $30 per month ($24 billed yearly) with 8,000 credits each. Sim shares the build: several people can edit the same workflow canvas live, workspaces carry admin, write, and read permissions, and the Pro plan is $25 per user per month.',
+        'Both are built for teams, but they share different things. Dust shares agents and conversations: people and agents work in a common workspace, access is set by roles plus Spaces, and Pro seats cost $30 or €30 per month ($24 or €24 per month billed annually) with 8,000 credits each. Sim shares the build: several people can edit the same workflow canvas live, workspaces carry admin, write, and read permissions, and the Pro plan is $25 per user per month.',
     },
   ],
   standoutFeatures: [
@@ -794,7 +794,7 @@ export const dustProfile: CompetitorProfile = {
           'Business Pro seat: 30/month per seat (24/month billed yearly), 8,000 credits per seat per month; shown in dollars in the US and euros elsewhere, excluding VAT',
         detail:
           'Pro is the entry paid seat above the Free seat. The higher Max seat is 150/month (120/month billed yearly) with 40,000 credits per seat per month. The pricing page shows dollars to US visitors and euros elsewhere, with the same amounts, excluding VAT.',
-        shortValue: '$30/seat/month (or $24 yearly), 8,000 credits',
+        shortValue: '$30 or €30/seat/month ($24 or €24/month billed annually), 8,000 credits',
         confidence: 'verified',
         sources: [
           {
