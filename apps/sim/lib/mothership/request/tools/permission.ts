@@ -21,7 +21,13 @@ import {
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
-import { capToToolDeadline, toolDeadlinePassed } from '@/lib/mothership/request/tools/deadline'
+import {
+  capToToolDeadline,
+  lastToolStartAt,
+  TOOL_DEADLINE_BEFORE_START_MESSAGE,
+  toolDeadlinePassed,
+  toolStartWindowClosed,
+} from '@/lib/mothership/request/tools/deadline'
 import type {
   OrchestratorOptions,
   StreamingContext,
@@ -247,15 +253,19 @@ export function runGatedToolExecution(
         return { status: MothershipStreamV1ToolOutcome.success, message: output.message }
       }
 
-      // No prompt opens past the call's deadline, and an answer that lands after it is not honored.
-      const answer = toolDeadlinePassed(toolCall.deadlineAt, Date.now())
+      // No prompt opens once it is too late to start the call, and an answer after that is not honored.
+      const answer = toolStartWindowClosed(toolCall.deadlineAt, Date.now())
         ? null
         : await waitForToolPermissionDecision(
             toolCallId,
-            capToToolDeadline(PERMISSION_WAIT_TIMEOUT_MS, toolCall.deadlineAt, Date.now()),
+            capToToolDeadline(
+              PERMISSION_WAIT_TIMEOUT_MS,
+              lastToolStartAt(toolCall.deadlineAt),
+              Date.now()
+            ),
             options.abortSignal
           )
-      const decision = toolDeadlinePassed(toolCall.deadlineAt, Date.now()) ? null : answer
+      const decision = toolStartWindowClosed(toolCall.deadlineAt, Date.now()) ? null : answer
 
       if (!decision) {
         // Timed out or the turn was stopped. Fail the call rather than running
@@ -264,7 +274,9 @@ export function runGatedToolExecution(
         span.setAttribute(TraceAttr.ToolOutcome, MothershipStreamV1ToolOutcome.cancelled)
         const error = options.abortSignal?.aborted
           ? 'Stopped before the user approved this tool.'
-          : 'Timed out waiting for the user to approve this tool.'
+          : toolDeadlinePassed(lastToolStartAt(toolCall.deadlineAt), Date.now())
+            ? TOOL_DEADLINE_BEFORE_START_MESSAGE
+            : 'Timed out waiting for the user to approve this tool.'
         setTerminalToolCallState(toolCall, {
           status: MothershipStreamV1ToolOutcome.cancelled,
           output: { error },

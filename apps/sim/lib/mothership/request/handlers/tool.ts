@@ -41,6 +41,7 @@ import {
   TOOL_DEADLINE_EXCEEDED_MESSAGE,
   toDeadlineDate,
   toolDeadlinePassed,
+  toolStartWindowClosed,
 } from '@/lib/mothership/request/tools/deadline'
 import { waitForDesktopToolCall } from '@/lib/mothership/request/tools/desktop-wait'
 import {
@@ -1000,7 +1001,7 @@ async function dispatchToolExecution(
         // provably never ran; a claimed one (a takeover re-hands calls) is read, then settled
         // below as outcome unknown.
         if (
-          toolDeadlinePassed(toolCall.deadlineAt, Date.now()) &&
+          toolStartWindowClosed(toolCall.deadlineAt, Date.now()) &&
           (await failUnstartedToolCall(
             toolCallId,
             context,
@@ -1079,13 +1080,22 @@ async function dispatchToolExecution(
         }
         span.setAttribute(TraceAttr.ToolExecutor, MothershipStreamV1ToolExecutor.client)
         if (completion === null && toolDeadlinePassed(toolCall.deadlineAt, Date.now())) {
-          // Settled durably, so a desktop that claimed the call stops renewing it.
-          await failPendingToolCall(
-            toolCallId,
-            context,
-            execContext,
-            TOOL_DEADLINE_EXCEEDED_MESSAGE
+          // A call nothing claimed never ran. A claimed one is settled durably as outcome
+          // unknown, so a desktop that claimed it stops renewing it.
+          if (
+            !(await failUnstartedToolCall(
+              toolCallId,
+              context,
+              execContext,
+              TOOL_DEADLINE_BEFORE_START_MESSAGE
+            ))
           )
+            await failPendingToolCall(
+              toolCallId,
+              context,
+              execContext,
+              TOOL_DEADLINE_EXCEEDED_MESSAGE
+            )
           completion = settledClientCompletion(toolCall)
         }
         // Both waiters resolve `T | null`, never undefined — comparing against

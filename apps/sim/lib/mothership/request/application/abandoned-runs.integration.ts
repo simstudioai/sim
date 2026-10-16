@@ -549,6 +549,32 @@ describe.runIf(Boolean(redisUrl))('taking over a run whose controller died', () 
     }
   })
 
+  it.each([
+    [30, false],
+    [600, true],
+  ])(
+    'a browser claims a workflow call with %is of its deadline left: %s',
+    async (seconds, claimable) => {
+      const { runId, toolCallId } = await runAbandonedMidTool({ toolName: 'run_workflow' })
+      /** Offered to a browser and not yet picked up, with `seconds` of its deadline left. */
+      await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: null,
+          executionStartedAt: null,
+          executionOwnerToken: null,
+          executionDeadlineAt: sql`clock_timestamp() + ${seconds} * interval '1 second'`,
+        })
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+      try {
+        const claim = await claimWorkflowToolExecution(toolCallId, generateId(), 'client')
+        expect(claim !== null).toBe(claimable)
+      } finally {
+        await db.update(copilotRuns).set({ status: 'cancelled' }).where(eq(copilotRuns.id, runId))
+      }
+    }
+  )
+
   it('fails an exhausted workflow run before a takeover offers it to anyone', async () => {
     const { runId, toolCallId } = await runAbandonedMidTool({
       toolName: 'run_workflow',

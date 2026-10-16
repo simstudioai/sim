@@ -332,6 +332,20 @@ describe.runIf(Boolean(redisUrl))('desktop tool calls the server no longer admit
     expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
   })
 
+  it('refuses the claim with less than a minute of the call deadline left', async () => {
+    const { runId } = await startRun()
+    const toolCallId = await agentCalls(runId, 'terminal', { operation: 'read' })
+    await db
+      .update(copilotAsyncToolCalls)
+      .set({ executionDeadlineAt: new Date(Date.now() + 30_000) })
+      .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+
+    expect(
+      await claimDesktopToolCall({ toolCallId, runId, userId, claimedBy: 'desktop-terminal' })
+    ).toEqual({ outcome: 'existing' })
+    expect(await storedCall(toolCallId)).toMatchObject({ status: 'pending', claimedBy: null })
+  })
+
   it('wakes the waiting turn with what Stop did to a call the desktop already claimed', async () => {
     const { runId, streamId } = await startRun()
     const registry = new ResolvedSecretTraceRegistry([])

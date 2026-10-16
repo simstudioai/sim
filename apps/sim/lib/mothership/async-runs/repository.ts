@@ -42,7 +42,7 @@ import {
   INTERRUPTED_SIM_TOOL_MESSAGE,
   SIM_TOOL_EXECUTION_LEASE_SECONDS,
   SIM_TOOL_EXECUTION_MAX_ATTEMPTS,
-  SIM_TOOL_RERUN_MIN_REMAINING_MS,
+  SIM_TOOL_MIN_START_BUDGET_MS,
   SimToolExecutionLeaseLostError,
   type SimToolExecutionOwner,
 } from '@/lib/mothership/async-runs/execution-lease'
@@ -891,8 +891,11 @@ const unfinishedSimExecution = allOf(
   isNull(copilotAsyncToolCalls.clientWorkflowExecutionId)
 )
 
-/** A call whose deadline leaves less than a re-run needs; a call without one never matches. */
-const tooLateToRerun = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} < clock_timestamp() + ${SIM_TOOL_RERUN_MIN_REMAINING_MS} * interval '1 millisecond')`
+/**
+ * A call whose deadline leaves less than the minimum start budget, so nothing may start it: no
+ * re-run and no claim. A call without a deadline never matches.
+ */
+const tooLateToStart = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} < clock_timestamp() + ${SIM_TOOL_MIN_START_BUDGET_MS} * interval '1 millisecond')`
 
 /**
  * A Sim execution whose owner died before recording a result: its lease lapsed, which a live
@@ -903,7 +906,7 @@ const interruptedSimExecution = allOf(
   unfinishedSimExecution,
   sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`,
   lt(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS),
-  not(tooLateToRerun)
+  not(tooLateToStart)
 )
 
 /**
@@ -1030,6 +1033,7 @@ export async function claimDesktopToolCall(
             and(
               thisCall,
               eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+              not(tooLateToStart),
               // The executor takes only a call Sim offered it, inside its pickup window; once the
               // window closed the call belongs to its not-started settlement.
               executor
@@ -1135,7 +1139,7 @@ export async function getChatViewDesktopLeaseRemainingMs(
  * Why a lapsed execution ended without a result: once, after every re-run it was allowed, or
  * with too little of its deadline left to run again.
  */
-const interruptionMessage = sql<string>`CASE WHEN ${copilotAsyncToolCalls.executionAttempts} >= ${SIM_TOOL_EXECUTION_MAX_ATTEMPTS} THEN ${EXHAUSTED_SIM_TOOL_MESSAGE}::text WHEN ${tooLateToRerun} THEN ${DEADLINE_SIM_TOOL_MESSAGE}::text ELSE ${INTERRUPTED_SIM_TOOL_MESSAGE}::text END`
+const interruptionMessage = sql<string>`CASE WHEN ${copilotAsyncToolCalls.executionAttempts} >= ${SIM_TOOL_EXECUTION_MAX_ATTEMPTS} THEN ${EXHAUSTED_SIM_TOOL_MESSAGE}::text WHEN ${tooLateToStart} THEN ${DEADLINE_SIM_TOOL_MESSAGE}::text ELSE ${INTERRUPTED_SIM_TOOL_MESSAGE}::text END`
 
 /**
  * Whether one of the run's Sim handlers is still running with its execution lease held. Its
@@ -1192,7 +1196,7 @@ export async function revokeExhaustedSimToolExecutions(runId: string) {
         eq(copilotAsyncToolCalls.runId, runId),
         or(
           gte(copilotAsyncToolCalls.executionAttempts, SIM_TOOL_EXECUTION_MAX_ATTEMPTS),
-          tooLateToRerun
+          tooLateToStart
         )
       )
     )
@@ -1776,6 +1780,7 @@ export async function claimWorkflowToolExecution(
           .where(
             and(
               eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+              not(tooLateToStart),
               or(
                 and(
                   isNull(copilotAsyncToolCalls.claimedBy),
