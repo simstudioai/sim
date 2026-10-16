@@ -2,7 +2,10 @@ import { v2ReadFileTextContract, v2ReadFileTextQuerySchema } from '@/lib/api/con
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import { enginePrincipal } from '@/lib/mothership/agent-cli/engine-principal'
 import { fileReadFailure, readFileVisual } from '@/lib/mothership/agent-cli/engines/file-view'
-import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
+import {
+  isDefaultVisualMediaType,
+  observePrivateFile,
+} from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
@@ -116,7 +119,7 @@ export const fileReadCommand: AgentCliEngine = {
       })
       runtime.signal?.throwIfAborted()
       const type = observedMediaType(file.type, file.name)
-      if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
+      if (visual || (!textRange && isDefaultVisualMediaType(type))) {
         const { metadata, ...result } = await readFileVisual(
           file.id,
           runtime,

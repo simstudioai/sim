@@ -49,6 +49,19 @@ function refresh(type: ResourceKind, id?: string): ResourceChange[] {
   return [{ op: 'refresh', resource: { type, ...(id ? { id } : {}) } }]
 }
 
+function ownedFilePath(owner: ResourceAddress['owner'], folderPath: string, name: string): string {
+  const path = `files/${encodeVfsPathSegments([...parseFolderPath(folderPath), name])}`
+  return owner ? fileOwnerVfsPath(owner, path) : path
+}
+
+/** Refreshes an owner's file and folder listings after a change too broad to open as one tab. */
+function refreshOwnerFiles(owner: NonNullable<ResourceAddress['owner']>): ResourceChange[] {
+  return [
+    { op: 'refresh', resource: { type: 'file', owner } },
+    { op: 'refresh', resource: { type: 'filefolder', owner } },
+  ]
+}
+
 function upsert(
   type: ResourceKind,
   value: { id: string; name?: string; folderPath?: string; owner?: ResourceAddress['owner'] },
@@ -64,14 +77,7 @@ function upsert(
         ...(value.owner ? { owner: value.owner } : {}),
         ...(value.name ? { title: value.name } : {}),
         ...(type === 'file' && value.name && value.folderPath !== undefined
-          ? {
-              path: value.owner
-                ? fileOwnerVfsPath(
-                    value.owner,
-                    `files/${encodeVfsPathSegments([...parseFolderPath(value.folderPath), value.name])}`
-                  )
-                : `files/${encodeVfsPathSegments([...parseFolderPath(value.folderPath), value.name])}`,
-            }
+          ? { path: ownedFilePath(value.owner, value.folderPath, value.name) }
           : {}),
       },
     },
@@ -164,19 +170,9 @@ function settingsMutations(
 }
 
 const EFFECT_ROUTES: EffectRoute[] = [
-  after(v2UnzipProjectFileContract, (_result, { params }) => [
-    {
-      op: 'refresh',
-      resource: { type: 'file', owner: { entityType: 'project', entityId: params.projectId } },
-    },
-    {
-      op: 'refresh',
-      resource: {
-        type: 'filefolder',
-        owner: { entityType: 'project', entityId: params.projectId },
-      },
-    },
-  ]),
+  after(v2UnzipProjectFileContract, (_result, { params }) =>
+    refreshOwnerFiles({ entityType: 'project', entityId: params.projectId })
+  ),
   after(v2CompleteProjectFileUploadContract, ({ data }) =>
     data.file ? upsert('file', data.file) : []
   ),
@@ -191,11 +187,7 @@ const EFFECT_ROUTES: EffectRoute[] = [
         ),
       })
     const owner = file?.owner ?? data.folders[0]?.owner
-    if (!owner) return []
-    return [
-      { op: 'refresh', resource: { type: 'file', owner } },
-      { op: 'refresh', resource: { type: 'filefolder', owner } },
-    ]
+    return owner ? refreshOwnerFiles(owner) : []
   }),
   {
     ...after(projectFiles.v2GetProjectFileMetadataContract, ({ data }) =>

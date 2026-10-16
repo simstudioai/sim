@@ -1,14 +1,12 @@
 import { createEmbeddedClient, type EmbeddedCliIdentity } from 'sim/embed'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { curateBlockDetail } from '@/lib/mothership/agent-cli/curation'
 import { AUGMENTATION_ENGINES, runEngine } from '@/lib/mothership/agent-cli/engines'
-import { executePreparedCliRequest } from '@/lib/mothership/agent-cli/execute'
+import { executePreparedCliRequest, prepareCliSession } from '@/lib/mothership/agent-cli/execute'
 import { curateKnowledgeDocuments } from '@/lib/mothership/agent-cli/knowledge-curation'
 import { readOnlyCliTransport } from '@/lib/mothership/agent-cli/read-only'
 import { createAgentCliTransport } from '@/lib/mothership/agent-cli/transport'
-import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
@@ -19,7 +17,7 @@ import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/genera
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
-import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+import { isFileResourceType } from '@/lib/mothership/resources/types'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 /** Resolves workspace policy before preparing the existing workspace CLI transport. */
@@ -54,10 +52,7 @@ async function executeBoundAgentCliRequest(
     workspaceId: context.workspaceId,
     chatId: context.chatId,
   }
-  const endpoint = getInternalApiBaseUrl()
-  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
-  const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
-  const resources: ResourceChange[] = []
+  const { endpoint, sessionKey, files, resources } = prepareCliSession(context)
   const identity = {
     endpoint,
     apiKey,
@@ -132,7 +127,7 @@ async function executeBoundAgentCliRequest(
       function scopeResource<R extends ResourceChange['resource']>(resource: R): R {
         return {
           ...resource,
-          ...(request.fileOwner && ['file', 'filefolder'].includes(resource.type)
+          ...(request.fileOwner && isFileResourceType(resource.type)
             ? { owner: request.fileOwner }
             : {}),
           ...(context.chatOrganizationId ? { workspaceId: context.workspaceId } : {}),

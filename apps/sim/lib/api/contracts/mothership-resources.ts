@@ -9,6 +9,18 @@ import {
   PERSISTED_RESOURCE_TYPES,
 } from '@/lib/mothership/resources/types'
 
+function refineResourceOwner(
+  resource: Parameters<typeof hasValidChatResourceOwner>[0],
+  ctx: z.RefinementCtx
+): void {
+  if (!hasValidChatResourceOwner(resource))
+    ctx.addIssue({
+      code: 'custom',
+      path: ['owner'],
+      message: 'Resource owner conflicts with its address',
+    })
+}
+
 /** Keep the complete panel address through request parsing, persistence and hydration. */
 const resourceAddressSchema = z
   .object({
@@ -24,12 +36,7 @@ const resourceAddressSchema = z
     sources: ResourceAddress.shape.sources,
   })
   .superRefine((resource, ctx) => {
-    if (!hasValidChatResourceOwner(resource))
-      ctx.addIssue({
-        code: 'custom',
-        path: ['owner'],
-        message: 'Resource owner conflicts with its address',
-      })
+    refineResourceOwner(resource, ctx)
     if ((resource.type === 'sources') !== (resource.sources !== undefined))
       ctx.addIssue({
         code: 'custom',
@@ -72,14 +79,9 @@ export const mothershipResourceRemovalSchema = z
     resourceType: z.enum(PERSISTED_RESOURCE_TYPES),
     resourceId: requiredFieldSchema('resourceId cannot be empty'),
   })
-  .superRefine((resource, ctx) => {
-    if (!hasValidChatResourceOwner({ ...resource, type: resource.resourceType }))
-      ctx.addIssue({
-        code: 'custom',
-        path: ['owner'],
-        message: 'Resource owner conflicts with its address',
-      })
-  })
+  .superRefine((resource, ctx) =>
+    refineResourceOwner({ ...resource, type: resource.resourceType }, ctx)
+  )
 
 /** The query visible in an embedded table, including changes not saved yet. */
 export const mothershipTableViewContextSchema = z

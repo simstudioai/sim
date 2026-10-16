@@ -3,7 +3,7 @@ import { copilotChats, mothershipResourceEffects } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  getChatResourceKey,
+  chatResourceKeyFor,
   hasValidChatResourceOwner,
   type MothershipResource,
   type MothershipResourceUpdate,
@@ -82,8 +82,7 @@ export async function changeStoredChatResources(
         .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.deletedAt)))
         .for('update')
       if (!chat) throw new OrchestrationError('not_found', 'Chat not found')
-      const keyOf = (resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>) =>
-        getChatResourceKey(resource, chat.workspaceId ?? undefined)
+      const keyOf = chatResourceKeyFor(chat.workspaceId ?? undefined)
       const existing = sanitizeChatResources(Array.isArray(chat.resources) ? chat.resources : [])
       if (effectId) {
         const [applied] = await tx
@@ -107,9 +106,8 @@ export async function changeStoredChatResources(
           return unPinned
         })
       } else if (change.kind === 'remove') {
-        resources = existing.filter(
-          (resource) => !change.resources.some((removed) => keyOf(removed) === keyOf(resource))
-        )
+        const removedKeys = new Set(change.resources.map(keyOf))
+        resources = existing.filter((resource) => !removedKeys.has(keyOf(resource)))
       } else {
         const incoming = sanitizeChatResources(
           change.resources.filter((resource) => resource.id !== 'streaming-file')

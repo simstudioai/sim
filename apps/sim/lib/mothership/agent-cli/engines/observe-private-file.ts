@@ -10,6 +10,11 @@ import {
 import { decodeFileVisual } from '@/lib/workspace-files/decode-file-visual'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
+/** Images and PDFs are read visually unless a line range asks for their text. */
+export function isDefaultVisualMediaType(type: string): boolean {
+  return type.startsWith('image/') || type === 'application/pdf'
+}
+
 /** Shared representation selection for authorized private file bytes. */
 export async function observePrivateFile(
   file: {
@@ -44,7 +49,7 @@ export async function observePrivateFile(
   }
   const textRange = options.offset !== undefined || options.limit !== undefined
   const visual = options.visual || flags.render !== undefined || flags.pages !== undefined
-  if (visual || (!textRange && (type.startsWith('image/') || type === 'application/pdf'))) {
+  if (visual || (!textRange && isDefaultVisualMediaType(type))) {
     if (file.hasRecordedSecrets) {
       throw new ContentRefusedError('workspace-file')
     }
@@ -107,18 +112,17 @@ export function presentObservedText(
   metadata: Record<string, unknown>,
   extracted: ExtractedFileText
 ) {
-  const { lineRange, ...rest } = extracted
   return agentCliOk(
     JSON.stringify({
       ...metadata,
       representation: 'text',
-      text: rest.text,
-      truncated: rest.truncated,
-      degraded: rest.degraded,
-      degradedReason: rest.degradedReason,
-      charCount: rest.text.length,
-      byteCount: rest.byteCount,
-      ...(lineRange ? { lineRange } : {}),
+      text: extracted.text,
+      truncated: extracted.truncated,
+      degraded: extracted.degraded,
+      degradedReason: extracted.degradedReason,
+      charCount: extracted.text.length,
+      byteCount: extracted.byteCount,
+      ...(extracted.lineRange ? { lineRange: extracted.lineRange } : {}),
     })
   )
 }

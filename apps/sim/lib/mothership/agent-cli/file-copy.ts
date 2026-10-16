@@ -1,17 +1,13 @@
 import type { EmbeddedCliIdentity } from 'sim/embed'
 import { fileCopyInputSchema } from '@/lib/api/contracts/file-copy-input'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
-import { executePreparedCliRequest } from '@/lib/mothership/agent-cli/execute'
+import { executePreparedCliRequest, prepareCliSession } from '@/lib/mothership/agent-cli/execute'
 import { createFileCopyCliTransport } from '@/lib/mothership/agent-cli/file-copy-transport'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
-import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { requireTrustedCopilotResourceExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
-import type { ResourceChange } from '@/lib/mothership/generated/resources'
-import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 
 /** Executes one compound copy with both explicit owners and the original authoring invocation. */
 export async function executeFileCopyCliRequest(
@@ -35,10 +31,7 @@ export async function executeFileCopyCliRequest(
     source: invocation.source,
     destination: invocation.destination,
   })
-  const endpoint = getInternalApiBaseUrl()
-  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
-  const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
-  const resources: ResourceChange[] = []
+  const { endpoint, sessionKey, files, resources } = prepareCliSession(context)
   const identity: EmbeddedCliIdentity = {
     endpoint,
     apiKey: 'mothership-in-process',

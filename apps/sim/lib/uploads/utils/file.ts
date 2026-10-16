@@ -277,14 +277,10 @@ export function observedMediaType(
   contentType: string | null | undefined,
   fileName: string
 ): string {
-  return (
-    (needsRenderedArtifact(contentType, fileName)
+  return normalizeMimeType(
+    needsRenderedArtifact(contentType, fileName)
       ? getMimeTypeFromExtension(getFileExtension(fileName))
       : resolveEffectiveMimeType(contentType, fileName)
-    )
-      .split(';')[0]
-      ?.trim()
-      .toLowerCase() ?? ''
   )
 }
 

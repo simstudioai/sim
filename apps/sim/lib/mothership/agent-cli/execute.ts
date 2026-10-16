@@ -1,7 +1,9 @@
 import type { EmbeddedCliIdentity } from 'sim/embed'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import { applySink } from '@/lib/mothership/agent-cli/sink'
-import type { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
+import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import type {
   AgentCliAugmentationInvocation,
   AgentCliRawResult,
@@ -10,6 +12,7 @@ import type {
 import type { ResourceChange } from '@/lib/mothership/generated/resources'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 
 interface PreparedCliInvocation {
   identity: EmbeddedCliIdentity
@@ -19,6 +22,17 @@ interface PreparedCliInvocation {
   augment(invocation: AgentCliAugmentationInvocation): Promise<AgentCliRawResult>
   curate?(result: AgentCliRawResult): Promise<AgentCliRawResult>
   projectResources?(resources: ResourceChange[]): ResourceChange[]
+}
+
+/** The in-process endpoint, chat workbench session, file provenance, and effect sink of one invocation. */
+export function prepareCliSession(context: AgentCliExecutionContext) {
+  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
+  return {
+    endpoint: getInternalApiBaseUrl(),
+    sessionKey,
+    files: sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined,
+    resources: [] as ResourceChange[],
+  }
 }
 
 /** Owner adapters prepare authority and transport; every invocation shares execution and result delivery. */

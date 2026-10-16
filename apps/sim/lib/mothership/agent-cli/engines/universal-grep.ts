@@ -131,10 +131,18 @@ function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
+/** Inventory pages one scope lists before reporting the search incomplete. */
+export const MAX_GREP_LIST_PAGES = 50
+
+/** The incomplete-search note for a scope whose inventory hit {@link MAX_GREP_LIST_PAGES}. */
+export function grepListingStoppedMessage(scope: string): string {
+  return `${scope}: listing stopped after ${MAX_GREP_LIST_PAGES} pages; use ${scope} list to continue discovery.`
+}
+
 async function listAll(runtime: GrepRuntime, path: string): Promise<Record<string, unknown>[]> {
   const out: Record<string, unknown>[] = []
   let cursor: string | undefined
-  for (let pages = 0; pages < 50; pages++) {
+  for (let pages = 0; pages < MAX_GREP_LIST_PAGES; pages++) {
     const page = await runtime.client.request<Page>(path, {
       query: { workspaceId: runtime.workspaceId, limit: '100', ...(cursor ? { cursor } : {}) },
     })
@@ -142,10 +150,7 @@ async function listAll(runtime: GrepRuntime, path: string): Promise<Record<strin
     if (!page.nextCursor) return out
     cursor = page.nextCursor
   }
-  const scope = path.slice('/api/v2/'.length)
-  runtime.reportIncomplete(
-    `${scope}: listing stopped after 50 pages; use ${scope} list to continue discovery.`
-  )
+  runtime.reportIncomplete(grepListingStoppedMessage(path.slice('/api/v2/'.length)))
   return out
 }
 
@@ -553,13 +558,14 @@ function parseContext(flags: AgentCliFlags): ContextWindow | string {
 
 /**
  * An owner-specific corpus for {@link executeGrep}: `materialize` returns only authorized text
- * and reports skipped items through `reportIncomplete`; `allowedScopes` refuses any other
+ * and reports skipped items through `reportIncomplete`; `scopeLimit` refuses any other
  * `--scope`/`--in`.
  */
 export interface GrepSource {
   signal?: AbortSignal
   registry?: AgentCliRuntime['resolvedSecretTraceRegistry']
-  allowedScopes?: readonly Scope[]
+  /** The only scopes this corpus holds, and the refusal for a search that names another. */
+  scopeLimit?: { scopes: readonly Scope[]; refusal: string }
   materialize(
     scopes: Scope[],
     nameFilter: string | undefined,
@@ -594,16 +600,14 @@ export async function executeGrep(positionals: string[], flags: AgentCliFlags, s
   const withinScope = SCOPES.find((scope) => scope === withinHead)
   const withinResource = withinScope ? withinRest.join('/') : within?.toLowerCase()
   const searched: Scope[] = withinScope ? [withinScope] : scopes
-  const allowedScopes = source.allowedScopes
+  const scopeLimit = source.scopeLimit
   if (
-    allowedScopes &&
+    scopeLimit &&
     (scopes.length === 0 ||
-      scopes.some((scope) => !allowedScopes.includes(scope)) ||
-      searched.some((scope) => !allowedScopes.includes(scope)))
+      scopes.some((scope) => !scopeLimit.scopes.includes(scope)) ||
+      searched.some((scope) => !scopeLimit.scopes.includes(scope)))
   ) {
-    return agentCliFail(
-      'Project grep supports only --scope files. Search workspace resources separately.'
-    )
+    return agentCliFail(scopeLimit.refusal)
   }
   const nameFilter = withinResource || undefined
   /**

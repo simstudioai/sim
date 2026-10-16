@@ -1,8 +1,7 @@
 import type { EmbeddedCliIdentity } from 'sim/embed'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
-import { executePreparedCliRequest } from '@/lib/mothership/agent-cli/execute'
+import { executePreparedCliRequest, prepareCliSession } from '@/lib/mothership/agent-cli/execute'
 import { grepProjectFiles } from '@/lib/mothership/agent-cli/project-file-grep'
 import { importProjectFileProvenance } from '@/lib/mothership/agent-cli/project-file-provenance'
 import { readProjectFileForAgent } from '@/lib/mothership/agent-cli/project-file-read'
@@ -12,11 +11,8 @@ import { createProjectFileWriteTransport } from '@/lib/mothership/agent-cli/proj
 import { readOnlyCliTransport } from '@/lib/mothership/agent-cli/read-only'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { createTracedCliTransport } from '@/lib/mothership/agent-cli/traced-transport'
-import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
 import { executeCopilotProjectFileUseCase } from '@/lib/mothership/application/execute-project-file-use-case'
 import type { AgentCliRawResult, AgentCliRequest } from '@/lib/mothership/generated/agent-cli'
-import type { ResourceChange } from '@/lib/mothership/generated/resources'
-import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { getProjectFileCapabilities } from '@/lib/projects/files/application'
 import {
   MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE,
@@ -38,9 +34,7 @@ export async function executeProjectFileCliRequest(
     )
   const target = { projectId }
   await executeCopilotProjectFileUseCase(context, getProjectFileCapabilities, target, target)
-  const endpoint = getInternalApiBaseUrl()
-  const sessionKey = context.chatId ? chatSandboxSessionKey(context.chatId) : null
-  const files = sessionKey ? createWorkbenchFileProvenance({ ...context, sessionKey }) : undefined
+  const { endpoint, sessionKey, files, resources } = prepareCliSession(context)
   const scoped = createProjectFileUploadTransport({
     endpoint,
     projectId,
@@ -79,7 +73,6 @@ export async function executeProjectFileCliRequest(
     if (response.body && provenance) files?.trackDownload(response.body, provenance)
     return response
   }
-  const resources: ResourceChange[] = []
   const transport = createResourceEffectTransport(
     endpoint,
     createTracedCliTransport(endpoint, observed),

@@ -8,7 +8,7 @@ import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
 import {
-  getChatResourceKey,
+  chatResourceKeyFor,
   getChatResourceSelectionId,
   mergeChatResource,
 } from '@/lib/mothership/resources/types'
@@ -102,7 +102,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   } = ctx.deps
   const onResourceEvent = onResourceEventRef.current
   const payload = parsed.payload
-  const keyOf = (resource: MothershipResource) => getChatResourceKey(resource, chatWorkspaceId)
+  const keyOf = chatResourceKeyFor(chatWorkspaceId)
   if (payload.op === 'upsert' && payload.readOnly) return
   if (payload.resource.type === 'settings') {
     const settings = payload.resource

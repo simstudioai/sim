@@ -3,6 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { AgentCliExecutionContext } from '@/lib/mothership/agent-cli'
 import { fileReadFailure } from '@/lib/mothership/agent-cli/engines/file-view'
 import {
+  isDefaultVisualMediaType,
   observePrivateFile,
   presentObservedText,
 } from '@/lib/mothership/agent-cli/engines/observe-private-file'
@@ -28,6 +29,7 @@ import {
   observedMediaType,
   resolveEffectiveMimeType,
 } from '@/lib/uploads/utils/file'
+import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import { fileOwnerVfsPath } from '@/lib/workspace-files/owner-paths'
 import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
@@ -88,7 +90,7 @@ export async function readProjectFileForAgent(
     const readsText =
       !explicitVisual &&
       Boolean(workspaceFileTextFormat({ name: resolved.file.name, type: resolvedType })) &&
-      (textRange || !isDefaultVisual(resolvedType))
+      (textRange || !isDefaultVisualMediaType(resolvedType))
     let file: typeof resolved.file
     let result: Awaited<ReturnType<typeof observePrivateFile>>
     if (readsText) {
@@ -105,7 +107,7 @@ export async function readProjectFileForAgent(
         {
           name: file.name,
           path: fileOwnerVfsPath(file.owner, workspaceFileVfsPath(file)),
-          type: mimeOf(read.contentType, file.name),
+          type: normalizeMimeType(resolveEffectiveMimeType(read.contentType, file.name)),
           source: 'project',
           fileId: file.id,
         },
@@ -125,8 +127,8 @@ export async function readProjectFileForAgent(
       context.signal?.throwIfAborted()
       file = artifact.file
       // Default visual selection uses the authorized artifact's MIME, not earlier discovery metadata.
-      const type = mimeOf(artifact.contentType, file.name)
-      const visual = explicitVisual || (!textRange && isDefaultVisual(type))
+      const type = normalizeMimeType(resolveEffectiveMimeType(artifact.contentType, file.name))
+      const visual = explicitVisual || (!textRange && isDefaultVisualMediaType(type))
       if (visual && hasPossibleSecrets(artifact.secretProvenance))
         throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
       result = await observePrivateFile(
@@ -170,14 +172,6 @@ export async function readProjectFileForAgent(
   } catch (error) {
     return fileReadFailure(error)
   }
-}
-
-function mimeOf(contentType: string, name: string) {
-  return resolveEffectiveMimeType(contentType, name).split(';')[0]?.trim().toLowerCase() ?? ''
-}
-
-function isDefaultVisual(type: string) {
-  return type.startsWith('image/') || type === 'application/pdf'
 }
 
 /** A rendered image would bypass text redaction, so only provenance known to hold no secret passes. */

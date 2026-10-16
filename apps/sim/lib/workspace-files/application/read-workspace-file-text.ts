@@ -82,22 +82,41 @@ export interface ReadWorkspaceFileTextResult extends ExtractedFileText {
  * before any bytes are fetched. It is NOT authoritative for a generation source,
  * which is why that path is bounded by the artifact ceiling instead.
  */
+/** Refuses a text read of a file whose format has no extractor. */
+export function textExtractionUnsupportedError(name: string): OrchestrationError {
+  return new OrchestrationError(
+    'validation',
+    `Text extraction is not supported for "${name}"; download the raw bytes instead of extracting text`
+  )
+}
+
+/**
+ * Refuses a text read whose stored bytes exceed the limit. Sizes render with `includeBytes`
+ * because a caller-supplied `maxBytes` is routinely under 1 KB, and the default formatting collapses
+ * every sub-1 KB value to "0 Bytes" — naming neither the real size nor the limit to raise.
+ */
+export function textExtractionTooLargeError(
+  name: string,
+  size: number,
+  maxBytes: number
+): OrchestrationError {
+  return new OrchestrationError(
+    'payload_too_large',
+    `"${name}" is ${formatFileSize(size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
+  )
+}
+
+/** The refusal for a generated document whose render exceeds the text-extraction limit. */
+export function renderedTextTooLargeMessage(name: string, limit: string): string {
+  return `"${name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`
+}
+
 async function readSourceBuffer(
   file: WorkspaceFileRecord,
   maxBytes: number,
   signal?: AbortSignal
 ): Promise<Buffer> {
-  if (file.size > maxBytes) {
-    /**
-     * Sizes render with `includeBytes` because a caller-supplied `maxBytes` is
-     * routinely under 1 KB, and the default formatting collapses every sub-1 KB
-     * value to "0 Bytes" — naming neither the real size nor the limit to raise.
-     */
-    throw new OrchestrationError(
-      'payload_too_large',
-      `"${file.name}" is ${formatFileSize(file.size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
-    )
-  }
+  if (file.size > maxBytes) throw textExtractionTooLargeError(file.name, file.size, maxBytes)
   return fetchWorkspaceFileBuffer(file, { maxBytes, signal })
 }
 
@@ -138,12 +157,7 @@ export async function extractWorkspaceFileRecordText(
   const extension = input.allowPlainText
     ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))
     : getFileExtension(file.name)
-  if (!isSupportedFileType(extension)) {
-    throw new OrchestrationError(
-      'validation',
-      `Text extraction is not supported for "${file.name}"; download the raw bytes instead of extracting text`
-    )
-  }
+  if (!isSupportedFileType(extension)) throw textExtractionUnsupportedError(file.name)
 
   const maxBytes = Math.min(input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES, MAX_TEXT_EXTRACTION_BYTES)
 
@@ -160,8 +174,7 @@ export async function extractWorkspaceFileRecordText(
     const rendered = await resolveRenderedWorkspaceArtifact(file, principal, {
       maxBytes,
       signal,
-      tooLargeMessage: (limit) =>
-        `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
+      tooLargeMessage: (limit) => renderedTextTooLargeMessage(file.name, limit),
     })
     await requireAdmittedContributors(
       principal,

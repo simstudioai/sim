@@ -77,21 +77,19 @@ export function getChatResourceWorkspaceId(
   return resource.owner.entityType === 'workspace' ? resource.owner.entityId : undefined
 }
 
+/** File and file-folder tabs are the resources that carry an explicit owner. */
+export function isFileResourceType(type: string): boolean {
+  return type === 'file' || type === 'filefolder'
+}
+
 /** File owner pairs must agree with any legacy address supplied alongside them. */
 export function hasValidChatResourceOwner(
   resource: Pick<MothershipResource, 'type' | 'workspaceId' | 'owner'>
 ): boolean {
+  if (!isFileResourceType(resource.type)) return !resource.owner
   if (!resource.owner)
-    return (
-      (resource.type !== 'file' && resource.type !== 'filefolder') ||
-      resource.workspaceId === undefined ||
-      hasAddressableId(resource.workspaceId)
-    )
-  if (
-    (resource.type !== 'file' && resource.type !== 'filefolder') ||
-    !hasAddressableId(resource.owner.entityId)
-  )
-    return false
+    return resource.workspaceId === undefined || hasAddressableId(resource.workspaceId)
+  if (!hasAddressableId(resource.owner.entityId)) return false
   if (resource.owner.entityType === 'workspace')
     return resource.workspaceId === undefined || resource.workspaceId === resource.owner.entityId
   return resource.owner.entityType === 'project' && resource.workspaceId === undefined
@@ -106,7 +104,7 @@ export function normalizeChatResource(
   resource: MothershipResourceUpdate
 ): MothershipResourceUpdate {
   if (
-    (resource.type !== 'file' && resource.type !== 'filefolder') ||
+    !isFileResourceType(resource.type) ||
     resource.workspaceId === undefined ||
     !hasValidChatResourceOwner(resource)
   )
@@ -137,6 +135,13 @@ export function getChatResourceKey(
   return workspaceId
     ? JSON.stringify([workspaceId, resource.type, resource.id])
     : `${resource.type}:${resource.id}`
+}
+
+/** {@link getChatResourceKey} bound to one chat's workspace, for comparing that chat's tabs. */
+export function chatResourceKeyFor(
+  chatWorkspaceId?: string
+): (resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>) => string {
+  return (resource) => getChatResourceKey(resource, chatWorkspaceId)
 }
 
 /** UUID resources keep their existing deep links; workspace aliases need their owner in the URL. */
@@ -291,7 +296,7 @@ export function reorderStoredChatResources(
   // writers) sends one fewer entry from the deduplicated client. Matching on
   // sets keeps that reorder valid and collapses the duplicate on write, where
   // a length check would reject every reorder for that chat forever.
-  const keyOf = (resource: MothershipResource) => getChatResourceKey(resource, chatWorkspaceId)
+  const keyOf = chatResourceKeyFor(chatWorkspaceId)
   const storedByKey = new Map(stored.map((resource) => [keyOf(resource), resource]))
   const requestedKeys = Array.from(new Set(requested.map(keyOf)))
   if (requestedKeys.length !== storedByKey.size) return null
