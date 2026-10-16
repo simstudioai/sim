@@ -649,7 +649,7 @@ export async function checkUsageStatus(userId: string): Promise<{
  * leave the account flagged but still holding the free limit; repeating the
  * call is harmless.
  */
-export async function forfeitFreeTierAllowance(userId: string): Promise<void> {
+async function forfeitFreeTierAllowance(userId: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.update(userStats).set({ freeTierEligible: false }).where(eq(userStats.userId, userId))
     await syncUsageLimitsFromSubscription(userId, tx)
