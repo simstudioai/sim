@@ -70,16 +70,56 @@ export function reportDurableSecretProvenanceWrite(
   })
 }
 
-/** Reports a durable read refusal without exposing content or secret values. */
+/**
+ * Reports a durable read refusal without exposing content or secret values. A refusal is policy
+ * applied to content that lacks provenance, not a fault, so it is a warning.
+ */
 export function reportDurableSecretProvenanceRefusal(
   report: DurableSecretProvenanceRefusalReport
 ): void {
-  persistenceLogger.error('Refusing unavailable durable secret provenance', {
+  persistenceLogger.warn('Refusing unavailable durable secret provenance', {
     surface: report.surface,
     cause: report.cause,
+    refusedCount: 1,
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
     ...(report.resourceId ? { resourceId: report.resourceId } : {}),
   })
+}
+
+/** Ids one grouped refusal lists, so a page of them stays one line. */
+const REFUSAL_RESOURCE_ID_LIMIT = 200
+
+/**
+ * Reports the refusals of one read with one line per surface and cause, each
+ * carrying the same top-level `surface` and `cause` as a single refusal, its `refusedCount`, and
+ * the refused ids, so each id stays paired with its cause.
+ */
+export function reportDurableSecretProvenanceRefusals(
+  reports: readonly DurableSecretProvenanceRefusalReport[]
+): void {
+  const groups = new Map<string, DurableSecretProvenanceRefusalReport[]>()
+  for (const report of reports) {
+    const key = JSON.stringify([report.surface, report.cause, report.workspaceId])
+    const group = groups.get(key)
+    if (group) group.push(report)
+    else groups.set(key, [report])
+  }
+  for (const group of groups.values()) {
+    const [first] = group
+    if (group.length === 1) {
+      reportDurableSecretProvenanceRefusal(first)
+      continue
+    }
+    const resourceIds = group.flatMap((report) => (report.resourceId ? [report.resourceId] : []))
+    persistenceLogger.warn('Refusing unavailable durable secret provenance', {
+      surface: first.surface,
+      cause: first.cause,
+      refusedCount: group.length,
+      ...(first.workspaceId ? { workspaceId: first.workspaceId } : {}),
+      resourceIds: resourceIds.slice(0, REFUSAL_RESOURCE_ID_LIMIT),
+      ...(resourceIds.length > REFUSAL_RESOURCE_ID_LIMIT ? { resourceIdsTruncated: true } : {}),
+    })
+  }
 }
 
 export interface DurableSecretProvenanceUnrecordedReport {

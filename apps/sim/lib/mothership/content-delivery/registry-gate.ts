@@ -1,4 +1,4 @@
-import type { ContentDeliveryGate, ContentSource } from '@/lib/core/application'
+import type { ContentDeliveryGate, ContentSource, ContentVerdict } from '@/lib/core/application'
 import { importDurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import {
   type DurableSecretProvenanceUnrecordedReport,
@@ -6,8 +6,8 @@ import {
 } from '@/lib/execution/durable-secret-provenance-telemetry'
 import {
   CONTENT_SURFACE,
-  type ContentRefusalReason,
-  reportContentRefusal,
+  type ContentRefusals,
+  createContentRefusals,
 } from '@/lib/mothership/content-delivery/telemetry'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -33,13 +33,11 @@ export interface RegistryContentGateScope {
  * any entry, so a refused item cannot latch the registry for every other item.
  */
 export function createRegistryContentGate(scope: RegistryContentGateScope): ContentDeliveryGate {
-  const refuse = (source: ContentSource, reason: ContentRefusalReason): false =>
-    reportContentRefusal(source, reason, scope.workspaceId)
-
   const decide = async (
     source: ContentSource,
-    unrecorded: DurableSecretProvenanceUnrecordedReport[]
-  ): Promise<boolean> => {
+    unrecorded: DurableSecretProvenanceUnrecordedReport[],
+    { refuse }: ContentRefusals
+  ): Promise<ContentVerdict> => {
     const { provenance } = source
     if (provenance.status === 'unknown') {
       /** Taint needs a registry to latch; without one the bytes would reach the model as is. */
@@ -89,8 +87,13 @@ export function createRegistryContentGate(scope: RegistryContentGateScope): Cont
     },
     async admit(sources) {
       const unrecorded: DurableSecretProvenanceUnrecordedReport[] = []
-      const verdicts: boolean[] = []
-      for (const source of sources) verdicts.push(await decide(source, unrecorded))
+      const refusals = createContentRefusals(scope.workspaceId)
+      const verdicts: ContentVerdict[] = []
+      try {
+        for (const source of sources) verdicts.push(await decide(source, unrecorded, refusals))
+      } finally {
+        refusals.report()
+      }
       reportDurableSecretProvenanceUnrecordedBatch(unrecorded)
       return verdicts
     },

@@ -12,6 +12,7 @@ import {
   ContentDeliveryUnobservedError,
   ContentRefusedError,
   type ContentSource,
+  countWithheldContent,
   mustClassifyContent,
   noteContentDeliveryOperation,
   observeContentDelivery,
@@ -507,5 +508,51 @@ describe('observeContentOutsideModel', () => {
     )
     expect(admission.admits(tainted)).toBe(true)
     expect(batches).toEqual([])
+  })
+})
+
+describe('countWithheldContent', () => {
+  it('counts every refused item by kind across the requests and use cases it ran', async () => {
+    const { gate } = recordingGate()
+    const row = (id: string): ContentSource => ({ ...source(id, 'unknown'), kind: 'table-row' })
+    const { result, withheld } = await observeContentDelivery(gate, () =>
+      countWithheldContent(async () => {
+        await trackContentDelivery(() => admitContent(CHAT, [row('a'), row('b'), source('clean')]))
+        const admission = await admitContent(CHAT, [source('file', 'unknown')])
+        return admission.refused.length
+      })
+    )
+    expect(result).toBe(1)
+    expect([...withheld].map(([kind, reasons]) => [kind, [...reasons]])).toEqual([
+      ['table-row', [['unknown', 2]]],
+      ['workspace-file', [['unknown', 1]]],
+    ])
+  })
+
+  it('keeps the reason a gate gave for each refusal', async () => {
+    const gate: ContentDeliveryGate = {
+      async admit(sources) {
+        return sources.map((item) =>
+          item.id === 'raw' ? 'opaque' : item.id === 'later' ? 'registry' : true
+        )
+      },
+    }
+    const { withheld } = await observeContentDelivery(gate, () =>
+      countWithheldContent(() =>
+        admitContent(CHAT, [source('raw'), source('later'), source('clean')])
+      )
+    )
+    expect([...(withheld.get('workspace-file') ?? [])]).toEqual([
+      ['opaque', 1],
+      ['registry', 1],
+    ])
+  })
+
+  it('counts nothing for a caller that never classifies', async () => {
+    const { gate } = recordingGate()
+    const { withheld } = await observeContentDelivery(gate, () =>
+      countWithheldContent(() => admitContent(EXECUTOR, [source('file', 'unknown')]))
+    )
+    expect(withheld.size).toBe(0)
   })
 })
