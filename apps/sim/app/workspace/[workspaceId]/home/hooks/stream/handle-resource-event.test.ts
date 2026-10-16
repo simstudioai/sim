@@ -467,6 +467,34 @@ describe('organization resource stream', () => {
   })
 })
 
+describe('owner-addressed effects on a legacy tab', () => {
+  const legacyTab: MothershipResource = { type: 'file', id: 'f', title: 'notes' }
+  const owner = { entityType: 'workspace' as const, entityId: 'ws' }
+
+  function applyOwnerEffect(op: 'upsert' | 'remove') {
+    const deps = makeStreamLoopDeps({ workspaceId: 'ws', resourcesRef: ref([legacyTab]) })
+    handleResourceEvent(
+      { deps } as StreamLoopContext,
+      {
+        ...removeEvent('file', 'f'),
+        payload: { op, effectId: `effect:${op}`, resource: { type: 'file', id: 'f', owner } },
+      } as ResourceEvent
+    )
+    const updater = (deps.setResources as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      current: MothershipResource[]
+    ) => MothershipResource[]
+    return updater([legacyTab])
+  }
+
+  it('closes the tab when the removal names its workspace owner', () => {
+    expect(applyOwnerEffect('remove')).toEqual([])
+  })
+
+  it('updates the tab in place instead of opening a duplicate', () => {
+    expect(applyOwnerEffect('upsert')).toHaveLength(1)
+  })
+})
+
 it('seeds only fresh matching search effects and never seeds replayed or foreign evidence', () => {
   const deps = makeStreamLoopDeps({
     workspaceId: undefined,

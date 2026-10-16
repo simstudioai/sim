@@ -45,6 +45,7 @@ const RESOURCE_ADMISSIONS = new WeakMap<
   Readonly<{ userId: string; invocation: CopilotResourcePrincipal['invocation'] }>
 >()
 
+/** A context proven admitted by {@link requireTrustedCopilotResourceExecutionContext}; only that function constructs one. */
 export interface TrustedCopilotResourceExecutionContext extends CopilotExecutionContext {
   userId: string
   toolCallId: string
@@ -105,7 +106,7 @@ export function hasCopilotResourceAdmission(context: CopilotExecutionContext | u
   return resourceAdmissionForContext(context) !== undefined
 }
 
-/** Narrows positive server admission; old tool flags and model parameters cannot establish it. */
+/** Narrows positive server admission; tool flags and model parameters cannot establish it. */
 export function requireTrustedCopilotResourceExecutionContext(
   context: CopilotExecutionContext | undefined
 ): TrustedCopilotResourceExecutionContext {

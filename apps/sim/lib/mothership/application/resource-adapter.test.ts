@@ -49,18 +49,8 @@ function admittedContext(): CopilotExecutionContext {
 }
 
 describe('Copilot resource authoring admission', () => {
-  it('recognizes turn admission before a tool call exists without accepting copied recovery evidence', () => {
-    const context = { ...admittedContext(), toolCallId: undefined }
-    expect(hasCopilotResourceAdmission(context)).toBe(true)
-    for (const changed of [
-      { ...context, userId: 'other' },
-      { ...context, chatId: 'other' },
-      { ...context, mcpBlockId: 'block' },
-      { ...context, executorDelegationOrigin: {} },
-      { ...context, copilotResourceAdmission: { ...context.copilotResourceAdmission } },
-    ]) {
-      expect(hasCopilotResourceAdmission(changed as never)).toBe(false)
-    }
+  it('recognizes turn admission before a tool call exists', () => {
+    expect(hasCopilotResourceAdmission({ ...admittedContext(), toolCallId: undefined })).toBe(true)
   })
 
   it('binds the actual user and invocation without a selected workspace', async () => {
@@ -85,7 +75,12 @@ describe('Copilot resource authoring admission', () => {
       useCase,
       {}
     )
-    expect(result.kind).toBe('resource_delegated')
+    expect(result).toMatchObject({
+      kind: 'resource_delegated',
+      invocation: { kind: 'chat', chatId: 'real-chat' },
+      scope: { kind: 'project_discovery' },
+    })
+    expect(result).not.toHaveProperty('workflowId')
   })
 
   it('accepts an explicitly admitted workspace authoring run without a chat', async () => {

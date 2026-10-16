@@ -261,9 +261,9 @@ function withoutDesktopSessionResources(
 
 /**
  * The canonical form of a chat's resource list: legacy desktop panel rows and
- * unaddressable resources dropped and known file addresses normalized. Every path that reads or writes stored
- * resources goes through this, which is what heals chats that already hold
- * one.
+ * unaddressable resources dropped, known file addresses normalized. Every path
+ * that reads or writes stored resources goes through this, which is what heals
+ * chats that already hold one.
  */
 export function sanitizeChatResources(
   resources: readonly MothershipResource[]

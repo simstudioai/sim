@@ -40,8 +40,15 @@ const { redisUrl } = await vi.hoisted(async () => {
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
+import {
+  v2CompleteProjectFileUploadContract,
+  v2CreateProjectFileUploadContract,
+} from '@/lib/api/contracts/v2/project-file-uploads'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import { createProjectFileCliTransport } from '@/lib/mothership/agent-cli/project-file-transport'
+import { createProjectFileUploadTransport } from '@/lib/mothership/agent-cli/project-file-upload-transport'
 import { createWorkbenchFileProvenance } from '@/lib/mothership/agent-cli/workbench-file-provenance'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import * as application from '@/lib/projects/files/application'
 import * as prefixCleanup from '@/lib/projects/files/prefix-cleanup'
 import * as manager from '@/lib/uploads/contexts/workspace/file-manager'
@@ -664,15 +671,6 @@ async function privateUploadTransport(
   f: Awaited<ReturnType<typeof fixture>>,
   uploadProvenance: () => WorkspaceFileSecretProvenance
 ) {
-  const { createProjectFileUploadTransport } = await import(
-    '@/lib/mothership/agent-cli/project-file-upload-transport'
-  )
-  const { createProjectFileCliTransport } = await import(
-    '@/lib/mothership/agent-cli/project-file-transport'
-  )
-  const { createCopilotResourceAdmission } = await import(
-    '@/lib/mothership/auth/application-delegation'
-  )
   const context = {
     userId: f.editorId,
     workspaceId: f.workspaceId,
@@ -700,9 +698,6 @@ async function privateUploadTransport(
 }
 
 async function createPrivateUpload(transport: typeof fetch, projectId: string, bytes: Buffer) {
-  const { v2CreateProjectFileUploadContract } = await import(
-    '@/lib/api/contracts/v2/project-file-uploads'
-  )
   const response = await transport(
     `http://localhost:3000/api/v2/projects/${projectId}/files/uploads`,
     {
@@ -740,9 +735,6 @@ describe.skipIf(!redisUrl)('private Project upload transport', () => {
   check(
     'private Project upload seals actual streamed source evidence and retains original provenance attribution',
     async () => {
-      const { v2CompleteProjectFileUploadContract } = await import(
-        '@/lib/api/contracts/v2/project-file-uploads'
-      )
       const f = await fixture()
       const bytes = Buffer.from([0, 255, 17, 6, 12])
       const evidence = {

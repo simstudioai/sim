@@ -297,19 +297,26 @@ it('replaces a successful response its sourced operation never classified with a
   expect(recordInput).not.toHaveBeenCalled()
 })
 
+const OWNER_ROUTING_REFUSED = {
+  status: 403,
+  error: 'File owner routing is unavailable or contradictory',
+}
+const OWNER_PATH_MISMATCH = { status: 400, error: 'File owner does not match the API path' }
+
 it.each([
   [
     'contradictory workspace',
     '/api/v2/projects/project/files',
     1,
     { 'x-mothership-workspace-id': 'workspace' },
+    OWNER_ROUTING_REFUSED,
   ],
-  ['another Project path', '/api/v2/projects/other/files', 1, {}],
-  ['non-file path', '/api/v2/tables', 1, {}],
-  ['unnegotiated lease', '/api/v2/projects/project/files', undefined, {}],
+  ['another Project path', '/api/v2/projects/other/files', 1, {}, OWNER_PATH_MISMATCH],
+  ['non-file path', '/api/v2/tables', 1, {}, OWNER_PATH_MISMATCH],
+  ['unnegotiated lease', '/api/v2/projects/project/files', undefined, {}, OWNER_ROUTING_REFUSED],
 ] as const)(
   'refuses %s before a Project callback can dispatch',
-  async (_name, path, protocol, headers) => {
+  async (_name, path, protocol, headers, refusal) => {
     readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: protocol })
     fetcher.mockResolvedValue(Response.json({ data: [] }))
     const response = await proxySandboxResourceRequest(
@@ -321,7 +328,8 @@ it.each([
       }),
       token
     )
-    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(response.status).toBe(refusal.status)
+    expect(await response.json()).toEqual({ error: refusal.error })
     expect(fetcher).not.toHaveBeenCalled()
   }
 )
@@ -396,33 +404,64 @@ it('reconstructs Project authority from the admitted lease without borrowing its
   expect(target).not.toHaveBeenCalled()
 })
 
-/** Workspace copies predate the file-owner protocol; only a negotiated lease routes paired owners. */
-it('keeps workspace file copies on the workspace route when the lease has no file-owner protocol', async () => {
+const workspaceOwner = { entityType: 'workspace', entityId: 'workspace' }
+
+it.each([
+  [
+    'a workspace pair',
+    {
+      source: { owner: workspaceOwner, fileIds: ['file'] },
+      destination: { owner: workspaceOwner },
+    },
+  ],
+  ['an invalid body', { source: {} }],
+])(
+  'keeps %s copy on the workspace route when the lease has no file-owner protocol',
+  async (_name, copy) => {
+    readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: undefined })
+    routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
+    const dispatched: string[] = []
+    fetcher.mockImplementation(async (forwarded: Request) => {
+      dispatched.push(`${new URL(forwarded.url).pathname} ${await forwarded.text()}`)
+      return Response.json({ data: { copied: [] } })
+    })
+    const body = JSON.stringify(copy)
+    const response = await proxySandboxResourceRequest(
+      request('/api/v2/files/copy', { method: 'POST', body }),
+      token
+    )
+    expect(response.status).toBe(200)
+    expect(dispatched).toEqual([`/api/v2/files/copy ${body}`])
+  }
+)
+
+it('refuses a Project copy destination on a lease without the file-owner protocol', async () => {
   readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: undefined })
   routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
-  fetcher.mockResolvedValue(Response.json({ data: { copied: [] } }))
   const response = await proxySandboxResourceRequest(
     request('/api/v2/files/copy', {
       method: 'POST',
       body: JSON.stringify({
-        source: { owner: { entityType: 'workspace', entityId: 'workspace' }, fileIds: ['file'] },
-        destination: { owner: { entityType: 'workspace', entityId: 'workspace' } },
+        source: { owner: workspaceOwner, fileIds: ['file'] },
+        destination: { owner: { entityType: 'project', entityId: 'project' } },
       }),
     }),
     token
   )
-  expect(response.status).toBe(200)
-  expect(fetcher).toHaveBeenCalledOnce()
+  expect(response.status).toBe(403)
+  expect(await response.json()).toEqual({
+    error: 'Paired file owner routing is unavailable or contradictory',
+  })
+  expect(fetcher).not.toHaveBeenCalled()
 })
 
-it('answers an invalid copy body on an unnegotiated lease from the workspace route', async () => {
-  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: undefined })
+it('validates a copy body itself once the lease negotiated the file-owner protocol', async () => {
+  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: 1 })
   routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
-  fetcher.mockResolvedValue(Response.json({ error: 'Invalid request body' }, { status: 400 }))
   const response = await proxySandboxResourceRequest(
     request('/api/v2/files/copy', { method: 'POST', body: JSON.stringify({ source: {} }) }),
     token
   )
   expect(response.status).toBe(400)
-  expect(fetcher).toHaveBeenCalledOnce()
+  expect(fetcher).not.toHaveBeenCalled()
 })

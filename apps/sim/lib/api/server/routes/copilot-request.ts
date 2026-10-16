@@ -95,7 +95,7 @@ export function copilotRouteAudience(
   useCase?: CopilotRouteUseCase
 ): string | undefined {
   if (useCase?.operation !== operation) return undefined
-  /** An operation that names its delegated services but not Chat's is refused before minting. */
+  // An operation that names its delegated services without `copilot` is refused before minting.
   const services: readonly string[] | undefined =
     'delegatedServices' in operation
       ? (operation.delegatedServices as readonly string[])

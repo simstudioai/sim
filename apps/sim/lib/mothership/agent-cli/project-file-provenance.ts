@@ -5,8 +5,8 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 /**
  * Import the bound source entries before any Project file bytes reach an agent consumer. A caller
- * without a registry is refused outright: its egress could not redact, and withholds the result
- * anyway. With one, content recording no secret passes as it does for a workspace file
+ * without a registry is refused outright: its egress could not redact and would withhold the
+ * result anyway. With one, content recording no secret passes as it does for a workspace file
  * (`unrecorded`, or an exact empty set), while `unknown` or unimportable secrets are refused.
  */
 export async function importProjectFileProvenance(

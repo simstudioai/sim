@@ -17,6 +17,7 @@ vi.mock('@/lib/mothership/application/execute-project-file-use-case', () => ({
   ) => useCase.execute(input),
 }))
 
+import { MAX_GREP_FILES } from '@/lib/mothership/agent-cli/engines/universal-grep'
 import { grepProjectFiles } from '@/lib/mothership/agent-cli/project-file-grep'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -90,6 +91,19 @@ describe('Project grep corpus', () => {
     expect(result.stdout).toBe('files/notes-2.txt (other):2: needle')
     expect(result.stderr).toContain('files/notes.txt (file): text withheld without its secret')
     expect(ctx.resolvedSecretTraceRegistry.isPermanentlyIncomplete()).toBe(false)
+  })
+  it('stops walking the inventory once the file budget is full', async () => {
+    list.mockImplementation(async ({ after }: { after?: { value: string }[] }) => ({
+      files: Array.from({ length: MAX_GREP_FILES + 1 }, (_, index) => ({
+        id: `${after ? 'late' : 'early'}-${index}`,
+        name: `notes-${index}.txt`,
+        folderPath: '/',
+      })),
+      nextKeys: after ? null : [{ value: 'cursor', direction: 'asc' }],
+    }))
+    const result = await grepProjectFiles(invocation, context(), 'project')
+    expect(list).toHaveBeenCalledTimes(1)
+    expect(result.stderr).toContain(`searched the first ${MAX_GREP_FILES} selected files`)
   })
   it('marks truncated inventory incomplete instead of claiming a missing selector has no matches', async () => {
     list.mockResolvedValue({ files: [], nextKeys: [{ value: 'cursor', direction: 'asc' }] })

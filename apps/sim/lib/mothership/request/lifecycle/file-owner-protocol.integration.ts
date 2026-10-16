@@ -2,8 +2,15 @@ import { createServer } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { supportsFileOwnerProtocol } from '@/lib/mothership/request/lifecycle/file-owner-protocol'
 
+let flakyHits = 0
+
 const worker = createServer((request, response) => {
   switch (request.url) {
+    case '/flaky/healthz':
+      flakyHits++
+      if (flakyHits === 1) response.writeHead(503).end()
+      else response.writeHead(200, { 'X-Mothership-File-Owner-Protocol': '1' }).end()
+      return
     case '/supported/healthz':
     case '/nested/worker/healthz':
       response.writeHead(200, { 'X-Mothership-File-Owner-Protocol': '1' }).end()
@@ -60,5 +67,12 @@ describe('file-owner worker negotiation over HTTP', () => {
     ['unresponsive', false],
   ] as const)('accepts only the healthy, exact protocol at %s', async (path, supported) => {
     expect(await supportsFileOwnerProtocol(`${endpoint}/${path}`)).toBe(supported)
+  })
+
+  it('retries a failed probe on the next call and remembers only the healthy answer', async () => {
+    expect(await supportsFileOwnerProtocol(`${endpoint}/flaky`)).toBe(false)
+    expect(await supportsFileOwnerProtocol(`${endpoint}/flaky`)).toBe(true)
+    expect(await supportsFileOwnerProtocol(`${endpoint}/flaky/`)).toBe(true)
+    expect(flakyHits).toBe(2)
   })
 })

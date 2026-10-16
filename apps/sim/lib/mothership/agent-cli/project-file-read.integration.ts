@@ -341,6 +341,62 @@ check('Project grep matches public bytes while excluding classified secret text'
   expect(bytes.stdout + bytes.stderr).not.toContain(secret)
 })
 
+check('raw Project source downloads refuse known secrets outside a workbench session', async () => {
+  const f = await fixture()
+  const secret = 'synthetic-project-source-canary'
+  const { encrypted } = await encryptSecret(secret)
+  const source = (fileId: string) =>
+    runCli(
+      {
+        fileOwner: { entityType: 'project', entityId: f.projectId },
+        invocation: { kind: 'cli', argv: ['projects', 'files', 'source', f.projectId, fileId] },
+      },
+      f.context
+    )
+  const { file: secretFile } = await createProjectFile.execute({
+    principal: f.principal,
+    input: {
+      projectId: f.projectId,
+      name: 'source-secret.txt',
+      contentType: 'text/plain',
+      content: `before\n${secret}\nafter`,
+      encoding: 'utf-8',
+      secretProvenance: {
+        status: 'exact',
+        entries: [
+          {
+            encryptedValue: encrypted,
+            sourceUserId: f.userId,
+            sourceWorkspaceId: f.workspaceId,
+            name: 'CANARY',
+          },
+        ],
+      },
+    },
+  })
+  const refused = await source(secretFile.id)
+  expect(refused.exitCode).not.toBe(0)
+  expect(refused.stderr).toContain(
+    'File cannot be sent to a model because its secret provenance is unavailable'
+  )
+  expect(refused.stdout + refused.stderr).not.toContain(secret)
+
+  const { file: publicFile } = await createProjectFile.execute({
+    principal: f.principal,
+    input: {
+      projectId: f.projectId,
+      name: 'source-public.txt',
+      contentType: 'text/plain',
+      content: 'public-source-bytes',
+      encoding: 'utf-8',
+      secretProvenance: { status: 'exact', entries: [] },
+    },
+  })
+  const delivered = await source(publicFile.id)
+  expect(delivered.exitCode, delivered.stderr).toBe(0)
+  expect(delivered.stdout).toContain('public-source-bytes')
+})
+
 describe('Project CLI representations against PostgreSQL and stored bytes', () => {
   check(
     'native workspace content search reaches its collection operation instead of a file named search',

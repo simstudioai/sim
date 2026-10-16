@@ -542,25 +542,23 @@ describe('private native Project writes against PostgreSQL and local storage', (
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'Reports' }),
       })
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ name: 'AbortError' })
     expect(forwarded).toEqual([])
   })
 
   check('a private target cannot write a different Project', async () => {
     const f = await fixture()
     const other = await fixture()
-    expect(
-      (
-        await invoke(f.projectId, f.context, [
-          'create',
-          other.projectId,
-          '--name',
-          'bad.md',
-          '--content',
-          'plain',
-        ])
-      ).exitCode
-    ).not.toBe(0)
+    const result = await invoke(f.projectId, f.context, [
+      'create',
+      other.projectId,
+      '--name',
+      'bad.md',
+      '--content',
+      'plain',
+    ])
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr).toContain('CLI target is unavailable')
     expect(await rows(other.projectId)).toEqual([])
   })
 })

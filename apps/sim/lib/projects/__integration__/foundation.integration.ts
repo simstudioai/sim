@@ -1403,7 +1403,6 @@ describe('Project discovery delegation', () => {
   beforeEach(() => {
     vi.stubEnv('PROJECTS', 'true')
   })
-  /** Cross-process CLI requests must retain admitted authoring identity and execution exclusions. */
   const cliRequest = {
     invocation: { kind: 'service', name: 'list_user_projects', input: { limit: 100 } },
   }

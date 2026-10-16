@@ -531,7 +531,7 @@ function defineArtifactRead(view: ArtifactView) {
 /** A Project file's stored or rendered bytes. No redaction reaches them, so a secret refuses the read. */
 export const readProjectFileArtifact = defineArtifactRead('opaque')
 
-/** Module-private: these bytes are admitted as text, so they never leave except as extracted text. */
+/** Admitted as text, so these bytes never leave except as extracted text. */
 const readProjectFileArtifactAsText = defineArtifactRead('complete')
 
 interface ProjectFileTextInput extends ProjectFileTarget {

@@ -692,6 +692,10 @@ export {
   reactQueryMockFns,
 } from './react-query.mock'
 export {
+  readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadataMockFns,
+} from './read-workspace-file-metadata.mock'
+export {
   realtimeNotifyMock,
   realtimeNotifyMockFns,
 } from './realtime-notify.mock'

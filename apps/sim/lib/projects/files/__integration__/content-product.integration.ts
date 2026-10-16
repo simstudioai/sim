@@ -43,9 +43,15 @@ vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
+import { createFileCopyCliTransport } from '@/lib/mothership/agent-cli/file-copy-transport'
+import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { proxySandboxResourceRequest } from '@/lib/mothership/tools/sandbox-resource-transport'
+import { listProjectsServerTool } from '@/lib/mothership/tools/server/project-list'
 import { createProjectFile } from '@/lib/projects/files/application/content'
+import { exportProjectFileSnapshot } from '@/lib/projects/files/application/downloads'
 import { createProjectFileFolder } from '@/lib/projects/files/application/folders'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/file-manager'
+import { replaceWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import * as storage from '@/lib/uploads/core/storage-service'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
@@ -161,10 +167,6 @@ check(
   'Project discovery accepts its opaque pagination cursor through the tool boundary',
   async () => {
     const f = await fixture()
-    const { listProjectsServerTool } = await import('@/lib/mothership/tools/server/project-list')
-    const { createCopilotResourceAdmission } = await import(
-      '@/lib/mothership/auth/application-delegation'
-    )
     const result = await listProjectsServerTool.execute(
       { cursor: 'zz-legacy-project', limit: 1 },
       {
@@ -224,9 +226,6 @@ describe.skipIf(!redisUrl)('authenticated workbench copy callback', () => {
           },
         ],
       }
-      const { replaceWorkspaceFileSecretProvenanceInTx } = await import(
-        '@/lib/uploads/contexts/workspace/file-secret-provenance'
-      )
       const [sourceRow] = await db
         .select()
         .from(workspaceFiles)
@@ -526,10 +525,6 @@ describe('private compound copy transport', () => {
   check(
     'native paired copy dispatch returns the destination resource and persists the current actor bytes',
     async () => {
-      const { createCopilotResourceAdmission } = await import(
-        '@/lib/mothership/auth/application-delegation'
-      )
-      const { uploadWorkspaceFile } = await import('@/lib/uploads/contexts/workspace/file-manager')
       const f = await fixture()
       const original = await uploadWorkspaceFile(
         f.workspaceId,
@@ -607,12 +602,6 @@ describe('private compound copy transport', () => {
   check(
     'private copy transport retains the acting user through the real v2 route and stored bytes',
     async () => {
-      const { createFileCopyCliTransport } = await import(
-        '@/lib/mothership/agent-cli/file-copy-transport'
-      )
-      const { createCopilotResourceAdmission } = await import(
-        '@/lib/mothership/auth/application-delegation'
-      )
       const f = await fixture()
       const original = await createProjectFile.execute({
         principal: createSessionPrincipal({ userId: f.ownerId }),
@@ -668,12 +657,6 @@ describe('private compound copy transport', () => {
   check(
     'private copy transport binds immutable selections and refuses changed owners, routes and revoked access',
     async () => {
-      const { createFileCopyCliTransport } = await import(
-        '@/lib/mothership/agent-cli/file-copy-transport'
-      )
-      const { createCopilotResourceAdmission } = await import(
-        '@/lib/mothership/auth/application-delegation'
-      )
       const f = await fixture()
       const original = await createProjectFile.execute({
         principal: f.principal,
@@ -756,9 +739,6 @@ describe('Project archive download and Markdown snapshot export', () => {
   check(
     'Project Markdown snapshot export accepts parameterized alias MIME without a Markdown extension',
     async () => {
-      const { exportProjectFileSnapshot } = await import(
-        '@/lib/projects/files/application/downloads'
-      )
       const f = await fixture()
       const source = await createProjectFile.execute({
         principal: f.principal,

@@ -18,6 +18,7 @@ import {
   billingAttributionMockFns,
 } from '@sim/testing/mocks/billing-attribution.mock'
 import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import {
   mothershipChatLifecycleMock,
   mothershipChatLifecycleMockFns,
@@ -1167,6 +1168,53 @@ describe('handleUnifiedChatPost', () => {
     expect(persistChatResources).toHaveBeenCalledWith('chat-1', [
       { type: 'table', id: 'table-1', title: 'Leads', viewId: 'qualified-view' },
     ])
+  })
+
+  it('skips stale tabs at a log level matching why they no longer resolve', async () => {
+    const chatLogger = getMockLogger('UnifiedChatAPI')
+    const boom = new Error('boom')
+    resolveActiveResourceContext.mockImplementation(async (_type: string, id: string) => {
+      if (id === 'deleted') throw new OrchestrationError('not_found', 'Table not found')
+      if (id === 'revoked') throw new OrchestrationError('forbidden', 'Access denied')
+      if (id === 'broken') throw boom
+      return { type: 'active_resource', content: 'live table' }
+    })
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/copilot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Use my tabs',
+          workspaceId: 'ws-1',
+          createNewChat: true,
+          resourceAttachments: [
+            { type: 'table', id: 'deleted', title: 'Gone' },
+            { type: 'workflow', id: 'revoked', title: 'Revoked' },
+            { type: 'knowledgebase', id: 'broken', title: 'Broken' },
+            { type: 'table', id: 'live', title: 'Live' },
+          ],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(chatLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped resource attachment that no longer exists'),
+      { resourceType: 'table' }
+    )
+    expect(chatLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Skipped resource attachment the user can no longer access'),
+      { resourceType: 'workflow' }
+    )
+    expect(chatLogger.error).toHaveBeenCalledTimes(1)
+    expect(chatLogger.error).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to resolve resource attachment'),
+      boom
+    )
+    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contexts: [{ type: 'active_resource', content: 'live table', tag: '@open_tab' }],
+      })
+    )
   })
 
   it('validates selection snapshots and omits unsafe browser source URLs', async () => {

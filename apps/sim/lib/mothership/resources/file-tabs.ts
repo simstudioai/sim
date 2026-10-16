@@ -12,8 +12,8 @@ const FILE_TAB_CONTEXTS = ['workspace', 'project', 'mothership']
 
 /**
  * The ids among `fileIds` whose rows must not open as a file tab: any context other than a
- * workspace/Project file or chat upload belongs to another resource (a test's source, for one), which
- * opens as that resource instead.
+ * workspace/Project file or chat upload belongs to another resource (a test's source, for
+ * one), which opens as that resource instead.
  */
 export async function findNonTabFileIds(fileIds: string[]): Promise<Set<string>> {
   if (fileIds.length === 0) return new Set()

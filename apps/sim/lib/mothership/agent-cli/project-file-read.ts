@@ -124,9 +124,9 @@ export async function readProjectFileForAgent(
       )
       context.signal?.throwIfAborted()
       file = artifact.file
+      // Default visual selection uses the authorized artifact's MIME, not earlier discovery metadata.
       const type = mimeOf(artifact.contentType, file.name)
       const visual = explicitVisual || (!textRange && isDefaultVisual(type))
-      /** Default visual selection uses the authorized artifact's MIME, not earlier discovery metadata. */
       if (visual && hasPossibleSecrets(artifact.secretProvenance))
         throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
       result = await observePrivateFile(

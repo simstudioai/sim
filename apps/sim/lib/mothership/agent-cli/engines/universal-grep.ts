@@ -71,6 +71,7 @@ const NESTED_REQUEST_CONCURRENCY = 8
 let activeRequests = 0
 const waiting: Array<() => void> = []
 
+/** Runs one backend read in the shared grep read queue; a released slot passes to the next waiter. */
 export async function withGrepReadSlot<T>(
   work: () => Promise<T>,
   signal?: AbortSignal
@@ -550,6 +551,11 @@ function parseContext(flags: AgentCliFlags): ContextWindow | string {
   return { before: before ?? around ?? 0, after: after ?? around ?? 0 }
 }
 
+/**
+ * An owner-specific corpus for {@link executeGrep}: `materialize` returns only authorized text
+ * and reports skipped items through `reportIncomplete`; `allowedScopes` refuses any other
+ * `--scope`/`--in`.
+ */
 export interface GrepSource {
   signal?: AbortSignal
   registry?: AgentCliRuntime['resolvedSecretTraceRegistry']

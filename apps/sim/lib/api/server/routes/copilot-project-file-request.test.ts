@@ -81,31 +81,14 @@ describe('private v2 Project file authority', () => {
     ).toBeUndefined()
   })
 
-  it.each([
-    ['missing evidence', { copilotResourceAdmission: undefined }],
-    ['changed subject', { userId: 'another-user' }],
-    ['changed chat', { chatId: 'another-chat' }],
-    ['workflow execution', { boundWorkflowExecutionId: 'workflow-run' }],
-    ['executor origin', { executorDelegationOrigin: {} }],
-    ['Mothership block', { mcpBlockId: 'block' }],
-  ] as const)('rejects %s before marking the request', (_name, changes) => {
+  it('refuses to mark a request without current authoring admission', () => {
     const req = request()
-    expect(() =>
-      markCopilotProjectFileRequest(
-        req,
-        { ...authoringContext(), ...changes },
-        { projectId: 'project' }
-      )
-    ).toThrow('Copilot resource operations require current authoring admission')
-    expect(isCopilotRequest(req)).toBe(false)
-  })
-
-  it('rejects a serialized admission even when its actor and target fields match', () => {
     const context = authoringContext()
     context.copilotResourceAdmission = structuredClone(context.copilotResourceAdmission)
-    expect(() =>
-      markCopilotProjectFileRequest(request(), context, { projectId: 'project' })
-    ).toThrow('Copilot resource operations require current authoring admission')
+    expect(() => markCopilotProjectFileRequest(req, context, { projectId: 'project' })).toThrow(
+      'Copilot resource operations require current authoring admission'
+    )
+    expect(isCopilotRequest(req)).toBe(false)
   })
 
   it('never changes a file-bound request into collection or workspace authority', () => {

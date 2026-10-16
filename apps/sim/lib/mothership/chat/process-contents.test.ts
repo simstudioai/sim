@@ -25,6 +25,10 @@ import {
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import {
+  readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadataMockFns,
+} from '@sim/testing/mocks/read-workspace-file-metadata.mock'
+import {
   tableApplicationRowsMock,
   tableApplicationRowsMockFns,
 } from '@sim/testing/mocks/table-application-rows.mock'
@@ -65,10 +69,10 @@ const isIntegrationDeploymentAvailable =
   integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
 const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
 const readWorkspaceContext = mothershipChatWorkspaceContextMockFns.mockReadWorkspaceContextExecute
+const readWorkspaceFileMetadata = readWorkspaceFileMetadataMockFns.mockReadWorkspaceFileMetadata
 
 const {
   getSkillUseCase,
-  readWorkspaceFileMetadata,
   readTableView,
   readWorkflowMetadata,
   listWorkflowFolders,
@@ -79,7 +83,6 @@ const {
   searchDocsExecute,
 } = vi.hoisted(() => ({
   getSkillUseCase: vi.fn(),
-  readWorkspaceFileMetadata: vi.fn(),
   readTableView: vi.fn(),
   readWorkflowMetadata: vi.fn(),
   listWorkflowFolders: vi.fn<
@@ -121,9 +124,10 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
 }))
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/uploads/contexts/workspace/file-manager', () => workspaceFileManagerMock)
-vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
-  readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-workspace-file-metadata',
+  () => readWorkspaceFileMetadataMock
+)
 vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/table/application/views', () => ({

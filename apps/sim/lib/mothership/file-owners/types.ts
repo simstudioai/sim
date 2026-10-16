@@ -18,6 +18,10 @@ interface ChatFileMetadata {
   path: string
 }
 
+/**
+ * Per-owner Copilot file policy: CLI execution, metadata reads, and capability hints, each
+ * reauthorized by the owner's use cases.
+ */
 export interface CopilotFileOwnerAdapter {
   /** Legacy workspace resources share an invocation with other workspace resource kinds. */
   resourceScope: 'workspace' | 'owner'
