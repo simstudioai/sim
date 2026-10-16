@@ -119,6 +119,9 @@ try:
         assert error['code'] == 'unsupported_action' and error['dispatchState'] == 'not_started', error
         assert find(state(), role='AXSlider')['value'] == slider['value'], 'Text reached a control that does not take text'
         snapshot = state()
+        snapshot = mutate('click', snapshot, **coordinate(snapshot, find(snapshot, role='AXDateTimeArea'), 0.15))
+        snapshot = mutate('type_text', snapshot, elementId=find(snapshot, role='AXDateTimeArea')['elementId'], text='3')
+        assert any(node.get('value', node.get('label', '')) == 'Time: 3:15' for node in snapshot['nodes']), 'Typing did not reach the date picker'
         snapshot = mutate('click', snapshot, elementId=find(snapshot, role='AXTextField', label='Fixture editable text')['elementId'])
         snapshot = mutate('type_text', snapshot, elementId=find(snapshot, role='AXWindow')['elementId'], text=' window')
         assert find(snapshot, role='AXTextField', label='Fixture editable text')['value'].endswith(' window'), 'Window target did not type into its focused editor'
@@ -127,7 +130,7 @@ try:
         button = find(snapshot, role='AXButton', label='Increment')
         snapshot = mutate('perform_action', snapshot, elementId=button['elementId'], accessibilityAction='AXPress')
         assert any(f'Count: {baseline + 2}' in node.get('value', '') or f'Count: {baseline + 2}' in node.get('label', '') for node in snapshot['nodes']), 'Explicit AX action did not increment'
-        print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, a window target typing into its focused editor, a title-bar click; every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
+        print('PASS: real fixture state, secure suppression, AX click/set/action, Unicode typing, keyboard chord, coordinate drag and scrolling, text refused by a slider, typing into a date picker, a window target typing into its focused editor, a title-bar click; every mutation verified in fresh state; screenshot=' + ('verified' if permissions['screenRecording'] else 'BLOCKED'))
 finally:
     if fixture:
         fixture.terminate()
