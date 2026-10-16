@@ -1,3 +1,4 @@
+import { db } from '@sim/db'
 import { isRecordLike } from '@sim/utils/object'
 import { getInlineJobQueue, getJobQueue } from '@/lib/core/async-jobs'
 import {
@@ -8,6 +9,7 @@ import {
 } from '@/lib/core/outbox/service'
 import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
 import {
+  collectExecutionStops,
   type ExecutionStopPayload,
   signalExecutionStops,
 } from '@/lib/execution/removal-stop-records'
@@ -69,13 +71,26 @@ async function sweepWorkspaceJobs(workspaceId: string, signal: AbortSignal) {
 const stopRemovedExecutions: OutboxHandler<unknown> = withOutboxHandlerTimeout(
   async (rawPayload, context) => {
     const payload = parsePayload(rawPayload)
-    const unrecorded = await signalExecutionStops(
-      payload.executions.map(({ executionId, executionDeadlineAt }) => ({
+    const executions = new Map(
+      payload.executions.map(({ executionId, executionDeadlineAt }) => [
         executionId,
-        executionDeadlineAt: executionDeadlineAt ? new Date(executionDeadlineAt) : null,
-      })),
-      context.signal
+        {
+          executionId,
+          executionDeadlineAt: executionDeadlineAt ? new Date(executionDeadlineAt) : null,
+        },
+      ])
     )
+    /**
+     * An archived workspace keeps its rows, so a run that passed admission before the archive
+     * but logged after the stop was recorded is found here. An erased workspace has none left.
+     */
+    if (payload.workspaceId) {
+      const { executions: live } = await collectExecutionStops(db, {
+        workspaceIds: [payload.workspaceId],
+      })
+      for (const execution of live) executions.set(execution.executionId, execution)
+    }
+    const unrecorded = await signalExecutionStops([...executions.values()], context.signal)
     const sweep = payload.workspaceId
       ? await sweepWorkspaceJobs(payload.workspaceId, context.signal)
       : { cancelledJobs: 0, complete: true }

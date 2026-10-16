@@ -1,6 +1,7 @@
 /**
  * Removing an account, banning it, or deleting its user row directly stops the workflow runs the
- * removal orphans, against real PostgreSQL and Redis through the production removal paths. A
+ * removal orphans, against real PostgreSQL and Redis through the production removal paths (for
+ * `/admin/remove-user`, the handlers of its Better Auth delete hooks around a bare delete). A
  * stopped execution is one whose cancellation flag, the one its engine watches, is set in Redis;
  * a stopped queued job is a cancelled `async_jobs` row (the database queue these suites run on).
  */
@@ -33,14 +34,10 @@ import {
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
-import {
-  collectAccountRemovalStops,
-  enqueueExecutionStops,
-  signalExecutionStops,
-} from '@/lib/execution/removal-stop-records'
 import { executionRemovalStopOutboxHandlers } from '@/lib/execution/removal-stops'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
@@ -285,6 +282,15 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
       await seedWorkflow(bannedId, ownedWorkspaceId)
     )
     const queued = await seedQueuedJob(ownedWorkspaceId)
+    const earlierArchivedId = await seedWorkspace(bannedId)
+    const runningInEarlierArchived = await seedExecution(
+      earlierArchivedId,
+      await seedWorkflow(bannedId, earlierArchivedId)
+    )
+    await db
+      .update(workspace)
+      .set({ archivedAt: new Date() })
+      .where(eq(workspace.id, earlierArchivedId))
     const keptWorkspaceId = await seedWorkspace(bystanderId, [bannedId])
     const keptRunning = await seedExecution(
       keptWorkspaceId,
@@ -300,19 +306,26 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
       .where(eq(workspace.id, ownedWorkspaceId))
     expect(archived.archivedAt).not.toBeNull()
     expect(await isCancelled(running)).toBe(true)
+    expect(await isCancelled(runningInEarlierArchived)).toBe(true)
     expect(await isCancelled(keptRunning)).toBe(false)
     const recorded = await stopEvents([ownedWorkspaceId])
     expect(recorded.map((event) => event.status)).toEqual(['pending'])
+    /** Admitted before the archive, logged after the stop was recorded. */
+    const loggedLate = await seedExecution(
+      ownedWorkspaceId,
+      await seedWorkflow(bannedId, ownedWorkspaceId)
+    )
 
     await runOutboxWorker(recorded.map((event) => event.id))
 
+    expect(await isCancelled(loggedLate)).toBe(true)
     expect(await jobStatus(queued)).toBe('cancelled')
     expect(await jobStatus(keptQueued)).toBe('pending')
   })
 
   /**
-   * Mirrors the Better Auth user delete hooks around `/admin/remove-user`: read before the bare
-   * delete, enqueued and signalled once it has committed.
+   * Drives the handlers Better Auth runs as the user delete's `before` and `after` hooks around
+   * the bare delete `/admin/remove-user` issues.
    */
   it('stops the runs of workflows a directly deleted user created in someone else’s workspace', async () => {
     const removedId = await seedUser()
@@ -328,15 +341,15 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
     )
     const bystandersQueued = await seedQueuedJob(sharedWorkspaceId)
 
-    const plan = await collectAccountRemovalStops(db, removedId)
+    const removed = { id: removedId }
+    await holdAdminRemovalStops(removed)
     await db.delete(user).where(eq(user.id, removedId))
-    const eventIds = await enqueueExecutionStops(db, plan)
-    await signalExecutionStops(plan.executions)
+    await stopAdminRemovedRuns(removed)
 
     expect(await isCancelled(removedUsersRun)).toBe(true)
     expect(await isCancelled(bystandersRun)).toBe(false)
 
-    await runOutboxWorker(eventIds)
+    await runOutboxWorker((await stopEvents([removedUsersRun])).map((event) => event.id))
 
     expect(await jobStatus(bystandersQueued)).toBe('pending')
     expect((await stopEvents([removedUsersRun])).map((event) => event.status)).toEqual([

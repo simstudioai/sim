@@ -73,7 +73,7 @@ function scopeCondition(executor: DbOrTx, scope: ExecutionStopScope): SQL | unde
  * removal is not transactional, immediately before it): a cascade erases these rows. An active
  * resume runs under its own execution id, so the claimed resume of a paused run is included.
  */
-async function collectExecutionStops(
+export async function collectExecutionStops(
   executor: DbOrTx,
   scope: ExecutionStopScope
 ): Promise<ExecutionStopPlan> {

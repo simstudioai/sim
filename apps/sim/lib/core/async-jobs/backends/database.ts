@@ -19,11 +19,13 @@ import {
   type JobType,
   validateMaxDurationSeconds,
   WORKSPACE_EXECUTION_JOB_TYPES,
+  type WorkspaceJobCancellationOptions,
   type WorkspaceJobCancellationResult,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
 const logger = createLogger('DatabaseJobQueue')
+const WORKSPACE_CANCELLATION_BATCH_SIZE = 100
 
 type AsyncJobRow = typeof asyncJobs.$inferSelect
 type Runner = NonNullable<EnqueueOptions['runner']>
@@ -523,39 +525,52 @@ export class DatabaseJobQueue implements JobQueueBackend {
    * Cancels the workspace's pending and processing rows, so no process can claim them, and
    * aborts the runners this process holds for them. A runner another process holds stops through
    * its execution's cancellation signal instead. Batches run through `batchEnqueueAndWait` keep
-   * no row and are left to that signal and their dispatch's own cancellation.
+   * no row and are left to that signal and their dispatch's own cancellation. Works in batches
+   * up to `maxRuns`, checking `signal` between them, like the Trigger.dev sweep.
    */
-  async cancelByWorkspace(workspaceId: string): Promise<WorkspaceJobCancellationResult> {
-    const now = new Date()
-    const cancelled = await db
-      .update(asyncJobs)
-      .set({
-        status: JOB_STATUS.CANCELLED,
-        completedAt: now,
-        error: 'Cancelled',
-        updatedAt: now,
-      })
-      .where(
-        and(
-          inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING]),
-          inArray(asyncJobs.type, [...WORKSPACE_EXECUTION_JOB_TYPES]),
-          sql`${asyncJobs.metadata}->>'workspaceId' = ${workspaceId}`
+  async cancelByWorkspace(
+    workspaceId: string,
+    options: WorkspaceJobCancellationOptions
+  ): Promise<WorkspaceJobCancellationResult> {
+    const active = and(
+      inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING]),
+      inArray(asyncJobs.type, [...WORKSPACE_EXECUTION_JOB_TYPES]),
+      sql`${asyncJobs.metadata}->>'workspaceId' = ${workspaceId}`
+    )
+    let cancelledJobs = 0
+    let complete = false
+    while (cancelledJobs < options.maxRuns && !options.signal?.aborted) {
+      const batchSize = Math.min(WORKSPACE_CANCELLATION_BATCH_SIZE, options.maxRuns - cancelledJobs)
+      const now = new Date()
+      const cancelled = await db
+        .update(asyncJobs)
+        .set({ status: JOB_STATUS.CANCELLED, completedAt: now, error: 'Cancelled', updatedAt: now })
+        .where(
+          and(
+            active,
+            inArray(
+              asyncJobs.id,
+              db.select({ id: asyncJobs.id }).from(asyncJobs).where(active).limit(batchSize)
+            )
+          )
         )
-      )
-      .returning({ id: asyncJobs.id })
+        .returning({ id: asyncJobs.id })
 
-    for (const { id } of cancelled) {
-      const controller = inlineAbortControllers.get(id)
-      if (!controller) continue
-      controller.abort(new DOMException('user', 'AbortError'))
-      inlineAbortControllers.delete(id)
+      for (const { id } of cancelled) {
+        const controller = inlineAbortControllers.get(id)
+        if (!controller) continue
+        controller.abort(new DOMException('user', 'AbortError'))
+        inlineAbortControllers.delete(id)
+      }
+      cancelledJobs += cancelled.length
+      if (cancelled.length < batchSize) {
+        complete = true
+        break
+      }
     }
 
-    logger.info('Cancelled database jobs for workspace', {
-      workspaceId,
-      cancelledJobs: cancelled.length,
-    })
-    return { cancelledJobs: cancelled.length, complete: true }
+    logger.info('Cancelled database jobs for workspace', { workspaceId, cancelledJobs, complete })
+    return { cancelledJobs, complete }
   }
 
   cancelByKey(cancelKey: string): boolean {

@@ -12,7 +12,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -294,8 +294,9 @@ export async function archiveWorkflowsByIdsInWorkspace(
  * Disables all resources owned by a banned user by archiving every workspace
  * they own (cascading to workflows, chats, KBs, tables, files, etc.),
  * deleting their personal API keys, and stopping the workflow runs in progress
- * in the archived workspaces. Each archive records Stop for its Chat runs, which
- * they read on their next run-control call.
+ * in every workspace they own once it is archived, including ones archived
+ * earlier. Each archive records Stop for its Chat runs, which they read on their
+ * next run-control call.
  *
  * Runs the user started in workspaces they do not own keep going. The log row
  * has no actor column, and the user it records is the billed account for
@@ -316,40 +317,57 @@ export async function disableUserResources(userId: string): Promise<void> {
     .from(workspace)
     .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
 
+  const { recordExecutionStops, signalExecutionStops } = await import(
+    '@/lib/execution/removal-stop-records'
+  )
+  /**
+   * Records the workspaces' stops and signals their in-flight runs; the recorded stop's queue
+   * sweep and retries run in the outbox worker, since this module sits in page graphs that must
+   * not load that delivery. Logged, not thrown: the ban and archives have committed, and a retry
+   * would find no unarchived workspace to stop.
+   */
+  const stopRuns = async (workspaceIds: string[]): Promise<void> => {
+    if (workspaceIds.length === 0) return
+    try {
+      const executions = await db.transaction((tx) => recordExecutionStops(tx, { workspaceIds }))
+      await signalExecutionStops(executions)
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to stop runs for banned user ${userId}`, {
+        workspaceIds,
+        error: getErrorMessage(error),
+      })
+    }
+  }
+
   const failures: { workspaceId: string; error: unknown }[] = []
-  const archivedWorkspaceIds: string[] = []
+  const stopping: Promise<void>[] = []
+  const stoppedWorkspaceIds = new Set<string>()
   // Sequential: environments of one Project contend on its exclusive lock.
   for (const row of ownedWorkspaces) {
     try {
-      const result = await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
-      if (result.archived) archivedWorkspaceIds.push(row.id)
+      await archiveWorkspace(row.id, {
+        requestId,
+        expectedOwnerId: userId,
+        /** Called once the archive commits, before its slower post-commit cleanup. */
+        deliverStops: () => {
+          stoppedWorkspaceIds.add(row.id)
+          stopping.push(stopRuns([row.id]))
+        },
+      })
     } catch (error) {
       failures.push({ workspaceId: row.id, error })
     }
   }
 
-  /**
-   * After the archives commit, which refuse new runs, so every run admitted before them is found.
-   * In-flight runs are signalled here; the recorded stop's queue sweep and retries run in the
-   * outbox worker, since this module sits in page graphs that must not load that delivery.
-   */
-  if (archivedWorkspaceIds.length > 0) {
-    try {
-      const { recordExecutionStops, signalExecutionStops } = await import(
-        '@/lib/execution/removal-stop-records'
-      )
-      const executions = await db.transaction((tx) =>
-        recordExecutionStops(tx, { workspaceIds: archivedWorkspaceIds })
-      )
-      await signalExecutionStops(executions)
-    } catch (error) {
-      /** Not thrown: the ban and archives committed, and a retry finds no unarchived workspace. */
-      logger.error(`[${requestId}] Failed to stop runs for banned user ${userId}`, {
-        workspaceIds: archivedWorkspaceIds,
-        error: getErrorMessage(error),
-      })
-    }
-  }
+  /** Workspaces archived before this ban still have the runs an archive leaves going. */
+  const earlierArchived = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.ownerId, userId), isNotNull(workspace.archivedAt)))
+  stopping.push(
+    stopRuns(earlierArchived.map((row) => row.id).filter((id) => !stoppedWorkspaceIds.has(id)))
+  )
+  await Promise.all(stopping)
 
   if (failures.length > 0) {
     logger.error(`[${requestId}] Failed to archive workspaces for banned user ${userId}`, {

@@ -515,7 +515,7 @@ describe('DatabaseJobQueue workspace cancellation', () => {
   })
 
   it('cancels only workflow job types, so the workspace’s other jobs keep running', async () => {
-    await new DatabaseJobQueue().cancelByWorkspace('workspace-1')
+    await new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 1000 })
 
     const typeFilter = flattenMockConditions(dbChainMockFns.where.mock.calls[0][0]).find(
       (node) => node.type === 'inArray' && node.column === asyncJobs.type
@@ -527,5 +527,41 @@ describe('DatabaseJobQueue workspace cancellation', () => {
       'resume-execution',
       'workflow-group-cell',
     ])
+  })
+
+  const ids = (count: number, offset = 0) =>
+    Array.from({ length: count }, (_, index) => ({ id: `job-${offset + index}` }))
+
+  it('keeps cancelling in batches until a short batch shows none are left', async () => {
+    dbChainMockFns.returning
+      .mockResolvedValueOnce(ids(100))
+      .mockResolvedValueOnce(ids(100, 100))
+      .mockResolvedValueOnce(ids(30, 200))
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 1000 })
+    ).resolves.toEqual({ cancelledJobs: 230, complete: true })
+  })
+
+  it('stops at its run cap and reports the sweep incomplete', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce(ids(100)).mockResolvedValueOnce(ids(50, 100))
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 150 })
+    ).resolves.toEqual({ cancelledJobs: 150, complete: false })
+    expect(dbChainMockFns.returning).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels nothing once its caller’s time is up', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', {
+        maxRuns: 1000,
+        signal: controller.signal,
+      })
+    ).resolves.toEqual({ cancelledJobs: 0, complete: false })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })
