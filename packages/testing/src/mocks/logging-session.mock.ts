@@ -7,7 +7,8 @@ import { vi } from 'vitest'
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
  * boolean result. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
  * their input, diagnostic projection fails closed to structural metadata, `hasCompleted` is
- * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, and other methods resolve to `undefined`.
+ * `false`, `getPersistedCompletionStatus` and `getDeletedScope` are `null`, and other methods
+ * resolve to `undefined`.
  * Defaults are `vi.fn(impl)`, so `mockReset()` restores them.
  *
  * @example

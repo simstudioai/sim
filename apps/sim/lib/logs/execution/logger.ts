@@ -35,7 +35,10 @@ import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { FOREIGN_KEY_VIOLATION } from '@/lib/core/errors/database-query-error'
-import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
+import {
+  type ExecutionScope,
+  ExecutionScopeDeletedError,
+} from '@/lib/core/errors/execution-scope-deleted'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -313,12 +316,12 @@ async function assertExecutionWorkspaceExists(
   workspaceId: string | null | undefined
 ): Promise<void> {
   if (!workspaceId) return
-  if (!(await workspaceExists(client, workspaceId))) {
+  if (!(await workspaceRowExists(client, workspaceId))) {
     throw new ExecutionScopeDeletedError(executionId, 'workspace')
   }
 }
 
-async function workspaceExists(
+async function workspaceRowExists(
   client: Pick<typeof db, 'select'>,
   workspaceId: string
 ): Promise<boolean> {
@@ -337,7 +340,7 @@ async function workspaceExists(
 async function isWorkspaceDeleted(workspaceId: string | null | undefined): Promise<boolean> {
   if (!workspaceId) return false
   try {
-    return !(await workspaceExists(execDb, workspaceId))
+    return !(await workspaceRowExists(execDb, workspaceId))
   } catch {
     return false
   }
@@ -878,13 +881,8 @@ export class ExecutionLogger {
   async findDeletedExecutionScope(params: {
     workspaceId: string
     workflowId: string
-  }): Promise<ExecutionScopeDeletedError['scope'] | null> {
-    const [workspaceRow] = await execDb
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(eq(workspace.id, params.workspaceId))
-      .limit(1)
-    if (!workspaceRow) return 'workspace'
+  }): Promise<ExecutionScope | null> {
+    if (!(await workspaceRowExists(execDb, params.workspaceId))) return 'workspace'
     const [workflowRow] = await execDb
       .select({ id: workflow.id })
       .from(workflow)

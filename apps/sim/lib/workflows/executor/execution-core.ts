@@ -853,7 +853,7 @@ async function executeWorkflowCoreImpl(
      * A start that failed because the run's workspace or workflow is gone ends the run here,
      * before any block spends on providers: nothing could ever record it or stop it.
      */
-    const deletedScope = loggingStarted ? null : loggingSession.getDeletedScope()
+    const deletedScope = loggingSession.getDeletedScope()
     if (deletedScope) throw new ExecutionScopeDeletedError(executionId, deletedScope)
 
     // Use edges directly - trigger-to-trigger edges are prevented at creation time
