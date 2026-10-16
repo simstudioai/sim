@@ -15,9 +15,9 @@ import {
   prepareWorkbenchAccess,
   recordSimSandboxProcess,
   renewSimToolExecutionLease,
+  type SimToolExecutionClaim,
   settleSimSandboxProcess,
   settleSimToolExecution,
-  type ToolExecutionClaim,
 } from '@/lib/mothership/async-runs/repository'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
@@ -30,7 +30,7 @@ export interface ToolExecutionLifetime {
   readonly signal: AbortSignal
   readonly owner?: SimToolExecutionOwner
   complete(input: CompleteAsyncToolCallInput): Promise<void>
-  claim(runId: string, userId: string): Promise<ToolExecutionClaim>
+  claim(runId: string, userId: string): Promise<SimToolExecutionClaim>
   hold<T>(work: Promise<T>): Promise<T>
 }
 

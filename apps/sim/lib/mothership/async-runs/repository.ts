@@ -868,6 +868,12 @@ export type ToolExecutionClaim =
   /** Already claimed or settled. */
   | { outcome: 'existing' }
 
+/** A Sim handler's claim, which also reports an unclaimed call too late to start. */
+export type SimToolExecutionClaim =
+  | ToolExecutionClaim
+  /** Admitted but unclaimed, with too little of its deadline left to start: nothing ran it. */
+  | { outcome: 'too_late' }
+
 /**
  * Every condition at once, typed as a condition: drizzle's `and` may return undefined, which a
  * negation would render as `NOT (NULL)` and match nothing.
@@ -904,6 +910,13 @@ const tooLateToStart = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT 
  */
 const pastResumeGiveUp = sql`(${copilotAsyncToolCalls.executionDeadlineAt} IS NOT NULL AND ${copilotAsyncToolCalls.executionDeadlineAt} + ${TOOL_WATCHDOG_RESUME_GRACE_MS} * interval '1 millisecond' <= clock_timestamp())`
 
+/** A call nothing claimed or started whose deadline leaves too little to start it. */
+const pendingTooLateToStart = allOf(
+  eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+  isNull(copilotAsyncToolCalls.executionStartedAt),
+  tooLateToStart
+)
+
 /**
  * A Sim execution whose owner died before recording a result: its lease lapsed, which a live
  * owner's heartbeat never lets happen. A takeover runs it again until it has started
@@ -932,11 +945,12 @@ const rerunnableSimExecution = allOf(
  * Sim claims a call it is about to execute under an execution lease; a terminal result never
  * releases it. The claim takes a call's first execution, or re-runs one whose owner died
  * mid-execution: the new owner token fences the dead owner out, since its renewals and its
- * result both require the token and an unexpired lease.
+ * result both require the token and an unexpired lease. A pending call too late to start is left
+ * unclaimed, under the same admission check, for its caller to settle as never run.
  */
 export async function claimToolExecution(
   owner: SimToolExecutionOwner
-): Promise<ToolExecutionClaim> {
+): Promise<SimToolExecutionClaim> {
   return await claimUnderRunAdmission(owner, 'sim-stream', true, async (tx, thisCall) => {
     const startedAt = new Date()
     const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
@@ -961,7 +975,8 @@ export async function claimToolExecution(
                 inArray(copilotAsyncToolCalls.status, [
                   ASYNC_TOOL_STATUS.pending,
                   ASYNC_TOOL_STATUS.running,
-                ])
+                ]),
+                not(pendingTooLateToStart)
               ),
               interruptedSimExecution
             )
@@ -971,10 +986,13 @@ export async function claimToolExecution(
     )
     if (claimed) return { outcome: 'claimed' } as const
     const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
-      tx.select({ id: copilotAsyncToolCalls.id }).from(copilotAsyncToolCalls).where(thisCall)
+      tx
+        .select({ tooLate: sql<boolean>`${pendingTooLateToStart}` })
+        .from(copilotAsyncToolCalls)
+        .where(thisCall)
     )
     if (!record) throw new Error('Tool execution record is unavailable')
-    return { outcome: 'existing' } as const
+    return record.tooLate ? ({ outcome: 'too_late' } as const) : ({ outcome: 'existing' } as const)
   })
 }
 

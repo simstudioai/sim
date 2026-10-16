@@ -369,8 +369,10 @@ describe('executeToolAndReport provenance isolation', () => {
   beforeEach(() => {
     executeTool.mockReset()
     completeAsyncToolCall.mockResolvedValue(null)
+    completePendingAsyncToolCall.mockReset()
     markAsyncToolRunning.mockResolvedValue(null)
     upsertAsyncToolCall.mockResolvedValue(null)
+    claimToolExecution.mockReset()
     claimToolExecution.mockResolvedValue({ outcome: 'claimed' })
     settleSimToolExecution.mockResolvedValue(undefined)
     waitForToolConfirmation.mockReset()
@@ -698,7 +700,8 @@ describe('executeToolAndReport provenance isolation', () => {
     expect(tool.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
   })
 
-  it('settles an unclaimed call past its start window as never run, without claiming it', async () => {
+  it('settles a call its claim found too late to start as never run, without claiming it', async () => {
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'too_late' })
     completePendingAsyncToolCall.mockImplementationOnce(async (input) => ({ ...input }))
     const tool: ToolCallState = {
       ...buildPendingToolCall(),
@@ -711,7 +714,6 @@ describe('executeToolAndReport provenance isolation', () => {
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
 
-    expect(claimToolExecution).not.toHaveBeenCalled()
     expect(executeTool).not.toHaveBeenCalled()
     expect(completePendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -727,22 +729,25 @@ describe('executeToolAndReport provenance isolation', () => {
     })
   })
 
-  it('leaves a call past its start window that is already claimed to its claim', async () => {
-    completePendingAsyncToolCall.mockResolvedValueOnce(null)
+  it('settles the call of a stopped run as stopped even past its start window', async () => {
+    claimToolExecution.mockResolvedValueOnce({ outcome: 'closed' })
+    completePendingAsyncToolCall.mockImplementation(async (input) => ({ ...input }))
     const tool: ToolCallState = {
       ...buildPendingToolCall(),
       name: 'generate_audio',
       deadlineAt: Date.now() + 30_000,
     }
-    await executeToolAndReport(tool.id, buildStreamingContext(tool), {
+    const completion = await executeToolAndReport(tool.id, buildStreamingContext(tool), {
       userId: 'user-1',
       workflowId: 'workflow-1',
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
 
-    expect(claimToolExecution).toHaveBeenCalledOnce()
-    expect(executeTool).not.toHaveBeenCalled()
-    expect(tool.error).toBe(TOOL_DEADLINE_BEFORE_START_MESSAGE)
+    expect(completePendingAsyncToolCall).not.toHaveBeenCalled()
+    expect(completion).toMatchObject({
+      status: 'cancelled',
+      message: 'Run stopped before tool admission',
+    })
   })
 
   it('claims a call without a deadline without trying to settle it first', async () => {
