@@ -75,13 +75,6 @@ export interface ReadWorkspaceFileTextResult extends ExtractedFileText {
   file: WorkspaceFileRecord
 }
 
-/**
- * Reads an ordinary uploaded file's bytes.
- *
- * The stored size is authoritative for these, so an oversized file is refused
- * before any bytes are fetched. It is NOT authoritative for a generation source,
- * which is why that path is bounded by the artifact ceiling instead.
- */
 /** Refuses a text read of a file whose format has no extractor. */
 export function textExtractionUnsupportedError(name: string): OrchestrationError {
   return new OrchestrationError(
@@ -111,6 +104,13 @@ export function renderedTextTooLargeMessage(name: string, limit: string): string
   return `"${name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`
 }
 
+/**
+ * Reads an ordinary uploaded file's bytes.
+ *
+ * The stored size is authoritative for these, so an oversized file is refused
+ * before any bytes are fetched. It is NOT authoritative for a generation source,
+ * which is why that path is bounded by the artifact ceiling instead.
+ */
 async function readSourceBuffer(
   file: WorkspaceFileRecord,
   maxBytes: number,
