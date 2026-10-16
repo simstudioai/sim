@@ -48,7 +48,7 @@ export const POST = withRouteHandler(
       afterResponse(accepted.deliver)
       return NextResponse.json({ message: 'Verification code sent' })
     } catch (error) {
-      logger.error('Error processing OTP request:', error)
+      logPublicFileError(logger, 'Error processing OTP request:', error)
       return publicFileErrorResponse(error, 'Failed to process request')
     }
   }
@@ -69,7 +69,7 @@ export const PUT = withRouteHandler(
       response.cookies.set(auth.cookie)
       return response
     } catch (error) {
-      logger.error('Error verifying OTP:', error)
+      logPublicFileError(logger, 'Error verifying OTP:', error)
       return publicFileErrorResponse(error, 'Failed to process request')
     }
   }

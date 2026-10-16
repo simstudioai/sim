@@ -5,6 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  logPublicFileError,
   publicFileAuthDenied,
   publicFileBinaryErrorResponse,
   publicFileShareCredential,
@@ -58,7 +59,7 @@ export const GET = withRouteHandler(
         request.headers.get('if-none-match')
       )
     } catch (error) {
-      logger.error('Error serving public shared file:', error)
+      logPublicFileError(logger, 'Error serving public shared file:', error)
       return publicFileBinaryErrorResponse(error, 'Failed to serve file')
     }
   }
