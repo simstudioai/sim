@@ -125,7 +125,7 @@ export function termCoverage(text: string, terms: readonly string[]): number {
  * Query and text words are compared by their singular key, so a word and its regular plural count
  * as one term; a term with punctuation inside it is matched as written.
  */
-export function stemmedTerms(query: string): {
+function stemmedTerms(query: string): {
   count: number
   /** At least half the terms, the minimum a partial match must hold. */
   required: number
