@@ -1,3 +1,4 @@
+import { createDeferred } from '@sim/testing/helpers/deferred'
 import { jsonResponse } from '@sim/testing/helpers/http'
 import {
   inputValidationMock,
@@ -218,9 +219,9 @@ const BILLED_NANO_USD = 40_000_000
 
 /**
  * A fal queue whose request completes on the first poll. The billing-event lookup answers at
- * once, answers only after `delayMs` (whatever its caller does), or (`hangs`) never.
+ * once, answers only once `answered` settles (whatever its caller does), or (`hangs`) never.
  */
-function stubCompletedFalQueue(billing: { delayMs?: number; hangs?: boolean } = {}) {
+function stubCompletedFalQueue(billing: { answered?: Promise<void>; hangs?: boolean } = {}) {
   const billingLookups: string[] = []
   vi.stubGlobal(
     'fetch',
@@ -236,7 +237,7 @@ function stubCompletedFalQueue(billing: { delayMs?: number; hangs?: boolean } = 
         return new Promise<Response>((_resolve, reject) => {
           init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
         })
-      if (billing.delayMs) await new Promise((resolve) => setTimeout(resolve, billing.delayMs))
+      await billing.answered
       return jsonResponse({
         billing_events: [
           {
@@ -284,7 +285,6 @@ describe('billing a fal generation', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllEnvs()
     inputValidationMockFns.mockValidateUrlWithDNS.mockReset()
     inputValidationMockFns.mockSecureFetchWithPinnedIP.mockReset()
   })
@@ -316,7 +316,8 @@ describe('billing a fal generation', () => {
   )
 
   it('finishes the cost lookup of a completed generation a Stop lands in, then stops', async () => {
-    const fal = stubCompletedFalQueue({ delayMs: 1_000 })
+    const billingAnswer = createDeferred<void>()
+    const fal = stubCompletedFalQueue({ answered: billingAnswer.promise })
     stubMediaHost(downloadAudio)
     const onCost = vi.fn().mockResolvedValue(undefined)
     const caller = new AbortController()
@@ -325,7 +326,7 @@ describe('billing a fal generation', () => {
     await vi.advanceTimersByTimeAsync(3_000)
     expect(fal.billingLookups).toHaveLength(1)
     caller.abort(new Error('watchdog'))
-    await vi.advanceTimersByTimeAsync(1_000)
+    billingAnswer.resolve()
 
     expect(await generation).toEqual(new Error('watchdog'))
     expect(onCost).toHaveBeenCalledTimes(1)
