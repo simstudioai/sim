@@ -18,6 +18,7 @@ import {
 } from '@/lib/billing/core/attribution'
 import { buildRecordedJobFailureResult } from '@/lib/core/async-jobs/recorded-failure'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
+import type { ExecutionScope } from '@/lib/core/errors/execution-scope-deleted'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   capExecutionTimeoutMs,
@@ -35,7 +36,10 @@ import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
-import { isRecordedWorkflowFailure } from '@/lib/workflows/executor/recorded-failure'
+import {
+  isRecordedWorkflowFailure,
+  resolveDeletedExecutionScope,
+} from '@/lib/workflows/executor/recorded-failure'
 import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -336,6 +340,18 @@ export async function executeWorkflowJob(
           executionId,
         })
 
+        const completeWithDeletedScope = (scope: ExecutionScope) => {
+          logger.info(`[${requestId}] Workflow execution ended: its ${scope} was deleted`, {
+            workflowId,
+            executionId,
+          })
+          return completeWithRecordedFailure(workflowId, executionId, error)
+        }
+
+        // Checked before the timeout: a deleted scope leaves nobody to alert about a slow run.
+        const deletedScope = await resolveDeletedExecutionScope(error, loggingSession)
+        if (deletedScope) return completeWithDeletedScope(deletedScope)
+
         if (error instanceof ExecutionTimeoutError) throw error
 
         // A failure core already recorded is the workflow's outcome, not a job fault; a run past
@@ -358,6 +374,9 @@ export async function executeWorkflowJob(
           traceSpans,
           executionState: executionResult?.executionState,
         })
+
+        const scopeDeletedOnCompletion = loggingSession.getDeletedScope()
+        if (scopeDeletedOnCompletion) return completeWithDeletedScope(scopeDeletedOnCompletion)
 
         // Complete only when the rejection is durably logged; an unsaved one must still alert.
         if (
