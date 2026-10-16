@@ -48,6 +48,7 @@ describe('durable secret provenance telemetry', () => {
       {
         surface: 'workspace-file',
         cause: 'workspace-file-opaque-secret-content',
+        refusedCount: 1,
         workspaceId: 'workspace-1',
         resourceId: 'file-1',
       }

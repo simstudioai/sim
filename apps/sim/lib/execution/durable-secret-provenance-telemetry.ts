@@ -80,6 +80,7 @@ export function reportDurableSecretProvenanceRefusal(
   persistenceLogger.warn('Refusing unavailable durable secret provenance', {
     surface: report.surface,
     cause: report.cause,
+    refusedCount: 1,
     ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
     ...(report.resourceId ? { resourceId: report.resourceId } : {}),
   })
