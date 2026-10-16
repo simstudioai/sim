@@ -326,6 +326,20 @@ describe('account storage object cleanup', () => {
     expect(await exists('workspace-logos/ws9/old.png')).toBe(false)
   })
 
+  it('keeps a legacy key holding a literal percent sign that a malformed URL names', async () => {
+    const key = 'workspace-logos/ws9/brand logo%.png'
+    const storedAs = 'workspace-logos/ws9/brand_logo_.png'
+    await put(storedAs)
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.user, [
+      { value: '/api/files/serve/workspace-logos/ws9/brand%20logo%.png' },
+    ])
+
+    await cleanup(payload([{ key, context: 'workspace-logos' }]), outboxContext())
+
+    expect(await exists(storedAs)).toBe(true)
+  })
+
   it.each([
     { key: 'project/p1/file.txt', context: 'workspace' },
     { key: 'assistant/org/user/file.png', context: 'mothership' },

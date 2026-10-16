@@ -25,7 +25,11 @@ import { FILE_CACHE_CONTROL, workspaceFileCacheControl } from '@/lib/uploads/ser
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import { inferContextFromKey, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
+import {
+  inferContextFromKey,
+  isPublicStorageKey,
+  resolveEffectiveMimeType,
+} from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
@@ -299,13 +303,7 @@ export const GET = withRouteHandler(
         })
       }
 
-      const isPublicByKeyPrefix =
-        cloudKey.startsWith('profile-pictures/') ||
-        cloudKey.startsWith('og-images/') ||
-        cloudKey.startsWith('workspace-logos/') ||
-        cloudKey.startsWith('organization-logos/')
-
-      if (isPublicByKeyPrefix) {
+      if (isPublicStorageKey(cloudKey)) {
         const context = inferContextFromKey(cloudKey)
         logger.info(`Serving public ${context}:`, { cloudKey })
         if (isUsingCloudStorage() || isCloudPath) {

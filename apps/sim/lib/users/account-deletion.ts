@@ -54,10 +54,8 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
-import {
-  createStorageReferenceGuard,
-  enqueueAccountStorageCleanupInTx,
-} from '@/lib/users/storage-sweep'
+import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
+import { enqueueAccountStorageCleanupInTx } from '@/lib/users/storage-sweep'
 import {
   listSharedResourceWorkspaceIdsForUser,
   listUnresolvedSharedResourceWorkspaces,
