@@ -118,7 +118,8 @@ try:
         error = refused('type_text', snapshot, elementId=slider['elementId'], text=' ')
         assert error['code'] == 'unsupported_action' and error['dispatchState'] == 'not_started', error
         assert find(state(), role='AXSlider')['value'] == slider['value'], 'Text reached a control that does not take text'
-        snapshot = mutate('click', state(), elementId=find(snapshot, role='AXTextField', label='Fixture editable text')['elementId'])
+        snapshot = state()
+        snapshot = mutate('click', snapshot, elementId=find(snapshot, role='AXTextField', label='Fixture editable text')['elementId'])
         snapshot = mutate('type_text', snapshot, elementId=find(snapshot, role='AXWindow')['elementId'], text=' window')
         assert find(snapshot, role='AXTextField', label='Fixture editable text')['value'].endswith(' window'), 'Window target did not type into its focused editor'
         window = next(w for w in snapshot['windows'] if w['windowId'] == snapshot['windowId'])

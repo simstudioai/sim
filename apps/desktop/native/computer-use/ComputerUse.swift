@@ -612,15 +612,20 @@ final class Driver {
             try await snapshot.read(preferredWindowFrame: preferredFrame)
             let axWindows = snapshot.elements.values.filter { attribute($0, kAXRoleAttribute) as? String == kAXWindowRole }
             let axWindowFrames = axWindows.compactMap(elementRect)
-            let windows = windowsFor(app.processIdentifier).prefix(100).compactMap { entry -> [String: Any]? in
-                guard let id = entry[kCGWindowNumber as String] as? NSNumber, let bounds = entry[kCGWindowBounds as String] as? [String: Any], let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), rect.width > 0, rect.height > 0, axWindowFrames.contains(rect) else { return nil }
+            let entries = windowsFor(app.processIdentifier).prefix(100)
+            func bounds(_ entry: [String: Any]) -> CGRect? { (entry[kCGWindowBounds as String] as? [String: Any]).flatMap { CGRect(dictionaryRepresentation: $0 as CFDictionary) } }
+            func onScreen(_ entry: [String: Any]) -> Bool { entry[kCGWindowIsOnscreen as String] as? Bool == true }
+            // A background tab is an off-screen window with the bounds of the tab in front, which is the
+            // only one Accessibility shows, so it can be neither observed nor targeted.
+            let onScreenRects = entries.filter(onScreen).compactMap(bounds)
+            let windows = entries.compactMap { entry -> [String: Any]? in
+                guard let id = entry[kCGWindowNumber as String] as? NSNumber, let rect = bounds(entry), rect.width > 0, rect.height > 0, axWindowFrames.contains(rect), onScreen(entry) || !onScreenRects.contains(rect) else { return nil }
                 snapshot.windowFrames[id.stringValue] = rect
                 // Public APIs match a window-list entry to its Accessibility window only by bounds; when
                 // two windows share bounds that match is ambiguous, so neither gets an identity and
-                // input aimed at either is refused. A background tab or minimized window is off screen
-                // and shares bounds with the window it hides behind, so it gets none either.
+                // input aimed at either is refused. An off-screen (minimized) window takes no input either.
                 let matches = axWindows.filter { elementRect($0) == rect }
-                if matches.count == 1, entry[kCGWindowIsOnscreen as String] as? Bool == true { snapshot.windowElements[id.stringValue] = matches[0] }
+                if matches.count == 1, onScreen(entry) { snapshot.windowElements[id.stringValue] = matches[0] }
                 var result: [String: Any] = ["windowId": id.stringValue, "title": entry[kCGWindowName as String] as? String ?? ""]
                 if let title = result["title"] as? String { result["title"] = String(title.prefix(4096)) }
                 result.merge(rectJSON(rect)) { _, new in new }; return result
@@ -723,17 +728,20 @@ final class Driver {
                 try await Task.sleep(for: .milliseconds(50))
             }
             let observedWindows = snapshot.observedWindows()
+            // The first editor found holding focus receives the whole input, so text never follows focus elsewhere.
+            var editor: AXUIElement?
             func validateFocus() throws {
                 try checkCancellation(); try requireNonSecure(element)
                 // The editor must still sit in an observed window (or a dialog above it) at the observed frame.
                 guard let window = containingWindow(element), acceptsInput(window, observed: observedWindows) else {
                     throw ComputerError("stale_window", "The editor's window moved or is not an observed window; observe again.")
                 }
-                guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current, element) else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
+                guard let current = attribute(root, kAXFocusedUIElementAttribute), holdsFocus(current, element), editor.map({ CFEqual($0, current) }) ?? true else { throw ComputerError("focus_changed", "The exact editor is no longer focused; remaining input was not dispatched. Observe again.") }
                 // Keystrokes land on the focused element, so it (or the text control targeted) must take text.
                 let receiver = unsafeBitCast(current, to: AXUIElement.self)
                 try requireNonSecure(receiver)
                 guard targetTakesText || takesText(receiver) else { throw ComputerError("unsupported_action", "Keyboard focus is not in a text input; no text was sent. Click into the text field, or use press_key for shortcuts.") }
+                editor = receiver
             }
             // AX focus requests and app activation may settle asynchronously. Wait without
             // posting input or requesting focus again; every eventual input keeps the same guard.
