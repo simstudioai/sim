@@ -94,7 +94,7 @@ async function seedWorkflow(userId: string, workspaceId: string) {
     id,
     userId,
     workspaceId,
-    name: 'Execution removal fixture',
+    name: `Execution removal fixture ${id}`,
     lastSynced: now,
     createdAt: now,
     updatedAt: now,
