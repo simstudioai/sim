@@ -32,7 +32,6 @@ const InputSequenceStep = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("press_key"), key: z.string().min(1).max(128) }),
 ]);
 const ElementTarget = { bundleId: BundleId, snapshotId: SnapshotId, elementId: ElementId };
-const WindowTarget = { bundleId: BundleId, snapshotId: SnapshotId, windowId: WindowId };
 const PointTarget = {
   bundleId: BundleId,
   snapshotId: SnapshotId,
