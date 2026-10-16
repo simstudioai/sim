@@ -450,6 +450,50 @@ describe('private native Project writes against PostgreSQL and local storage', (
     }
   }
 
+  for (const [method, path, body] of [
+    ['PATCH', 'files/file-id', (name: string) => ({ name })],
+    ['POST', 'files/folders', (name: string) => ({ name })],
+    ['PATCH', 'files/folders/folder-id', (name: string) => ({ name })],
+  ] as const) {
+    check(`a secret cannot become a shared name through ${method} ${path}`, async () => {
+      const f = await fixture()
+      const secret = 'synthetic-rename-canary'
+      const registry = new ResolvedSecretTraceRegistry(
+        [
+          {
+            name: 'TOKEN',
+            plaintext: secret,
+            encryptedValue: (await encryptSecret(secret)).encrypted,
+            scope: 'workspace',
+          },
+        ],
+        { userId: f.userId, workspaceId: f.workspaceId }
+      )
+      expect(registry.recordResolved('TOKEN', secret)).toBe(true)
+      const forwarded: string[] = []
+      const transport = createProjectFileWriteTransport({
+        endpoint: 'http://localhost:3200',
+        projectId: f.projectId,
+        context: { ...f.context, resolvedSecretTraceRegistry: registry },
+        fallback: async (input, init) => {
+          forwarded.push(await new Request(input, init).text())
+          return Response.json({ data: {} })
+        },
+      })
+      const send = (name: string) =>
+        transport(`http://localhost:3200/api/v2/projects/${f.projectId}/${path}`, {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body(name)),
+        })
+      const denied = await send(`${secret}.txt`)
+      expect(denied.status, await denied.clone().text()).toBe(403)
+      expect(forwarded).toEqual([])
+      expect((await send('renamed.txt')).status).toBe(200)
+      expect(forwarded).toEqual([JSON.stringify(body('renamed.txt'))])
+    })
+  }
+
   check('a private target cannot write a different Project', async () => {
     const f = await fixture()
     const other = await fixture()

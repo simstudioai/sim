@@ -28,9 +28,6 @@ export async function executeProjectFileCliRequest(
   context: AgentCliExecutionContext,
   projectId: string
 ): Promise<AgentCliRawResult> {
-  const { invocation } = request
-  if (invocation.kind === 'service')
-    throw new OrchestrationError('validation', 'This Project file operation is not supported')
   if (request.curate)
     throw new OrchestrationError(
       'validation',

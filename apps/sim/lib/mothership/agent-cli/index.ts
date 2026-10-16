@@ -41,6 +41,10 @@ async function executeUncountedAgentCliRequest(
   if (request.invocation.kind === 'file-copy') {
     return executeFileCopyCliRequest(request, context)
   }
+  /** Services validate their own targets, including refusing a file owner, so they dispatch first. */
+  if (request.invocation.kind === 'service') {
+    return executeAgentCliService(request, context)
+  }
   if (request.fileOwner) {
     const owner = Object.freeze({ ...request.fileOwner })
     return getCopilotFileOwnerAdapter(owner).executeCli(
@@ -50,10 +54,9 @@ async function executeUncountedAgentCliRequest(
     )
   }
   if (
-    request.invocation.kind === 'service' ||
-    (request.invocation.kind === 'stdout' &&
-      request.workspaceId === undefined &&
-      (context.chatOrganizationId || context.organizationId))
+    request.invocation.kind === 'stdout' &&
+    request.workspaceId === undefined &&
+    (context.chatOrganizationId || context.organizationId)
   ) {
     return executeAgentCliService(request, context)
   }

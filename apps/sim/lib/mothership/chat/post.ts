@@ -48,6 +48,7 @@ import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
+import { resolveFileAttachment } from '@/lib/mothership/chat/file-attachment'
 import {
   type ChatLoadResult,
   loadChatMcpServerIds,
@@ -58,7 +59,6 @@ import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import {
   processContextsServer,
   resolveActiveResourceContext,
-  resolveOwnedFileContext,
 } from '@/lib/mothership/chat/process-contents'
 import {
   MAX_FILE_SELECTION_TEXT_LENGTH,
@@ -73,7 +73,6 @@ import {
 } from '@/lib/mothership/constants'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
-import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
@@ -661,63 +660,15 @@ async function resolveAgentContexts(params: {
           }
         }
         if (resource.type === 'file') {
-          if (resource.viewId || resource.currentView)
-            throw new Error('Invalid file resource target')
-          const usesWorkspace =
-            !resource.owner ||
-            getCopilotFileOwnerAdapter(resource.owner).resourceScope === 'workspace'
-          const assertedWorkspaceId = usesWorkspace
-            ? (resource.owner?.entityId ?? resource.workspaceId)
-            : undefined
-          if (
-            resource.workspaceId &&
-            (!usesWorkspace || resource.workspaceId !== assertedWorkspaceId)
-          )
-            throw new Error('File owner conflicts with the selected workspace')
-          const target = usesWorkspace
-            ? organizationId || assertedWorkspaceId
-              ? await resolveInvocationWorkspace(
-                  { userId, workspaceId, organizationId, chatId },
-                  assertedWorkspaceId
-                )
-              : workspaceId
-                ? { workspaceId }
-                : null
-            : null
-          const owner =
-            resource.owner ??
-            (target ? { entityType: 'workspace' as const, entityId: target.workspaceId } : null)
-          if (!owner || (usesWorkspace && !target))
-            throw new Error('File resource requires an owner')
-          const readContext = () =>
-            resolveOwnedFileContext(
-              { owner, fileId: resource.id },
-              { userId, workspaceId: target?.workspaceId ?? workspaceId, chatId, requestMode }
-            )
-          const ctx = target
-            ? await withWorkspaceInvocationScope(
-                { workspaceId: target.workspaceId, organizationId },
-                readContext
-              )
-            : await readContext()
-          if (persistResources && ctx.resource)
-            authorizedResources.push(
-              mothershipResourceSchema.parse({
-                ...resource,
-                ...ctx.resource,
-                ...(usesWorkspace ? { owner: resource.owner } : {}),
-                ...(organizationId && target
-                  ? { workspaceId: target.workspaceId }
-                  : { workspaceId: undefined, workspaceName: undefined }),
-              })
-            )
-          return {
-            ...ctx,
-            ...(organizationId && target
-              ? { content: `Workspace ${target.workspaceId}:\n${ctx.content}` }
-              : {}),
-            tag: resource.active ? '@active_tab' : '@open_tab',
-          }
+          const { context, tab } = await resolveFileAttachment(resource, {
+            userId,
+            workspaceId,
+            organizationId,
+            chatId,
+            requestMode,
+          })
+          if (persistResources && tab) authorizedResources.push(tab)
+          return context
         }
         const target =
           organizationId || resource.workspaceId

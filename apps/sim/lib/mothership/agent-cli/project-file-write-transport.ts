@@ -26,6 +26,22 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 
 const logger = createLogger('ProjectFileWriteTransport')
 
+/** Routes that publish a caller-chosen name; other forwarded writes reference existing items only. */
+const NAME_WRITES = new Set([
+  'PATCH /api/v2/projects/{projectId}/files/{fileId}',
+  'POST /api/v2/projects/{projectId}/files/folders',
+  'PATCH /api/v2/projects/{projectId}/files/folders/{folderId}',
+])
+
+/** Malformed JSON is left for the route to reject; only parsed values can publish a name. */
+async function readJsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json()
+  } catch {
+    return null
+  }
+}
+
 /** Private inline writes carry only a proven empty classification; original source identities are never reconstructed. */
 export function createProjectFileWriteTransport(options: {
   endpoint: string
@@ -52,7 +68,19 @@ export function createProjectFileWriteTransport(options: {
     const update =
       originalRequest.method === 'PUT' &&
       matched.pattern === '/api/v2/projects/{projectId}/files/{fileId}/content'
-    if (!create && !update) return options.fallback(originalRequest)
+    if (!create && !update) {
+      if (!NAME_WRITES.has(`${originalRequest.method} ${matched.pattern}`))
+        return options.fallback(originalRequest)
+      try {
+        await requireCleanProjectFileMetadata(await readJsonBody(originalRequest.clone()), options)
+      } catch (error) {
+        options.context.signal?.throwIfAborted()
+        const response = v2OrchestrationErrorPolicy.render(error)
+        if (response) return response
+        throw error
+      }
+      return options.fallback(originalRequest)
+    }
     const request = new NextRequest(originalRequest)
     try {
       requireTrustedCopilotResourceExecutionContext(options.context)

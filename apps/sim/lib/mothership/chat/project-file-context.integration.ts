@@ -15,12 +15,18 @@ import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotResourceAdmission } from '@/lib/mothership/auth/application-delegation'
 import { changeChatResources } from '@/lib/mothership/chat/application/change-resources'
+import { resolveFileAttachment } from '@/lib/mothership/chat/file-attachment'
 import { copyPersistedMessageContext } from '@/lib/mothership/chat/persisted-message'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import { createEvent } from '@/lib/mothership/request/session/event'
 import { encodeSSEEnvelope } from '@/lib/mothership/request/session/sse'
 import { persistResourceEffect } from '@/lib/mothership/resources/persist-effect'
-import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { persistChatResources } from '@/lib/mothership/resources/persistence'
+import {
+  getChatResourceKey,
+  type MothershipResource,
+  sanitizeChatResources,
+} from '@/lib/mothership/resources/types'
 import { executeTool, registerHandler } from '@/lib/mothership/tool-executor/executor'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import {
@@ -541,6 +547,55 @@ describe('canonical file panel ownership compatibility', () => {
         .from(copilotChats)
         .where(eq(copilotChats.id, f.chatId))
       expect(stored?.resources).toEqual([resource])
+    }
+  )
+})
+
+describe('first-message file panel persistence', () => {
+  identityCheck(
+    'saves a workspace file panel under its own address with the canonical title',
+    async () => {
+      const f = await fixture()
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: f.userId },
+        session: { id: generateId() },
+      })
+      const fileId = generateId()
+      await db.insert(workspaceFiles).values({
+        id: fileId,
+        workspaceId: f.workspaceId,
+        key: `workspace/${f.workspaceId}/draft.md`,
+        userId: f.userId,
+        context: 'workspace',
+        originalName: 'Canonical file.md',
+        contentType: 'text/markdown',
+        sizeBytes: 8,
+      })
+      try {
+        const panel = { type: 'file' as const, id: fileId, title: 'Draft' }
+        const { tab } = await resolveFileAttachment(panel, {
+          userId: f.userId,
+          workspaceId: f.workspaceId,
+          chatId: f.chatId,
+          requestMode: 'agent',
+        })
+        if (!tab) throw new Error('Expected a persistable tab')
+        await persistChatResources(f.chatId, sanitizeChatResources([tab]))
+        const history = await readMothershipChat(
+          createMockRequest({
+            method: 'GET',
+            url: `http://localhost/api/mothership/chats/${f.chatId}`,
+          }),
+          createRouteContext({ chatId: f.chatId })
+        )
+        expect(history.status).toBe(200)
+        const saved = toRecord(toRecord(await history.json()).chat)
+          .resources as MothershipResource[]
+        expect(saved.map(getChatResourceKey)).toEqual([getChatResourceKey(panel)])
+        expect(saved[0]?.title).toBe('Canonical file.md')
+      } finally {
+        await db.delete(workspaceFiles).where(eq(workspaceFiles.id, fileId))
+      }
     }
   )
 })
