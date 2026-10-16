@@ -37,7 +37,10 @@ import {
   ownsTurnWait,
   type TurnLiveIndicators,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
-import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import type {
+  CredentialSubmissionPayload,
+  InteractionAnswerHandler,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { WatchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
@@ -960,7 +963,7 @@ interface MessageContentProps {
   credentialSubmission?: CredentialSubmissionPayload
   /** The user moved on without submitting this message's credential card. */
   credentialAbandoned?: boolean
-  onOptionSelect?: (id: string) => void
+  onOptionSelect?: InteractionAnswerHandler
   onQuestionDismiss?: () => void
   onPhaseChange?: (phase: MessagePhase) => void
   /**
