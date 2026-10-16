@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { describe, expect, it } from 'vitest'
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import {
   classifyFailure,
   inheritFailureMarks,
@@ -21,6 +22,12 @@ function outerBoundary(error: unknown, executionId?: string) {
 }
 
 describe('classifyFailure', () => {
+  it('attributes a run whose workspace or workflow was deleted to its owner, not to Sim', () => {
+    const deleted = new ExecutionScopeDeletedError('execution-1', 'workspace')
+    expect(classifyFailure(deleted)).toBe('user')
+    expect(classifyFailure(new Error('Execution failed', { cause: deleted }))).toBe('user')
+  })
+
   it('keeps a database failure internal even beneath a user mark', () => {
     const queryError = new DrizzleQueryError('select 1', [], new Error('connection reset'))
     const wrapped = markFailureKind(new Error('Block failed', { cause: queryError }), 'user')

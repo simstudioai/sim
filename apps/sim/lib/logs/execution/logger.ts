@@ -34,6 +34,7 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
@@ -299,6 +300,25 @@ async function setExecutionLogWriteTimeouts(trx: Pick<typeof db, 'execute'>): Pr
   await trx.execute(
     sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${EXECUTION_LOG_IDLE_TIMEOUT_MS}ms'`)
   )
+}
+
+/**
+ * Throws {@link ExecutionScopeDeletedError} when the run's workspace no longer exists. Deleting a
+ * workspace cascades its log rows away, so a missing log under a missing workspace is a run whose
+ * owner deleted it, not a lost row.
+ */
+async function assertExecutionWorkspaceExists(
+  client: Pick<typeof db, 'select'>,
+  executionId: string,
+  workspaceId: string | null | undefined
+): Promise<void> {
+  if (!workspaceId) return
+  const [row] = await client
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1)
+  if (!row) throw new ExecutionScopeDeletedError(executionId, 'workspace')
 }
 
 function countTraceSpans(traceSpans?: TraceSpan[]): number {
@@ -829,8 +849,36 @@ export class ExecutionLogger {
     return pii.traceSpans as TraceSpan[]
   }
 
+  /**
+   * Which of a run's scopes no longer exists, read by primary key: the workspace first, since
+   * deleting it also deletes the workflow. `null` when both still exist.
+   */
+  async findDeletedExecutionScope(params: {
+    workspaceId: string
+    workflowId: string
+  }): Promise<ExecutionScopeDeletedError['scope'] | null> {
+    const [workspaceRow] = await execDb
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.id, params.workspaceId))
+      .limit(1)
+    if (!workspaceRow) return 'workspace'
+    const [workflowRow] = await execDb
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(eq(workflow.id, params.workflowId))
+      .limit(1)
+    return workflowRow ? null : 'workflow'
+  }
+
+  /**
+   * Writes the run's terminal log state. Throws {@link ExecutionScopeDeletedError} when the log
+   * row is gone because `workspaceId` was deleted, before any redaction, storage, or billing work.
+   */
   async completeWorkflowExecution(params: {
     executionId: string
+    /** The run's workspace, checked only when its log row is missing. */
+    workspaceId?: string
     endedAt: string
     totalDurationMs: number
     costSummary: {
@@ -896,6 +944,8 @@ export class ExecutionLogger {
         workflowId: existingLog.workflowId ?? undefined,
         workspaceId: existingLog.workspaceId ?? undefined,
       })
+    } else {
+      await assertExecutionWorkspaceExists(execDb, executionId, params.workspaceId)
     }
     const existingExecutionData = existingLog?.executionData as
       | WorkflowExecutionLog['executionData']
@@ -1251,6 +1301,13 @@ export class ExecutionLogger {
             (currentLog?.status === 'completed' || currentLog?.status === 'failed'))
         if (competingTerminalStateWon) {
           return { updatedLog: currentLog, completionPersisted: false }
+        }
+        if (!currentLog) {
+          await assertExecutionWorkspaceExists(
+            tx,
+            executionId,
+            existingLog?.workspaceId ?? params.workspaceId
+          )
         }
         throw new Error(`Workflow log not found for execution ${executionId}`)
       }

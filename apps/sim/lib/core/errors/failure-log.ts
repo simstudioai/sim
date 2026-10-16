@@ -1,5 +1,6 @@
 import type { Logger } from '@sim/logger'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { isRetryableSetupError } from '@/lib/core/errors/retryable-infrastructure'
 import { UserFailure } from '@/lib/core/errors/user-failure'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -63,8 +64,8 @@ export function markFailureKind<T>(error: T, kind: FailureKind): T {
 
 /**
  * Attributes `error` from its cause chain. A database or retryable setup failure is always
- * internal, then the outermost link with an explicit mark, a {@link UserFailure} or revoked
- * credential, a Sim `HttpError` status, or an upstream `status` decides. Anything unattributed is
+ * internal, then the outermost link with an explicit mark, a {@link UserFailure}, revoked
+ * credential, or deleted run scope, a Sim `HttpError` status, or an upstream `status` decides. Anything unattributed is
  * internal.
  */
 export function classifyFailure(error: unknown): FailureKind {
@@ -77,6 +78,8 @@ export function classifyFailure(error: unknown): FailureKind {
     if (marked) return marked
     /** Only the credential's owner reconnecting restores a revoked grant. */
     if (link instanceof UserFailure || link instanceof CredentialRevokedError) return 'user'
+    /** The owner deleted the run's workspace or workflow; nothing is left for Sim to fix. */
+    if (link instanceof ExecutionScopeDeletedError) return 'user'
 
     if (link instanceof HttpError) {
       return link.statusCode >= 400 && link.statusCode < 500 ? 'user' : 'internal'

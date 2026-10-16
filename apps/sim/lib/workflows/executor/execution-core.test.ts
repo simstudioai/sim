@@ -32,6 +32,7 @@ import {
 } from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as retention from '@/lib/billing/retention'
+import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
 import type { LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
@@ -48,6 +49,7 @@ const {
   safeCompleteWithPauseMock,
   hasCompletedMock,
   getPersistedCompletionStatusMock,
+  getDeletedScopeMock,
   clearExecutionCancellationMock,
   buildTraceSpansMock,
   serializeWorkflowMock,
@@ -69,6 +71,7 @@ const {
   safeCompleteWithPauseMock: vi.fn(),
   hasCompletedMock: vi.fn(),
   getPersistedCompletionStatusMock: vi.fn(),
+  getDeletedScopeMock: vi.fn(),
   clearExecutionCancellationMock: vi.fn(),
   buildTraceSpansMock: vi.fn(),
   serializeWorkflowMock: vi.fn(),
@@ -191,6 +194,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     safeCompleteWithPause: safeCompleteWithPauseMock,
     hasCompleted: hasCompletedMock,
     getPersistedCompletionStatus: getPersistedCompletionStatusMock,
+    getDeletedScope: getDeletedScopeMock,
     onBlockStart: onBlockStartPersistenceMock,
     onBlockComplete: vi.fn(),
     projectDisplayContent: projectDisplayContentMock,
@@ -283,6 +287,7 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     safeCompleteWithPauseMock.mockResolvedValue(undefined)
     hasCompletedMock.mockReturnValue(true)
     getPersistedCompletionStatusMock.mockReturnValue('pending')
+    getDeletedScopeMock.mockReturnValue(null)
     onBlockStartPersistenceMock.mockResolvedValue(undefined)
     projectDisplayContentMock.mockImplementation(async (content) => content)
     projectDiagnosticErrorMock.mockImplementation(
@@ -1532,6 +1537,70 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     await loggingSession.setPostExecutionPromise.mock.calls[0][0]
 
     expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
+  })
+
+  it('stops before running any block when the start finds the workspace deleted', async () => {
+    safeStartMock.mockResolvedValue(false)
+    getDeletedScopeMock.mockReturnValue('workspace')
+
+    const thrown = await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    }).catch((error: unknown) => error)
+    await loggingSession.setPostExecutionPromise.mock.calls[0]?.[0]
+
+    expect(thrown).toBeInstanceOf(ExecutionScopeDeletedError)
+    expect(executorConstructorMock).not.toHaveBeenCalled()
+    expect(executorExecuteMock).not.toHaveBeenCalled()
+    expect(safeCompleteWithErrorMock).not.toHaveBeenCalled()
+    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
+  })
+
+  it('still runs the workflow when its log start fails for any other reason', async () => {
+    safeStartMock.mockResolvedValue(false)
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    const result = await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0]?.[0]
+
+    expect(result.status).toBe('completed')
+    expect(executorExecuteMock).toHaveBeenCalledTimes(1)
+    expect(updateWorkflowRunCountsMock).toHaveBeenCalledWith('workflow-1')
+  })
+
+  it('skips the run count of a run whose workspace was deleted while it ran', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: {},
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+    safeCompleteMock.mockImplementation(async () => {
+      getDeletedScopeMock.mockReturnValue('workspace')
+    })
+    hasCompletedMock.mockReturnValue(false)
+
+    await executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+    await loggingSession.setPostExecutionPromise.mock.calls[0]?.[0]
+
+    expect(safeCompleteMock).toHaveBeenCalledTimes(1)
+    expect(updateWorkflowRunCountsMock).not.toHaveBeenCalled()
   })
 
   it('routes paused executions through safeCompleteWithPause', async () => {

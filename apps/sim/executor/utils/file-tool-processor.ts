@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { isCanonicalBase64 } from '@/lib/api/contracts/primitives'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isUserFile, type UserFileLike } from '@/lib/core/utils/user-file'
 import {
   createInternalToolFilesResult,
@@ -122,7 +122,9 @@ export class FileToolProcessor {
       } catch (error) {
         signal?.throwIfAborted()
         logger.error(`Error processing file output '${outputKey}':`, error)
-        throw new Error(`Failed to process file output '${outputKey}': ${toError(error).message}`)
+        throw new Error(
+          `Failed to process file output '${outputKey}': ${getUserFacingErrorMessage(error)}`
+        )
       }
     }
 
