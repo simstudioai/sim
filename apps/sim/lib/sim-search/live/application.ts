@@ -62,6 +62,7 @@ import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
 import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
+import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -729,14 +730,30 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         }
       }
     }
-    const ranked = [...fused.values()].sort(({ result: a }, { result: b }) => {
-      if (!dateSorted) return b.similarity - a.similarity
-      const left = Date.parse(a.sourceDate ?? '')
-      const right = Date.parse(b.sourceDate ?? '')
-      if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
-      if (!Number.isFinite(right)) return -1
-      return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
-    })
+    /**
+     * Similarity only ranks a result within its own account, so every account's first result would
+     * tie; a plain query's terms compare results across accounts, and similarity breaks their ties.
+     * Native queries carry provider operators and keep fusion order.
+     */
+    const relevanceOf =
+      dateSorted || queries || !input.query.trim() ? undefined : queryRelevance(input.query)
+    const ranked = [...fused.values()]
+      .map((entry) => ({
+        ...entry,
+        relevance: relevanceOf?.(entry.result.documentName ?? '', entry.result.content) ?? [
+          0, 0, 0,
+        ],
+      }))
+      .sort(({ relevance: x, result: a }, { relevance: y, result: b }) => {
+        if (!dateSorted) {
+          return y[0] - x[0] || y[1] - x[1] || y[2] - x[2] || b.similarity - a.similarity
+        }
+        const left = Date.parse(a.sourceDate ?? '')
+        const right = Date.parse(b.sourceDate ?? '')
+        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
+        if (!Number.isFinite(right)) return -1
+        return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
+      })
     /**
      * A query's cursor continues after its own page, so it would skip that query's results cut
      * from this merge, including a fused result it shares with another query. Those queries drop
