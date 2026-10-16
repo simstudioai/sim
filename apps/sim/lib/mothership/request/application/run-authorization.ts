@@ -63,7 +63,7 @@ export function requireRunDelegation(
 }
 
 /** Original admission is compared with the caller, never with the mutable chat owner. */
-export function requireOriginalRunScope(
+function requireOriginalRunScope(
   principal: ChatCallbackPrincipal,
   run: { workspaceId: string | null; organizationId: string | null }
 ) {
@@ -79,7 +79,7 @@ export function requireOriginalRunScope(
 }
 
 /** Current chat eligibility and target permissions do not select or replace the execution's payer. */
-export async function authorizeCurrentExecutionChat(
+async function authorizeCurrentExecutionChat(
   principal: Principal,
   chatId: string,
   capability: OperationDeclarableCapability | 'none',

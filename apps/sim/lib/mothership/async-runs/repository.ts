@@ -494,6 +494,7 @@ export async function insertRunSegment(tx: RunAdmissionTransaction, input: Creat
     .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
     .for('share')
   const inheritsOwner = input.workspaceId === undefined && input.organizationId === undefined
+  if (inheritsOwner && !chat) throw new Error('Run admission requires its actor-owned chat')
   const workspaceId = inheritsOwner ? chat?.workspaceId : input.workspaceId
   const organizationId = inheritsOwner ? chat?.organizationId : input.organizationId
   const stop = await readRunStop(tx, { ...input, workspaceId, organizationId })

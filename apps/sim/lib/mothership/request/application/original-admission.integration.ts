@@ -118,9 +118,11 @@ describe('Original execution admission', () => {
     const checkpoint = await executeSimControl(request)
     expect(checkpoint.status).toBe(200)
     expect(JSON.parse(checkpoint.body)).toEqual({ stopped: false })
+    const internalSecret = process.env.INTERNAL_API_SECRET
+    if (!internalSecret) throw new Error('Integration internal secret is required')
     const headers = {
       'content-type': 'application/json',
-      'x-api-key': process.env.INTERNAL_API_SECRET!,
+      'x-api-key': internalSecret,
       'x-mothership-user-id': userId,
       'x-mothership-chat-id': chatId,
       'x-mothership-execution-stream-id': streamId,

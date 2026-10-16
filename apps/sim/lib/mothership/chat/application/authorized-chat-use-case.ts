@@ -151,17 +151,15 @@ export function defineAuthorizedChatUseCase<
       return { kind: 'personal' as const, organizationId: null, principal, context }
     if (principal.kind === 'personal_chat_delegated') {
       const personal = principal as PersonalChatDelegatedPrincipal
+      const audience = definition.executionDelegationAudience
+      if (!audience) throw new OrchestrationError('forbidden', 'Missing chat delegation audience')
       if (
         context.workspaceId ||
         !('chatId' in context) ||
         context.chatId !== personal.resourceScope.chatId
       )
         throw new OrchestrationError('not_found', 'Chat not found')
-      requireRunDelegation(
-        principal,
-        definition.executionDelegationAudience!,
-        personal.resourceScope.chatId
-      )
+      requireRunDelegation(principal, audience, personal.resourceScope.chatId)
       return { kind: 'personal' as const, organizationId: null, principal, context }
     }
     if (principal.kind === 'organization_delegated')

@@ -32,6 +32,7 @@ describe('Copilot application delegation', () => {
       },
       { audience: 'sim:copilot-callback', ttlMs: 60_000 }
     )
+    if (principal.serviceId !== 'copilot') throw new Error('Expected Copilot subject delegation')
     const restored = parsePrincipal(serializePrincipal(principal))
     expect(restored).not.toHaveProperty('executionStreamId')
     expect(restored).toMatchObject({
