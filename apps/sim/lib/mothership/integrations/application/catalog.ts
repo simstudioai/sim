@@ -32,6 +32,7 @@ import type {
   IntegrationCatalogResponse,
 } from '@/lib/mothership/generated/integration-catalog'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import { requireAdmittedWorkspaceTarget } from '@/lib/mothership/request/application/run-authorization'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const INTEGRATION_CATALOG_AUDIENCE = 'sim:integration-catalog'
@@ -174,14 +175,33 @@ const catalogUseCase = defineAuthorizedChatUseCase({
   authorizationOptions: {
     delegation: { audience: INTEGRATION_CATALOG_AUDIENCE, isWithinScope: () => true },
   },
-  async execute({ input, context }) {
+  async execute({ input, context, executionPrincipal }) {
+    const admitted =
+      executionPrincipal &&
+      'executionStreamId' in executionPrincipal &&
+      executionPrincipal.executionStreamId
+        ? executionPrincipal
+        : undefined
+    const requestedWorkspaceId =
+      input.workspaceId ?? (admitted?.kind === 'delegated' ? admitted.workspaceId : undefined)
+    if (requestedWorkspaceId) await requireAdmittedWorkspaceTarget(admitted, requestedWorkspaceId)
+    else if (
+      admitted &&
+      ((admitted.kind === 'organization_delegated' &&
+        admitted.organizationId !== context.organizationId) ||
+        (admitted.kind === 'personal_chat_delegated' && context.organizationId))
+    )
+      throw new OrchestrationError(
+        'not_found',
+        'Integration catalog not found in the admitted execution'
+      )
     if (context.mode === 'assistant' && !(await isSearchIntegrationToolsEnabled()))
       return { total: 0, truncated: false, operations: [] }
     if (input.mcpExecution && context.organizationId)
       throw new OrchestrationError('forbidden', 'Executor catalogs require workspace agent scope')
     let workspaceId = context.workspaceId
-    if (!context.workspaceId && input.workspaceId) {
-      workspaceId = (await resolveInvocationWorkspace(context, input.workspaceId)).workspaceId
+    if (!context.workspaceId && requestedWorkspaceId) {
+      workspaceId = (await resolveInvocationWorkspace(context, requestedWorkspaceId)).workspaceId
     }
     const mcpOnly = input.toolId?.startsWith('mcp-') || input.service?.startsWith('mcp:')
     const tools = mcpOnly

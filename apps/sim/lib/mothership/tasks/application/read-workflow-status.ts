@@ -2,6 +2,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { requireAdmittedWorkspaceTarget } from '@/lib/mothership/request/application/run-authorization'
 import {
   TASK_DELEGATION_AUDIENCE,
   taskDelegationPolicy,
@@ -26,12 +27,13 @@ export const readWatchedWorkflowStatus = defineAuthorizedChatUseCase({
     input: { chatId: string; executionId: string; workspaceId?: string }
   }) => resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: { delegation: taskDelegationPolicy },
-  async execute({ input, context }) {
+  async execute({ input, context, executionPrincipal }) {
     if (context.workspaceId && input.workspaceId && context.workspaceId !== input.workspaceId)
       throw new OrchestrationError('not_found', 'Run not found')
     const target = !context.workspaceId
       ? await resolveInvocationWorkspace(context, input.workspaceId)
       : { workspaceId: context.workspaceId! }
+    await requireAdmittedWorkspaceTarget(executionPrincipal, target.workspaceId)
     const run = await resolveActiveWorkflowRunApplicationContext({
       runId: input.executionId,
       assertedWorkspaceId: target.workspaceId,

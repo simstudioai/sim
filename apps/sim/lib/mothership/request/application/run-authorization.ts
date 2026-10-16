@@ -184,3 +184,19 @@ export async function bindCurrentChatCallback(
     return { ...identity, kind: 'delegated', workspaceId: context.workspaceId }
   return { ...identity, kind: 'personal_chat_delegated' }
 }
+
+/** Current target access may narrow an admitted turn; it cannot give it a different scope. */
+export async function requireAdmittedWorkspaceTarget(
+  principal: Principal | undefined,
+  workspaceId: string
+) {
+  if (!principal || !('executionStreamId' in principal) || !principal.executionStreamId) return
+  const target = await resolveActiveWorkspaceApplicationContext(workspaceId)
+  if (
+    (principal.kind === 'delegated' && principal.workspaceId !== target.workspaceId) ||
+    (principal.kind === 'organization_delegated' &&
+      principal.organizationId !== target.workspaceOrganizationId) ||
+    (principal.kind === 'personal_chat_delegated' && target.workspaceOrganizationId !== null)
+  )
+    throw new OrchestrationError('not_found', 'Workspace not found in the admitted execution')
+}

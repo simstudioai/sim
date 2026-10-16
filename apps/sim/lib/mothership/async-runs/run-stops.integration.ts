@@ -10,17 +10,19 @@ import {
   workflow,
   workspace,
 } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createDeferred } from '@sim/testing'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
+import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   createRunSegment,
-  insertRunSegment,
   isRunStopRequested,
   requestRunStop,
   stopLiveRunsTx,
-  withRunAdmissionLock,
 } from '@/lib/mothership/async-runs/repository'
 
 /** Persisted cancellation survives a change of chat owner and also works before admission. */
@@ -188,28 +190,152 @@ describe('Actor and stream Stop intent', () => {
     ).toHaveLength(0)
   })
 
-  it('serializes a racing Stop with admission without losing intent', async () => {
+  it('orders Stop after admission has read intent but before its run insert commits', async () => {
     const chatId = generateId()
     const streamId = generateId()
+    const gate = `stop-race-${streamId}`
+    const trigger = `stop_race_${streamId.replaceAll('-', '')}`
+    const monitor = postgres(readTestDatabaseUrl(), { max: 2, prepare: false })
     await db.insert(copilotChats).values({ id: chatId, userId, type: 'mothership' })
-    await Promise.all([
-      requestRunStop({ userId, streamId, chatId }),
-      withRunAdmissionLock(userId, streamId, (tx) =>
-        insertRunSegment(tx, {
-          userId,
-          streamId,
-          chatId,
-          executionId: generateId(),
-          workspaceId: null,
-          organizationId: null,
-        })
-      ),
-    ])
-    const [run] = await db
-      .select({ closedAt: copilotRuns.toolAdmissionClosedAt })
-      .from(copilotRuns)
-      .where(and(eq(copilotRuns.userId, userId), eq(copilotRuns.streamId, streamId)))
-    expect(run.closedAt).not.toBeNull()
-    expect(await isRunStopRequested({ userId, streamId })).toBe(true)
+    // A disposable DB trigger pauses the actual INSERT after its earlier Stop lookup.
+    // No production hook or mocked repository supplies the ordering.
+    await db.execute(
+      sql.raw(
+        `CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.stream_id = '${streamId}' THEN PERFORM pg_advisory_xact_lock(hashtextextended('${gate}', 0)); END IF; RETURN NEW; END $$`
+      )
+    )
+    await db.execute(
+      sql.raw(
+        `CREATE TRIGGER ${trigger} BEFORE INSERT ON copilot_runs FOR EACH ROW EXECUTE FUNCTION ${trigger}()`
+      )
+    )
+    const released = createDeferred<void>()
+    const held = createDeferred<void>()
+    const holder = monitor.begin(async (tx) => {
+      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${gate}, 0))`
+      held.resolve()
+      await released.promise
+    })
+    let admission: Promise<unknown> | undefined
+    let stop: Promise<unknown> | undefined
+    try {
+      await held.promise
+      admission = createRunSegment({
+        userId,
+        streamId,
+        chatId,
+        executionId: generateId(),
+        workspaceId: null,
+        organizationId: null,
+      })
+      let inserting = false
+      for (let attempt = 0; attempt < 50 && !inserting; attempt++) {
+        const rows =
+          await monitor`SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND query ILIKE 'insert into "copilot_runs"%'`
+        inserting = rows.length > 0
+        if (!inserting) await sleep(20)
+      }
+      expect(inserting, 'actual run INSERT reached the held gate').toBe(true)
+      let stopFinished = false
+      stop = requestRunStop({ userId, streamId, chatId }).then((result) => {
+        stopFinished = true
+        return result
+      })
+      let waiting = false
+      for (let attempt = 0; attempt < 50 && !waiting && !stopFinished; attempt++) {
+        const rows =
+          await monitor`SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND query LIKE ${"%lock='copilot_run_admission'%"}`
+        waiting = rows.length > 0
+        if (!waiting && !stopFinished) await sleep(20)
+      }
+      // With serialization removed, Stop commits against no run while INSERT is gated.
+      // Release either way, then assert durable behavior rather than just a lock implementation.
+      released.resolve()
+      await holder
+      await Promise.all([admission, stop])
+      const [run] = await db
+        .select({ closedAt: copilotRuns.toolAdmissionClosedAt })
+        .from(copilotRuns)
+        .where(and(eq(copilotRuns.userId, userId), eq(copilotRuns.streamId, streamId)))
+      expect(run.closedAt, 'racing Stop must close the newly inserted run').not.toBeNull()
+      expect(await isRunStopRequested({ userId, streamId })).toBe(true)
+    } finally {
+      released.resolve()
+      await holder
+      await Promise.allSettled([admission, stop].filter(Boolean))
+      await db.execute(sql.raw(`DROP TRIGGER ${trigger} ON copilot_runs`))
+      await db.execute(sql.raw(`DROP FUNCTION ${trigger}()`))
+      await monitor.end()
+    }
   })
+
+  it.each(['workspace', 'organization'] as const)(
+    'rolls back unified intent and admission closure when the %s legacy write fails',
+    async (kind) => {
+      const sourceId = generateId()
+      const streamId = generateId()
+      const chatId = generateId()
+      const trigger = `stop_failure_${streamId.replaceAll('-', '')}`
+      const table =
+        kind === 'workspace' ? 'copilot_request_stops' : 'copilot_organization_request_stops'
+      const owner = kind === 'workspace' ? { workspaceId: sourceId } : { organizationId: sourceId }
+      if (kind === 'workspace') {
+        workspaceIds.push(sourceId)
+        await insertWorkspaceFixture(db, {
+          id: sourceId,
+          name: 'Stop rollback',
+          ownerId: userId,
+          billedAccountUserId: userId,
+        })
+      } else
+        await db
+          .insert(organization)
+          .values({ id: sourceId, name: 'Stop rollback', slug: sourceId })
+      await db.insert(copilotChats).values({ id: chatId, userId, type: 'mothership', ...owner })
+      const run = await createRunSegment({
+        userId,
+        chatId,
+        streamId,
+        executionId: generateId(),
+        ...owner,
+      })
+      await db.execute(
+        sql.raw(
+          `CREATE FUNCTION ${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.stream_id = '${streamId}' THEN RAISE EXCEPTION 'injected legacy Stop failure'; END IF; RETURN NEW; END $$`
+        )
+      )
+      await db.execute(
+        sql.raw(
+          `CREATE TRIGGER ${trigger} BEFORE INSERT ON ${table} FOR EACH ROW EXECUTE FUNCTION ${trigger}()`
+        )
+      )
+      try {
+        const error = await requestRunStop({ userId, streamId, chatId, ...owner }).catch(
+          (error) => error
+        )
+        expect(error?.cause?.message ?? error?.message).toContain('injected legacy Stop failure')
+        expect(await isRunStopRequested({ userId, streamId, ...owner })).toBe(false)
+        const [unchanged] = await db
+          .select({ closedAt: copilotRuns.toolAdmissionClosedAt })
+          .from(copilotRuns)
+          .where(eq(copilotRuns.id, run.id))
+        expect(unchanged.closedAt).toBeNull()
+      } finally {
+        await db.execute(sql.raw(`DROP TRIGGER ${trigger} ON ${table}`))
+        await db.execute(sql.raw(`DROP FUNCTION ${trigger}()`))
+      }
+      await requestRunStop({ userId, streamId, chatId, ...owner })
+      expect(await isRunStopRequested({ userId, streamId, ...owner })).toBe(true)
+      const legacy = kind === 'workspace' ? copilotRequestStops : copilotOrganizationRequestStops
+      expect(
+        await db
+          .select({ streamId: legacy.streamId })
+          .from(legacy)
+          .where(and(eq(legacy.userId, userId), eq(legacy.streamId, streamId)))
+      ).toHaveLength(1)
+      await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+      if (kind === 'organization')
+        await db.delete(organization).where(eq(organization.id, sourceId))
+    }
+  )
 })

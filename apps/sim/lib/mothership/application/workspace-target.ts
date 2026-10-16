@@ -13,6 +13,9 @@ import {
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface InvocationOwner {
+  /** Server-owned execution correlation, never read from model CLI arguments. */
+  messageId?: string
+  copilotToolExecution?: boolean
   userId: string
   workspaceId?: string
   organizationId?: string
@@ -56,7 +59,10 @@ export async function resolveInvocationWorkspace(owner: InvocationOwner, request
             WORKSPACE_TARGET_AUDIENCE
           )
     return authorizeChatWorkspaceTarget.execute({
-      principal,
+      principal:
+        owner.copilotToolExecution && owner.messageId
+          ? { ...principal, executionStreamId: owner.messageId }
+          : principal,
       input: { chatId: owner.chatId, workspaceId },
     })
   }

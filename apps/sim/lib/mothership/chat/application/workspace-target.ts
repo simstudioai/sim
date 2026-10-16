@@ -6,6 +6,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { requireAdmittedWorkspaceTarget } from '@/lib/mothership/request/application/run-authorization'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const WORKSPACE_TARGET_AUDIENCE = 'sim:workspaces'
@@ -46,7 +47,8 @@ export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
       isWithinScope: (principal, context) => principal.resourceScope?.chatId === context.chatId,
     },
   },
-  async execute({ context, input }) {
+  async execute({ context, input, executionPrincipal }) {
+    await requireAdmittedWorkspaceTarget(executionPrincipal, input.workspaceId)
     if (context.organizationId && context.mode !== 'agent' && context.mode !== 'plan')
       throw new OrchestrationError('forbidden', 'Workspace actions require organization agent mode')
     const target = await resolveActiveWorkspaceApplicationContext(input.workspaceId)

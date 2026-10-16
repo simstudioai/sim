@@ -15,6 +15,7 @@ import {
   authorizeChatWorkspaceTarget,
   WORKSPACE_TARGET_AUDIENCE,
 } from '@/lib/mothership/chat/application/workspace-target'
+import { requireAdmittedWorkspaceTarget } from '@/lib/mothership/request/application/run-authorization'
 import {
   CAPABILITY_RULES,
   type StaticPermissionGroupCapability,
@@ -65,7 +66,8 @@ export const readWorkspaceContext = defineAuthorizedChatUseCase({
       isWithinScope: (principal, context) => principal.resourceScope?.chatId === context.chatId,
     },
   },
-  async execute({ principal, input, context }) {
+  async execute({ principal, executionPrincipal, input, context }) {
+    await requireAdmittedWorkspaceTarget(executionPrincipal, input.workspaceId)
     if (
       principal.kind === 'personal_chat_delegated' &&
       !context.organizationId &&

@@ -53,6 +53,8 @@ interface ChatExecution<
   Personal extends boolean,
 > {
   principal: ChatPrincipal<O, Personal>
+  /** Authenticated original admission, before current chat authorization is rebound. */
+  executionPrincipal?: Principal
   input: I
   context: C
   request?: OrchestrationRequestContext
@@ -80,17 +82,28 @@ export function defineAuthorizedChatUseCase<
     throw new Error('Chat owner policies must declare the same semantic operation')
   }
   type WorkspaceContext = C & WorkspaceAuthorizationContext
-  type WorkspaceInput = { originalInput: I; context: WorkspaceContext }
+  type WorkspaceInput = {
+    originalInput: I
+    context: WorkspaceContext
+    executionPrincipal?: Principal
+  }
   const workspaceUseCase = defineAuthorizedWorkspaceUseCase<O, WorkspaceInput, WorkspaceContext, R>(
     {
       operation: definition.operation,
       resolveContext: ({ input }) => input.context,
       authorizationOptions: definition.authorizationOptions,
       execute: ({ principal, input, context, request }) =>
-        definition.execute({ principal, input: input.originalInput, context, request }),
+        definition.execute({
+          principal,
+          executionPrincipal: input.executionPrincipal,
+          input: input.originalInput,
+          context,
+          request,
+        }),
       afterSuccess: ({ principal, input, context, request, result }) =>
         definition.afterSuccess?.({
           principal,
+          executionPrincipal: input.executionPrincipal,
           input: input.originalInput,
           context,
           request,
@@ -127,6 +140,7 @@ export function defineAuthorizedChatUseCase<
     if (!context.workspaceId) throw new OrchestrationError('not_found', 'Chat not found')
   }
   async function resolve(principal: Principal, input: I) {
+    const executionPrincipal = definition.executionDelegationAudience ? principal : undefined
     if (definition.executionDelegationAudience)
       principal = await bindCurrentChatCallback(
         principal,
@@ -142,13 +156,20 @@ export function defineAuthorizedChatUseCase<
       requireDelegatedChatScope(principal, context)
       return {
         kind: 'organization' as const,
+        executionPrincipal,
         organizationId: context.organizationId,
         principal,
         context,
       }
     }
     if (definition.personal && principal.kind === 'session' && !context.workspaceId)
-      return { kind: 'personal' as const, organizationId: null, principal, context }
+      return {
+        kind: 'personal' as const,
+        organizationId: null,
+        principal,
+        executionPrincipal,
+        context,
+      }
     if (principal.kind === 'personal_chat_delegated') {
       const personal = principal as PersonalChatDelegatedPrincipal
       const audience = definition.executionDelegationAudience
@@ -160,12 +181,18 @@ export function defineAuthorizedChatUseCase<
       )
         throw new OrchestrationError('not_found', 'Chat not found')
       requireRunDelegation(principal, audience, personal.resourceScope.chatId)
-      return { kind: 'personal' as const, organizationId: null, principal, context }
+      return {
+        kind: 'personal' as const,
+        organizationId: null,
+        principal,
+        executionPrincipal,
+        context,
+      }
     }
     if (principal.kind === 'organization_delegated')
       throw new OrchestrationError('not_found', 'Chat not found')
     requireWorkspace(context)
-    return { kind: 'workspace' as const, principal, context }
+    return { kind: 'workspace' as const, principal, executionPrincipal, context }
   }
   return {
     operation: definition.operation,
@@ -174,7 +201,11 @@ export function defineAuthorizedChatUseCase<
       if (resolved.kind === 'workspace')
         await workspaceUseCase.authorize({
           principal: resolved.principal,
-          input: { originalInput: input, context: resolved.context },
+          input: {
+            originalInput: input,
+            context: resolved.context,
+            executionPrincipal: resolved.executionPrincipal,
+          },
           request,
         })
     },
@@ -183,10 +214,20 @@ export function defineAuthorizedChatUseCase<
       if (resolved.kind === 'workspace')
         return workspaceUseCase.execute({
           principal: resolved.principal,
-          input: { originalInput: input, context: resolved.context },
+          input: {
+            originalInput: input,
+            context: resolved.context,
+            executionPrincipal: resolved.executionPrincipal,
+          },
           request,
         })
-      const execution = { principal: resolved.principal, input, context: resolved.context, request }
+      const execution = {
+        principal: resolved.principal,
+        executionPrincipal: resolved.executionPrincipal,
+        input,
+        context: resolved.context,
+        request,
+      }
       return runWithOutboundOrganization(resolved.organizationId, () =>
         runDeclaredContentOperation(
           definition.operation,

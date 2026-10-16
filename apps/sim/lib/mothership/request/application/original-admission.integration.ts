@@ -1,12 +1,32 @@
 import { db } from '@sim/db'
-import { copilotChats, member, organization, permissions, user, workspace } from '@sim/db/schema'
+import {
+  copilotChats,
+  member,
+  organization,
+  permissionGroup,
+  permissionGroupWorkspace,
+  permissions,
+  user,
+  workflow,
+  workflowExecutionLogs,
+  workflowExecutionSnapshots,
+  workspace,
+} from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { executeAgentCliRequest } from '@/lib/mothership/agent-cli'
 import { createRunSegment } from '@/lib/mothership/async-runs/repository'
-import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
+import {
+  createCopilotChatPrincipal,
+  createTrustedOrganizationCopilotPrincipal,
+} from '@/lib/mothership/auth/application-delegation'
+import {
+  authorizeChatWorkspaceTarget,
+  WORKSPACE_TARGET_AUDIENCE,
+} from '@/lib/mothership/chat/application/workspace-target'
 import {
   RUN_CONTROL_AUDIENCE,
   readRunControl,
@@ -148,7 +168,258 @@ describe('Original execution admission', () => {
     expect((await executeSimControl({ ...request, expiresAt: 0 })).status).toBe(410)
   })
 
-  it('does not turn original admission into an organization target grant for a now-personal chat', async () => {
+  it('keeps an old workspace admission bounded after synthetic organization conversion', async () => {
+    const ownerId = generateId()
+    const x = generateId()
+    const y = generateId()
+    const chatId = generateId()
+    const streamId = generateId()
+    const now = new Date()
+    await db.insert(user).values({
+      id: ownerId,
+      name: 'Target owner',
+      email: `${ownerId}@admission.test`,
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await db.delete(member).where(eq(member.userId, userId))
+    await db
+      .insert(member)
+      .values({ id: generateId(), userId, organizationId: currentOrg, role: 'member' })
+    for (const id of [x, y]) {
+      await insertWorkspaceFixture(db, {
+        id,
+        name: id === x ? 'Original target' : 'Other target',
+        ownerId,
+        billedAccountUserId: ownerId,
+        organizationId: currentOrg,
+      })
+      await db.insert(permissions).values({
+        id: generateId(),
+        userId,
+        entityType: 'workspace',
+        entityId: id,
+        permissionType: 'admin',
+      })
+    }
+    await db.insert(copilotChats).values({
+      id: chatId,
+      userId,
+      workspaceId: x,
+      type: 'mothership',
+      config: { conversationMode: 'agent' },
+    })
+    await createRunSegment({ userId, chatId, streamId, workspaceId: x, executionId: generateId() })
+    // Synthetic storage transition: public canonical activation is a later slice.
+    await db
+      .update(copilotChats)
+      .set({ workspaceId: null, organizationId: currentOrg })
+      .where(eq(copilotChats.id, chatId))
+    const request = (workspaceId: string, originalStream = streamId, canonical = false) =>
+      executeSimControl({
+        id: generateId(),
+        scope: {
+          userId,
+          chatId,
+          ...(canonical ? { organizationId: currentOrg } : { workspaceId: x }),
+        },
+        executionStreamId: originalStream,
+        operation: { kind: 'workspace_context', input: { workspaceId } },
+        expiresAt: Date.now() + 60_000,
+      })
+    try {
+      const original = await request(x)
+      expect(original.status).toBe(200)
+      expect(JSON.parse(original.body).workspaces.map((w: { id: string }) => w.id)).toEqual([x])
+      const outside = await request(y)
+      expect(outside.status, 'old workspace admission must not discover Y').toBe(404)
+      expect(JSON.parse(outside.body).error).toBe('Workspace not found in the admitted execution')
+      const freshStream = generateId()
+      await createRunSegment({
+        userId,
+        chatId,
+        streamId: freshStream,
+        organizationId: currentOrg,
+        executionId: generateId(),
+      })
+      const fresh = await request(y, freshStream, true)
+      expect(fresh.status).toBe(200)
+      expect(JSON.parse(fresh.body).workspaces.map((w: { id: string }) => w.id)).toEqual([y])
+      const originalPrincipal = {
+        ...createCopilotChatPrincipal(
+          { userId, chatId, workspaceId: x },
+          WORKSPACE_TARGET_AUDIENCE
+        ),
+        executionStreamId: streamId,
+      }
+      expect(
+        (
+          await authorizeChatWorkspaceTarget.execute({
+            principal: originalPrincipal,
+            input: { chatId, workspaceId: x },
+          })
+        ).workspaceId
+      ).toBe(x)
+      await expect(
+        authorizeChatWorkspaceTarget.execute({
+          principal: originalPrincipal,
+          input: { chatId, workspaceId: y },
+        })
+      ).rejects.toThrow('Workspace not found in the admitted execution')
+      const cli = await executeAgentCliRequest(
+        { invocation: { kind: 'cli', argv: ['workspaces', 'get'] } },
+        { userId, chatId, workspaceId: x, messageId: streamId, copilotToolExecution: true }
+      )
+      expect(cli.exitCode, 'same admitted CLI read of X survives owner representation change').toBe(
+        0
+      )
+      expect(JSON.parse(cli.stdout).id).toBe(x)
+      await expect(
+        executeAgentCliRequest(
+          { workspaceId: y, invocation: { kind: 'cli', argv: ['workspaces', 'get'] } },
+          { userId, chatId, workspaceId: x, messageId: streamId, copilotToolExecution: true }
+        )
+      ).rejects.toThrow('Workspace not found in this conversation')
+      await expect(
+        executeAgentCliRequest(
+          { invocation: { kind: 'cli', argv: ['workspaces', 'get'] } },
+          { userId, chatId, workspaceId: x, messageId: freshStream, copilotToolExecution: true }
+        )
+      ).rejects.toThrow('Run delegation is no longer valid')
+      await expect(
+        executeAgentCliRequest(
+          { invocation: { kind: 'cli', argv: ['workspaces', 'get'] } },
+          { userId, chatId, workspaceId: x, messageId: generateId(), copilotToolExecution: true }
+        )
+      ).rejects.toThrow('Stream not found')
+      const scope = { userId, chatId, workspaceId: x }
+      const canonicalScope = { userId, chatId, organizationId: currentOrg }
+      const catalog = (workspaceId?: string, canonical = false) =>
+        executeSimControl({
+          id: generateId(),
+          scope: canonical ? canonicalScope : scope,
+          executionStreamId: canonical ? freshStream : streamId,
+          operation: {
+            kind: 'integration_catalog',
+            input: {
+              mode: 'agent',
+              mcpServerIds: [],
+              limit: 1,
+              ...(workspaceId ? { workspaceId } : {}),
+            },
+          },
+          expiresAt: Date.now() + 60_000,
+        })
+      const groupId = generateId()
+      await db.insert(permissionGroup).values({
+        id: groupId,
+        organizationId: currentOrg,
+        createdBy: ownerId,
+        name: groupId,
+        config: { allowedIntegrations: [] },
+        membershipMode: 'inherit',
+      })
+      await db.insert(permissionGroupWorkspace).values({
+        id: generateId(),
+        permissionGroupId: groupId,
+        workspaceId: x,
+        organizationId: currentOrg,
+      })
+      try {
+        const implicit = await catalog()
+        expect(implicit.status).toBe(200)
+        expect(
+          JSON.parse(implicit.body).total,
+          'implicit catalog retains original X restrictions'
+        ).toBe(0)
+        const otherCatalog = await catalog(y)
+        expect(otherCatalog.status, 'explicit catalog cannot widen to Y').toBe(404)
+        const freshCatalog = await catalog(y, true)
+        expect(freshCatalog.status).toBe(200)
+        expect(JSON.parse(freshCatalog.body).total).toBeGreaterThan(0)
+      } finally {
+        await db.delete(permissionGroup).where(eq(permissionGroup.id, groupId))
+      }
+      const workflowId = generateId()
+      const snapshotId = generateId()
+      const executionId = generateId()
+      await db.insert(workflow).values({
+        id: workflowId,
+        workspaceId: y,
+        userId: ownerId,
+        name: 'Scoped execution',
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await db
+        .insert(workflowExecutionSnapshots)
+        .values({ id: snapshotId, workflowId, stateHash: snapshotId, stateData: {} })
+      await db.insert(workflowExecutionLogs).values({
+        id: generateId(),
+        workflowId,
+        workspaceId: y,
+        executionId,
+        stateSnapshotId: snapshotId,
+        level: 'info',
+        status: 'completed',
+        trigger: 'manual',
+        startedAt: now,
+        endedAt: now,
+      })
+      try {
+        const status = (canonical: boolean) =>
+          executeSimControl({
+            id: generateId(),
+            scope: canonical ? canonicalScope : scope,
+            executionStreamId: canonical ? freshStream : streamId,
+            operation: { kind: 'workflow_status', input: { chatId, workspaceId: y, executionId } },
+            expiresAt: Date.now() + 60_000,
+          })
+        const freshStatus = await status(true)
+        expect(freshStatus.status).toBe(200)
+        expect(JSON.parse(freshStatus.body).status).toBe('completed')
+        const originalStatus = await status(false)
+        expect(originalStatus.status, 'old run cannot observe workflow status in Y').toBe(404)
+        expect(JSON.parse(originalStatus.body).error).toBe(
+          'Workspace not found in the admitted execution'
+        )
+      } finally {
+        await db
+          .delete(workflowExecutionLogs)
+          .where(eq(workflowExecutionLogs.executionId, executionId))
+        await db
+          .delete(workflowExecutionSnapshots)
+          .where(eq(workflowExecutionSnapshots.id, snapshotId))
+        await db.delete(workflow).where(eq(workflow.id, workflowId))
+      }
+      await db
+        .delete(permissions)
+        .where(and(eq(permissions.userId, userId), eq(permissions.entityId, x)))
+      expect((await request(x)).status, 'revoked original workspace must be denied').toBe(403)
+      await db.insert(permissions).values({
+        id: generateId(),
+        userId,
+        entityType: 'workspace',
+        entityId: x,
+        permissionType: 'admin',
+      })
+      expect((await request(x)).status).toBe(200)
+      await db.update(workspace).set({ archivedAt: now }).where(eq(workspace.id, x))
+      expect((await request(x)).status, 'archived source must be denied').toBe(404)
+      await db.update(workspace).set({ archivedAt: null }).where(eq(workspace.id, x))
+      expect((await request(x)).status).toBe(200)
+      await deleteWorkspaceFixture(db, eq(workspace.id, x))
+      expect((await request(x)).status, 'deleted source must be denied').toBe(404)
+    } finally {
+      await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
+      for (const id of [x, y]) await deleteWorkspaceFixture(db, eq(workspace.id, id))
+      await db.delete(user).where(eq(user.id, ownerId))
+    }
+  })
+
+  it('does not broaden an old organization admission into personal targets', async () => {
     const run = await admitted()
     await db
       .update(copilotChats)
@@ -157,7 +428,7 @@ describe('Original execution admission', () => {
     const workspaceId = generateId()
     await insertWorkspaceFixture(db, {
       id: workspaceId,
-      name: 'Callback target',
+      name: 'Personal target',
       ownerId: userId,
       billedAccountUserId: userId,
     })
@@ -168,37 +439,30 @@ describe('Original execution admission', () => {
       entityId: workspaceId,
       permissionType: 'admin',
     })
-    const request = {
-      id: generateId(),
-      scope: { userId, chatId: run.chatId, organizationId: originalOrg },
-      executionStreamId: run.streamId,
-      operation: { kind: 'workspace_context' as const, input: { workspaceId } },
-      expiresAt: Date.now() + 60_000,
-    }
     try {
-      const personal = await executeSimControl(request)
-      expect(personal.status).toBe(200)
-      expect(JSON.parse(personal.body).workspaces[0].id).toBe(workspaceId)
-      const orgWorkspaceId = generateId()
-      await insertWorkspaceFixture(db, {
-        id: orgWorkspaceId,
-        name: 'Org callback target',
-        ownerId: userId,
-        billedAccountUserId: userId,
-        organizationId: originalOrg,
+      const result = await executeSimControl({
+        id: generateId(),
+        scope: { userId, chatId: run.chatId, organizationId: originalOrg },
+        executionStreamId: run.streamId,
+        operation: { kind: 'workspace_context', input: { workspaceId } },
+        expiresAt: Date.now() + 60_000,
       })
-      try {
-        expect(
-          (
-            await executeSimControl({
-              ...request,
-              operation: { kind: 'workspace_context', input: { workspaceId: orgWorkspaceId } },
-            })
-          ).status
-        ).toBe(404)
-      } finally {
-        await deleteWorkspaceFixture(db, eq(workspace.id, orgWorkspaceId))
-      }
+      const catalog = await executeSimControl({
+        id: generateId(),
+        scope: { userId, chatId: run.chatId, organizationId: originalOrg },
+        executionStreamId: run.streamId,
+        operation: {
+          kind: 'integration_catalog',
+          input: { mode: 'agent', mcpServerIds: [], limit: 1 },
+        },
+        expiresAt: Date.now() + 60_000,
+      })
+      expect(catalog.status, 'implicit catalog cannot become personal').toBe(404)
+      expect(JSON.parse(catalog.body).error).toBe(
+        'Integration catalog not found in the admitted execution'
+      )
+      expect(result.status).toBe(404)
+      expect(JSON.parse(result.body).error).toBe('Workspace not found in the admitted execution')
     } finally {
       await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     }
