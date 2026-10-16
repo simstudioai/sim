@@ -272,7 +272,7 @@ export const DELETE = withRouteHandler(
         memberId,
         skipBillingLogic,
       })
-      deliverRunStops(result.stoppedRuns ?? [])
+      deliverRunStops(result.stoppedRuns)
 
       if (!result.success) {
         if (result.error === 'Cannot remove organization owner') {

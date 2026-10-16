@@ -110,7 +110,16 @@ export type ChangeMemberRoleResult =
  */
 export async function changeMemberRoleTx(
   tx: DbTransaction,
-  params: { organizationId: string; userId: string; role: OrganizationMemberRole }
+  params: {
+    organizationId: string
+    userId: string
+    role: OrganizationMemberRole
+    /**
+     * Leaves the member's runs to a caller that changes more access in this transaction and
+     * stops runs once that access is final; `stoppedRuns` is then empty.
+     */
+    deferRunStops?: boolean
+  }
 ): Promise<ChangeMemberRoleResult> {
   await acquireOrganizationUserMutationLocks(tx, {
     userId: params.userId,
@@ -132,7 +141,7 @@ export async function changeMemberRoleTx(
   await tx.update(member).set({ role: params.role }).where(eq(member.id, current.id))
   /** An organization admin holds derived access to every organization workspace; a demotion ends it. */
   const stoppedRuns =
-    isOrgAdminRole(current.role) && !isOrgAdminRole(params.role)
+    !params.deferRunStops && isOrgAdminRole(current.role) && !isOrgAdminRole(params.role)
       ? await stopRunsWithoutWorkspaceAccessTx(
           tx,
           params.userId,

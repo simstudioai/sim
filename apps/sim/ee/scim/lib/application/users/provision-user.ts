@@ -215,6 +215,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           connectionId: context.connection.id,
           externalId: attributes.externalId,
         })
+        /** The new directory record has no provenance to withdraw, so this stops no runs. */
         await reconcileUserProjection(tx, {
           connectionId: context.connection.id,
           organizationId: context.organizationId,

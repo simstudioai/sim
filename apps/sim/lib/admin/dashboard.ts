@@ -1782,7 +1782,7 @@ export async function removeDashboardOrganizationMember(
     organizationId,
     memberId,
   })
-  deliverRunStops(result.stoppedRuns ?? [])
+  deliverRunStops(result.stoppedRuns)
   if (!result.success) throw new Error(result.error ?? 'Failed to remove member')
   try {
     await reconcileOrganizationSeats({
