@@ -233,6 +233,12 @@ export interface CompetitorProfile {
    */
   betterThanAnswer?: Prose
   /**
+   * Hand-written FAQs answering this competitor's tracked buyer prompts, shown
+   * ahead of the generated FAQ set. Answer-first, and every answer names both
+   * products so it can be quoted on its own.
+   */
+  faqs?: Array<{ question: string; answer: string }>
+  /**
    * One-sentence lead-in per comparison-table section, stating what that
    * section covers so the section is quotable without the rest of the page.
    */
