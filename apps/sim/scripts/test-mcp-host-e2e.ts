@@ -169,17 +169,19 @@ try {
     })
   }
 
-  await check('an unknown page answers a Markdown POST in Markdown, not 405', async () => {
-    const { response } = await request(
-      '/not-a-real-page',
-      'python-requests/2.32.3',
-      baseUrl.host,
-      'POST',
-      MARKDOWN_ACCEPT
-    )
-    assert.equal(response.status, 404)
-    assert.equal(response.headers.get('content-type'), 'text/markdown; charset=utf-8')
-  })
+  for (const method of ['POST', 'OPTIONS']) {
+    await check(`an unknown page answers a Markdown ${method} in Markdown`, async () => {
+      const { response } = await request(
+        '/not-a-real-page',
+        'python-requests/2.32.3',
+        baseUrl.host,
+        method,
+        MARKDOWN_ACCEPT
+      )
+      assert.equal(response.status, 404)
+      assert.equal(response.headers.get('content-type'), 'text/markdown; charset=utf-8')
+    })
+  }
 
   await check('a client that refuses Markdown with q=0 gets the HTML 404', async () => {
     const { response } = await request(
