@@ -1,3 +1,7 @@
+import {
+  type ExecutionScope,
+  ExecutionScopeDeletedError,
+} from '@/lib/core/errors/execution-scope-deleted'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { wasExecutionFinalizedByCore } from '@/lib/workflows/executor/execution-core'
 
@@ -16,4 +20,20 @@ export async function isRecordedWorkflowFailure(
 ): Promise<boolean> {
   await loggingSession.waitForPostExecution()
   return wasExecutionFinalizedByCore(error, executionId)
+}
+
+/**
+ * The run's workspace or workflow that was hard-deleted, or `null`. Core throws
+ * {@link ExecutionScopeDeletedError} when the scope is gone at start; a scope
+ * deleted mid-run surfaces only on the session once core's post-execution
+ * finalization fails to write the log, so this settles that promise first.
+ * Such a run has no owner left to alert and no log it could ever record.
+ */
+export async function resolveDeletedExecutionScope(
+  error: unknown,
+  loggingSession: Pick<LoggingSession, 'waitForPostExecution' | 'getDeletedScope'>
+): Promise<ExecutionScope | null> {
+  if (error instanceof ExecutionScopeDeletedError) return error.scope
+  await loggingSession.waitForPostExecution()
+  return loggingSession.getDeletedScope()
 }
