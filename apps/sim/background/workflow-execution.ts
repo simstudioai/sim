@@ -130,24 +130,6 @@ function completeWithRecordedFailure(workflowId: string, executionId: string, er
   return buildRecordedJobFailureResult({ workflowId, executionId, error: failure.message })
 }
 
-/**
- * Completes, without alerting, a job whose workspace or workflow was deleted: no owner is left to
- * act on an alert and no log is left to record the failure in.
- */
-function completeWithDeletedScope(
-  requestId: string,
-  workflowId: string,
-  executionId: string,
-  scope: ExecutionScope,
-  error: unknown
-) {
-  logger.info(`[${requestId}] Workflow execution ended: its ${scope} was deleted`, {
-    workflowId,
-    executionId,
-  })
-  return completeWithRecordedFailure(workflowId, executionId, error)
-}
-
 function requireLegacyWorkflowJobString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) {
     throw new Error(`Legacy workflow job ${field} must be a non-empty string`)
@@ -358,11 +340,17 @@ export async function executeWorkflowJob(
           executionId,
         })
 
+        const completeWithDeletedScope = (scope: ExecutionScope) => {
+          logger.info(`[${requestId}] Workflow execution ended: its ${scope} was deleted`, {
+            workflowId,
+            executionId,
+          })
+          return completeWithRecordedFailure(workflowId, executionId, error)
+        }
+
         // Checked before the timeout: a deleted scope leaves nobody to alert about a slow run.
         const deletedScope = await resolveDeletedExecutionScope(error, loggingSession)
-        if (deletedScope) {
-          return completeWithDeletedScope(requestId, workflowId, executionId, deletedScope, error)
-        }
+        if (deletedScope) return completeWithDeletedScope(deletedScope)
 
         if (error instanceof ExecutionTimeoutError) throw error
 
@@ -388,15 +376,7 @@ export async function executeWorkflowJob(
         })
 
         const scopeDeletedOnCompletion = loggingSession.getDeletedScope()
-        if (scopeDeletedOnCompletion) {
-          return completeWithDeletedScope(
-            requestId,
-            workflowId,
-            executionId,
-            scopeDeletedOnCompletion,
-            error
-          )
-        }
+        if (scopeDeletedOnCompletion) return completeWithDeletedScope(scopeDeletedOnCompletion)
 
         // Complete only when the rejection is durably logged; an unsaved one must still alert.
         if (

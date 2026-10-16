@@ -1289,18 +1289,16 @@ async function executeWebhookJobInternal(
       executedAt: new Date().toISOString(),
       provider: payload.provider,
     })
-    /** A run whose workspace or workflow was deleted has no owner left to alert and no log to write. */
-    const logDeletedScope = (scope: ExecutionScope) =>
+    const completeWithDeletedScope = (scope: ExecutionScope) => {
       logger.info(`[${requestId}] Webhook execution ended: its ${scope} was deleted`, {
         workflowId: payload.workflowId,
         executionId,
       })
-
-    const deletedScope = await resolveDeletedExecutionScope(error, loggingSession)
-    if (deletedScope) {
-      logDeletedScope(deletedScope)
       return failedRunResult()
     }
+
+    const deletedScope = await resolveDeletedExecutionScope(error, loggingSession)
+    if (deletedScope) return completeWithDeletedScope(deletedScope)
 
     // A failure inside workflow execution (block error, provider 4xx, missing required field, etc.)
     // is finalized by core and already recorded in the execution logs. That is a user/workflow error,
@@ -1351,10 +1349,7 @@ async function executeWebhookJobInternal(
     }
 
     const scopeDeletedOnCompletion = loggingSession.getDeletedScope()
-    if (scopeDeletedOnCompletion) {
-      logDeletedScope(scopeDeletedOnCompletion)
-      return failedRunResult()
-    }
+    if (scopeDeletedOnCompletion) return completeWithDeletedScope(scopeDeletedOnCompletion)
 
     if (retryableSetupCause) {
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })
