@@ -923,7 +923,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       source,
       'docx',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      Buffer.from([0, 0xff, 0, 0xfe, 0, 0xfd]),
+      Buffer.concat([Buffer.from('PK\x03\x04'), Buffer.alloc(64), Buffer.from([0xff, 0xfe])]),
       fileDocumentCacheIdentity(source, await requireDocxFormat(), 'text/plain')
     )
     const input = { projectId: f.projectId, fileId: generated.file.id, maxBytes: 1_000_000 }
