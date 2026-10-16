@@ -1260,8 +1260,12 @@ describe('LoggingSession deleted run scope', () => {
     expect(startWorkflowExecutionMock).toHaveBeenCalledTimes(2)
     expect(session.getDeletedScope()).toBe('workspace')
     expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d6')
-    const errorMessages = vi.mocked(sessionLogger?.error).mock.calls.map(([message]) => message)
-    expect(errorMessages.some((message) => String(message).includes('Minimal logging'))).toBe(false)
+    const errorMessages = vi
+      .mocked(sessionLogger?.error)
+      .mock.calls.map(([message]: unknown[]) => message)
+    expect(
+      errorMessages.some((message: unknown) => String(message).includes('Minimal logging'))
+    ).toBe(false)
   })
 
   it('ends quietly when the cost-only fallback is what finds the workspace deleted', async () => {
@@ -1275,8 +1279,12 @@ describe('LoggingSession deleted run scope', () => {
     expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
     expect(session.getDeletedScope()).toBe('workspace')
     expect(releaseExecutionSlotMock).toHaveBeenCalledWith('execution-d7')
-    const errorMessages = vi.mocked(sessionLogger?.error).mock.calls.map(([message]) => message)
-    expect(errorMessages.some((message) => String(message).includes('Cost-only'))).toBe(false)
+    const errorMessages = vi
+      .mocked(sessionLogger?.error)
+      .mock.calls.map(([message]: unknown[]) => message)
+    expect(errorMessages.some((message: unknown) => String(message).includes('Cost-only'))).toBe(
+      false
+    )
   })
 
   it('falls back to a minimal start when a foreign key fails but the scope still exists', async () => {
