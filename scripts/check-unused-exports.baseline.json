@@ -4367,7 +4367,6 @@
   "apps/sim/lib/execution/payloads/large-array-manifest.ts#LargeArrayManifestChunk",
   "apps/sim/lib/execution/payloads/sandbox-file-mount-ref.ts#SANDBOX_FILE_MOUNT_REF_MARKER",
   "apps/sim/lib/execution/payloads/sandbox-file-mount-ref.ts#SANDBOX_FILE_MOUNT_REF_VERSION",
-  "apps/sim/lib/execution/preprocessing.ts#PreprocessExecutionError",
   "apps/sim/lib/execution/preprocessing.ts#PreprocessExecutionFailure",
   "apps/sim/lib/execution/remote-sandbox/build-errors.ts#BUILD_LOG_TAIL_CHARS",
   "apps/sim/lib/execution/remote-sandbox/build-errors.ts#SandboxBuildErrorCode",
