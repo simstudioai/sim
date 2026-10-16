@@ -30,7 +30,7 @@ import {
   requireProjectFileOwnerCapabilities,
   requireProjectFileOwnerRole,
 } from '@/lib/projects/files/application/authorization'
-import { isProjectsEnabled, requireProjectApiEnabled } from '@/lib/projects/rollout.server'
+import { isProjectsEnabled, ProjectUnavailableError } from '@/lib/projects/rollout.server'
 import { requireCurrentFileSubject } from '@/lib/workspace-files/application/subject'
 
 export const MEMORY_NOTES_ACCESS_AUDIENCE = 'sim:memory-access'
@@ -177,8 +177,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
     },
   },
   async execute({ principal, context, input }): Promise<MemoryNotesAccessResult> {
-    if (input.target.scope === 'project') await requireProjectApiEnabled()
-    const projectsEnabled = input.target.scope === 'workspace' && (await isProjectsEnabled())
+    const projectsEnabled = input.target.scope !== 'personal' && (await isProjectsEnabled())
     return db.transaction(async (tx) => {
       await requireCurrentFileSubject(tx, principal, 'snapshot')
       const [chat] = await tx
@@ -231,6 +230,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
           permissions: { read: true, privateMutation: true, sharedMutation: false },
         }
       } else if (input.target.scope === 'project') {
+        if (!projectsEnabled) throw new ProjectUnavailableError()
         if (chat.workspaceId && origin?.id !== input.target.projectId)
           throw new OrchestrationError('not_found', 'Project not found in this conversation')
         target = await projectAccess(tx, principal, context.chatId, input.target.projectId, scope)

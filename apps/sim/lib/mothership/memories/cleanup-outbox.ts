@@ -27,8 +27,11 @@ const logger = createLogger('MemoryCleanup')
 
 /** Waits for a worker or configuration that is not there yet without spending the retry budget. */
 const UNAVAILABLE_RETRY_MS = 60 * 60 * 1000
-/** Statuses meaning the worker does not serve cleanup yet, not that this request failed. */
-const ENDPOINT_MISSING_STATUSES = new Set([404, 405, 501])
+/**
+ * Statuses meaning the worker does not serve cleanup yet, not that this request failed: a worker
+ * that predates the route answers 404 to the hosted key and 401 to a self-hosted customer key.
+ */
+const ENDPOINT_MISSING_STATUSES = new Set([401, 404, 405, 501])
 
 /** Non-strict so rows enqueued with the retired `credentialFingerprint` field still parse. */
 const cleanupPayloadSchema = z.object({
