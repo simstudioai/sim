@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { z } from 'zod'
 import { getInlineJobQueue, getJobQueue } from '@/lib/core/async-jobs'
+import type { JobQueueBackend } from '@/lib/core/async-jobs/types'
 import {
   continueOutboxHandler,
   type OutboxHandler,
@@ -29,10 +30,17 @@ const payloadSchema = z.object({
 
 /**
  * Sweeps the primary queue and the database queue that inline webhook runs use even when
- * Trigger.dev is primary. Both are attempted before the first failure is rethrown.
+ * Trigger.dev is primary. Each queue that loads is swept, even when the other fails to load or
+ * to sweep, before the first failure is rethrown for the outbox to retry.
  */
 async function sweepWorkspaceJobs(workspaceId: string, signal: AbortSignal) {
-  const queues = new Set([await getJobQueue(), await getInlineJobQueue()])
+  const resolved = await Promise.allSettled([getJobQueue(), getInlineJobQueue()])
+  const queues = new Set<JobQueueBackend>()
+  const failures: unknown[] = []
+  for (const result of resolved) {
+    if (result.status === 'fulfilled') queues.add(result.value)
+    else failures.push(result.reason)
+  }
   const results = await Promise.allSettled(
     [...queues].map((queue) =>
       queue.cancelByWorkspace(workspaceId, { maxRuns: SWEEP_MAX_RUNS_PER_ATTEMPT, signal })
@@ -41,10 +49,13 @@ async function sweepWorkspaceJobs(workspaceId: string, signal: AbortSignal) {
   let cancelledJobs = 0
   let complete = true
   for (const result of results) {
-    if (result.status === 'rejected') throw result.reason
-    cancelledJobs += result.value.cancelledJobs
-    complete &&= result.value.complete
+    if (result.status === 'rejected') failures.push(result.reason)
+    else {
+      cancelledJobs += result.value.cancelledJobs
+      complete &&= result.value.complete
+    }
   }
+  if (failures.length > 0) throw failures[0]
   return { cancelledJobs, complete }
 }
 

@@ -327,12 +327,14 @@ export async function disableUserResources(userId: string): Promise<void> {
    * not load that delivery. Logged, not thrown: the ban and archives have committed, and a retry
    * would find no unarchived workspace to stop.
    */
+  let stopFailed = false
   const stopRuns = async (workspaceIds: string[]): Promise<void> => {
     if (workspaceIds.length === 0) return
     try {
       const executions = await db.transaction((tx) => recordExecutionStops(tx, { workspaceIds }))
       await signalExecutionStops(executions)
     } catch (error) {
+      stopFailed = true
       logger.error(`[${requestId}] Failed to stop runs for banned user ${userId}`, {
         workspaceIds,
         error: getErrorMessage(error),
@@ -375,7 +377,7 @@ export async function disableUserResources(userId: string): Promise<void> {
   }
 
   logger.info(
-    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys, stopped their runs`
+    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys, ${stopFailed ? 'failed to stop some of their runs' : 'stopped their runs'}`
   )
 }
 

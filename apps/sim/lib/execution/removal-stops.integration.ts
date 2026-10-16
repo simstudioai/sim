@@ -103,7 +103,7 @@ async function seedWorkflow(userId: string, workspaceId: string) {
 async function seedExecution(
   workspaceId: string,
   workflowId: string,
-  status: 'running' | 'pending' = 'running'
+  status: 'running' | 'pending' | 'paused' = 'running'
 ) {
   const snapshotId = generateId()
   snapshotIds.push(snapshotId)
@@ -131,8 +131,12 @@ async function seedExecution(
 }
 
 /** A paused run whose resume a worker has claimed and is executing under its own id. */
-async function seedActiveResume(workspaceId: string, workflowId: string) {
-  const parentExecutionId = await seedExecution(workspaceId, workflowId, 'pending')
+async function seedActiveResume(
+  workspaceId: string,
+  workflowId: string,
+  parentStatus: 'pending' | 'paused' = 'pending'
+) {
+  const parentExecutionId = await seedExecution(workspaceId, workflowId, parentStatus)
   const pausedExecutionId = generateId()
   await db.insert(pausedExecutions).values({
     id: pausedExecutionId,
@@ -246,6 +250,11 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
     const doomedWorkflowId = await seedWorkflow(departingId, doomedWorkspaceId)
     const running = await seedExecution(doomedWorkspaceId, doomedWorkflowId)
     const resuming = await seedActiveResume(doomedWorkspaceId, doomedWorkflowId)
+    const resumingLegacyPaused = await seedActiveResume(
+      doomedWorkspaceId,
+      await seedWorkflow(departingId, doomedWorkspaceId),
+      'paused'
+    )
     const queued = await seedQueuedJob(doomedWorkspaceId)
     const unrelatedJob = await seedQueuedJob(doomedWorkspaceId, 'cleanup-logs')
     const keptWorkspaceId = await seedWorkspace(bystanderId)
@@ -259,6 +268,7 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
 
     await expect.poll(() => isCancelled(running)).toBe(true)
     await expect.poll(() => isCancelled(resuming)).toBe(true)
+    await expect.poll(() => isCancelled(resumingLegacyPaused)).toBe(true)
     const recorded = await stopEvents([doomedWorkspaceId])
     expect(recorded.map((event) => event.status)).toEqual(['pending'])
 

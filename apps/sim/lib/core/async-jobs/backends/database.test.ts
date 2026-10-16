@@ -2,6 +2,7 @@ import { asyncJobs } from '@sim/db'
 import {
   dbChainMockFns,
   flattenMockConditions,
+  queueTableRows,
   resetDbChainMock,
 } from '@sim/testing/mocks/database.mock'
 import { sleep } from '@sim/utils/helpers'
@@ -541,6 +542,15 @@ describe('DatabaseJobQueue workspace cancellation', () => {
     await expect(
       new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 1000 })
     ).resolves.toEqual({ cancelledJobs: 230, complete: true })
+  })
+
+  it('reports a short batch incomplete while matching jobs remain', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce(ids(99))
+    queueTableRows(asyncJobs, [{ id: 'job-100' }])
+
+    await expect(
+      new DatabaseJobQueue().cancelByWorkspace('workspace-1', { maxRuns: 1000 })
+    ).resolves.toEqual({ cancelledJobs: 99, complete: false })
   })
 
   it('stops at its run cap and reports the sweep incomplete', async () => {

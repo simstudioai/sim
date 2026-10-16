@@ -103,7 +103,7 @@ export async function collectExecutionStops(
         eq(resumeQueue.status, 'claimed')
       )
     )
-    .where(and(inArray(workflowExecutionLogs.status, ['running', 'pending']), inScope))
+    .where(and(inArray(workflowExecutionLogs.status, ['running', 'pending', 'paused']), inScope))
 
   const executions = new Map<string, PlannedExecutionStop>()
   for (const row of [...running, ...resuming]) {

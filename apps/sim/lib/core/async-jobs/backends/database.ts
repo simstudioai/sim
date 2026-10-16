@@ -561,8 +561,21 @@ export class DatabaseJobQueue implements JobQueueBackend {
       for (const { id } of cancelled) abortInlineJob(id)
       cancelledJobs += cancelled.length
       if (cancelled.length < batchSize) {
-        logger.info('Cancelled database jobs for workspace', { workspaceId, cancelledJobs })
-        return { cancelledJobs, complete: true }
+        /**
+         * A short batch is not proof the sweep is done: a selected job that finished before the
+         * update reached it shrinks the batch while later jobs may still match.
+         */
+        const [remaining] = await db
+          .select({ id: asyncJobs.id })
+          .from(asyncJobs)
+          .where(active)
+          .limit(1)
+        logger.info('Cancelled database jobs for workspace', {
+          workspaceId,
+          cancelledJobs,
+          complete: !remaining,
+        })
+        return { cancelledJobs, complete: !remaining }
       }
     }
 

@@ -4,6 +4,7 @@
  * - Redis refuses the cancellation write → retry, and the queue sweep still runs
  * - no Redis at all → the process-local flag is all there is, so the stop completes
  * - a queue sweep fails → retry
+ * - one queue fails to load → the other is still swept, then retry
  * - a sweep stops at its cap having cancelled runs → continue without spending an attempt
  * - a sweep stops at its cap having cancelled nothing → retry, so it cannot loop forever
  */
@@ -63,6 +64,13 @@ describe('execution removal stop outcome', () => {
     mockJobQueue.cancelByWorkspace.mockRejectedValue(new Error('provider unavailable'))
 
     await expect(stopRemovedExecutions(payload, context())).rejects.toThrow('provider unavailable')
+  })
+
+  it('still sweeps the database queue when the primary queue fails to load, then retries', async () => {
+    asyncJobsMockFns.mockGetJobQueue.mockRejectedValueOnce(new Error('queue unavailable'))
+
+    await expect(stopRemovedExecutions(payload, context())).rejects.toThrow('queue unavailable')
+    expect(mockJobQueue.cancelByWorkspace).toHaveBeenCalledWith('workspace-1', expect.anything())
   })
 
   it('continues without spending an attempt when the sweep stops at its cap after progress', async () => {
