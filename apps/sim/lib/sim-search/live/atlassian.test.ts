@@ -334,7 +334,8 @@ describe('Confluence plain search ranking', () => {
 
 describe('Jira plain search ranking', () => {
   const search = '/ex/jira/cloud/rest/api/3/search/jql'
-  type Issue = string | { key: string; summary: string }
+  /** `outsideMatch` marks an issue whose text lacks a query term, so an all-terms clause excludes it. */
+  type Issue = string | { key: string; summary: string; outsideMatch?: boolean }
   /**
    * Answers the all-terms query with `exact`, the all-terms summary query with `titled`, and the
    * half-the-terms summary query with `half`, or their failures.
@@ -354,7 +355,9 @@ describe('Jira plain search ranking', () => {
         const jql = options?.body?.jql ?? ''
         if (jql.includes('summary ~')) {
           const rows = jql.includes(' OR ') ? half : titled
-          const picked = typeof rows === 'function' ? rows() : rows
+          const picked = (typeof rows === 'function' ? rows() : rows).filter(
+            (row) => !jql.includes('text ~') || typeof row === 'string' || !row.outsideMatch
+          )
           return { issues: issues(picked).slice(0, options?.body?.maxResults) }
         }
         return { issues: issues(exact.ids), ...(exact.more ? { nextPageToken: 'page-2' } : {}) }
@@ -501,5 +504,18 @@ describe('Jira plain search ranking', () => {
     )
     const page = await searchAtlassian(api, 'jira', query)
     expect(page.documents.map((document) => document.id)).toEqual(['ALL-1', 'HALF-1', 'NEW-3'])
+  })
+
+  it('keeps half-the-terms summaries to issues that match every term somewhere', async () => {
+    const api = jira(
+      overflowing,
+      [],
+      [
+        { key: 'OUTSIDE-1', summary: 'Merged results dashboard', outsideMatch: true },
+        { key: 'INSIDE-1', summary: 'Merged results broke the dashboard' },
+      ]
+    )
+    const page = await searchAtlassian(api, 'jira', query)
+    expect(page.documents.map((document) => document.id)).toEqual(['INSIDE-1', 'NEW-3', 'NEW-2'])
   })
 })
