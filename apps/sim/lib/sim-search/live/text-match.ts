@@ -151,6 +151,22 @@ export function stemmedTerms(query: string): {
 }
 
 /**
+ * A sort key, highest first, for comparing results from different sources against a plain query:
+ * the terms the title and text hold together, then the terms the title holds, then the share of
+ * the title's words that are query terms, so a page named for the query leads one that mentions it.
+ * Each source ranks only its own results, so this is the comparison they share.
+ */
+export function queryRelevance(
+  query: string
+): (title: string, text: string) => [number, number, number] {
+  const { held } = stemmedTerms(query)
+  return (title, text) => {
+    const inTitle = held(title)
+    return [held(`${title}\n${text}`), inTitle, inTitle / Math.max(1, textWords(title).length)]
+  }
+}
+
+/**
  * A test for whether a text holds at least half the query's distinct terms, as `stemmedTerms`
  * counts them.
  */
