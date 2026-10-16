@@ -21,6 +21,7 @@ import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   accountStorageSweepOutboxHandlers,
+  collectAccountStorageObjects,
   enqueueAccountStorageCleanupInTx,
 } from '@/lib/users/storage-sweep'
 import {
@@ -360,6 +361,15 @@ describe('queueing account storage cleanup', () => {
     resetDbChainMock()
   })
 
+  async function queueCleanup(): Promise<void> {
+    const objects = await collectAccountStorageObjects({ userId: 'user-1', workspaceIds: [] })
+    await enqueueAccountStorageCleanupInTx(dbChainMock.db as unknown as DbTransaction, {
+      userId: 'user-1',
+      workspaceIds: [],
+      objects,
+    })
+  }
+
   function queuedObjectKeys(): string[] {
     return dbChainMockFns.values.mock.calls.flatMap(([rows]) =>
       (rows as { payload: { objects?: { key: string }[] } }[]).flatMap(
@@ -381,14 +391,27 @@ describe('queueing account storage cleanup', () => {
     queueTableRows(schemaMock.workspaceFileVersion, versionPage(0, 1000))
     queueTableRows(schemaMock.workspaceFileVersion, versionPage(1000, 5))
 
-    await enqueueAccountStorageCleanupInTx(dbChainMock.db as unknown as DbTransaction, {
-      userId: 'user-1',
-      workspaceIds: [],
-    })
+    await queueCleanup()
 
     const keys = queuedObjectKeys()
     expect(keys).toHaveLength(1006)
     expect(keys).toContain('copilot/abc/v1004.txt')
+  })
+
+  it('only inserts inside the deletion transaction', async () => {
+    queueTableRows(schemaMock.workspaceFiles, [
+      { id: 'file-1', key: 'copilot/abc/file.txt', context: 'copilot' },
+    ])
+    const objects = await collectAccountStorageObjects({ userId: 'user-1', workspaceIds: ['ws1'] })
+    const insertOnly = { insert: dbChainMock.db.insert } as unknown as DbTransaction
+
+    await enqueueAccountStorageCleanupInTx(insertOnly, {
+      userId: 'user-1',
+      workspaceIds: ['ws1'],
+      objects,
+    })
+
+    expect(queuedObjectKeys()).toEqual(['copilot/abc/file.txt'])
   })
 
   it('never queues a profile picture row', async () => {
@@ -397,10 +420,7 @@ describe('queueing account storage cleanup', () => {
       { id: 'file-2', key: 'copilot/abc/file.txt', context: 'copilot' },
     ])
 
-    await enqueueAccountStorageCleanupInTx(dbChainMock.db as unknown as DbTransaction, {
-      userId: 'user-1',
-      workspaceIds: [],
-    })
+    await queueCleanup()
 
     expect(queuedObjectKeys()).toEqual(['copilot/abc/file.txt'])
   })

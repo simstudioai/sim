@@ -25,11 +25,7 @@ import { FILE_CACHE_CONTROL, workspaceFileCacheControl } from '@/lib/uploads/ser
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { resolveStoredFileContext } from '@/lib/uploads/server/metadata'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
-import {
-  inferContextFromKey,
-  isPublicStorageKey,
-  resolveEffectiveMimeType,
-} from '@/lib/uploads/utils/file'
+import { inferContextFromKey, resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
 import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { fetchAuthorizedServableWorkspaceFileBuffer } from '@/lib/workspace-files/application/fetch-servable-workspace-file-buffer'
 import { finishFileDelivery } from '@/lib/workspace-files/application/finish-file-delivery'
@@ -303,7 +299,13 @@ export const GET = withRouteHandler(
         })
       }
 
-      if (isPublicStorageKey(cloudKey)) {
+      const isPublicByKeyPrefix =
+        cloudKey.startsWith('profile-pictures/') ||
+        cloudKey.startsWith('og-images/') ||
+        cloudKey.startsWith('workspace-logos/') ||
+        cloudKey.startsWith('organization-logos/')
+
+      if (isPublicByKeyPrefix) {
         const context = inferContextFromKey(cloudKey)
         logger.info(`Serving public ${context}:`, { cloudKey })
         if (isUsingCloudStorage() || isCloudPath) {
@@ -387,6 +389,7 @@ export const GET = withRouteHandler(
         request.method === 'HEAD'
       )
     } catch (error) {
+      if (request.signal.aborted) throw error
       if (error instanceof InternalUnauthenticatedError) {
         logger.warn('Unauthorized file access attempt', { error: error.message })
         return NextResponse.json(
@@ -597,6 +600,7 @@ async function handleLocalFile(
       options.ifNoneMatch
     )
   } catch (error) {
+    if (signal?.aborted) throw error
     logServeFailure('Error reading local file:', error)
     throw error
   }
@@ -687,6 +691,7 @@ async function handleCloudProxy(
       options.ifNoneMatch
     )
   } catch (error) {
+    if (signal?.aborted) throw error
     logServeFailure('Error downloading from cloud storage:', error)
     throw error
   }

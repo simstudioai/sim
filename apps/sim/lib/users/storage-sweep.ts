@@ -365,80 +365,59 @@ interface ObjectRow {
   context: string | null
 }
 
-/** Batches recorded objects into delayed cleanup events inside the deletion transaction. */
-class ObjectRecorder {
-  private recorded = 0
-  private skipped = 0
-  private capped = false
+/** Exact keys an account deletion hands to durable cleanup, bounded by {@link MAX_DURABLE_OBJECTS}. */
+interface AccountStorageObjects {
+  objects: StorageObject[]
+  skippedContexts: number
+  capped: boolean
+}
 
-  constructor(
-    private readonly tx: DbTransaction,
-    private readonly userId: string,
-    private readonly availableAt: Date
-  ) {}
+class ObjectCollector implements AccountStorageObjects {
+  readonly objects: StorageObject[] = []
+  skippedContexts = 0
+  capped = false
 
-  get full(): boolean {
-    return this.capped
-  }
-
-  async record(rows: readonly ObjectRow[]): Promise<void> {
-    const objects: StorageObject[] = []
+  add(rows: readonly ObjectRow[]): void {
     for (const row of rows) {
       if (!row.key || !isDisposableKey(row.key)) continue
       if (!row.context || !OBJECT_CONTEXTS.has(row.context)) {
-        this.skipped++
+        this.skippedContexts++
         continue
       }
-      if (this.recorded + objects.length >= MAX_DURABLE_OBJECTS) {
+      if (this.objects.length >= MAX_DURABLE_OBJECTS) {
         this.capped = true
-        break
+        return
       }
-      objects.push({ key: row.key, context: row.context as StorageContext })
+      this.objects.push({ key: row.key, context: row.context as StorageContext })
     }
-    this.recorded += objects.length
-    const payloads = chunkArray(objects, OBJECTS_PER_EVENT).map((chunk) => ({
-      version: 1,
-      userId: this.userId,
-      objects: chunk,
-    }))
-    for (const batch of chunkArray(payloads, MAX_BULK_ENQUEUE_EVENTS)) {
-      await enqueueOutboxEvents(this.tx, ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT, batch, {
-        availableAt: this.availableAt,
-      })
-    }
-  }
-
-  summary() {
-    return { recorded: this.recorded, skippedContexts: this.skipped, capped: this.capped }
   }
 }
 
-async function recordPages(
-  recorder: ObjectRecorder,
+async function collectPages(
+  collector: ObjectCollector,
   page: (afterId: string) => Promise<ObjectRow[]>,
   afterPage?: (rows: ObjectRow[]) => Promise<void>
 ): Promise<void> {
   let afterId = ''
-  while (!recorder.full) {
+  while (!collector.capped) {
     const rows = await page(afterId)
     if (rows.length === 0) return
-    await recorder.record(rows)
+    collector.add(rows)
     if (afterPage) await afterPage(rows)
     if (rows.length < ROW_PAGE_SIZE) return
     afterId = rows[rows.length - 1].id
   }
 }
 
-async function recordVersionsOf(
-  tx: DbTransaction,
-  recorder: ObjectRecorder,
+async function collectVersionsOf(
+  collector: ObjectCollector,
   files: readonly ObjectRow[]
 ): Promise<void> {
   if (files.length === 0) return
   const contexts = new Map(files.map((file) => [file.id, file.context]))
   const fileIds = files.map((file) => file.id)
-  await recordPages(recorder, (afterId) =>
-    tx
+  await collectPages(collector, (afterId) =>
+    db
       .select({
         id: workspaceFileVersion.id,
         key: workspaceFileVersion.key,
@@ -461,49 +440,30 @@ async function recordVersionsOf(
 }
 
 /**
- * Queues the durable storage cleanup for an account deletion, inside its transaction and after
- * the workspace rows are locked, so the work commits or rolls back with the deletion and no row
- * can join a doomed workspace unseen. Takes no locks of its own.
+ * Reads the exact keys an account deletion hands to durable cleanup, before its transaction, so
+ * these unbounded keyset reads never run while the deletion holds workspace locks that
+ * teammates' writes in shared workspaces wait on. Covers what cascades away outside the
+ * workspace prefix sweeps: objects in deleted workspaces outside those prefixes (knowledge-base
+ * documents, Copilot uploads), and the account's private files elsewhere — chat attachments of
+ * its own chats, private contexts, and Copilot files with no workspace. Files handed to a
+ * successor, Project and organization files, attachments of somebody else's chat, profile
+ * pictures, and workspace-less rows of any other context (a legacy shared row can lack its
+ * workspace) are never collected.
  *
- * - One prefix sweep per deleted workspace, covering every object under its keyed families
- *   whether or not a row ever named it.
- * - Exact keys for the rest of what cascades away: objects in deleted workspaces outside those
- *   prefixes (knowledge-base documents, Copilot uploads), and the account's private files
- *   elsewhere — chat attachments of its own chats, private contexts, and Copilot files with no
- *   workspace. Files handed to a successor, Project and organization files, attachments of
- *   somebody else's chat, profile pictures, and workspace-less rows of any other context (a
- *   legacy shared row can lack its workspace) are never queued.
- *
- * Both wait out every upload URL signed before the deletion and re-check at run time that the
- * owner is still gone and that {@link createStorageReferenceGuard} does not keep the key; the
- * exact-key cleanup also keeps any key under a workspace that still exists.
+ * A row written between this read and the deletion's locks is missed, which only leaves its
+ * object behind: the writers that stay active through a deletion — running executions, table
+ * imports — write under the swept prefixes, which list storage instead of rows.
  */
-export async function enqueueAccountStorageCleanupInTx(
-  tx: DbTransaction,
-  params: { userId: string; workspaceIds: readonly string[] }
-): Promise<void> {
+export async function collectAccountStorageObjects(params: {
+  userId: string
+  workspaceIds: readonly string[]
+}): Promise<AccountStorageObjects> {
   const { userId } = params
-  const availableAt = storageCleanupAvailableAt()
   const workspaceIds = params.workspaceIds.filter((id) => SAFE_ID.test(id))
-  if (workspaceIds.length !== params.workspaceIds.length) {
-    logger.error('Skipping storage sweeps for workspaces with unsafe ids', {
-      userId,
-      skipped: params.workspaceIds.length - workspaceIds.length,
-    })
-  }
-  for (const batch of chunkArray(workspaceIds, MAX_BULK_ENQUEUE_EVENTS)) {
-    await enqueueOutboxEvents(
-      tx,
-      ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT,
-      batch.map((workspaceId) => ({ version: 1, workspaceId })),
-      { availableAt }
-    )
-  }
-
-  const recorder = new ObjectRecorder(tx, userId, availableAt)
+  const collector = new ObjectCollector()
   if (workspaceIds.length > 0) {
-    await recordPages(recorder, (afterId) =>
-      tx
+    await collectPages(collector, (afterId) =>
+      db
         .select({ id: workspaceFiles.id, key: workspaceFiles.key, context: workspaceFiles.context })
         .from(workspaceFiles)
         .where(
@@ -517,8 +477,8 @@ export async function enqueueAccountStorageCleanupInTx(
         .orderBy(workspaceFiles.id)
         .limit(ROW_PAGE_SIZE)
     )
-    await recordPages(recorder, (afterId) =>
-      tx
+    await collectPages(collector, (afterId) =>
+      db
         .select({
           id: workspaceFileVersion.id,
           key: workspaceFileVersion.key,
@@ -537,8 +497,8 @@ export async function enqueueAccountStorageCleanupInTx(
         .orderBy(workspaceFileVersion.id)
         .limit(ROW_PAGE_SIZE)
     )
-    await recordPages(recorder, (afterId) =>
-      tx
+    await collectPages(collector, (afterId) =>
+      db
         .select({ id: workspaceFile.id, key: workspaceFile.key, context: sql<string>`'workspace'` })
         .from(workspaceFile)
         .where(
@@ -551,8 +511,8 @@ export async function enqueueAccountStorageCleanupInTx(
         .orderBy(workspaceFile.id)
         .limit(ROW_PAGE_SIZE)
     )
-    await recordPages(recorder, (afterId) =>
-      tx
+    await collectPages(collector, (afterId) =>
+      db
         .select({
           id: document.id,
           key: document.storageKey,
@@ -573,14 +533,14 @@ export async function enqueueAccountStorageCleanupInTx(
     )
   }
 
-  const ownChats = tx
+  const ownChats = db
     .select({ id: copilotChats.id })
     .from(copilotChats)
     .where(eq(copilotChats.userId, userId))
-  await recordPages(
-    recorder,
+  await collectPages(
+    collector,
     (afterId) =>
-      tx
+      db
         .select({ id: workspaceFiles.id, key: workspaceFiles.key, context: workspaceFiles.context })
         .from(workspaceFiles)
         .where(
@@ -616,19 +576,63 @@ export async function enqueueAccountStorageCleanupInTx(
         )
         .orderBy(workspaceFiles.id)
         .limit(ROW_PAGE_SIZE),
-    (files) => recordVersionsOf(tx, recorder, files)
+    (files) => collectVersionsOf(collector, files)
   )
 
-  const summary = recorder.summary()
-  if (summary.capped) {
+  if (collector.capped) {
     logger.error('Account storage cleanup hit its key ceiling; the remainder is left', {
       userId,
       cap: MAX_DURABLE_OBJECTS,
     })
   }
+  return collector
+}
+
+/**
+ * Queues the durable storage cleanup for an account deletion inside its transaction, so the work
+ * commits or rolls back with the deletion: one prefix sweep per deleted workspace, covering every
+ * object under its keyed families whether or not a row ever named it, and delayed events for the
+ * exact keys {@link collectAccountStorageObjects} read beforehand. Only inserts; reads nothing
+ * and takes no locks of its own.
+ *
+ * Both wait out every upload URL signed before the deletion and re-check at run time that the
+ * owner is still gone and that {@link createStorageReferenceGuard} does not keep the key; the
+ * exact-key cleanup also keeps any key under a workspace that still exists.
+ */
+export async function enqueueAccountStorageCleanupInTx(
+  tx: DbTransaction,
+  params: { userId: string; workspaceIds: readonly string[]; objects: AccountStorageObjects }
+): Promise<void> {
+  const { userId, objects } = params
+  const availableAt = storageCleanupAvailableAt()
+  const workspaceIds = params.workspaceIds.filter((id) => SAFE_ID.test(id))
+  if (workspaceIds.length !== params.workspaceIds.length) {
+    logger.error('Skipping storage sweeps for workspaces with unsafe ids', {
+      userId,
+      skipped: params.workspaceIds.length - workspaceIds.length,
+    })
+  }
+  for (const batch of chunkArray(workspaceIds, MAX_BULK_ENQUEUE_EVENTS)) {
+    await enqueueOutboxEvents(
+      tx,
+      ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT,
+      batch.map((workspaceId) => ({ version: 1, workspaceId })),
+      { availableAt }
+    )
+  }
+  const payloads = chunkArray(objects.objects, OBJECTS_PER_EVENT).map((chunk) => ({
+    version: 1,
+    userId,
+    objects: chunk,
+  }))
+  for (const batch of chunkArray(payloads, MAX_BULK_ENQUEUE_EVENTS)) {
+    await enqueueOutboxEvents(tx, ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT, batch, { availableAt })
+  }
   logger.info('Queued account storage cleanup', {
     userId,
     workspaceSweeps: workspaceIds.length,
-    ...summary,
+    recorded: objects.objects.length,
+    skippedContexts: objects.skippedContexts,
+    capped: objects.capped,
   })
 }

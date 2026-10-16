@@ -21,6 +21,7 @@ import {
   deleteStorageKeysUnderPrefix,
   listStorageKeyPage,
   outboxDeadlineNear,
+  STORAGE_KEY_PAGE_SIZE,
   storageCleanupAvailableAt,
 } from '@/lib/uploads/core/prefix-sweep'
 import { abortProviderUpload } from '@/lib/uploads/upload-session/provider'
@@ -214,7 +215,7 @@ async function sweepPrefix(
     page.keys,
     context
   )
-  if (complete && page.done) return 'done'
+  if (complete && page.keys.length < STORAGE_KEY_PAGE_SIZE) return 'done'
   return deleted > 0 ? 'continue' : 'stalled'
 }
 

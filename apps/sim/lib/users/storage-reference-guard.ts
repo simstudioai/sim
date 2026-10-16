@@ -156,7 +156,8 @@ async function loadUrlReferencedKeys(needles: readonly string[] | null): Promise
  *
  * - a row still names it: `workspace_files.key`, `workspace_file.key`,
  *   `workspace_file_version.key`, `document.storage_key`, `execution_large_values.key`; or
- * - it sits under a world-readable root (`isPublicStorageKey`) and a stored asset URL names it (see
+ * - it sits under a world-readable root (`isPublicStorageKey`, the same prefixes the file-serve
+ *   route's `isPublicByKeyPrefix` answers without a session) and a stored asset URL names it (see
  *   {@link loadUrlReferencedKeys}). Only rows containing the key's longest URL-safe run are read,
  *   each run at most once per guard. No URL column is read for any other key:
  *   `verifyFileAccess` serves it only through a row, by its key path under a workspace that still

@@ -14,7 +14,8 @@ import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
 
-const PAGE_SIZE = 500
+/** Most keys one {@link listStorageKeyPage} call returns. */
+export const STORAGE_KEY_PAGE_SIZE = 500
 const CLOCK_SKEW_MS = 60_000
 const DEADLINE_MARGIN_MS = 5000
 
@@ -55,7 +56,7 @@ async function localKeys(prefix: string, signal: AbortSignal): Promise<string[]>
       const child = `${key}${entry.name}`
       if (entry.isDirectory()) await visit(`${child}/`)
       else keys.push(child)
-      if (keys.length >= PAGE_SIZE) return
+      if (keys.length >= STORAGE_KEY_PAGE_SIZE) return
     }
     await removeEmptyDirectory(join(UPLOAD_DIR_SERVER, key))
   }
@@ -94,7 +95,7 @@ export async function listStorageKeyPage(
       new ListObjectsV2Command({
         Bucket: config.bucket,
         Prefix: prefix,
-        MaxKeys: PAGE_SIZE,
+        MaxKeys: STORAGE_KEY_PAGE_SIZE,
         ...(pageToken ? { ContinuationToken: pageToken } : {}),
       }),
       { abortSignal: signal }
@@ -111,7 +112,10 @@ export async function listStorageKeyPage(
     const pages = (await getBlobServiceClient())
       .getContainerClient(config.containerName)
       .listBlobsFlat({ prefix, abortSignal: signal })
-      .byPage({ maxPageSize: PAGE_SIZE, ...(pageToken ? { continuationToken: pageToken } : {}) })
+      .byPage({
+        maxPageSize: STORAGE_KEY_PAGE_SIZE,
+        ...(pageToken ? { continuationToken: pageToken } : {}),
+      })
     const page = await pages.next()
     if (page.done) return { keys: [], done: true }
     return keyPage(
@@ -125,7 +129,7 @@ export async function listStorageKeyPage(
     if (!config.bucket) throw new Error(`Bucket missing for ${context} storage`)
     const [files, nextQuery] = await (await getGcsClient()).bucket(config.bucket).getFiles({
       prefix,
-      maxResults: PAGE_SIZE,
+      maxResults: STORAGE_KEY_PAGE_SIZE,
       autoPaginate: false,
       ...(pageToken ? { pageToken } : {}),
     })
@@ -138,7 +142,7 @@ export async function listStorageKeyPage(
     )
   }
   const keys = await localKeys(prefix, signal)
-  return { keys, done: keys.length < PAGE_SIZE }
+  return { keys, done: keys.length < STORAGE_KEY_PAGE_SIZE }
 }
 
 /**
