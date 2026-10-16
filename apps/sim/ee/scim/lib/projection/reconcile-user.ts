@@ -33,6 +33,7 @@ import {
   permissionRank,
   readWorkspacePermission,
   revokeWorkspaceAccessTx,
+  stopRunsWithoutWorkspaceAccessTx,
 } from '@/lib/workspaces/access/workspace-access'
 import {
   type MappingRow,
@@ -254,9 +255,7 @@ async function applyGrant(
     }
     case 'org_role': {
       if (grant.targetId !== 'admin') return 'skipped'
-      /** A promotion ends no access, so it stops no runs. */
-      const change = await setOrganizationRole(tx, params.organizationId, params.userId, 'admin')
-      return change.outcome
+      return setOrganizationRole(tx, params.organizationId, params.userId, 'admin')
     }
     case 'permission_group': {
       const outcome = await addPermissionGroupMemberTx(tx, {
@@ -282,33 +281,36 @@ async function setOrganizationRole(
   organizationId: string,
   userId: string,
   role: 'admin' | 'member'
-): Promise<{ outcome: GrantOutcome; stoppedRuns: StoppedRun[] }> {
-  const skipped = { outcome: 'skipped', stoppedRuns: [] } as const
+): Promise<GrantOutcome> {
   try {
-    const change = await changeMemberRoleTx(tx, { organizationId, userId, role })
-    return change.changed
-      ? { outcome: 'applied', stoppedRuns: change.stoppedRuns }
-      : { outcome: 'unchanged', stoppedRuns: [] }
+    const change = await changeMemberRoleTx(tx, {
+      organizationId,
+      userId,
+      role,
+      deferRunStops: true,
+    })
+    return change.changed ? 'applied' : 'unchanged'
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'conflict') {
       logger.warn('Skipped an organization role mapping for the owner', { organizationId, userId })
-      return skipped
+      return 'skipped'
     }
     if (error instanceof OrchestrationError && error.code === 'not_found') {
       logger.warn('Skipped an organization role mapping for a user who is no longer a member', {
         organizationId,
         userId,
       })
-      return skipped
+      return 'skipped'
     }
     throw error
   }
 }
 
 /**
- * Withdraws one grant, returning the runs it stopped. Returns null when the
- * grant must stay in place — the access could not be handed on — so the
- * provenance row survives and the next pass retries instead of forgetting.
+ * Withdraws one grant, returning the workspaces where it may have ended the
+ * user's access. Returns null when the grant must stay in place — the access
+ * could not be handed on — so the provenance row survives and the next pass
+ * retries instead of forgetting.
  *
  * Adopted access — held by hand before any mapping covered it — is the person's
  * own, so the directory only forgets its record of it, unless the organization
@@ -323,7 +325,7 @@ async function withdrawGrant(
     lockManualMembership: boolean
     foreignWorkspaceIds: Set<string>
   }
-): Promise<StoppedRun[] | null> {
+): Promise<string[] | null> {
   const { grant } = params
   if (grant.origin === 'adopted' && !params.lockManualMembership) return []
   switch (grant.targetKind) {
@@ -362,6 +364,7 @@ async function withdrawGrant(
       const outcome = await revokeWorkspaceAccessTx(tx, {
         workspaceId: grant.targetId,
         userId: params.userId,
+        deferRunStops: true,
       })
       if (!outcome.revoked) {
         logger.warn('Left workspace access in place: ownership could not be handed on', {
@@ -371,12 +374,18 @@ async function withdrawGrant(
         })
         return null
       }
-      return outcome.stoppedRuns
+      return [grant.targetId]
     }
     case 'org_role': {
       if (grant.targetId !== 'admin') return []
-      const change = await setOrganizationRole(tx, params.organizationId, params.userId, 'member')
-      return change.stoppedRuns
+      const demoted = await setOrganizationRole(tx, params.organizationId, params.userId, 'member')
+      if (demoted !== 'applied') return []
+      /** An organization admin reaches every organization workspace; the demotion may end any of them. */
+      const workspaces = await tx
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.organizationId, params.organizationId))
+      return workspaces.map(({ id }) => id)
     }
     case 'permission_group':
       try {
@@ -474,18 +483,19 @@ export async function reconcileUserProjection(
   const plan = planGrantChanges(desired, current, actual)
 
   const delta = emptyDelta()
+  const accessEndedIn = new Set<string>()
   const lockManualMembership = params.settings.lockManualMembership === true
 
   /** Withdrawals first, so a move between groups frees its workspace slot. */
   for (const grant of plan.withdraw) {
-    const stoppedRuns = await withdrawGrant(tx, {
+    const accessEnded = await withdrawGrant(tx, {
       organizationId: params.organizationId,
       userId: record.userId,
       grant,
       lockManualMembership,
       foreignWorkspaceIds,
     })
-    if (!stoppedRuns) continue
+    if (!accessEnded) continue
     await tx
       .delete(scimProjectionGrant)
       .where(
@@ -496,7 +506,7 @@ export async function reconcileUserProjection(
         )
       )
     delta.removed.push(grant)
-    delta.stoppedRuns.push(...stoppedRuns)
+    for (const workspaceId of accessEnded) accessEndedIn.add(workspaceId)
   }
 
   for (const { grant, previousGrant } of plan.apply) {
@@ -595,6 +605,12 @@ export async function reconcileUserProjection(
     else delta.added.push(grant)
   }
 
+  /**
+   * Runs are judged once every withdrawal and grant above is in place: a run in
+   * a workspace this pass takes away and gives back, by grant or by role, keeps
+   * going.
+   */
+  delta.stoppedRuns = await stopRunsWithoutWorkspaceAccessTx(tx, record.userId, [...accessEndedIn])
   return delta
 }
 

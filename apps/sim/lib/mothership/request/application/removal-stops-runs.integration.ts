@@ -46,6 +46,20 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
 
 vi.mock('@/lib/auth', () => authMock)
 
+/** Every stream a Stop delivery was started for, recorded when delivery is requested. */
+const requestedDeliveries = vi.hoisted(() => [] as string[])
+vi.mock('@/lib/mothership/request/application/stop-delivery', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/mothership/request/application/stop-delivery')>()
+  return {
+    ...actual,
+    deliverRunStops: (...args: Parameters<typeof actual.deliverRunStops>) => {
+      requestedDeliveries.push(...args[0].map((run) => run.streamId))
+      actual.deliverRunStops(...args)
+    },
+  }
+})
+
 import { db } from '@sim/db'
 import {
   copilotAsyncToolCalls,
@@ -92,7 +106,10 @@ import { revokeWorkspaceAccessTx } from '@/lib/workspaces/access/workspace-acces
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
 import { DELETE as deleteWorkspace } from '@/app/api/workspaces/[id]/route'
 import { replaceScimGroup } from '@/ee/scim/lib/application/groups/manage-groups'
-import { reconcileUsersProjectionInBatches } from '@/ee/scim/lib/projection/reconcile-user'
+import {
+  PROJECTION_BATCH_SIZE,
+  reconcileUsersProjectionInBatches,
+} from '@/ee/scim/lib/projection/reconcile-user'
 import { insertScimGroup } from '@/ee/scim/lib/repository/groups'
 import { insertScimUser } from '@/ee/scim/lib/repository/users'
 
@@ -334,34 +351,14 @@ async function whileHolding<T>(chatId: string, run: (holder: number) => Promise<
   }
 }
 
-/** Queues admission and deletion behind a held chat row in the order `first` names. */
-async function queueOnChat<A, D>(
-  chatId: string,
-  first: 'admission' | 'deletion',
-  admit: () => Promise<A>,
-  remove: () => Promise<D>
-): Promise<{ admission: Promise<A>; deletion: Promise<D> }> {
-  return whileHolding(chatId, async (holder) => {
-    const admission = first === 'admission' ? admit() : undefined
-    const deletion = admission ? undefined : remove()
-    const waiter = await lockWaiterBehind(holder)
-    const queued = { admission: admission ?? admit(), deletion: deletion ?? remove() }
-    await lockWaiterBehind(holder, waiter)
-    return queued
-  })
-}
+type DirectoryTarget = { workspaceId: string } | { role: 'admin' }
 
-/** A directory connection for the organization, with one group mapped to `target`. */
-async function seedDirectory(
-  organizationId: string,
-  target: { workspaceId: string } | { role: 'admin' }
-) {
-  const connectionId = generateId()
-  await db.insert(scimConnection).values({ id: connectionId, organizationId })
-  const group = await insertScimGroup(db, { connectionId, displayName: generateId() })
+/** Points the group's only mapping at `target`, as an administrator's mapping edit does. */
+async function mapGroup(groupId: string, target: DirectoryTarget) {
+  await db.delete(scimGroupMapping).where(eq(scimGroupMapping.groupId, groupId))
   await db.insert(scimGroupMapping).values({
     id: generateId(),
-    groupId: group.id,
+    groupId,
     ...('workspaceId' in target
       ? {
           targetKind: 'workspace',
@@ -370,6 +367,14 @@ async function seedDirectory(
         }
       : { targetKind: 'org_role', role: target.role }),
   })
+}
+
+/** A directory connection for the organization, with one group mapped to `target`. */
+async function seedDirectory(organizationId: string, target: DirectoryTarget) {
+  const connectionId = generateId()
+  await db.insert(scimConnection).values({ id: connectionId, organizationId })
+  const group = await insertScimGroup(db, { connectionId, displayName: generateId() })
+  await mapGroup(group.id, target)
   const principal: Principal = {
     kind: 'scim_connection',
     organizationId,
@@ -383,7 +388,16 @@ async function seedDirectory(
       principal,
       input: { groupId: group.id, group: { displayName: group.displayName, memberIds } },
     })
-  return { connectionId, groupId: group.id, setGroupMembers }
+  /** Re-projects these users in bounded transactions, as the scheduled pass and mapping edits do. */
+  const reconcile = (scimUserIds: string[]) =>
+    reconcileUsersProjectionInBatches({ connectionId, organizationId, scimUserIds, settings: {} })
+  return {
+    connectionId,
+    groupId: group.id,
+    setGroupMembers,
+    reconcile,
+    remap: (next: DirectoryTarget) => mapGroup(group.id, next),
+  }
 }
 
 /** An organization member the directory provisions, returning their directory user id. */
@@ -423,13 +437,38 @@ async function refuseGrantsFor(scimUserId: string) {
 
 const REFUSED = { cause: { message: 'projection refused' } }
 
-/** Two directory members, ordered as a projection visits them. */
-async function seedDirectoryMembersInOrder(connectionId: string, organizationId: string) {
-  const members = [
-    await seedDirectoryMember(connectionId, organizationId),
-    await seedDirectoryMember(connectionId, organizationId),
-  ]
+/** Directory members, ordered as a projection visits them. */
+async function seedDirectoryMembersInOrder(
+  connectionId: string,
+  organizationId: string,
+  count: number
+) {
+  const members = []
+  for (let index = 0; index < count; index += 1) {
+    members.push(await seedDirectoryMember(connectionId, organizationId))
+  }
   return members.sort((left, right) => (left.scimUserId < right.scimUserId ? -1 : 1))
+}
+
+/** Stop deliveries started for this test's runs; one is started before its write returns. */
+const requestedStops = () =>
+  requestedDeliveries.filter((streamId) => testStreams.has(streamId)).sort()
+
+/** Queues admission and deletion behind a held chat row in the order `first` names. */
+async function queueOnChat<A, D>(
+  chatId: string,
+  first: 'admission' | 'deletion',
+  admit: () => Promise<A>,
+  remove: () => Promise<D>
+): Promise<{ admission: Promise<A>; deletion: Promise<D> }> {
+  return whileHolding(chatId, async (holder) => {
+    const admission = first === 'admission' ? admit() : undefined
+    const deletion = admission ? undefined : remove()
+    const waiter = await lockWaiterBehind(holder)
+    const queued = { admission: admission ?? admit(), deletion: deletion ?? remove() }
+    await lockWaiterBehind(holder, waiter)
+    return queued
+  })
 }
 
 const STOPPED = { status: 200, body: { stopped: true } }
@@ -746,7 +785,8 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     const directory = await seedDirectory(organizationId, { workspaceId })
     const [removed, added] = await seedDirectoryMembersInOrder(
       directory.connectionId,
-      organizationId
+      organizationId,
+      2
     )
     await directory.setGroupMembers([removed.scimUserId])
     const run = await seedRun({ userId: removed.userId, workspaceId })
@@ -759,49 +799,78 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
       await allowGrants()
     }
 
-    await sleep(200)
-    expect(pushedStops()).toEqual([])
+    expect(requestedStops()).toEqual([])
     expect(await hasStop(run)).toBe(false)
     expect(await runControl(run)).toEqual(LIVE)
   })
 
-  it('pushes Stop for each reconciled batch that commits, and none for one that rolls back', async () => {
+  it('pushes Stop for a committed batch when a later batch rolls back, and none for that batch', async () => {
     const ownerId = await seedUser()
     const { organizationId, workspaceId } = await seedOrganization(ownerId)
     const directory = await seedDirectory(organizationId, { workspaceId })
-    const [removed, added] = await seedDirectoryMembersInOrder(
+    const members = await seedDirectoryMembersInOrder(
       directory.connectionId,
-      organizationId
+      organizationId,
+      PROJECTION_BATCH_SIZE + 2
     )
-    await directory.setGroupMembers([removed.scimUserId])
-    const run = await seedRun({ userId: removed.userId, workspaceId })
+    const committed = members[0]
+    const rolledBack = members[PROJECTION_BATCH_SIZE]
+    const refused = members[PROJECTION_BATCH_SIZE + 1]
+    await directory.setGroupMembers([committed.scimUserId, rolledBack.scimUserId])
+    const committedRun = await seedRun({ userId: committed.userId, workspaceId })
+    const rolledBackRun = await seedRun({ userId: rolledBack.userId, workspaceId })
     /** Membership drifts behind the projection's back, as the scheduled pass repairs it. */
-    await db.delete(scimGroupMember).where(eq(scimGroupMember.scimUserId, removed.scimUserId))
+    await db.delete(scimGroupMember).where(eq(scimGroupMember.groupId, directory.groupId))
     await db
       .insert(scimGroupMember)
-      .values({ id: generateId(), groupId: directory.groupId, scimUserId: added.scimUserId })
-    const reconcile = () =>
-      reconcileUsersProjectionInBatches({
-        connectionId: directory.connectionId,
-        organizationId,
-        scimUserIds: [removed.scimUserId, added.scimUserId],
-        settings: {},
-      })
-    const allowGrants = await refuseGrantsFor(added.scimUserId)
+      .values({ id: generateId(), groupId: directory.groupId, scimUserId: refused.scimUserId })
+    const allowGrants = await refuseGrantsFor(refused.scimUserId)
 
     try {
-      await expect(reconcile()).rejects.toMatchObject(REFUSED)
+      await expect(
+        directory.reconcile(members.map((entry) => entry.scimUserId))
+      ).rejects.toMatchObject(REFUSED)
     } finally {
       await allowGrants()
     }
-    await sleep(200)
-    expect(pushedStops()).toEqual([])
+
+    expect(requestedStops()).toEqual([committedRun.streamId])
+    await expect.poll(pushedStops).toEqual([committedRun.streamId])
+    expect(await runControl(committedRun)).toEqual(STOPPED)
+    expect(await hasStop(rolledBackRun)).toBe(false)
+    expect(await runControl(rolledBackRun)).toEqual(LIVE)
+  })
+
+  it('keeps a demoted admin’s run when the same pass grants its workspace', async () => {
+    const ownerId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const directory = await seedDirectory(organizationId, { role: 'admin' })
+    const demoted = await seedDirectoryMember(directory.connectionId, organizationId)
+    await directory.setGroupMembers([demoted.scimUserId])
+    const run = await seedRun({ userId: demoted.userId, workspaceId })
+
+    await directory.remap({ workspaceId })
+    await directory.reconcile([demoted.scimUserId])
+
+    expect(requestedStops()).toEqual([])
+    expect(await hasStop(run)).toBe(false)
     expect(await runControl(run)).toEqual(LIVE)
+  })
 
-    await reconcile()
+  it('keeps a run when the same pass trades its workspace grant for the admin role', async () => {
+    const ownerId = await seedUser()
+    const { organizationId, workspaceId } = await seedOrganization(ownerId)
+    const directory = await seedDirectory(organizationId, { workspaceId })
+    const promoted = await seedDirectoryMember(directory.connectionId, organizationId)
+    await directory.setGroupMembers([promoted.scimUserId])
+    const run = await seedRun({ userId: promoted.userId, workspaceId })
 
-    await expect.poll(pushedStops).toEqual([run.streamId])
-    expect(await runControl(run)).toEqual(STOPPED)
+    await directory.remap({ role: 'admin' })
+    await directory.reconcile([promoted.scimUserId])
+
+    expect(requestedStops()).toEqual([])
+    expect(await hasStop(run)).toBe(false)
+    expect(await runControl(run)).toEqual(LIVE)
   })
 
   it('stops a removed organization member’s Assistant runs', async () => {
