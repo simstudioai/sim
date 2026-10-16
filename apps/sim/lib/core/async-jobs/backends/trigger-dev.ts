@@ -253,6 +253,45 @@ async function scanAndCancelTriggerRuns(options: CancellationScanOptions): Promi
 }
 
 /**
+ * Lists a workspace's active workflow runs however old they are: a removal must reach a run that
+ * has been queued or waiting for longer than any recent window. Trigger.dev searches only the
+ * last 7 days unless a time bound is given, and passing only `to` removes the lower bound. When
+ * Trigger.dev refuses that search as too expensive (422) before returning a run, the listing
+ * falls back to the queue-wait retention window rather than sweeping nothing.
+ */
+async function* listActiveWorkspaceRuns(
+  workspaceId: string,
+  workspaceTag: string
+): AsyncIterable<CancellationListRun> {
+  const filter = {
+    tag: workspaceTag,
+    taskIdentifier: [...WORKSPACE_EXECUTION_JOB_TYPES],
+    status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+    limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
+  }
+  let listed = false
+  try {
+    for await (const run of runs.list({ ...filter, to: new Date() })) {
+      listed = true
+      yield run
+    }
+    return
+  } catch (error) {
+    if (listed || !(error instanceof ApiError) || error.status !== 422) throw error
+    logger.warn(
+      'Trigger.dev refused an unbounded workspace run search; using the retention window',
+      {
+        workspaceId,
+      }
+    )
+  }
+  yield* runs.list({
+    ...filter,
+    from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
+  })
+}
+
+/**
  * Maps trigger.dev task IDs to our JobType
  */
 const JOB_TYPE_TO_TASK_ID: Record<JobType, string> = {
@@ -679,14 +718,7 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
     await scanAndCancelTriggerRuns({
       cancelJob: (jobId) => this.cancelJob(jobId),
-      listRuns: () =>
-        runs.list({
-          tag: workspaceTag,
-          taskIdentifier: [...WORKSPACE_EXECUTION_JOB_TYPES],
-          status: [...ACTIVE_TRIGGER_RUN_STATUSES],
-          from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
-          limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
-        }),
+      listRuns: () => listActiveWorkspaceRuns(workspaceId, workspaceTag),
       /**
        * Only cancelled runs count toward the cap, so runs that keep refusing cancellation cannot
        * hold every retry at the front of the listing; a separate bound on failures keeps one call

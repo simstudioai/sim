@@ -948,3 +948,41 @@ describe('TriggerDevJobQueue workspace cancellation past refusing runs', () => {
     expect(mockCancel).toHaveBeenCalledWith('run-9')
   })
 })
+
+describe('TriggerDevJobQueue workspace cancellation of long-lived runs', () => {
+  beforeEach(() => {
+    mockList.mockReset()
+    mockCancel.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('searches every active run of the workspace, however long ago it was created', async () => {
+    mockList.mockReturnValue(createListPage([{ id: 'run-old', tags: ['workspaceId:removed'] }]))
+    const queue = new TriggerDevJobQueue()
+
+    await queue.cancelByWorkspace('removed', { maxRuns: 100 })
+
+    const [filter] = mockList.mock.calls[0] as [Record<string, unknown>]
+    expect(filter.from).toBeUndefined()
+    expect(filter.period).toBeUndefined()
+    expect(filter.to).toBeInstanceOf(Date)
+    expect(mockCancel).toHaveBeenCalledWith('run-old')
+  })
+
+  it('falls back to the retention window when Trigger.dev refuses the unbounded search', async () => {
+    mockList
+      .mockImplementationOnce(() => {
+        throw new MockApiError(422, { message: 'narrow the time window' })
+      })
+      .mockReturnValueOnce(createListPage([{ id: 'run-recent', tags: ['workspaceId:removed'] }]))
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 100 })).resolves.toEqual({
+      cancelledJobs: 1,
+      complete: true,
+    })
+
+    const [fallback] = mockList.mock.calls[1] as [Record<string, unknown>]
+    expect(fallback.from).toBeInstanceOf(Date)
+    expect(mockCancel).toHaveBeenCalledWith('run-recent')
+  })
+})
