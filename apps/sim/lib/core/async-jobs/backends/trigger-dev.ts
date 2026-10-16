@@ -24,6 +24,9 @@ import {
   type JobType,
   TERMINAL_JOB_STATUSES,
   validateMaxDurationSeconds,
+  WORKSPACE_EXECUTION_JOB_TYPES,
+  type WorkspaceJobCancellationOptions,
+  type WorkspaceJobCancellationResult,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
@@ -38,6 +41,7 @@ const ACTIVE_TRIGGER_RUN_STATUSES = [
 ] as const
 const CANCELLATION_LIST_PAGE_SIZE = 25
 const CANCELLATION_OPERATION_CHUNK_SIZE = 10
+const WORKSPACE_CANCELLATION_LIST_PAGE_SIZE = 100
 function classifyTriggerEnqueueError(error: unknown): AsyncJobEnqueueError {
   if (error instanceof ApiError && error.status && error.status >= 400 && error.status < 500) {
     return new AsyncJobEnqueueError(toError(error).message, {
@@ -655,6 +659,66 @@ export class TriggerDevJobQueue implements JobQueueBackend {
       })
       throw error
     }
+  }
+
+  async cancelByWorkspace(
+    workspaceId: string,
+    options: WorkspaceJobCancellationOptions
+  ): Promise<WorkspaceJobCancellationResult> {
+    const workspaceTag = `workspaceId:${workspaceId}`
+    const state: CancellationScanState = { cancelledJobs: 0, failureCount: 0 }
+    let pending: string[] = []
+    let inspectedRuns = 0
+    let complete = true
+
+    const flush = async (): Promise<void> => {
+      const runIds = pending
+      pending = []
+      const results = await Promise.allSettled(runIds.map((runId) => this.cancelJob(runId)))
+      for (const result of results) {
+        if (result.status === 'rejected') recordCancellationCandidateFailure(state, result.reason)
+        else state.cancelledJobs += 1
+      }
+    }
+
+    try {
+      for await (const run of runs.list({
+        tag: workspaceTag,
+        taskIdentifier: [...WORKSPACE_EXECUTION_JOB_TYPES],
+        status: [...ACTIVE_TRIGGER_RUN_STATUSES],
+        from: new Date(Date.now() - JOB_PENDING_RETENTION_HOURS * 60 * 60 * 1000),
+        limit: WORKSPACE_CANCELLATION_LIST_PAGE_SIZE,
+      })) {
+        if (inspectedRuns >= options.maxRuns || options.signal?.aborted) {
+          complete = false
+          break
+        }
+        if (!run.tags.includes(workspaceTag)) continue
+        inspectedRuns += 1
+        pending.push(run.id)
+        if (pending.length >= CANCELLATION_OPERATION_CHUNK_SIZE) await flush()
+      }
+    } catch (error) {
+      recordCancellationCandidateFailure(state, error)
+    } finally {
+      await flush()
+    }
+
+    if (state.firstError) {
+      logger.error('Failed to cancel trigger.dev runs for workspace', {
+        workspaceId,
+        cancelledJobs: state.cancelledJobs,
+        failureCount: state.failureCount,
+        error: state.firstError.message,
+      })
+      throw state.firstError
+    }
+    logger.info('Cancelled trigger.dev runs for workspace', {
+      workspaceId,
+      cancelledJobs: state.cancelledJobs,
+      complete,
+    })
+    return { cancelledJobs: state.cancelledJobs, complete }
   }
 
   cancelByKey(_cancelKey: string): boolean {

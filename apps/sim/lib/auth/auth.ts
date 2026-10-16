@@ -146,6 +146,7 @@ import {
   consumeOAuthCredentialDraftBinding,
   processCredentialDraft,
 } from '@/lib/credentials/draft-processor'
+import type { ExecutionStopPlan } from '@/lib/execution/removal-stop-records'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -180,6 +181,14 @@ import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
 const logger = createLogger('Auth')
+
+/**
+ * Workflow runs `/admin/remove-user` must stop, read by the user delete's `before` hook while the
+ * rows naming them exist and enqueued by its `after` hook once the delete has committed. Keyed by
+ * the user entity Better Auth passes to both hooks of the same delete; a delete that fails never
+ * reaches `after`, so its entry is dropped with the entity.
+ */
+const adminRemovalExecutionStops = new WeakMap<object, ExecutionStopPlan>()
 
 /**
  * A Stripe price that maps to no catalog plan leaves the stored plan in place. That is expected
@@ -469,11 +478,44 @@ export const auth = betterAuth({
       },
       /**
        * The admin plugin's `/admin/remove-user` deletes the user row through Better Auth, so its
-       * usage rows cascade away without `deleteUserAccount`. Better Auth runs this once the delete
-       * commits, which is when the stored reporting prefixes that counted them must be discarded.
+       * usage rows cascade away without `deleteUserAccount`. Better Auth runs `after` once the
+       * delete commits, which is when the stored reporting prefixes that counted them must be
+       * discarded, and when the runs the cascade orphaned are stopped: in-flight ones at once,
+       * queued ones by the outbox worker, since this module cannot load that delivery. The
+       * delete is not transactional, so those runs are read just before it; a failed read lets
+       * the removal proceed as before rather than blocking an admin.
        */
       delete: {
-        after: async () => {
+        before: async (user) => {
+          try {
+            const { collectAccountRemovalStops } = await import(
+              '@/lib/execution/removal-stop-records'
+            )
+            adminRemovalExecutionStops.set(user, await collectAccountRemovalStops(db, user.id))
+          } catch (error) {
+            logger.error('[databaseHooks.user.delete.before] Failed to read runs to stop', {
+              userId: user.id,
+              error: getErrorMessage(error),
+            })
+          }
+        },
+        after: async (user) => {
+          const executionStops = adminRemovalExecutionStops.get(user)
+          adminRemovalExecutionStops.delete(user)
+          if (executionStops) {
+            try {
+              const { enqueueExecutionStops, signalExecutionStops } = await import(
+                '@/lib/execution/removal-stop-records'
+              )
+              await enqueueExecutionStops(db, executionStops)
+              await signalExecutionStops(executionStops.executions)
+            } catch (error) {
+              logger.error('[databaseHooks.user.delete.after] Failed to stop removed runs', {
+                userId: user.id,
+                error: getErrorMessage(error),
+              })
+            }
+          }
           await invalidateReportingUsagePrefixes()
         },
       },

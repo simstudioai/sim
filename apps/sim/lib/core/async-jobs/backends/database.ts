@@ -18,6 +18,8 @@ import {
   type JobStatus,
   type JobType,
   validateMaxDurationSeconds,
+  WORKSPACE_EXECUTION_JOB_TYPES,
+  type WorkspaceJobCancellationResult,
 } from '@/lib/core/async-jobs/types'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
@@ -515,6 +517,45 @@ export class DatabaseJobQueue implements JobQueueBackend {
       recordExecutionCancellationBackendResult({ backend: 'database', result: 'error' })
       throw error
     }
+  }
+
+  /**
+   * Cancels the workspace's pending and processing rows, so no process can claim them, and
+   * aborts the runners this process holds for them. A runner another process holds stops through
+   * its execution's cancellation signal instead. Batches run through `batchEnqueueAndWait` keep
+   * no row and are left to that signal and their dispatch's own cancellation.
+   */
+  async cancelByWorkspace(workspaceId: string): Promise<WorkspaceJobCancellationResult> {
+    const now = new Date()
+    const cancelled = await db
+      .update(asyncJobs)
+      .set({
+        status: JOB_STATUS.CANCELLED,
+        completedAt: now,
+        error: 'Cancelled',
+        updatedAt: now,
+      })
+      .where(
+        and(
+          inArray(asyncJobs.status, [JOB_STATUS.PENDING, JOB_STATUS.PROCESSING]),
+          inArray(asyncJobs.type, [...WORKSPACE_EXECUTION_JOB_TYPES]),
+          sql`${asyncJobs.metadata}->>'workspaceId' = ${workspaceId}`
+        )
+      )
+      .returning({ id: asyncJobs.id })
+
+    for (const { id } of cancelled) {
+      const controller = inlineAbortControllers.get(id)
+      if (!controller) continue
+      controller.abort(new DOMException('user', 'AbortError'))
+      inlineAbortControllers.delete(id)
+    }
+
+    logger.info('Cancelled database jobs for workspace', {
+      workspaceId,
+      cancelledJobs: cancelled.length,
+    })
+    return { cancelledJobs: cancelled.length, complete: true }
   }
 
   cancelByKey(cancelKey: string): boolean {

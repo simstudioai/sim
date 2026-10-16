@@ -176,6 +176,31 @@ export const EXECUTION_JOB_TYPES_BY_CANCELLATION_SCOPE = {
   resume: ['resume-execution'],
 } as const satisfies Record<ExecutionJobCancellationScope, readonly JobType[]>
 
+/**
+ * Every job type that runs a workflow on a workspace's behalf. Each one is enqueued with
+ * `metadata.workspaceId`, so a workspace-wide stop can find them without knowing their executions.
+ */
+export const WORKSPACE_EXECUTION_JOB_TYPES = [
+  'workflow-execution',
+  'schedule-execution',
+  'webhook-execution',
+  'resume-execution',
+  'workflow-group-cell',
+] as const satisfies readonly JobType[]
+
+export interface WorkspaceJobCancellationOptions {
+  /** Most runs one call may inspect; the rest are left for the caller's next call. */
+  maxRuns: number
+  /** Stops the sweep between pages once the caller's time is up. */
+  signal?: AbortSignal
+}
+
+export interface WorkspaceJobCancellationResult {
+  cancelledJobs: number
+  /** False when the sweep stopped at `maxRuns` or its signal, so active runs may remain. */
+  complete: boolean
+}
+
 export type AsyncJobEnqueueAcceptance = 'rejected' | 'unknown'
 
 interface AsyncJobEnqueueErrorOptions {
@@ -311,6 +336,16 @@ export interface JobQueueBackend {
    * Returns `true` if a matching controller was found and aborted.
    */
   cancelByKey(cancelKey: string): boolean
+
+  /**
+   * Cancel every queued, delayed or running workflow job (`WORKSPACE_EXECUTION_JOB_TYPES`)
+   * enqueued for a workspace, for when the workspace itself is being removed. Throws when any
+   * listing or cancellation failed, after attempting the rest, so the caller can retry.
+   */
+  cancelByWorkspace(
+    workspaceId: string,
+    options: WorkspaceJobCancellationOptions
+  ): Promise<WorkspaceJobCancellationResult>
 }
 
 export type AsyncBackendType = 'trigger-dev' | 'database'

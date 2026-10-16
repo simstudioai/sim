@@ -743,3 +743,184 @@ describe('TriggerDevJobQueue cancellation', () => {
     expect(maxActiveCancellations).toBe(10)
   })
 })
+
+describe('TriggerDevJobQueue workspace cancellation', () => {
+  interface FakeRun {
+    id: string
+    taskIdentifier: string
+    tags: string[]
+    status: string
+  }
+
+  /** Stands in for Trigger.dev: runs carry the tags enqueue sent, and listing honors its filters. */
+  function installFakeTrigger() {
+    const runs: FakeRun[] = []
+    mockTrigger.mockImplementation(
+      async (taskIdentifier: string, _payload?: unknown, options?: unknown) => {
+        const run = {
+          id: `run-${runs.length}`,
+          taskIdentifier,
+          tags: (options as { tags?: string[] } | undefined)?.tags ?? [],
+          status: 'QUEUED',
+        }
+        runs.push(run)
+        return { id: run.id }
+      }
+    )
+    mockList.mockImplementation((query?: unknown) => {
+      const filter = query as { tag: string; taskIdentifier: string[]; status: string[] }
+      const matches = runs.filter(
+        (run) =>
+          run.tags.includes(filter.tag) &&
+          filter.taskIdentifier.includes(run.taskIdentifier) &&
+          filter.status.includes(run.status)
+      )
+      return createListPage(matches)
+    })
+    mockCancel.mockImplementation(async (runId: string) => {
+      const run = runs.find((candidate) => candidate.id === runId)
+      if (run) run.status = 'CANCELED'
+    })
+    return runs
+  }
+
+  function workspaceRun(workspaceId: string, executionId: string) {
+    return {
+      metadata: {
+        workspaceId,
+        correlation: {
+          executionId,
+          requestId: `request-${executionId}`,
+          source: 'workflow' as const,
+          workflowId: `workflow-${executionId}`,
+        },
+      },
+    }
+  }
+
+  beforeEach(() => {
+    mockResolveTriggerRegion.mockResolvedValue('us-east-1')
+    mockList.mockReset()
+    mockCancel.mockReset()
+    mockTrigger.mockReset()
+  })
+
+  it('cancels every workflow run enqueued for the workspace and nothing else', async () => {
+    const runs = installFakeTrigger()
+    const queue = new TriggerDevJobQueue()
+    await queue.enqueue('workflow-execution', {}, workspaceRun('removed', 'a'))
+    await queue.enqueue('webhook-execution', {}, workspaceRun('removed', 'b'))
+    await queue.enqueue('schedule-execution', {}, workspaceRun('removed', 'c'))
+    await queue.enqueue('resume-execution', {}, workspaceRun('removed', 'd'))
+    await queue.enqueue(
+      'workflow-group-cell',
+      {},
+      {
+        ...workspaceRun('removed', 'e'),
+        tags: ['tableId:t', 'rowId:r', 'group:g'],
+      }
+    )
+    await queue.enqueue('workflow-execution', {}, workspaceRun('kept', 'f'))
+    await queue.enqueue('cleanup-logs', {}, { metadata: { workspaceId: 'removed' } })
+
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 100 })).resolves.toEqual({
+      cancelledJobs: 5,
+      complete: true,
+    })
+
+    expect(runs.filter((run) => run.status === 'CANCELED').map((run) => run.id)).toEqual([
+      'run-0',
+      'run-1',
+      'run-2',
+      'run-3',
+      'run-4',
+    ])
+  })
+
+  it('stops at its run cap and reports the sweep incomplete until a later call finishes it', async () => {
+    const runs = installFakeTrigger()
+    const queue = new TriggerDevJobQueue()
+    for (let index = 0; index < 25; index++) {
+      await queue.enqueue('workflow-execution', {}, workspaceRun('removed', `run-${index}`))
+    }
+
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 10 })).resolves.toEqual({
+      cancelledJobs: 10,
+      complete: false,
+    })
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 10 })).resolves.toEqual({
+      cancelledJobs: 10,
+      complete: false,
+    })
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 10 })).resolves.toEqual({
+      cancelledJobs: 5,
+      complete: true,
+    })
+    expect(runs.every((run) => run.status === 'CANCELED')).toBe(true)
+  })
+
+  it('reports a sweep that reached exactly its cap as complete', async () => {
+    installFakeTrigger()
+    const queue = new TriggerDevJobQueue()
+    for (let index = 0; index < 10; index++) {
+      await queue.enqueue('workflow-execution', {}, workspaceRun('removed', `run-${index}`))
+    }
+
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 10 })).resolves.toEqual({
+      cancelledJobs: 10,
+      complete: true,
+    })
+  })
+
+  it('cancels the remaining runs before reporting one it could not cancel', async () => {
+    const runs = installFakeTrigger()
+    const queue = new TriggerDevJobQueue()
+    for (let index = 0; index < 12; index++) {
+      await queue.enqueue('workflow-execution', {}, workspaceRun('removed', `run-${index}`))
+    }
+    const cancel = mockCancel.getMockImplementation()
+    mockCancel.mockImplementation(async (runId: string) => {
+      if (runId === 'run-3') throw new MockApiError(500, { message: 'unavailable' })
+      return cancel?.(runId)
+    })
+
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 100 })).rejects.toThrow(
+      'unavailable'
+    )
+
+    expect(runs.filter((run) => run.status === 'CANCELED')).toHaveLength(11)
+  })
+
+  it('cancels at most ten runs at a time', async () => {
+    installFakeTrigger()
+    const queue = new TriggerDevJobQueue()
+    for (let index = 0; index < 35; index++) {
+      await queue.enqueue('workflow-execution', {}, workspaceRun('removed', `run-${index}`))
+    }
+    const cancel = mockCancel.getMockImplementation()
+    let active = 0
+    let maxActive = 0
+    mockCancel.mockImplementation(async (runId: string) => {
+      active += 1
+      maxActive = Math.max(maxActive, active)
+      await Promise.resolve()
+      active -= 1
+      return cancel?.(runId)
+    })
+
+    await queue.cancelByWorkspace('removed', { maxRuns: 100 })
+
+    expect(maxActive).toBe(10)
+  })
+
+  it('reports a failed listing so the caller retries', async () => {
+    mockList.mockImplementation(() => {
+      throw new MockApiError(503, { message: 'list unavailable' })
+    })
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.cancelByWorkspace('removed', { maxRuns: 100 })).rejects.toThrow(
+      'list unavailable'
+    )
+  })
+})
