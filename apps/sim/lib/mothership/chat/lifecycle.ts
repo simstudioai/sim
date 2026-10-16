@@ -80,18 +80,6 @@ const copilotChatDetailColumns = {
   updatedAt: copilotChats.updatedAt,
 } as const
 
-/**
- * Column set for the legacy copilot chat detail endpoint. Extends
- * `copilotChatDetailColumns` with `model` and `config` — the
- * fields the legacy `transformChat` response shape includes. Still drops
- * `previewYaml` (JSONB), `pinned`, and `lastSeenAt`.
- */
-const copilotChatLegacyDetailColumns = {
-  ...copilotChatDetailColumns,
-  model: copilotChats.model,
-  config: copilotChats.config,
-} as const
-
 /** Canonical transcript order; `NULLS LAST` sorts a not-yet-sequenced row after sequenced ones. */
 const TRANSCRIPT_ORDER = [
   sql`${copilotMessages.seq} asc nulls last`,
@@ -305,7 +293,7 @@ type CopilotChatAuthRow = Pick<
   'id' | 'userId' | 'workflowId' | 'workspaceId' | 'organizationId' | 'type'
 > & { mode: ConversationMode }
 
-export type CopilotChatDetail = Pick<
+type CopilotChatDetail = Pick<
   typeof copilotChats.$inferSelect,
   | 'id'
   | 'userId'
@@ -325,8 +313,35 @@ export type CopilotChatDetailRow = CopilotChatDetail & {
   messages: unknown[]
 }
 
-export type CopilotChatLegacyDetailRow = CopilotChatDetailRow &
-  Pick<typeof copilotChats.$inferSelect, 'model' | 'config'>
+/**
+ * A chat's workflow when the user may read it, or null when the workflow is archived, missing,
+ * or unreadable. A workflow chat is authorized through its workflow, whose workspace also scopes
+ * a legacy chat row that carries no workspace of its own.
+ */
+export async function authorizeChatWorkflowRead(
+  chatId: string,
+  userId: string,
+  workflowId: string
+) {
+  const authorization = await authorizeWorkflowByWorkspacePermission({
+    workflowId,
+    userId,
+    action: 'read',
+  })
+  if (!authorization.allowed || !authorization.workflow) {
+    logger.warn('Copilot chat workflow not authorized for user', { chatId, userId, workflowId })
+    return null
+  }
+  return authorization.workflow
+}
+
+/** A workspace Plan chat is unavailable while Plan mode is off for its owner. */
+export async function isChatModeAvailable(
+  chat: { organizationId?: string | null; mode: ConversationMode },
+  userId: string
+): Promise<boolean> {
+  return chat.organizationId || chat.mode !== 'plan' ? true : isPlanModeEnabled(userId)
+}
 
 async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
   chat: T | undefined,
@@ -360,19 +375,7 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
       throw error
     }
   } else if (chat.workflowId) {
-    const authorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId: chat.workflowId,
-      userId,
-      action: 'read',
-    })
-    if (!authorization.allowed || !authorization.workflow) {
-      logger.warn('Copilot chat workflow not authorized for user', {
-        chatId,
-        userId,
-        workflowId: chat.workflowId,
-      })
-      return null
-    }
+    if (!(await authorizeChatWorkflowRead(chatId, userId, chat.workflowId))) return null
   } else if (chat.workspaceId) {
     const access = await checkWorkspaceAccess(chat.workspaceId, userId)
     if (!access.exists || !access.hasAccess) {
@@ -386,10 +389,8 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
   }
 
   if (
-    !chat.organizationId &&
-    chat.mode === 'plan' &&
     organizationAuthorization !== authorizeOrganizationChatCancellation &&
-    !(await isPlanModeEnabled(userId))
+    !(await isChatModeAvailable(chat, userId))
   )
     return null
 
@@ -447,29 +448,6 @@ async function loadAccessibleCopilotChatAuth(
 }
 
 /**
- * Load a copilot chat row for the legacy chat detail endpoint, including the
- * transcript plus `model` and `config`. Drops `previewYaml`
- * (JSONB), `pinned`, and `lastSeenAt` — none of which the endpoint returns.
- */
-export async function getAccessibleCopilotChat(
-  chatId: string,
-  userId: string,
-  options?: { principal?: Principal }
-): Promise<CopilotChatLegacyDetailRow | null> {
-  const [chat] = await db
-    .select(copilotChatLegacyDetailColumns)
-    .from(copilotChats)
-    .where(ownedLiveChatWhere(chatId, userId))
-    .limit(1)
-
-  const authorized = await authorizeCopilotChatRow(chat, chatId, userId, options?.principal)
-  if (!authorized) return null
-
-  const messages = await loadCopilotChatMessages(chatId, { projection: 'display' })
-  return { ...authorized, messages }
-}
-
-/**
  * Load a copilot chat's detail columns after authorization, without its
  * transcript. The transcript is unbounded — no per-chat message cap on write
  * and no pruning — so callers that only need the chat's scope and metadata
@@ -493,20 +471,18 @@ async function getAccessibleCopilotChatDetail(
  * Load a copilot chat with its transcript (whole, or the `window` asked for) and resources after
  * authorization, omitting copilot-only TOAST-able fields (`previewYaml`, `config`) and unused
  * metadata (`model`, `pinned`, `lastSeenAt`). Messages arrive in the chat UI's projection, so
- * this serves the mothership chat detail endpoint. A chat whose type differs from `type` is null
- * before its transcript is read.
+ * this serves the chat detail endpoint for mothership and workflow copilot chats alike.
  */
 export async function getAccessibleCopilotChatWithMessages(
   chatId: string,
   userId: string,
   options?: {
     principal?: Principal
-    type?: CopilotChatDetail['type']
     window?: TranscriptWindow
   }
 ): Promise<(CopilotChatDetailRow & Omit<TranscriptPage, 'messages'>) | null> {
   const chat = await getAccessibleCopilotChatDetail(chatId, userId, options?.principal)
-  if (!chat || (options?.type && chat.type !== options.type)) return null
+  if (!chat) return null
 
   if (!options?.window) {
     const messages = await loadCopilotChatMessages(chatId, { projection: 'display' })

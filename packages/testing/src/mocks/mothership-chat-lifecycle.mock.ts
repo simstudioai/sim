@@ -17,9 +17,10 @@ export const mothershipChatLifecycleMockFns = {
   mockLoadChatFileAttachmentsNamed: vi.fn(),
   mockGetAccessibleCopilotChatAuth: vi.fn(),
   mockGetAccessibleCopilotChatForCancellation: vi.fn(),
-  mockGetAccessibleCopilotChat: vi.fn(),
   mockGetAccessibleCopilotChatWithMessages: vi.fn(),
   mockResolveOrCreateChat: vi.fn(),
+  mockAuthorizeChatWorkflowRead: vi.fn(),
+  mockIsChatModeAvailable: vi.fn(async () => true),
 }
 
 /**
@@ -37,8 +38,9 @@ export const mothershipChatLifecycleMock = {
   getAccessibleCopilotChatAuth: mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth,
   getAccessibleCopilotChatForCancellation:
     mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatForCancellation,
-  getAccessibleCopilotChat: mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChat,
   getAccessibleCopilotChatWithMessages:
     mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatWithMessages,
   resolveOrCreateChat: mothershipChatLifecycleMockFns.mockResolveOrCreateChat,
+  authorizeChatWorkflowRead: mothershipChatLifecycleMockFns.mockAuthorizeChatWorkflowRead,
+  isChatModeAvailable: mothershipChatLifecycleMockFns.mockIsChatModeAvailable,
 }

@@ -89,14 +89,19 @@ const escapeSearchPhrase = (value: string) =>
   JSON.stringify(value.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&'))
 
 /**
- * The `text ~` clause for a plain query in Jira JQL. `any` ORs every pair of the query's longest
- * terms, so a match contains at least two of them somewhere in the issue, or either term of a
- * two-term query. Jira stems text search, so a word and its plural share one term.
+ * The clause for a plain query in Jira JQL, over all text fields or the summary alone. `any` ORs
+ * every pair of the query's longest terms, so a match contains at least two of them in that field,
+ * or either term of a two-term query. Jira stems text search, so a word and its plural share one
+ * term.
  */
-export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
+export function jiraTextClause(
+  text: string,
+  match: TextMatch = 'all',
+  field: 'text' | 'summary' = 'text'
+): string {
   const terms = match === 'any' ? distinctTerms(text, singularKey) : []
-  if (terms.length < 2) return `text ~ ${escapeSearchPhrase(text)}`
-  const clause = (term: string) => `text ~ ${escapeSearchPhrase(term)}`
+  if (terms.length < 2) return `${field} ~ ${escapeSearchPhrase(text)}`
+  const clause = (term: string) => `${field} ~ ${escapeSearchPhrase(term)}`
   const groups =
     terms.length === 2
       ? terms.map(clause)
@@ -104,14 +109,6 @@ export function jiraTextClause(text: string, match: TextMatch = 'all'): string {
           terms.slice(index + 1).map((second) => `(${clause(first)} AND ${clause(second)})`)
         )
   return `(${groups.join(' OR ')})`
-}
-
-/**
- * The `summary ~` clause for a plain query in Jira JQL: issues whose summary holds every word.
- * JQL has no relevance order, so this stands in for a title boost.
- */
-export function jiraSummaryClause(text: string): string {
-  return `summary ~ ${escapeSearchPhrase(text)}`
 }
 
 /**
@@ -129,19 +126,51 @@ export function termCoverage(text: string, terms: readonly string[]): number {
 }
 
 /**
- * A test for whether a text holds at least half the query's distinct terms. Query and text words
- * are compared by their singular key, so a word and its regular plural count as one term as a
- * stemmed search matches them; a term with punctuation inside it is matched as written.
+ * The query's distinct terms as a stemmed search counts them, and how many of them a text holds.
+ * Query and text words are compared by their singular key, so a word and its regular plural count
+ * as one term; a term with punctuation inside it is matched as written.
  */
-export function holdsHalfTheTerms(query: string): (text: string) => boolean {
+export function stemmedTerms(query: string): {
+  count: number
+  /** At least half the terms, the minimum a partial match must hold. */
+  required: number
+  held: (text: string) => number
+} {
   const terms = distinctTerms(query, singularKey)
   const keys = terms.map(singularKey)
-  const required = Math.ceil(terms.length / 2)
-  return (text) => {
-    const words = new Set(textWords(text).map(singularKey))
-    const present = terms.filter(
-      (term, index) => words.has(keys[index]) || findTermMatches(text, [term]).length > 0
-    )
-    return present.length >= required
+  return {
+    count: terms.length,
+    required: Math.ceil(terms.length / 2),
+    held: (text) => {
+      const words = new Set(textWords(text).map(singularKey))
+      return terms.filter(
+        (term, index) => words.has(keys[index]) || findTermMatches(text, [term]).length > 0
+      ).length
+    },
   }
+}
+
+/**
+ * A sort key, highest first, for comparing results from different sources against a plain query:
+ * the terms the title and text hold together, then the terms the title holds, then the share of
+ * the title's words that are query terms, so a page named for the query leads one that mentions it.
+ * Each source ranks only its own results, so this is the comparison they share.
+ */
+export function queryRelevance(
+  query: string
+): (title: string, text: string) => [number, number, number] {
+  const { held } = stemmedTerms(query)
+  return (title, text) => {
+    const inTitle = held(title)
+    return [held(`${title}\n${text}`), inTitle, inTitle / Math.max(1, textWords(title).length)]
+  }
+}
+
+/**
+ * A test for whether a text holds at least half the query's distinct terms, as `stemmedTerms`
+ * counts them.
+ */
+export function holdsHalfTheTerms(query: string): (text: string) => boolean {
+  const { required, held } = stemmedTerms(query)
+  return (text) => held(text) >= required
 }

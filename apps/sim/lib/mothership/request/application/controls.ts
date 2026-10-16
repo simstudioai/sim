@@ -14,7 +14,10 @@ import {
   requestRunStop,
 } from '@/lib/mothership/async-runs/repository'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import {
+  type OwnedChatContextOptions,
+  resolveOwnedChatContext,
+} from '@/lib/mothership/chat/application/context'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import { deliverRunStop } from '@/lib/mothership/request/application/stop-delivery'
 import { requestStreamSteering } from '@/lib/mothership/request/session/steer'
@@ -61,12 +64,13 @@ async function resolveRunContext({
 async function resolveAdmittedRunContext(
   principal: SessionPrincipal,
   input: RunControlInput,
-  run: { chatId: string; workspaceId: string | null; organizationId?: string | null }
+  run: { chatId: string; workspaceId: string | null; organizationId?: string | null },
+  options: OwnedChatContextOptions = {}
 ) {
   if (input.chatId && input.chatId !== run.chatId) {
     throw new OrchestrationError('forbidden', 'Stream does not belong to this chat')
   }
-  const chat = await resolveOwnedChatContext(principal, run.chatId)
+  const chat = await resolveOwnedChatContext(principal, run.chatId, options)
   if (
     (run.workspaceId ?? null) !== (chat.workspaceId ?? null) ||
     (run.organizationId ?? null) !== (chat.organizationId ?? null)
@@ -90,7 +94,12 @@ async function resolveAbortContext({
   input: RunControlInput
 }) {
   const run = await getLatestRunForStream(input.streamId, principal.userId)
-  if (run?.chatId) return resolveAdmittedRunContext(principal, input, run)
+  /**
+   * An owner may stop a run already admitted for them even after their account is blocked. A
+   * blocked account cannot admit a run, so a Stop recorded ahead of admission keeps the ban check.
+   */
+  if (run?.chatId)
+    return resolveAdmittedRunContext(principal, input, run, { allowBlockedOwner: true })
   if (input.chatId) {
     const chat = await resolveOwnedChatContext(principal, input.chatId)
     if (input.workspaceId && input.workspaceId !== chat.workspaceId) {
@@ -147,7 +156,8 @@ export const abortRun = defineAuthorizedChatUseCase({
     const { chatId } = await resolveAdmittedRunContext(
       principal,
       { ...input, workspaceId, organizationId },
-      run
+      run,
+      { allowBlockedOwner: true }
     )
     /** Read alongside the signals, which need none of it. */
     const work = Promise.all([

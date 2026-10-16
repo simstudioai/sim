@@ -180,7 +180,18 @@ export class ComputerUseService {
       return Promise.reject(new Error('Computer Use has too many queued actions.'))
     if (this.queued.has(toolCallId))
       return Promise.reject(new Error('This Computer Use action is already running.'))
-    const input = ComputerUseSchema.parse(raw)
+    // A newer server can send arguments this build predates; nothing has been queued yet.
+    const parsed = ComputerUseSchema.safeParse(raw)
+    if (!parsed.success)
+      return Promise.reject(
+        new ComputerUseError({
+          code: 'invalid_arguments',
+          message:
+            'This desktop app does not support these Computer Use arguments; update Sim Desktop.',
+          dispatchState: 'not_started',
+        })
+      )
+    const input = parsed.data
     const work: ToolWork = { toolCallId, scopeId, input, controller: new AbortController() }
     this.queued.set(toolCallId, work)
     const result = this.tail.then(() => this.run(work))

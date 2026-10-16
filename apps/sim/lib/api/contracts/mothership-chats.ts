@@ -170,15 +170,6 @@ export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 
 export const mothershipEventsQuerySchema = mothershipChatOwnerSchema
 
-export const mothershipChatGetQuerySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    workspaceId: z.string().optional(),
-    organizationId: z.string().optional(),
-    chatId: z.string().optional(),
-  })
-  .passthrough()
-
 export const mothershipChatPostEnvelopeSchema = z
   .object({
     message: z.string().max(MAX_CHAT_MESSAGE_LENGTH).optional(),

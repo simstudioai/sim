@@ -186,14 +186,6 @@ export const copilotToolExecuteInternalBodySchema = z
   )
 export type CopilotToolExecuteInternalBody = z.input<typeof copilotToolExecuteInternalBodySchema>
 
-export const copilotChatGetQuerySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    workspaceId: z.string().optional(),
-    chatId: z.string().optional(),
-  })
-  .passthrough()
-
 export const copilotChatStreamQuerySchema = z.object({
   streamId: z.string().optional().default(''),
   after: z.string().optional().default(''),
