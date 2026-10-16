@@ -1,8 +1,10 @@
 import { asyncJobs, db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateShortId } from '@sim/utils/id'
+import { sleep } from '@sim/utils/helpers'
+import { generateId, generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
+import { type BackoffOptions, backoffWithJitter } from '@sim/utils/retry'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import {
   AsyncJobEnqueueError,
@@ -18,9 +20,16 @@ import {
   type JobType,
   validateMaxDurationSeconds,
 } from '@/lib/core/async-jobs/types'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { recordExecutionCancellationBackendResult } from '@/lib/core/execution-limits/metrics'
 
 const logger = createLogger('DatabaseJobQueue')
+
+/** About 4 s across all attempts: long enough to ride out a connection reset or failover. */
+const INLINE_CLAIM_MAX_ATTEMPTS = 5
+const INLINE_CLAIM_BACKOFF: BackoffOptions = { baseMs: 250, maxMs: 2_000 }
+/** Metadata key holding the token of the claim that moved a job to `processing`. */
+const CLAIM_TOKEN_KEY = 'claimToken'
 
 type AsyncJobRow = typeof asyncJobs.$inferSelect
 type Runner = NonNullable<EnqueueOptions['runner']>
@@ -38,7 +47,7 @@ function rowToJob(row: AsyncJobRow): Job {
     maxAttempts: row.maxAttempts,
     error: row.error ?? undefined,
     output: row.output as unknown,
-    metadata: (row.metadata ?? {}) as JobMetadata,
+    metadata: omit((row.metadata ?? {}) as JobMetadata, [CLAIM_TOKEN_KEY]),
   }
 }
 
@@ -350,9 +359,50 @@ export class DatabaseJobQueue implements JobQueueBackend {
     return row ? rowToJob(row) : null
   }
 
-  async startJob(jobId: string): Promise<boolean> {
-    const now = new Date()
+  /**
+   * Claims an inline job, retrying a claim that hit a retryable infrastructure error: ingress
+   * has already acknowledged the delivery and nothing re-runs a failed inline job, so failing
+   * it here would drop the delivery for good. The error can arrive after the claim committed,
+   * so each retry first reads the row back; a fresh claim token fences it, so only a claim this
+   * call wrote counts as won, even against another claimer of the same job id.
+   */
+  private async claimInlineJob(jobId: string): Promise<boolean> {
+    const claimToken = generateId()
+    for (let attempt = 1; ; attempt++) {
+      try {
+        if (attempt > 1) {
+          const [row] = await db
+            .select({
+              status: asyncJobs.status,
+              claimToken: sql<string | null>`${asyncJobs.metadata}->>${CLAIM_TOKEN_KEY}`,
+            })
+            .from(asyncJobs)
+            .where(eq(asyncJobs.id, jobId))
+            .limit(1)
+          if (row?.status === JOB_STATUS.PROCESSING && row.claimToken === claimToken) {
+            logger.info('Recovered inline job claim that committed before its error', { jobId })
+            return true
+          }
+          if (row?.status !== JOB_STATUS.PENDING) return false
+        }
+        return await this.startJob(jobId, claimToken)
+      } catch (error) {
+        if (attempt >= INLINE_CLAIM_MAX_ATTEMPTS || !isRetryableInfrastructureError(error)) {
+          throw error
+        }
+        logger.warn('Retrying inline job claim after a retryable error', {
+          jobId,
+          attempt,
+          error: toError(error).message,
+        })
+        await sleep(backoffWithJitter(attempt, null, INLINE_CLAIM_BACKOFF))
+      }
+    }
+  }
 
+  /** `claimToken` lets {@link claimInlineJob} recognize its own claim when it reads the row back. */
+  async startJob(jobId: string, claimToken?: string): Promise<boolean> {
+    const now = new Date()
     const [claimedJob] = await db
       .update(asyncJobs)
       .set({
@@ -360,6 +410,9 @@ export class DatabaseJobQueue implements JobQueueBackend {
         startedAt: now,
         attempts: sql`${asyncJobs.attempts} + 1`,
         updatedAt: now,
+        ...(claimToken && {
+          metadata: sql`${asyncJobs.metadata} || jsonb_build_object(${CLAIM_TOKEN_KEY}::text, ${claimToken}::text)`,
+        }),
       })
       .where(and(eq(asyncJobs.id, jobId), eq(asyncJobs.status, JOB_STATUS.PENDING)))
       .returning({ id: asyncJobs.id })
@@ -547,7 +600,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
       }
       try {
         if (abortController.signal.aborted) return
-        const claimed = await this.startJob(jobId)
+        const claimed = await this.claimInlineJob(jobId)
         if (!claimed) return
         if (abortController.signal.aborted) return
         const output = await runner(payload, abortController.signal)
