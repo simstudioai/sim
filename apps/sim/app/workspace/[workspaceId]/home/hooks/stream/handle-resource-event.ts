@@ -29,6 +29,7 @@ import {
   mothershipChatKeys,
   refreshMothershipChatDetail,
 } from '@/hooks/queries/mothership-chats'
+import { invalidateProjectFileQueries } from '@/hooks/queries/projects'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -189,6 +190,9 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     onResourceEvent?.(getChatResourceSelectionId(resource))
     return
   }
+  const owner = 'owner' in payload.resource ? payload.resource.owner : undefined
+  if (owner?.entityType === 'project' && payload.resource.type === 'file' && payload.resource.id)
+    invalidateProjectFileQueries(queryClient, owner.entityId, payload.resource.id)
   const workspaceId = payload.resource.workspaceId ?? chatWorkspaceId
   if (!workspaceId || (chatWorkspaceId && workspaceId !== chatWorkspaceId)) return
   // Browser and terminal tabs are projected from the desktop app's live
@@ -203,8 +207,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (payload.op === 'remove' && payload.effectId) {
     // The server applied this removal before publishing it, so a client add
     // still queued for the resource must not restore it, live or on recovery.
-    const { type, id } = payload.resource
-    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: payload.resource.workspaceId })
+    const { type, id, workspaceId: resourceWorkspaceId, owner } = payload.resource
+    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: resourceWorkspaceId, owner })
   }
   if (payload.replay || ctx.deps.options.deferFlushes) {
     refreshRecoveredChatResources(ctx)
@@ -259,8 +263,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       ctx.deps.setActiveResourceId((current) =>
         current === getChatResourceSelectionId(resource) ? null : current
       )
-    } else if (resource.workspaceId) removeResource(resourceType, resource.id, resource.workspaceId)
-    else removeResource(resourceType, resource.id)
+    } else removeResource(resource)
     if (resourceType === 'workflow') {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }

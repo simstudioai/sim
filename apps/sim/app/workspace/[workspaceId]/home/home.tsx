@@ -351,7 +351,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
       return otherResolved?.type === resolved.type && otherResolved.id === resolved.id
     })
     if (stillReferenced) return
-    removeResource(resolved.type, resolved.id)
+    removeResource(resolved)
   }
 
   function openWorkspaceResource(resource: MothershipResource) {

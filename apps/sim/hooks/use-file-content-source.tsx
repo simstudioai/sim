@@ -1,6 +1,11 @@
 'use client'
 
 import { createContext, useContext } from 'react'
+import { contractUrl } from '@/lib/api/client/request'
+import {
+  readProjectFileArtifactContract,
+  readProjectFileContentContract,
+} from '@/lib/api/contracts/project-files'
 import {
   type EmbeddedFileRef,
   resolveEmbeddedFileRef,
@@ -139,6 +144,32 @@ export function createPublicFileContentSource(
       opts?.preview ? `${contentUrl}${contentUrl.includes('?') ? '&' : '?'}preview=1` : contentUrl,
     `/api/files/public/${token}/inline`,
     owner
+  )
+}
+
+/**
+ * In-app source for one Project file, which has no workspace serve URL: bytes come from the Project
+ * file routes, and embedded images resolve only within the same Project.
+ */
+export function createProjectFileContentSource(
+  projectId: string,
+  fileId: string
+): FileContentSource {
+  const params = { id: projectId, fileId }
+  return inlineImageSource(
+    (_key, opts) =>
+      opts?.raw
+        ? contractUrl(readProjectFileContentContract, { params })
+        : contractUrl(readProjectFileArtifactContract, {
+            params,
+            query: {
+              preview: opts?.preview ? '1' : undefined,
+              v: opts?.version == null ? undefined : String(opts.version),
+              t: opts?.version == null && opts?.bust ? String(Date.now()) : undefined,
+            },
+          }),
+    `/api/projects/${encodeURIComponent(projectId)}/files/inline`,
+    { entityType: 'project', entityId: projectId }
   )
 }
 

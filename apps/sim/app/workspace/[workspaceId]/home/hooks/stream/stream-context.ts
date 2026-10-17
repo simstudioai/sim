@@ -5,7 +5,10 @@ import type { RevealedSimKeysByMessage } from '@/lib/mothership/chat/sim-key-red
 import { captureRevealedSimKeys } from '@/lib/mothership/chat/sim-key-redaction'
 import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
-import type { MothershipResourceUpdate } from '@/lib/mothership/resources/types'
+import type {
+  ChatResourceAddress,
+  MothershipResourceUpdate,
+} from '@/lib/mothership/resources/types'
 import {
   createTurnModel,
   type TurnModel,
@@ -20,7 +23,6 @@ import type {
   ChatMessage,
   ContentBlock,
   MothershipResource,
-  MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import {
   type MothershipChatHistory,
@@ -116,15 +118,9 @@ export interface StreamLoopDeps {
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
 
   addResource: (resource: MothershipResourceUpdate) => boolean
-  removeResource: (
-    resourceType: MothershipResourceType,
-    resourceId: string,
-    workspaceId?: string
-  ) => void
+  removeResource: (resource: ChatResourceAddress) => void
   /** Drops a queued client write that would re-add a resource the server already removed. */
-  discardPendingResourceUpsert: (
-    resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>
-  ) => void
+  discardPendingResourceUpsert: (resource: ChatResourceAddress) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientComputerTool: (id: string, args: Record<string, unknown>, ts?: string) => void
