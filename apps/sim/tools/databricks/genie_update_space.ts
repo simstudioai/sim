@@ -47,7 +47,7 @@ export const genieUpdateSpaceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Description of the Genie space',
+      description: 'Description of the Genie space; an empty string clears the description',
     },
     warehouseId: {
       type: 'string',
@@ -87,7 +87,7 @@ export const genieUpdateSpaceTool: ToolConfig<
       return filterUndefined({
         serialized_space: optionalDatabricksString(params.serializedSpace),
         title: optionalDatabricksString(params.title),
-        description: optionalDatabricksString(params.description),
+        description: params.description?.trim(),
         warehouse_id: optionalDatabricksString(params.warehouseId),
         etag: optionalDatabricksString(params.etag),
         parent_path: optionalDatabricksString(params.parentPath),

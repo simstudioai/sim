@@ -181,6 +181,88 @@ List all jobs in a Databricks workspace with optional filtering by name.
 |       ↳ `notebook_path` | string | Notebook path |
 |       ↳ `source` | string | WORKSPACE or GIT |
 |       ↳ `base_parameters` | object | Notebook parameter map |
+|     ↳ `spark_python_task` | object |  |
+|       ↳ `python_file` | string | Python file path or cloud URI |
+|       ↳ `source` | string | WORKSPACE or GIT |
+|       ↳ `parameters` | array |  |
+|     ↳ `spark_jar_task` | object |  |
+|       ↳ `main_class_name` | string | JAR entry point class |
+|       ↳ `parameters` | array |  |
+|       ↳ `jar_uri` | string | Legacy JAR URI |
+|     ↳ `spark_submit_task` | object | Legacy spark-submit task |
+|       ↳ `parameters` | array |  |
+|     ↳ `python_wheel_task` | object |  |
+|       ↳ `package_name` | string | Python package name |
+|       ↳ `entry_point` | string | Package entry point |
+|       ↳ `parameters` | array |  |
+|       ↳ `named_parameters` | object | Named wheel parameters |
+|     ↳ `sql_task` | object |  |
+|       ↳ `warehouse_id` | string | SQL warehouse identifier |
+|       ↳ `parameters` | object | SQL parameters |
+|       ↳ `query` | object |  |
+|         ↳ `query_id` | string | Saved query identifier |
+|       ↳ `file` | object |  |
+|         ↳ `path` | string | SQL file path |
+|         ↳ `source` | string | WORKSPACE or GIT |
+|       ↳ `alert` | object |  |
+|         ↳ `alert_id` | string | SQL alert identifier |
+|         ↳ `subscriptions` | array |  |
+|         ↳ `pause_subscriptions` | boolean |  |
+|       ↳ `dashboard` | object |  |
+|         ↳ `dashboard_id` | string | Legacy SQL dashboard identifier |
+|         ↳ `subscriptions` | array |  |
+|         ↳ `custom_subject` | string |  |
+|         ↳ `pause_subscriptions` | boolean |  |
+|     ↳ `run_job_task` | object |  |
+|       ↳ `job_id` | number | Nested job identifier |
+|       ↳ `job_parameters` | object | Nested job parameters |
+|       ↳ `pipeline_params` | object | Pipeline refresh settings |
+|     ↳ `pipeline_task` | object |  |
+|       ↳ `pipeline_id` | string | Pipeline identifier |
+|       ↳ `parameters` | object |  |
+|       ↳ `full_refresh` | boolean |  |
+|       ↳ `refresh_selection` | array |  |
+|       ↳ `full_refresh_selection` | array |  |
+|       ↳ `reset_checkpoint_selection` | array |  |
+|       ↳ `refresh_flow_selection` | array |  |
+|     ↳ `dbt_task` | object |  |
+|       ↳ `commands` | array | dbt commands |
+|       ↳ `project_directory` | string |  |
+|       ↳ `profiles_directory` | string |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `catalog` | string |  |
+|       ↳ `schema` | string |  |
+|       ↳ `source` | string | WORKSPACE or GIT |
+|     ↳ `condition_task` | object |  |
+|       ↳ `op` | string | Comparison operator |
+|       ↳ `left` | string | Left operand |
+|       ↳ `right` | string | Right operand |
+|       ↳ `outcome` | string | Evaluation result: true or false |
+|     ↳ `for_each_task` | object |  |
+|       ↳ `inputs` | string | JSON array or parameter reference to iterate over |
+|       ↳ `concurrency` | number |  |
+|       ↳ `task` | object | Nested task definition |
+|     ↳ `clean_rooms_notebook_task` | object |  |
+|       ↳ `clean_room_name` | string |  |
+|       ↳ `notebook_name` | string |  |
+|       ↳ `etag` | string |  |
+|       ↳ `notebook_base_parameters` | object |  |
+|     ↳ `dashboard_task` | object |  |
+|       ↳ `dashboard_id` | string |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `subscription` | object |  |
+|       ↳ `filters` | object |  |
+|     ↳ `alert_task` | object |  |
+|       ↳ `alert_id` | string |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `workspace_path` | string |  |
+|       ↳ `subscribers` | array |  |
+|     ↳ `power_bi_task` | object |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `connection_resource_name` | string |  |
+|       ↳ `refresh_after_update` | boolean |  |
+|       ↳ `power_bi_model` | object |  |
+|       ↳ `tables` | array |  |
 |     ↳ `state` | object |  |
 |       ↳ `life_cycle_state` | string |  |
 |       ↳ `result_state` | string |  |
@@ -239,6 +321,88 @@ Get the full definition and settings of a single Databricks job by its job ID.
 |     ↳ `notebook_path` | string | Notebook path |
 |     ↳ `source` | string | WORKSPACE or GIT |
 |     ↳ `base_parameters` | object | Notebook parameter map |
+|   ↳ `spark_python_task` | object |  |
+|     ↳ `python_file` | string | Python file path or cloud URI |
+|     ↳ `source` | string | WORKSPACE or GIT |
+|     ↳ `parameters` | array |  |
+|   ↳ `spark_jar_task` | object |  |
+|     ↳ `main_class_name` | string | JAR entry point class |
+|     ↳ `parameters` | array |  |
+|     ↳ `jar_uri` | string | Legacy JAR URI |
+|   ↳ `spark_submit_task` | object | Legacy spark-submit task |
+|     ↳ `parameters` | array |  |
+|   ↳ `python_wheel_task` | object |  |
+|     ↳ `package_name` | string | Python package name |
+|     ↳ `entry_point` | string | Package entry point |
+|     ↳ `parameters` | array |  |
+|     ↳ `named_parameters` | object | Named wheel parameters |
+|   ↳ `sql_task` | object |  |
+|     ↳ `warehouse_id` | string | SQL warehouse identifier |
+|     ↳ `parameters` | object | SQL parameters |
+|     ↳ `query` | object |  |
+|       ↳ `query_id` | string | Saved query identifier |
+|     ↳ `file` | object |  |
+|       ↳ `path` | string | SQL file path |
+|       ↳ `source` | string | WORKSPACE or GIT |
+|     ↳ `alert` | object |  |
+|       ↳ `alert_id` | string | SQL alert identifier |
+|       ↳ `subscriptions` | array |  |
+|       ↳ `pause_subscriptions` | boolean |  |
+|     ↳ `dashboard` | object |  |
+|       ↳ `dashboard_id` | string | Legacy SQL dashboard identifier |
+|       ↳ `subscriptions` | array |  |
+|       ↳ `custom_subject` | string |  |
+|       ↳ `pause_subscriptions` | boolean |  |
+|   ↳ `run_job_task` | object |  |
+|     ↳ `job_id` | number | Nested job identifier |
+|     ↳ `job_parameters` | object | Nested job parameters |
+|     ↳ `pipeline_params` | object | Pipeline refresh settings |
+|   ↳ `pipeline_task` | object |  |
+|     ↳ `pipeline_id` | string | Pipeline identifier |
+|     ↳ `parameters` | object |  |
+|     ↳ `full_refresh` | boolean |  |
+|     ↳ `refresh_selection` | array |  |
+|     ↳ `full_refresh_selection` | array |  |
+|     ↳ `reset_checkpoint_selection` | array |  |
+|     ↳ `refresh_flow_selection` | array |  |
+|   ↳ `dbt_task` | object |  |
+|     ↳ `commands` | array | dbt commands |
+|     ↳ `project_directory` | string |  |
+|     ↳ `profiles_directory` | string |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `catalog` | string |  |
+|     ↳ `schema` | string |  |
+|     ↳ `source` | string | WORKSPACE or GIT |
+|   ↳ `condition_task` | object |  |
+|     ↳ `op` | string | Comparison operator |
+|     ↳ `left` | string | Left operand |
+|     ↳ `right` | string | Right operand |
+|     ↳ `outcome` | string | Evaluation result: true or false |
+|   ↳ `for_each_task` | object |  |
+|     ↳ `inputs` | string | JSON array or parameter reference to iterate over |
+|     ↳ `concurrency` | number |  |
+|     ↳ `task` | object | Nested task definition |
+|   ↳ `clean_rooms_notebook_task` | object |  |
+|     ↳ `clean_room_name` | string |  |
+|     ↳ `notebook_name` | string |  |
+|     ↳ `etag` | string |  |
+|     ↳ `notebook_base_parameters` | object |  |
+|   ↳ `dashboard_task` | object |  |
+|     ↳ `dashboard_id` | string |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `subscription` | object |  |
+|     ↳ `filters` | object |  |
+|   ↳ `alert_task` | object |  |
+|     ↳ `alert_id` | string |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `workspace_path` | string |  |
+|     ↳ `subscribers` | array |  |
+|   ↳ `power_bi_task` | object |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `connection_resource_name` | string |  |
+|     ↳ `refresh_after_update` | boolean |  |
+|     ↳ `power_bi_model` | object |  |
+|     ↳ `tables` | array |  |
 |   ↳ `state` | object |  |
 |     ↳ `life_cycle_state` | string |  |
 |     ↳ `result_state` | string |  |
@@ -478,6 +642,88 @@ List job runs in a Databricks workspace with optional filtering by job, status, 
 |       ↳ `notebook_path` | string | Notebook path |
 |       ↳ `source` | string | WORKSPACE or GIT |
 |       ↳ `base_parameters` | object | Notebook parameter map |
+|     ↳ `spark_python_task` | object |  |
+|       ↳ `python_file` | string | Python file path or cloud URI |
+|       ↳ `source` | string | WORKSPACE or GIT |
+|       ↳ `parameters` | array |  |
+|     ↳ `spark_jar_task` | object |  |
+|       ↳ `main_class_name` | string | JAR entry point class |
+|       ↳ `parameters` | array |  |
+|       ↳ `jar_uri` | string | Legacy JAR URI |
+|     ↳ `spark_submit_task` | object | Legacy spark-submit task |
+|       ↳ `parameters` | array |  |
+|     ↳ `python_wheel_task` | object |  |
+|       ↳ `package_name` | string | Python package name |
+|       ↳ `entry_point` | string | Package entry point |
+|       ↳ `parameters` | array |  |
+|       ↳ `named_parameters` | object | Named wheel parameters |
+|     ↳ `sql_task` | object |  |
+|       ↳ `warehouse_id` | string | SQL warehouse identifier |
+|       ↳ `parameters` | object | SQL parameters |
+|       ↳ `query` | object |  |
+|         ↳ `query_id` | string | Saved query identifier |
+|       ↳ `file` | object |  |
+|         ↳ `path` | string | SQL file path |
+|         ↳ `source` | string | WORKSPACE or GIT |
+|       ↳ `alert` | object |  |
+|         ↳ `alert_id` | string | SQL alert identifier |
+|         ↳ `subscriptions` | array |  |
+|         ↳ `pause_subscriptions` | boolean |  |
+|       ↳ `dashboard` | object |  |
+|         ↳ `dashboard_id` | string | Legacy SQL dashboard identifier |
+|         ↳ `subscriptions` | array |  |
+|         ↳ `custom_subject` | string |  |
+|         ↳ `pause_subscriptions` | boolean |  |
+|     ↳ `run_job_task` | object |  |
+|       ↳ `job_id` | number | Nested job identifier |
+|       ↳ `job_parameters` | object | Nested job parameters |
+|       ↳ `pipeline_params` | object | Pipeline refresh settings |
+|     ↳ `pipeline_task` | object |  |
+|       ↳ `pipeline_id` | string | Pipeline identifier |
+|       ↳ `parameters` | object |  |
+|       ↳ `full_refresh` | boolean |  |
+|       ↳ `refresh_selection` | array |  |
+|       ↳ `full_refresh_selection` | array |  |
+|       ↳ `reset_checkpoint_selection` | array |  |
+|       ↳ `refresh_flow_selection` | array |  |
+|     ↳ `dbt_task` | object |  |
+|       ↳ `commands` | array | dbt commands |
+|       ↳ `project_directory` | string |  |
+|       ↳ `profiles_directory` | string |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `catalog` | string |  |
+|       ↳ `schema` | string |  |
+|       ↳ `source` | string | WORKSPACE or GIT |
+|     ↳ `condition_task` | object |  |
+|       ↳ `op` | string | Comparison operator |
+|       ↳ `left` | string | Left operand |
+|       ↳ `right` | string | Right operand |
+|       ↳ `outcome` | string | Evaluation result: true or false |
+|     ↳ `for_each_task` | object |  |
+|       ↳ `inputs` | string | JSON array or parameter reference to iterate over |
+|       ↳ `concurrency` | number |  |
+|       ↳ `task` | object | Nested task definition |
+|     ↳ `clean_rooms_notebook_task` | object |  |
+|       ↳ `clean_room_name` | string |  |
+|       ↳ `notebook_name` | string |  |
+|       ↳ `etag` | string |  |
+|       ↳ `notebook_base_parameters` | object |  |
+|     ↳ `dashboard_task` | object |  |
+|       ↳ `dashboard_id` | string |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `subscription` | object |  |
+|       ↳ `filters` | object |  |
+|     ↳ `alert_task` | object |  |
+|       ↳ `alert_id` | string |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `workspace_path` | string |  |
+|       ↳ `subscribers` | array |  |
+|     ↳ `power_bi_task` | object |  |
+|       ↳ `warehouse_id` | string |  |
+|       ↳ `connection_resource_name` | string |  |
+|       ↳ `refresh_after_update` | boolean |  |
+|       ↳ `power_bi_model` | object |  |
+|       ↳ `tables` | array |  |
 |     ↳ `state` | object |  |
 |       ↳ `life_cycle_state` | string |  |
 |       ↳ `result_state` | string |  |
@@ -552,6 +798,88 @@ Get the status, timing, and details of a Databricks job run by its run ID.
 |     ↳ `notebook_path` | string | Notebook path |
 |     ↳ `source` | string | WORKSPACE or GIT |
 |     ↳ `base_parameters` | object | Notebook parameter map |
+|   ↳ `spark_python_task` | object |  |
+|     ↳ `python_file` | string | Python file path or cloud URI |
+|     ↳ `source` | string | WORKSPACE or GIT |
+|     ↳ `parameters` | array |  |
+|   ↳ `spark_jar_task` | object |  |
+|     ↳ `main_class_name` | string | JAR entry point class |
+|     ↳ `parameters` | array |  |
+|     ↳ `jar_uri` | string | Legacy JAR URI |
+|   ↳ `spark_submit_task` | object | Legacy spark-submit task |
+|     ↳ `parameters` | array |  |
+|   ↳ `python_wheel_task` | object |  |
+|     ↳ `package_name` | string | Python package name |
+|     ↳ `entry_point` | string | Package entry point |
+|     ↳ `parameters` | array |  |
+|     ↳ `named_parameters` | object | Named wheel parameters |
+|   ↳ `sql_task` | object |  |
+|     ↳ `warehouse_id` | string | SQL warehouse identifier |
+|     ↳ `parameters` | object | SQL parameters |
+|     ↳ `query` | object |  |
+|       ↳ `query_id` | string | Saved query identifier |
+|     ↳ `file` | object |  |
+|       ↳ `path` | string | SQL file path |
+|       ↳ `source` | string | WORKSPACE or GIT |
+|     ↳ `alert` | object |  |
+|       ↳ `alert_id` | string | SQL alert identifier |
+|       ↳ `subscriptions` | array |  |
+|       ↳ `pause_subscriptions` | boolean |  |
+|     ↳ `dashboard` | object |  |
+|       ↳ `dashboard_id` | string | Legacy SQL dashboard identifier |
+|       ↳ `subscriptions` | array |  |
+|       ↳ `custom_subject` | string |  |
+|       ↳ `pause_subscriptions` | boolean |  |
+|   ↳ `run_job_task` | object |  |
+|     ↳ `job_id` | number | Nested job identifier |
+|     ↳ `job_parameters` | object | Nested job parameters |
+|     ↳ `pipeline_params` | object | Pipeline refresh settings |
+|   ↳ `pipeline_task` | object |  |
+|     ↳ `pipeline_id` | string | Pipeline identifier |
+|     ↳ `parameters` | object |  |
+|     ↳ `full_refresh` | boolean |  |
+|     ↳ `refresh_selection` | array |  |
+|     ↳ `full_refresh_selection` | array |  |
+|     ↳ `reset_checkpoint_selection` | array |  |
+|     ↳ `refresh_flow_selection` | array |  |
+|   ↳ `dbt_task` | object |  |
+|     ↳ `commands` | array | dbt commands |
+|     ↳ `project_directory` | string |  |
+|     ↳ `profiles_directory` | string |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `catalog` | string |  |
+|     ↳ `schema` | string |  |
+|     ↳ `source` | string | WORKSPACE or GIT |
+|   ↳ `condition_task` | object |  |
+|     ↳ `op` | string | Comparison operator |
+|     ↳ `left` | string | Left operand |
+|     ↳ `right` | string | Right operand |
+|     ↳ `outcome` | string | Evaluation result: true or false |
+|   ↳ `for_each_task` | object |  |
+|     ↳ `inputs` | string | JSON array or parameter reference to iterate over |
+|     ↳ `concurrency` | number |  |
+|     ↳ `task` | object | Nested task definition |
+|   ↳ `clean_rooms_notebook_task` | object |  |
+|     ↳ `clean_room_name` | string |  |
+|     ↳ `notebook_name` | string |  |
+|     ↳ `etag` | string |  |
+|     ↳ `notebook_base_parameters` | object |  |
+|   ↳ `dashboard_task` | object |  |
+|     ↳ `dashboard_id` | string |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `subscription` | object |  |
+|     ↳ `filters` | object |  |
+|   ↳ `alert_task` | object |  |
+|     ↳ `alert_id` | string |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `workspace_path` | string |  |
+|     ↳ `subscribers` | array |  |
+|   ↳ `power_bi_task` | object |  |
+|     ↳ `warehouse_id` | string |  |
+|     ↳ `connection_resource_name` | string |  |
+|     ↳ `refresh_after_update` | boolean |  |
+|     ↳ `power_bi_model` | object |  |
+|     ↳ `tables` | array |  |
 |   ↳ `state` | object |  |
 |     ↳ `life_cycle_state` | string |  |
 |     ↳ `result_state` | string |  |
@@ -700,7 +1028,7 @@ Request cancellation of active runs of a job or queued runs in the workspace.
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
 | `apiKey` | string | Yes | Databricks Personal Access Token |
-| `jobId` | number | No | Job identifier |
+| `jobId` | number | No | Job identifier; required unless allQueuedRuns is true |
 | `allQueuedRuns` | boolean | No | Cancel queued runs; without a job ID this applies to the workspace |
 
 #### Output
@@ -1324,7 +1652,7 @@ Update a Genie space, optionally protecting the change with its current ETag.
 | `spaceId` | string | Yes | Genie space identifier |
 | `serializedSpace` | string | No | Serialized Genie configuration JSON, including data_sources, instructions, config, and benchmarks; get an example with Get Genie Space |
 | `title` | string | No | Genie space title |
-| `description` | string | No | Description of the Genie space |
+| `description` | string | No | Description of the Genie space; an empty string clears the description |
 | `warehouseId` | string | No | SQL warehouse identifier |
 | `etag` | string | No | Version from Get Genie Space; prevents overwriting concurrent changes |
 | `parentPath` | string | No | Parent workspace folder for the Genie space |

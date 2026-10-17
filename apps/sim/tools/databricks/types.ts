@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /** Base parameters shared by all Databricks tools */
-export interface DatabricksBaseParams {
+interface DatabricksBaseParams {
   apiKey: string
   host: string
 }
@@ -1193,6 +1193,192 @@ export const JOB_TASK_OUTPUT = {
           notebook_path: { type: 'string', description: 'Notebook path' },
           source: { type: 'string', description: 'WORKSPACE or GIT' },
           base_parameters: { type: 'object', description: 'Notebook parameter map' },
+        },
+      },
+      spark_python_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          python_file: { type: 'string', description: 'Python file path or cloud URI' },
+          source: { type: 'string', optional: true, description: 'WORKSPACE or GIT' },
+          parameters: { type: 'array', optional: true, items: { type: 'string' } },
+        },
+      },
+      spark_jar_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          main_class_name: { type: 'string', optional: true, description: 'JAR entry point class' },
+          parameters: { type: 'array', optional: true, items: { type: 'string' } },
+          jar_uri: { type: 'string', optional: true, description: 'Legacy JAR URI' },
+        },
+      },
+      spark_submit_task: {
+        type: 'object',
+        optional: true,
+        description: 'Legacy spark-submit task',
+        properties: {
+          parameters: { type: 'array', optional: true, items: { type: 'string' } },
+        },
+      },
+      python_wheel_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          package_name: { type: 'string', description: 'Python package name' },
+          entry_point: { type: 'string', description: 'Package entry point' },
+          parameters: { type: 'array', optional: true, items: { type: 'string' } },
+          named_parameters: {
+            type: 'object',
+            optional: true,
+            description: 'Named wheel parameters',
+          },
+        },
+      },
+      sql_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          warehouse_id: { type: 'string', description: 'SQL warehouse identifier' },
+          parameters: { type: 'object', optional: true, description: 'SQL parameters' },
+          query: {
+            type: 'object',
+            optional: true,
+            properties: { query_id: { type: 'string', description: 'Saved query identifier' } },
+          },
+          file: {
+            type: 'object',
+            optional: true,
+            properties: {
+              path: { type: 'string', description: 'SQL file path' },
+              source: { type: 'string', optional: true, description: 'WORKSPACE or GIT' },
+            },
+          },
+          alert: {
+            type: 'object',
+            optional: true,
+            properties: {
+              alert_id: { type: 'string', description: 'SQL alert identifier' },
+              subscriptions: { type: 'array', optional: true, items: { type: 'object' } },
+              pause_subscriptions: { type: 'boolean', optional: true },
+            },
+          },
+          dashboard: {
+            type: 'object',
+            optional: true,
+            properties: {
+              dashboard_id: { type: 'string', description: 'Legacy SQL dashboard identifier' },
+              subscriptions: { type: 'array', optional: true, items: { type: 'object' } },
+              custom_subject: { type: 'string', optional: true },
+              pause_subscriptions: { type: 'boolean', optional: true },
+            },
+          },
+        },
+      },
+      run_job_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          job_id: { type: 'number', description: 'Nested job identifier' },
+          job_parameters: { type: 'object', optional: true, description: 'Nested job parameters' },
+          pipeline_params: {
+            type: 'object',
+            optional: true,
+            description: 'Pipeline refresh settings',
+          },
+        },
+      },
+      pipeline_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          pipeline_id: { type: 'string', description: 'Pipeline identifier' },
+          parameters: { type: 'object', optional: true },
+          full_refresh: { type: 'boolean', optional: true },
+          refresh_selection: { type: 'array', optional: true, items: { type: 'string' } },
+          full_refresh_selection: { type: 'array', optional: true, items: { type: 'string' } },
+          reset_checkpoint_selection: { type: 'array', optional: true, items: { type: 'string' } },
+          refresh_flow_selection: { type: 'array', optional: true, items: { type: 'string' } },
+        },
+      },
+      dbt_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          commands: { type: 'array', items: { type: 'string' }, description: 'dbt commands' },
+          project_directory: { type: 'string', optional: true },
+          profiles_directory: { type: 'string', optional: true },
+          warehouse_id: { type: 'string', optional: true },
+          catalog: { type: 'string', optional: true },
+          schema: { type: 'string', optional: true },
+          source: { type: 'string', optional: true, description: 'WORKSPACE or GIT' },
+        },
+      },
+      condition_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          op: { type: 'string', description: 'Comparison operator' },
+          left: { type: 'string', description: 'Left operand' },
+          right: { type: 'string', description: 'Right operand' },
+          outcome: {
+            type: 'string',
+            optional: true,
+            description: 'Evaluation result: true or false',
+          },
+        },
+      },
+      for_each_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          inputs: {
+            type: 'string',
+            description: 'JSON array or parameter reference to iterate over',
+          },
+          concurrency: { type: 'number', optional: true },
+          task: { type: 'object', description: 'Nested task definition' },
+        },
+      },
+      clean_rooms_notebook_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          clean_room_name: { type: 'string' },
+          notebook_name: { type: 'string' },
+          etag: { type: 'string', optional: true },
+          notebook_base_parameters: { type: 'object', optional: true },
+        },
+      },
+      dashboard_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          dashboard_id: { type: 'string', optional: true },
+          warehouse_id: { type: 'string', optional: true },
+          subscription: { type: 'object', optional: true },
+          filters: { type: 'object', optional: true },
+        },
+      },
+      alert_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          alert_id: { type: 'string', optional: true },
+          warehouse_id: { type: 'string', optional: true },
+          workspace_path: { type: 'string', optional: true },
+          subscribers: { type: 'array', optional: true, items: { type: 'object' } },
+        },
+      },
+      power_bi_task: {
+        type: 'object',
+        optional: true,
+        properties: {
+          warehouse_id: { type: 'string', optional: true },
+          connection_resource_name: { type: 'string', optional: true },
+          refresh_after_update: { type: 'boolean', optional: true },
+          power_bi_model: { type: 'object', optional: true },
+          tables: { type: 'array', optional: true, items: { type: 'object' } },
         },
       },
       state: {
