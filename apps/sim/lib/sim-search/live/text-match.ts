@@ -90,6 +90,10 @@ export function significantTerms(query: string): string[] {
   return distinctTerms(query, (term) => term.toLowerCase())
 }
 
+/** A two-letter word written in capitals, such as `IT` or `US`, is an acronym, not a stopword. */
+const isStopword = (term: string) =>
+  STOPWORDS.has(term.toLowerCase()) && !(term.length === 2 && term === term.toUpperCase())
+
 function distinctTerms(
   query: string,
   keyOf: (term: string) => string,
@@ -99,7 +103,7 @@ function distinctTerms(
   return queryTerms(query, minLength)
     .filter((term) => {
       const key = keyOf(term)
-      if (STOPWORDS.has(term.toLowerCase()) || seen.has(key)) return false
+      if (isStopword(term) || seen.has(key)) return false
       seen.add(key)
       return true
     })
@@ -109,10 +113,12 @@ function distinctTerms(
 /**
  * One key for a word and its regular plural (`token`/`tokens`, `process`/`processes`). As in the
  * Porter stemmer, a final `-y` and `-ie(s)` fold to `i`, so `policy`/`policies` and
- * `movie`/`movies` each share a key.
+ * `movie`/`movies` each share a key. A word of two letters or fewer is its own key, so `OS` never
+ * folds to the letter `o`.
  */
 function singularKey(term: string): string {
   const key = term.toLowerCase()
+  if (key.length <= 2) return key
   const stripped = /[^su]s$/.test(key) ? key.slice(0, -1) : key
   const stem = /(?:s|x|z|ch|sh|i)e$/.test(stripped) ? stripped.slice(0, -1) : stripped
   return stem.replace(/y$/, 'i')
