@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { truncate } from '@sim/utils/string'
 import type { z } from 'zod'
 import {
   type mothershipResourceAttachmentSchema,
@@ -13,9 +12,9 @@ import { CONTEXT_RESOLUTION_CONCURRENCY } from '@/lib/mothership/chat/context-li
 import { resolveFileAttachment } from '@/lib/mothership/chat/file-attachment'
 import { resolveActiveResourceContext } from '@/lib/mothership/chat/process-contents'
 import {
-  CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH,
   formatUntrustedJsonBlock,
   safeBrowserSelectionUrl,
+  truncateSelectionTitle,
 } from '@/lib/mothership/chat/selection-context'
 import type { ChatContextItem } from '@/lib/mothership/generated/protocol'
 import { persistChatResources } from '@/lib/mothership/resources/persistence'
@@ -115,7 +114,7 @@ export async function resolveResourceAttachmentContexts(params: {
                 : 'This attachment supplies only the title and URL; browser tools are unavailable.'
             }`,
             {
-              ...(title ? { title: truncate(title, CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH) } : {}),
+              ...(title ? { title: truncateSelectionTitle(title) } : {}),
               ...(url ? { url } : {}),
             }
           ),

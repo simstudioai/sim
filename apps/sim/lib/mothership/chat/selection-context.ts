@@ -45,6 +45,11 @@ export function truncateSelectionText(text: string): string {
   return truncate(text, MAX_FILE_SELECTION_TEXT_LENGTH - TRUNCATE_SUFFIX_LENGTH)
 }
 
+/** Truncates a page title so the result, ellipsis included, fits {@link CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH}. */
+export function truncateSelectionTitle(title: string): string {
+  return truncate(title, CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH - TRUNCATE_SUFFIX_LENGTH)
+}
+
 /**
  * Keeps only public web URLs in browser-selection source metadata: http/https
  * with no embedded credentials. The URL is advisory context, so anything else
