@@ -110,6 +110,7 @@ const UPDATED_AT_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
+  timeZone: 'UTC',
 })
 
 export type PricingInfo = ModelPricing
