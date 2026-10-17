@@ -10,6 +10,7 @@ import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
 import {
   chatResourceKeyFor,
   getChatResourceSelectionId,
+  isFileResourceType,
   mergeChatResource,
 } from '@/lib/mothership/resources/types'
 import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
@@ -194,12 +195,19 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (owner?.entityType === 'project' && payload.resource.type === 'file' && payload.resource.id)
     invalidateProjectFileQueries(queryClient, owner.entityId, payload.resource.id)
   const workspaceId = payload.resource.workspaceId ?? chatWorkspaceId
-  if (!workspaceId || (chatWorkspaceId && workspaceId !== chatWorkspaceId)) return
+  /** A Project file names no workspace, so an organization chat has none to check it against. */
+  if (
+    workspaceId
+      ? chatWorkspaceId && workspaceId !== chatWorkspaceId
+      : !(owner?.entityType === 'project' && isFileResourceType(payload.resource.type))
+  )
+    return
   // Browser and terminal tabs are projected from the desktop app's live
   // lists, never from the stream; older servers announced them as resources.
   if (payload.resource.type === 'browser' || payload.resource.type === 'terminal') return
   const resourceType = payload.resource.type
-  invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
+  if (workspaceId)
+    invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
   if (resourceType === 'workflow' && payload.op !== 'remove' && payload.resource.id) {
     notifyWorkflowExternalUpdate(payload.resource.id)
   }
@@ -246,7 +254,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       : undefined
   const resource: MothershipResource = {
     ...payload.resource,
-    ...(chatWorkspaceId ? {} : { workspaceId }),
+    ...(!chatWorkspaceId && workspaceId ? { workspaceId } : {}),
     type: payload.resource.type as MothershipResourceType,
     title:
       typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
@@ -264,7 +272,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
         current === getChatResourceSelectionId(resource) ? null : current
       )
     } else removeResource(resource)
-    if (resourceType === 'workflow') {
+    if (resourceType === 'workflow' && workspaceId) {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }
     return
@@ -352,7 +360,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     } else onResourceEvent?.(getChatResourceSelectionId(resource))
   }
 
-  if (resource.type === 'workflow') {
+  if (resource.type === 'workflow' && workspaceId) {
     ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
   }
 }
