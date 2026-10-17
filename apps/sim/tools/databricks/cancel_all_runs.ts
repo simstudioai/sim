@@ -1,4 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
+import { UserFailure } from '@/lib/core/errors/user-failure'
 import type {
   DatabricksCancelAllRunsParams,
   DatabricksSuccessResponse,
@@ -42,7 +43,7 @@ export const cancelAllRunsTool: ToolConfig<
     }),
     body: (params) => {
       if (params.jobId == null && params.allQueuedRuns !== true) {
-        throw new Error(
+        throw new UserFailure(
           'Provide jobId or set allQueuedRuns to true to cancel queued workspace runs'
         )
       }

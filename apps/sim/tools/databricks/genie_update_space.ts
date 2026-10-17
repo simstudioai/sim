@@ -87,7 +87,7 @@ export const genieUpdateSpaceTool: ToolConfig<
       return filterUndefined({
         serialized_space: optionalDatabricksString(params.serializedSpace),
         title: optionalDatabricksString(params.title),
-        description: params.description?.trim(),
+        description: params.description === '' ? '' : optionalDatabricksString(params.description),
         warehouse_id: optionalDatabricksString(params.warehouseId),
         etag: optionalDatabricksString(params.etag),
         parent_path: optionalDatabricksString(params.parentPath),

@@ -3,6 +3,7 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { partialToolRegistry } from '@sim/testing/mocks/tool-registry.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it, vi } from 'vitest'
+import { adoptToolFailure, classifyFailure } from '@/lib/core/errors/failure-log'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -64,17 +65,19 @@ describe('Databricks mutation intent', () => {
 
     expect(update('')).toEqual({ description: '' })
     expect(update()).not.toHaveProperty('description')
+    expect(update(' \n\t ')).not.toHaveProperty('description')
   })
 
   it.each([undefined, false])(
     'rejects cancellation without a job or explicit queued scope (%s)',
-    (allQueuedRuns) => {
-      expect(() =>
-        prepareToolRequest(databricksTools.databricksCancelAllRunsTool, {
-          ...credentials,
-          allQueuedRuns,
-        })
-      ).toThrow('Provide jobId or set allQueuedRuns to true')
+    async (allQueuedRuns) => {
+      const result = await executeTool('databricks_cancel_all_runs', {
+        ...credentials,
+        allQueuedRuns,
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Provide jobId or set allQueuedRuns to true')
+      expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe('user')
     }
   )
 
