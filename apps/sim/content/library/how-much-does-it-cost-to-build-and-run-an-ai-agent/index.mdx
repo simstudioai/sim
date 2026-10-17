@@ -6,7 +6,7 @@ date: 2026-10-17
 updated: 2026-10-17
 authors:
   - andrew
-readingTime: 10
+readingTime: 11
 tags: [AI Agents, AI Costs, Agent Operations, Sim]
 ogImage: /library/how-much-does-it-cost-to-build-and-run-an-ai-agent/cover.jpg
 draft: false
@@ -92,7 +92,9 @@ Use this calculation:
 
 For a model step:
 
-> Model-step cost = input tokens ÷ 1,000,000 × input rate + output tokens ÷ 1,000,000 × output rate + any cached-token or modality charges
+> Model-step cost = uncached input tokens ÷ 1,000,000 × input rate + output tokens ÷ 1,000,000 × output rate + separately priced cache reads, cache writes, and modality charges
+
+Use the provider's separate usage buckets for uncached input, cache reads, and cache writes rather than applying the full input rate to an aggregate total that includes cached tokens.
 
 For the complete deployment:
 
@@ -115,7 +117,7 @@ A useful planning model separates the work into six stages:
 
 Teams should estimate hours for each stage and multiply them by a realistic blended labor rate. Internal employee time still has a cost even when no outside developer or consultant sends an invoice.
 
-For a practical construction sequence, see [How to Create an AI Agent: A Beginner’s Step-by-Step Guide](https://www.sim.ai/library/how-to-create-an-ai-agent). Teams deciding between templates and custom implementation can also use AI Agent Marketplace vs Building From Scratch: Where Sim Fits.
+For a practical construction sequence, see [How to Create an AI Agent: A Beginner’s Step-by-Step Guide](https://www.sim.ai/library/how-to-create-an-ai-agent). Teams deciding between templates and custom implementation can also use [AI Agent Marketplace vs Building From Scratch: Where Sim Fits](https://www.sim.ai/library/ai-agent-marketplace-vs-building-from-scratch).
 
 ## How do model token costs affect the price of an AI agent?
 
@@ -177,7 +179,7 @@ Each step record should capture:
 
 A complete cost view should distinguish estimated cost from reconciled billed cost. The estimate is useful during a run; the provider invoice or usage export is the accounting reference when it becomes available.
 
-For the tracing, metrics, and evaluation layer around this ledger, see [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability) and 6 Best AI Observability Tools for Production Agents in 2026.
+For the tracing, metrics, and evaluation layer around this ledger, see [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability) and [6 Best AI Observability Tools for Production Agents in 2026](https://www.sim.ai/library/6-best-ai-observability-tools-for-production-agents-in-2026).
 
 ## How do you set budget caps per team for AI agents?
 
@@ -206,7 +208,7 @@ Sim and n8n use different licensing and cost structures, so buyers should compar
 
 Execution-based billing and model-usage billing measure different things. One agent run may contain several model calls and tool steps, so teams need to calculate both the platform unit and the underlying AI usage.
 
-For a broader platform comparison, see [Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026)](https://www.sim.ai/library/openai-vs-n8n-vs-sim). For the head-term platform ranking, see Best AI Agent Platforms and Builders in 2026.
+For a broader platform comparison, see [Sim vs n8n vs OpenAI AgentKit: AI Agent Builder Comparison (2026)](https://www.sim.ai/library/openai-vs-n8n-vs-sim). For the head-term platform ranking, see [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
 ## What is an example AI agent monthly cost calculation?
 
@@ -283,8 +285,8 @@ A budget is credible only when every assumption has an owner and can be compared
 
 Sim’s related guides separate cost governance, platform selection, model-key management, and production monitoring into focused buyer questions.
 
-- How Do You Control AI Agent Spend Across Teams?
-- BYOK Multi-Model AI Agent Builder: How Sim’s Bring-Your-Own-Key Works
-- What Is AI Agent Observability? Traces, Metrics, and Evals Explained
-- Best AI Agent Platforms and Builders in 2026
-- What to Look for in an AI Workflow Automation Platform: Buyer’s Checklist
+- [How Do You Control AI Agent Spend Across Teams?](https://www.sim.ai/library/control-ai-agent-spend-across-teams)
+- [BYOK Multi-Model AI Agent Builder: How Sim’s Bring-Your-Own-Key Works](https://www.sim.ai/library/byok-multi-model-ai-agent-builder)
+- [What Is AI Agent Observability? Traces, Metrics, and Evals Explained](https://www.sim.ai/library/ai-agent-observability)
+- [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026)
+- [What to Look for in an AI Workflow Automation Platform: Buyer’s Checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist)
