@@ -27,7 +27,12 @@ import {
 } from '@/lib/oauth/microsoft-dataverse'
 import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import {
+  credentialProviderMatchesService,
+  getCanonicalScopesForProvider,
+  getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
+} from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
@@ -46,6 +51,8 @@ export interface CredentialAuditRequest {
 export type CredentialTokenPayload = OAuthTokenResponse
 
 export interface ResolveCredentialTokenInput {
+  /** Tool whose canonical provider and credential-kind policy applies before token minting. */
+  toolId?: string
   /** Correlation id used by the credential service's own logging. */
   requestId: string
   credentialId?: string
@@ -226,6 +233,35 @@ export async function completeOAuthCredentialToken(params: {
   }
 }
 
+function validateToolCredentialBinding(
+  toolId: string | undefined,
+  providerId: string | null | undefined,
+  credentialKind: 'oauth' | 'service-account'
+): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
+  if (!toolId) return
+  const policy = getToolMetadata(toolId)?.oauth
+  if (policy?.credentialKind && policy.credentialKind !== credentialKind) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_TYPE_MISMATCH',
+      error: 'The selected credential type is not supported by this tool',
+    }
+  }
+  const service = policy?.required
+    ? (getServiceConfigByServiceId(policy.provider) ??
+      getServiceConfigByProviderId(policy.provider))
+    : undefined
+  if (!providerId || !service || !credentialProviderMatchesService(providerId, service)) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_PROVIDER_MISMATCH',
+      error: 'The selected credential does not belong to this tool provider',
+    }
+  }
+}
+
 /**
  * Resolves a plain OAuth or service-account credential to a token for an
  * authenticated caller. Managed OAuth credentials are dispatched one level up by
@@ -270,6 +306,13 @@ export async function resolveCredentialToken(
       if (!authz.ok) {
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
+
+      const bindingError = validateToolCredentialBinding(
+        input.toolId,
+        resolved.providerId,
+        'service-account'
+      )
+      if (bindingError) return bindingError
 
       const saActorId = authz.requesterUserId
       const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
@@ -358,6 +401,9 @@ export async function resolveCredentialToken(
       return { ok: false, status: 404, error: 'Credential not found' }
     }
 
+    const bindingError = validateToolCredentialBinding(input.toolId, credential.providerId, 'oauth')
+    if (bindingError) return bindingError
+
     return completeOAuthCredentialToken({
       requestId,
       credential,
@@ -374,8 +420,6 @@ export async function resolveCredentialToken(
 
 export interface ResolveCredentialAccessTokenInput
   extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
-  /** Tool consuming the token; required by the managed-OAuth scope policy. */
-  toolId?: string
   /**
    * Authenticates the caller for non-managed credentials. Invoked only when the
    * credential is not managed OAuth, which authenticates through delegation instead.
@@ -420,6 +464,7 @@ export async function resolveCredentialAccessToken(
       callerUserId: input.callerUserId,
       auditRequest,
       resolvedCredential: resolved,
+      toolId,
     })
   }
 

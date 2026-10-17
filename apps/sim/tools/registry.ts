@@ -3639,6 +3639,44 @@ import {
 } from '@/tools/onepassword'
 import { openAIEmbeddingsTool, openAIImageTool } from '@/tools/openai'
 import {
+  oracleFusionFinancialsApplyReceivablesReceiptTool,
+  oracleFusionFinancialsApproveReceivablesInvoiceTool,
+  oracleFusionFinancialsCreateExpenseLineTool,
+  oracleFusionFinancialsCreateExpenseReportTool,
+  oracleFusionFinancialsCreateReceivablesCreditMemoTool,
+  oracleFusionFinancialsCreateReceivablesInvoiceTool,
+  oracleFusionFinancialsCreateReceivablesReceiptTool,
+  oracleFusionFinancialsGetExpenseLineTool,
+  oracleFusionFinancialsGetExpenseReportTool,
+  oracleFusionFinancialsGetGlJournalBatchTool,
+  oracleFusionFinancialsGetGlLedgerTool,
+  oracleFusionFinancialsGetPayablesInvoiceLineTool,
+  oracleFusionFinancialsGetPayablesInvoiceTool,
+  oracleFusionFinancialsGetPayablesPaymentTool,
+  oracleFusionFinancialsGetReceivablesCreditMemoTool,
+  oracleFusionFinancialsGetReceivablesInvoiceInstallmentTool,
+  oracleFusionFinancialsGetReceivablesInvoiceLineTool,
+  oracleFusionFinancialsGetReceivablesInvoiceTool,
+  oracleFusionFinancialsGetReceivablesReceiptTool,
+  oracleFusionFinancialsListExpenseLinesTool,
+  oracleFusionFinancialsListExpenseReportsTool,
+  oracleFusionFinancialsListGlBalancesTool,
+  oracleFusionFinancialsListGlJournalBatchesTool,
+  oracleFusionFinancialsListGlLedgersTool,
+  oracleFusionFinancialsListPayablesInvoiceLinesTool,
+  oracleFusionFinancialsListPayablesInvoicesTool,
+  oracleFusionFinancialsListPayablesPaymentsTool,
+  oracleFusionFinancialsListReceivablesCreditMemosTool,
+  oracleFusionFinancialsListReceivablesInvoiceInstallmentsTool,
+  oracleFusionFinancialsListReceivablesInvoiceLinesTool,
+  oracleFusionFinancialsListReceivablesInvoicesTool,
+  oracleFusionFinancialsListReceivablesReceiptsTool,
+  oracleFusionFinancialsSubmitExpenseReportTool,
+  oracleFusionFinancialsUpdateExpenseLineTool,
+  oracleFusionFinancialsUpdateExpenseReportTool,
+  oracleFusionFinancialsUpdateReceivablesInvoiceTool,
+} from '@/tools/oracle_fusion_financials'
+import {
   oracleDeleteTool,
   oracleExecuteTool,
   oracleInsertTool,
@@ -8914,6 +8952,58 @@ export const tools: Record<string, ExecutableToolConfig> = {
   new_relic_get_entity: newRelicGetEntityTool,
   new_relic_nrql_query: newRelicNrqlQueryTool,
   new_relic_search_entities: newRelicSearchEntitiesTool,
+  oracle_fusion_financials_apply_receivables_receipt:
+    oracleFusionFinancialsApplyReceivablesReceiptTool,
+  oracle_fusion_financials_approve_receivables_invoice:
+    oracleFusionFinancialsApproveReceivablesInvoiceTool,
+  oracle_fusion_financials_create_expense_line: oracleFusionFinancialsCreateExpenseLineTool,
+  oracle_fusion_financials_create_expense_report: oracleFusionFinancialsCreateExpenseReportTool,
+  oracle_fusion_financials_create_receivables_credit_memo:
+    oracleFusionFinancialsCreateReceivablesCreditMemoTool,
+  oracle_fusion_financials_create_receivables_invoice:
+    oracleFusionFinancialsCreateReceivablesInvoiceTool,
+  oracle_fusion_financials_create_receivables_receipt:
+    oracleFusionFinancialsCreateReceivablesReceiptTool,
+  oracle_fusion_financials_get_expense_line: oracleFusionFinancialsGetExpenseLineTool,
+  oracle_fusion_financials_get_expense_report: oracleFusionFinancialsGetExpenseReportTool,
+  oracle_fusion_financials_get_gl_journal_batch: oracleFusionFinancialsGetGlJournalBatchTool,
+  oracle_fusion_financials_get_gl_ledger: oracleFusionFinancialsGetGlLedgerTool,
+  oracle_fusion_financials_get_payables_invoice: oracleFusionFinancialsGetPayablesInvoiceTool,
+  oracle_fusion_financials_get_payables_invoice_line:
+    oracleFusionFinancialsGetPayablesInvoiceLineTool,
+  oracle_fusion_financials_get_payables_payment: oracleFusionFinancialsGetPayablesPaymentTool,
+  oracle_fusion_financials_get_receivables_credit_memo:
+    oracleFusionFinancialsGetReceivablesCreditMemoTool,
+  oracle_fusion_financials_get_receivables_invoice: oracleFusionFinancialsGetReceivablesInvoiceTool,
+  oracle_fusion_financials_get_receivables_invoice_installment:
+    oracleFusionFinancialsGetReceivablesInvoiceInstallmentTool,
+  oracle_fusion_financials_get_receivables_invoice_line:
+    oracleFusionFinancialsGetReceivablesInvoiceLineTool,
+  oracle_fusion_financials_get_receivables_receipt: oracleFusionFinancialsGetReceivablesReceiptTool,
+  oracle_fusion_financials_list_expense_lines: oracleFusionFinancialsListExpenseLinesTool,
+  oracle_fusion_financials_list_expense_reports: oracleFusionFinancialsListExpenseReportsTool,
+  oracle_fusion_financials_list_gl_balances: oracleFusionFinancialsListGlBalancesTool,
+  oracle_fusion_financials_list_gl_journal_batches: oracleFusionFinancialsListGlJournalBatchesTool,
+  oracle_fusion_financials_list_gl_ledgers: oracleFusionFinancialsListGlLedgersTool,
+  oracle_fusion_financials_list_payables_invoice_lines:
+    oracleFusionFinancialsListPayablesInvoiceLinesTool,
+  oracle_fusion_financials_list_payables_invoices: oracleFusionFinancialsListPayablesInvoicesTool,
+  oracle_fusion_financials_list_payables_payments: oracleFusionFinancialsListPayablesPaymentsTool,
+  oracle_fusion_financials_list_receivables_credit_memos:
+    oracleFusionFinancialsListReceivablesCreditMemosTool,
+  oracle_fusion_financials_list_receivables_invoice_installments:
+    oracleFusionFinancialsListReceivablesInvoiceInstallmentsTool,
+  oracle_fusion_financials_list_receivables_invoice_lines:
+    oracleFusionFinancialsListReceivablesInvoiceLinesTool,
+  oracle_fusion_financials_list_receivables_invoices:
+    oracleFusionFinancialsListReceivablesInvoicesTool,
+  oracle_fusion_financials_list_receivables_receipts:
+    oracleFusionFinancialsListReceivablesReceiptsTool,
+  oracle_fusion_financials_submit_expense_report: oracleFusionFinancialsSubmitExpenseReportTool,
+  oracle_fusion_financials_update_expense_line: oracleFusionFinancialsUpdateExpenseLineTool,
+  oracle_fusion_financials_update_expense_report: oracleFusionFinancialsUpdateExpenseReportTool,
+  oracle_fusion_financials_update_receivables_invoice:
+    oracleFusionFinancialsUpdateReceivablesInvoiceTool,
   oracledb_query: oracleQueryTool,
   oracledb_insert: oracleInsertTool,
   oracledb_update: oracleUpdateTool,

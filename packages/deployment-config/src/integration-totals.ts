@@ -4,8 +4,8 @@
  * apart from the catalog itself so marketing surfaces import the counts, not the list.
  */
 export const INTEGRATION_TOTALS = {
-  integrations: 272,
-  actions: 5421,
+  integrations: 273,
+  actions: 5457,
   triggers: 525,
   integrationsWithTriggers: 66,
 } as const
