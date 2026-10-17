@@ -1,10 +1,24 @@
+import { createBlock } from '@sim/testing/factories/block.factory'
+import { createExecutorContext } from '@sim/testing/factories/executor-context.factory'
+import {
+  createSerializedBlock,
+  createSerializedWorkflow,
+} from '@sim/testing/factories/serialized-block.factory'
 import { jsonResponse } from '@sim/testing/helpers/http'
+import { blocksMock } from '@sim/testing/mocks/blocks.mock'
 import {
   inputValidationMock,
   inputValidationMockFns,
 } from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeOracleFusionFinancialsTool } from '@/lib/internal/oracle-fusion-financials/execute-tool'
+import * as blocks from '@/blocks'
+import { OracleFusionFinancialsBlock } from '@/blocks/blocks/oracle_fusion_financials'
+import { ExecutionState } from '@/executor/execution/state'
+import { VariableResolver } from '@/executor/variables/resolver'
+import { extractBlockParams } from '@/serializer'
+
+vi.mock('@/blocks', () => blocksMock)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -27,6 +41,37 @@ function execute(action: string, input: Record<string, unknown> = {}) {
   })
 }
 
+async function executeCanvas(action: string, values: Record<string, unknown> = {}) {
+  vi.spyOn(blocks, 'getBlock').mockReturnValue(OracleFusionFinancialsBlock)
+  const storedValues: Record<string, unknown> = {
+    ...values,
+    oauthCredential: AUTH.oauthCredential,
+    operation: `oracle_fusion_financials_${action}`,
+  }
+  const block = createBlock({
+    type: 'oracle_fusion_financials',
+    advancedMode: true,
+    subBlocks: Object.fromEntries(
+      OracleFusionFinancialsBlock.subBlocks.map(({ id, type }) => [
+        id,
+        { id, type, value: storedValues[id] ?? null },
+      ])
+    ),
+  })
+  const params = extractBlockParams(block)
+  const workflow = createSerializedWorkflow([
+    createSerializedBlock({ id: 'source', name: 'Source', outputs: { value: 'string' } }),
+  ])
+  const state = new ExecutionState()
+  state.setBlockOutput('source', { value: 'Updated purpose' })
+  const resolver = new VariableResolver(workflow, {}, state)
+  const ctx = createExecutorContext({ blockStates: new Map(state.getBlockStates()) })
+  const resolved = await resolver.resolveInputs(ctx, 'financials', params)
+  const mapParams = OracleFusionFinancialsBlock.tools.config?.params
+  if (!mapParams) throw new Error('Financials block has no parameter mapper')
+  return execute(action, mapParams(resolved))
+}
+
 function self(path: string) {
   return [{ rel: 'self', href: ROOT + path }]
 }
@@ -39,6 +84,48 @@ describe('Oracle Fusion Financials provider contract', () => {
       originalHostname: 'vision.fa.us2.oraclecloud.com',
     })
   })
+
+  it('lists invoices from an untouched canvas form without null filters or pagination', async () => {
+    fetchProvider.mockResolvedValue(
+      jsonResponse({ items: [], count: 0, hasMore: false, limit: 50, offset: 0 })
+    )
+    const response = await executeCanvas('list_payables_invoices')
+    expect(response.status).toBe(200)
+    expect((await response.json()).output.items).toEqual([])
+    const query = new URL(fetchProvider.mock.calls[0][0]).searchParams
+    expect(query.has('q')).toBe(false)
+    expect(query.get('limit')).toBe('50')
+  })
+
+  it('omits untouched invoice lines and distributions from a canvas creation request', async () => {
+    fetchProvider.mockResolvedValue(
+      jsonResponse({ CustomerTransactionId: '42', links: self('receivablesInvoices/42') })
+    )
+    const response = await executeCanvas('create_receivables_invoice', {
+      businessUnit: 'Example BU',
+    })
+    expect(response.status).toBe(200)
+    expect(fetchProvider.mock.calls[0][2]?.body).toBe('{"BusinessUnit":"Example BU"}')
+  })
+
+  it.each([
+    [null, '{"OrgId":1}'],
+    ['<source.value>', '{"OrgId":1,"Purpose":"Updated purpose"}'],
+  ])(
+    'updates only supplied canvas fields and preserves workflow references (%s)',
+    async (purpose, body) => {
+      fetchProvider.mockResolvedValue(
+        jsonResponse({ OrgId: '1', links: self('expenseReports/report-key') })
+      )
+      const response = await executeCanvas('update_expense_report', {
+        expenseReportUniqId: 'report-key',
+        orgId: '1',
+        purpose,
+      })
+      expect(response.status).toBe(200)
+      expect(fetchProvider.mock.calls[0][2]?.body).toBe(body)
+    }
+  )
 
   it('retains an exact invoice identity and opaque key while returning only the requested page', async () => {
     fetchProvider.mockResolvedValue(

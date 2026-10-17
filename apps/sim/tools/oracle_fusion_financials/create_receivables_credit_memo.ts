@@ -125,7 +125,7 @@ export const oracleFusionFinancialsCreateReceivablesCreditMemoTool: InternalTool
       description: 'Conversion Rate Date (YYYY-MM-DD)',
     },
     lines: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -135,7 +135,7 @@ export const oracleFusionFinancialsCreateReceivablesCreditMemoTool: InternalTool
       maxItems: 1000,
     },
     distributions: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:

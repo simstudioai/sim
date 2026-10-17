@@ -232,6 +232,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receivablesReceiptId',
       title: 'Receivables Receipt ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -246,6 +247,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'appliedPaymentScheduleId',
       title: 'Applied Payment Schedule ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -257,6 +259,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'amountApplied',
       title: 'Amount Applied',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter amount applied',
       condition: {
         field: 'operation',
@@ -267,6 +270,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'calledFrom',
       title: 'Called From',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter called from',
       condition: {
         field: 'operation',
@@ -278,6 +282,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receivablesInvoiceId',
       title: 'Receivables Invoice ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -297,6 +302,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'comment',
       title: 'Comment',
       type: 'long-input',
+      value: () => '',
       placeholder: 'Enter comment',
       condition: {
         field: 'operation',
@@ -307,6 +313,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseReportUniqId',
       title: 'Expense Report Key',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Use the opaque key returned by a list operation',
       condition: {
         field: 'operation',
@@ -326,6 +333,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'assignmentId',
       title: 'Assignment ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -344,6 +352,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'orgId',
       title: 'Org ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -366,6 +375,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'personId',
       title: 'Person ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -384,6 +394,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'ticketClass',
       title: 'Ticket Class',
       type: 'dropdown',
+      value: () => '',
       options: [
         { id: '', label: 'Select ticket class' },
         { id: 'BUSINESS', label: 'Business' },
@@ -405,6 +416,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseTypeId',
       title: 'Expense Type ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -418,6 +430,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseTemplateId',
       title: 'Expense Template ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -431,6 +444,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'description',
       title: 'Description',
       type: 'long-input',
+      value: () => '',
       placeholder: 'Enter description',
       condition: {
         field: 'operation',
@@ -444,6 +458,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'justification',
       title: 'Justification',
       type: 'long-input',
+      value: () => '',
       placeholder: 'Enter justification',
       condition: {
         field: 'operation',
@@ -458,6 +473,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receiptAmount',
       title: 'Receipt Amount',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter receipt amount',
       condition: {
         field: 'operation',
@@ -471,6 +487,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receiptCurrencyCode',
       title: 'Receipt Currency Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'USD',
       condition: {
         field: 'operation',
@@ -484,6 +501,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receiptDate',
       title: 'Receipt Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -508,6 +526,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'merchantName',
       title: 'Merchant Name',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter merchant name',
       condition: {
         field: 'operation',
@@ -521,6 +540,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'startDate',
       title: 'Start Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -541,6 +561,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'endDate',
       title: 'End Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -561,6 +582,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'exchangeRate',
       title: 'Exchange Rate',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter exchange rate',
       condition: {
         field: 'operation',
@@ -575,6 +597,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'reimbursementCurrencyCode',
       title: 'Reimbursement Currency Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'USD',
       condition: {
         field: 'operation',
@@ -590,6 +613,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'itemizationParentExpenseId',
       title: 'Itemization Parent Expense ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -604,6 +628,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receiptMissingFlag',
       title: 'Receipt Missing Flag',
       type: 'dropdown',
+      value: () => '',
       condition: {
         field: 'operation',
         value: [
@@ -631,6 +656,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'location',
       title: 'Location',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter location',
       condition: {
         field: 'operation',
@@ -645,6 +671,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'countryCode',
       title: 'Country Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter country code',
       condition: {
         field: 'operation',
@@ -659,6 +686,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseCategoryCode',
       title: 'Expense Category Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter expense category code',
       condition: {
         field: 'operation',
@@ -673,6 +701,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseSource',
       title: 'Expense Source',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter expense source',
       condition: {
         field: 'operation',
@@ -687,6 +716,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'numberOfDays',
       title: 'Number Of Days',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter number of days',
       condition: {
         field: 'operation',
@@ -701,6 +731,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'numberOfAttendees',
       title: 'Number Of Attendees',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter number of attendees',
       condition: {
         field: 'operation',
@@ -715,6 +746,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'tripDistance',
       title: 'Trip Distance',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter trip distance',
       condition: {
         field: 'operation',
@@ -729,6 +761,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'distanceUnitCode',
       title: 'Distance Unit Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter distance unit code',
       condition: {
         field: 'operation',
@@ -743,6 +776,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'ticketClassCode',
       title: 'Ticket Class Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter ticket class code',
       condition: {
         field: 'operation',
@@ -757,6 +791,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'ticketNumber',
       title: 'Ticket Number',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter ticket number',
       condition: {
         field: 'operation',
@@ -771,6 +806,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'preparerId',
       title: 'Preparer ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -782,6 +818,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'purpose',
       title: 'Purpose',
       type: 'long-input',
+      value: () => '',
       placeholder: 'Enter purpose',
       condition: {
         field: 'operation',
@@ -795,6 +832,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseReportNumber',
       title: 'Expense Report Number',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter expense report number',
       condition: {
         field: 'operation',
@@ -805,6 +843,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseReportDate',
       title: 'Expense Report Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -824,6 +863,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'exchangeRateType',
       title: 'Exchange Rate Type',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter exchange rate type',
       condition: {
         field: 'operation',
@@ -838,6 +878,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'paymentMethodCode',
       title: 'Payment Method Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter payment method code',
       condition: {
         field: 'operation',
@@ -852,6 +893,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'overrideApproverId',
       title: 'Override Approver ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -866,6 +908,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'unappliedAdvancesJust',
       title: 'Unapplied Advances Just',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter unapplied advances just',
       condition: {
         field: 'operation',
@@ -880,6 +923,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'unappliedCashAdvReason',
       title: 'Unapplied Cash Adv Reason',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter unapplied cash adv reason',
       condition: {
         field: 'operation',
@@ -894,6 +938,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'businessUnit',
       title: 'Business Unit',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter business unit',
       condition: {
         field: 'operation',
@@ -915,6 +960,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'transactionNumber',
       title: 'Transaction Number',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter transaction number',
       condition: {
         field: 'operation',
@@ -932,6 +978,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'transactionDate',
       title: 'Transaction Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -956,6 +1003,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'accountingDate',
       title: 'Accounting Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -977,6 +1025,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'billToCustomerName',
       title: 'Bill To Customer Name',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter bill to customer name',
       condition: {
         field: 'operation',
@@ -991,6 +1040,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'billToCustomerNumber',
       title: 'Bill To Customer Number',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter bill to customer number',
       condition: {
         field: 'operation',
@@ -1004,6 +1054,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'billToSite',
       title: 'Bill To Site',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter bill to site',
       condition: {
         field: 'operation',
@@ -1017,6 +1068,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'creditMemoCurrency',
       title: 'Credit Memo Currency',
       type: 'short-input',
+      value: () => '',
       placeholder: 'USD',
       condition: {
         field: 'operation',
@@ -1027,6 +1079,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'creditMemoStatus',
       title: 'Credit Memo Status',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter credit memo status',
       condition: {
         field: 'operation',
@@ -1038,6 +1091,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'creditReason',
       title: 'Credit Reason',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter credit reason',
       condition: {
         field: 'operation',
@@ -1048,6 +1102,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'freightCreditAmount',
       title: 'Freight Credit Amount',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter freight credit amount',
       condition: {
         field: 'operation',
@@ -1059,6 +1114,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'transactionSource',
       title: 'Transaction Source',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter transaction source',
       condition: {
         field: 'operation',
@@ -1072,6 +1128,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'transactionType',
       title: 'Transaction Type',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter transaction type',
       condition: {
         field: 'operation',
@@ -1085,6 +1142,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'creditMemoComments',
       title: 'Credit Memo Comments',
       type: 'long-input',
+      value: () => '',
       placeholder: 'Enter credit memo comments',
       condition: {
         field: 'operation',
@@ -1096,6 +1154,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'conversionRate',
       title: 'Conversion Rate',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter conversion rate',
       condition: {
         field: 'operation',
@@ -1111,6 +1170,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'conversionRateType',
       title: 'Conversion Rate Type',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter conversion rate type',
       condition: {
         field: 'operation',
@@ -1126,6 +1186,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'conversionRateDate',
       title: 'Conversion Rate Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -1143,6 +1204,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'lines',
       title: 'Lines',
       type: 'code',
+      value: () => '',
       placeholder: '[{"LineNumber":1}]',
       condition: {
         field: 'operation',
@@ -1157,6 +1219,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'distributions',
       title: 'Distributions',
       type: 'code',
+      value: () => '',
       placeholder: '[{"AccountClass":"REV","Amount":100}]',
       condition: {
         field: 'operation',
@@ -1172,6 +1235,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'invoiceCurrencyCode',
       title: 'Invoice Currency Code',
       type: 'short-input',
+      value: () => '',
       placeholder: 'USD',
       condition: {
         field: 'operation',
@@ -1182,6 +1246,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'invoiceStatus',
       title: 'Invoice Status',
       type: 'dropdown',
+      value: () => '',
       dependsOn: ['operation'],
       options: ({ values } = { values: {} }) => [
         { id: '', label: 'Use Oracle default' },
@@ -1206,6 +1271,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'paymentTerms',
       title: 'Payment Terms',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter payment terms',
       condition: {
         field: 'operation',
@@ -1219,6 +1285,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'comments',
       title: 'Comments',
       type: 'long-input',
+      value: () => '',
       placeholder: 'Enter comments',
       condition: {
         field: 'operation',
@@ -1233,6 +1300,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'purchaseOrder',
       title: 'Purchase Order',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter purchase order',
       condition: {
         field: 'operation',
@@ -1244,6 +1312,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'conversionDate',
       title: 'Conversion Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -1264,6 +1333,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'amount',
       title: 'Amount',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter amount',
       condition: {
         field: 'operation',
@@ -1275,6 +1345,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'currency',
       title: 'Currency',
       type: 'short-input',
+      value: () => '',
       placeholder: 'USD',
       condition: {
         field: 'operation',
@@ -1286,6 +1357,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receiptMethod',
       title: 'Receipt Method',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter receipt method',
       condition: {
         field: 'operation',
@@ -1297,6 +1369,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receiptNumber',
       title: 'Receipt Number',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter receipt number',
       condition: {
         field: 'operation',
@@ -1307,6 +1380,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'customerAccountNumber',
       title: 'Customer Account Number',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter customer account number',
       condition: {
         field: 'operation',
@@ -1317,6 +1391,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'customerName',
       title: 'Customer Name',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter customer name',
       condition: {
         field: 'operation',
@@ -1328,6 +1403,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'customerSite',
       title: 'Customer Site',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter customer site',
       condition: {
         field: 'operation',
@@ -1338,6 +1414,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'maturityDate',
       title: 'Maturity Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -1355,6 +1432,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'structuredPaymentReference',
       title: 'Structured Payment Reference',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter structured payment reference',
       condition: {
         field: 'operation',
@@ -1366,6 +1444,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'expenseLineUniqId',
       title: 'Expense Line Key',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Use the opaque key returned by a list operation',
       condition: {
         field: 'operation',
@@ -1380,6 +1459,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'glJournalBatchId',
       title: 'GL Journal Batch ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -1391,6 +1471,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'glLedgerId',
       title: 'GL Ledger ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -1402,6 +1483,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'invoiceUniqId',
       title: 'Invoice Key',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Use the opaque key returned by a list operation',
       condition: {
         field: 'operation',
@@ -1417,6 +1499,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'invoiceLineUniqId',
       title: 'Invoice Line Key',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Use the opaque key returned by a list operation',
       condition: {
         field: 'operation',
@@ -1428,6 +1511,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'checkId',
       title: 'Check ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -1439,6 +1523,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receivablesCreditMemoId',
       title: 'Receivables Credit Memo ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -1450,6 +1535,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receivablesInvoiceInstallmentId',
       title: 'Receivables Invoice Installment ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -1461,6 +1547,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'receivablesInvoiceLineId',
       title: 'Receivables Invoice Line ID',
       type: 'short-input',
+      value: () => '',
       placeholder: 'Enter the exact decimal ID or a workflow reference',
       condition: {
         field: 'operation',
@@ -1472,6 +1559,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'q',
       title: 'Q',
       type: 'short-input',
+      value: () => '',
       placeholder: "InvoiceNumber='INV-1001'",
       condition: {
         field: 'operation',
@@ -1502,6 +1590,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'finder',
       title: 'Finder',
       type: 'short-input',
+      value: () => '',
       placeholder: 'PrimaryKey;InvoiceId=300100000000001',
       condition: {
         field: 'operation',
@@ -1533,6 +1622,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'orderBy',
       title: 'Order By',
       type: 'short-input',
+      value: () => '',
       placeholder: 'CreationDate:desc',
       condition: {
         field: 'operation',
@@ -1564,6 +1654,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
+      value: () => '',
       placeholder: '50 (default; maximum 100)',
       condition: {
         field: 'operation',
@@ -1589,6 +1680,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'offset',
       title: 'Offset',
       type: 'short-input',
+      value: () => '',
       placeholder: '0 (first page)',
       condition: {
         field: 'operation',
@@ -1614,6 +1706,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'totalResults',
       title: 'Total Results',
       type: 'dropdown',
+      value: () => '',
       condition: {
         field: 'operation',
         value: [
@@ -1652,6 +1745,7 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       id: 'effectiveDate',
       title: 'Effective Date',
       type: 'short-input',
+      value: () => '',
       placeholder: '2026-01-31',
       condition: {
         field: 'operation',
@@ -2075,12 +2169,12 @@ export const OracleFusionFinancialsBlock: BlockConfig = {
       description: 'Conversion Rate Date (YYYY-MM-DD)',
     },
     lines: {
-      type: 'json',
+      type: 'array',
       description:
         'Typed lines to create with the receivables credit memo (at most 1000). Use Oracle attribute names; exact integer attributes must be strings.',
     },
     distributions: {
-      type: 'json',
+      type: 'array',
       description:
         'Typed distributions to create with the receivables credit memo (at most 1000). Use Oracle attribute names; exact integer attributes must be strings.',
     },

@@ -467,7 +467,7 @@ describe('ordinary tool credential binding', () => {
     ['oracle-fusion', 'oracle-fusion-service-account'],
     ['vanta', 'vanta-service-account'],
     ['ramp', 'ramp-service-account'],
-    ['gmail', 'google-service-account'],
+    ['google-email', 'google-service-account'],
     ['jira', 'atlassian-service-account'],
     ['confluence', 'atlassian-service-account'],
   ] as const)(
@@ -494,7 +494,7 @@ describe('ordinary tool credential binding', () => {
   )
 
   it.each([
-    ['gmail', 'google-email', true],
+    ['google-email', 'google-email', true],
     ['salesforce', 'salesforce-sandbox', true],
     ['salesforce', 'google', false],
   ] as const)(

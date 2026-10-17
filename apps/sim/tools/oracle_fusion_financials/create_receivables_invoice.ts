@@ -126,7 +126,7 @@ export const oracleFusionFinancialsCreateReceivablesInvoiceTool: InternalToolCon
       description: 'Conversion Date (YYYY-MM-DD)',
     },
     lines: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -136,7 +136,7 @@ export const oracleFusionFinancialsCreateReceivablesInvoiceTool: InternalToolCon
       maxItems: 1000,
     },
     distributions: {
-      type: 'json',
+      type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
