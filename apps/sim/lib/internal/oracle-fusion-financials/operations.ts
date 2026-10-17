@@ -120,6 +120,7 @@ type OracleFusionFinancialsToolId = (typeof ORACLE_FUSION_FINANCIALS_TOOL_IDS)[n
 
 const TOOL_ID_SET = new Set<string>(ORACLE_FUSION_FINANCIALS_TOOL_IDS)
 
+/** Narrows a tool ID to one of the supported Oracle Fusion Financials operations. */
 export function isOracleFusionFinancialsToolId(
   value: string
 ): value is OracleFusionFinancialsToolId {
@@ -571,6 +572,11 @@ async function getOracleFusionGlJournalBatch(rawInput: unknown, signal?: AbortSi
   )
 }
 
+/**
+ * Validates raw inputs and runs a Financials operation with optional cancellation.
+ * Returns projected tool output, including unsuccessful Oracle action outcomes.
+ * Input validation, provider, and cancellation errors propagate to the caller.
+ */
 export async function executeOracleFusionFinancialsOperation(
   toolId: OracleFusionFinancialsToolId,
   rawInput: unknown,

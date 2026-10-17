@@ -220,6 +220,7 @@ describe('resolveCredentialAccessToken', () => {
   const resolveManagedPrincipal = vi.fn()
 
   beforeEach(() => {
+    mockExecuteManagedToken.mockReset()
     mockResolveOAuthAccountId.mockResolvedValue(null)
     authenticate.mockResolvedValue(INTERNAL_AUTH)
     resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
@@ -305,6 +306,40 @@ describe('resolveCredentialAccessToken', () => {
       status: 500,
       code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
       error: 'This tool is not configured to use managed credentials',
+    })
+    expect(mockExecuteManagedToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects a managed OAuth credential for a service-account-only tool before token resolution', async () => {
+    mockResolveOAuthAccountId.mockResolvedValueOnce({
+      ...MANAGED_RESOLVED,
+      providerId: 'slack',
+    })
+    mockGetToolMetadata.mockReturnValueOnce({
+      id: 'slack_add_bookmark',
+      params: {},
+      oauth: {
+        required: true,
+        provider: 'slack',
+        requiredScopes: ['bookmarks:write'],
+        credentialKind: 'service-account',
+      },
+    })
+    mockExecuteManagedToken.mockResolvedValueOnce({ accessToken: 'managed-token' })
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'slack_add_bookmark',
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      code: 'CREDENTIAL_TYPE_MISMATCH',
+      error: 'The selected credential type is not supported by this tool',
     })
     expect(mockExecuteManagedToken).not.toHaveBeenCalled()
   })
