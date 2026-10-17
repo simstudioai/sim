@@ -1270,6 +1270,40 @@ export function validateWorkdayTenantUrl(
   })
 }
 
+const SALESFORCE_ALLOWED_HOST_SUFFIXES = [
+  '.salesforce.com',
+  '.force.com',
+  '.cloudforce.com',
+  '.database.com',
+  '.salesforce.mil',
+  '.sfcrmproducts.cn',
+] as const
+
+/**
+ * Validates a Salesforce org instance URL to prevent SSRF attacks.
+ *
+ * Org API hosts live on Salesforce-owned domains: `*.my.salesforce.com` (including
+ * sandbox, scratch, and legacy `na1.salesforce.com` pods), `*.force.com`, the legacy
+ * `cloudforce.com` and `database.com` hosts, Government Cloud Plus on
+ * `salesforce.mil`, and Salesforce on Alibaba Cloud on `sfcrmproducts.cn`.
+ *
+ * @param url - The instance URL to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult whose `sanitized` value is the https origin
+ */
+export function validateSalesforceInstanceUrl(
+  url: string | null | undefined,
+  paramName = 'instanceUrl'
+): ValidationResult {
+  return validateVendorHostedUrl(url, {
+    suffixes: SALESFORCE_ALLOWED_HOST_SUFFIXES,
+    vendor: 'Salesforce',
+    paramName,
+    sanitize: 'origin',
+    allowBareSuffix: false,
+  })
+}
+
 /**
  * Every production Databricks control-plane DNS zone. All but `.cloud.databricks.mil` mirror
  * `ALL_ENVS` in the Databricks SDK (`databricks/sdk/environments.py`); the DoD zone comes from the
