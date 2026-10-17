@@ -43,8 +43,10 @@ const O200K_MODEL_FAMILY = /^(?:gpt-(?:4o|4\.1|4\.5|5|6|oss)|chatgpt-4o|o\d)/
  * The encoding for a model id. Exact OpenAI names resolve through `js-tiktoken`; newer
  * OpenAI ids resolve by family; every other model (Claude, Gemini, …) has no public
  * tiktoken encoding and is approximated with `cl100k_base`.
+ *
+ * @public The token counter reaches this through a lazy `import()` knip cannot trace.
  */
-function resolveEncodingName(modelName: string): TiktokenEncoding {
+export function resolveEncodingName(modelName: string): TiktokenEncoding {
   const cached = encodingNameByModel.get(modelName)
   if (cached) return cached
   let encodingName: TiktokenEncoding
@@ -74,22 +76,30 @@ if (typeof process !== 'undefined') {
 }
 
 /**
- * Get accurate token count for text using tiktoken
- * This is the exact count OpenAI's API will use
+ * The tiktoken count, or `null` when encoding fails, so a caller can label its fallback as an
+ * estimate rather than an exact count.
+ *
+ * @public The token counter reaches this through a lazy `import()` knip cannot trace.
  */
-export function getAccurateTokenCount(text: string, modelName = 'text-embedding-3-small'): number {
+export function getExactTokenCount(text: string, modelName: string): number | null {
   if (!text || text.length === 0) {
     return 0
   }
 
   try {
-    const encoding = getEncoding(modelName)
-    const tokens = encoding.encode(text)
-    return tokens.length
+    return getEncoding(modelName).encode(text).length
   } catch (error) {
     logger.error('Error counting tokens with tiktoken:', error)
-    return Math.ceil(text.length / 4)
+    return null
   }
+}
+
+/**
+ * Get accurate token count for text using tiktoken
+ * This is the exact count OpenAI's API will use
+ */
+export function getAccurateTokenCount(text: string, modelName = 'text-embedding-3-small'): number {
+  return getExactTokenCount(text, modelName) ?? Math.ceil(text.length / 4)
 }
 
 /**

@@ -26,9 +26,11 @@ export interface ContentSection {
 export function buildPostMetadata(post: ContentMeta): Metadata {
   const base = new URL(post.canonical)
   const baseUrl = `${base.protocol}//${base.host}`
+  const searchTitle = post.seoTitle ?? post.title
+  const searchDescription = post.seoDescription ?? post.description
   return {
-    title: post.title,
-    description: post.description,
+    title: searchTitle,
+    description: searchDescription,
     keywords: post.tags,
     authors: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) => ({
       name: a.name,
@@ -41,8 +43,8 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
       : { index: true, follow: true, googleBot: { index: true, follow: true } },
     alternates: { canonical: post.canonical },
     openGraph: {
-      title: post.title,
-      description: post.description,
+      title: searchTitle,
+      description: searchDescription,
       url: post.canonical,
       siteName: 'Sim',
       locale: 'en_US',
@@ -64,8 +66,8 @@ export function buildPostMetadata(post: ContentMeta): Metadata {
     },
     twitter: {
       card: 'summary_large_image',
-      title: post.title,
-      description: post.description,
+      title: searchTitle,
+      description: searchDescription,
       images: [post.ogImage],
       creator: post.author.url?.includes('x.com') ? `@${post.author.xHandle || ''}` : undefined,
       site: '@simdotai',
@@ -303,7 +305,7 @@ export function buildAuthorMetadata(
   const canonical = `${SITE_URL}${section.basePath}/authors/${encodeURIComponent(id)}`
   const description = `Read articles by ${name} on the Sim ${section.name.toLowerCase()}.`
   return {
-    title: `${name} | Sim ${section.name}`,
+    title: `${name} | ${section.name}`,
     description,
     alternates: { canonical },
     openGraph: {

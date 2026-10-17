@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
-import { slugify } from '@sim/utils/string'
+import { compareStrings, slugify } from '@sim/utils/string'
 import { type ModelCapabilities, PROVIDER_DEFINITIONS } from '@/providers/models'
-import type { ModelPricing } from '@/providers/types'
+import type { ModelPricing, ModelPricingTier } from '@/providers/types'
 
 const PROVIDER_PREFIXES: Record<string, string[]> = {
   'azure-openai': ['azure/'],
@@ -17,6 +17,21 @@ const PROVIDER_PREFIXES: Record<string, string[]> = {
   kie: ['kie/'],
   openrouter: ['openrouter/'],
   vllm: ['vllm/'],
+}
+
+/**
+ * How searchers name a provider's API when the model family differs from the company name
+ * ("Claude", not "Anthropic"). `family` names the models in copy ("the Claude context window");
+ * `apiName` leads the provider page title and defaults to `{provider name} ({family})`
+ * ("Anthropic (Claude) API Pricing & Models"). Providers left out use their own name for both.
+ */
+const PROVIDER_MODEL_FAMILIES: Record<string, { family: string; apiName?: string }> = {
+  anthropic: { family: 'Claude' },
+  'azure-anthropic': { family: 'Claude' },
+  google: { family: 'Gemini', apiName: 'Google Gemini' },
+  openai: { family: 'GPT', apiName: 'OpenAI' },
+  xai: { family: 'Grok' },
+  zai: { family: 'GLM' },
 }
 
 const TOKEN_REPLACEMENTS: Record<string, string> = {
@@ -95,6 +110,7 @@ const UPDATED_AT_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
   year: 'numeric',
+  timeZone: 'UTC',
 })
 
 export type PricingInfo = ModelPricing
@@ -120,7 +136,10 @@ export interface CatalogModel {
   providerSlug: string
   contextWindow: number | null
   releaseDate: string | null
+  /** Superseded or retired: the model carries any `sunset` status. */
   deprecated: boolean
+  /** Retired by the provider (`sunset.status === 'deprecated'`): API calls to it now fail. */
+  retired: boolean
   featured: boolean
   recommended: boolean
   pricing: PricingInfo
@@ -142,6 +161,10 @@ export interface CatalogProvider {
   defaultModelDisplayName: string
   icon?: ComponentType<{ className?: string }>
   color?: string
+  /** Model family name searchers use ("Claude", "Gemini"); the provider name when it has none. */
+  modelFamily: string
+  /** Name searchers pair with "API pricing" ("Anthropic (Claude)"); the provider name by default. */
+  apiName: string
   isReseller: boolean
   contextInformationAvailable: boolean
   /** Max agent-block file attachment size in bytes when the provider exceeds the default. */
@@ -218,6 +241,25 @@ function supportsCatalogStructuredOutputs(capabilities: ModelCapabilities): bool
 
 export function getEffectiveMaxOutputTokens(capabilities: ModelCapabilities): number | null {
   return capabilities.maxOutputTokens ?? null
+}
+
+/** True when a model lists a non-zero input or output token price. */
+export function hasPublishedPricing(pricing: PricingInfo): boolean {
+  return pricing.input > 0 || pricing.output > 0
+}
+
+/**
+ * True for a model that takes a prompt. Evaluation models (`capabilities.evaluation`) take native
+ * state and questions instead, so prompt token, cost, and context-window comparisons leave them out,
+ * as the non-Agent model pickers do.
+ */
+export function isPromptModel(model: CatalogModel): boolean {
+  return !model.capabilities.evaluation
+}
+
+/** One long-context surcharge tier as a sentence fragment, without trailing punctuation. */
+export function formatPricingTier(tier: ModelPricingTier): string {
+  return `Above ${formatTokenCount(tier.aboveInputTokens)} input tokens, the full request is priced at ${formatPrice(tier.input)}/1M input tokens${tier.cachedInput !== undefined ? `, ${formatPrice(tier.cachedInput)}/1M cached input tokens` : ''}, and ${formatPrice(tier.output)}/1M output tokens`
 }
 
 function trimTrailingZeros(value: string): string {
@@ -482,6 +524,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       contextWindow: model.contextWindow ?? null,
       releaseDate: model.releaseDate ?? null,
       deprecated: !!model.sunset,
+      retired: model.sunset?.status === 'deprecated',
       featured: model.featured ?? false,
       recommended: model.recommended ?? false,
       pricing: model.pricing,
@@ -516,6 +559,8 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     (provider.defaultModel ? formatModelDisplayName(provider.id, provider.defaultModel) : 'Dynamic')
 
   const featuredModels = [...models].sort(compareModelsByRelevance).slice(0, 6)
+  const naming = PROVIDER_MODEL_FAMILIES[provider.id]
+  const modelFamily = naming?.family ?? providerDisplayName
 
   return {
     id: provider.id,
@@ -528,6 +573,10 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
     defaultModelDisplayName,
     icon: provider.icon,
     color: provider.color,
+    modelFamily,
+    apiName: naming
+      ? (naming.apiName ?? `${providerDisplayName} (${modelFamily})`)
+      : providerDisplayName,
     isReseller: provider.isReseller ?? false,
     contextInformationAvailable: provider.contextInformationAvailable !== false,
     maxFileAttachmentBytes: provider.fileAttachment?.maxBytes ?? null,
@@ -730,10 +779,7 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
     {
       question: `How much does ${model.displayName} cost?`,
       answer: `${model.displayName} starts at ${formatPrice(model.pricing.input)}/1M input tokens${model.pricing.cachedInput !== undefined ? `, ${formatPrice(model.pricing.cachedInput)}/1M cached input tokens` : ''}, and ${formatPrice(model.pricing.output)}/1M output tokens.${pricingTiers
-        .map(
-          (tier) =>
-            ` Above ${formatTokenCount(tier.aboveInputTokens)} input tokens, the full request is priced at ${formatPrice(tier.input)}/1M input tokens${tier.cachedInput !== undefined ? `, ${formatPrice(tier.cachedInput)}/1M cached input tokens` : ''}, and ${formatPrice(tier.output)}/1M output tokens.`
-        )
+        .map((tier) => ` ${formatPricingTier(tier)}.`)
         .join('')}`,
     },
     {
@@ -828,9 +874,55 @@ export function getCheapestProviderModel(provider: CatalogProvider): CatalogMode
   return provider.models.reduce((min, m) => (m.pricing.input < min.pricing.input ? m : min))
 }
 
-export function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
-  if (provider.models.length === 0) return null
-  return provider.models.reduce((max, m) =>
-    (m.contextWindow ?? 0) > (max.contextWindow ?? 0) ? m : max
+/**
+ * Largest context window first. Ties put current models before superseded or retired ones, then
+ * newer releases first, then the display name, so the order is stable between builds.
+ */
+export function compareByContextWindow(a: CatalogModel, b: CatalogModel): number {
+  return (
+    (b.contextWindow ?? 0) - (a.contextWindow ?? 0) ||
+    Number(a.deprecated) - Number(b.deprecated) ||
+    compareStrings(b.releaseDate ?? '', a.releaseDate ?? '') ||
+    compareStrings(a.displayName, b.displayName)
   )
+}
+
+/**
+ * The provider's callable (not retired) model with the largest published context window, ranked
+ * by {@link compareByContextWindow} so provider FAQs agree with the context-window comparison.
+ */
+function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
+  const candidates = provider.models.filter((model) => !model.retired && model.contextWindow)
+  if (candidates.length === 0) return null
+  return candidates.reduce((best, model) =>
+    compareByContextWindow(model, best) < 0 ? model : best
+  )
+}
+
+function providerHasPublishedPricing(provider: CatalogProvider): boolean {
+  return provider.models.some((model) => hasPublishedPricing(model.pricing))
+}
+
+/**
+ * Provider page title. A provider with published token prices is titled for the API-pricing
+ * searches people run ("Anthropic (Claude) API Pricing & Models"); one without keeps a plain
+ * models title, so the page never promises pricing it does not list.
+ */
+export function getProviderPageTitle(provider: CatalogProvider): string {
+  return providerHasPublishedPricing(provider)
+    ? `${provider.apiName} API Pricing & Models`
+    : `${provider.name} Models`
+}
+
+/** Provider meta description: per-1M-token pricing and context windows when prices are listed. */
+export function getProviderPageDescription(provider: CatalogProvider): string {
+  const models = `${provider.modelCount} model${provider.modelCount === 1 ? '' : 's'}`
+  return providerHasPublishedPricing(provider)
+    ? `${provider.apiName} API pricing per 1M input and output tokens, context windows, and capabilities for ${models}. Use any of them in Sim's AI agents.`
+    : `Context windows and capabilities for ${models}. Use any of them in Sim's AI agents.`
+}
+
+/** Most recent `pricing.updatedAt` across a non-empty list of models. */
+export function getLatestModelUpdate(models: CatalogModel[]): Date {
+  return new Date(Math.max(...models.map((model) => new Date(model.pricing.updatedAt).getTime())))
 }
