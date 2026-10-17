@@ -6,6 +6,7 @@ import {
 } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import {
   workflowContextMock,
   workflowContextMockFns,
@@ -60,18 +61,21 @@ const runContext = {
   runId: 'parent-run-1',
 }
 
-const principals: Array<{ principal: Principal; actorUserId: string }> = [
+const principals: Array<{ principal: Principal; actorUserId: string; isApiCaller: boolean }> = [
   {
     principal: createSessionPrincipal({ userId: 'session-user' }),
     actorUserId: 'session-user',
+    isApiCaller: false,
   },
   {
     principal: createPersonalApiKeyPrincipal({ userId: 'key-user', keyId: 'personal-key' }),
     actorUserId: 'key-user',
+    isApiCaller: true,
   },
   {
     principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key' }),
     actorUserId: 'billing-owner-1',
+    isApiCaller: true,
   },
   {
     principal: {
@@ -85,6 +89,7 @@ const principals: Array<{ principal: Principal; actorUserId: string }> = [
       expiresAt: new Date('2999-01-01T00:00:00Z'),
     },
     actorUserId: 'delegated-user',
+    isApiCaller: true,
   },
 ]
 
@@ -187,7 +192,11 @@ describe('workflow run-control application use cases', () => {
 
   it.each(principals)(
     'authorizes $principal.kind resume and preserves the parent/new run distinction',
-    async ({ principal, actorUserId }) => {
+    async ({ principal, actorUserId, isApiCaller }) => {
+      const request = createMockRequest({
+        method: 'POST',
+        url: 'http://localhost/api/resume/workflow-1/parent-run-1/context-1',
+      })
       const result = await resumeWorkflowRun.execute({
         principal,
         input: {
@@ -195,7 +204,9 @@ describe('workflow run-control application use cases', () => {
           runId: 'parent-run-1',
           contextId: 'context-1',
           resumeInput: { approved: true },
+          surface: 'v2',
         },
+        request,
       })
 
       expect(mockResolveRunContext).toHaveBeenCalledWith({
@@ -209,9 +220,11 @@ describe('workflow run-control application use cases', () => {
         workspaceId: 'workspace-1',
         userId: actorUserId,
         resumeInput: { approved: true },
-        isApiCaller: true,
+        isApiCaller,
         pollingSurface: 'v2',
         allowStreaming: false,
+        requestSignal: request.signal,
+        requestHeaders: request.headers,
       })
       expect(result).toMatchObject({ executionId: 'resumed-run-2' })
       expect(mockAudit).not.toHaveBeenCalled()
@@ -236,6 +249,7 @@ describe('workflow run-control application use cases', () => {
           runId: 'parent-run-1',
           contextId: 'context-1',
           resumeInput: {},
+          surface: 'v2',
         },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
@@ -263,6 +277,7 @@ describe('workflow run-control application use cases', () => {
           runId: 'parent-run-1',
           contextId: 'context-1',
           resumeInput: {},
+          surface: 'v2',
         },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
