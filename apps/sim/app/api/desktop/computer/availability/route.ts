@@ -12,10 +12,10 @@ export const GET = defineInternalJsonRoute({
   auth: internalSessionAuth,
   operation: readComputerUseAvailability.operation,
   rateLimit: internalRateLimits.none({
-    reason: 'Read-only rollout switch used on each desktop chat admission.',
+    reason: 'Read-only rollout check used on each desktop chat admission.',
   }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: () => undefined,
+  mapInput: ({ query }) => query,
   useCase: readComputerUseAvailability,
   present: (result) => result,
 })

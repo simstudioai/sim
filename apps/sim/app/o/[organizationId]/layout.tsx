@@ -88,7 +88,7 @@ export default async function OrganizationLayout({
       logger.warn('Could not resolve benchmark navigation access')
       return false
     }),
-    isComputerUseAvailable(),
+    isComputerUseAvailable(organizationId),
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),

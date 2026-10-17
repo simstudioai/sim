@@ -60,7 +60,7 @@ export const authorizeComputerUse = defineAuthorizedChatUseCase({
   },
   authorizationOptions: {},
   async execute({ principal, context, input }) {
-    if (!(await isComputerUseAvailable()))
+    if (!(await isComputerUseAvailable(context.organizationId ?? context.workspaceOrganizationId)))
       throw new OrchestrationError('forbidden', 'Computer use is unavailable on this deployment')
     const claimed = await claimComputerUseTool({
       toolCallId: input.toolCallId,

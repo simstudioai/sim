@@ -3929,7 +3929,16 @@ export function useChat(
         const desktopChatCapabilities =
           options?.requestMode === 'assistant'
             ? {}
-            : await getDesktopChatCapabilities(desktopScopeIdRef.current, computerUseEnabled)
+            : await getDesktopChatCapabilities(
+                desktopScopeIdRef.current,
+                !computerUseEnabled
+                  ? null
+                  : organizationId
+                    ? { organizationId }
+                    : workspaceId
+                      ? { workspaceId }
+                      : null
+              )
 
         admissionUnknown = true
         /** A reload from here on may find the server holding this id. */
