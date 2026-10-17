@@ -17,10 +17,14 @@ describe('createCopilotManagedOAuthPrincipal', () => {
       kind: 'delegated',
       serviceId: 'copilot',
       subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
       delegationId: 'copilot-tool:call-1',
       audience: 'sim:managed-oauth-credentials',
-      resourceScope: { credentialId: 'credential-1', chatId: 'chat-1' },
+      invocation: { kind: 'chat', chatId: 'chat-1' } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        restrictions: { credentialId: 'credential-1', chatId: 'chat-1' },
+      } as const,
     })
     expect(principal.expiresAt.getTime()).toBeGreaterThan(principal.issuedAt.getTime())
   })

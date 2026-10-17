@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
-  isResourceScopedDelegation,
+  hasResourceOperationGrant,
   type Principal,
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
@@ -398,7 +398,7 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
       provenance: mergeWorkspaceFileSecretProvenance(
         snapshot.provenance.get(snapshot.source.id) ?? { status: 'unknown' },
         input.secretProvenance ??
-          (isResourceScopedDelegation(principal)
+          (hasResourceOperationGrant(principal)
             ? { status: 'unknown' }
             : { status: 'exact', entries: [] })
       ),
@@ -466,7 +466,7 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
     const secretProvenance = mergeWorkspaceFileSecretProvenance(
       evidence,
       input.secretProvenance ??
-        (isResourceScopedDelegation(principal)
+        (hasResourceOperationGrant(principal)
           ? { status: 'unknown' }
           : { status: 'exact', entries: [] })
     )

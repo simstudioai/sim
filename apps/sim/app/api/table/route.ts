@@ -1,4 +1,4 @@
-import { resolvePrincipalSubject } from '@sim/auth/principal'
+import { principalWorkspaceId, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createTableContract, listTablesContract } from '@/lib/api/contracts/tables'
 import {
   defineInternalJsonRoute,
@@ -33,7 +33,8 @@ export const POST = defineInternalJsonRoute({
   rateLimit,
   errorPolicy: createErrorPolicy,
   mapInput: ({ body }, { principal }) => ({
-    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
+    workspaceId:
+      principal.kind === 'delegated' ? principalWorkspaceId(principal) : body.workspaceId,
     name: body.name,
     description: body.description,
     schema: { columns: body.schema.columns.map(normalizeColumn) },
@@ -87,7 +88,8 @@ export const GET = defineInternalJsonRoute({
   rateLimit,
   errorPolicy: listErrorPolicy,
   mapInput: ({ query }, { principal }) => ({
-    workspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
+    workspaceId:
+      principal.kind === 'delegated' ? principalWorkspaceId(principal) : query.workspaceId,
     scope: query.scope,
   }),
   useCase: listTableDefinitionsUseCase,

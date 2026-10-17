@@ -600,8 +600,8 @@ describe('Project archive download and Markdown snapshot export', () => {
       delegationId: generateId(),
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 30_000),
-      scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
-      invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+      grant: { kind: 'entity', owner: { entityType: 'project', entityId: f.projectId } } as const,
+      invocation: { kind: 'workspace', workspaceId: f.workspaceId } as const,
     }
     const read = vi.spyOn(storage, 'downloadFile')
     await expect(
@@ -645,8 +645,8 @@ describe('Project archive download and Markdown snapshot export', () => {
         delegationId: generateId(),
         issuedAt: new Date(),
         expiresAt: new Date(Date.now() + 30_000),
-        scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
-        invocation: { kind: 'workspace', workspaceId: f.workspaceId },
+        grant: { kind: 'entity', owner: { entityType: 'project', entityId: f.projectId } } as const,
+        invocation: { kind: 'workspace', workspaceId: f.workspaceId } as const,
       }
       const read = vi.spyOn(storage, 'downloadFile')
       let admissions = 0

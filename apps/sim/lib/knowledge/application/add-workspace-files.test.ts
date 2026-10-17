@@ -94,11 +94,12 @@ const delegatedPrincipal = {
   kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'dual-workspace-user',
-  workspaceId: 'workspace-1',
   delegationId: 'tool-call-1',
   audience: 'sim:knowledge',
   issuedAt: new Date(),
   expiresAt: new Date(Date.now() + 60_000),
+  invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+  grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'workspace-1' } } as const,
 } as const
 
 describe('add workspace files to knowledge base application command', () => {

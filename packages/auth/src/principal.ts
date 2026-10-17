@@ -134,27 +134,32 @@ interface DelegatedPrincipalBase {
   expiresAt: Date
 }
 
-interface WorkspaceDelegationFields {
-  workspaceId: string
-  scope?: never
-  invocation?: never
-  resourceScope?: {
-    fileId?: string
-    tableId?: string
-    chatId?: string
-    executionId?: string
-    credentialId?: string
-    credentialGroupId?: string
-    mcpServerId?: string
-    mcpBlockId?: string
-  }
+interface WorkspaceDelegationRestrictions {
+  fileId?: string
+  tableId?: string
+  chatId?: string
+  executionId?: string
+  credentialId?: string
+  credentialGroupId?: string
+  mcpServerId?: string
+  mcpBlockId?: string
 }
 
-export interface WorkspaceSubjectDelegation
-  extends DelegatedPrincipalBase,
-    WorkspaceDelegationFields {
-  serviceId: 'copilot' | 'realtime'
-  subjectUserId: string
+interface WorkspaceDelegationFields {
+  workspaceId: string
+  resourceScope?: WorkspaceDelegationRestrictions
+  grant?: never
+  invocation?: never
+}
+
+interface WorkspaceDelegationGrant {
+  kind: 'entity'
+  owner: EntityOwner<'workspace'>
+  restrictions?: WorkspaceDelegationRestrictions
+}
+
+export type WorkspaceSubjectDelegation = SubjectDelegatedPrincipal & {
+  grant: WorkspaceDelegationGrant
 }
 
 interface WorkflowExecutionDelegationContext {
@@ -191,8 +196,6 @@ export type BoundWorkflowExecutionDelegatedPrincipal = WorkflowExecutionDelegate
   delegationContext: WorkflowExecutionDelegationContext
 }
 
-export type SubjectDelegatedPrincipal = WorkspaceSubjectDelegation | ResourceScopedDelegation
-
 export type WorkspaceDelegatedPrincipal =
   | WorkspaceSubjectDelegation
   | WorkflowExecutionDelegatedPrincipal
@@ -201,31 +204,35 @@ export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDe
 
 export type ResourceEntityType = 'workspace' | 'project' | 'organization' | 'user'
 
+/** Canonical owner identity shared by resource targets and authority restrictions. */
+export interface EntityOwner<T extends ResourceEntityType = ResourceEntityType> {
+  entityType: T
+  entityId: string
+}
+
 /** An owner grant may be narrowed to a single file, but never widened to another owner. */
 interface ResourceEntityScope {
   kind: 'entity'
-  entityType: ResourceEntityType
-  entityId: string
+  owner: EntityOwner
   fileId?: string
 }
 
 /** Observing a Project collection grants no authority to address or mutate an individual file. */
 interface ResourceFileCollectionObservationScope {
   kind: 'file_collection_observation'
-  entityType: 'project'
-  entityId: string
+  owner: EntityOwner<'project'>
 }
 
 /** One compound copy grant binds the exact requested source selection and destination. */
 export interface ResourceFileCopyScope {
   kind: 'file_copy'
   source: {
-    owner: { entityType: 'workspace' | 'project'; entityId: string }
+    owner: EntityOwner<'workspace' | 'project'>
     fileIds: readonly string[]
     folderIds: readonly string[]
   }
   destination: {
-    owner: { entityType: 'workspace' | 'project'; entityId: string }
+    owner: EntityOwner<'workspace' | 'project'>
     folderId: string | null
   }
 }
@@ -236,46 +243,84 @@ export type ResourceDelegationScope =
   | ResourceFileCopyScope
   | ResourceFileCollectionObservationScope
 
-/** Human authority for entity-owned resources; never a workflow execution principal. */
-export type ResourceScopedDelegation = DelegatedPrincipalBase & {
+/** Human authority pairs the trusted invocation with a bounded grant. */
+export type SubjectDelegatedPrincipal = DelegatedPrincipalBase & {
   subjectUserId: string
-  workspaceId?: never
-  resourceScope?: never
 } & (
     | {
         serviceId: 'copilot'
-        scope: ResourceDelegationScope
+        grant: WorkspaceDelegationGrant | ResourceDelegationScope
         invocation: { kind: 'chat'; chatId: string } | { kind: 'workspace'; workspaceId: string }
       }
     | {
         serviceId: 'realtime'
-        scope: (ResourceEntityScope & { fileId: string }) | ResourceFileCollectionObservationScope
-        invocation: { kind: 'realtime'; connectionId: string }
+        grant:
+          | WorkspaceDelegationGrant
+          | (ResourceEntityScope & { fileId: string })
+          | ResourceFileCollectionObservationScope
+        invocation:
+          | { kind: 'realtime'; connectionId: string }
+          | { kind: 'workspace'; workspaceId: string }
       }
   )
 
-/** Identifies the resource grant family; domain authorization validates its contents. */
-export function isResourceScopedDelegation(
+export type ResourceOperationPrincipal = SubjectDelegatedPrincipal & {
+  grant: ResourceDelegationScope
+}
+
+/** Narrows grants handled by resource operations; domain authorization validates their contents. */
+export function hasResourceOperationGrant(
   principal: Principal
-): principal is ResourceScopedDelegation {
+): principal is ResourceOperationPrincipal {
   return (
     principal.kind === 'delegated' &&
     principal.serviceId !== 'executor' &&
-    principal.scope !== undefined
+    (principal.grant?.kind !== 'entity' || principal.grant.owner?.entityType !== 'workspace') &&
+    principal.grant !== undefined
   )
 }
 
-/** Keeps resource grants out of workspace and workflow authority, including malformed mixed grants. */
+/** Identifies workspace authority without granting admission to any operation. */
 export function isWorkspaceDelegation(
   principal: Principal
 ): principal is WorkspaceDelegatedPrincipal {
+  if (principal.kind !== 'delegated') return false
+  if (principal.serviceId === 'executor')
+    return (
+      principal.grant === undefined &&
+      typeof principal.workspaceId === 'string' &&
+      principal.workspaceId.length > 0
+    )
   return (
-    principal.kind === 'delegated' &&
-    principal.scope === undefined &&
-    principal.invocation === undefined &&
-    typeof principal.workspaceId === 'string' &&
-    principal.workspaceId.length > 0
+    !('workspaceId' in principal) &&
+    !('resourceScope' in principal) &&
+    principal.grant?.kind === 'entity' &&
+    Object.keys(principal.grant).every((key) => ['kind', 'owner', 'restrictions'].includes(key)) &&
+    principal.grant.owner?.entityType === 'workspace' &&
+    typeof principal.grant.owner.entityId === 'string' &&
+    principal.grant.owner.entityId.length > 0
   )
+}
+
+/** Reads the principal's authority-bound workspace, never UI selection. */
+export function principalWorkspaceId(
+  principal: WorkspaceDelegatedPrincipal | WorkspaceApiKeyPrincipal
+): string
+export function principalWorkspaceId(principal: Principal): string | undefined
+export function principalWorkspaceId(principal: Principal): string | undefined {
+  if (principal.kind === 'delegated' && principal.serviceId !== 'executor')
+    return principal.grant.kind === 'entity' && principal.grant.owner?.entityType === 'workspace'
+      ? principal.grant.owner.entityId
+      : undefined
+  return 'workspaceId' in principal ? principal.workspaceId : undefined
+}
+
+/** Reads existing workspace restrictions for human or executor delegation. */
+export function workspaceDelegationRestrictions(
+  principal: Principal
+): WorkspaceDelegationRestrictions | undefined {
+  if (!isWorkspaceDelegation(principal)) return undefined
+  return principal.serviceId === 'executor' ? principal.resourceScope : principal.grant.restrictions
 }
 
 /** Search-only authority delegated by a current organization member. */
@@ -387,7 +432,10 @@ type SerializedWorkflowExecutionPrincipal =
   | (Omit<OAuthAccessTokenPrincipal, 'expiresAt' | 'clientName'> & { expiresAt: string })
   | WorkspaceApiKeyPrincipal
   | SystemPrincipal
-  | (Omit<WorkspaceSubjectDelegation, 'issuedAt' | 'expiresAt' | 'scope' | 'invocation'> & {
+  | (Omit<
+      WorkspaceSubjectDelegation,
+      'issuedAt' | 'expiresAt' | 'grant' | 'invocation' | 'workspaceId' | 'resourceScope'
+    > & { workspaceId: string; resourceScope?: WorkspaceDelegationRestrictions } & {
       issuedAt: string
       expiresAt: string
     })
@@ -434,7 +482,7 @@ function requireDate(value: unknown, field: string): Date {
   return date
 }
 
-function parseResourceScope(value: unknown): WorkspaceDelegatedPrincipal['resourceScope'] {
+function parseResourceScope(value: unknown): WorkspaceDelegationRestrictions | undefined {
   const scope = requireRecord(value, 'Serialized principal resourceScope')
   const keys = [
     'fileId',
@@ -447,7 +495,7 @@ function parseResourceScope(value: unknown): WorkspaceDelegatedPrincipal['resour
     'mcpBlockId',
   ] as const
   requireExactKeys(scope, [], keys)
-  const parsed: NonNullable<WorkspaceDelegatedPrincipal['resourceScope']> = {}
+  const parsed: WorkspaceDelegationRestrictions = {}
   for (const key of keys) {
     if (scope[key] !== undefined) parsed[key] = requireString(scope[key], key)
   }
@@ -512,7 +560,15 @@ export function serializePrincipal(principal: WorkflowExecutionPrincipal): Seria
       return {
         version: 1,
         principal: {
-          ...principal,
+          kind: principal.kind,
+          serviceId: principal.serviceId,
+          subjectUserId: principal.subjectUserId,
+          delegationId: principal.delegationId,
+          audience: principal.audience,
+          workspaceId: principal.grant.owner.entityId,
+          ...(principal.grant.restrictions === undefined
+            ? {}
+            : { resourceScope: principal.grant.restrictions }),
           issuedAt: principal.issuedAt.toISOString(),
           expiresAt: principal.expiresAt.toISOString(),
         },
@@ -648,19 +704,39 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
       if (!['copilot', 'realtime'].includes(serviceId)) {
         throw new Error(`Unsupported delegated principal service ${serviceId}`)
       }
-      return {
-        kind,
-        serviceId: serviceId as WorkspaceSubjectDelegation['serviceId'],
+      const restrictions =
+        principal.resourceScope === undefined
+          ? undefined
+          : parseResourceScope(principal.resourceScope)
+      const delegated = {
+        kind: 'delegated' as const,
         subjectUserId: requireString(principal.subjectUserId, 'subjectUserId'),
-        workspaceId: requireString(principal.workspaceId, 'workspaceId'),
+        grant: {
+          kind: 'entity' as const,
+          owner: {
+            entityType: 'workspace' as const,
+            entityId: requireString(principal.workspaceId, 'workspaceId'),
+          },
+          ...(restrictions === undefined ? {} : { restrictions }),
+        },
         delegationId: requireString(principal.delegationId, 'delegationId'),
         audience: requireString(principal.audience, 'audience'),
         issuedAt: requireDate(principal.issuedAt, 'issuedAt'),
         expiresAt: requireDate(principal.expiresAt, 'expiresAt'),
-        ...(principal.resourceScope === undefined
-          ? {}
-          : { resourceScope: parseResourceScope(principal.resourceScope) }),
       }
+      const workspaceInvocation = {
+        kind: 'workspace' as const,
+        workspaceId: delegated.grant.owner.entityId,
+      }
+      return serviceId === 'copilot'
+        ? {
+            ...delegated,
+            serviceId,
+            invocation: restrictions?.chatId
+              ? { kind: 'chat', chatId: restrictions.chatId }
+              : workspaceInvocation,
+          }
+        : { ...delegated, serviceId: 'realtime', invocation: workspaceInvocation }
     }
     case 'resource_delegated':
       throw new Error('Resource delegation cannot be persisted for workflow execution')
@@ -675,7 +751,7 @@ export type PrincipalActor =
   | Omit<SlackAppPrincipal, 'receivedAt'>
   | {
       kind: 'resource_delegated'
-      serviceId: ResourceScopedDelegation['serviceId']
+      serviceId: ResourceOperationPrincipal['serviceId']
       subjectUserId: string
       delegationId: string
     }
@@ -825,7 +901,7 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
             : {}),
       }
     case 'delegated':
-      if (isResourceScopedDelegation(principal))
+      if (hasResourceOperationGrant(principal))
         return {
           kind: 'resource_delegated',
           serviceId: principal.serviceId,

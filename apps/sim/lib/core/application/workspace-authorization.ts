@@ -3,6 +3,7 @@ import {
   type OAuthAccessTokenPrincipal,
   type PersonalApiKeyPrincipal,
   type Principal,
+  principalWorkspaceId,
   resolvePrincipalSubject,
   type WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
@@ -422,7 +423,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
      * instead: minting a workspace key is itself capability-gated.
      */
     case 'workspace_api_key':
-      if (principal.workspaceId !== context.workspaceId) {
+      if (principalWorkspaceId(principal) !== context.workspaceId) {
         throw new WorkspaceApiKeyScopeAuthorizationError()
       }
       if (
@@ -442,7 +443,7 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       if (
         principal.audience !== delegation.audience ||
         principal.expiresAt.getTime() <= Date.now() ||
-        principal.workspaceId !== context.workspaceId ||
+        principalWorkspaceId(principal) !== context.workspaceId ||
         !delegation.isWithinScope(principal, context)
       ) {
         throw new DelegatedWorkspaceAuthorizationError()

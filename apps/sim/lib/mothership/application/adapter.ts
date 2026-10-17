@@ -1,9 +1,10 @@
 import type {
   Principal,
   ResourceDelegationScope,
-  ResourceScopedDelegation,
+  ResourceOperationPrincipal,
   WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   type ApplicationOperation,
   type OperationUseCase,
@@ -43,7 +44,7 @@ interface CopilotApplicationAdapterOptions<O extends WorkspaceOperation, ScopeIn
 interface CopilotResourceOperation extends ApplicationOperation {
   readonly delegationScope?: 'resource'
   readonly principalKinds: readonly Principal['kind'][]
-  readonly delegatedServices?: readonly ResourceScopedDelegation['serviceId'][]
+  readonly delegatedServices?: readonly ResourceOperationPrincipal['serviceId'][]
   readonly delegationAudience?: string
 }
 
@@ -93,7 +94,7 @@ function requireValidProjectedResourceScope(resourceScope: CopilotResourceScope)
 function expectedResourceScope(
   context: TrustedCopilotExecutionContext,
   resourceScope: CopilotResourceScope
-): NonNullable<WorkspaceDelegatedPrincipal['resourceScope']> {
+): NonNullable<ReturnType<typeof workspaceDelegationRestrictions>> {
   return {
     ...resourceScope,
     ...(context.chatId ? { chatId: context.chatId } : {}),
@@ -112,7 +113,7 @@ function requireMatchingPrincipal(
     principal.kind !== 'delegated' ||
     principal.serviceId !== 'copilot' ||
     principal.subjectUserId !== context.userId ||
-    principal.workspaceId !== context.workspaceId ||
+    principalWorkspaceId(principal) !== context.workspaceId ||
     !delegationId.trim() ||
     principal.delegationId !== delegationId ||
     principal.audience !== delegation.audience
@@ -133,7 +134,11 @@ function requireMatchingPrincipal(
   }
 
   const expectedScope = expectedResourceScope(context, resourceScope)
-  if (RESOURCE_SCOPE_KEYS.some((key) => principal.resourceScope?.[key] !== expectedScope[key])) {
+  if (
+    RESOURCE_SCOPE_KEYS.some(
+      (key) => workspaceDelegationRestrictions(principal)?.[key] !== expectedScope[key]
+    )
+  ) {
     throw new Error('Copilot principal factory violated the configured resource scope')
   }
 }

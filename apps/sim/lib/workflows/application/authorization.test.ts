@@ -1,4 +1,4 @@
-import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import {
   requireWorkflowExecutionUserId,
@@ -8,8 +8,8 @@ import {
 import { workflowOperations } from '@/lib/workflows/application/operations'
 
 function createExecutorPrincipal(
-  overrides: Partial<WorkspaceDelegatedPrincipal> = {}
-): WorkspaceDelegatedPrincipal {
+  overrides: Partial<WorkflowExecutionDelegatedPrincipal> = {}
+): WorkflowExecutionDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',

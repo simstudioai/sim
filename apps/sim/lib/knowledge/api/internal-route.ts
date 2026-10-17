@@ -1,6 +1,7 @@
 import {
   isWorkspaceDelegation,
   type Principal,
+  principalWorkspaceId,
   resolvePrincipalSubject,
   resolvePrincipalSubjectUserId,
   type SessionPrincipal,
@@ -53,7 +54,7 @@ export function internalKnowledgeProvenanceUserId(
   if (!isWorkspaceDelegation(principal))
     throw new OrchestrationError('forbidden', 'Workspace authority required')
   return requireWorkspaceBillingAttributionHeader(headers, {
-    workspaceId: workspaceId ?? principal.workspaceId,
+    workspaceId: workspaceId ?? principalWorkspaceId(principal),
   }).actorUserId
 }
 

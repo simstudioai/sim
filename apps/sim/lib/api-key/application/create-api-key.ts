@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { principalWorkspaceId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { apiKeyOperations } from '@/lib/api-key/application/operations'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
@@ -21,7 +21,8 @@ export const createCopilotWorkspaceApiKey = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {
     delegation: {
       audience: 'sim:api-keys',
-      isWithinScope: (principal, context) => principal.workspaceId === context.workspaceId,
+      isWithinScope: (principal, context) =>
+        principalWorkspaceId(principal) === context.workspaceId,
     },
   },
   async execute({ principal, input, context }) {

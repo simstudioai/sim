@@ -19,14 +19,14 @@ const principal = {
   audience: 'sim:files',
   issuedAt: NOW,
   expiresAt: new Date('2026-10-03T12:01:00Z'),
-  invocation: { kind: 'chat', chatId: 'chat' },
-  scope: { kind: 'entity', entityType: 'project', entityId: 'owner' },
+  invocation: { kind: 'chat', chatId: 'chat' } as const,
+  grant: { kind: 'entity', owner: { entityType: 'project', entityId: 'owner' } } as const,
 } as const
 const policy = {
   audience: 'sim:files',
   services: ['copilot', 'realtime'],
   maxTtlMs: 60_000,
-  scope: principal.scope,
+  scope: principal.grant,
 } as const
 
 describe('resource delegation authorization', () => {
@@ -40,7 +40,7 @@ describe('resource delegation authorization', () => {
     expect(
       requireResourceDelegation(principal, {
         ...policy,
-        scope: { ...principal.scope, fileId: 'file' },
+        scope: { ...principal.grant, fileId: 'file' },
       })
     ).toBe('acting-user')
     expect(resolvePrincipalSubjectUserId(principal)).toBe('acting-user')
@@ -57,7 +57,7 @@ describe('resource delegation authorization', () => {
   it('allows discovery without a selected workspace', () => {
     expect(
       requireResourceDelegation(
-        { ...principal, scope: { kind: 'project_discovery' } },
+        { ...principal, grant: { kind: 'project_discovery' } },
         { ...policy, scope: { kind: 'project_discovery' } }
       )
     ).toBe('acting-user')
@@ -85,15 +85,30 @@ describe('resource delegation authorization', () => {
     ],
     [
       'another owner type',
-      { ...principal, scope: { ...principal.scope, entityType: 'workspace' } },
+      {
+        ...principal,
+        grant: { ...principal.grant, owner: { ...principal.grant.owner, entityType: 'workspace' } },
+      },
     ],
-    ['another owner ID', { ...principal, scope: { ...principal.scope, entityId: 'other' } }],
-    ['missing owner ID', { ...principal, scope: { ...principal.scope, entityId: '' } }],
-    ['empty file bound', { ...principal, scope: { ...principal.scope, fileId: '' } }],
-    ['discovery used for files', { ...principal, scope: { kind: 'project_discovery' } }],
+    [
+      'another owner ID',
+      {
+        ...principal,
+        grant: { ...principal.grant, owner: { ...principal.grant.owner, entityId: 'other' } },
+      },
+    ],
+    [
+      'missing owner ID',
+      {
+        ...principal,
+        grant: { ...principal.grant, owner: { ...principal.grant.owner, entityId: '' } },
+      },
+    ],
+    ['empty file bound', { ...principal, grant: { ...principal.grant, fileId: '' } }],
+    ['discovery used for files', { ...principal, grant: { kind: 'project_discovery' } }],
     [
       'file bound widened to owner',
-      { ...principal, scope: { ...principal.scope, fileId: 'file' } },
+      { ...principal, grant: { ...principal.grant, fileId: 'file' } },
     ],
   ])('refuses %s before granting a subject', (_name, candidate) => {
     expect(() => requireResourceDelegation(candidate as never, policy)).toThrow(
@@ -110,16 +125,19 @@ describe('resource delegation authorization', () => {
   it('does not let a file grant move to a sibling file', () => {
     expect(() =>
       requireResourceDelegation(
-        { ...principal, scope: { ...principal.scope, fileId: 'first' } },
-        { ...policy, scope: { ...principal.scope, fileId: 'second' } }
+        { ...principal, grant: { ...principal.grant, fileId: 'first' } },
+        { ...policy, scope: { ...principal.grant, fileId: 'second' } }
       )
     ).toThrow('Resource delegation is no longer valid')
   })
 
   it('does not treat matching unknown owner types as authority', () => {
-    const scope = { kind: 'entity', entityType: 'unknown', entityId: 'owner' }
+    const scope = { kind: 'entity', owner: { entityType: 'unknown', entityId: 'owner' } }
     expect(() =>
-      requireResourceDelegation({ ...principal, scope } as never, { ...policy, scope } as never)
+      requireResourceDelegation(
+        { ...principal, grant: scope } as never,
+        { ...policy, scope } as never
+      )
     ).toThrow()
   })
 
@@ -134,21 +152,21 @@ describe('resource delegation authorization', () => {
       ...principal,
       serviceId: 'realtime',
       invocation: { kind: 'realtime', connectionId: 'connection' },
-      scope: { ...principal.scope, fileId: 'file' },
+      grant: { ...principal.grant, fileId: 'file' },
     } as const
-    expect(requireResourceDelegation(realtime, { ...policy, scope: realtime.scope })).toBe(
+    expect(requireResourceDelegation(realtime, { ...policy, scope: realtime.grant })).toBe(
       'acting-user'
     )
     for (const candidate of [
-      { ...realtime, scope: principal.scope },
-      { ...realtime, scope: { kind: 'project_discovery' } },
+      { ...realtime, grant: principal.grant },
+      { ...realtime, grant: { kind: 'project_discovery' } },
       { ...realtime, invocation: principal.invocation },
       { ...realtime, invocation: { kind: 'realtime', connectionId: '' } },
     ]) {
       expect(() =>
         requireResourceDelegation(
           candidate as never,
-          { ...policy, scope: candidate.scope } as never
+          { ...policy, scope: candidate.grant } as never
         )
       ).toThrow('Resource delegation is no longer valid')
     }
@@ -157,15 +175,14 @@ describe('resource delegation authorization', () => {
   it('keeps realtime collection observation separate from entity and file authority', () => {
     const scope = {
       kind: 'file_collection_observation',
-      entityType: 'project',
-      entityId: 'owner',
+      owner: { entityType: 'project', entityId: 'owner' },
     } as const
     const observer = {
       ...principal,
       audience: 'sim:file-list-observation',
       serviceId: 'realtime',
       invocation: { kind: 'realtime', connectionId: 'socket' },
-      scope,
+      grant: scope,
     } as const
     const observation = {
       ...policy,
@@ -175,10 +192,10 @@ describe('resource delegation authorization', () => {
     } as const
     expect(requireResourceDelegation(observer, observation)).toBe('acting-user')
     for (const required of [
-      { kind: 'entity', entityType: 'project', entityId: 'owner' },
-      { kind: 'entity', entityType: 'project', entityId: 'owner', fileId: 'file' },
-      { ...scope, entityId: 'another-owner' },
-      { kind: 'entity', entityType: 'workspace', entityId: 'owner' },
+      { kind: 'entity', owner: { entityType: 'project', entityId: 'owner' } },
+      { kind: 'entity', fileId: 'file', owner: { entityType: 'project', entityId: 'owner' } },
+      { ...scope, owner: { ...scope.owner, entityId: 'another-owner' } },
+      { kind: 'entity', owner: { entityType: 'workspace', entityId: 'owner' } },
     ]) {
       expect(() =>
         requireResourceDelegation(observer, { ...observation, scope: required } as never)
@@ -188,20 +205,23 @@ describe('resource delegation authorization', () => {
       requireResourceDelegation(
         {
           ...observer,
-          scope: { kind: 'entity', entityType: 'project', entityId: 'owner' },
+          grant: { kind: 'entity', owner: { entityType: 'project', entityId: 'owner' } },
         } as never,
         observation
       )
     ).toThrow('Resource delegation is no longer valid')
     expect(() =>
       requireResourceDelegation(
-        { ...observer, scope: { ...scope, entityType: 'workspace' } } as never,
+        {
+          ...observer,
+          grant: { ...scope, owner: { ...scope.owner, entityType: 'workspace' } },
+        } as never,
         observation
       )
     ).toThrow('Resource delegation is no longer valid')
     expect(() =>
       requireResourceDelegation(
-        { ...observer, scope: { ...scope, fileId: 'invented-file' } } as never,
+        { ...observer, grant: { ...scope, fileId: 'invented-file' } } as never,
         observation
       )
     ).toThrow('Resource delegation is no longer valid')
@@ -245,7 +265,7 @@ describe('resource delegation authorization', () => {
         folderId: null,
       },
     } as const
-    const copy = { ...principal, audience: 'sim:files:copy', scope }
+    const copy = { ...principal, audience: 'sim:files:copy', grant: scope }
     const required = { ...policy, audience: copy.audience, services: ['copilot'], scope } as const
     expect(requireResourceDelegation(copy, required)).toBe('acting-user')
     expect(
@@ -287,7 +307,7 @@ describe('resource delegation authorization', () => {
       { ...scope, destination: { ...scope.destination, folderPath: 'unresolved' } },
     ])
       expect(() =>
-        requireResourceDelegation({ ...copy, scope: malformed } as never, required)
+        requireResourceDelegation({ ...copy, grant: malformed } as never, required)
       ).toThrow('Resource delegation is no longer valid')
     for (const candidate of [
       { ...principal, audience: copy.audience },

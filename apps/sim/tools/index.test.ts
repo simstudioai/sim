@@ -956,8 +956,11 @@ describe('executeTool Function', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-456',
-          resourceScope: { executionId: 'execution-1' },
+          grant: expect.objectContaining({
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workspace-456' },
+            restrictions: { executionId: 'execution-1' },
+          }),
         }),
         input: expect.objectContaining({
           workspaceId: 'workspace-456',
@@ -1052,8 +1055,12 @@ describe('executeTool Function', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-1',
-        workspaceId: 'workspace-456',
-        resourceScope: { executionId: 'execution-1' },
+        invocation: { kind: 'workspace', workspaceId: 'workspace-456' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-456' },
+          restrictions: { executionId: 'execution-1' },
+        } as const,
       },
       input: {
         workspaceId: 'workspace-456',

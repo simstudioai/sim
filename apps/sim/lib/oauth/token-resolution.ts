@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { resolvePrincipalSubject, type WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  principalWorkspaceId,
+  resolvePrincipalSubject,
+  type WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -499,9 +503,9 @@ export async function resolveCredentialAccessToken(
         {
           credential_type: 'managed_oauth',
           provider_id: toolMetadata.oauth.provider,
-          workspace_id: principal.workspaceId,
+          workspace_id: principalWorkspaceId(principal),
         },
-        { groups: { workspace: principal.workspaceId } }
+        { groups: { workspace: principalWorkspaceId(principal) } }
       )
     }
 

@@ -1,4 +1,8 @@
-import { type Principal, resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  principalWorkspaceId,
+  resolvePrincipalExecutionActorUserId,
+} from '@sim/auth/principal'
 import type {
   WorkspaceAuthorizationContext,
   WorkspaceDelegationPolicy,
@@ -19,7 +23,7 @@ export const workflowDelegationPolicy: WorkspaceDelegationPolicy<WorkflowAuthori
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: WorkflowAuthorizationContext
   ) {
-    if (principal.workspaceId !== context.workspaceId) return false
+    if (principalWorkspaceId(principal) !== context.workspaceId) return false
     if (principal.serviceId === 'copilot') return true
     if (principal.serviceId !== 'executor') return false
     const delegationContext = (principal as { delegationContext?: unknown }).delegationContext

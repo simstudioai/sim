@@ -1,4 +1,8 @@
-import { type Principal, resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalExecutionActorUserId,
+  workspaceDelegationRestrictions,
+} from '@sim/auth/principal'
 import type { WorkspaceDelegationPolicy } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { McpServerContext } from '@/lib/mcp/application/context'
@@ -20,7 +24,8 @@ export const mcpServerExecutionDelegationPolicy = {
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: McpServerContext
   ) =>
-    principal.serviceId === 'copilot' || principal.resourceScope?.mcpServerId === context.server.id,
+    principal.serviceId === 'copilot' ||
+    workspaceDelegationRestrictions(principal)?.mcpServerId === context.server.id,
 } satisfies WorkspaceDelegationPolicy<McpServerContext>
 
 /**

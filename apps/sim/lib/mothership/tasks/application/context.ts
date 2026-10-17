@@ -1,3 +1,4 @@
+import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import type {
   WorkspaceAuthorizationContext,
   WorkspaceDelegationPolicy,
@@ -14,6 +15,7 @@ export const taskDelegationPolicy: WorkspaceDelegationPolicy<
   audience: TASK_DELEGATION_AUDIENCE,
   isWithinScope: (principal, context) =>
     principal.serviceId === 'copilot' &&
-    principal.workspaceId === context.workspaceId &&
-    (!principal.resourceScope?.chatId || principal.resourceScope.chatId === context.chatId),
+    principalWorkspaceId(principal) === context.workspaceId &&
+    (!workspaceDelegationRestrictions(principal)?.chatId ||
+      workspaceDelegationRestrictions(principal)?.chatId === context.chatId),
 }

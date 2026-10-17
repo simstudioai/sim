@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import type {
   OAuthAccessTokenPrincipal,
   ResourceFileCopyScope,
-  ResourceScopedDelegation,
+  ResourceOperationPrincipal,
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
@@ -159,7 +159,7 @@ function delegated(
   userId: string,
   projectId: string,
   workspaceId: string
-): Extract<ResourceScopedDelegation, { serviceId: 'copilot' }> {
+): Extract<ResourceOperationPrincipal, { serviceId: 'copilot' }> {
   return {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -168,8 +168,8 @@ function delegated(
     delegationId: generateId(),
     issuedAt: new Date(),
     expiresAt: new Date(Date.now() + 30_000),
-    scope: { kind: 'entity', entityType: 'project', entityId: projectId },
-    invocation: { kind: 'workspace', workspaceId },
+    grant: { kind: 'entity', owner: { entityType: 'project', entityId: projectId } } as const,
+    invocation: { kind: 'workspace', workspaceId } as const,
   }
 }
 
@@ -216,7 +216,7 @@ describe('compound copy owner authority', () => {
     return {
       ...delegated(f.readerId, f.projectId, f.workspaces[0]),
       audience: 'sim:files:copy',
-      scope: { kind: 'file_copy' as const, ...input },
+      grant: { kind: 'file_copy' as const, ...input },
     }
   }
 
@@ -262,7 +262,7 @@ describe('compound copy owner authority', () => {
           code: 'forbidden',
         })
       }
-      const realtime: ResourceScopedDelegation = {
+      const realtime: ResourceOperationPrincipal = {
         kind: 'delegated',
         serviceId: 'realtime',
         subjectUserId: f.readerId,
@@ -270,13 +270,12 @@ describe('compound copy owner authority', () => {
         delegationId: generateId(),
         issuedAt: new Date(),
         expiresAt: new Date(Date.now() + 30_000),
-        scope: {
+        grant: {
           kind: 'entity',
-          entityType: 'project',
-          entityId: f.projectId,
           fileId: input.source.fileIds[0],
-        },
-        invocation: { kind: 'realtime', connectionId: 'copy-fixture' },
+          owner: { entityType: 'project', entityId: f.projectId },
+        } as const,
+        invocation: { kind: 'realtime', connectionId: 'copy-fixture' } as const,
       }
       for (const rejected of [
         realtime,
@@ -539,7 +538,7 @@ describe('Mothership origin navigation and independent Project authority', () =>
       const copy = {
         ...principal,
         audience: 'sim:files:copy',
-        scope: { kind: 'file_copy' as const, ...input },
+        grant: { kind: 'file_copy' as const, ...input },
       }
       const copied = await copyFileItems.execute({ principal: copy, input })
       expect(copied.folders).toHaveLength(1)
@@ -584,7 +583,7 @@ describe('Mothership origin navigation and independent Project authority', () =>
         const principal = {
           ...delegated(f.readerId, b.projectId, f.workspaces[0]),
           audience: 'sim:files:copy',
-          scope: { kind: 'file_copy' as const, ...input },
+          grant: { kind: 'file_copy' as const, ...input },
         }
         const authorize = await createFileCopyAuthorizer(principal, input)
         await db.transaction(authorize)

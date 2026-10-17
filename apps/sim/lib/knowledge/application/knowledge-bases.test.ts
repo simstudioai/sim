@@ -177,11 +177,15 @@ describe('knowledge base application use cases', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'dual-workspace-user',
-          workspaceId: 'workspace-b',
           delegationId: 'vfs-1',
           audience: 'sim:knowledge',
           issuedAt: new Date(),
           expiresAt: new Date(Date.now() + 60_000),
+          invocation: { kind: 'workspace', workspaceId: 'workspace-b' } as const,
+          grant: {
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workspace-b' },
+          } as const,
         },
         input: { workspaceId: 'workspace-1', scope: 'archived' },
       })
@@ -338,11 +342,15 @@ describe('knowledge base application use cases', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'dual-workspace-user',
-        workspaceId: 'workspace-1',
         delegationId: 'tool-call-1',
         audience: 'sim:knowledge',
         issuedAt: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       },
       input: {
         assertedWorkspaceId: 'workspace-1',

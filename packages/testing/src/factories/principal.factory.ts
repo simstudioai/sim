@@ -57,18 +57,28 @@ export function createWorkspaceApiKeyPrincipal(
  * ```
  */
 export function createDelegatedPrincipal(
-  overrides: Partial<WorkspaceSubjectDelegation> = {}
+  overrides: Omit<
+    Partial<WorkspaceSubjectDelegation>,
+    'workspaceId' | 'resourceScope' | 'invocation'
+  > &
+    Pick<Partial<WorkflowExecutionDelegatedPrincipal>, 'workspaceId' | 'resourceScope'> = {}
 ): WorkspaceSubjectDelegation {
+  const { workspaceId = 'workspace-1', resourceScope, ...rest } = overrides
   return {
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
     delegationId: 'delegation-1',
     audience: 'sim:test',
     issuedAt: new Date(TEST_PRINCIPAL_ISSUED_AT),
     expiresAt: new Date(TEST_PRINCIPAL_EXPIRES_AT),
-    ...overrides,
+    invocation: { kind: 'workspace', workspaceId },
+    grant: {
+      kind: 'entity',
+      owner: { entityType: 'workspace', entityId: workspaceId },
+      ...(resourceScope ? { restrictions: resourceScope } : {}),
+    },
+    ...rest,
   }
 }
 

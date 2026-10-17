@@ -3,6 +3,7 @@ import type {
   WorkspaceApiKeyPrincipal,
   WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -318,7 +319,7 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
   it('resolves domain-specific delegation options against canonical context', async () => {
     const scopeCheck = vi.fn(
       (principal: WorkspaceDelegatedPrincipal, context: TestContext) =>
-        principal.resourceScope?.fileId === context.canonicalResourceId
+        workspaceDelegationRestrictions(principal)?.fileId === context.canonicalResourceId
     )
     const useCase = defineAuthorizedWorkspaceUseCase({
       operation: delegatedOperation,
@@ -387,11 +388,15 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
           delegationId: 'delegation-1',
           audience: 'test:files',
           issuedAt: new Date(Date.now() - 1_000),
           expiresAt: new Date(Date.now() + 60_000),
+          invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+          grant: {
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          } as const,
         },
         input: { resourceId: 'resource-1' },
       })

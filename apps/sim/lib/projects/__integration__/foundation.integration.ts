@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import type { ResourceScopedDelegation } from '@sim/auth/principal'
+import type { ResourceOperationPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   copilotChats,
@@ -161,7 +161,7 @@ function check(name: string, run: () => Promise<void>) {
 function discoveryPrincipal(
   userId: string,
   workspaceId: string
-): Extract<ResourceScopedDelegation, { serviceId: 'copilot' }> {
+): Extract<ResourceOperationPrincipal, { serviceId: 'copilot' }> {
   return {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -170,8 +170,8 @@ function discoveryPrincipal(
     audience: 'sim:projects:discovery',
     issuedAt: new Date(),
     expiresAt: new Date(Date.now() + 30_000),
-    invocation: { kind: 'workspace', workspaceId },
-    scope: { kind: 'project_discovery' },
+    invocation: { kind: 'workspace', workspaceId } as const,
+    grant: { kind: 'project_discovery' } as const,
   }
 }
 
@@ -1582,7 +1582,7 @@ describe('Project discovery delegation', () => {
         userId: first.ownerId,
         permissionType: 'admin',
       })
-      const principal: ResourceScopedDelegation = {
+      const principal: ResourceOperationPrincipal = {
         ...discoveryPrincipal(first.ownerId, first.ids[0]),
         serviceId: 'copilot',
         invocation: { kind: 'chat', chatId },
@@ -1664,10 +1664,9 @@ describe('Project discovery delegation', () => {
         { issuedAt: new Date('invalid') },
         { audience: 'sim:workspace-files' },
         {
-          scope: {
+          grant: {
             kind: 'entity' as const,
-            entityType: 'project' as const,
-            entityId: state.projectId,
+            owner: { entityType: 'project' as const, entityId: state.projectId },
           },
         },
       ]) {

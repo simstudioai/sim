@@ -1,4 +1,3 @@
-import type { WorkspaceSubjectDelegation } from '@sim/auth/principal'
 import { resetDbChainMock } from '@sim/testing'
 import {
   createDelegatedPrincipal,
@@ -58,7 +57,7 @@ const authorizationInput = {
   expectedProviderId: 'google-drive',
 }
 
-function delegatedPrincipal(overrides: Partial<WorkspaceSubjectDelegation> = {}) {
+function delegatedPrincipal(overrides: Parameters<typeof createDelegatedPrincipal>[0] = {}) {
   return createDelegatedPrincipal({
     delegationId: 'assistant-turn-1',
     audience: 'sim:credentials',
@@ -147,7 +146,7 @@ describe('personal credential application access', () => {
   it.each([
     ['another workspace', { workspaceId: 'workspace-2' }],
     ['no person', { subjectUserId: undefined }],
-  ] satisfies Array<[string, Partial<WorkspaceSubjectDelegation>]>)(
+  ] satisfies Array<[string, Parameters<typeof createDelegatedPrincipal>[0]]>)(
     'refuses %s delegations',
     async (_, overrides) => {
       await expect(

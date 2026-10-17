@@ -136,37 +136,44 @@ describe('table operation authorization', () => {
       kind: 'delegated' as const,
       serviceId: 'copilot' as const,
       subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
       delegationId: 'tool-call-1',
       audience: 'sim:tables',
       issuedAt: new Date(Date.now() - 10_000),
+      invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      } as const,
     }
 
     await expectForbidden({
       ...base,
       audience: 'sim:files',
       expiresAt: new Date(Date.now() + 60_000),
-      resourceScope: { tableId: 'table-1' },
+      grant: { ...base.grant, restrictions: { tableId: 'table-1' } },
     })
     await expectForbidden({
       ...base,
       expiresAt: new Date(Date.now() - 1),
-      resourceScope: { tableId: 'table-1' },
-    })
-    await expectForbidden({
-      ...base,
-      workspaceId: 'workspace-2',
-      expiresAt: new Date(Date.now() + 60_000),
-      resourceScope: { tableId: 'table-1' },
+      grant: { ...base.grant, restrictions: { tableId: 'table-1' } },
     })
     await expectForbidden({
       ...base,
       expiresAt: new Date(Date.now() + 60_000),
+      grant: {
+        ...base.grant,
+        owner: { entityType: 'workspace', entityId: 'workspace-2' },
+        restrictions: { tableId: 'table-1' },
+      },
     })
     await expectForbidden({
       ...base,
       expiresAt: new Date(Date.now() + 60_000),
-      resourceScope: { tableId: 'table-2' },
+    })
+    await expectForbidden({
+      ...base,
+      expiresAt: new Date(Date.now() + 60_000),
+      grant: { ...base.grant, restrictions: { tableId: 'table-2' } },
     })
     expect(resolvePermission).not.toHaveBeenCalled()
   })

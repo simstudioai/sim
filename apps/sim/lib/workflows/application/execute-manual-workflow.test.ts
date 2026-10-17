@@ -111,11 +111,15 @@ describe('manual workflow execution application operations', () => {
       kind: 'delegated' as const,
       serviceId: 'copilot' as const,
       subjectUserId: 'copilot-actor',
-      workspaceId: context.workspaceId,
       audience: 'sim:workflows',
       delegationId: 'cli-call',
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      invocation: { kind: 'workspace', workspaceId: context.workspaceId } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: context.workspaceId },
+      } as const,
     }
     await executeManualWorkflowOperation.execute({
       principal: delegated,
@@ -158,11 +162,15 @@ describe('manual workflow execution application operations', () => {
       kind: 'delegated',
       serviceId: 'copilot',
       subjectUserId: 'actor',
-      workspaceId: context.workspaceId,
       audience: 'sim:workflows',
       delegationId: 'call',
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      invocation: { kind: 'workspace', workspaceId: context.workspaceId } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: context.workspaceId },
+      } as const,
     } as const
     for (const principal of [
       { ...base, workspaceId: 'foreign' },
@@ -192,11 +200,15 @@ describe('manual workflow execution application operations', () => {
       kind: 'delegated',
       serviceId: 'copilot',
       subjectUserId: 'actor',
-      workspaceId: context.workspaceId,
       audience: 'sim:workflows',
       delegationId: 'call',
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
+      invocation: { kind: 'workspace', workspaceId: context.workspaceId } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: context.workspaceId },
+      } as const,
     } as const
     mockPermission.mockResolvedValue('read')
     await expect(

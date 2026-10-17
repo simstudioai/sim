@@ -58,8 +58,12 @@ vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: context.userId,
-        workspaceId: context.workspaceId,
         delegationId: context.toolCallId,
+        invocation: { kind: 'workspace', workspaceId: context.workspaceId } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: context.workspaceId },
+        } as const,
       },
       input,
     }),
@@ -685,7 +689,9 @@ describe('copilot go stream helpers', () => {
     expect(mockFindFilesByReference).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
-        workspaceId: 'workspace-1',
+        grant: expect.objectContaining({
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        }),
       }),
       input: {
         workspaceId: 'workspace-1',

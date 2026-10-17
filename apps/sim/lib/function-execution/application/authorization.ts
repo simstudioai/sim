@@ -1,4 +1,5 @@
 import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const FUNCTION_EXECUTION_DELEGATION_AUDIENCE = 'sim:function-executions'
@@ -13,7 +14,7 @@ export const functionExecutionDelegationPolicy = {
     principal: WorkspaceDelegatedPrincipal,
     context: FunctionExecutionAuthorizationContext
   ): boolean => {
-    const scopedExecutionId = principal.resourceScope?.executionId
+    const scopedExecutionId = workspaceDelegationRestrictions(principal)?.executionId
     return context.executionId
       ? scopedExecutionId === context.executionId
       : scopedExecutionId === undefined

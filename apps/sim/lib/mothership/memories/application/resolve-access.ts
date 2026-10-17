@@ -2,6 +2,7 @@ import type {
   OrganizationDelegatedPrincipal,
   WorkspaceSubjectDelegation,
 } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, project, workspace } from '@sim/db/schema'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
@@ -143,10 +144,11 @@ const resolveAccess = defineAuthorizedChatUseCase({
     principal: MemoryPrincipal
     input: MemoryNotesAccessInput
   }) {
-    const chatId =
-      principal.resourceScope && 'chatId' in principal.resourceScope
-        ? principal.resourceScope.chatId
-        : undefined
+    const restrictions =
+      principal.kind === 'organization_delegated'
+        ? principal.resourceScope
+        : workspaceDelegationRestrictions(principal)
+    const chatId = restrictions && 'chatId' in restrictions ? restrictions.chatId : undefined
     const now = Date.now()
     if (
       principal.serviceId !== 'copilot' ||
@@ -164,7 +166,8 @@ const resolveAccess = defineAuthorizedChatUseCase({
   authorizationOptions: {
     delegation: {
       audience: MEMORY_NOTES_ACCESS_AUDIENCE,
-      isWithinScope: (principal, context) => principal.resourceScope?.chatId === context.chatId,
+      isWithinScope: (principal, context) =>
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
     },
   },
   async execute({ principal, context, input }): Promise<MemoryNotesAccessResult> {

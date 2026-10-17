@@ -177,12 +177,16 @@ const delegatedPrincipal = {
   kind: 'delegated' as const,
   serviceId: 'copilot',
   subjectUserId: 'shared-user',
-  workspaceId: 'workspace-a',
   delegationId: 'tool-call-1',
   audience: 'sim:knowledge',
   issuedAt: new Date(),
   expiresAt: new Date(Date.now() + 60_000),
-  resourceScope: {},
+  invocation: { kind: 'workspace', workspaceId: 'workspace-a' } as const,
+  grant: {
+    kind: 'entity',
+    owner: { entityType: 'workspace', entityId: 'workspace-a' },
+    restrictions: {},
+  } as const,
 }
 
 const BILLING = { actorUserId: 'shared-user', workspaceId: 'workspace-a' } as never

@@ -16,6 +16,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   copilotRequestPrincipal,
+  createWorkspaceRequestGrant,
   markCopilotRequest,
 } from '@/lib/api/server/routes/copilot-request'
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
@@ -106,7 +107,10 @@ describe('audit-log application use cases', () => {
 
   it('preserves enterprise admin authority and pins private audit listing to the selected workspace', async () => {
     const request = createMockRequest({ url: 'https://sim.invalid/api/v2/audit-logs' })
-    markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    markCopilotRequest(
+      request,
+      createWorkspaceRequestGrant({ userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    )
     const principal = copilotRequestPrincipal(request, auditLogOperations.list, listAuditLogs)!
     await listAuditLogs.execute({ principal, input: { ...listInput, organizationId: undefined } })
     expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
@@ -131,7 +135,10 @@ describe('audit-log application use cases', () => {
       listAuditLogs.execute({ principal: forged, input: listInput })
     ).rejects.toMatchObject({ code: 'forbidden' })
     const request = createMockRequest({ url: 'https://sim.invalid/api/v2/audit-logs' })
-    markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    markCopilotRequest(
+      request,
+      createWorkspaceRequestGrant({ userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    )
     const principal = copilotRequestPrincipal(request, auditLogOperations.list, listAuditLogs)!
     await expect(
       listAuditLogs.execute({ principal, input: { ...listInput, organizationId: 'other' } })
@@ -141,7 +148,10 @@ describe('audit-log application use cases', () => {
   })
   it('binds an ID-only private detail read to the selected workspace and rechecks access', async () => {
     const request = createMockRequest({ url: 'https://sim.invalid/api/v2/audit-logs/audit-1' })
-    markCopilotRequest(request, { userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    markCopilotRequest(
+      request,
+      createWorkspaceRequestGrant({ userId: 'admin-1', workspaceId: 'workspace-1', chatId: 'chat' })
+    )
     const principal = copilotRequestPrincipal(request, auditLogOperations.readDetail, getAuditLog)!
     mocks.buildOrgScopeCondition.mockReturnValue(sql`true`)
     dbChainMockFns.limit.mockResolvedValueOnce([])

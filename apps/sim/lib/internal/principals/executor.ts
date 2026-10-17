@@ -1,4 +1,4 @@
-import { resolvePrincipalSubject, type WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { resolvePrincipalSubject, type workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { bindInternalExecutorDelegation } from '@/lib/auth/internal-delegation'
 import { MANAGED_MCP_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
@@ -40,7 +40,7 @@ export function resolveExecutorOriginSubject(origin: ExecutorDelegationOrigin): 
 export async function createExecutorPrincipalFromDelegationOrigin(
   origin: ExecutorDelegationOrigin,
   audience: string,
-  resourceScope?: WorkspaceDelegatedPrincipal['resourceScope'],
+  resourceScope?: ReturnType<typeof workspaceDelegationRestrictions>,
   expiresAt?: Date,
   compatibilityActorUserId?: string
 ) {
@@ -70,7 +70,7 @@ export async function createExecutorPrincipalFromDelegationOrigin(
 export interface CreateExecutorPrincipalFromExecutionContextInput {
   context: InternalToolOperationContext
   audience: string
-  resourceScope?: WorkspaceDelegatedPrincipal['resourceScope']
+  resourceScope?: ReturnType<typeof workspaceDelegationRestrictions>
   expiresAt?: Date
 }
 

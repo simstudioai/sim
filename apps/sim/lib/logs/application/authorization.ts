@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   DelegatedWorkspaceAuthorizationError,
   NoWorkspaceAccessError,
@@ -19,9 +20,9 @@ export const logDelegationPolicy: WorkspaceDelegationPolicy<LogAuthorizationCont
     context: LogAuthorizationContext
   ) {
     if (principal.serviceId !== 'executor') return true
-    return principal.resourceScope?.executionId === undefined
+    return workspaceDelegationRestrictions(principal)?.executionId === undefined
       ? true
-      : principal.resourceScope.executionId === context.executionId
+      : workspaceDelegationRestrictions(principal)?.executionId === context.executionId
   },
 }
 

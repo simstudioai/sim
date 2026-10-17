@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
-import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import {
+  createWorkspaceRequestGrant,
+  markCopilotRequest,
+} from '@/lib/api/server/routes/copilot-request'
 import {
   dispatchInProcessV2Request,
   type MatchedRoute,
@@ -33,7 +36,7 @@ export function createScopedCliTransport(
       const denied = await scope.admitRequest(forwarded, matched)
       if (denied) return denied
     } else {
-      markCopilotRequest(forwarded, scope)
+      markCopilotRequest(forwarded, createWorkspaceRequestGrant(scope))
     }
     return (
       (await dispatchInProcessV2Request(forwarded)) ??

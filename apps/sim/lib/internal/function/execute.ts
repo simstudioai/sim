@@ -85,12 +85,16 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
       kind: 'delegated',
       serviceId: 'copilot',
       subjectUserId: context.userId,
-      workspaceId: context.workspaceId,
       delegationId: `function-execute:${requestId}`,
       audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
       issuedAt,
       expiresAt,
-      ...(context.executionId ? { resourceScope: { executionId: context.executionId } } : {}),
+      invocation: { kind: 'workspace', workspaceId: context.workspaceId },
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: context.workspaceId },
+        ...(context.executionId ? { restrictions: { executionId: context.executionId } } : {}),
+      },
     }
   } else {
     principal = await createExecutorPrincipalFromExecutionContext({

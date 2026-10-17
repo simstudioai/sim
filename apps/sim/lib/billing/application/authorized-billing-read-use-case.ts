@@ -1,4 +1,8 @@
-import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
+import {
+  isUserCredentialPrincipal,
+  type Principal,
+  principalWorkspaceId,
+} from '@sim/auth/principal'
 import {
   permissionSatisfies,
   resolveEffectiveWorkspacePermission,
@@ -65,24 +69,24 @@ async function resolveBillingReadScope(
   if (principal.kind === 'delegated') {
     if (!isCopilotWorkspaceInvocation(principal))
       throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
-    if (requestedWorkspaceId && requestedWorkspaceId !== principal.workspaceId)
+    if (requestedWorkspaceId && requestedWorkspaceId !== principalWorkspaceId(principal))
       throw new WorkspaceApiKeyScopeAuthorizationError()
     const workspaceOperation = Object.values(copilotBillingOperations).find(
       (candidate) => candidate.id === operation.id
     )
     if (!workspaceOperation) throw new Error('Missing private workspace read policy')
-    const workspace = await loadActiveWorkspaceApplicationContext(principal.workspaceId)
+    const workspace = await loadActiveWorkspaceApplicationContext(principalWorkspaceId(principal))
     if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
     await authorizeWorkspaceOperation(principal, workspaceOperation, workspace, {
       delegation: {
         audience: 'sim:billing',
-        isWithinScope: (actor, target) => actor.workspaceId === target.workspaceId,
+        isWithinScope: (actor, target) => principalWorkspaceId(actor) === target.workspaceId,
       },
     })
     return { kind: 'workspace', workspace }
   }
   if (principal.kind === 'workspace_api_key') {
-    if (requestedWorkspaceId && requestedWorkspaceId !== principal.workspaceId) {
+    if (requestedWorkspaceId && requestedWorkspaceId !== principalWorkspaceId(principal)) {
       /**
        * A cross-tenant refusal, so it must not explain itself: naming the cause
        * would confirm the named workspace exists to a key that was never scoped
@@ -137,7 +141,7 @@ async function resolveBillingReadScope(
   }
 
   const workspaceId =
-    principal.kind === 'workspace_api_key' ? principal.workspaceId : requestedWorkspaceId
+    principal.kind === 'workspace_api_key' ? principalWorkspaceId(principal) : requestedWorkspaceId
   if (!workspaceId) throw new Error(`Billing operation ${operation.id} lost its workspace scope`)
 
   const workspace = await loadActiveWorkspaceApplicationContext(workspaceId)

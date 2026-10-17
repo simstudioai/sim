@@ -2,6 +2,7 @@ import type {
   OrganizationDelegatedPrincipal,
   WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -46,8 +47,8 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
       audience: MEMORY_SCOPE_AUDIENCE,
       isWithinScope: (principal, context) =>
         principal.serviceId === 'copilot' &&
-        principal.workspaceId === context.workspaceId &&
-        principal.resourceScope?.chatId === context.chatId,
+        principalWorkspaceId(principal) === context.workspaceId &&
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
     },
   },
   async execute({ context }) {

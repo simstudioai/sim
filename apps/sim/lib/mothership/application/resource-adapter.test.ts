@@ -1,5 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
-import { isResourceScopedDelegation } from '@sim/auth/principal'
+import { hasResourceOperationGrant } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/adapter'
@@ -59,15 +59,15 @@ describe('Copilot resource authoring admission', () => {
     const result = await adapter()(admittedContext(), useCase, {
       userId: 'forged-user',
       chatId: 'forged-chat',
-      scope: { kind: 'entity', entityType: 'organization', entityId: 'other' },
+      scope: { kind: 'entity', owner: { entityType: 'organization', entityId: 'other' } },
     })
     expect(result).toMatchObject({
       kind: 'delegated',
       subjectUserId: 'real-user',
       serviceId: 'copilot',
       delegationId: 'real-tool-call',
-      invocation: { kind: 'chat', chatId: 'real-chat' },
-      scope: { kind: 'project_discovery' },
+      invocation: { kind: 'chat', chatId: 'real-chat' } as const,
+      grant: { kind: 'project_discovery' } as const,
     })
   })
 
@@ -79,8 +79,8 @@ describe('Copilot resource authoring admission', () => {
     )
     expect(result).toMatchObject({
       kind: 'delegated',
-      invocation: { kind: 'chat', chatId: 'real-chat' },
-      scope: { kind: 'project_discovery' },
+      invocation: { kind: 'chat', chatId: 'real-chat' } as const,
+      grant: { kind: 'project_discovery' } as const,
     })
     expect(result).not.toHaveProperty('workflowId')
   })
@@ -171,9 +171,8 @@ describe('Copilot resource authoring admission', () => {
       operations: { list: operation },
       projectResourceScope: ({ fileId }) => ({
         kind: 'entity',
-        entityType: 'project',
-        entityId: 'project',
         fileId,
+        owner: { entityType: 'project', entityId: 'project' },
       }),
     })
     const result = await execute(
@@ -183,7 +182,11 @@ describe('Copilot resource authoring admission', () => {
       { fileId: 'file' }
     )
     expect(result).toMatchObject({
-      scope: { kind: 'entity', entityType: 'project', entityId: 'project', fileId: 'file' },
+      grant: {
+        kind: 'entity',
+        fileId: 'file',
+        owner: { entityType: 'project', entityId: 'project' },
+      },
     })
   })
 
@@ -233,10 +236,10 @@ describe('Copilot resource authoring admission', () => {
         scope,
       })
     ).toThrow('Resource delegation is no longer valid')
-    if (!isResourceScopedDelegation(result) || result.scope.kind !== 'file_copy')
+    if (!hasResourceOperationGrant(result) || result.grant.kind !== 'file_copy')
       throw new Error('Missing copy grant')
-    expect(Reflect.set(result.scope.source.owner, 'entityId', 'forged')).toBe(false)
-    expect(Reflect.set(result.scope.source.fileIds, '1', 'injected')).toBe(false)
-    expect(Reflect.set(result.scope.destination, 'folderId', 'forged')).toBe(false)
+    expect(Reflect.set(result.grant.source.owner, 'entityId', 'forged')).toBe(false)
+    expect(Reflect.set(result.grant.source.fileIds, '1', 'injected')).toBe(false)
+    expect(Reflect.set(result.grant.destination, 'folderId', 'forged')).toBe(false)
   })
 })

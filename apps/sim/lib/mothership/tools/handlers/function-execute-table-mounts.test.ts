@@ -249,12 +249,22 @@ describe('Mothership table mounts through code calls', () => {
             kind: 'delegated',
             serviceId: 'copilot',
             subjectUserId: 'actor',
-            workspaceId: mode === 'workspace' ? 'other' : 'workspace',
             delegationId: 'call',
             audience: mode === 'audience' ? 'sim:files' : 'sim:tables',
             issuedAt: new Date(Date.now() - 1000),
             expiresAt: new Date(Date.now() + (mode === 'expired' ? -1 : 60000)),
-            resourceScope: mode === 'scope' ? { tableId: 'other' } : {},
+            invocation: {
+              kind: 'workspace',
+              workspaceId: mode === 'workspace' ? 'other' : 'workspace',
+            } as const,
+            grant: {
+              kind: 'entity',
+              owner: {
+                entityType: 'workspace',
+                entityId: mode === 'workspace' ? 'other' : 'workspace',
+              },
+              restrictions: mode === 'scope' ? { tableId: 'other' } : {},
+            } as const,
           },
           input: {
             workspaceId: 'workspace',

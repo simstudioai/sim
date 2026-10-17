@@ -1,6 +1,6 @@
 import type {
   BoundWorkflowExecutionDelegatedPrincipal,
-  WorkspaceDelegatedPrincipal,
+  workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import type { VerifiedInternalDelegation } from '@/lib/auth/internal'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
@@ -15,7 +15,7 @@ import {
 
 export interface BindInternalExecutorDelegationOptions {
   audience: string
-  resourceScope?: WorkspaceDelegatedPrincipal['resourceScope']
+  resourceScope?: ReturnType<typeof workspaceDelegationRestrictions>
   compatibilityActorUserId?: string
 }
 

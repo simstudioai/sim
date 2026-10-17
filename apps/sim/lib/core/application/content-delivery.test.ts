@@ -26,15 +26,20 @@ import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 
 function delegated(serviceId: DelegatedServiceId): Principal {
   const now = Date.now()
-  return {
-    kind: 'delegated',
-    serviceId,
+  const envelope = {
+    kind: 'delegated' as const,
     subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
     delegationId: 'delegation-1',
     audience: 'sim:test',
     issuedAt: new Date(now),
     expiresAt: new Date(now + 60_000),
+  }
+  if (serviceId === 'executor') return { ...envelope, serviceId, workspaceId: 'workspace-1' }
+  return {
+    ...envelope,
+    serviceId,
+    invocation: { kind: 'workspace', workspaceId: 'workspace-1' },
+    grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'workspace-1' } },
   }
 }
 
@@ -47,8 +52,8 @@ const PROJECT_CHAT: Principal = {
   delegationId: 'delegation-1',
   issuedAt: new Date(),
   expiresAt: new Date(Date.now() + 60_000),
-  scope: { kind: 'entity', entityType: 'project', entityId: 'project-1' },
-  invocation: { kind: 'workspace', workspaceId: 'workspace-1' },
+  grant: { kind: 'entity', owner: { entityType: 'project', entityId: 'project-1' } } as const,
+  invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
 }
 const EXECUTOR = delegated('executor')
 const SESSION: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }

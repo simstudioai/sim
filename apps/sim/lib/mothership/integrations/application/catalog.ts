@@ -3,9 +3,11 @@ import {
   type OrganizationDelegatedPrincipal,
   type Principal,
   parsePrincipal,
+  principalWorkspaceId,
   resolvePrincipalExecutionActorUserId,
   resolvePrincipalSubjectUserId,
   type WorkspaceDelegatedPrincipal,
+  workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
 import { stripVersionSuffix } from '@sim/utils/string'
@@ -154,15 +156,15 @@ const catalogUseCase = defineAuthorizedChatUseCase({
         throw new OrchestrationError('forbidden', 'Conversation mode mismatch')
       return context
     }
-    if (input.workspaceId && input.workspaceId !== principal.workspaceId)
+    if (input.workspaceId && input.workspaceId !== principalWorkspaceId(principal))
       throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
     const userId = resolvePrincipalExecutionActorUserId(principal)
     if (!userId) throw new OrchestrationError('forbidden', 'Integration discovery requires a user')
     return {
-      ...(await resolveActiveWorkspaceApplicationContext(principal.workspaceId)),
+      ...(await resolveActiveWorkspaceApplicationContext(principalWorkspaceId(principal))),
       organizationId: undefined,
       userId,
-      chatId: principal.resourceScope?.chatId,
+      chatId: workspaceDelegationRestrictions(principal)?.chatId,
       mode: input.mode,
     }
   },
@@ -286,17 +288,17 @@ async function catalogPrincipal(
     principal.audience !== INTEGRATION_CATALOG_AUDIENCE ||
     principal.expiresAt.getTime() <= Date.now() ||
     input.mode !== 'agent' ||
-    (input.workspaceId && input.workspaceId !== principal.workspaceId)
+    (input.workspaceId && input.workspaceId !== principalWorkspaceId(principal))
   )
     throw new OrchestrationError('forbidden', 'Invalid executor catalog delegation')
   const userId = resolvePrincipalSubjectUserId(principal)
   if (!userId) throw new OrchestrationError('forbidden', 'Executor catalog actor required')
   const executor = await createExecutorPrincipalFromExecutionContext({
-    context: catalogExecutorContext(input, userId, principal.workspaceId),
+    context: catalogExecutorContext(input, userId, principalWorkspaceId(principal)),
     audience: INTEGRATION_CATALOG_AUDIENCE,
     expiresAt: principal.expiresAt,
   })
-  if (executor.workspaceId !== principal.workspaceId)
+  if (executor.workspaceId !== principalWorkspaceId(principal))
     throw new OrchestrationError('not_found', 'Executor catalog workspace does not match')
   return executor
 }

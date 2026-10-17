@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import {
-  isResourceScopedDelegation,
+  hasResourceOperationGrant,
   type Principal,
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
@@ -110,7 +110,7 @@ function replacementProvenance(
 ): WorkspaceFileSecretProvenance {
   return (
     provenance ??
-    (isResourceScopedDelegation(principal)
+    (hasResourceOperationGrant(principal)
       ? { status: 'unknown' }
       : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE)
   )

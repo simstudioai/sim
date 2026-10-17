@@ -35,6 +35,7 @@ import {
 } from '@sim/testing/mocks/workspace-context.mock'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createWorkspaceRequestGrant } from '@/lib/api/server/routes/copilot-request'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 const mocks = vi.hoisted(() => ({
@@ -465,7 +466,14 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         })
-        markCopilotRequest(request, { userId: 'user-1', workspaceId: WORKSPACE_ID, chatId: 'c-1' })
+        markCopilotRequest(
+          request,
+          createWorkspaceRequestGrant({
+            userId: 'user-1',
+            workspaceId: WORKSPACE_ID,
+            chatId: 'c-1',
+          })
+        )
         return PUT(request, routeContext)
       }
 

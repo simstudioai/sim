@@ -1,4 +1,5 @@
 import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { describe, expect, it, vi } from 'vitest'
 import { defineWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/adapter'
@@ -67,12 +68,15 @@ describe('Copilot application adapter', () => {
     expect(execute).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         subjectUserId: 'trusted-user',
-        workspaceId: 'workspace-1',
-        resourceScope: {
-          fileId: 'trusted-file',
-          chatId: 'chat-1',
-          executionId: 'execution-1',
-        },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          restrictions: {
+            fileId: 'trusted-file',
+            chatId: 'chat-1',
+            executionId: 'execution-1',
+          },
+        }),
       }),
       input: { fileId: 'model-forged-file' },
     })
@@ -184,7 +188,10 @@ describe('Copilot application adapter', () => {
         ...delegation,
         resourceScope,
       })
-      return { ...principal, resourceScope: { ...principal.resourceScope, fileId: 'file-2' } }
+      return {
+        ...principal,
+        resourceScope: { ...workspaceDelegationRestrictions(principal), fileId: 'file-2' },
+      }
     })
 
     expect(() =>

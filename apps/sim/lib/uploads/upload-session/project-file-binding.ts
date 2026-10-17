@@ -1,5 +1,5 @@
 import {
-  isResourceScopedDelegation,
+  hasResourceOperationGrant,
   type Principal,
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
@@ -18,11 +18,11 @@ function credential(principal: Principal, projectId: string) {
     case 'oauth_access_token':
       return { kind: principal.kind, userId: principal.userId, clientId: principal.clientId }
     case 'delegated': {
-      if (!isResourceScopedDelegation(principal)) break
+      if (!hasResourceOperationGrant(principal)) break
       requireResourceDelegation(principal, {
         audience: 'sim:project-files',
         services: ['copilot'],
-        scope: { kind: 'entity', entityType: 'project', entityId: projectId },
+        scope: { kind: 'entity', owner: { entityType: 'project', entityId: projectId } },
         maxTtlMs: PROJECT_FILE_DELEGATION_TTL_MS,
       })
       if (principal.serviceId !== 'copilot') break

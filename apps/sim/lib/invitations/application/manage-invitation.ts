@@ -1,6 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import {
   type Principal,
+  principalWorkspaceId,
   requirePrincipalSubjectUserId,
   resolvePrincipalAuditAttribution,
 } from '@sim/auth/principal'
@@ -206,7 +207,7 @@ async function resendInvitationWithActor({
     throw new InvitationManagementError(404, 'Invitation not found in this workspace')
   if (
     principal.kind === 'delegated' &&
-    inv.grants.some((grant) => grant.workspaceId !== principal.workspaceId)
+    inv.grants.some((grant) => grant.workspaceId !== principalWorkspaceId(principal))
   )
     throw new InvitationManagementError(
       403,

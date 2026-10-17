@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflowDeploymentVersion } from '@sim/db/schema'
 import { isPlainRecord } from '@sim/utils/object'
@@ -50,7 +51,7 @@ export async function loadMcpOperationAccess(
       argumentsMode: 'json',
     }
   }
-  const blockId = principal.resourceScope?.mcpBlockId
+  const blockId = workspaceDelegationRestrictions(principal)?.mcpBlockId
   if (!blockId)
     throw new OrchestrationError(
       'forbidden',

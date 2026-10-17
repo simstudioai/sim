@@ -1,7 +1,7 @@
 import type {
   Principal,
   ResourceDelegationScope,
-  ResourceScopedDelegation,
+  ResourceOperationPrincipal,
 } from '@sim/auth/principal'
 import {
   type ApplicationOperation,
@@ -11,7 +11,7 @@ import {
 
 export type ProjectFilePrincipal =
   | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
-  | ResourceScopedDelegation
+  | ResourceOperationPrincipal
 
 interface ProjectFilePolicy extends ApplicationOperation {
   readonly access: 'read' | 'write'
@@ -24,7 +24,7 @@ interface ProjectFilePolicy extends ApplicationOperation {
    */
   readonly chargesStorage?: true
   readonly principalKinds: readonly ProjectFilePrincipal['kind'][]
-  readonly delegatedServices: readonly ResourceScopedDelegation['serviceId'][]
+  readonly delegatedServices: readonly ResourceOperationPrincipal['serviceId'][]
   readonly delegationAudience: 'sim:project-files' | 'sim:file-list-observation'
 }
 
@@ -37,9 +37,8 @@ export function projectFileDelegationScope(target: {
 }): ResourceDelegationScope {
   return {
     kind: 'entity',
-    entityType: 'project',
-    entityId: target.projectId,
     ...(target.fileId ? { fileId: target.fileId } : {}),
+    owner: { entityType: 'project', entityId: target.projectId },
   }
 }
 

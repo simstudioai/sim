@@ -2,15 +2,15 @@ import type {
   Principal,
   ResourceDelegationScope,
   ResourceFileCopyScope,
-  ResourceScopedDelegation,
+  ResourceOperationPrincipal,
 } from '@sim/auth/principal'
-import { isResourceScopedDelegation } from '@sim/auth/principal'
+import { hasResourceOperationGrant } from '@sim/auth/principal'
 import { isRecordLike } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface ResourceDelegationPolicy {
   audience: string
-  services: readonly ResourceScopedDelegation['serviceId'][]
+  services: readonly ResourceOperationPrincipal['serviceId'][]
   scope: ResourceDelegationScope
   maxTtlMs: number
 }
@@ -64,32 +64,34 @@ function isValidScope(scope: unknown): scope is ResourceDelegationScope {
   if (!isRecordLike(scope)) return false
   if (scope.kind === 'project_discovery') return Object.keys(scope).length === 1
   if (scope.kind === 'file_copy') return isResourceFileCopyScope(scope)
+  if (
+    !isRecordLike(scope.owner) ||
+    Object.keys(scope.owner).length !== 2 ||
+    !Object.keys(scope.owner).every((key) => key === 'entityType' || key === 'entityId') ||
+    !isIdentity(scope.owner.entityId)
+  )
+    return false
   if (scope.kind === 'file_collection_observation') {
     return (
-      scope.entityType === 'project' &&
-      isIdentity(scope.entityId) &&
-      Object.keys(scope).length === 3 &&
-      Object.keys(scope).every((key) => ['kind', 'entityType', 'entityId'].includes(key))
+      scope.owner.entityType === 'project' &&
+      Object.keys(scope).length === 2 &&
+      Object.keys(scope).every((key) => key === 'kind' || key === 'owner')
     )
   }
   return (
     scope.kind === 'entity' &&
-    (scope.entityType === 'workspace' ||
-      scope.entityType === 'project' ||
-      scope.entityType === 'organization' ||
-      scope.entityType === 'user') &&
-    isIdentity(scope.entityId) &&
+    ['workspace', 'project', 'organization', 'user'].includes(String(scope.owner.entityType)) &&
     (scope.fileId === undefined || isIdentity(scope.fileId)) &&
-    Object.keys(scope).every((key) => ['kind', 'entityType', 'entityId', 'fileId'].includes(key))
+    Object.keys(scope).every((key) => ['kind', 'owner', 'fileId'].includes(key))
   )
 }
 
-function isValidInvocation(principal: ResourceScopedDelegation): boolean {
+function isValidInvocation(principal: ResourceOperationPrincipal): boolean {
   const invocation = principal.invocation
   if (!isRecordLike(invocation) || Object.keys(invocation).length !== 2) return false
   if (principal.serviceId === 'copilot') {
     return (
-      principal.scope.kind !== 'file_collection_observation' &&
+      principal.grant.kind !== 'file_collection_observation' &&
       ((invocation.kind === 'chat' && isIdentity(invocation.chatId)) ||
         (invocation.kind === 'workspace' && isIdentity(invocation.workspaceId)))
     )
@@ -98,8 +100,8 @@ function isValidInvocation(principal: ResourceScopedDelegation): boolean {
     principal.serviceId === 'realtime' &&
     invocation.kind === 'realtime' &&
     isIdentity(invocation.connectionId) &&
-    ((principal.scope.kind === 'entity' && isIdentity(principal.scope.fileId)) ||
-      principal.scope.kind === 'file_collection_observation')
+    ((principal.grant.kind === 'entity' && isIdentity(principal.grant.fileId)) ||
+      principal.grant.kind === 'file_collection_observation')
   )
 }
 
@@ -112,8 +114,8 @@ function matchesScope(
   if (granted.kind === 'file_collection_observation') {
     return (
       required.kind === 'file_collection_observation' &&
-      granted.entityType === required.entityType &&
-      granted.entityId === required.entityId
+      granted.owner.entityType === required.owner.entityType &&
+      granted.owner.entityId === required.owner.entityId
     )
   }
   if (granted.kind === 'file_copy') {
@@ -134,8 +136,8 @@ function matchesScope(
   }
   return (
     required.kind === 'entity' &&
-    granted.entityType === required.entityType &&
-    granted.entityId === required.entityId &&
+    granted.owner.entityType === required.owner.entityType &&
+    granted.owner.entityId === required.owner.entityId &&
     (granted.fileId === undefined || granted.fileId === required.fileId)
   )
 }
@@ -158,9 +160,9 @@ export function requireResourceDelegation(
 
   const now = Date.now()
   if (
-    !isResourceScopedDelegation(principal) ||
-    principal.workspaceId !== undefined ||
-    principal.resourceScope !== undefined ||
+    !hasResourceOperationGrant(principal) ||
+    ('workspaceId' in principal && principal.workspaceId !== undefined) ||
+    ('resourceScope' in principal && principal.resourceScope !== undefined) ||
     !policy.services.includes(principal.serviceId) ||
     principal.audience !== policy.audience ||
     !isIdentity(principal.subjectUserId) ||
@@ -172,9 +174,9 @@ export function requireResourceDelegation(
     principal.issuedAt.getTime() > now ||
     principal.expiresAt.getTime() <= now ||
     principal.expiresAt.getTime() - principal.issuedAt.getTime() > policy.maxTtlMs ||
-    !isValidScope(principal.scope) ||
+    !isValidScope(principal.grant) ||
     !isValidInvocation(principal) ||
-    !matchesScope(principal.scope, policy.scope)
+    !matchesScope(principal.grant, policy.scope)
   ) {
     throw new OrchestrationError('forbidden', 'Resource delegation is no longer valid')
   }

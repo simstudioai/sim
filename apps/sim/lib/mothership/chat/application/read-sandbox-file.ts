@@ -1,5 +1,6 @@
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { defineWorkspaceOperation, requireAdmittedContent } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -74,8 +75,8 @@ export const readChatSandboxFile = defineAuthorizedChatUseCase({
     delegation: {
       audience: workspaceFileDelegationPolicy.audience,
       isWithinScope: (principal, context) =>
-        principal.resourceScope?.chatId === context.chatId &&
-        principal.resourceScope?.fileId === undefined,
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId &&
+        workspaceDelegationRestrictions(principal)?.fileId === undefined,
     },
   },
   async execute({ context, input, principal }) {

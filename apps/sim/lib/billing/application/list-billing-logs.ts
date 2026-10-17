@@ -1,4 +1,4 @@
-import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import { principalWorkspaceId, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedBillingReadUseCase } from '@/lib/billing/application/authorized-billing-read-use-case'
 import { billingOperations } from '@/lib/billing/application/operations'
 import {
@@ -69,13 +69,13 @@ export const listBillingLogs = defineAuthorizedBillingReadUseCase({
       return { usage, creditsByLogId: apportionLogCredits(usage), scope: 'user' }
     }
     /**
-     * `resolveBillingReadScope` pins a workspace API key to `principal.workspaceId`
+     * `resolveBillingReadScope` pins a workspace API key to `principalWorkspaceId(principal)`
      * whatever the query asked for, and has already loaded and validated that
      * workspace, so this is the same id the resolved scope carries.
      */
     if (principal.kind !== 'workspace_api_key')
       throw new Error('Billing read lost its acting subject')
-    const usage = await getWorkspaceUsageLogs(principal.workspaceId, query)
+    const usage = await getWorkspaceUsageLogs(principalWorkspaceId(principal), query)
     return { usage, creditsByLogId: apportionLogCredits(usage), scope: 'workspace' }
   },
 })

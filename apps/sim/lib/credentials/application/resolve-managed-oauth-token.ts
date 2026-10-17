@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { requireCredentialGroupCredentialAccess } from '@/lib/credential-groups/application/authorization'
@@ -31,7 +32,7 @@ export const resolveManagedOAuthCredentialToken = defineAuthorizedWorkspaceUseCa
       throw new OrchestrationError('forbidden', 'Managed credentials require delegated execution')
     const context = await loadManagedOAuthCredentialApplicationContext(
       input.credentialId,
-      principal.workspaceId
+      principalWorkspaceId(principal)
     )
     if (!context) throw new OrchestrationError('not_found', 'Managed credential not found')
     return context

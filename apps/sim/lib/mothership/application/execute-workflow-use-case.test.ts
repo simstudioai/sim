@@ -50,12 +50,16 @@ describe('Copilot Workflow application adapter', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'trusted-user',
-        workspaceId: 'workspace-1',
         delegationId: 'copilot-tool:tool-call-1',
         audience: 'sim:workflows',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date(Date.now() + COPILOT_APPLICATION_DELEGATION_TTL_MS),
-        resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
+        invocation: { kind: 'chat', chatId: 'chat-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          restrictions: { chatId: 'chat-1', executionId: 'execution-1' },
+        } as const,
       },
       input: { workflowId: 'workflow-1', assertedWorkspaceId: 'workspace-1' },
     })
@@ -76,9 +80,12 @@ describe('Copilot Workflow application adapter', () => {
       principal: expect.objectContaining({
         kind: 'delegated',
         subjectUserId: 'trusted-user',
-        workspaceId: 'workspace-1',
         audience: 'sim:workflows',
-        resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          restrictions: { chatId: 'chat-1', executionId: 'execution-1' },
+        }),
       }),
       input: { workflowId: 'workflow-1', userId: 'forged-user' },
     })
@@ -94,7 +101,9 @@ describe('Copilot Workflow application adapter', () => {
 
     expect(execute).toHaveBeenCalledWith({
       principal: expect.objectContaining({
-        resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
+        grant: expect.objectContaining({
+          restrictions: { chatId: 'chat-1', executionId: 'execution-1' },
+        }),
       }),
       input: { workspaceId: 'workspace-1', name: 'New workflow' },
     })

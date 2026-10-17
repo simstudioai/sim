@@ -1,25 +1,18 @@
 import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
+import { createDelegatedPrincipal } from '@sim/testing/factories'
 import { describe, expect, it } from 'vitest'
 import {
   KNOWLEDGE_DELEGATION_AUDIENCE,
   knowledgeDelegationPolicy,
 } from '@/lib/knowledge/application/authorization'
 
-function createKnowledgePrincipal(
-  overrides: Partial<WorkspaceDelegatedPrincipal> = {}
-): WorkspaceDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'tool-call-1',
+function createKnowledgePrincipal(overrides: Parameters<typeof createDelegatedPrincipal>[0] = {}) {
+  return createDelegatedPrincipal({
     audience: KNOWLEDGE_DELEGATION_AUDIENCE,
-    issuedAt: new Date(),
-    expiresAt: new Date(Date.now() + 60_000),
     resourceScope: { chatId: 'chat-1' },
     ...overrides,
-  }
+  })
 }
 
 describe('knowledge delegation policy', () => {
@@ -27,7 +20,7 @@ describe('knowledge delegation policy', () => {
     const principal = createKnowledgePrincipal()
 
     expect(principal.audience).toBe(KNOWLEDGE_DELEGATION_AUDIENCE)
-    expect(principal.resourceScope).toEqual({ chatId: 'chat-1' })
+    expect(workspaceDelegationRestrictions(principal)).toEqual({ chatId: 'chat-1' })
     expect(
       knowledgeDelegationPolicy.isWithinScope(principal, {
         workspaceId: 'workspace-1',

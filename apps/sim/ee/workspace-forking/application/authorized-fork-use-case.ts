@@ -1,4 +1,8 @@
-import { type Principal, resolvePrincipalSubject } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalSubject,
+  workspaceDelegationRestrictions,
+} from '@sim/auth/principal'
 import {
   type AuthorizedWorkspaceUseCaseDefinition,
   defineAuthorizedWorkspaceUseCase,
@@ -108,14 +112,19 @@ async function authorizeOtherForkWorkspace(
     ) {
       throw new OrchestrationError('not_found', 'Workspace not found in this organization')
     }
-    otherPrincipal = Object.freeze({
+    const delegated = Object.freeze({
       ...createCopilotChatPrincipal(
-        { userId: context.userId, workspaceId: other.id, chatId: principal.resourceScope?.chatId },
+        {
+          userId: context.userId,
+          workspaceId: other.id,
+          chatId: workspaceDelegationRestrictions(principal)?.chatId,
+        },
         principal.audience
       ),
       expiresAt: principal.expiresAt,
     })
-    markCopilotWorkspaceInvocation(otherPrincipal)
+    markCopilotWorkspaceInvocation(delegated)
+    otherPrincipal = delegated
   }
   await withinAuthorizedWorkspaceOperation(() =>
     authorizeWorkspaceOperation(otherPrincipal, operation, otherContext, {

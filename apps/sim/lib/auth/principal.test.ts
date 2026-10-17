@@ -56,11 +56,15 @@ describe('principal subject users', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'delegated-user',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:test',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toBe('delegated-user')
   })
@@ -213,12 +217,16 @@ describe('principal persistence', () => {
       kind: 'delegated' as const,
       serviceId: 'copilot' as const,
       subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
       delegationId: 'delegation-1',
       audience: 'sim:workflows',
       issuedAt: new Date('2026-01-01T00:00:00.000Z'),
       expiresAt: new Date('2026-01-01T00:05:00.000Z'),
-      resourceScope: { executionId: 'execution-1' },
+      invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        restrictions: { executionId: 'execution-1' },
+      } as const,
     }
 
     const restored = parsePrincipal(structuredClone(serializePrincipal(principal)))
@@ -252,11 +260,11 @@ describe('principal persistence', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
           delegationId: 'delegation-1',
           audience: 'sim:workflows',
           issuedAt: 'not-a-date',
           expiresAt: '2026-01-01T00:05:00.000Z',
+          workspaceId: 'workspace-1',
         },
       })
     ).toThrow('issuedAt must be an ISO timestamp')
@@ -442,11 +450,15 @@ describe('principal actors', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-2',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toMatchObject({ actorId: 'user-2' })
     expect(
@@ -492,11 +504,15 @@ describe('principal actors', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toEqual({
       kind: 'delegated',
@@ -534,11 +550,15 @@ describe('principal actors', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-3',
-        workspaceId: 'workspace-1',
         delegationId: 'delegation-1',
         audience: 'sim:workspace-files',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
+        invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        } as const,
       })
     ).toMatchObject({ attributedUserId: 'user-3' })
   })

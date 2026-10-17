@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { ResourceScopedDelegation } from '@sim/auth/principal'
+import type { ResourceOperationPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   fileSearchDispatchQueue,
@@ -204,7 +204,7 @@ describe('Project delivery admission', () => {
           },
         })
         const issuedAt = new Date()
-        const principal: ResourceScopedDelegation = {
+        const principal: ResourceOperationPrincipal = {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: f.editorId,
@@ -212,8 +212,11 @@ describe('Project delivery admission', () => {
           audience: 'sim:project-files',
           issuedAt,
           expiresAt: new Date(issuedAt.getTime() + 60_000),
-          invocation: { kind: 'workspace', workspaceId: f.workspaceId },
-          scope: { kind: 'entity', entityType: 'project', entityId: f.projectId },
+          invocation: { kind: 'workspace', workspaceId: f.workspaceId } as const,
+          grant: {
+            kind: 'entity',
+            owner: { entityType: 'project', entityId: f.projectId },
+          } as const,
         }
         const download = vi.spyOn(storage, 'downloadFile')
         const stream = vi.spyOn(storage, 'downloadFileStream')

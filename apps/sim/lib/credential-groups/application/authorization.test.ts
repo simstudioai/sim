@@ -110,12 +110,16 @@ function copilotPrincipal(subjectUserId: string | null = 'user-1'): WorkspaceDel
     kind: 'delegated',
     serviceId: 'copilot',
     ...(subjectUserId ? { subjectUserId } : {}),
-    workspaceId: 'workspace-1',
     delegationId: 'copilot-tool:call-1',
     audience: 'sim:managed-oauth-credentials',
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialId: 'credential-1', chatId: 'chat-1' },
+    invocation: { kind: 'chat', chatId: 'chat-1' } as const,
+    grant: {
+      kind: 'entity',
+      owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      restrictions: { credentialId: 'credential-1', chatId: 'chat-1' },
+    } as const,
   }
 }
 

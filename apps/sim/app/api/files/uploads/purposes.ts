@@ -1,5 +1,9 @@
 import type { Principal } from '@sim/auth/principal'
-import { isWorkspaceDelegation } from '@sim/auth/principal'
+import {
+  isWorkspaceDelegation,
+  principalWorkspaceId,
+  workspaceDelegationRestrictions,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
@@ -259,7 +263,7 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
     case 'oauth_access_token':
       return principal.userId
     case 'workspace_api_key':
-      if (!workspaceId || principal.workspaceId !== workspaceId) {
+      if (!workspaceId || principalWorkspaceId(principal) !== workspaceId) {
         throw new UploadSessionError('forbidden', 'Workspace API key cannot access this workspace')
       }
       {
@@ -277,10 +281,10 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
         )
       if (
         principal.serviceId === 'copilot' &&
-        principal.workspaceId === workspaceId &&
+        principalWorkspaceId(principal) === workspaceId &&
         principal.audience === WORKSPACE_FILES_DELEGATION_AUDIENCE &&
         principal.subjectUserId &&
-        principal.resourceScope?.chatId &&
+        workspaceDelegationRestrictions(principal)?.chatId &&
         principal.expiresAt > new Date()
       )
         return principal.subjectUserId

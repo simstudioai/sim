@@ -53,10 +53,16 @@ const organizationPrincipal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
   organizationId: 'trusted-org',
 }
+const { resourceScope, ...workspaceBase } = base
 const workspacePrincipal: WorkspaceDelegatedPrincipal = {
-  ...base,
+  ...workspaceBase,
   kind: 'delegated',
-  workspaceId: 'trusted-workspace',
+  grant: {
+    kind: 'entity',
+    owner: { entityType: 'workspace', entityId: 'trusted-workspace' },
+    restrictions: resourceScope,
+  },
+  invocation: { kind: 'chat', chatId: 'current-chat' },
 }
 function target(scope: 'account' | 'organization' | 'workspace') {
   resolve.mockResolvedValue({

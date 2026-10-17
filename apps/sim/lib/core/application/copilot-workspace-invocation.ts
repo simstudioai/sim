@@ -1,5 +1,9 @@
 import type { Principal, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
-import { isWorkspaceDelegation } from '@sim/auth/principal'
+import {
+  isWorkspaceDelegation,
+  principalWorkspaceId,
+  workspaceDelegationRestrictions,
+} from '@sim/auth/principal'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -10,7 +14,7 @@ export function markCopilotWorkspaceInvocation(principal: WorkspaceDelegatedPrin
   if (
     principal.serviceId !== 'copilot' ||
     !principal.subjectUserId ||
-    !principal.workspaceId ||
+    !principalWorkspaceId(principal) ||
     principal.expiresAt <= new Date()
   ) {
     throw new Error(
@@ -39,9 +43,9 @@ export type NestedResourceScope = Partial<
 
 /** Adds the nested target to the admitted scope; a key already granted never moves to another resource. */
 function narrowResourceScope(
-  granted: WorkspaceDelegatedPrincipal['resourceScope'],
+  granted: ReturnType<typeof workspaceDelegationRestrictions>,
   target: NestedResourceScope
-): NonNullable<WorkspaceDelegatedPrincipal['resourceScope']> {
+): NonNullable<ReturnType<typeof workspaceDelegationRestrictions>> {
   const scope = { ...granted }
   for (const key of NESTED_RESOURCE_SCOPE_KEYS) {
     const value = target[key]
@@ -73,7 +77,7 @@ export function bindCopilotWorkspaceOperation<P extends Principal>(
   if (
     !isWorkspaceDelegation(principal) ||
     !isCopilotWorkspaceInvocation(principal) ||
-    principal.workspaceId !== workspaceId ||
+    principalWorkspaceId(principal) !== workspaceId ||
     !sourceAudiences.includes(principal.audience) ||
     !useCase.delegationAudience
   ) {
@@ -86,7 +90,15 @@ export function bindCopilotWorkspaceOperation<P extends Principal>(
     ...principal,
     audience: useCase.delegationAudience,
     ...(resourceScope
-      ? { resourceScope: narrowResourceScope(principal.resourceScope, resourceScope) }
+      ? {
+          grant: {
+            ...principal.grant,
+            restrictions: narrowResourceScope(
+              workspaceDelegationRestrictions(principal),
+              resourceScope
+            ),
+          },
+        }
       : {}),
   }
   if (derived.kind === 'delegated') markCopilotWorkspaceInvocation(derived)

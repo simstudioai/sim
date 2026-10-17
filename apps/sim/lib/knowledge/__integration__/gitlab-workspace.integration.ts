@@ -135,12 +135,16 @@ it.each([
             kind: 'delegated' as const,
             serviceId: 'copilot' as const,
             subjectUserId: ids.aliceId,
-            workspaceId: ids.workspaceId,
             delegationId: generateId(),
             audience: 'sim:knowledge',
             issuedAt: new Date(),
             expiresAt: new Date(Date.now() + 60000),
-            resourceScope: { chatId: generateId() },
+            invocation: { kind: 'chat', chatId: generateId() } as const,
+            grant: {
+              kind: 'entity',
+              owner: { entityType: 'workspace', entityId: ids.workspaceId },
+              restrictions: { chatId: generateId() },
+            } as const,
           }
     const { connector } = await createKnowledgeConnector.execute({
       principal: caller,

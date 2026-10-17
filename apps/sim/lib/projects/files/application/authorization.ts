@@ -1,5 +1,5 @@
 import {
-  isResourceScopedDelegation,
+  hasResourceOperationGrant,
   type OrganizationDelegatedPrincipal,
   type Principal,
   requirePrincipalSubjectUserId,
@@ -78,9 +78,9 @@ function requirePrincipal(
   if (operation.target !== 'file' && input.fileId !== undefined) {
     throw new OrchestrationError('validation', 'This operation targets the Project file collection')
   }
-  if (principal.kind === 'delegated' && !isResourceScopedDelegation(principal))
+  if (principal.kind === 'delegated' && !hasResourceOperationGrant(principal))
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
-  if (isResourceScopedDelegation(principal)) {
+  if (hasResourceOperationGrant(principal)) {
     requireResourceDelegation(principal, {
       audience: operation.delegationAudience,
       services: operation.delegatedServices,
@@ -88,8 +88,7 @@ function requirePrincipal(
         operation.target === 'collection_observation'
           ? {
               kind: 'file_collection_observation',
-              entityType: 'project',
-              entityId: input.projectId,
+              owner: { entityType: 'project', entityId: input.projectId },
             }
           : projectFileDelegationScope(input),
       maxTtlMs: PROJECT_FILE_DELEGATION_TTL_MS,
@@ -267,7 +266,7 @@ export async function createProjectFileAuthorizer(
   await requireProjectApiEnabled()
   const userId = await requireFileSubject(principal)
   const invocationScope =
-    isResourceScopedDelegation(principal) && principal.serviceId === 'copilot'
+    hasResourceOperationGrant(principal) && principal.serviceId === 'copilot'
       ? await resolveCopilotProjectScope(principal)
       : undefined
 
@@ -303,7 +302,7 @@ export async function createProjectFileAuthorizer(
     }
     if (access.record.organizationId)
       await acquirePermissionGroupOrgReadLock(tx, access.record.organizationId)
-    if (isResourceScopedDelegation(principal) && principal.serviceId === 'copilot') {
+    if (hasResourceOperationGrant(principal) && principal.serviceId === 'copilot') {
       if (!invocationScope) throw new Error('Copilot Project invocation was not prepared')
       await requireCurrentCopilotProjectInvocation(tx, principal, access, invocationScope)
     }

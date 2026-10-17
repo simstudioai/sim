@@ -1,5 +1,5 @@
 import {
-  isResourceScopedDelegation,
+  isWorkspaceDelegation,
   type Principal,
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
@@ -258,7 +258,7 @@ async function executeCopilotRun(params: {
   }
 }): Promise<ExecutionResult> {
   if (
-    isResourceScopedDelegation(params.principal) ||
+    (params.principal.kind === 'delegated' && !isWorkspaceDelegation(params.principal)) ||
     params.principal.kind === 'organization_delegated' ||
     params.principal.kind === 'slack_app' ||
     params.principal.kind === 'slack_installation' ||

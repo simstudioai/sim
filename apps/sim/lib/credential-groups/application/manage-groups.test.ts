@@ -1,10 +1,8 @@
-import type {
-  CredentialGroupEnrollmentPrincipal,
-  WorkspaceDelegatedPrincipal,
-} from '@sim/auth/principal'
+import type { CredentialGroupEnrollmentPrincipal } from '@sim/auth/principal'
 import { auditMock, auditMockFns } from '@sim/testing'
 import {
   createDelegatedPrincipal,
+  createExecutorPrincipal,
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import {
@@ -71,18 +69,14 @@ const enrollmentPrincipal: CredentialGroupEnrollmentPrincipal = {
   invitationTokenHash: 'hash-1',
 }
 
-function copilotPrincipal(
-  overrides: Partial<WorkspaceDelegatedPrincipal> = {}
-): WorkspaceDelegatedPrincipal {
-  return {
-    ...createDelegatedPrincipal({
-      subjectUserId: 'admin-1',
-      delegationId: 'copilot-tool:tool-1',
-      audience: 'sim:credential-groups',
-      resourceScope: { chatId: 'chat-1' },
-    }),
+function copilotPrincipal(overrides: Parameters<typeof createDelegatedPrincipal>[0] = {}) {
+  return createDelegatedPrincipal({
+    subjectUserId: 'admin-1',
+    delegationId: 'copilot-tool:tool-1',
+    audience: 'sim:credential-groups',
+    resourceScope: { chatId: 'chat-1' },
     ...overrides,
-  }
+  })
 }
 
 describe('Credential Group Settings application operations', () => {
@@ -138,7 +132,10 @@ describe('Credential Group Settings application operations', () => {
   ])('rejects invalid account-read delegation %j', async (overrides) => {
     await expect(
       getWorkspaceAccountsSettings.execute({
-        principal: copilotPrincipal(overrides),
+        principal:
+          overrides.serviceId === 'executor'
+            ? createExecutorPrincipal({ audience: 'sim:credential-groups' })
+            : copilotPrincipal(overrides),
         input: { workspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
