@@ -1,9 +1,9 @@
 import type {
   PersonalApiKeyPrincipal,
   SessionPrincipal,
-  SubjectDelegatedPrincipal,
   WorkflowExecutionDelegatedPrincipal,
   WorkspaceApiKeyPrincipal,
+  WorkspaceSubjectDelegation,
 } from '@sim/auth/principal'
 
 /**
@@ -57,8 +57,8 @@ export function createWorkspaceApiKeyPrincipal(
  * ```
  */
 export function createDelegatedPrincipal(
-  overrides: Partial<SubjectDelegatedPrincipal> = {}
-): SubjectDelegatedPrincipal {
+  overrides: Partial<WorkspaceSubjectDelegation> = {}
+): WorkspaceSubjectDelegation {
   return {
     kind: 'delegated',
     serviceId: 'copilot',

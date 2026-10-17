@@ -2,8 +2,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import type {
   OAuthAccessTokenPrincipal,
-  ResourceDelegatedPrincipal,
   ResourceFileCopyScope,
+  ResourceScopedDelegation,
 } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
@@ -159,9 +159,9 @@ function delegated(
   userId: string,
   projectId: string,
   workspaceId: string
-): Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }> {
+): Extract<ResourceScopedDelegation, { serviceId: 'copilot' }> {
   return {
-    kind: 'resource_delegated',
+    kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: userId,
     audience: 'sim:project-files',
@@ -262,8 +262,8 @@ describe('compound copy owner authority', () => {
           code: 'forbidden',
         })
       }
-      const realtime: ResourceDelegatedPrincipal = {
-        kind: 'resource_delegated',
+      const realtime: ResourceScopedDelegation = {
+        kind: 'delegated',
         serviceId: 'realtime',
         subjectUserId: f.readerId,
         audience: 'sim:files:copy',

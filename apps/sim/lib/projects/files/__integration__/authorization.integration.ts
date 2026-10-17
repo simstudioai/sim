@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import type { OAuthAccessTokenPrincipal, ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal, ResourceScopedDelegation } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   copilotChats,
@@ -205,9 +205,9 @@ function delegated(
   userId: string,
   projectId: string,
   workspaceId: string
-): Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }> {
+): Extract<ResourceScopedDelegation, { serviceId: 'copilot' }> {
   return {
-    kind: 'resource_delegated',
+    kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: userId,
     audience: 'sim:project-files',
@@ -953,7 +953,7 @@ describe('Project file authority at the database boundary', () => {
         config: { conversationMode: 'agent' },
         title: 'Project context',
       })
-      const principal: ResourceDelegatedPrincipal = {
+      const principal: ResourceScopedDelegation = {
         ...delegated(f.readerId, f.projectId, f.workspaces[0]),
         serviceId: 'copilot',
         invocation: { kind: 'chat', chatId },
@@ -1100,8 +1100,8 @@ describe('Project file authority at the database boundary', () => {
         contentType: 'text/markdown',
         sizeBytes: 0,
       })
-      const principal: ResourceDelegatedPrincipal = {
-        kind: 'resource_delegated',
+      const principal: ResourceScopedDelegation = {
+        kind: 'delegated',
         serviceId: 'realtime',
         subjectUserId: f.readerId,
         delegationId: generateId(),

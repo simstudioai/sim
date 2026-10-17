@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceScopedDelegation } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   copilotChats,
@@ -161,9 +161,9 @@ function check(name: string, run: () => Promise<void>) {
 function discoveryPrincipal(
   userId: string,
   workspaceId: string
-): Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }> {
+): Extract<ResourceScopedDelegation, { serviceId: 'copilot' }> {
   return {
-    kind: 'resource_delegated',
+    kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: userId,
     delegationId: generateId(),
@@ -1582,7 +1582,7 @@ describe('Project discovery delegation', () => {
         userId: first.ownerId,
         permissionType: 'admin',
       })
-      const principal: ResourceDelegatedPrincipal = {
+      const principal: ResourceScopedDelegation = {
         ...discoveryPrincipal(first.ownerId, first.ids[0]),
         serviceId: 'copilot',
         invocation: { kind: 'chat', chatId },

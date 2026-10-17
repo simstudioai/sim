@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -35,7 +38,7 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
     input: MemoryScopeRequest
   }) => resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: {

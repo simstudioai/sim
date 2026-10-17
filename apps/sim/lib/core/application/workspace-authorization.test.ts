@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal, OAuthAccessTokenPrincipal } from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -63,9 +63,9 @@ const executorOperation = defineWorkspaceOperation({
 })
 
 function executorPrincipal(
-  originalPrincipal: NonNullable<DelegatedPrincipal['delegationContext']>['principal'],
-  currentWorkflow?: NonNullable<DelegatedPrincipal['delegationContext']>['currentWorkflow']
-): DelegatedPrincipal {
+  originalPrincipal: NonNullable<WorkspaceDelegatedPrincipal['delegationContext']>['principal'],
+  currentWorkflow?: NonNullable<WorkspaceDelegatedPrincipal['delegationContext']>['currentWorkflow']
+): WorkspaceDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',

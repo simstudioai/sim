@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { messageForCopilotApplicationError } from '@/lib/mothership/application/errors'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
@@ -34,7 +34,7 @@ const fileDelegation = {
 export function resolveCopilotFilePrincipal(
   context: CopilotFileDelegationContext | undefined,
   fileId?: string
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   return createCopilotApplicationPrincipal(requireTrustedCopilotExecutionContext(context), {
     ...fileDelegation,
     resourceScope: fileId ? { fileId } : undefined,
@@ -44,14 +44,14 @@ export function resolveCopilotFilePrincipal(
 /** Creates the principal used while resolving user-supplied chat file context. */
 export function createCopilotChatFilePrincipal(
   context: CopilotChatFileDelegationContext
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   return createCopilotChatPrincipal(context, workspaceFileDelegationPolicy.audience)
 }
 
 /** Creates the principal used while materializing the Copilot workspace index. */
 export function createCopilotWorkspaceContextFilePrincipal(
   context: CopilotWorkspaceContextFileDelegationContext
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   return createTrustedCopilotPrincipal(
     {
       userId: context.userId,

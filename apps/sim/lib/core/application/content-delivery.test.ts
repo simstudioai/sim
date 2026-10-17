@@ -40,7 +40,7 @@ function delegated(serviceId: DelegatedServiceId): Principal {
 
 const CHAT = delegated('copilot')
 const PROJECT_CHAT: Principal = {
-  kind: 'resource_delegated',
+  kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'user-1',
   audience: 'sim:project-files',

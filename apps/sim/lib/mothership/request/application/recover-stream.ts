@@ -1,9 +1,9 @@
 import {
-  type DelegatedPrincipal,
   type OrganizationDelegatedPrincipal,
   type Principal,
   resolvePrincipalSubjectUserId,
   type SessionPrincipal,
+  type WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -129,7 +129,7 @@ export const takeOverStreamRun = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
     input: { streamId: string }
   }) => resolveStreamRunContext({ principal, input }),
   authorizationOptions: {

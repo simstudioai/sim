@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { resolve, sectionAccess } = vi.hoisted(() => ({ resolve: vi.fn(), sectionAccess: vi.fn() }))
@@ -50,7 +53,7 @@ const organizationPrincipal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
   organizationId: 'trusted-org',
 }
-const workspacePrincipal: DelegatedPrincipal = {
+const workspacePrincipal: WorkspaceDelegatedPrincipal = {
   ...base,
   kind: 'delegated',
   workspaceId: 'trusted-workspace',

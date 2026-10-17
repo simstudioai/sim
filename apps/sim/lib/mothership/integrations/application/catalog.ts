@@ -1,10 +1,11 @@
 import {
-  type DelegatedPrincipal,
+  isWorkspaceDelegation,
   type OrganizationDelegatedPrincipal,
   type Principal,
   parsePrincipal,
   resolvePrincipalExecutionActorUserId,
   resolvePrincipalSubjectUserId,
+  type WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
 import { stripVersionSuffix } from '@sim/utils/string'
@@ -142,7 +143,7 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
     input: IntegrationCatalogRequest
   }) {
     if (principal.kind === 'organization_delegated') {
@@ -280,7 +281,7 @@ async function catalogPrincipal(
     return principal
   }
   if (
-    principal.kind !== 'delegated' ||
+    !isWorkspaceDelegation(principal) ||
     principal.serviceId !== 'copilot' ||
     principal.audience !== INTEGRATION_CATALOG_AUDIENCE ||
     principal.expiresAt.getTime() <= Date.now() ||

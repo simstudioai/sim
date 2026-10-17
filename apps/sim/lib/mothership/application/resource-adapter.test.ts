@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { isResourceScopedDelegation } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/adapter'
@@ -11,7 +12,8 @@ import {
 const operation = Object.freeze({
   id: 'projects.list',
   capability: 'none',
-  principalKinds: Object.freeze(['resource_delegated'] as const),
+  principalKinds: Object.freeze(['delegated'] as const),
+  delegationScope: 'resource' as const,
   delegatedServices: Object.freeze(['copilot'] as const),
   delegationAudience: 'sim:projects:discovery',
 } as const)
@@ -60,7 +62,7 @@ describe('Copilot resource authoring admission', () => {
       scope: { kind: 'entity', entityType: 'organization', entityId: 'other' },
     })
     expect(result).toMatchObject({
-      kind: 'resource_delegated',
+      kind: 'delegated',
       subjectUserId: 'real-user',
       serviceId: 'copilot',
       delegationId: 'real-tool-call',
@@ -76,7 +78,7 @@ describe('Copilot resource authoring admission', () => {
       {}
     )
     expect(result).toMatchObject({
-      kind: 'resource_delegated',
+      kind: 'delegated',
       invocation: { kind: 'chat', chatId: 'real-chat' },
       scope: { kind: 'project_discovery' },
     })
@@ -231,7 +233,7 @@ describe('Copilot resource authoring admission', () => {
         scope,
       })
     ).toThrow('Resource delegation is no longer valid')
-    if (result.kind !== 'resource_delegated' || result.scope.kind !== 'file_copy')
+    if (!isResourceScopedDelegation(result) || result.scope.kind !== 'file_copy')
       throw new Error('Missing copy grant')
     expect(Reflect.set(result.scope.source.owner, 'entityId', 'forged')).toBe(false)
     expect(Reflect.set(result.scope.source.fileIds, '1', 'injected')).toBe(false)

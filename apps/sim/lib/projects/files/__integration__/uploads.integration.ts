@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceScopedDelegation } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   folder,
@@ -466,8 +466,8 @@ describe('Project upload sessions with real leases, storage, and accounting', ()
     async () => {
       const f = await fixture()
       const issuedAt = new Date()
-      const principal: ResourceDelegatedPrincipal = {
-        kind: 'resource_delegated',
+      const principal: ResourceScopedDelegation = {
+        kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: f.editorId,
         delegationId: generateId(),

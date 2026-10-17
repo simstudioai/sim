@@ -1,4 +1,7 @@
-import type { OrganizationDelegatedPrincipal, SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  WorkspaceSubjectDelegation,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, project, workspace } from '@sim/db/schema'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
@@ -46,7 +49,7 @@ const organizationOperation = defineOrganizationOperation({
   delegatedServices: ['copilot'],
   delegationAudience: MEMORY_NOTES_ACCESS_AUDIENCE,
 })
-type MemoryPrincipal = SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal
+type MemoryPrincipal = WorkspaceSubjectDelegation | OrganizationDelegatedPrincipal
 /** The worker acts on the answer after commit, so a consistent unlocked snapshot is enough. */
 const READ_SNAPSHOT = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const
 

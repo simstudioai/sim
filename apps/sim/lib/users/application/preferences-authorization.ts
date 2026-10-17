@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { isWorkspaceDelegation } from '@sim/auth/principal'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { requireCurrentHumanRole } from '@/lib/core/application/workspace-authorization'
@@ -18,7 +19,7 @@ export async function authorizeAccountPreferences(
     )
   }
   if (principal.kind === 'session') return principal.userId
-  if (principal.kind !== 'delegated' && principal.kind !== 'organization_delegated') {
+  if (!isWorkspaceDelegation(principal) && principal.kind !== 'organization_delegated') {
     throw new ForbiddenOperationError(
       'PRINCIPAL_KIND_NOT_PERMITTED',
       'This account operation requires its authenticated owner'

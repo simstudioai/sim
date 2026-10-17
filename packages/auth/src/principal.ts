@@ -4,7 +4,6 @@ export type Principal =
   | OAuthAccessTokenPrincipal
   | WorkspaceApiKeyPrincipal
   | DelegatedPrincipal
-  | ResourceDelegatedPrincipal
   | OrganizationDelegatedPrincipal
   | SystemPrincipal
   | CredentialGroupEnrollmentPrincipal
@@ -129,11 +128,16 @@ type SystemPrincipal = ActorlessSystemPrincipal | ChatSystemPrincipal | WebhookS
 
 interface DelegatedPrincipalBase {
   kind: 'delegated'
-  workspaceId: string
   delegationId: string
   audience: string
   issuedAt: Date
   expiresAt: Date
+}
+
+interface WorkspaceDelegationFields {
+  workspaceId: string
+  scope?: never
+  invocation?: never
   resourceScope?: {
     fileId?: string
     tableId?: string
@@ -146,7 +150,9 @@ interface DelegatedPrincipalBase {
   }
 }
 
-export interface SubjectDelegatedPrincipal extends DelegatedPrincipalBase {
+export interface WorkspaceSubjectDelegation
+  extends DelegatedPrincipalBase,
+    WorkspaceDelegationFields {
   serviceId: 'copilot' | 'realtime'
   subjectUserId: string
 }
@@ -173,7 +179,9 @@ export type WorkflowExecutionAuthority =
   | { workflowId: string; mode: 'draft' }
   | { workflowId: string; mode: 'deployment'; deploymentVersionId: string }
 
-export interface WorkflowExecutionDelegatedPrincipal extends DelegatedPrincipalBase {
+export interface WorkflowExecutionDelegatedPrincipal
+  extends DelegatedPrincipalBase,
+    WorkspaceDelegationFields {
   serviceId: 'executor'
   subjectUserId?: string
   delegationContext?: WorkflowExecutionDelegationContext
@@ -182,6 +190,12 @@ export interface WorkflowExecutionDelegatedPrincipal extends DelegatedPrincipalB
 export type BoundWorkflowExecutionDelegatedPrincipal = WorkflowExecutionDelegatedPrincipal & {
   delegationContext: WorkflowExecutionDelegationContext
 }
+
+export type SubjectDelegatedPrincipal = WorkspaceSubjectDelegation | ResourceScopedDelegation
+
+export type WorkspaceDelegatedPrincipal =
+  | WorkspaceSubjectDelegation
+  | WorkflowExecutionDelegatedPrincipal
 
 export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDelegatedPrincipal
 
@@ -222,18 +236,12 @@ export type ResourceDelegationScope =
   | ResourceFileCopyScope
   | ResourceFileCollectionObservationScope
 
-interface ResourceDelegatedPrincipalBase {
-  kind: 'resource_delegated'
-  subjectUserId: string
-  delegationId: string
-  audience: string
-  issuedAt: Date
-  expiresAt: Date
-}
-
 /** Human authority for entity-owned resources; never a workflow execution principal. */
-export type ResourceDelegatedPrincipal = ResourceDelegatedPrincipalBase &
-  (
+export type ResourceScopedDelegation = DelegatedPrincipalBase & {
+  subjectUserId: string
+  workspaceId?: never
+  resourceScope?: never
+} & (
     | {
         serviceId: 'copilot'
         scope: ResourceDelegationScope
@@ -245,6 +253,30 @@ export type ResourceDelegatedPrincipal = ResourceDelegatedPrincipalBase &
         invocation: { kind: 'realtime'; connectionId: string }
       }
   )
+
+/** Identifies the resource grant family; domain authorization validates its contents. */
+export function isResourceScopedDelegation(
+  principal: Principal
+): principal is ResourceScopedDelegation {
+  return (
+    principal.kind === 'delegated' &&
+    principal.serviceId !== 'executor' &&
+    principal.scope !== undefined
+  )
+}
+
+/** Keeps resource grants out of workspace and workflow authority, including malformed mixed grants. */
+export function isWorkspaceDelegation(
+  principal: Principal
+): principal is WorkspaceDelegatedPrincipal {
+  return (
+    principal.kind === 'delegated' &&
+    principal.scope === undefined &&
+    principal.invocation === undefined &&
+    typeof principal.workspaceId === 'string' &&
+    principal.workspaceId.length > 0
+  )
+}
 
 /** Search-only authority delegated by a current organization member. */
 interface OrganizationDelegatedPrincipalBase {
@@ -346,7 +378,7 @@ export type WorkflowExecutionPrincipal =
   | PersonalApiKeyPrincipal
   | OAuthAccessTokenPrincipal
   | WorkspaceApiKeyPrincipal
-  | SubjectDelegatedPrincipal
+  | WorkspaceSubjectDelegation
   | SystemPrincipal
 
 type SerializedWorkflowExecutionPrincipal =
@@ -355,7 +387,7 @@ type SerializedWorkflowExecutionPrincipal =
   | (Omit<OAuthAccessTokenPrincipal, 'expiresAt' | 'clientName'> & { expiresAt: string })
   | WorkspaceApiKeyPrincipal
   | SystemPrincipal
-  | (Omit<SubjectDelegatedPrincipal, 'issuedAt' | 'expiresAt'> & {
+  | (Omit<WorkspaceSubjectDelegation, 'issuedAt' | 'expiresAt' | 'scope' | 'invocation'> & {
       issuedAt: string
       expiresAt: string
     })
@@ -402,7 +434,7 @@ function requireDate(value: unknown, field: string): Date {
   return date
 }
 
-function parseResourceScope(value: unknown): DelegatedPrincipal['resourceScope'] {
+function parseResourceScope(value: unknown): WorkspaceDelegatedPrincipal['resourceScope'] {
   const scope = requireRecord(value, 'Serialized principal resourceScope')
   const keys = [
     'fileId',
@@ -415,7 +447,7 @@ function parseResourceScope(value: unknown): DelegatedPrincipal['resourceScope']
     'mcpBlockId',
   ] as const
   requireExactKeys(scope, [], keys)
-  const parsed: NonNullable<DelegatedPrincipal['resourceScope']> = {}
+  const parsed: NonNullable<WorkspaceDelegatedPrincipal['resourceScope']> = {}
   for (const key of keys) {
     if (scope[key] !== undefined) parsed[key] = requireString(scope[key], key)
   }
@@ -475,6 +507,8 @@ export function serializePrincipal(principal: WorkflowExecutionPrincipal): Seria
       }
       return { version: 1, principal: { ...principal } }
     case 'delegated':
+      if (!isWorkspaceDelegation(principal))
+        throw new Error('Principal cannot be persisted for workflow execution')
       return {
         version: 1,
         principal: {
@@ -616,7 +650,7 @@ export function parsePrincipal(value: unknown): WorkflowExecutionPrincipal {
       }
       return {
         kind,
-        serviceId: serviceId as SubjectDelegatedPrincipal['serviceId'],
+        serviceId: serviceId as WorkspaceSubjectDelegation['serviceId'],
         subjectUserId: requireString(principal.subjectUserId, 'subjectUserId'),
         workspaceId: requireString(principal.workspaceId, 'workspaceId'),
         delegationId: requireString(principal.delegationId, 'delegationId'),
@@ -641,7 +675,7 @@ export type PrincipalActor =
   | Omit<SlackAppPrincipal, 'receivedAt'>
   | {
       kind: 'resource_delegated'
-      serviceId: ResourceDelegatedPrincipal['serviceId']
+      serviceId: ResourceScopedDelegation['serviceId']
       subjectUserId: string
       delegationId: string
     }
@@ -722,7 +756,6 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'personal_api_key':
     case 'oauth_access_token':
       return { kind: 'sim_user', userId: principal.userId }
-    case 'resource_delegated':
     case 'organization_delegated':
       return { kind: 'sim_user', userId: principal.subjectUserId }
     case 'delegated':
@@ -792,17 +825,17 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
             : {}),
       }
     case 'delegated':
+      if (isResourceScopedDelegation(principal))
+        return {
+          kind: 'resource_delegated',
+          serviceId: principal.serviceId,
+          subjectUserId: principal.subjectUserId,
+          delegationId: principal.delegationId,
+        }
       return {
         kind: principal.kind,
         serviceId: principal.serviceId,
         ...(principal.subjectUserId ? { subjectUserId: principal.subjectUserId } : {}),
-        delegationId: principal.delegationId,
-      }
-    case 'resource_delegated':
-      return {
-        kind: principal.kind,
-        serviceId: principal.serviceId,
-        subjectUserId: principal.subjectUserId,
         delegationId: principal.delegationId,
       }
     case 'organization_delegated':
@@ -840,7 +873,7 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
  * deliberately left out — this describes the credential's kind, not the actor.
  */
 export interface PrincipalAuthDescriptor {
-  kind: Principal['kind']
+  kind: PrincipalActor['kind']
   service?: string
   clientId?: string
 }

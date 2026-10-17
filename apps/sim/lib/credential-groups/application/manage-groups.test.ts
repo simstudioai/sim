@@ -1,4 +1,7 @@
-import type { CredentialGroupEnrollmentPrincipal, DelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  CredentialGroupEnrollmentPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { auditMock, auditMockFns } from '@sim/testing'
 import {
   createDelegatedPrincipal,
@@ -68,7 +71,9 @@ const enrollmentPrincipal: CredentialGroupEnrollmentPrincipal = {
   invitationTokenHash: 'hash-1',
 }
 
-function copilotPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
+function copilotPrincipal(
+  overrides: Partial<WorkspaceDelegatedPrincipal> = {}
+): WorkspaceDelegatedPrincipal {
   return {
     ...createDelegatedPrincipal({
       subjectUserId: 'admin-1',

@@ -1,4 +1,9 @@
-import type { DelegatedPrincipal, DelegatedServiceId, Principal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  DelegatedServiceId,
+  Principal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import type { ContentDeliveryDeclaration } from '@/lib/core/application/content-delivery'
 import type {
@@ -33,7 +38,7 @@ type DelegatedPrincipalForOperation<
     readonly delegatedServices?: readonly DelegatedServiceId[]
   },
 > = 'delegated' extends O['principalKinds'][number]
-  ? DelegatedPrincipal & { serviceId: NonNullable<O['delegatedServices']>[number] }
+  ? WorkspaceDelegatedPrincipal & { serviceId: NonNullable<O['delegatedServices']>[number] }
   : never
 
 export type PrincipalForOperation<
@@ -115,9 +120,6 @@ export function defineWorkspaceOperation<
 
   if (operation.principalKinds.includes('organization_delegated')) {
     throw new Error(`Workspace operation ${operation.id} cannot accept organization delegation`)
-  }
-  if (operation.principalKinds.includes('resource_delegated')) {
-    throw new Error(`Workspace operation ${operation.id} cannot accept resource delegation`)
   }
 
   const allowsWorkspaceApiKey = operation.principalKinds.includes('workspace_api_key')

@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -25,7 +25,7 @@ vi.mock('@/lib/workflows/application/read-workflow-version', () => ({
 
 import { deployWorkflowDeployment } from '@/lib/internal/deployments/client'
 
-const principal: DelegatedPrincipal = {
+const principal: WorkspaceDelegatedPrincipal = {
   kind: 'delegated',
   serviceId: 'executor',
   subjectUserId: 'user-1',

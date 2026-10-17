@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { isWorkspaceDelegation } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
@@ -250,11 +251,6 @@ function requireSessionScope(value: string | null, label = 'scope'): string {
 
 async function principalUserId(principal: Principal, workspaceId?: string): Promise<string> {
   switch (principal.kind) {
-    case 'resource_delegated':
-      throw new UploadSessionError(
-        'forbidden',
-        'Resource delegation cannot create workspace uploads'
-      )
     case 'slack_app':
     case 'slack_installation':
       throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
@@ -274,6 +270,11 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
         return context.billedAccountUserId
       }
     case 'delegated':
+      if (!isWorkspaceDelegation(principal))
+        throw new UploadSessionError(
+          'forbidden',
+          'Resource delegation cannot create workspace uploads'
+        )
       if (
         principal.serviceId === 'copilot' &&
         principal.workspaceId === workspaceId &&

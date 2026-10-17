@@ -1,4 +1,4 @@
-import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceSubjectDelegation } from '@sim/auth/principal'
 import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
 import {
@@ -73,7 +73,7 @@ mockGetBlock.mockReturnValue(undefined)
 const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 const mockContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
-let principal: SubjectDelegatedPrincipal
+let principal: WorkspaceSubjectDelegation
 function save(
   type = 'agent',
   tools: unknown = [],

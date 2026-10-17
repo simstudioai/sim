@@ -1,7 +1,7 @@
 import type {
   Principal,
-  ResourceDelegatedPrincipal,
   ResourceDelegationScope,
+  ResourceScopedDelegation,
 } from '@sim/auth/principal'
 import {
   type ApplicationOperation,
@@ -9,10 +9,9 @@ import {
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
 
-export type ProjectFilePrincipal = Extract<
-  Principal,
-  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' | 'resource_delegated' }
->
+export type ProjectFilePrincipal =
+  | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
+  | ResourceScopedDelegation
 
 interface ProjectFilePolicy extends ApplicationOperation {
   readonly access: 'read' | 'write'
@@ -25,7 +24,7 @@ interface ProjectFilePolicy extends ApplicationOperation {
    */
   readonly chargesStorage?: true
   readonly principalKinds: readonly ProjectFilePrincipal['kind'][]
-  readonly delegatedServices: readonly ResourceDelegatedPrincipal['serviceId'][]
+  readonly delegatedServices: readonly ResourceScopedDelegation['serviceId'][]
   readonly delegationAudience: 'sim:project-files' | 'sim:file-list-observation'
 }
 
@@ -44,7 +43,9 @@ export function projectFileDelegationScope(target: {
   }
 }
 
-function defineProjectFileOperation<const O extends ProjectFilePolicy>(operation: O): O {
+function defineProjectFileOperation<const O extends ProjectFilePolicy>(
+  operation: O
+): O & { readonly delegationScope: 'resource' } {
   assertOperationCapability(operation)
   assertOperationOAuthPolicy(operation)
   const observesCollection = operation.target === 'collection_observation'
@@ -53,7 +54,7 @@ function defineProjectFileOperation<const O extends ProjectFilePolicy>(operation
     (operation.access !== 'read' ||
       operation.delegationAudience !== 'sim:file-list-observation' ||
       operation.principalKinds.length !== 1 ||
-      operation.principalKinds[0] !== 'resource_delegated' ||
+      operation.principalKinds[0] !== 'delegated' ||
       operation.delegatedServices.length !== 1 ||
       operation.delegatedServices[0] !== 'realtime')
   ) {
@@ -68,15 +69,10 @@ function defineProjectFileOperation<const O extends ProjectFilePolicy>(operation
   }
   Object.freeze(operation.principalKinds)
   Object.freeze(operation.delegatedServices)
-  return Object.freeze(operation)
+  return Object.freeze({ ...operation, delegationScope: 'resource' as const })
 }
 
-const PRINCIPALS = [
-  'session',
-  'personal_api_key',
-  'oauth_access_token',
-  'resource_delegated',
-] as const
+const PRINCIPALS = ['session', 'personal_api_key', 'oauth_access_token', 'delegated'] as const
 const POLICY = {
   principalKinds: PRINCIPALS,
   delegationAudience: 'sim:project-files',
@@ -95,7 +91,7 @@ export const projectFileOperations = {
     capability: 'files.use',
     access: 'read',
     target: 'collection_observation',
-    principalKinds: ['resource_delegated'],
+    principalKinds: ['delegated'],
     delegatedServices: ['realtime'],
     delegationAudience: 'sim:file-list-observation',
   }),

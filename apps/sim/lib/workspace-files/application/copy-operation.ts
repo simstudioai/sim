@@ -9,8 +9,9 @@ const policy = {
   id: 'files.copy',
   capability: 'files.use',
   oauthScope: 'api:write',
-  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'resource_delegated'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
+  delegationScope: 'resource',
   delegationAudience: 'sim:files:copy',
 } as const
 

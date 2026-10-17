@@ -1,8 +1,9 @@
 import {
+  isResourceScopedDelegation,
   type OrganizationDelegatedPrincipal,
   type Principal,
   requirePrincipalSubjectUserId,
-  type SubjectDelegatedPrincipal,
+  type WorkspaceSubjectDelegation,
 } from '@sim/auth/principal'
 import {
   copilotChats,
@@ -77,7 +78,9 @@ function requirePrincipal(
   if (operation.target !== 'file' && input.fileId !== undefined) {
     throw new OrchestrationError('validation', 'This operation targets the Project file collection')
   }
-  if (principal.kind === 'resource_delegated') {
+  if (principal.kind === 'delegated' && !isResourceScopedDelegation(principal))
+    throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+  if (isResourceScopedDelegation(principal)) {
     requireResourceDelegation(principal, {
       audience: operation.delegationAudience,
       services: operation.delegatedServices,
@@ -101,7 +104,7 @@ function requirePrincipal(
 export async function requireCurrentCopilotProjectInvocation(
   tx: DbTransaction,
   principal: Pick<
-    Extract<ProjectFilePrincipal, { kind: 'resource_delegated'; serviceId: 'copilot' }>,
+    Extract<ProjectFilePrincipal, { kind: 'delegated'; serviceId: 'copilot' }>,
     'subjectUserId' | 'invocation'
   >,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
@@ -197,7 +200,7 @@ export async function requireCurrentCopilotProjectInvocation(
 /** Shared owner policy keeps compound copies subject to the same live Project edit rule. */
 export async function requireProjectFileOwnerRole(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
+  principal: ProjectFilePrincipal | WorkspaceSubjectDelegation | OrganizationDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   accessMode: 'read' | 'write',
   mode: 'hold' | 'snapshot' = 'hold'
@@ -228,7 +231,7 @@ export async function requireProjectFileOwnerRole(
 /** Credential and Files capability checks apply to every currently visible environment. */
 export async function requireProjectFileOwnerCapabilities(
   tx: DbTransaction,
-  principal: ProjectFilePrincipal | SubjectDelegatedPrincipal | OrganizationDelegatedPrincipal,
+  principal: ProjectFilePrincipal | WorkspaceSubjectDelegation | OrganizationDelegatedPrincipal,
   access: Awaited<ReturnType<typeof loadProjectAccess>>,
   capability: ProjectFileOperation['capability']
 ): Promise<void> {
@@ -264,7 +267,7 @@ export async function createProjectFileAuthorizer(
   await requireProjectApiEnabled()
   const userId = await requireFileSubject(principal)
   const invocationScope =
-    principal.kind === 'resource_delegated' && principal.serviceId === 'copilot'
+    isResourceScopedDelegation(principal) && principal.serviceId === 'copilot'
       ? await resolveCopilotProjectScope(principal)
       : undefined
 
@@ -300,7 +303,7 @@ export async function createProjectFileAuthorizer(
     }
     if (access.record.organizationId)
       await acquirePermissionGroupOrgReadLock(tx, access.record.organizationId)
-    if (principal.kind === 'resource_delegated' && principal.serviceId === 'copilot') {
+    if (isResourceScopedDelegation(principal) && principal.serviceId === 'copilot') {
       if (!invocationScope) throw new Error('Copilot Project invocation was not prepared')
       await requireCurrentCopilotProjectInvocation(tx, principal, access, invocationScope)
     }

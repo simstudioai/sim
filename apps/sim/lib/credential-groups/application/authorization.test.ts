@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  WorkflowExecutionDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import {
   credentialGroupsAvailabilityMock,
   credentialGroupsAvailabilityMockFns,
@@ -102,7 +105,7 @@ function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
   }
 }
 
-function copilotPrincipal(subjectUserId: string | null = 'user-1'): DelegatedPrincipal {
+function copilotPrincipal(subjectUserId: string | null = 'user-1'): WorkspaceDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -116,7 +119,10 @@ function copilotPrincipal(subjectUserId: string | null = 'user-1'): DelegatedPri
   }
 }
 
-function requireAccess(principal: DelegatedPrincipal, accessContext = context): Promise<void> {
+function requireAccess(
+  principal: WorkspaceDelegatedPrincipal,
+  accessContext = context
+): Promise<void> {
   return requireCredentialGroupCredentialAccess(
     principal,
     accessContext,

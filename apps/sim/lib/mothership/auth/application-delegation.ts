@@ -1,8 +1,8 @@
 import type {
-  DelegatedPrincipal,
   OrganizationDelegatedPrincipal,
-  ResourceDelegatedPrincipal,
   ResourceDelegationScope,
+  ResourceScopedDelegation,
+  WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
@@ -31,7 +31,7 @@ export interface CopilotExecutionContext {
   copilotResourceAdmission?: CopilotResourceAdmission
 }
 
-type CopilotResourcePrincipal = Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }>
+type CopilotResourcePrincipal = Extract<ResourceScopedDelegation, { serviceId: 'copilot' }>
 
 const RESOURCE_ADMISSION = Symbol('copilot-resource-admission')
 
@@ -160,7 +160,7 @@ export function createCopilotResourceApplicationPrincipal(
     Object.freeze(scope.destination)
   }
   const principal: CopilotResourcePrincipal = Object.freeze({
-    kind: 'resource_delegated',
+    kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: trustedContext.userId,
     delegationId: options.createDelegationId(trustedContext),
@@ -198,7 +198,7 @@ export class InteractiveCopilotExecutionRequiredError extends Error {
 }
 
 export type CopilotResourceScope = Pick<
-  NonNullable<DelegatedPrincipal['resourceScope']>,
+  NonNullable<WorkspaceDelegatedPrincipal['resourceScope']>,
   'fileId' | 'tableId' | 'credentialId' | 'mcpServerId'
 >
 
@@ -237,7 +237,7 @@ export function createCopilotChatPrincipal(
   context: CopilotChatDelegationContext,
   audience: string,
   resourceScope?: CopilotResourceScope
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   return createTrustedCopilotPrincipal(
     { ...context, delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}` },
     { audience, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS, resourceScope }
@@ -293,7 +293,7 @@ export function requireInteractiveCopilotExecutionContext(
 export function createTrustedCopilotPrincipal(
   input: CreateTrustedCopilotPrincipalInput,
   options: CreateTrustedCopilotPrincipalOptions
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   requireNonEmpty(input.userId, 'an authenticated user ID')
   requireNonEmpty(input.workspaceId, 'a workspace ID')
   requireNonEmpty(input.delegationId, 'a delegation ID')
@@ -348,7 +348,7 @@ export function createTrustedCopilotPrincipal(
 export function createCopilotApplicationPrincipal(
   trustedContext: TrustedCopilotExecutionContext,
   options: CreateCopilotApplicationPrincipalOptions
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   const delegationId = options.createDelegationId(trustedContext)
   return createTrustedCopilotPrincipal(
     {

@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  isResourceScopedDelegation,
+  type Principal,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { type WorkspaceFileRow, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
@@ -394,7 +398,7 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
       provenance: mergeWorkspaceFileSecretProvenance(
         snapshot.provenance.get(snapshot.source.id) ?? { status: 'unknown' },
         input.secretProvenance ??
-          (principal.kind === 'resource_delegated'
+          (isResourceScopedDelegation(principal)
             ? { status: 'unknown' }
             : { status: 'exact', entries: [] })
       ),
@@ -462,7 +466,7 @@ export const exportProjectFileSnapshot = defineAuthorizedProjectFileUseCase<
     const secretProvenance = mergeWorkspaceFileSecretProvenance(
       evidence,
       input.secretProvenance ??
-        (principal.kind === 'resource_delegated'
+        (isResourceScopedDelegation(principal)
           ? { status: 'unknown' }
           : { status: 'exact', entries: [] })
     )

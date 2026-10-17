@@ -1,11 +1,12 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { Principal, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { isWorkspaceDelegation } from '@sim/auth/principal'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 /** In-process admission evidence, never serialized into a job, token, checkpoint, or wire field. */
-const ADMITTED = new WeakSet<DelegatedPrincipal>()
+const ADMITTED = new WeakSet<WorkspaceDelegatedPrincipal>()
 
-export function markCopilotWorkspaceInvocation(principal: DelegatedPrincipal): void {
+export function markCopilotWorkspaceInvocation(principal: WorkspaceDelegatedPrincipal): void {
   if (
     principal.serviceId !== 'copilot' ||
     !principal.subjectUserId ||
@@ -19,9 +20,14 @@ export function markCopilotWorkspaceInvocation(principal: DelegatedPrincipal): v
   ADMITTED.add(principal)
 }
 
-export function isCopilotWorkspaceInvocation(principal: DelegatedPrincipal): boolean {
+export function isCopilotWorkspaceInvocation(
+  principal: Principal
+): principal is WorkspaceDelegatedPrincipal {
   return (
-    ADMITTED.has(principal) && principal.serviceId === 'copilot' && principal.expiresAt > new Date()
+    isWorkspaceDelegation(principal) &&
+    ADMITTED.has(principal) &&
+    principal.serviceId === 'copilot' &&
+    principal.expiresAt > new Date()
   )
 }
 
@@ -33,9 +39,9 @@ export type NestedResourceScope = Partial<
 
 /** Adds the nested target to the admitted scope; a key already granted never moves to another resource. */
 function narrowResourceScope(
-  granted: DelegatedPrincipal['resourceScope'],
+  granted: WorkspaceDelegatedPrincipal['resourceScope'],
   target: NestedResourceScope
-): NonNullable<DelegatedPrincipal['resourceScope']> {
+): NonNullable<WorkspaceDelegatedPrincipal['resourceScope']> {
   const scope = { ...granted }
   for (const key of NESTED_RESOURCE_SCOPE_KEYS) {
     const value = target[key]
@@ -65,6 +71,7 @@ export function bindCopilotWorkspaceOperation<P extends Principal>(
 ): P {
   if (principal.kind !== 'delegated' || principal.serviceId !== 'copilot') return principal
   if (
+    !isWorkspaceDelegation(principal) ||
     !isCopilotWorkspaceInvocation(principal) ||
     principal.workspaceId !== workspaceId ||
     !sourceAudiences.includes(principal.audience) ||

@@ -593,7 +593,7 @@ describe('Project archive download and Markdown snapshot export', () => {
       },
     })
     const principal: Principal = {
-      kind: 'resource_delegated',
+      kind: 'delegated',
       serviceId: 'copilot',
       subjectUserId: f.editorId,
       audience: 'sim:project-files',
@@ -638,7 +638,7 @@ describe('Project archive download and Markdown snapshot export', () => {
         input: createInput(f.projectId, 'private bytes'),
       })
       const principal: Principal = {
-        kind: 'resource_delegated',
+        kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: f.editorId,
         audience: 'sim:project-files',

@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
 import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
@@ -78,7 +78,7 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
       },
     })
   }
-  let principal: DelegatedPrincipal
+  let principal: WorkspaceDelegatedPrincipal
   if (context.copilotToolExecution === true) {
     if (!context.userId) throw new Error('Copilot Function execution requires a user')
     principal = {

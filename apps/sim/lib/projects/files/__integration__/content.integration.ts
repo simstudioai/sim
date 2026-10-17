@@ -1598,7 +1598,7 @@ describe('Project Copilot content admission', () => {
           },
         })
         const principal: Principal = {
-          kind: 'resource_delegated',
+          kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: f.editorId,
           audience: 'sim:project-files',

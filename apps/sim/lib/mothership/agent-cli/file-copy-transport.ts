@@ -1,4 +1,4 @@
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceScopedDelegation } from '@sim/auth/principal'
 import { NextRequest } from 'next/server'
 import { fileCopyInputSchema } from '@/lib/api/contracts/file-copy-input'
 import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
@@ -25,7 +25,7 @@ function markCopilotFileCopyRequest(
   request: Request,
   context: CopilotExecutionContext,
   target: CopyFileItemsInput
-): ResourceDelegatedPrincipal {
+): ResourceScopedDelegation {
   const principal = createCopilotResourceApplicationPrincipal(
     requireTrustedCopilotResourceExecutionContext(context),
     {

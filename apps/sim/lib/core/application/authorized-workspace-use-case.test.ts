@@ -1,7 +1,7 @@
 import type {
-  DelegatedPrincipal,
   SessionPrincipal,
   WorkspaceApiKeyPrincipal,
+  WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
@@ -317,15 +317,15 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
 
   it('resolves domain-specific delegation options against canonical context', async () => {
     const scopeCheck = vi.fn(
-      (principal: DelegatedPrincipal, context: TestContext) =>
+      (principal: WorkspaceDelegatedPrincipal, context: TestContext) =>
         principal.resourceScope?.fileId === context.canonicalResourceId
     )
     const useCase = defineAuthorizedWorkspaceUseCase({
       operation: delegatedOperation,
-      resolveContext: async (_args: { principal: DelegatedPrincipal; input: TestInput }) =>
+      resolveContext: async (_args: { principal: WorkspaceDelegatedPrincipal; input: TestInput }) =>
         canonicalContext,
       authorizationOptions: ({ principal }) => {
-        expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal).toMatchTypeOf<WorkspaceDelegatedPrincipal>()
         expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
         return {
           delegation: {
@@ -335,12 +335,12 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
         }
       },
       async execute({ principal }) {
-        expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal).toMatchTypeOf<WorkspaceDelegatedPrincipal>()
         expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
         return { ok: true as const }
       },
     })
-    const principal: DelegatedPrincipal = {
+    const principal: WorkspaceDelegatedPrincipal = {
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
@@ -367,7 +367,8 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
 
   it('rejects a disallowed delegated service before canonical loading', async () => {
     const resolveContext = vi.fn(
-      async (_args: { principal: DelegatedPrincipal; input: TestInput }) => canonicalContext
+      async (_args: { principal: WorkspaceDelegatedPrincipal; input: TestInput }) =>
+        canonicalContext
     )
     const useCase = defineAuthorizedWorkspaceUseCase({
       operation: delegatedOperation,

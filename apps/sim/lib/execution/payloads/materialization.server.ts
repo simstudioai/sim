@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { isWorkspaceDelegation } from '@sim/auth/principal'
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -287,21 +288,20 @@ export async function assertUserFileContentAccess(
   }
 
   if (context === 'workspace' && options.principal && options.workspaceId) {
-    const principal =
-      options.principal.kind === 'delegated'
-        ? rebindWorkspaceFileDelegatedPrincipal({
-            principal: options.principal,
-            workspaceId: options.workspaceId,
-            delegationId: `execution-file-read:${options.requestId ?? 'unknown'}`,
-            ...(options.principal.resourceScope?.fileId
-              ? { fileId: options.principal.resourceScope.fileId }
-              : {}),
-            ...(options.principal.resourceScope?.chatId
-              ? { chatId: options.principal.resourceScope.chatId }
-              : {}),
-            ...(options.executionId ? { executionId: options.executionId } : {}),
-          })
-        : options.principal
+    const principal = isWorkspaceDelegation(options.principal)
+      ? rebindWorkspaceFileDelegatedPrincipal({
+          principal: options.principal,
+          workspaceId: options.workspaceId,
+          delegationId: `execution-file-read:${options.requestId ?? 'unknown'}`,
+          ...(options.principal.resourceScope?.fileId
+            ? { fileId: options.principal.resourceScope.fileId }
+            : {}),
+          ...(options.principal.resourceScope?.chatId
+            ? { chatId: options.principal.resourceScope.chatId }
+            : {}),
+          ...(options.executionId ? { executionId: options.executionId } : {}),
+        })
+      : options.principal
     try {
       await readStoredWorkspaceFileRecordByKey.execute({
         principal,

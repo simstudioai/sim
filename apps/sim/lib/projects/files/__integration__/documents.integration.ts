@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceScopedDelegation } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   member,
@@ -137,8 +137,8 @@ async function fixture(permissionType: 'read' | 'write' = 'write') {
     },
   })
   const target = { projectId: ids.projectId, fileId: created.file.id }
-  const principal: ResourceDelegatedPrincipal = {
-    kind: 'resource_delegated',
+  const principal: ResourceScopedDelegation = {
+    kind: 'delegated',
     serviceId: 'realtime',
     subjectUserId: editorId,
     audience: 'sim:project-files',
@@ -375,7 +375,7 @@ describe('Project collaborative documents against current policy and durable sto
         },
       })
       const target = { projectId: f.projectId, fileId: created.file.id }
-      const principal: ResourceDelegatedPrincipal = {
+      const principal: ResourceScopedDelegation = {
         ...f.principal,
         scope: {
           kind: 'entity',

@@ -1,11 +1,13 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import {
   KNOWLEDGE_DELEGATION_AUDIENCE,
   knowledgeDelegationPolicy,
 } from '@/lib/knowledge/application/authorization'
 
-function createKnowledgePrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
+function createKnowledgePrincipal(
+  overrides: Partial<WorkspaceDelegatedPrincipal> = {}
+): WorkspaceDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -49,7 +51,7 @@ describe('knowledge delegation policy', () => {
   })
 
   it('accepts a correctly scoped executor delegation for executor-enabled operations', () => {
-    const principal: DelegatedPrincipal = {
+    const principal: WorkspaceDelegatedPrincipal = {
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',

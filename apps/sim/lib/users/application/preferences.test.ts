@@ -1,4 +1,4 @@
-import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceSubjectDelegation } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { mothershipAgentUrlMock } from '@sim/testing/mocks/mothership-agent-url.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,7 @@ import {
   updateCurrentUserPreferences,
 } from '@/lib/users/application/preferences'
 
-const delegated: SubjectDelegatedPrincipal = {
+const delegated: WorkspaceSubjectDelegation = {
   kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'actor',

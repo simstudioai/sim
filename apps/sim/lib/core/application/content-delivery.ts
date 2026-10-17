@@ -158,9 +158,7 @@ class ContentDeliveryUndeclaredError extends Error {
 /** Chat's own workspace, organization, and resource delegations. */
 export function isCopilotPrincipal(principal: Principal): boolean {
   return (
-    (principal.kind === 'delegated' ||
-      principal.kind === 'organization_delegated' ||
-      principal.kind === 'resource_delegated') &&
+    (principal.kind === 'delegated' || principal.kind === 'organization_delegated') &&
     principal.serviceId === 'copilot'
   )
 }

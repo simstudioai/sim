@@ -1,4 +1,4 @@
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceScopedDelegation } from '@sim/auth/principal'
 import { FILE_DOC_INTERNAL_HEADERS } from '@sim/realtime-protocol/file-doc'
 import { generateId } from '@sim/utils/id'
 import {
@@ -9,7 +9,7 @@ import { checkInternalApiKey } from '@/lib/mothership/request/http'
 import { PROJECT_FILE_DELEGATION_TTL_MS } from '@/lib/projects/files/application/operations'
 
 /** The relay attests the socket actor and connection, bounded to observing one Project collection. */
-export const realtimeProjectFileListAuth: InternalAuthPolicy<ResourceDelegatedPrincipal> = {
+export const realtimeProjectFileListAuth: InternalAuthPolicy<ResourceScopedDelegation> = {
   async authenticate(request, params) {
     if (!checkInternalApiKey(request).success) throw new InternalUnauthenticatedError()
     const subjectUserId = request.headers.get(FILE_DOC_INTERNAL_HEADERS.userId)
@@ -25,7 +25,7 @@ export const realtimeProjectFileListAuth: InternalAuthPolicy<ResourceDelegatedPr
     }
     const now = Date.now()
     return {
-      kind: 'resource_delegated',
+      kind: 'delegated',
       serviceId: 'realtime',
       subjectUserId,
       invocation: { kind: 'realtime', connectionId },

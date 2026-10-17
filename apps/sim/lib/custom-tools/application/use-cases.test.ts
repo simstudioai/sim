@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
@@ -120,7 +120,9 @@ describe('custom tool application use cases', () => {
   })
 
   describe('delegated custom-tool resolution', () => {
-    function executorPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
+    function executorPrincipal(
+      overrides: Partial<WorkspaceDelegatedPrincipal> = {}
+    ): WorkspaceDelegatedPrincipal {
       return {
         kind: 'delegated' as const,
         serviceId: 'executor' as const,

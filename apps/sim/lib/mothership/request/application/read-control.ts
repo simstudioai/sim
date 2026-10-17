@@ -1,7 +1,7 @@
 import type {
-  DelegatedPrincipal,
   OrganizationDelegatedPrincipal,
   Principal,
+  WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
 import {
   type AuthorizingUseCase,
@@ -47,7 +47,7 @@ const readLiveRunControl = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
     input: RunControlRequest
   }) => resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: {

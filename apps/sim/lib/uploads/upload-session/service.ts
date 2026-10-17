@@ -1,5 +1,6 @@
 import {
   type BoundWorkflowExecutionDelegatedPrincipal,
+  isResourceScopedDelegation,
   isUserCredentialPrincipal,
   type Principal,
   requirePrincipalSubjectUserId,
@@ -369,7 +370,7 @@ export async function createUploadSession(
     metadata[PROJECT_FILE_UPLOAD_PROVENANCE_KEY] = bindProjectFileUploadProvenance(
       params.projectId,
       params.secretProvenance ??
-        (params.principal.kind === 'resource_delegated'
+        (isResourceScopedDelegation(params.principal)
           ? { status: 'unknown' }
           : { status: 'exact', entries: [] })
     )
@@ -627,11 +628,6 @@ export function createUploadSessionAuthBinding(
   options: { executorDelegationAudience?: string; copilotDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
-    case 'resource_delegated':
-      throw new UploadSessionError(
-        'forbidden',
-        'Resource delegation cannot create workspace uploads'
-      )
     case 'slack_app':
     case 'slack_installation':
       throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
@@ -667,6 +663,11 @@ export function createUploadSessionAuthBinding(
         principal: { kind: principal.kind, workspaceId, keyId: principal.keyId },
       }
     case 'delegated': {
+      if (isResourceScopedDelegation(principal))
+        throw new UploadSessionError(
+          'forbidden',
+          'Resource delegation cannot create workspace uploads'
+        )
       if (principal.serviceId === 'copilot') {
         if (
           principal.workspaceId !== workspaceId ||

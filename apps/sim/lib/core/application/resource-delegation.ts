@@ -1,15 +1,16 @@
 import type {
   Principal,
-  ResourceDelegatedPrincipal,
   ResourceDelegationScope,
   ResourceFileCopyScope,
+  ResourceScopedDelegation,
 } from '@sim/auth/principal'
+import { isResourceScopedDelegation } from '@sim/auth/principal'
 import { isRecordLike } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface ResourceDelegationPolicy {
   audience: string
-  services: readonly ResourceDelegatedPrincipal['serviceId'][]
+  services: readonly ResourceScopedDelegation['serviceId'][]
   scope: ResourceDelegationScope
   maxTtlMs: number
 }
@@ -83,7 +84,7 @@ function isValidScope(scope: unknown): scope is ResourceDelegationScope {
   )
 }
 
-function isValidInvocation(principal: ResourceDelegatedPrincipal): boolean {
+function isValidInvocation(principal: ResourceScopedDelegation): boolean {
   const invocation = principal.invocation
   if (!isRecordLike(invocation) || Object.keys(invocation).length !== 2) return false
   if (principal.serviceId === 'copilot') {
@@ -157,7 +158,9 @@ export function requireResourceDelegation(
 
   const now = Date.now()
   if (
-    principal.kind !== 'resource_delegated' ||
+    !isResourceScopedDelegation(principal) ||
+    principal.workspaceId !== undefined ||
+    principal.resourceScope !== undefined ||
     !policy.services.includes(principal.serviceId) ||
     principal.audience !== policy.audience ||
     !isIdentity(principal.subjectUserId) ||

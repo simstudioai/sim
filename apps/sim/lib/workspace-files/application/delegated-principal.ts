@@ -1,10 +1,10 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 const WORKSPACE_FILE_DELEGATION_TTL_MS = 5 * 60 * 1000
 
 export interface WorkspaceFileDelegationInput {
-  serviceId: DelegatedPrincipal['serviceId']
+  serviceId: WorkspaceDelegatedPrincipal['serviceId']
   subjectUserId: string
   workspaceId: string
   delegationId: string
@@ -16,7 +16,7 @@ export interface WorkspaceFileDelegationInput {
 /** Binds a trusted service execution to the shared workspace-file principal shape. */
 export function createWorkspaceFileDelegatedPrincipal(
   input: WorkspaceFileDelegationInput
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   if (!input.subjectUserId || !input.workspaceId || !input.delegationId) {
     throw new Error('Workspace file delegation requires subject, workspace, and delegation IDs')
   }
@@ -39,7 +39,7 @@ export function createWorkspaceFileDelegatedPrincipal(
 }
 
 export interface RebindWorkspaceFileDelegationInput {
-  principal: DelegatedPrincipal
+  principal: WorkspaceDelegatedPrincipal
   workspaceId: string
   delegationId: string
   fileId?: string
@@ -50,7 +50,7 @@ export interface RebindWorkspaceFileDelegationInput {
 /** Rebinds an already-authorized service principal without changing its workflow actor. */
 export function rebindWorkspaceFileDelegatedPrincipal(
   input: RebindWorkspaceFileDelegationInput
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   if (input.principal.workspaceId !== input.workspaceId || !input.delegationId) {
     throw new Error('Workspace file delegation does not match its authorized workspace')
   }

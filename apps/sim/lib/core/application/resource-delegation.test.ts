@@ -7,11 +7,12 @@ import {
 } from '@sim/auth/principal'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
+import { requireAllowedWorkspacePrincipal } from '@/lib/core/application/workspace-authorization'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
 const NOW = new Date('2026-10-03T12:00:00Z')
 const principal = {
-  kind: 'resource_delegated',
+  kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'acting-user',
   delegationId: 'tool-call',
@@ -213,21 +214,22 @@ describe('resource delegation authorization', () => {
   })
 
   it('cannot be admitted to workspace operations or persisted as workflow authority', () => {
-    expect(() =>
-      defineWorkspaceOperation({
-        id: 'files.read',
-        minimumRole: 'read',
-        workspaceApiKey: 'deny',
-        principalKinds: ['resource_delegated'],
-        capability: 'none',
-      })
-    ).toThrow('cannot accept resource delegation')
+    const operation = defineWorkspaceOperation({
+      id: 'files.read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      principalKinds: ['delegated'],
+      delegatedServices: ['copilot'],
+      contentDelivery: 'none',
+      capability: 'none',
+    })
+    expect(() => requireAllowedWorkspacePrincipal(principal, operation)).toThrow(
+      'cannot perform operation'
+    )
     expect(() => serializePrincipal(principal as never)).toThrow(
       'Principal cannot be persisted for workflow execution'
     )
-    expect(() => parsePrincipal({ version: 1, principal })).toThrow(
-      'Resource delegation cannot be persisted for workflow execution'
-    )
+    expect(() => parsePrincipal({ version: 1, principal })).toThrow()
   })
 
   it('binds copy to both owners, the exact requested selection, and one destination folder', () => {

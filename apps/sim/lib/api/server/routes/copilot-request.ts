@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal, ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceScopedDelegation, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { noteContentDeliveryOperation } from '@/lib/core/application'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application/operation'
@@ -15,7 +15,7 @@ import {
 type CopilotResourceRequestGrant = (
   operation: ApplicationOperation,
   audience: string
-) => ResourceDelegatedPrincipal | undefined
+) => ResourceScopedDelegation | undefined
 
 type CopilotRequestInvocation =
   | { kind: 'resource'; grant: CopilotResourceRequestGrant }
@@ -71,7 +71,7 @@ export function copilotRequestPrincipal(
   request: Request,
   operation: ApplicationOperation,
   useCase?: CopilotRouteUseCase
-): DelegatedPrincipal | ResourceDelegatedPrincipal | undefined {
+): WorkspaceDelegatedPrincipal | ResourceScopedDelegation | undefined {
   const invocation = INVOCATIONS.get(request)
   if (!invocation) return undefined
   const audience = copilotRouteAudience(operation, useCase)

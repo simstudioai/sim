@@ -48,7 +48,7 @@ describe('private v2 Project file authority', () => {
     )
     if (!principal) throw new Error('The admitted Project file request lost its principal')
     expect(principal).toMatchObject({
-      kind: 'resource_delegated',
+      kind: 'delegated',
       subjectUserId: 'actor',
       invocation: { kind: 'chat', chatId: 'private-chat' },
       scope: { kind: 'entity', entityType: 'project', entityId: 'project', fileId: 'file' },

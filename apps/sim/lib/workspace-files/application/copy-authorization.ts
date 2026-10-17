@@ -1,4 +1,9 @@
-import type { Principal, ResourceFileCopyScope } from '@sim/auth/principal'
+import type {
+  Principal,
+  ResourceFileCopyScope,
+  ResourceScopedDelegation,
+} from '@sim/auth/principal'
+import { isResourceScopedDelegation } from '@sim/auth/principal'
 import { workspace } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
@@ -44,7 +49,7 @@ export type CopyFileItemsInput = Omit<ResourceFileCopyScope, 'kind'>
 
 type CopyPrincipal =
   | Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
-  | Extract<Principal, { kind: 'resource_delegated'; serviceId: 'copilot' }>
+  | Extract<ResourceScopedDelegation, { serviceId: 'copilot' }>
 
 type ProjectAccess = Awaited<ReturnType<typeof loadProjectAccess>>
 
@@ -91,7 +96,7 @@ const COPY_OWNER_POLICIES: FileOwnerAdapters<CopyOwnerPolicy> = {
       allowPersonalApiKeys: row.allowPersonalApiKeys,
     }
     // Project access already holds membership and permission SHARE locks; upgrading can deadlock other Projects.
-    if (principal.kind === 'resource_delegated') {
+    if (isResourceScopedDelegation(principal)) {
       await requireCurrentHumanRole(userId, context, mode, { executor: tx })
       // permission-group-enforced: files.use — copy delegation retains the subject's workspace file policy.
       await assertWorkspaceCapability(
@@ -125,6 +130,8 @@ function requireCopyPrincipal(
   if (!fileCopyOperation.principalKinds.some((kind) => kind === principal.kind)) {
     throw new PrincipalKindAuthorizationError(principal.kind, fileCopyOperation.id)
   }
+  if (principal.kind === 'delegated' && !isResourceScopedDelegation(principal))
+    throw new PrincipalKindAuthorizationError(principal.kind, fileCopyOperation.id)
   const scope = { kind: 'file_copy', ...input }
   if (!isResourceFileCopyScope(scope)) {
     throw new OrchestrationError(
@@ -133,7 +140,7 @@ function requireCopyPrincipal(
     )
   }
   requireOAuthOperationScope(principal, fileCopyOperation)
-  if (principal.kind === 'resource_delegated') {
+  if (isResourceScopedDelegation(principal)) {
     requireResourceDelegation(principal, {
       audience: fileCopyOperation.delegationAudience,
       services: fileCopyOperation.delegatedServices,
@@ -152,10 +159,9 @@ export async function createFileCopyAuthorizer(
   await requireProjectApiEnabled()
   // actorless-unsupported: files.copy rejects executors and workspace keys; both owner policies require the acting human.
   const userId = await requireFileSubject(principal)
-  const invocationScope =
-    principal.kind === 'resource_delegated'
-      ? await resolveCopilotProjectScope(principal)
-      : undefined
+  const invocationScope = isResourceScopedDelegation(principal)
+    ? await resolveCopilotProjectScope(principal)
+    : undefined
 
   return async (tx) => {
     requireCopyPrincipal(principal, input)
@@ -221,7 +227,7 @@ export async function createFileCopyAuthorizer(
     for (const organizationId of organizationIds)
       await acquirePermissionGroupOrgLock(tx, organizationId)
     await requireCurrentFileSubject(tx, principal)
-    if (principal.kind === 'resource_delegated') {
+    if (isResourceScopedDelegation(principal)) {
       if (!invocationScope) throw new Error('Copilot copy invocation was not prepared')
       for (const access of projects.values()) {
         await requireCurrentCopilotProjectInvocation(tx, principal, access, invocationScope)

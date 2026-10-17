@@ -1,4 +1,4 @@
-import type { ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { ResourceScopedDelegation } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -11,7 +11,7 @@ import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-as
 
 /** Project access stays inside the current, server-resolved conversation owner. */
 export async function resolveCopilotProjectScope(
-  principal: ResourceDelegatedPrincipal,
+  principal: ResourceScopedDelegation,
   assertedOrganizationId?: string
 ): Promise<{ organizationId: string | null; workspaceId?: string }> {
   if (principal.serviceId !== 'copilot')
