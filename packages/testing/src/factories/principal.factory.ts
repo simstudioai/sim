@@ -63,7 +63,16 @@ export function createDelegatedPrincipal(
   > &
     Pick<Partial<WorkflowExecutionDelegatedPrincipal>, 'workspaceId' | 'resourceScope'> = {}
 ): WorkspaceSubjectDelegation {
-  const { workspaceId = 'workspace-1', resourceScope, ...rest } = overrides
+  const { workspaceId = 'workspace-1', resourceScope, grant: grantOverride, ...rest } = overrides
+  const grant = grantOverride ?? {
+    kind: 'entity' as const,
+    owner: { entityType: 'workspace' as const, entityId: workspaceId },
+    ...(resourceScope ? { restrictions: resourceScope } : {}),
+  }
+  const boundWorkspaceId =
+    grant.kind === 'entity' && grant.owner.entityType === 'workspace'
+      ? grant.owner.entityId
+      : workspaceId
   return {
     kind: 'delegated',
     serviceId: 'copilot',
@@ -72,12 +81,8 @@ export function createDelegatedPrincipal(
     audience: 'sim:test',
     issuedAt: new Date(TEST_PRINCIPAL_ISSUED_AT),
     expiresAt: new Date(TEST_PRINCIPAL_EXPIRES_AT),
-    invocation: { kind: 'workspace', workspaceId },
-    grant: {
-      kind: 'entity',
-      owner: { entityType: 'workspace', entityId: workspaceId },
-      ...(resourceScope ? { restrictions: resourceScope } : {}),
-    },
+    invocation: { kind: 'workspace', workspaceId: boundWorkspaceId },
+    grant,
     ...rest,
   }
 }

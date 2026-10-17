@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+
 export type Principal =
   | SessionPrincipal
   | PersonalApiKeyPrincipal
@@ -202,7 +204,7 @@ export type WorkspaceDelegatedPrincipal =
 
 export type DelegatedPrincipal = SubjectDelegatedPrincipal | WorkflowExecutionDelegatedPrincipal
 
-export type ResourceEntityType = 'workspace' | 'project' | 'organization' | 'user'
+type ResourceEntityType = 'workspace' | 'project' | 'organization' | 'user'
 
 /** Canonical owner identity shared by resource targets and authority restrictions. */
 export interface EntityOwner<T extends ResourceEntityType = ResourceEntityType> {
@@ -268,6 +270,132 @@ export type ResourceOperationPrincipal = SubjectDelegatedPrincipal & {
   grant: ResourceDelegationScope
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return isRecordLike(value)
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
+function isIdentity(value: unknown): value is string {
+  return isNonEmptyString(value) && value === value.trim()
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key))
+}
+
+function isResourceOwner(
+  value: unknown,
+  entityTypes: readonly string[]
+): value is { entityType: string; entityId: string } {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === 2 &&
+    hasOnlyKeys(value, ['entityType', 'entityId']) &&
+    entityTypes.includes(String(value.entityType)) &&
+    isIdentity(value.entityId)
+  )
+}
+
+function isSelectionIds(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length <= 1_000 &&
+    value.every(isIdentity) &&
+    new Set(value).size === value.length
+  )
+}
+
+/** Validates the paired scope shared by delegation admission and the copy application boundary. */
+export function isResourceFileCopyScope(scope: unknown): scope is ResourceFileCopyScope {
+  if (!isRecord(scope) || scope.kind !== 'file_copy') return false
+  const { source, destination } = scope
+  return (
+    Object.keys(scope).length === 3 &&
+    hasOnlyKeys(scope, ['kind', 'source', 'destination']) &&
+    isRecord(source) &&
+    Object.keys(source).length === 3 &&
+    hasOnlyKeys(source, ['owner', 'fileIds', 'folderIds']) &&
+    isResourceOwner(source.owner, ['workspace', 'project']) &&
+    isSelectionIds(source.fileIds) &&
+    isSelectionIds(source.folderIds) &&
+    source.fileIds.length + source.folderIds.length > 0 &&
+    isRecord(destination) &&
+    Object.keys(destination).length === 2 &&
+    hasOnlyKeys(destination, ['owner', 'folderId']) &&
+    isResourceOwner(destination.owner, ['workspace', 'project']) &&
+    (destination.folderId === null || isIdentity(destination.folderId))
+  )
+}
+
+/** Structural resource-delegation scope. Resource admission still rejects a workspace-owned entity grant. */
+export function isResourceDelegationScope(scope: unknown): scope is ResourceDelegationScope {
+  if (!isRecord(scope)) return false
+  if (scope.kind === 'project_discovery') return Object.keys(scope).length === 1
+  if (scope.kind === 'file_copy') return isResourceFileCopyScope(scope)
+  if (!isResourceOwner(scope.owner, ['workspace', 'project', 'organization', 'user'])) return false
+  if (scope.kind === 'file_collection_observation') {
+    return (
+      scope.owner.entityType === 'project' &&
+      Object.keys(scope).length === 2 &&
+      hasOnlyKeys(scope, ['kind', 'owner'])
+    )
+  }
+  return (
+    scope.kind === 'entity' &&
+    (scope.fileId === undefined || isIdentity(scope.fileId)) &&
+    hasOnlyKeys(scope, ['kind', 'owner', 'fileId'])
+  )
+}
+
+/**
+ * Any entity grant whose owner is a workspace, including shapes with extra keys.
+ * Those are neither workspace delegation nor resource grants.
+ */
+function isWorkspaceOwnedEntityGrant(grant: unknown): boolean {
+  return (
+    isRecord(grant) &&
+    grant.kind === 'entity' &&
+    isRecord(grant.owner) &&
+    grant.owner.entityType === 'workspace'
+  )
+}
+
+function isWorkspaceDelegationGrant(grant: unknown): grant is WorkspaceDelegationGrant {
+  if (
+    !isRecord(grant) ||
+    grant.kind !== 'entity' ||
+    !hasOnlyKeys(grant, ['kind', 'owner', 'restrictions'])
+  )
+    return false
+  if (!isResourceOwner(grant.owner, ['workspace'])) return false
+  return grant.restrictions === undefined || isRecord(grant.restrictions)
+}
+
+function workspaceInvocationAgrees(
+  principal: SubjectDelegatedPrincipal,
+  grant: WorkspaceDelegationGrant
+): boolean {
+  const invocation = principal.invocation
+  if (!isRecord(invocation)) return false
+  if (invocation.kind === 'workspace') {
+    return (
+      hasOnlyKeys(invocation, ['kind', 'workspaceId']) &&
+      invocation.workspaceId === grant.owner.entityId
+    )
+  }
+  if (invocation.kind !== 'chat' || principal.serviceId !== 'copilot') return false
+  const chatId = grant.restrictions?.chatId
+  return (
+    hasOnlyKeys(invocation, ['kind', 'chatId']) &&
+    isIdentity(invocation.chatId) &&
+    isIdentity(chatId) &&
+    invocation.chatId === chatId
+  )
+}
+
 /** Narrows grants handled by resource operations; domain authorization validates their contents. */
 export function hasResourceOperationGrant(
   principal: Principal
@@ -275,8 +403,8 @@ export function hasResourceOperationGrant(
   return (
     principal.kind === 'delegated' &&
     principal.serviceId !== 'executor' &&
-    (principal.grant?.kind !== 'entity' || principal.grant.owner?.entityType !== 'workspace') &&
-    principal.grant !== undefined
+    !isWorkspaceOwnedEntityGrant(principal.grant) &&
+    isResourceDelegationScope(principal.grant)
   )
 }
 
@@ -291,15 +419,9 @@ export function isWorkspaceDelegation(
       typeof principal.workspaceId === 'string' &&
       principal.workspaceId.length > 0
     )
-  return (
-    !('workspaceId' in principal) &&
-    !('resourceScope' in principal) &&
-    principal.grant?.kind === 'entity' &&
-    Object.keys(principal.grant).every((key) => ['kind', 'owner', 'restrictions'].includes(key)) &&
-    principal.grant.owner?.entityType === 'workspace' &&
-    typeof principal.grant.owner.entityId === 'string' &&
-    principal.grant.owner.entityId.length > 0
-  )
+  if ('workspaceId' in principal || 'resourceScope' in principal) return false
+  if (!isWorkspaceDelegationGrant(principal.grant)) return false
+  return workspaceInvocationAgrees(principal, principal.grant)
 }
 
 /** Reads the principal's authority-bound workspace, never UI selection. */
@@ -308,10 +430,9 @@ export function principalWorkspaceId(
 ): string
 export function principalWorkspaceId(principal: Principal): string | undefined
 export function principalWorkspaceId(principal: Principal): string | undefined {
-  if (principal.kind === 'delegated' && principal.serviceId !== 'executor')
-    return principal.grant.kind === 'entity' && principal.grant.owner?.entityType === 'workspace'
-      ? principal.grant.owner.entityId
-      : undefined
+  if (isWorkspaceDelegation(principal) && principal.serviceId !== 'executor')
+    return principal.grant.owner.entityId
+  if (principal.kind === 'delegated' && principal.serviceId !== 'executor') return undefined
   return 'workspaceId' in principal ? principal.workspaceId : undefined
 }
 

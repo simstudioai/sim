@@ -1,5 +1,9 @@
 import type { ApplicationOperation } from '@/lib/core/application/operation'
-import { assertOperationCapability, defineOperation } from '@/lib/core/application/operation'
+import {
+  assertContentDeliveryDeclaration,
+  assertOperationCapability,
+  defineOperation,
+} from '@/lib/core/application/operation'
 
 export interface ProjectOperation extends ApplicationOperation {
   readonly principalKinds: readonly ('session' | 'delegated')[]
@@ -22,6 +26,7 @@ function defineProjectOperation<const O extends ProjectOperation>(
       !operation.delegationAudience)
   )
     throw new Error('Resource delegation is available only for bounded Project discovery')
+  assertContentDeliveryDeclaration(operation, operation.delegatedServices ?? [])
   Object.freeze(operation.principalKinds)
   if (operation.delegatedServices) Object.freeze(operation.delegatedServices)
   return Object.freeze({ ...operation, delegationScope: 'resource' as const })
@@ -39,6 +44,7 @@ export const projectOperations = {
     principalKinds: ['session', 'delegated'],
     access: 'read',
     capability: 'none',
+    contentDelivery: 'none',
     delegationAudience: 'sim:projects:discovery',
     delegatedServices: ['copilot'],
   }),

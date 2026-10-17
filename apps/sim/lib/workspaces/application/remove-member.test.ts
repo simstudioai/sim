@@ -191,7 +191,17 @@ describe('workspace member removal', () => {
   )
 
   it('rejects wrong-workspace and expired delegation before removing access', async () => {
-    await expect(remove('target', { ...delegated, workspaceId: 'foreign' })).rejects.toThrow()
+    await expect(
+      remove(
+        'target',
+        createDelegatedPrincipal({
+          subjectUserId: 'actor',
+          workspaceId: 'foreign',
+          delegationId: 'call',
+          audience: 'sim:settings',
+        })
+      )
+    ).rejects.toThrow()
     await expect(remove('target', { ...delegated, expiresAt: new Date(0) })).rejects.toThrow()
     expect(mocks.revoke).not.toHaveBeenCalled()
   })

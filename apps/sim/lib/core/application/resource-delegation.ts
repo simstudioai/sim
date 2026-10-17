@@ -1,10 +1,9 @@
 import type {
   Principal,
   ResourceDelegationScope,
-  ResourceFileCopyScope,
   ResourceOperationPrincipal,
 } from '@sim/auth/principal'
-import { hasResourceOperationGrant } from '@sim/auth/principal'
+import { hasResourceOperationGrant, isResourceDelegationScope } from '@sim/auth/principal'
 import { isRecordLike } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -17,73 +16,6 @@ export interface ResourceDelegationPolicy {
 
 function isIdentity(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value === value.trim()
-}
-
-function isCopyOwner(value: unknown): boolean {
-  return (
-    isRecordLike(value) &&
-    (value.entityType === 'workspace' || value.entityType === 'project') &&
-    isIdentity(value.entityId) &&
-    Object.keys(value).length === 2 &&
-    Object.keys(value).every((key) => key === 'entityType' || key === 'entityId')
-  )
-}
-
-function isSelectionIds(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) &&
-    value.length <= 1_000 &&
-    Array.from(value).every(isIdentity) &&
-    new Set(value).size === value.length
-  )
-}
-
-/** Validates the paired scope shared by delegation admission and the copy application boundary. */
-export function isResourceFileCopyScope(scope: unknown): scope is ResourceFileCopyScope {
-  if (!isRecordLike(scope) || scope.kind !== 'file_copy') return false
-  const { source, destination } = scope
-  return (
-    Object.keys(scope).length === 3 &&
-    Object.keys(scope).every((key) => ['kind', 'source', 'destination'].includes(key)) &&
-    isRecordLike(source) &&
-    Object.keys(source).length === 3 &&
-    Object.keys(source).every((key) => ['owner', 'fileIds', 'folderIds'].includes(key)) &&
-    isCopyOwner(source.owner) &&
-    isSelectionIds(source.fileIds) &&
-    isSelectionIds(source.folderIds) &&
-    source.fileIds.length + source.folderIds.length > 0 &&
-    isRecordLike(destination) &&
-    Object.keys(destination).length === 2 &&
-    Object.keys(destination).every((key) => key === 'owner' || key === 'folderId') &&
-    isCopyOwner(destination.owner) &&
-    (destination.folderId === null || isIdentity(destination.folderId))
-  )
-}
-
-function isValidScope(scope: unknown): scope is ResourceDelegationScope {
-  if (!isRecordLike(scope)) return false
-  if (scope.kind === 'project_discovery') return Object.keys(scope).length === 1
-  if (scope.kind === 'file_copy') return isResourceFileCopyScope(scope)
-  if (
-    !isRecordLike(scope.owner) ||
-    Object.keys(scope.owner).length !== 2 ||
-    !Object.keys(scope.owner).every((key) => key === 'entityType' || key === 'entityId') ||
-    !isIdentity(scope.owner.entityId)
-  )
-    return false
-  if (scope.kind === 'file_collection_observation') {
-    return (
-      scope.owner.entityType === 'project' &&
-      Object.keys(scope).length === 2 &&
-      Object.keys(scope).every((key) => key === 'kind' || key === 'owner')
-    )
-  }
-  return (
-    scope.kind === 'entity' &&
-    ['workspace', 'project', 'organization', 'user'].includes(String(scope.owner.entityType)) &&
-    (scope.fileId === undefined || isIdentity(scope.fileId)) &&
-    Object.keys(scope).every((key) => ['kind', 'owner', 'fileId'].includes(key))
-  )
 }
 
 function isValidInvocation(principal: ResourceOperationPrincipal): boolean {
@@ -153,7 +85,7 @@ export function requireResourceDelegation(
     policy.maxTtlMs <= 0 ||
     policy.services.length === 0 ||
     !policy.services.every((service) => service === 'copilot' || service === 'realtime') ||
-    !isValidScope(policy.scope)
+    !isResourceDelegationScope(policy.scope)
   ) {
     throw new Error('Resource delegation requires a bounded operation policy')
   }
@@ -174,7 +106,7 @@ export function requireResourceDelegation(
     principal.issuedAt.getTime() > now ||
     principal.expiresAt.getTime() <= now ||
     principal.expiresAt.getTime() - principal.issuedAt.getTime() > policy.maxTtlMs ||
-    !isValidScope(principal.grant) ||
+    !isResourceDelegationScope(principal.grant) ||
     !isValidInvocation(principal) ||
     !matchesScope(principal.grant, policy.scope)
   ) {

@@ -163,8 +163,12 @@ describe('native fork commands through private Copilot transport', () => {
         if (!principal) throw new Error('Native command lost private admission')
         expect(principal).toMatchObject({
           subjectUserId: 'actor',
-          workspaceId,
-          resourceScope: { chatId: 'chat' },
+          invocation: { kind: 'chat', chatId: 'chat' },
+          grant: {
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: workspaceId },
+            restrictions: expect.objectContaining({ chatId: 'chat' }),
+          },
         })
         const result = await useCase.execute({
           principal,

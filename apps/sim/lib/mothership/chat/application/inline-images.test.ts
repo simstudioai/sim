@@ -185,7 +185,13 @@ describe('private chat image application boundary', () => {
       const invalid = {
         ...delegated,
         ...(kind === 'wrong-chat'
-          ? { resourceScope: { chatId: 'other' } }
+          ? {
+              invocation: { kind: 'chat' as const, chatId: 'other' },
+              grant: {
+                ...delegated.grant,
+                restrictions: { ...delegated.grant.restrictions, chatId: 'other' },
+              },
+            }
           : kind === 'wrong-audience'
             ? { audience: 'other' }
             : { expiresAt: new Date(0) }),
@@ -207,7 +213,10 @@ describe('private chat image application boundary', () => {
       kind: 'delegated',
       serviceId: 'copilot',
       audience: 'sim:workspace-files',
-      resourceScope: { chatId: 'chat' },
+      invocation: { kind: 'chat', chatId: 'chat' },
+      grant: expect.objectContaining({
+        restrictions: expect.objectContaining({ chatId: 'chat' }),
+      }),
     })
   })
   it('refuses to stream an image whose source holds a recorded secret', async () => {
@@ -339,7 +348,11 @@ describe('organization inline images', () => {
     )
     expect(mocks.artifact).toHaveBeenCalledWith(
       expect.objectContaining({
-        principal: expect.objectContaining({ workspaceId: 'target' }),
+        principal: expect.objectContaining({
+          grant: expect.objectContaining({
+            owner: { entityType: 'workspace', entityId: 'target' },
+          }),
+        }),
         input: expect.objectContaining({ workspaceId: 'target', reference }),
       })
     )

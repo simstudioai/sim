@@ -39,15 +39,26 @@ export function createWorkspaceFileDelegatedPrincipal(
   }
   if (input.serviceId === 'executor') return { ...principal, serviceId: 'executor' }
   const { workspaceId, resourceScope, ...envelope } = principal
+  const grant = {
+    kind: 'entity' as const,
+    owner: { entityType: 'workspace' as const, entityId: workspaceId },
+    restrictions: resourceScope,
+  }
+  if (input.serviceId === 'copilot') {
+    return {
+      ...envelope,
+      serviceId: 'copilot',
+      invocation: input.chatId
+        ? { kind: 'chat' as const, chatId: input.chatId }
+        : { kind: 'workspace' as const, workspaceId },
+      grant,
+    }
+  }
   return {
     ...envelope,
-    serviceId: input.serviceId,
-    invocation: { kind: 'workspace', workspaceId },
-    grant: {
-      kind: 'entity',
-      owner: { entityType: 'workspace', entityId: workspaceId },
-      restrictions: resourceScope,
-    },
+    serviceId: 'realtime',
+    invocation: { kind: 'workspace' as const, workspaceId },
+    grant,
   }
 }
 
@@ -86,5 +97,20 @@ export function rebindWorkspaceFileDelegatedPrincipal(
   }
   if (input.principal.serviceId === 'executor')
     return { ...input.principal, ...updates, resourceScope: restrictions }
-  return { ...input.principal, ...updates, grant: { ...input.principal.grant, restrictions } }
+  if (input.principal.serviceId === 'copilot') {
+    return {
+      ...input.principal,
+      ...updates,
+      invocation: restrictions.chatId
+        ? { kind: 'chat' as const, chatId: restrictions.chatId }
+        : { kind: 'workspace' as const, workspaceId: input.workspaceId },
+      grant: { ...input.principal.grant, restrictions },
+    }
+  }
+  return {
+    ...input.principal,
+    ...updates,
+    invocation: { kind: 'workspace' as const, workspaceId: input.workspaceId },
+    grant: { ...input.principal.grant, restrictions },
+  }
 }

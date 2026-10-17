@@ -10,8 +10,9 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 /** In-process admission evidence, never serialized into a job, token, checkpoint, or wire field. */
 const ADMITTED = new WeakSet<WorkspaceDelegatedPrincipal>()
 
-export function markCopilotWorkspaceInvocation(principal: WorkspaceDelegatedPrincipal): void {
+export function markCopilotWorkspaceInvocation(principal: Principal): void {
   if (
+    !isWorkspaceDelegation(principal) ||
     principal.serviceId !== 'copilot' ||
     !principal.subjectUserId ||
     !principalWorkspaceId(principal) ||
