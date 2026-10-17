@@ -10,6 +10,7 @@ import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
 import {
   chatResourceKeyFor,
   getChatResourceSelectionId,
+  isFileResourceType,
   mergeChatResource,
 } from '@/lib/mothership/resources/types'
 import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
@@ -198,7 +199,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (
     workspaceId
       ? chatWorkspaceId && workspaceId !== chatWorkspaceId
-      : owner?.entityType !== 'project'
+      : !(owner?.entityType === 'project' && isFileResourceType(payload.resource.type))
   )
     return
   // Browser and terminal tabs are projected from the desktop app's live
