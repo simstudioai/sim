@@ -95,6 +95,15 @@ async function get(
   return { status: response.status, location, body, headers: response.headers }
 }
 
+function pageTitle(html: string): string {
+  return decodeHtml(/<title>([^<]*)<\/title>/.exec(html)?.[1] ?? '')
+}
+
+function canonicalPath(html: string): string | null {
+  const href = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1]
+  return href ? new URL(href).pathname : null
+}
+
 function robotsDirectives(html: string): string[] {
   return [...html.matchAll(/<meta name="robots" content="([^"]*)"/g)].map((match) => match[1])
 }
@@ -166,6 +175,7 @@ async function run() {
       '/library/authors/not-a-real-author',
       '/models/not-a-real-provider',
       '/models/anthropic/not-a-real-model',
+      '/models/compare/not-a-real-pair',
     ]
     const failures: string[] = []
     for (const path of unknown) {
@@ -188,6 +198,8 @@ async function run() {
       firstPath(/^\/library\/(?!authors\/|tags)[^/]+$/),
       firstPath(/^\/integrations\/[^/]+$/),
       firstPath(/^\/models\/anthropic\/[^/]+$/),
+      '/models/context-windows',
+      firstPath(/^\/models\/compare\/[^/]+$/),
     ]
     const failures: string[] = []
     for (const path of known) {
@@ -322,6 +334,25 @@ async function run() {
     assert.equal(status, 200)
     const title = /<title>([^<]*)<\/title>/.exec(body)?.[1] ?? ''
     assert.match(title, / on /, `${resellerPath} title "${title}" does not name the reseller`)
+  })
+
+  await check('model pricing pages carry their search titles and canonicals', async () => {
+    const comparePath = firstPath(/^\/models\/compare\/[^/]+-vs-[^/]+$/)
+    const pages: Array<[path: string, title: RegExp]> = [
+      ['/models/anthropic', /^Anthropic \(Claude\) API Pricing & Models \| Sim$/],
+      ['/models/context-windows', /^LLM Context Window Comparison \| Sim$/],
+      [comparePath, / vs .+ \| Sim$/],
+    ]
+    const failures: string[] = []
+    for (const [path, expected] of pages) {
+      const { status, body } = await get(path)
+      const title = pageTitle(body)
+      const canonical = canonicalPath(body)
+      if (status !== 200 || !expected.test(title) || title.length > 60 || canonical !== path) {
+        failures.push(`${path} → ${status}, title "${title}", canonical ${canonical}`)
+      }
+    }
+    assert.deepEqual(failures, [])
   })
 
   await check('footer integration links stay on the landing site', async () => {

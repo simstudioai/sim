@@ -1,9 +1,12 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { withFilteredNoindex } from '@/lib/landing/seo'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { MODEL_COMPARISONS } from '@/app/(landing)/models/comparisons'
+import { ComparisonLinks } from '@/app/(landing)/models/components/comparison-links'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
 import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
 import {
@@ -238,6 +241,31 @@ export default async function ModelsPage({
             <div className='h-px w-full bg-[var(--border)]' />
 
             <ModelComparisonCharts models={ALL_CATALOG_MODELS} />
+
+            <div className='h-px w-full bg-[var(--border)]' />
+
+            <section aria-labelledby='head-to-head-heading' className='px-6 py-10'>
+              <h2
+                id='head-to-head-heading'
+                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+              >
+                Head-to-head comparisons
+              </h2>
+              <p className='mb-6 text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em]'>
+                API pricing, context window, max output, and capabilities for two models side by
+                side. For every model at once, see the{' '}
+                <Link
+                  href='/models/context-windows'
+                  className='text-[var(--text-primary)] underline underline-offset-2'
+                >
+                  LLM context window comparison
+                </Link>
+                .
+              </p>
+              <nav aria-label='Model comparisons'>
+                <ComparisonLinks comparisons={MODEL_COMPARISONS} />
+              </nav>
+            </section>
 
             <div className='h-px w-full bg-[var(--border)]' />
 
