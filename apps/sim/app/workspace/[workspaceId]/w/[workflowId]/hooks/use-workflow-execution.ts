@@ -15,13 +15,8 @@ import {
   toolCallKey,
 } from '@/components/agent-stream/tool-call-lifecycle'
 import { requestJson } from '@/lib/api/client/request'
-import {
-  cancelWorkflowExecutionContract,
-  workflowLogContract,
-  workflowStateSchema,
-} from '@/lib/api/contracts/workflows'
+import { cancelWorkflowExecutionContract, workflowStateSchema } from '@/lib/api/contracts/workflows'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   isRunToolActiveForWorkflow,
   subscribeToRunToolRelease,
@@ -605,7 +600,7 @@ export function useWorkflowExecution() {
    * Handles debug session completion
    */
   const handleDebugSessionComplete = useCallback(
-    async (
+    (
       result: ExecutionResult,
       workflowId: string,
       persistenceExecution: ConsolePersistenceExecution | undefined
@@ -613,9 +608,6 @@ export function useWorkflowExecution() {
       if (!ownsScopedPersistenceExecution(workflowId, persistenceExecution)) return
       logger.info('Debug session complete')
       setExecutionResult(result)
-
-      await persistLogs(workflowId, generateId(), result)
-
       resetOwnedDebugState(workflowId, persistenceExecution)
     },
     [resetOwnedDebugState]
@@ -649,7 +641,7 @@ export function useWorkflowExecution() {
    * Handles debug execution errors
    */
   const handleDebugExecutionError = useCallback(
-    async (
+    (
       error: any,
       operation: string,
       workflowId: string,
@@ -667,61 +659,10 @@ export function useWorkflowExecution() {
       }
 
       setExecutionResult(errorResult)
-
-      await persistLogs(workflowId, generateId(), errorResult)
-
       resetOwnedDebugState(workflowId, persistenceExecution)
     },
     [debugContext, resetOwnedDebugState]
   )
-
-  const persistLogs = async (
-    workflowId: string,
-    executionId: string,
-    result: ExecutionResult,
-    streamContent?: string
-  ) => {
-    try {
-      const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-      const enrichedResult = {
-        ...result,
-        traceSpans,
-        totalDuration,
-      }
-
-      if (streamContent && result.output && typeof streamContent === 'string') {
-        enrichedResult.output.content = streamContent
-
-        if (enrichedResult.logs) {
-          const streamingBlockId = (result.metadata as any)?.streamingBlockId || null
-
-          for (const log of enrichedResult.logs) {
-            const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId
-            if (
-              isStreamingBlock &&
-              (log.blockType === 'agent' || log.blockType === 'router') &&
-              log.output
-            )
-              log.output.content = streamContent
-          }
-        }
-      }
-
-      await requestJson(workflowLogContract, {
-        params: { id: workflowId },
-        body: {
-          executionId,
-          result: enrichedResult,
-        },
-      })
-
-      return executionId
-    } catch (error) {
-      logger.error('Error persisting logs:', error)
-      return executionId
-    }
-  }
 
   const handleRunWorkflow = useCallback(
     async (workflowInput?: unknown, enableDebug = false) => {
@@ -1742,12 +1683,12 @@ export function useWorkflowExecution() {
       logger.info('Debug step execution result:', result)
 
       if (isDebugSessionComplete(result)) {
-        await handleDebugSessionComplete(result, activeWorkflowId, persistenceExecution)
+        handleDebugSessionComplete(result, activeWorkflowId, persistenceExecution)
       } else {
         handleDebugSessionContinuation(result, activeWorkflowId, persistenceExecution)
       }
     } catch (error: any) {
-      await handleDebugExecutionError(error, 'step', activeWorkflowId, persistenceExecution)
+      handleDebugExecutionError(error, 'step', activeWorkflowId, persistenceExecution)
     }
   }, [
     executor,
@@ -1843,9 +1784,9 @@ export function useWorkflowExecution() {
         success: currentResult.success,
       })
 
-      await handleDebugSessionComplete(currentResult, activeWorkflowId, persistenceExecution)
+      handleDebugSessionComplete(currentResult, activeWorkflowId, persistenceExecution)
     } catch (error: any) {
-      await handleDebugExecutionError(error, 'resume', activeWorkflowId, persistenceExecution)
+      handleDebugExecutionError(error, 'resume', activeWorkflowId, persistenceExecution)
     }
   }, [
     executor,

@@ -490,25 +490,6 @@ export const workflowDeploymentVersionParamSchema = z.union([
 ])
 export type WorkflowDeploymentVersionParam = z.output<typeof workflowDeploymentVersionParamSchema>
 
-export const workflowLogResultSchema = z.object({
-  success: z.boolean(),
-  error: z.string().optional(),
-  output: z.any(),
-  metadata: z
-    .object({
-      source: z.string().optional(),
-      duration: z.number().optional(),
-    })
-    .optional(),
-})
-
-export const workflowLogBodySchema = z.object({
-  logs: z.array(z.any()).optional(),
-  executionId: requiredFieldSchema('Execution ID is required').optional(),
-  result: workflowLogResultSchema.optional(),
-})
-export type WorkflowLogBody = z.input<typeof workflowLogBodySchema>
-
 export const importWorkflowAsSuperuserBodySchema = z.object({
   workflowId: workflowIdSchema,
   targetWorkspaceId: requiredFieldSchema('Target workspace ID is required'),
@@ -545,10 +526,6 @@ const workflowAutoLayoutResponseSchema = z.object({
     elapsed: z.string(),
     layoutedBlocks: z.record(z.string(), workflowBlockStateSchema),
   }),
-})
-
-const workflowLogResponseSchema = z.object({
-  message: z.string(),
 })
 
 const workflowVariablesResponseSchema = z.object({
@@ -895,17 +872,6 @@ export const workflowAutoLayoutContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: workflowAutoLayoutResponseSchema,
-  },
-})
-
-export const workflowLogContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/workflows/[id]/log',
-  params: workflowIdParamsSchema,
-  body: workflowLogBodySchema,
-  response: {
-    mode: 'json',
-    schema: workflowLogResponseSchema,
   },
 })
 
