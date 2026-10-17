@@ -139,12 +139,7 @@ vi.mock('@/lib/mothership/tools/client/run-tool-execution', () => ({
 
 vi.mock('@/lib/api/contracts/workflows', () => ({
   cancelWorkflowExecutionContract: {},
-  workflowLogContract: {},
   workflowStateSchema: { parse: (value: unknown) => value },
-}))
-
-vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
-  buildTraceSpans: () => ({ traceSpans: [], totalDuration: 0 }),
 }))
 
 vi.mock('@/lib/tokenization', () => ({
