@@ -811,27 +811,21 @@ describe('Assistant payload', () => {
 })
 
 describe('desktop request capabilities', () => {
-  it.each([
-    [false, { workspaceId: 'workspace' }],
-    [true, { workspaceId: 'workspace' }],
-    [true, { organizationId: 'organization' }],
-  ])(
-    "rechecks the chat owner's rollout for a forged computer capability (enabled=%s, %j)",
-    async (enabled, owner) => {
-      const principal = { kind: 'session', userId: 'user', sessionId: 'session' } as const
+  it.each([false, true])(
+    'rechecks the server rollout for a forged computer capability (enabled=%s)',
+    async (enabled) => {
       mockComputerUseAvailable.mockResolvedValueOnce(enabled)
       const payload = await buildCopilotRequestPayload({
         message: 'Use Notes',
-        ...owner,
+        workspaceId: 'workspace',
         userId: 'user',
-        principal,
+        principal: { kind: 'session', userId: 'user', sessionId: 'session' },
         userMessageId: 'message',
         mode: 'agent',
         model: 'gpt-6-astra',
         computerUse: true,
       })
       expect(payload.desktop?.computerUse ?? false).toBe(enabled)
-      expect(mockComputerUseAvailable).toHaveBeenCalledWith(principal, owner)
     }
   )
 

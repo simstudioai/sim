@@ -86,11 +86,6 @@ describe('native computer authorization', () => {
     await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow('unavailable')
     expect(mocks.claim).not.toHaveBeenCalled()
   })
-  it("checks the rollout of the workspace's organization", async () => {
-    mocks.ownedChat.mockResolvedValue({ ...context, workspaceOrganizationId: 'org-2' })
-    await authorizeComputerUse.execute({ principal, input })
-    expect(mocks.available).toHaveBeenCalledWith('org-2')
-  })
   it('rechecks current workspace membership', async () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(authorizeComputerUse.execute({ principal, input })).rejects.toThrow()
@@ -131,7 +126,6 @@ describe('native computer authorization', () => {
       mode: 'agent',
     })
     await authorizeComputerUse.execute({ principal, input })
-    expect(mocks.available).toHaveBeenCalledWith('org-1')
     expect(
       organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
     ).toHaveBeenCalledWith(

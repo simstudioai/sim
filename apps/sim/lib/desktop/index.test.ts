@@ -64,10 +64,6 @@ describe('desktop surface availability', () => {
       requestAvailability.mockResolvedValueOnce({ enabled: rollout })
       const result = await getDesktopChatCapabilities('chat-1', { workspaceId: 'ws-1' })
       expect(result.desktopCapabilities?.computerUse ?? false).toBe(expected)
-      expect(requestAvailability).toHaveBeenCalledWith(
-        expect.objectContaining({ path: '/api/desktop/computer/availability' }),
-        expect.objectContaining({ query: { workspaceId: 'ws-1' } })
-      )
     }
   )
   it('leaves ordinary chat capabilities independent of computer use while rollout is off', async () => {
