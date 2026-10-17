@@ -1,3 +1,5 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ZodError } from 'zod'
 import { OracleFusionProviderError } from '@/lib/internal/oracle-fusion/errors'
 import {
@@ -6,10 +8,13 @@ import {
 } from '@/lib/internal/oracle-fusion-financials/operations'
 import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
 
+const logger = createLogger('OracleFusionFinancialsToolExecution')
+
 export const executeOracleFusionFinancialsTool: InternalToolOperationHandler = async ({
   toolId,
   input,
   signal,
+  requestId,
 }) => {
   signal?.throwIfAborted()
   if (!isOracleFusionFinancialsToolId(toolId)) {
@@ -30,6 +35,13 @@ export const executeOracleFusionFinancialsTool: InternalToolOperationHandler = a
       )
     }
     const validationFailure = error instanceof ZodError
+    if (!validationFailure) {
+      logger.error('Oracle Fusion Financials operation failed', {
+        error: getErrorMessage(error, 'Unknown error'),
+        requestId,
+        toolId,
+      })
+    }
     return Response.json(
       {
         success: false,

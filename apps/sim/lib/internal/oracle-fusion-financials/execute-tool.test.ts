@@ -112,22 +112,23 @@ describe('Oracle Fusion Financials provider contract', () => {
     )
   })
 
-  it('keeps an explicit null patch distinct from an omitted field', async () => {
+  it('preserves the opaque resource key and an explicit null patch', async () => {
     fetchProvider.mockResolvedValue(
-      jsonResponse({ Purpose: null, links: self('expenseReports/report-key') })
+      jsonResponse({ Purpose: null, links: self('expenseReports/%20report-key%20') })
     )
     const response = await execute('update_expense_report', {
       expenseReportUniqId: ' report-key ',
       purpose: null,
     })
     expect(response.status).toBe(200)
+    expect(fetchProvider.mock.calls[0][0]).toBe(`${ROOT}expenseReports/%20report-key%20`)
     expect(fetchProvider.mock.calls[0][2]).toMatchObject({
       method: 'PATCH',
       body: '{"Purpose":null}',
     })
     expect((await response.json()).output.expenseReport).toEqual({
       Purpose: null,
-      expenseReportUniqId: 'report-key',
+      expenseReportUniqId: ' report-key ',
     })
   })
 

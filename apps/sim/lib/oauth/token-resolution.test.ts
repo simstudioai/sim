@@ -224,6 +224,8 @@ describe('resolveCredentialAccessToken', () => {
     authenticate.mockResolvedValue(INTERNAL_AUTH)
     resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
     mockGetToolMetadata.mockReturnValue({
+      id: 'gmail_send',
+      params: {},
       oauth: { required: true, provider: 'google', requiredScopes: ['scope-a'] },
     })
   })
@@ -288,7 +290,7 @@ describe('resolveCredentialAccessToken', () => {
 
   it('rejects tools without managed OAuth support', async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
-    mockGetToolMetadata.mockReturnValue({ oauth: undefined })
+    mockGetToolMetadata.mockReturnValue({ id: 'http_request', params: {}, oauth: undefined })
 
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
@@ -309,7 +311,11 @@ describe('resolveCredentialAccessToken', () => {
 
   it('rejects tools whose scope policy is empty', async () => {
     mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
-    mockGetToolMetadata.mockReturnValue({ oauth: { required: true, provider: 'unknown-provider' } })
+    mockGetToolMetadata.mockReturnValue({
+      id: 'fixture-tool',
+      params: {},
+      oauth: { required: true, provider: 'oracle-fusion' },
+    })
 
     const result = await resolveCredentialAccessToken({
       requestId: 'req-1',
@@ -464,31 +470,34 @@ describe('ordinary tool credential binding', () => {
     ['gmail', 'google-service-account'],
     ['jira', 'atlassian-service-account'],
     ['confluence', 'atlassian-service-account'],
-  ])('accepts the canonical %s service-account provider %s', async (provider, providerId) => {
-    mockGetToolMetadata.mockReturnValue({
-      id: 'fixture-tool',
-      params: {},
-      oauth: { required: true, provider },
-    })
-    mockResolveOAuthAccountId.mockResolvedValue({ ...serviceAccount, providerId })
-    expect(
-      await resolveCredentialAccessToken({
-        requestId: 'binding-test',
-        credentialId: 'credential-1',
-        toolId: 'fixture-tool',
-        authenticate,
+  ] as const)(
+    'accepts the canonical %s service-account provider %s',
+    async (provider, providerId) => {
+      mockGetToolMetadata.mockReturnValue({
+        id: 'fixture-tool',
+        params: {},
+        oauth: { required: true, provider },
       })
-    ).toMatchObject({
-      ok: true,
-      token: { accessToken: 'service-token', credentialType: 'service_account' },
-    })
-  })
+      mockResolveOAuthAccountId.mockResolvedValue({ ...serviceAccount, providerId })
+      expect(
+        await resolveCredentialAccessToken({
+          requestId: 'binding-test',
+          credentialId: 'credential-1',
+          toolId: 'fixture-tool',
+          authenticate,
+        })
+      ).toMatchObject({
+        ok: true,
+        token: { accessToken: 'service-token', credentialType: 'service_account' },
+      })
+    }
+  )
 
   it.each([
     ['gmail', 'google-email', true],
     ['salesforce', 'salesforce-sandbox', true],
     ['salesforce', 'google', false],
-  ])(
+  ] as const)(
     'binds ordinary OAuth %s tokens to the provider (%s)',
     async (provider, providerId, allowed) => {
       mockGetToolMetadata.mockReturnValue({

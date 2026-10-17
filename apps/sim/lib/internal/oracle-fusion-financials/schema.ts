@@ -235,17 +235,14 @@ const listShape = {
   totalResults: z.boolean().default(false),
 }
 
-const opaqueKeySchema = z
-  .string()
-  .trim()
-  .refine((value) => {
-    try {
-      encodeOracleFusionPathSegment(value)
-      return true
-    } catch {
-      return false
-    }
-  }, 'Oracle opaque key must be one URL path segment')
+const opaqueKeySchema = z.string().refine((value) => {
+  try {
+    encodeOracleFusionPathSegment(value)
+    return true
+  } catch {
+    return false
+  }
+}, 'Oracle opaque key must be one URL path segment')
 
 const decimalIdSchema = z
   .string()
