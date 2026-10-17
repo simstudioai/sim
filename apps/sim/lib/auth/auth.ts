@@ -989,18 +989,19 @@ export const auth = betterAuth({
         throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
-    /** Runs after `onPasswordReset`; cookie-cached sessions survive until `cookieCache.maxAge`. */
+    /**
+     * Re-sweeps sessions after `onPasswordReset`, catching one created while it ran (e.g. a social
+     * sign-in). Cookie-cached sessions survive until `cookieCache.maxAge`.
+     */
     revokeSessionsOnPasswordReset: true,
+    /**
+     * Sessions go first: OAuth issuance references its session, so once they are deleted no new
+     * grant can be minted behind the sweep. A failure fails the reset, and the retry from a new
+     * link redoes the revocation.
+     */
     onPasswordReset: async ({ user: resetUser }, request) => {
-      try {
-        await revokeUserOAuthGrants(resetUser.id)
-      } catch (error) {
-        // Throwing would skip the session revocation Better Auth runs after this hook.
-        logger.error('[onPasswordReset] Failed to revoke OAuth grants', {
-          userId: resetUser.id,
-          error,
-        })
-      }
+      await db.delete(schema.session).where(eq(schema.session.userId, resetUser.id))
+      await revokeUserOAuthGrants(resetUser.id)
       await recordPasswordResetAudit({ kind: 'completed', userId: resetUser.id, request })
     },
   },
