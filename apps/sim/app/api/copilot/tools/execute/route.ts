@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolExecuteInternalBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
@@ -33,21 +34,15 @@ const logger = createLogger('CopilotToolExecuteInternalAPI')
  * provenance activated by one tool call must stay visible to the next call's
  * egress projection, exactly as the request-lifecycle registry accumulates
  * across a turn. Keyed by the turn (messageId) so one background lane shares
- * one registry; TTL-evicted since nothing signals turn end on this route.
+ * one registry; idle-evicted since nothing signals turn end on this route.
  *
  * The turn's secret authority, which Go's body cannot carry, is cached beside it
  * (see {@link getRunSecretAuthority}).
  */
-const TURN_REGISTRY_TTL_MS = 10 * 60 * 1000
-const TURN_REGISTRY_CACHE_MAX = 256
-const turnRegistryCache = new Map<
+const turnContextCache = new LRUCache<
   string,
-  {
-    registry: ResolvedSecretTraceRegistry
-    secretAuthority: TurnSecretAuthority
-    expiresAt: number
-  }
->()
+  { registry: ResolvedSecretTraceRegistry; secretAuthority: TurnSecretAuthority }
+>({ max: 256, ttl: 10 * 60 * 1000, updateAgeOnGet: true })
 
 async function getTurnToolContext(
   userId: string,
@@ -58,12 +53,8 @@ async function getTurnToolContext(
   organizationId?: string
 ): Promise<{ registry: ResolvedSecretTraceRegistry; secretAuthority: TurnSecretAuthority }> {
   const key = `${userId}\u0000${workspaceId ?? ''}\u0000${organizationId ?? ''}\u0000${chatId ?? ''}\u0000${messageId ?? ''}\u0000${requestMode ?? ''}`
-  const now = Date.now()
-  const hit = turnRegistryCache.get(key)
-  if (hit && hit.expiresAt > now) {
-    hit.expiresAt = now + TURN_REGISTRY_TTL_MS
-    return hit
-  }
+  const hit = turnContextCache.get(key)
+  if (hit) return hit
   const [environmentContext, secretAuthority] = await Promise.all([
     prepareCopilotEnvironmentContext(userId, workspaceId, {
       includeSecrets: requestMode !== 'assistant',
@@ -72,19 +63,8 @@ async function getTurnToolContext(
       ? getRunSecretAuthority({ streamId: messageId, userId, chatId })
       : NO_SECRET_AUTHORITY,
   ])
-  for (const [cachedKey, cached] of turnRegistryCache) {
-    if (cached.expiresAt <= now) turnRegistryCache.delete(cachedKey)
-  }
-  if (turnRegistryCache.size >= TURN_REGISTRY_CACHE_MAX) {
-    const oldest = turnRegistryCache.keys().next().value
-    if (oldest !== undefined) turnRegistryCache.delete(oldest)
-  }
-  const entry = {
-    registry: environmentContext.resolvedSecretTraceRegistry,
-    secretAuthority,
-    expiresAt: now + TURN_REGISTRY_TTL_MS,
-  }
-  turnRegistryCache.set(key, entry)
+  const entry = { registry: environmentContext.resolvedSecretTraceRegistry, secretAuthority }
+  turnContextCache.set(key, entry)
   return entry
 }
 
