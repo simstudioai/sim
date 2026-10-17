@@ -88,7 +88,7 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     mockPrepareEnvironmentContext.mockRejectedValue(new Error('Workspace ws-gone does not exist'))
     mockHandler.mockResolvedValue({ success: true, output: { content: 'sensitive' } })
 
-    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-no-registry' }) as never)
+    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-no-registry' }) as never, {})
     const body = await res.json()
 
     expect(mockHandler).not.toHaveBeenCalled()
@@ -119,7 +119,8 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
         toolName: 'generate_api_key',
         params: { name: 'demo' },
         messageId: 'msg-api-key',
-      }) as never
+      }) as never,
+      {}
     )
     const body = await res.json()
 
@@ -149,7 +150,8 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
           toolName: 'run_function',
           params: { code: 'return 1' },
           messageId: 'msg-gated',
-        }) as never
+        }) as never,
+        {}
       )
       const body = await res.json()
 
@@ -180,7 +182,8 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
           toolName: 'run_function',
           params: { code: 'return 1', secrets: ['STRIPE_KEY'] },
           messageId: 'msg-admitted-authority',
-        }) as never
+        }) as never,
+        {}
       )
 
       expect(mockGetRunSecretAuthority).toHaveBeenCalledWith({

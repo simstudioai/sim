@@ -112,9 +112,6 @@
   "apps/sim/app/api/copilot/tool-permission/route.test.ts": {
     "TS2554": 3
   },
-  "apps/sim/app/api/copilot/tools/execute/route.test.ts": {
-    "TS2554": 3
-  },
   "apps/sim/app/api/credential-groups/slack-managed-users/callback/route.test.ts": {
     "TS2554": 1
   },
