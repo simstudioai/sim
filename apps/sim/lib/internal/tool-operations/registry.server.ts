@@ -483,6 +483,45 @@ const MSSQL_TOOL_IDS = [
   'mssql_introspect',
 ] as const
 
+const ORACLE_FUSION_FINANCIALS_TOOL_IDS = [
+  'oracle_fusion_financials_apply_receivables_receipt',
+  'oracle_fusion_financials_approve_receivables_invoice',
+  'oracle_fusion_financials_create_expense_line',
+  'oracle_fusion_financials_create_expense_report',
+  'oracle_fusion_financials_create_receivables_credit_memo',
+  'oracle_fusion_financials_create_receivables_invoice',
+  'oracle_fusion_financials_create_receivables_receipt',
+  'oracle_fusion_financials_get_expense_line',
+  'oracle_fusion_financials_get_expense_report',
+  'oracle_fusion_financials_get_gl_journal_batch',
+  'oracle_fusion_financials_get_gl_ledger',
+  'oracle_fusion_financials_get_payables_invoice',
+  'oracle_fusion_financials_get_payables_invoice_line',
+  'oracle_fusion_financials_get_payables_payment',
+  'oracle_fusion_financials_get_receivables_credit_memo',
+  'oracle_fusion_financials_get_receivables_invoice',
+  'oracle_fusion_financials_get_receivables_invoice_installment',
+  'oracle_fusion_financials_get_receivables_invoice_line',
+  'oracle_fusion_financials_get_receivables_receipt',
+  'oracle_fusion_financials_list_expense_lines',
+  'oracle_fusion_financials_list_expense_reports',
+  'oracle_fusion_financials_list_gl_balances',
+  'oracle_fusion_financials_list_gl_journal_batches',
+  'oracle_fusion_financials_list_gl_ledgers',
+  'oracle_fusion_financials_list_payables_invoice_lines',
+  'oracle_fusion_financials_list_payables_invoices',
+  'oracle_fusion_financials_list_payables_payments',
+  'oracle_fusion_financials_list_receivables_credit_memos',
+  'oracle_fusion_financials_list_receivables_invoice_installments',
+  'oracle_fusion_financials_list_receivables_invoice_lines',
+  'oracle_fusion_financials_list_receivables_invoices',
+  'oracle_fusion_financials_list_receivables_receipts',
+  'oracle_fusion_financials_submit_expense_report',
+  'oracle_fusion_financials_update_expense_line',
+  'oracle_fusion_financials_update_expense_report',
+  'oracle_fusion_financials_update_receivables_invoice',
+] as const
+
 const ORACLEDB_TOOL_IDS = [
   'oracledb_query',
   'oracledb_execute',
@@ -1493,6 +1532,10 @@ registerFamily(handlerLoaders, JUPYTER_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, MSSQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/mssql/execute-tool')).executeMssqlTool
+})
+registerFamily(handlerLoaders, ORACLE_FUSION_FINANCIALS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/oracle-fusion-financials/execute-tool'))
+    .executeOracleFusionFinancialsTool
 })
 registerFamily(handlerLoaders, ORACLEDB_TOOL_IDS, async () => {
   return (await import('@/lib/internal/oracledb/execute-tool')).executeOracledbTool

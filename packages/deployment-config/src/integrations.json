@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-14",
+  "updatedAt": "2026-10-17",
   "integrations": [
     {
       "type": "onepassword",
@@ -17883,6 +17883,171 @@
       "integrationType": "databases",
       "tags": ["data-analytics"],
       "updatedAt": "2026-10-08"
+    },
+    {
+      "type": "oracle_fusion_financials",
+      "slug": "oracle-fusion-financials",
+      "name": "Oracle Fusion Financials",
+      "description": "Manage receivables and expenses, and report on payables and ledgers",
+      "longDescription": "Connect your Oracle Fusion Applications integration user through a reusable saved credential. Read payables invoices and payments; create and update receivables invoices, read their lines and installments, create credit memos, and create and apply receipts. Create, update, and submit expense reports and their expense lines. Read ledgers, journal batches, and ledger balances. Lists return one bounded page at a time. Oracle roles, business-unit access, and business validation still apply.",
+      "bgColor": "#C74634",
+      "iconName": "OracleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_financials",
+      "operations": [
+        {
+          "name": "Apply Receivables Receipt",
+          "description": "Apply a standard receipt to a Receivables invoice installment. An omitted amount applies the full open transaction balance."
+        },
+        {
+          "name": "Approve Receivables Invoice",
+          "description": "Approve a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction."
+        },
+        {
+          "name": "Create Expense Line",
+          "description": "Create an Oracle Fusion expense line."
+        },
+        {
+          "name": "Create Expense Report",
+          "description": "Create an Oracle Fusion expense report."
+        },
+        {
+          "name": "Create Receivables Credit Memo",
+          "description": "Create Oracle Fusion receivables credit memo."
+        },
+        {
+          "name": "Create Receivables Invoice",
+          "description": "Create Oracle Fusion receivables invoice."
+        },
+        {
+          "name": "Create Receivables Receipt",
+          "description": "Create Oracle Fusion receivables receipt."
+        },
+        {
+          "name": "Get Expense Line",
+          "description": "Get an Oracle Fusion expense line."
+        },
+        {
+          "name": "Get Expense Report",
+          "description": "Get an Oracle Fusion expense report."
+        },
+        {
+          "name": "Get GL Journal Batch",
+          "description": "Get an Oracle Fusion gl journal batch."
+        },
+        {
+          "name": "Get GL Ledger",
+          "description": "Get an Oracle Fusion gl ledger."
+        },
+        {
+          "name": "Get Payables Invoice",
+          "description": "Get one Oracle Fusion Payables invoice by its opaque Oracle resource key."
+        },
+        {
+          "name": "Get Payables Invoice Line",
+          "description": "Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key."
+        },
+        {
+          "name": "Get Payables Payment",
+          "description": "Get one Oracle Fusion Payables payment by its CheckId."
+        },
+        {
+          "name": "Get Receivables Credit Memo",
+          "description": "Get Oracle Fusion receivables credit memo."
+        },
+        {
+          "name": "Get Receivables Invoice",
+          "description": "Get Oracle Fusion receivables invoice."
+        },
+        {
+          "name": "Get Receivables Invoice Installment",
+          "description": "Get Oracle Fusion receivables invoice installment."
+        },
+        {
+          "name": "Get Receivables Invoice Line",
+          "description": "Get Oracle Fusion receivables invoice line."
+        },
+        {
+          "name": "Get Receivables Receipt",
+          "description": "Get Oracle Fusion receivables receipt."
+        },
+        {
+          "name": "List Expense Lines",
+          "description": "List one bounded page of Oracle Fusion expense lines."
+        },
+        {
+          "name": "List Expense Reports",
+          "description": "List one bounded page of Oracle Fusion expense reports."
+        },
+        {
+          "name": "List GL Balances",
+          "description": "List one bounded page of Oracle Fusion gl balances."
+        },
+        {
+          "name": "List GL Journal Batches",
+          "description": "List one bounded page of Oracle Fusion gl journal batches."
+        },
+        {
+          "name": "List GL Ledgers",
+          "description": "List one bounded page of Oracle Fusion gl ledgers."
+        },
+        {
+          "name": "List Payables Invoice Lines",
+          "description": "List one page of lines for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "List Payables Invoices",
+          "description": "List one page of Oracle Fusion Payables invoices using a fixed safe projection."
+        },
+        {
+          "name": "List Payables Payments",
+          "description": "List one page of Oracle Fusion Payables payments using a fixed safe projection."
+        },
+        {
+          "name": "List Receivables Credit Memos",
+          "description": "List one page of Oracle Fusion receivables credit memos."
+        },
+        {
+          "name": "List Receivables Invoice Installments",
+          "description": "List one page of Oracle Fusion receivables invoice installments."
+        },
+        {
+          "name": "List Receivables Invoice Lines",
+          "description": "List one page of Oracle Fusion receivables invoice lines."
+        },
+        {
+          "name": "List Receivables Invoices",
+          "description": "List one page of Oracle Fusion receivables invoices."
+        },
+        {
+          "name": "List Receivables Receipts",
+          "description": "List one page of Oracle Fusion receivables receipts."
+        },
+        {
+          "name": "Submit Expense Report",
+          "description": "Submit an Oracle Fusion expense report. Only result S means submission without errors; other results are returned as business failures."
+        },
+        {
+          "name": "Update Expense Line",
+          "description": "Update an Oracle Fusion expense line."
+        },
+        {
+          "name": "Update Expense Report",
+          "description": "Update an Oracle Fusion expense report."
+        },
+        {
+          "name": "Update Receivables Invoice",
+          "description": "Update Oracle Fusion receivables invoice."
+        }
+      ],
+      "operationCount": 36,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "oracle-fusion",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics"],
+      "updatedAt": "2026-10-17"
     },
     {
       "type": "netsuite",

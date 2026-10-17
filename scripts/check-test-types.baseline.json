@@ -2012,9 +2012,6 @@
     "TS2348": 1,
     "TS2353": 2
   },
-  "apps/sim/lib/oauth/token-resolution.test.ts": {
-    "TS2739": 3
-  },
   "apps/sim/lib/organizations/instance-org.test.ts": {
     "TS2345": 1
   },
