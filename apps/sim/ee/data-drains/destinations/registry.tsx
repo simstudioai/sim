@@ -337,7 +337,7 @@ const sentinelFormSpec: DestinationFormSpec<SentinelState> = {
       tenantId: config.tenantId.trim(),
       clientId: config.clientId.trim(),
     },
-    destinationCredentials: { clientSecret },
+    destinationCredentials: { clientSecret: clientSecret.trim() },
   }),
 }
 
