@@ -16,9 +16,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/uploads/core/prefix-sweep', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/uploads/core/prefix-sweep')>()
+  return { ...actual, listStorageKeyPage: vi.fn(actual.listStorageKeyPage) }
+})
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import type { DbTransaction } from '@/lib/db/types'
+import { listStorageKeyPage } from '@/lib/uploads/core/prefix-sweep'
 import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
 import {
   accountStorageSweepOutboxHandlers,
@@ -45,6 +50,38 @@ function outboxContext(overrides: Partial<OutboxEventContext> = {}): OutboxEvent
     checkpointPayload: vi.fn(async () => {}),
     ...overrides,
   }
+}
+
+/** A context whose deadline is near once it has listed `listings` storage pages. */
+function deadlineAfter(listings: number, overrides: Partial<OutboxEventContext> = {}) {
+  const context = outboxContext(overrides)
+  const listed = vi.mocked(listStorageKeyPage).mock.calls.length
+  Object.defineProperty(context, 'deadlineAt', {
+    get: () =>
+      vi.mocked(listStorageKeyPage).mock.calls.length - listed >= listings
+        ? 1
+        : Number.POSITIVE_INFINITY,
+  })
+  return context
+}
+
+/** Re-runs the sweep the way the outbox does, merging each checkpoint into the next payload. */
+async function sweepUntilSettled(payload: Record<string, unknown>, listingsPerRun: number) {
+  let current = payload
+  const outcomes: Awaited<ReturnType<typeof sweep>>[] = []
+  for (let run = 0; run < 12; run++) {
+    const outcome = await sweep(
+      current,
+      deadlineAfter(listingsPerRun, {
+        checkpointPayload: vi.fn(async (patch: Record<string, unknown>) => {
+          current = { ...current, ...patch }
+        }),
+      })
+    )
+    outcomes.push(outcome)
+    if (outcome === undefined) break
+  }
+  return outcomes
 }
 
 async function put(key: string, body = 'x'): Promise<void> {
@@ -249,12 +286,89 @@ describe('deleted workspace storage sweep', () => {
     for (const key of keptKeys) expect(await exists(key)).toBe(true)
   })
 
+  it('reaches objects behind more kept pages than one run can walk, spending no attempt', async () => {
+    const keptKeys = Array.from(
+      { length: 1000 },
+      (_, index) => `workspace/wsdoomed1/a-kept/${String(index).padStart(4, '0')}.bin`
+    )
+    for (const key of [...keptKeys, 'workspace/wsdoomed1/z-unkept/0.bin']) await put(key)
+    for (let call = 0; call < 30; call++)
+      queueTableRows(
+        schemaMock.document,
+        keptKeys.map((key) => ({ key }))
+      )
+
+    const outcomes = await sweepUntilSettled({ version: 1, workspaceId: 'wsdoomed1' }, 2)
+
+    expect(outcomes.at(-1)).toBeUndefined()
+    for (const outcome of outcomes.slice(0, -1))
+      expect(outcome).toMatchObject({ consumeAttempt: false })
+    expect(await exists('workspace/wsdoomed1/z-unkept/0.bin')).toBe(false)
+    for (const key of keptKeys) expect(await exists(key)).toBe(true)
+  })
+
+  it('resumes a family from its saved listing position', async () => {
+    const checkpointPayload = vi.fn(async () => {})
+
+    await expect(
+      sweep(
+        { version: 1, workspaceId: 'wsdoomed1', family: 0, pageToken: 'workspace/wsdoomed1/a.txt' },
+        outboxContext({ checkpointPayload })
+      )
+    ).resolves.toBe(undefined)
+
+    expect(await exists('workspace/wsdoomed1/a.txt')).toBe(true)
+    expect(await exists('workspace/wsdoomed1/nested/b.txt')).toBe(false)
+    expect(await exists('table-import/wsdoomed1/import-1/rows.csv')).toBe(false)
+    expect(checkpointPayload).toHaveBeenCalledWith({ family: 1, pageToken: null })
+  })
+
+  it('walks the family from the start when its saved position no longer lists', async () => {
+    vi.mocked(listStorageKeyPage).mockRejectedValueOnce(
+      new Error('The continuation token is invalid')
+    )
+
+    await expect(
+      sweep({ version: 1, workspaceId: 'wsdoomed1', pageToken: 'expired-token' }, outboxContext())
+    ).resolves.toBe(undefined)
+
+    for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(false)
+  })
+
+  it('spends an attempt when a restart from a rejected position only walks kept objects', async () => {
+    const keptKeys = Array.from(
+      { length: 500 },
+      (_, index) => `workspace/wsdoomed1/a-kept/${String(index).padStart(3, '0')}.bin`
+    )
+    for (const key of keptKeys) await put(key)
+    queueTableRows(
+      schemaMock.document,
+      keptKeys.map((key) => ({ key }))
+    )
+    vi.mocked(listStorageKeyPage).mockRejectedValueOnce(
+      new Error('The continuation token is invalid')
+    )
+    const checkpointPayload = vi.fn(async () => {})
+
+    const outcome = await sweep(
+      { version: 1, workspaceId: 'wsdoomed1', pageToken: 'expired-token' },
+      deadlineAfter(2, { checkpointPayload })
+    )
+
+    expect(outcome).toMatchObject({ outcome: 'deferred' })
+    expect(outcome).not.toHaveProperty('consumeAttempt')
+    expect(checkpointPayload).toHaveBeenCalledWith({ family: 0, pageToken: keptKeys.at(-1) })
+  })
+
   it.each([
     { version: 1, workspaceId: '' },
     { version: 1, workspaceId: '../wsdoomed1' },
     { version: 1, workspaceId: 'wsdoomed1/' },
     { version: 1, workspaceId: '*' },
     { workspaceId: 'wsdoomed1' },
+    { version: 1, workspaceId: 'wsdoomed1', pageToken: 42 },
+    { version: 1, workspaceId: 'wsdoomed1', pageToken: '' },
+    { version: 1, workspaceId: 'wsdoomed1', pageToken: 'x'.repeat(4097) },
   ])('rejects an unbounded or malformed payload %o', async (payload) => {
     await expect(sweep(payload, outboxContext())).rejects.toThrow()
     for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(true)
