@@ -262,7 +262,7 @@ export async function handleNewSignInAccount(
 ): Promise<void> {
   if (!isUserCreatedInAuthRequest(userId, authRequest)) return
   if (!(await isDeletedAccountIdentity({ oauthSubjects: [{ providerId, accountId }] }))) return
-  await forfeitFreeTierAllowance(userId)
+  await forfeitFreeTierAllowance(db, userId)
 }
 
 /**
@@ -283,29 +283,45 @@ export async function ensureUserStatsExists(
   userId: string,
   authRequest?: object | null
 ): Promise<void> {
-  const created = await db
+  await createUserStatsIfMissing(db, userId, {
+    includeSignIns: isUserCreatedInAuthRequest(userId, authRequest),
+  })
+}
+
+/**
+ * Creates a user's `user_stats` row with the free allowance when none exists, on `executor`
+ * (the caller's transaction, or `db`). Only a row this call creates gets the deleted-identity
+ * check signup makes: the email always, and the linked sign-ins only when `includeSignIns` is
+ * set. An existing row costs only the conflicting insert. A failed check leaves the allowance in
+ * place and never fails the caller or aborts its transaction.
+ *
+ * @returns whether this call created the row
+ */
+export async function createUserStatsIfMissing(
+  executor: DbOrTx,
+  userId: string,
+  { includeSignIns = false }: { includeSignIns?: boolean } = {}
+): Promise<boolean> {
+  const created = await executor
     .insert(userStats)
     .values({
       id: generateId(),
-      userId: userId,
+      userId,
       currentUsageLimit: getFreeTierLimit().toString(),
       usageLimitUpdatedAt: new Date(),
     })
     .onConflictDoNothing({ target: userStats.userId })
     .returning({ id: userStats.id })
-  if (created.length === 0) return
+  if (created.length === 0) return false
 
   try {
-    const includeSignIns = isUserCreatedInAuthRequest(userId, authRequest)
-    if (await userHasDeletedAccountIdentity(userId, { includeSignIns })) {
-      await forfeitFreeTierAllowance(userId)
+    if (await userHasDeletedAccountIdentity(userId, { includeSignIns }, executor)) {
+      await forfeitFreeTierAllowance(executor, userId)
     }
   } catch (error) {
-    logger.error('Failed to withhold the free allowance from a fallback stats row', {
-      userId,
-      error,
-    })
+    logger.error('Failed to withhold the free allowance from a new stats row', { userId, error })
   }
+  return true
 }
 
 interface ResolvedUserUsageData {
@@ -690,12 +706,12 @@ export async function checkUsageStatus(userId: string): Promise<{
 /**
  * Withholds the free allowance from a new account found to reuse the sign-in
  * identity of a recently deleted one after its stats row was created. The flag
- * and the limit it implies commit together, so a failed re-derivation can never
- * leave the account flagged but still holding the free limit; repeating the
- * call is harmless.
+ * and the limit it implies commit together (a transaction on `db`, a savepoint
+ * inside a caller's transaction), so a failed re-derivation can never leave the
+ * account flagged but still holding the free limit; repeating the call is harmless.
  */
-async function forfeitFreeTierAllowance(userId: string): Promise<void> {
-  await db.transaction(async (tx) => {
+async function forfeitFreeTierAllowance(executor: DbOrTx, userId: string): Promise<void> {
+  await executor.transaction(async (tx) => {
     await tx.update(userStats).set({ freeTierEligible: false }).where(eq(userStats.userId, userId))
     await syncUsageLimitsFromSubscription(userId, tx)
   })

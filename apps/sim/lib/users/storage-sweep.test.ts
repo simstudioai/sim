@@ -524,6 +524,26 @@ describe('account storage object cleanup', () => {
     expect(await exists('workspace-logos/wsforeign9/icon.png')).toBe(true)
   })
 
+  it.each([
+    {
+      key: 'workspace-logos/wsforeign9/icon.png',
+      url: '/api/files/serve/workspace-logos%2Fwsforeign9%2Ficon.png#v2',
+    },
+    {
+      key: 'workspace-logos/wsforeign9/brand logo%.png',
+      url: '/api/files/serve/workspace-logos/wsforeign9/brand%20logo%.png#v2',
+    },
+  ])('keeps a public key a relative URL with a fragment names: $url', async ({ key, url }) => {
+    const storedAs = key.replace(/[ %]/g, '_')
+    await put(storedAs)
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.user, [{ value: url }])
+
+    await cleanup(payload([{ key, context: 'workspace-logos' }]), outboxContext())
+
+    expect(await exists(storedAs)).toBe(true)
+  })
+
   it('keeps a public key without an owner id to narrow on, reading no URL column', async () => {
     await put('og-images/logo.png')
 

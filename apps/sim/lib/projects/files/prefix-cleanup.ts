@@ -21,7 +21,6 @@ import {
   deleteStorageKeysUnderPrefix,
   listStorageKeyPage,
   outboxDeadlineNear,
-  STORAGE_KEY_PAGE_SIZE,
   storageCleanupAvailableAt,
 } from '@/lib/uploads/core/prefix-sweep'
 import { abortProviderUpload } from '@/lib/uploads/upload-session/provider'
@@ -202,21 +201,33 @@ export async function queueRetiredProjectUploadCleanup(
   })
 }
 
-/** `stalled` when a page that must be re-listed removed nothing, so continuing cannot progress. */
+/**
+ * Deletes one listing page's objects per run, re-listing from the prefix start next time. A
+ * provider (Azure Blob, GCS, S3-compatibles) may return a short or empty page that is not the last,
+ * so only `page.done` ends the sweep; a non-final page that removes nothing is followed to the next
+ * one within the run, so objects behind it are still reached. `stalled` when no page removed
+ * anything before the listing stopped advancing or the deadline neared.
+ */
 async function sweepPrefix(
   projectId: string,
   context: OutboxEventContext
 ): Promise<'done' | 'continue' | 'stalled'> {
   const prefix = prefixFor(projectId)
-  const page = await listStorageKeyPage(prefix, 'project', context.signal)
-  const { deleted, complete } = await deleteStorageKeysUnderPrefix(
-    prefix,
-    'project',
-    page.keys,
-    context
-  )
-  if (complete && page.keys.length < STORAGE_KEY_PAGE_SIZE) return 'done'
-  return deleted > 0 ? 'continue' : 'stalled'
+  let pageToken: string | undefined
+  for (;;) {
+    const page = await listStorageKeyPage(prefix, 'project', context.signal, pageToken)
+    const { deleted, complete } = await deleteStorageKeysUnderPrefix(
+      prefix,
+      'project',
+      page.keys,
+      context
+    )
+    if (complete && page.done) return 'done'
+    if (deleted > 0) return 'continue'
+    const advanced = page.nextPageToken !== undefined && page.nextPageToken !== pageToken
+    if (!complete || !advanced || outboxDeadlineNear(context)) return 'stalled'
+    pageToken = page.nextPageToken
+  }
 }
 
 const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
@@ -259,7 +270,7 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
   const sweep = await sweepPrefix(payload.projectId, context)
   if (sweep === 'continue') return continueOutboxHandler('Continuing Project storage cleanup')
   if (sweep === 'stalled')
-    return deferOutboxHandler('Project storage cleanup removed nothing from a full listing page')
+    return deferOutboxHandler('Project storage cleanup removed nothing from its listing')
 }
 
 /**

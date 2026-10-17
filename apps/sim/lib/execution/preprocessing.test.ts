@@ -107,6 +107,69 @@ beforeEach(() => {
 })
 
 describe('preprocessExecution deployment checks', () => {
+  type PrefetchedWorkflow = NonNullable<Parameters<typeof preprocessExecution>[0]['workflowRecord']>
+  const prefetched = {
+    id: 'workflow-1',
+    userId: 'user-1',
+    workspaceId: 'workspace-1',
+    isDeployed: true,
+    archivedAt: null,
+  } as PrefetchedWorkflow
+
+  it.each([
+    { name: 'a missing workflow', active: null, workflowState: 'not_found' },
+    {
+      name: 'a prefetched archived workflow',
+      workflowRecord: { ...prefetched, archivedAt: new Date() },
+      workflowState: 'not_found',
+    },
+    {
+      name: 'a workflow archived before the run started',
+      active: null,
+      workflowRecord: prefetched,
+      workflowState: 'not_found',
+    },
+    {
+      name: 'a workflow attached to no workspace',
+      active: { ...prefetched, workspaceId: null },
+      workflowState: 'not_attached',
+    },
+  ])(
+    'marks $name as a workflow-state rejection',
+    async ({ active, workflowRecord, workflowState }) => {
+      if (active !== undefined)
+        workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValueOnce(active)
+
+      const result = await preprocessExecution({
+        workflowId: 'workflow-1',
+        userId: 'user-1',
+        triggerType: 'api',
+        executionId: 'execution-1',
+        requestId: 'request-1',
+        checkDeployment: true,
+        ...(workflowRecord ? { workflowRecord } : {}),
+      })
+
+      expect(result).toMatchObject({ success: false, error: { workflowState } })
+    }
+  )
+
+  it('never marks a failed workflow read as a workflow-state rejection', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockRejectedValue(new Error('read failed'))
+
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'api',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkDeployment: true,
+    })
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 500 } })
+    expect(result.success === false && result.error.workflowState).toBeUndefined()
+  })
+
   it('returns a structured code when a required deployment is missing', async () => {
     workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValueOnce({
       id: 'workflow-1',
@@ -129,6 +192,7 @@ describe('preprocessExecution deployment checks', () => {
         message: 'Workflow is not deployed',
         statusCode: 403,
         code: WORKFLOW_NOT_DEPLOYED_CODE,
+        workflowState: 'not_deployed',
       },
     })
   })
