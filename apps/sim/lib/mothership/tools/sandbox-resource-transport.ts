@@ -5,9 +5,14 @@ import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
 import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
-import { parseRequest } from '@/lib/api/server/validation'
+import { DEFAULT_MAX_JSON_BODY_BYTES, parseRequest } from '@/lib/api/server/validation'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  assertContentLengthWithinLimit,
+  isPayloadSizeLimitError,
+  readStreamToBufferWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { createResourceEffectTransport } from '@/lib/mothership/agent-cli/resource-effects'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -28,9 +33,10 @@ const logger = createLogger('MothershipSandboxResourceTransport')
 
 /** Private callback observes the real authenticated v2 request without changing its body or API contract. */
 export async function proxySandboxResourceRequest(
-  request: Request,
+  callback: Request,
   token: string
 ): Promise<Response> {
+  let request = callback
   const url = new URL(request.url)
   const prefix = `/api/mothership/sandbox/${token}`
   const path = url.pathname.slice(prefix.length)
@@ -52,11 +58,13 @@ export async function proxySandboxResourceRequest(
    * owner is refused there; workspace copies and invalid bodies keep the workspace route and its
    * v2 validation response.
    */
-  if (
-    path === v2CopyFileItemsContract.path &&
-    (scope.fileOwnerProtocolVersion === 1 || (await copiesBeyondWorkspaces(request)))
-  )
-    return proxySandboxFileCopyRequest(request, token, scope)
+  if (path === v2CopyFileItemsContract.path) {
+    const buffered = await bufferCopyRequest(request)
+    if (buffered instanceof Response) return buffered
+    request = buffered
+    if (scope.fileOwnerProtocolVersion === 1 || (await copiesBeyondWorkspaces(request)))
+      return proxySandboxFileCopyRequest(request, token, scope)
+  }
   const ownerHeader = request.headers.get('x-mothership-file-owner')
   let owner: FileOperationOwner | undefined
   if (ownerHeader !== null) {
@@ -205,9 +213,30 @@ async function proxyAuthorizedSandboxRequest(
 }
 
 /**
+ * Reads a copy body once, under the v2 body cap, so the protocol check and whichever copy path
+ * handles it each read an in-memory copy. Parsing a clone of the live stream instead would hang on
+ * an oversized body: cancelling one branch of a teed stream waits for the unread other branch.
+ */
+async function bufferCopyRequest(request: Request): Promise<Request | Response> {
+  if (!request.body) return request
+  try {
+    assertContentLengthWithinLimit(request.headers, DEFAULT_MAX_JSON_BODY_BYTES, 'Request body')
+    const body = await readStreamToBufferWithLimit(request.body, {
+      maxBytes: DEFAULT_MAX_JSON_BODY_BYTES,
+      label: 'Request body',
+      signal: request.signal,
+    })
+    return new Request(request, { body: new Uint8Array(body) })
+  } catch (error) {
+    if (isPayloadSizeLimitError(error)) return V2_PARSE_DEFAULTS.payloadTooLargeResponse()
+    throw error
+  }
+}
+
+/**
  * A valid copy naming a non-workspace source or destination needs the file-owner protocol. Parsed
- * as the copy route parses it, under the same body cap: an oversized or invalid body stays on the
- * workspace route, which returns its own 413 or 400.
+ * as the copy route parses it: an invalid body stays on the workspace route, which returns its own
+ * 400.
  */
 async function copiesBeyondWorkspaces(request: Request): Promise<boolean> {
   const parsed = await parseRequest(
