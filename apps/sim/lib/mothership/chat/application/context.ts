@@ -1,4 +1,8 @@
-import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  isUserChatDelegation,
+  type Principal,
+  resolvePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -12,6 +16,7 @@ import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/appli
 export type ChatOwnerContext =
   | (WorkspaceAuthorizationContext & { organizationId?: undefined })
   | { organizationId: string; workspaceId?: undefined; workspaceOrganizationId?: undefined }
+  | { organizationId?: undefined; workspaceId?: undefined; workspaceOrganizationId?: undefined }
 
 /** Workspace tasks never inherit organization Assistant ownership. */
 export async function resolveOwnedWorkspaceChatContext(principal: Principal, chatId: string) {
@@ -21,6 +26,8 @@ export async function resolveOwnedWorkspaceChatContext(principal: Principal, cha
 }
 
 export interface OwnedChatContextOptions {
+  /** Internal execution plumbing only; public new-turn producers still use legacy owner admission. */
+  allowPersonal?: boolean
   /**
    * Resolves the chat for an owner whose account is blocked. Only Stop sets it: halting the
    * owner's existing work is never harmful, so it stays available after access is withheld.
@@ -49,7 +56,11 @@ export async function resolveOwnedChatContext(
   if (
     !chat ||
     (chat.workspaceId && chat.organizationId) ||
-    (!chat.workspaceId && !chat.organizationId && !chat.workflowId) ||
+    (!options.allowPersonal &&
+      !isUserChatDelegation(principal) &&
+      !chat.workspaceId &&
+      !chat.organizationId &&
+      !chat.workflowId) ||
     chat.userId !== resolvePrincipalSubjectUserId(principal) ||
     (chat.organizationId && chat.type !== 'mothership')
   ) {
@@ -60,12 +71,14 @@ export async function resolveOwnedChatContext(
   }
   const owner: ChatOwnerContext = chat.organizationId
     ? { organizationId: chat.organizationId }
-    : {
-        ...(await resolveActiveWorkspaceApplicationContext(
-          await resolveChatWorkspaceId(chatId, chat)
-        )),
-        organizationId: undefined,
-      }
+    : !chat.workspaceId && !chat.workflowId
+      ? {}
+      : {
+          ...(await resolveActiveWorkspaceApplicationContext(
+            await resolveChatWorkspaceId(chatId, chat)
+          )),
+          organizationId: undefined,
+        }
   return {
     ...owner,
     chatId,

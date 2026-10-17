@@ -1,12 +1,13 @@
-import type { Principal } from '@sim/auth/principal'
-import { workspaceDelegationRestrictions } from '@sim/auth/principal'
+import { delegatedChatId, type Principal } from '@sim/auth/principal'
 import { resolveEffectiveWorkspacePermission } from '@sim/platform-authz/workspace'
-import { authorizeWorkspaceOperation, defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
+import { requireCurrentHumanRole } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { requireAdmittedWorkspaceTarget } from '@/lib/mothership/request/application/run-authorization'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const WORKSPACE_TARGET_AUDIENCE = 'sim:workspaces'
@@ -22,6 +23,8 @@ const targetOperation = defineWorkspaceOperation({
 
 /** Chat ownership and target membership are separate grants, rechecked before every operation. */
 export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: WORKSPACE_TARGET_AUDIENCE,
   operation: targetOperation,
   organizationOperation: defineOrganizationOperation({
     id: targetOperation.id,
@@ -42,26 +45,28 @@ export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
   authorizationOptions: {
     delegation: {
       audience: WORKSPACE_TARGET_AUDIENCE,
-      isWithinScope: (principal, context) =>
-        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
+      isWithinScope: (principal, context) => delegatedChatId(principal) === context.chatId,
     },
   },
-  async execute({ context, input }) {
+  async execute({ context, input, executionPrincipal }) {
+    await requireAdmittedWorkspaceTarget(executionPrincipal, input.workspaceId)
     if (context.organizationId && context.mode !== 'agent' && context.mode !== 'plan')
       throw new OrchestrationError('forbidden', 'Workspace actions require organization agent mode')
     const target = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
     if (
       (context.workspaceId && context.workspaceId !== target.workspaceId) ||
-      (context.organizationId && context.organizationId !== target.workspaceOrganizationId)
+      (context.organizationId && context.organizationId !== target.workspaceOrganizationId) ||
+      (!context.workspaceId && !context.organizationId && target.workspaceOrganizationId !== null)
     )
       throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
-    const principal = createCopilotChatPrincipal(
-      { userId: context.userId, workspaceId: target.workspaceId, chatId: context.chatId },
-      WORKSPACE_TARGET_AUDIENCE
-    )
-    await authorizeWorkspaceOperation(principal, targetOperation, target, {
-      delegation: { audience: WORKSPACE_TARGET_AUDIENCE, isWithinScope: () => true },
-    })
+    await requireCurrentHumanRole(context.userId, target, targetOperation.minimumRole)
+    if (target.workspaceOrganizationId !== null && targetOperation.capability !== 'none')
+      await assertWorkspaceCapability(
+        context.userId,
+        target.workspaceId,
+        targetOperation.capability,
+        target.workspaceOrganizationId
+      )
     const permission = await resolveEffectiveWorkspacePermission(
       context.userId,
       target.workspaceId,

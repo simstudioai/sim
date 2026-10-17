@@ -15,6 +15,7 @@ import {
   RUN_CONTROL_AUDIENCE,
   readRunControl,
 } from '@/lib/mothership/request/application/read-control'
+import { authorizeOriginalRun } from '@/lib/mothership/request/application/run-authorization'
 
 vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/auth/ban', () => authBanMock)
@@ -63,7 +64,6 @@ describe('organization run-control authorization', () => {
       expect.objectContaining({
         userId: 'actor',
         organizationId: 'org-1',
-        chatId: 'chat-1',
         streamId: 'stream-1',
       })
     )
@@ -89,7 +89,7 @@ describe('organization run-control authorization', () => {
     queueChat()
     const caller = { ...principal(), organizationId: 'other' }
     await expect(readRunControl.execute({ principal: caller, input })).rejects.toThrow(
-      'Organization delegation is no longer valid'
+      'Run delegation is no longer valid'
     )
     expect(mocks.stopped).not.toHaveBeenCalled()
   })
@@ -103,7 +103,7 @@ describe('organization run-control authorization', () => {
         return []
       })
       await expect(readRunControl.execute({ principal: caller, input })).rejects.toThrow(
-        'Organization delegation is no longer valid'
+        'Run delegation is no longer valid'
       )
       expect(mocks.stopped).not.toHaveBeenCalled()
     } finally {
@@ -120,17 +120,10 @@ describe('organization run-control authorization', () => {
       stopped: false,
     })
   })
-  it('answers Stop once organization membership ends or the run belongs to another organization', async () => {
+  it('answers Stop once organization membership ends', async () => {
     queueTableRows(copilotChats, [
       { userId: 'actor', organizationId: 'org-1', workspaceId: null, type: 'mothership' },
     ])
-    expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
-      stopped: true,
-    })
-    expect(mocks.stopped).not.toHaveBeenCalled()
-    resetDbChainMock()
-    queueChat()
-    mocks.run.mockResolvedValue({ chatId: 'chat-1', organizationId: 'org-2', workspaceId: null })
     expect(await readRunControl.execute({ principal: principal(), input })).toEqual({
       stopped: true,
     })
@@ -143,6 +136,21 @@ describe('organization run-control authorization', () => {
       stopped: true,
     })
     expect(mocks.stopped).not.toHaveBeenCalled()
+  })
+  it('preserves Build permission checks on an original-admission continuation', async () => {
+    queueChat()
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      disableWorkspaceCreation: true,
+    })
+    await expect(
+      authorizeOriginalRun({
+        principal: principal(),
+        ...input,
+        audience: RUN_CONTROL_AUDIENCE,
+        capability: 'copilot.use',
+        mode: 'agent',
+      })
+    ).rejects.toThrow('Build requires permission')
   })
   it('lets a live run continue', async () => {
     queueChat()

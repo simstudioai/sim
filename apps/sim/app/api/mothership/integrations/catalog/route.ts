@@ -13,7 +13,7 @@ import {
 
 export const POST = defineInternalJsonRoute({
   contract: readIntegrationCatalogContract,
-  auth: internalCopilotAuth(INTEGRATION_CATALOG_AUDIENCE, { organization: true }),
+  auth: internalCopilotAuth(INTEGRATION_CATALOG_AUDIENCE, { organization: true, personal: true }),
   operation: readIntegrationCatalogOperation,
   rateLimit: internalRateLimits.none({
     reason: 'Private bounded catalog discovery rechecks current authorization on every request.',

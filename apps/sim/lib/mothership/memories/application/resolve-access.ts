@@ -1,8 +1,9 @@
-import type {
-  OrganizationDelegatedPrincipal,
-  WorkspaceSubjectDelegation,
+import {
+  delegatedChatId,
+  type OrganizationDelegatedPrincipal,
+  type SubjectDelegatedPrincipal,
+  type WorkspaceSubjectDelegation,
 } from '@sim/auth/principal'
-import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, project, workspace } from '@sim/db/schema'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
@@ -50,7 +51,13 @@ const organizationOperation = defineOrganizationOperation({
   delegatedServices: ['copilot'],
   delegationAudience: MEMORY_NOTES_ACCESS_AUDIENCE,
 })
-type MemoryPrincipal = WorkspaceSubjectDelegation | OrganizationDelegatedPrincipal
+type MemoryPrincipal =
+  | WorkspaceSubjectDelegation
+  | OrganizationDelegatedPrincipal
+  | (SubjectDelegatedPrincipal & {
+      serviceId: 'copilot'
+      grant: { kind: 'entity'; owner: { entityType: 'user' } }
+    })
 /** The worker acts on the answer after commit, so a consistent unlocked snapshot is enough. */
 const READ_SNAPSHOT = { isolationLevel: 'repeatable read', accessMode: 'read only' } as const
 
@@ -136,6 +143,8 @@ async function projectAccess(
 
 /** Current Sim authority only; Mothership must re-resolve before each read or mutation. */
 const resolveAccess = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: MEMORY_NOTES_ACCESS_AUDIENCE,
   operation: resolveMemoryNotesAccessOperation,
   organizationOperation,
   async resolveContext({
@@ -144,11 +153,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
     principal: MemoryPrincipal
     input: MemoryNotesAccessInput
   }) {
-    const restrictions =
-      principal.kind === 'organization_delegated'
-        ? principal.resourceScope
-        : workspaceDelegationRestrictions(principal)
-    const chatId = restrictions && 'chatId' in restrictions ? restrictions.chatId : undefined
+    const chatId = delegatedChatId(principal)
     const now = Date.now()
     if (
       principal.serviceId !== 'copilot' ||
@@ -166,8 +171,7 @@ const resolveAccess = defineAuthorizedChatUseCase({
   authorizationOptions: {
     delegation: {
       audience: MEMORY_NOTES_ACCESS_AUDIENCE,
-      isWithinScope: (principal, context) =>
-        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
+      isWithinScope: (principal, context) => delegatedChatId(principal) === context.chatId,
     },
   },
   async execute({ principal, context, input }): Promise<MemoryNotesAccessResult> {

@@ -391,7 +391,8 @@ export const POST = withRouteHandler((req: NextRequest) =>
             protocol !== COPILOT_BILLING_PROTOCOL.direct &&
             !localUnbilledCallback &&
             !workspaceId &&
-            !organizationId
+            !organizationId &&
+            !req.headers.has('x-mothership-execution-stream-id')
           ) {
             span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InvalidBody)
             span.setAttribute(TraceAttr.HttpStatusCode, 400)
@@ -400,6 +401,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
           /** Direct keys carry self-hosted scope IDs that do not name hosted Sim resources. */
           if (protocol !== COPILOT_BILLING_PROTOCOL.direct && !localUnbilledCallback) {
             await authorizeCopilotChatCallback({
+              executionStreamId: req.headers.get('x-mothership-execution-stream-id') ?? undefined,
               userId,
               workspaceId,
               organizationId,

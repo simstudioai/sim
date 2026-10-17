@@ -23,8 +23,8 @@ export const SimScope = z
     organizationId: z.string().min(1).max(200).optional(),
     chatId: z.uuid(),
   })
-  .refine((scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId), {
-    message: "Exactly one workspaceId or organizationId is required",
+  .refine((scope) => !(scope.workspaceId && scope.organizationId), {
+    message: "workspaceId and organizationId cannot both be supplied",
   });
 export type SimScope = z.infer<typeof SimScope>;
 
@@ -41,6 +41,7 @@ export const SimControlOperation = z.discriminatedUnion("kind", [
 export type SimControlOperation = z.infer<typeof SimControlOperation>;
 
 export const SimControlRequest = z.object({
+  executionStreamId: RunControlRequest.shape.streamId.optional(),
   id: z.uuid(),
   scope: SimScope,
   operation: SimControlOperation,

@@ -1,12 +1,12 @@
 import {
+  delegatedChatId,
+  isUserChatDelegation,
   isWorkspaceDelegation,
-  type OrganizationDelegatedPrincipal,
   type Principal,
   parsePrincipal,
   principalWorkspaceId,
   resolvePrincipalExecutionActorUserId,
   resolvePrincipalSubjectUserId,
-  type WorkspaceDelegatedPrincipal,
   workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
@@ -34,6 +34,7 @@ import type {
   IntegrationCatalogResponse,
 } from '@/lib/mothership/generated/integration-catalog'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import { requireAdmittedWorkspaceTarget } from '@/lib/mothership/request/application/run-authorization'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export const INTEGRATION_CATALOG_AUDIENCE = 'sim:integration-catalog'
@@ -131,6 +132,8 @@ function resolveServiceFilter(
 
 /** Catalog access rechecks current grants; worker state carries scope and provenance, never schemas. */
 const catalogUseCase = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: INTEGRATION_CATALOG_AUDIENCE,
   operation: readIntegrationCatalogOperation,
   organizationOperation: defineOrganizationOperation({
     id: readIntegrationCatalogOperation.id,
@@ -145,23 +148,25 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: Principal
     input: IntegrationCatalogRequest
   }) {
-    if (principal.kind === 'organization_delegated') {
-      if (!('chatId' in principal.resourceScope))
+    const chatId = delegatedChatId(principal)
+    if (principal.kind === 'organization_delegated' || isUserChatDelegation(principal)) {
+      if (!chatId)
         throw new OrchestrationError('forbidden', 'Integration discovery requires a conversation')
-      const context = await resolveOwnedChatContext(principal, principal.resourceScope.chatId)
+      const context = await resolveOwnedChatContext(principal, chatId)
       if (input.mode !== context.mode)
         throw new OrchestrationError('forbidden', 'Conversation mode mismatch')
       return context
     }
-    if (input.workspaceId && input.workspaceId !== principalWorkspaceId(principal))
+    const workspaceId = principalWorkspaceId(principal)
+    if (!workspaceId || (input.workspaceId && input.workspaceId !== workspaceId))
       throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
     const userId = resolvePrincipalExecutionActorUserId(principal)
     if (!userId) throw new OrchestrationError('forbidden', 'Integration discovery requires a user')
     return {
-      ...(await resolveActiveWorkspaceApplicationContext(principalWorkspaceId(principal))),
+      ...(await resolveActiveWorkspaceApplicationContext(workspaceId)),
       organizationId: undefined,
       userId,
       chatId: workspaceDelegationRestrictions(principal)?.chatId,
@@ -171,14 +176,34 @@ const catalogUseCase = defineAuthorizedChatUseCase({
   authorizationOptions: {
     delegation: { audience: INTEGRATION_CATALOG_AUDIENCE, isWithinScope: () => true },
   },
-  async execute({ input, context }) {
+  async execute({ input, context, executionPrincipal }) {
+    const admitted =
+      executionPrincipal &&
+      'executionStreamId' in executionPrincipal &&
+      executionPrincipal.executionStreamId
+        ? executionPrincipal
+        : undefined
+    const requestedWorkspaceId =
+      input.workspaceId ??
+      (admitted && isWorkspaceDelegation(admitted) ? principalWorkspaceId(admitted) : undefined)
+    if (requestedWorkspaceId) await requireAdmittedWorkspaceTarget(admitted, requestedWorkspaceId)
+    else if (
+      admitted &&
+      ((admitted.kind === 'organization_delegated' &&
+        admitted.organizationId !== context.organizationId) ||
+        (isUserChatDelegation(admitted) && context.organizationId))
+    )
+      throw new OrchestrationError(
+        'not_found',
+        'Integration catalog not found in the admitted execution'
+      )
     if (context.mode === 'assistant' && !(await isSearchIntegrationToolsEnabled()))
       return { total: 0, truncated: false, operations: [] }
     if (input.mcpExecution && context.organizationId)
       throw new OrchestrationError('forbidden', 'Executor catalogs require workspace agent scope')
     let workspaceId = context.workspaceId
-    if (context.organizationId && input.workspaceId) {
-      workspaceId = (await resolveInvocationWorkspace(context, input.workspaceId)).workspaceId
+    if (!context.workspaceId && requestedWorkspaceId) {
+      workspaceId = (await resolveInvocationWorkspace(context, requestedWorkspaceId)).workspaceId
     }
     const mcpOnly = input.toolId?.startsWith('mcp-') || input.service?.startsWith('mcp:')
     const tools = mcpOnly
@@ -216,7 +241,7 @@ const catalogUseCase = defineAuthorizedChatUseCase({
           (!input.service || input.service === `mcp:${serverId}`) &&
           (!input.toolId || input.toolId.startsWith(`${serverId}-`))
       )
-      if (context.organizationId && candidates.length) {
+      if (!context.workspaceId && candidates.length) {
         const { servers } = await listMcpServersUseCase.execute({
           principal: createCopilotChatPrincipal(
             { userId: context.userId, workspaceId },

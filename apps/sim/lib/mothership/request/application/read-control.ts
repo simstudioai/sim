@@ -1,9 +1,3 @@
-import type {
-  OrganizationDelegatedPrincipal,
-  Principal,
-  WorkspaceDelegatedPrincipal,
-} from '@sim/auth/principal'
-import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   type AuthorizingUseCase,
   DelegatedServiceAuthorizationError,
@@ -12,12 +6,14 @@ import {
   PrincipalKindAuthorizationError,
 } from '@/lib/core/application'
 import { OrganizationDelegationAuthorizationError } from '@/lib/core/application/organization-authorization'
-import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
-import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { getLatestRunForStream, isRunStopRequested } from '@/lib/mothership/async-runs/repository'
-import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
-import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
+import { asOrchestrationError, type OrchestrationError } from '@/lib/core/orchestration/types'
+import { isRunStopRequested } from '@/lib/mothership/async-runs/repository'
 import type { RunControlRequest, RunControlState } from '@/lib/mothership/generated/run-control'
+import {
+  authorizeOriginalRun,
+  RunDelegationAuthorizationError,
+  requireRunDelegation,
+} from '@/lib/mothership/request/application/run-authorization'
 
 export const RUN_CONTROL_AUDIENCE = 'sim:copilot-run-control'
 // permission-group-exempt: observing stop state must remain possible after Copilot access is withheld
@@ -31,82 +27,18 @@ export const readRunControlOperation = defineWorkspaceOperation({
   delegatedServices: ['copilot'],
 })
 
-/** Answers for a run Sim still has: its chat live, its owner still allowed, Stop not requested. */
-const readLiveRunControl = defineAuthorizedChatUseCase({
-  operation: readRunControlOperation,
-  /** permission-group-exempt: observing Stop must remain available after Assistant access is withheld. */
-  organizationOperation: defineOrganizationOperation({
-    id: readRunControlOperation.id,
-    contentDelivery: 'none',
-    minimumRole: 'member',
-    capability: readRunControlOperation.capability,
-    principalKinds: ['organization_delegated'],
-    delegationAudience: RUN_CONTROL_AUDIENCE,
-    delegatedServices: ['copilot'],
-  }),
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
-    input: RunControlRequest
-  }) => resolveOwnedChatContext(principal, input.chatId),
-  authorizationOptions: {
-    delegation: {
-      audience: RUN_CONTROL_AUDIENCE,
-      isWithinScope: (principal, context) =>
-        principal.serviceId === 'copilot' &&
-        principalWorkspaceId(principal) === context.workspaceId &&
-        (!workspaceDelegationRestrictions(principal)?.chatId ||
-          workspaceDelegationRestrictions(principal)?.chatId === context.chatId),
-    },
-  },
-  async execute({ input, context }) {
-    const run = await getLatestRunForStream(input.streamId, context.userId)
-    if (
-      !run ||
-      run.chatId !== context.chatId ||
-      (run.workspaceId ?? null) !== (context.workspaceId ?? null) ||
-      (run.organizationId ?? null) !== (context.organizationId ?? null)
-    ) {
-      throw new OrchestrationError('not_found', 'Stream not found')
-    }
-    return { stopped: await isRunStopRequested({ ...context, streamId: input.streamId }) }
-  },
-})
-
 /**
  * A refusal of the caller's delegation itself (expired mid-request, or out of scope), which
  * says nothing about whether the run may continue.
  */
 function isCallerRefusal(error: OrchestrationError): boolean {
   return (
+    error instanceof RunDelegationAuthorizationError ||
     error instanceof DelegatedWorkspaceAuthorizationError ||
     error instanceof DelegatedServiceAuthorizationError ||
     error instanceof PrincipalKindAuthorizationError ||
     error instanceof OrganizationDelegationAuthorizationError
   )
-}
-
-/** The worker asking about its own run: a copilot delegation for this chat, still in date. */
-function requireRunControlCaller(principal: Principal, input: RunControlRequest): void {
-  if (principal.kind !== 'delegated' && principal.kind !== 'organization_delegated')
-    throw new OrchestrationError('forbidden', 'Run control delegation is not valid')
-  /** A workspace delegation may leave the chat unscoped; an organization one always names it. */
-  const chatScope =
-    principal.kind === 'delegated'
-      ? (workspaceDelegationRestrictions(principal)?.chatId ?? input.chatId)
-      : principal.serviceId === 'copilot'
-        ? principal.resourceScope.chatId
-        : undefined
-  if (
-    principal.serviceId !== 'copilot' ||
-    principal.audience !== RUN_CONTROL_AUDIENCE ||
-    principal.expiresAt.getTime() <= Date.now() ||
-    chatScope !== input.chatId
-  ) {
-    throw new OrchestrationError('forbidden', 'Run control delegation is not valid')
-  }
 }
 
 /**
@@ -122,12 +54,30 @@ export const readRunControl: AuthorizingUseCase<
 > = {
   operation: readRunControlOperation,
   async authorize({ principal, input }) {
-    requireRunControlCaller(principal, input)
+    requireRunDelegation(principal, RUN_CONTROL_AUDIENCE, input.chatId, input.streamId)
   },
   async execute(args) {
-    requireRunControlCaller(args.principal, args.input)
+    requireRunDelegation(
+      args.principal,
+      RUN_CONTROL_AUDIENCE,
+      args.input.chatId,
+      args.input.streamId
+    )
     try {
-      return await readLiveRunControl.execute(args)
+      const { run } = await authorizeOriginalRun({
+        ...args.input,
+        principal: args.principal,
+        audience: RUN_CONTROL_AUDIENCE,
+        capability: 'none',
+      })
+      return {
+        stopped: await isRunStopRequested({
+          userId: run.userId,
+          streamId: args.input.streamId,
+          workspaceId: run.workspaceId,
+          organizationId: run.organizationId,
+        }),
+      }
     } catch (error) {
       const refusal = asOrchestrationError(error)
       if (

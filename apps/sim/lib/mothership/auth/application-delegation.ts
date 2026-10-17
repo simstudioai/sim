@@ -2,11 +2,13 @@ import type {
   OrganizationDelegatedPrincipal,
   ResourceDelegationScope,
   ResourceOperationPrincipal,
+  SubjectDelegatedPrincipal,
   WorkspaceSubjectDelegation,
   workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import { TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
+import { RunControlRequest } from '@/lib/mothership/generated/run-control'
 
 /**
  * Delegated authority is minted per operation and must outlive the longest single
@@ -215,12 +217,22 @@ interface CreateCopilotApplicationPrincipalOptions extends CopilotDelegationConf
   resourceScope?: CopilotResourceScope
 }
 
-interface CreateTrustedCopilotPrincipalInput {
+interface CreateTrustedWorkspaceCopilotPrincipalInput {
+  executionStreamId?: string
   userId: string
   workspaceId: string
   delegationId: string
   chatId?: string
   executionId?: string
+}
+
+interface CreateTrustedUserChatPrincipalInput {
+  executionStreamId?: string
+  userId: string
+  chatId: string
+  delegationId: string
+  workspaceId?: never
+  executionId?: never
 }
 
 interface CreateTrustedCopilotPrincipalOptions {
@@ -233,6 +245,7 @@ export interface CopilotChatDelegationContext {
   userId: string
   workspaceId: string
   chatId?: string
+  executionStreamId?: string
 }
 
 /** Creates request-scoped authority for resource reads during an authenticated chat turn. */
@@ -242,7 +255,10 @@ export function createCopilotChatPrincipal(
   resourceScope?: CopilotResourceScope
 ): WorkspaceSubjectDelegation {
   return createTrustedCopilotPrincipal(
-    { ...context, delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}` },
+    {
+      ...context,
+      delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}`,
+    },
     { audience, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS, resourceScope }
   )
 }
@@ -294,10 +310,48 @@ export function requireInteractiveCopilotExecutionContext(
 
 /** Creates a bounded Copilot principal from an explicitly trusted server lifecycle. */
 export function createTrustedCopilotPrincipal(
-  input: CreateTrustedCopilotPrincipalInput,
+  input: CreateTrustedWorkspaceCopilotPrincipalInput,
   options: CreateTrustedCopilotPrincipalOptions
-): WorkspaceSubjectDelegation {
+): WorkspaceSubjectDelegation
+export function createTrustedCopilotPrincipal(
+  input: CreateTrustedUserChatPrincipalInput,
+  options: CreateTrustedCopilotPrincipalOptions
+): SubjectDelegatedPrincipal
+export function createTrustedCopilotPrincipal(
+  input: CreateTrustedWorkspaceCopilotPrincipalInput | CreateTrustedUserChatPrincipalInput,
+  options: CreateTrustedCopilotPrincipalOptions
+): WorkspaceSubjectDelegation | SubjectDelegatedPrincipal {
+  if (input.executionStreamId !== undefined)
+    RunControlRequest.shape.streamId.parse(input.executionStreamId)
   requireNonEmpty(input.userId, 'an authenticated user ID')
+  if (!input.workspaceId) {
+    requireNonEmpty(input.chatId, 'a chat ID')
+    requireNonEmpty(input.delegationId, 'a delegation ID')
+    requireNonEmpty(options.audience, 'a delegation audience')
+    if (!Number.isInteger(options.ttlMs) || options.ttlMs <= 0) {
+      throw new Error('Copilot application delegation requires a positive integer TTL')
+    }
+    if (options.resourceScope)
+      throw new Error('Personal chat delegation cannot carry a workspace resource scope')
+    const issuedAt = new Date()
+    return Object.freeze({
+      kind: 'delegated',
+      serviceId: 'copilot',
+      ...(input.executionStreamId !== undefined
+        ? { executionStreamId: input.executionStreamId }
+        : {}),
+      subjectUserId: input.userId,
+      delegationId: input.delegationId,
+      audience: options.audience,
+      issuedAt,
+      expiresAt: new Date(issuedAt.getTime() + options.ttlMs),
+      invocation: Object.freeze({ kind: 'chat' as const, chatId: input.chatId }),
+      grant: Object.freeze({
+        kind: 'entity' as const,
+        owner: Object.freeze({ entityType: 'user' as const, entityId: input.userId }),
+      }),
+    })
+  }
   requireNonEmpty(input.workspaceId, 'a workspace ID')
   requireNonEmpty(input.delegationId, 'a delegation ID')
   if (input.chatId !== undefined) requireNonEmpty(input.chatId, 'a valid chat ID')
@@ -337,6 +391,9 @@ export function createTrustedCopilotPrincipal(
   return Object.freeze<WorkspaceSubjectDelegation>({
     kind: 'delegated',
     serviceId: 'copilot',
+    ...(input.executionStreamId !== undefined
+      ? { executionStreamId: input.executionStreamId }
+      : {}),
     subjectUserId: input.userId,
     delegationId: input.delegationId,
     audience: options.audience,
@@ -375,9 +432,17 @@ export function createCopilotApplicationPrincipal(
 
 /** Creates a chat-bound organization delegation from authenticated service context. */
 export function createTrustedOrganizationCopilotPrincipal(
-  input: { userId: string; organizationId: string; chatId: string; delegationId: string },
+  input: {
+    userId: string
+    organizationId: string
+    chatId: string
+    delegationId: string
+    executionStreamId?: string
+  },
   options: { audience: string; ttlMs: number }
 ): OrganizationDelegatedPrincipal {
+  if (input.executionStreamId !== undefined)
+    RunControlRequest.shape.streamId.parse(input.executionStreamId)
   requireNonEmpty(input.userId, 'an authenticated user ID')
   requireNonEmpty(input.organizationId, 'an organization ID')
   requireNonEmpty(input.chatId, 'a chat ID')
@@ -389,6 +454,9 @@ export function createTrustedOrganizationCopilotPrincipal(
   const issuedAt = new Date()
   return Object.freeze({
     kind: 'organization_delegated',
+    ...(input.executionStreamId !== undefined
+      ? { executionStreamId: input.executionStreamId }
+      : {}),
     serviceId: 'copilot',
     subjectUserId: input.userId,
     organizationId: input.organizationId,

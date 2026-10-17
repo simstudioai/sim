@@ -36,52 +36,59 @@ const logger = createLogger('MothershipControlTransport')
 export async function executeSimControl(request: SimControlRequest): Promise<SimControlResult> {
   if (request.expiresAt <= Date.now()) return { status: 410, body: '{"error":"Request expired"}' }
   const { scope, operation } = request
-  if (Boolean(scope.workspaceId) === Boolean(scope.organizationId))
+  if (scope.workspaceId && scope.organizationId)
     return { status: 403, body: '{"error":"Invalid owner scope"}' }
   if ('chatId' in operation.input && operation.input.chatId !== scope.chatId)
     return { status: 403, body: '{"error":"Chat scope mismatch"}' }
+  const liveCallback = operation.kind !== 'wake'
+  if (
+    (!scope.workspaceId && !scope.organizationId && !liveCallback) ||
+    (request.executionStreamId !== undefined && !liveCallback)
+  )
+    return { status: 403, body: '{"error":"Invalid execution scope"}' }
+  if (
+    operation.kind === 'run_control' &&
+    request.executionStreamId !== undefined &&
+    request.executionStreamId !== operation.input.streamId
+  )
+    return { status: 403, body: '{"error":"Execution stream mismatch"}' }
+  const options = {
+    audience:
+      operation.kind === 'memory_notes_access'
+        ? MEMORY_NOTES_ACCESS_AUDIENCE
+        : operation.kind === 'memory_scope'
+          ? MEMORY_SCOPE_AUDIENCE
+          : operation.kind === 'integration_catalog'
+            ? INTEGRATION_CATALOG_AUDIENCE
+            : operation.kind === 'workspace_context'
+              ? WORKSPACE_TARGET_AUDIENCE
+              : operation.kind === 'run_control'
+                ? RUN_CONTROL_AUDIENCE
+                : TASK_DELEGATION_AUDIENCE,
+    ttlMs: Math.min(60_000, request.expiresAt - Date.now()),
+  }
+  if (options.ttlMs <= 0) return { status: 410, body: '{"error":"Request expired"}' }
+  const identity = {
+    ...scope,
+    executionStreamId: request.executionStreamId,
+    delegationId: `transport:${request.id}`,
+  }
   const principal = scope.organizationId
     ? createTrustedOrganizationCopilotPrincipal(
-        {
-          userId: scope.userId,
-          organizationId: scope.organizationId,
-          chatId: scope.chatId,
-          delegationId: `transport:${request.id}`,
-        },
-        {
-          audience:
-            operation.kind === 'memory_notes_access'
-              ? MEMORY_NOTES_ACCESS_AUDIENCE
-              : operation.kind === 'memory_scope'
-                ? MEMORY_SCOPE_AUDIENCE
-                : operation.kind === 'integration_catalog'
-                  ? INTEGRATION_CATALOG_AUDIENCE
-                  : operation.kind === 'workspace_context'
-                    ? WORKSPACE_TARGET_AUDIENCE
-                    : operation.kind === 'run_control'
-                      ? RUN_CONTROL_AUDIENCE
-                      : TASK_DELEGATION_AUDIENCE,
-          ttlMs: 60_000,
-        }
+        { ...identity, organizationId: scope.organizationId },
+        options
       )
-    : createTrustedCopilotPrincipal(
-        { ...scope, workspaceId: scope.workspaceId!, delegationId: `transport:${request.id}` },
-        {
-          audience:
-            operation.kind === 'memory_notes_access'
-              ? MEMORY_NOTES_ACCESS_AUDIENCE
-              : operation.kind === 'memory_scope'
-                ? MEMORY_SCOPE_AUDIENCE
-                : operation.kind === 'integration_catalog'
-                  ? INTEGRATION_CATALOG_AUDIENCE
-                  : operation.kind === 'workspace_context'
-                    ? WORKSPACE_TARGET_AUDIENCE
-                    : operation.kind === 'run_control'
-                      ? RUN_CONTROL_AUDIENCE
-                      : TASK_DELEGATION_AUDIENCE,
-          ttlMs: 60_000,
-        }
-      )
+    : scope.workspaceId
+      ? createTrustedCopilotPrincipal({ ...identity, workspaceId: scope.workspaceId }, options)
+      : createTrustedCopilotPrincipal(
+          {
+            userId: scope.userId,
+            chatId: scope.chatId,
+            delegationId: identity.delegationId,
+            ...(request.executionStreamId ? { executionStreamId: request.executionStreamId } : {}),
+          },
+          options
+        )
   try {
     switch (operation.kind) {
       case 'memory_notes_access':
