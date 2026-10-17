@@ -198,7 +198,7 @@ export default async function ModelPage({
             <ChipLink variant='primary' href='/'>
               Build with this model
             </ChipLink>
-            <ChipLink href={provider.href} className='border border-[var(--border-1)]'>
+            <ChipLink href={provider.href} variant='outline'>
               All {provider.name} models
             </ChipLink>
             <ShareButton url={`${baseUrl}${model.href}`} title={model.displayName} />

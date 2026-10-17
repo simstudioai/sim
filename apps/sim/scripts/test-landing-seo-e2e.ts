@@ -199,6 +199,8 @@ async function run() {
       firstPath(/^\/integrations\/[^/]+$/),
       firstPath(/^\/models\/anthropic\/[^/]+$/),
       '/models/context-windows',
+      '/models/pricing-calculator',
+      '/models/token-counter',
       firstPath(/^\/models\/compare\/[^/]+$/),
     ]
     const failures: string[] = []
@@ -240,38 +242,58 @@ async function run() {
     }
   )
 
-  await check('model tool pages render, self-canonicalize, and are in the sitemap', async () => {
-    const failures: string[] = []
-    for (const [path, titlePrefix] of [
-      ['/models/pricing-calculator', 'LLM API Pricing Calculator'],
-      ['/models/token-counter', 'Token Counter'],
-    ]) {
-      const { status, body } = await get(path)
-      const title = decodeHtml(/<title>([^<]*)<\/title>/.exec(body)?.[1] ?? '')
-      const canonical = /<link rel="canonical" href="([^"]+)"/.exec(body)?.[1]
-      const robots = robotsDirectives(body)
-      if (
-        status !== 200 ||
-        !title.startsWith(titlePrefix) ||
-        title.length > 60 ||
-        !canonical ||
-        new URL(canonical).pathname !== path ||
-        robots.some((directive) => directive.includes('noindex')) ||
-        !sitemap.has(path)
-      ) {
-        failures.push(`${path} → ${status}, title "${title}", canonical ${canonical}`)
+  await check(
+    'model pages carry distinct search titles within 60 characters and self-canonicalize',
+    async () => {
+      const comparePaths = sitemapPaths.filter((path) => path.startsWith('/models/compare/'))
+      assert(
+        comparePaths.length >= 5,
+        `The sitemap lists only ${comparePaths.length} compare pages`
+      )
+      const paths = [
+        '/models',
+        '/models/anthropic',
+        '/models/context-windows',
+        '/models/pricing-calculator',
+        '/models/token-counter',
+        ...comparePaths,
+      ]
+      const pathByTitle = new Map<string, string>()
+      let anthropicTitle = ''
+      const failures: string[] = []
+      for (const path of paths) {
+        const { status, body } = await get(path)
+        const title = pageTitle(body)
+        const canonical = canonicalPath(body)
+        const duplicateOf = pathByTitle.get(title)
+        pathByTitle.set(title, duplicateOf ?? path)
+        if (path === '/models/anthropic') anthropicTitle = title
+        if (
+          status !== 200 ||
+          !title.endsWith(' | Sim') ||
+          title.endsWith(' | Sim | Sim') ||
+          title.length > 60 ||
+          duplicateOf ||
+          canonical !== path ||
+          !sitemap.has(path)
+        ) {
+          failures.push(
+            `${path} → ${status}, title "${title}" (${title.length})${duplicateOf ? ` duplicates ${duplicateOf}` : ''}, canonical ${canonical}, in sitemap ${sitemap.has(path)}`
+          )
+        }
       }
+      assert.deepEqual(failures, [])
+      assert.match(anthropicTitle, /Claude/, '/models/anthropic does not name Claude in its title')
     }
-    assert.deepEqual(failures, [])
-  })
+  )
 
-  await check('token counter ships no tiktoken rank tables in its initial load', async () => {
+  await check('token counter ships no js-tiktoken code in its initial load', async () => {
     const { status, body } = await get('/models/token-counter')
     assert.equal(status, 200)
-    // Every js-tiktoken rank table is an object keyed `bpe_ranks`; the tokenizer
-    // must load only after the visitor interacts with the text box.
+    // Every js-tiktoken rank table is keyed `bpe_ranks` and its encoder reads that property, so the
+    // name appears in any chunk that bundles the tokenizer, which must load only on interaction.
     const marker = /bpe_ranks/
-    assert(!marker.test(body), 'The initial HTML embeds a tiktoken rank table')
+    assert(!marker.test(body), 'The initial HTML embeds js-tiktoken code')
     const scripts = [...body.matchAll(/<script[^>]+src="([^"]+)"/g)]
       .map((match) => new URL(decodeHtml(match[1]), baseUrl))
       .filter((url) => url.origin === baseUrl.origin)
@@ -281,7 +303,7 @@ async function run() {
       const script = await get(`${url.pathname}${url.search}`)
       if (marker.test(script.body)) offenders.push(url.pathname)
     }
-    assert.deepEqual(offenders, [], 'An initial script chunk bundles tiktoken rank tables')
+    assert.deepEqual(offenders, [], 'An initial script chunk bundles js-tiktoken')
   })
 
   await check('docs integration slugs redirect to their landing page', async () => {
@@ -334,25 +356,6 @@ async function run() {
     assert.equal(status, 200)
     const title = /<title>([^<]*)<\/title>/.exec(body)?.[1] ?? ''
     assert.match(title, / on /, `${resellerPath} title "${title}" does not name the reseller`)
-  })
-
-  await check('model pricing pages carry their search titles and canonicals', async () => {
-    const comparePath = firstPath(/^\/models\/compare\/[^/]+-vs-[^/]+$/)
-    const pages: Array<[path: string, title: RegExp]> = [
-      ['/models/anthropic', /^Anthropic \(Claude\) API Pricing & Models \| Sim$/],
-      ['/models/context-windows', /^LLM Context Window Comparison \| Sim$/],
-      [comparePath, / vs .+ \| Sim$/],
-    ]
-    const failures: string[] = []
-    for (const [path, expected] of pages) {
-      const { status, body } = await get(path)
-      const title = pageTitle(body)
-      const canonical = canonicalPath(body)
-      if (status !== 200 || !expected.test(title) || title.length > 60 || canonical !== path) {
-        failures.push(`${path} → ${status}, title "${title}", canonical ${canonical}`)
-      }
-    }
-    assert.deepEqual(failures, [])
   })
 
   await check('footer integration links stay on the landing site', async () => {

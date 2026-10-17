@@ -223,10 +223,10 @@ export default async function ModelComparisonPage({
             <ChipLink variant='primary' href='/'>
               Build with these models
             </ChipLink>
-            <ChipLink href={a.model.href} className='border border-[var(--border-1)]'>
+            <ChipLink href={a.model.href} variant='outline'>
               {a.model.displayName} details
             </ChipLink>
-            <ChipLink href={b.model.href} className='border border-[var(--border-1)]'>
+            <ChipLink href={b.model.href} variant='outline'>
               {b.model.displayName} details
             </ChipLink>
           </div>
@@ -273,22 +273,19 @@ export default async function ModelComparisonPage({
                   href={AGENT_BLOCK_DOCS_URL}
                   target='_blank'
                   rel='noopener noreferrer'
-                  className='border border-[var(--border-1)]'
+                  variant='outline'
                 >
                   Agent block docs
                 </ChipLink>
-                <ChipLink href={a.provider.href} className='border border-[var(--border-1)]'>
+                <ChipLink href={a.provider.href} variant='outline'>
                   All {a.provider.name} models
                 </ChipLink>
                 {b.provider.id !== a.provider.id ? (
-                  <ChipLink href={b.provider.href} className='border border-[var(--border-1)]'>
+                  <ChipLink href={b.provider.href} variant='outline'>
                     All {b.provider.name} models
                   </ChipLink>
                 ) : null}
-                <ChipLink
-                  href='/models/context-windows'
-                  className='border border-[var(--border-1)]'
-                >
+                <ChipLink href='/models/context-windows' variant='outline'>
                   Context window comparison
                 </ChipLink>
               </div>
