@@ -228,6 +228,50 @@ async function run() {
     }
   )
 
+  await check('model tool pages render, self-canonicalize, and are in the sitemap', async () => {
+    const failures: string[] = []
+    for (const [path, titlePrefix] of [
+      ['/models/pricing-calculator', 'LLM API Pricing Calculator'],
+      ['/models/token-counter', 'Token Counter'],
+    ]) {
+      const { status, body } = await get(path)
+      const title = decodeHtml(/<title>([^<]*)<\/title>/.exec(body)?.[1] ?? '')
+      const canonical = /<link rel="canonical" href="([^"]+)"/.exec(body)?.[1]
+      const robots = robotsDirectives(body)
+      if (
+        status !== 200 ||
+        !title.startsWith(titlePrefix) ||
+        title.length > 60 ||
+        !canonical ||
+        new URL(canonical).pathname !== path ||
+        robots.some((directive) => directive.includes('noindex')) ||
+        !sitemap.has(path)
+      ) {
+        failures.push(`${path} → ${status}, title "${title}", canonical ${canonical}`)
+      }
+    }
+    assert.deepEqual(failures, [])
+  })
+
+  await check('token counter ships no tiktoken rank tables in its initial load', async () => {
+    const { status, body } = await get('/models/token-counter')
+    assert.equal(status, 200)
+    // Every js-tiktoken rank table is an object keyed `bpe_ranks`; the tokenizer
+    // must load only after the visitor interacts with the text box.
+    const marker = /bpe_ranks/
+    assert(!marker.test(body), 'The initial HTML embeds a tiktoken rank table')
+    const scripts = [...body.matchAll(/<script[^>]+src="([^"]+)"/g)]
+      .map((match) => new URL(decodeHtml(match[1]), baseUrl))
+      .filter((url) => url.origin === baseUrl.origin)
+    assert(scripts.length > 0, 'The initial HTML references no scripts')
+    const offenders: string[] = []
+    for (const url of scripts) {
+      const script = await get(`${url.pathname}${url.search}`)
+      if (marker.test(script.body)) offenders.push(url.pathname)
+    }
+    assert.deepEqual(offenders, [], 'An initial script chunk bundles tiktoken rank tables')
+  })
+
   await check('docs integration slugs redirect to their landing page', async () => {
     const failures: string[] = []
     for (const [docsSlug, landingSlug] of LANDING_SLUG_BY_DOCS_SLUG) {

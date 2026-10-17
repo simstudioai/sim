@@ -5269,7 +5269,6 @@
   "apps/sim/providers/anthropic/streaming-tool-loop.ts#AnthropicStreamingToolLoopPayload",
   "apps/sim/providers/attachments.ts#AttachmentProvider",
   "apps/sim/providers/attachments.ts#getAttachmentProvider",
-  "apps/sim/providers/cost-policy.ts#CacheWriteUsage",
   "apps/sim/providers/gemini/core.ts#executeDeepResearchRequest",
   "apps/sim/providers/kie/utils.ts#KIE_API_BASE_URL",
   "apps/sim/providers/openai-compat/stream-events.ts#OpenAICompatStreamComplete",

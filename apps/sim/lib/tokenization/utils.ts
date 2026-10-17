@@ -6,26 +6,11 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { LLM_BLOCK_TYPES, TOKENIZATION_CONFIG } from '@/lib/tokenization/constants'
 import { createTokenizationError } from '@/lib/tokenization/errors'
-import type { ProviderTokenizationConfig, TokenUsage } from '@/lib/tokenization/types'
+import type { TokenUsage } from '@/lib/tokenization/types'
 import type { BlockTokens } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('TokenizationUtils')
-
-/**
- * Gets tokenization configuration for a specific provider
- */
-export function getProviderConfig(providerId: string): ProviderTokenizationConfig {
-  const config =
-    TOKENIZATION_CONFIG.providers[providerId as keyof typeof TOKENIZATION_CONFIG.providers]
-
-  if (!config) {
-    logger.debug(`No specific config for provider ${providerId}, using fallback`, { providerId })
-    return TOKENIZATION_CONFIG.fallback
-  }
-
-  return config
-}
 
 /**
  * Extracts provider ID from model name
