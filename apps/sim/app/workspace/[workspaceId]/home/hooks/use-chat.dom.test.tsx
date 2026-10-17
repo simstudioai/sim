@@ -95,7 +95,7 @@ import {
   type MothershipStreamV1EventEnvelope,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import { getChatResourceSelectionId, type MothershipResource } from '@/lib/mothership/resources/types'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
@@ -936,6 +936,57 @@ describe('useChat remount send recovery', () => {
       expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
       expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
     })
+  })
+
+  it('closes a Project file tab by its owner, which is how the server keys it', async () => {
+    const projectFile: MothershipResource = {
+      type: 'file',
+      id: 'project-file',
+      title: 'brief.md',
+      owner: { entityType: 'project', entityId: 'project-1' },
+    }
+    const workspaceFile: MothershipResource = {
+      type: 'file',
+      id: 'workspace-file',
+      title: 'notes.md',
+      workspaceId: 'ws-1',
+      owner: { entityType: 'workspace', entityId: 'ws-1' },
+    }
+    const history: MothershipChatHistory = {
+      id: 'chat-project-file',
+      title: 'Files',
+      messages: [],
+      activeStreamId: null,
+      resources: [projectFile, workspaceFile],
+    }
+    const removals: unknown[] = []
+    mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
+      if (contract.path !== '/api/mothership/chat/resources') return { chats: [] }
+      removals.push((input as { body: unknown }).body)
+      return { resources: [workspaceFile] }
+    })
+    const { getResult } = renderUseChatInChat(
+      history.id,
+      history,
+      undefined,
+      getChatResourceSelectionId(projectFile)
+    )
+
+    await act(async () => {
+      getResult().removeResource(projectFile)
+      await sleep(0)
+    })
+
+    expect(removals).toEqual([
+      {
+        chatId: history.id,
+        resourceType: 'file',
+        resourceId: 'project-file',
+        owner: { entityType: 'project', entityId: 'project-1' },
+      },
+    ])
+    expect(getResult().resources).toEqual([workspaceFile])
+    expect(getResult().activeResourceId).not.toBe(getChatResourceSelectionId(projectFile))
   })
 
   it('restores an explicitly selected Search tab while reconnecting an active turn', async () => {

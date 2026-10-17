@@ -1,4 +1,8 @@
-import type { MothershipResource, MothershipResourceUpdate } from '@/lib/mothership/resources/types'
+import type {
+  ChatResourceAddress,
+  MothershipResource,
+  MothershipResourceUpdate,
+} from '@/lib/mothership/resources/types'
 import {
   getChatResourceKey,
   mergeChatResource,
@@ -56,7 +60,7 @@ export class ResourcePersistenceQueue {
     scopeId: string,
     base?: MothershipResource
   ): void {
-    const key = this.getKey(scopeId, update.type, update.id, update.workspaceId)
+    const key = this.getKey(scopeId, update)
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (base && !trackedLocally) this.persistedKeys.add(key)
@@ -87,13 +91,11 @@ export class ResourcePersistenceQueue {
   }
 
   remove(
-    type: MothershipResource['type'],
-    id: string,
+    resource: ChatResourceAddress,
     scopeId: string,
-    assumePersisted = false,
-    workspaceId?: string
+    assumePersisted = false
   ): RemovedResourcePersistence {
-    const key = this.getKey(scopeId, type, id, workspaceId)
+    const key = this.getKey(scopeId, resource)
     const trackedLocally =
       this.desiredUpdates.has(key) || this.pendingKeys.has(key) || this.inFlight.has(key)
     if (assumePersisted && !trackedLocally) this.persistedKeys.add(key)
@@ -127,13 +129,8 @@ export class ResourcePersistenceQueue {
    * server history resurrects it. A removal the user queued still runs, and a
    * write already in flight is left to its own bookkeeping.
    */
-  discardUpsert(
-    type: MothershipResource['type'],
-    id: string,
-    scopeId: string,
-    workspaceId?: string
-  ): void {
-    const key = this.getKey(scopeId, type, id, workspaceId)
+  discardUpsert(resource: ChatResourceAddress, scopeId: string): void {
+    const key = this.getKey(scopeId, resource)
     if (this.pendingRemovals.has(key) || this.inFlight.has(key)) return
     this.desiredUpdates.delete(key)
     this.failedKeys.delete(key)
@@ -158,13 +155,8 @@ export class ResourcePersistenceQueue {
   }
 
   /** Keeps an optimistic add visible while its write is pending or in flight. */
-  hasPendingUpsert(
-    scopeId: string,
-    type: MothershipResource['type'],
-    id: string,
-    workspaceId?: string
-  ): boolean {
-    return this.desiredUpdates.has(this.getKey(scopeId, type, id, workspaceId))
+  hasPendingUpsert(scopeId: string, resource: ChatResourceAddress): boolean {
+    return this.desiredUpdates.has(this.getKey(scopeId, resource))
   }
 
   /** Projects writes still in flight over server history, including queued removals. */
@@ -177,7 +169,7 @@ export class ResourcePersistenceQueue {
     )
     const projected: MothershipResource[] = []
     for (const resource of resources) {
-      const key = this.getKey(scopeId, resource.type, resource.id, resource.workspaceId)
+      const key = this.getKey(scopeId, resource)
       if (this.pendingRemovals.has(key)) continue
       const update = remaining.get(key)
       projected.push(update ? mergeChatResource(resource, update) : resource)
@@ -332,12 +324,7 @@ export class ResourcePersistenceQueue {
     return `${scopeId}${QUEUE_KEY_SEPARATOR}`
   }
 
-  private getKey(
-    scopeId: string,
-    type: MothershipResource['type'],
-    id: string,
-    workspaceId?: string
-  ): string {
-    return `${this.getScopePrefix(scopeId)}${getChatResourceKey({ type, id, workspaceId })}`
+  private getKey(scopeId: string, resource: ChatResourceAddress): string {
+    return `${this.getScopePrefix(scopeId)}${getChatResourceKey(resource)}`
   }
 }

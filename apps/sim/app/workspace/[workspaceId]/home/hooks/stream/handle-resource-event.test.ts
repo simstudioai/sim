@@ -85,7 +85,11 @@ describe('handleResourceEvent removal', () => {
 
     handleResourceEvent(ctx, removeEvent('workflow', 'wf-1'))
 
-    expect(deps.removeResource).toHaveBeenCalledWith('workflow', 'wf-1')
+    expect(deps.removeResource).toHaveBeenCalledWith({
+      type: 'workflow',
+      id: 'wf-1',
+      title: 'wf-1',
+    })
     expect(mocks.removeWorkflowFromActiveCache).toHaveBeenCalledWith(
       deps.queryClient,
       'ws-1',

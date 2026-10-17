@@ -35,6 +35,7 @@ import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import {
   FileViewer,
@@ -67,6 +68,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogByExecutionId, useLogDetail } from '@/hooks/queries/logs'
+import { useProjectFile } from '@/hooks/queries/projects'
 import { exportTable } from '@/hooks/queries/tables'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
@@ -74,7 +76,10 @@ import { mapWorkflow } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkflowTest } from '@/hooks/queries/workflow-tests'
 import { useWorkflows, WORKFLOW_STATE_STALE_TIME } from '@/hooks/queries/workflows'
 import { useAddressedWorkspaceFileRecord, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { createWorkspaceFileContentSource } from '@/hooks/use-file-content-source'
+import {
+  createProjectFileContentSource,
+  createWorkspaceFileContentSource,
+} from '@/hooks/use-file-content-source'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -95,6 +100,16 @@ const LOADING_SKELETON = (
     <Skeleton className='h-[16px] w-[60%]' />
     <Skeleton className='h-[16px] w-[80%]' />
     <Skeleton className='h-[16px] w-[40%]' />
+  </div>
+)
+
+const FILE_NOT_FOUND = (
+  <div className='flex h-full flex-col items-center justify-center gap-3'>
+    <FileX className='size-[32px] text-[var(--text-icon)]' />
+    <div className='flex flex-col items-center gap-1'>
+      <h2 className='text-[20px] text-[var(--text-primary)]'>File not found</h2>
+      <p className='text-[var(--text-body)] text-small'>This file may have been deleted or moved</p>
+    </div>
   </div>
 )
 
@@ -945,19 +960,7 @@ function EmbeddedFile({
 
   if (!file && (listLoading || detail.isFetching)) return LOADING_SKELETON
 
-  if (!file) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FileX className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[20px] text-[var(--text-primary)]'>File not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This file may have been deleted or moved
-          </p>
-        </div>
-      </div>
-    )
-  }
+  if (!file) return FILE_NOT_FOUND
 
   return (
     <div className='flex h-full flex-col overflow-hidden'>
@@ -977,6 +980,44 @@ function EmbeddedFile({
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
         collaborative={!isUpload}
+        enableFind
+      />
+    </div>
+  )
+}
+
+interface EmbeddedProjectFileProps {
+  projectId: string
+  fileId: string
+}
+
+/**
+ * Read-only view of a Project-owned file. Bytes come through the Project file routes, so the viewer
+ * never addresses a workspace with a Project id; editing stays on the Project surface.
+ */
+export function EmbeddedProjectFile({ projectId, fileId }: EmbeddedProjectFileProps) {
+  const { data: projectFile, isLoading } = useProjectFile(projectId, fileId)
+  const contentSource = useMemo(
+    () => createProjectFileContentSource(projectId, fileId),
+    [projectId, fileId]
+  )
+  const file = useMemo<WorkspaceFileRecord | undefined>(
+    () => projectFile && { ...projectFile, workspaceId: projectId },
+    [projectFile, projectId]
+  )
+
+  if (isLoading) return LOADING_SKELETON
+  if (!file) return FILE_NOT_FOUND
+
+  return (
+    <div className='flex h-full flex-col overflow-hidden'>
+      <FileViewer
+        key={file.id}
+        file={file}
+        workspaceId={projectId}
+        contentSource={contentSource}
+        canEdit={false}
+        readOnly
         enableFind
       />
     </div>

@@ -203,8 +203,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (payload.op === 'remove' && payload.effectId) {
     // The server applied this removal before publishing it, so a client add
     // still queued for the resource must not restore it, live or on recovery.
-    const { type, id } = payload.resource
-    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: payload.resource.workspaceId })
+    const { type, id, workspaceId: resourceWorkspaceId, owner } = payload.resource
+    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: resourceWorkspaceId, owner })
   }
   if (payload.replay || ctx.deps.options.deferFlushes) {
     refreshRecoveredChatResources(ctx)
@@ -259,8 +259,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       ctx.deps.setActiveResourceId((current) =>
         current === getChatResourceSelectionId(resource) ? null : current
       )
-    } else if (resource.workspaceId) removeResource(resourceType, resource.id, resource.workspaceId)
-    else removeResource(resourceType, resource.id)
+    } else removeResource(resource)
     if (resourceType === 'workflow') {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }
