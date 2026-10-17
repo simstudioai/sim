@@ -86,7 +86,12 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/mothership/request/types'
-import type { SecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
+import {
+  NO_SECRET_AUTHORITY,
+  normalizeSecretMountPolicy,
+  type SecretMountPolicy,
+  type TurnSecretAuthority,
+} from '@/lib/mothership/secret-mount-policy'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { getSimConnection } from '@/lib/mothership/transport/connection'
@@ -416,6 +421,7 @@ export async function runCopilotLifecycle(
   const payloadMsgId =
     options.recovery?.streamId ??
     (typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : generateId())
+  const secretAuthority = turnSecretAuthority(userId, requestMode, options)
   const runIdentity = await ensureHeadlessRunIdentity({
     requestPayload,
     userId,
@@ -426,6 +432,7 @@ export async function runCopilotLifecycle(
     executionId,
     runId,
     messageId: payloadMsgId,
+    secretAuthority,
   })
   if (runIdentity.cancelled) {
     return { success: false, cancelled: true, content: '', contentBlocks: [], toolCalls: [] }
@@ -453,12 +460,6 @@ export async function runCopilotLifecycle(
               ...(options.resolvedSecretTraceRegistry
                 ? { resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry }
                 : {}),
-              ...(options.secretMountPolicy
-                ? { secretMountPolicy: options.secretMountPolicy }
-                : {}),
-              ...(options.secretActorUserId !== undefined
-                ? { secretActorUserId: options.secretActorUserId }
-                : {}),
             },
           }
         : {}),
@@ -481,8 +482,6 @@ export async function runCopilotLifecycle(
           resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
           environmentContext: lifecycleOptions.environmentContext,
           userPermission: lifecycleOptions.userPermission,
-          secretMountPolicy: lifecycleOptions.secretMountPolicy,
-          secretActorUserId: lifecycleOptions.secretActorUserId,
         }
       ))
     if (
@@ -496,6 +495,8 @@ export async function runCopilotLifecycle(
       throw new Error('Organization execution context does not match its authenticated scope')
     }
     execContext.messageId = payloadMsgId
+    execContext.secretMountPolicy = secretAuthority.secretMountPolicy
+    execContext.secretActorUserId = secretAuthority.secretActorUserId
     execContext.benchmark = options.benchmark
     if (lifecycleOptions.copilotResourceAdmission)
       execContext.copilotResourceAdmission = lifecycleOptions.copilotResourceAdmission
@@ -512,10 +513,6 @@ export async function runCopilotLifecycle(
           ? (execContext.assistantSearch ?? requestPayload.assistantSearch ?? {})
           : (requestPayload.assistantSearch ?? {})
       )
-      if (execContext.requestMode === 'assistant') {
-        execContext.secretActorUserId = null
-        execContext.secretMountPolicy = { secretScope: 'selected', mountedSecrets: [] }
-      }
     }
     execContext.copilotInteractionMode =
       lifecycleOptions.interactive === true ? 'interactive' : 'headless'
@@ -1695,8 +1692,6 @@ async function buildExecutionContext(
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     environmentContext?: CopilotEnvironmentContext
     userPermission?: PermissionType
-    secretMountPolicy?: SecretMountPolicy
-    secretActorUserId?: string | null
   }
 ): Promise<ExecutionContext> {
   const {
@@ -1712,8 +1707,6 @@ async function buildExecutionContext(
     resolvedSecretTraceRegistry,
     environmentContext,
     userPermission,
-    secretMountPolicy,
-    secretActorUserId,
   } = params
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
@@ -1750,7 +1743,6 @@ async function buildExecutionContext(
     execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
       requestPayload?.assistantSearch ?? {}
     )
-    if (requestMode === 'assistant') execContext.secretActorUserId = null
   }
   if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
@@ -1762,9 +1754,30 @@ async function buildExecutionContext(
   if (resolvedSecretTraceRegistry) {
     execContext.resolvedSecretTraceRegistry = resolvedSecretTraceRegistry
   }
-  if (secretMountPolicy) execContext.secretMountPolicy = secretMountPolicy
-  if (secretActorUserId !== undefined) execContext.secretActorUserId = secretActorUserId
   return execContext
+}
+
+/**
+ * The one source of a turn's secret authority: its execution context runs under it, and a
+ * headless run records it so a lane that rebuilds its tool context from Go's request — the
+ * in-band tool route — re-derives it instead of defaulting. Assistant mode mounts nothing.
+ */
+function turnSecretAuthority(
+  userId: string,
+  requestMode: string | undefined,
+  options: CopilotLifecycleOptions
+): TurnSecretAuthority {
+  if (requestMode === 'assistant') return NO_SECRET_AUTHORITY
+  const secretActorUserId =
+    options.secretActorUserId !== undefined
+      ? options.secretActorUserId
+      : options.executionContext?.secretActorUserId
+  return {
+    secretMountPolicy: normalizeSecretMountPolicy(
+      options.secretMountPolicy ?? options.executionContext?.secretMountPolicy
+    ),
+    secretActorUserId: secretActorUserId === undefined ? userId : secretActorUserId,
+  }
 }
 
 async function ensureHeadlessRunIdentity(input: {
@@ -1777,6 +1790,7 @@ async function ensureHeadlessRunIdentity(input: {
   executionId?: string
   runId?: string
   messageId: string
+  secretAuthority: TurnSecretAuthority
 }): Promise<{ executionId?: string; runId?: string; cancelled?: boolean }> {
   if (!input.chatId || input.executionId || input.runId) {
     return {
@@ -1803,6 +1817,7 @@ async function ensureHeadlessRunIdentity(input: {
         typeof input.requestPayload?.provider === 'string' ? input.requestPayload.provider : null,
       requestContext: {
         source: 'headless_lifecycle',
+        secretAuthority: input.secretAuthority,
       },
     })
     return { executionId, runId, cancelled: run.status === 'cancelled' }
