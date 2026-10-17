@@ -24,8 +24,9 @@ export const revalidate = 3600
 
 /**
  * The homepage as Markdown. `next.config.ts` rewrites `/` here when `Accept` asks for
- * `text/markdown`, so this body is also served at `/`. It is uncached downstream like the HTML
- * there, since a cache that ignores `Vary` would otherwise hand it to browsers.
+ * `text/markdown`, so this body is also served at `/`. It is `no-store` so a cache that ignores
+ * `Vary` can never hand it to a browser; at worst such a cache serves the HTML to a Markdown
+ * client.
  */
 export async function GET() {
   const response = markdownResponse(
