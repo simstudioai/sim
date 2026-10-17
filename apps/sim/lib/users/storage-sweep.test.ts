@@ -331,28 +331,50 @@ describe('deleted workspace storage sweep', () => {
     expect(checkpointPayload).toHaveBeenCalledWith({ family: 1, pageToken: null })
   })
 
-  it('walks the family from the start when its saved position no longer lists', async () => {
-    vi.mocked(listStorageKeyPage).mockRejectedValueOnce(
-      new Error('The continuation token is invalid')
+  it('retries a saved position that failed to list once instead of walking from the start', async () => {
+    let payload: Record<string, unknown> = {
+      version: 1,
+      workspaceId: 'wsdoomed1',
+      pageToken: 'workspace/wsdoomed1/a.txt',
+    }
+    const checkpointPayload = vi.fn(async (patch: Record<string, unknown>) => {
+      payload = { ...payload, ...patch }
+    })
+    vi.mocked(listStorageKeyPage).mockRejectedValueOnce(new Error('Service unavailable'))
+
+    await expect(sweep(payload, outboxContext({ checkpointPayload }))).rejects.toThrow(
+      'Service unavailable'
     )
+    for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(true)
+    expect(payload).toMatchObject({ pageToken: 'workspace/wsdoomed1/a.txt', tokenFailures: 1 })
 
-    await expect(
-      sweep({ version: 1, workspaceId: 'wsdoomed1', pageToken: 'expired-token' }, outboxContext())
-    ).resolves.toBe(undefined)
-
-    for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(false)
+    await expect(sweep(payload, outboxContext({ checkpointPayload }))).resolves.toBe(undefined)
+    expect(await exists('workspace/wsdoomed1/a.txt')).toBe(true)
+    expect(await exists('workspace/wsdoomed1/nested/b.txt')).toBe(false)
+    expect(payload).toMatchObject({ tokenFailures: 0 })
   })
 
-  it('walks the family from the start when its saved position is not a key under the prefix', async () => {
-    await expect(
-      sweep(
-        { version: 1, workspaceId: 'wsdoomed1', pageToken: 'zz-other-provider' },
-        outboxContext()
-      )
-    ).resolves.toBe(undefined)
+  it.each([
+    { name: 'no longer lists', pageToken: 'expired-token', rejects: true },
+    { name: 'is not a key under the prefix', pageToken: 'zz-other-provider', rejects: false },
+  ])(
+    'walks the family from the start once its saved position $name on a second attempt',
+    async ({ pageToken, rejects }) => {
+      let payload: Record<string, unknown> = { version: 1, workspaceId: 'wsdoomed1', pageToken }
+      const checkpointPayload = vi.fn(async (patch: Record<string, unknown>) => {
+        payload = { ...payload, ...patch }
+      })
+      const invalid = new Error('The continuation token is invalid')
+      if (rejects)
+        vi.mocked(listStorageKeyPage).mockRejectedValueOnce(invalid).mockRejectedValueOnce(invalid)
 
-    for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(false)
-  })
+      await expect(sweep(payload, outboxContext({ checkpointPayload }))).rejects.toThrow()
+      for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(true)
+
+      await expect(sweep(payload, outboxContext({ checkpointPayload }))).resolves.toBe(undefined)
+      for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(false)
+    }
+  )
 
   it('spends an attempt when a restart from a rejected position only walks kept objects', async () => {
     const keptKeys = await putKept(500)
@@ -362,7 +384,7 @@ describe('deleted workspace storage sweep', () => {
     const checkpointPayload = vi.fn(async () => {})
 
     const outcome = await sweep(
-      { version: 1, workspaceId: 'wsdoomed1', pageToken: 'expired-token' },
+      { version: 1, workspaceId: 'wsdoomed1', pageToken: 'expired-token', tokenFailures: 1 },
       deadlineAfter(2, { checkpointPayload })
     )
 
@@ -404,6 +426,8 @@ describe('deleted workspace storage sweep', () => {
     { version: 1, workspaceId: 'wsdoomed1', pageToken: 'x'.repeat(4097) },
     { version: 1, workspaceId: 'wsdoomed1', resumes: -1 },
     { version: 1, workspaceId: 'wsdoomed1', resumes: '1' },
+    { version: 1, workspaceId: 'wsdoomed1', tokenFailures: 2 },
+    { version: 1, workspaceId: 'wsdoomed1', tokenFailures: '1' },
   ])('rejects an unbounded or malformed payload %o', async (payload) => {
     await expect(sweep(payload, outboxContext())).rejects.toThrow()
     for (const key of DOOMED_KEYS) expect(await exists(key)).toBe(true)

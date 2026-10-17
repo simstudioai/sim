@@ -110,6 +110,11 @@ interface WorkspaceSweepPayload {
   pageToken?: string
   /** Runs continued on a moved listing position alone; see {@link MAX_POSITION_RESUMES}. */
   resumes: number
+  /**
+   * Set once listing from `pageToken` failed. A second failure from the same token restarts the
+   * family; a single one is retried in place, since providers do not reliably mark a dead cursor.
+   */
+  tokenFailed: boolean
 }
 
 interface ObjectCleanupPayload {
@@ -147,7 +152,16 @@ function parseWorkspaceSweep(value: unknown): WorkspaceSweepPayload {
   const resumes = value.resumes ?? 0
   if (typeof resumes !== 'number' || !Number.isSafeInteger(resumes) || resumes < 0)
     throw new Error('Invalid workspace storage sweep resume count')
-  return { workspaceId: value.workspaceId, family, resumes, ...(pageToken ? { pageToken } : {}) }
+  const tokenFailures = value.tokenFailures ?? 0
+  if (tokenFailures !== 0 && tokenFailures !== 1)
+    throw new Error('Invalid workspace storage sweep page token failure count')
+  return {
+    workspaceId: value.workspaceId,
+    family,
+    resumes,
+    tokenFailed: tokenFailures === 1,
+    ...(pageToken ? { pageToken } : {}),
+  }
 }
 
 function isSafeKey(key: string): boolean {
@@ -243,7 +257,8 @@ interface PrefixSweepResult {
  * does not keep, following the listing's page token so kept objects never hold back later ones. A
  * page that neither advances the token nor removes anything is `stalled` rather than re-listed
  * forever. A saved token is provider-specific and may no longer list (an expired or rejected
- * cursor), so a failed first listing from one retries once from the start of the prefix.
+ * cursor). The first failed listing from one is recorded and rethrown, so the outbox retries from
+ * the same position; when that token has failed before, the walk restarts from the prefix start.
  */
 async function sweepWorkspacePrefix(
   prefix: string,
@@ -251,11 +266,13 @@ async function sweepWorkspacePrefix(
   context: OutboxEventContext,
   isReferenced: (keys: readonly string[]) => Promise<Set<string>>,
   workspaceExists: () => Promise<boolean>,
-  startToken: string | undefined
+  startToken: string | undefined,
+  startTokenFailed: boolean
 ): Promise<PrefixSweepResult> {
   let deleted = 0
   let pageToken = startToken
   let restarted = false
+  let failureRecorded = startTokenFailed
   for (;;) {
     if (outboxDeadlineNear(context)) return { deleted, status: 'partial', pageToken, restarted }
     let page: StorageKeyPage
@@ -264,6 +281,10 @@ async function sweepWorkspacePrefix(
     } catch (error) {
       if (pageToken === undefined || pageToken !== startToken || restarted) throw error
       context.signal.throwIfAborted()
+      if (!failureRecorded) {
+        await context.checkpointPayload({ tokenFailures: 1 })
+        throw error
+      }
       logger.warn('Workspace storage sweep could not resume its saved listing position', {
         prefix,
         error: describeError(error),
@@ -271,6 +292,10 @@ async function sweepWorkspacePrefix(
       restarted = true
       pageToken = undefined
       continue
+    }
+    if (failureRecorded) {
+      await context.checkpointPayload({ tokenFailures: 0 })
+      failureRecorded = false
     }
     if (page.keys.some((key) => !key.startsWith(prefix)))
       throw new Error('Storage provider returned a key outside the workspace prefix')
@@ -336,7 +361,8 @@ const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
       context,
       isReferenced,
       workspaceExists,
-      startToken
+      startToken,
+      family === payload.family && payload.tokenFailed
     )
     if (result.status === 'refused') return
     if (result.deleted > 0) progressed = true
