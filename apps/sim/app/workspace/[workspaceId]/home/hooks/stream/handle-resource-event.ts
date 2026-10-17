@@ -29,6 +29,7 @@ import {
   mothershipChatKeys,
   refreshMothershipChatDetail,
 } from '@/hooks/queries/mothership-chats'
+import { invalidateProjectFileQueries } from '@/hooks/queries/projects'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -189,6 +190,9 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     onResourceEvent?.(getChatResourceSelectionId(resource))
     return
   }
+  const owner = 'owner' in payload.resource ? payload.resource.owner : undefined
+  if (owner?.entityType === 'project' && payload.resource.type === 'file' && payload.resource.id)
+    invalidateProjectFileQueries(queryClient, owner.entityId, payload.resource.id)
   const workspaceId = payload.resource.workspaceId ?? chatWorkspaceId
   if (!workspaceId || (chatWorkspaceId && workspaceId !== chatWorkspaceId)) return
   // Browser and terminal tabs are projected from the desktop app's live

@@ -72,7 +72,6 @@ import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-pers
 import {
   type ChatResourceAddress,
   chatResourceKeyFor,
-  getChatResourceKey,
   getChatResourceSelectionId,
   isAddressableResource,
   isEphemeralResource,
@@ -815,6 +814,8 @@ export function useChat(
    * make the tabs disappear for the desktop app too.
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
   const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
   const pendingResourceReordersRef = useRef<Map<string, MothershipResource[]> | null>(null)
   const pendingResourceReorders = (pendingResourceReordersRef.current ??= new Map())
@@ -858,6 +859,7 @@ export function useChat(
       onError: (error) => {
         logger.warn('Failed to persist resource; will retry on next hydration', error)
       },
+      chatWorkspaceId: () => workspaceIdRef.current,
     })
   }
   const resourcePersistenceQueue = resourcePersistenceQueueRef.current
@@ -1473,18 +1475,22 @@ export function useChat(
 
   const removeResource = useCallback(
     (address: ChatResourceAddress) => {
-      const { type, id, workspaceId: resourceWorkspaceId, owner } = address
-      const removedKey = getChatResourceKey(address)
-      const matches = (resource: MothershipResource) => getChatResourceKey(resource) === removedKey
+      const keyOf = chatResourceKeyFor(workspaceId)
+      const removedKey = keyOf(address)
+      const matches = (resource: MothershipResource) => keyOf(resource) === removedKey
+      const existing = resourcesRef.current.find(matches)
+      // The open tab's own address, so a caller that only knows `type` and `id` still removes,
+      // un-queues, and deletes the tab exactly as it was stored.
+      const removed: ChatResourceAddress = existing ?? address
+      const { type, id, workspaceId: resourceWorkspaceId, owner } = removed
       if (type === 'table') tableViewContextsRef.current.views.delete(id)
       setResources((prev) => prev.filter((r) => !matches(r)))
-      const removedSelectionId = getChatResourceSelectionId(address)
+      const removedSelectionId = getChatResourceSelectionId(removed)
       setActiveResourceId((prev) => (prev === removedSelectionId ? null : prev))
 
       // Ephemeral panels were never persisted; nothing to delete server-side.
-      if (isEphemeralResource(address)) return
+      if (isEphemeralResource(removed)) return
 
-      const existing = resourcesRef.current.find(matches)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
       if (persistChatId) {
@@ -1500,7 +1506,7 @@ export function useChat(
         wasPending,
         wasPersisted,
       } = resourcePersistenceQueue.remove(
-        address,
+        removed,
         persistenceScopeId,
         Boolean(existing && persistChatId)
       )
@@ -1521,7 +1527,7 @@ export function useChat(
         return result
       })
     },
-    [queryClient, refreshResourceHistory, resourcePersistenceQueue]
+    [queryClient, refreshResourceHistory, resourcePersistenceQueue, workspaceId]
   )
 
   const discardPendingResourceUpsert = useCallback(

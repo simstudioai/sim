@@ -43,11 +43,7 @@ const GENERIC_RESOURCE_TITLE: Record<ResourceAttachment['type'], string> = {
  * their page title and URL remain request context only.
  */
 function isPersistableAttachment(resource: ResourceAttachment): boolean {
-  return !isEphemeralResource({
-    type: resource.type,
-    id: resource.id,
-    title: resource.title ?? '',
-  })
+  return !isEphemeralResource({ type: resource.type, id: resource.id })
 }
 
 /**

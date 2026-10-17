@@ -12,6 +12,8 @@ import {
 interface ResourcePersistenceQueueOptions {
   persist: (chatId: string, update: MothershipResourceUpdate) => Promise<unknown>
   onError: (error: unknown) => void
+  /** The chat's workspace, so an unscoped write and one addressed by that workspace share a key. */
+  chatWorkspaceId?: () => string | undefined
 }
 
 const QUEUE_KEY_SEPARATOR = '\u0000'
@@ -41,10 +43,12 @@ export class ResourcePersistenceQueue {
   private readonly writeTokens = new Map<string, symbol>()
   private readonly persist: ResourcePersistenceQueueOptions['persist']
   private readonly onError: ResourcePersistenceQueueOptions['onError']
+  private readonly chatWorkspaceId: ResourcePersistenceQueueOptions['chatWorkspaceId']
 
-  constructor({ persist, onError }: ResourcePersistenceQueueOptions) {
+  constructor({ persist, onError, chatWorkspaceId }: ResourcePersistenceQueueOptions) {
     this.persist = persist
     this.onError = onError
+    this.chatWorkspaceId = chatWorkspaceId
   }
 
   /**
@@ -325,6 +329,6 @@ export class ResourcePersistenceQueue {
   }
 
   private getKey(scopeId: string, resource: ChatResourceAddress): string {
-    return `${this.getScopePrefix(scopeId)}${getChatResourceKey(resource)}`
+    return `${this.getScopePrefix(scopeId)}${getChatResourceKey(resource, this.chatWorkspaceId?.())}`
   }
 }

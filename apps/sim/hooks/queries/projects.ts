@@ -1,9 +1,10 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { type QueryClient, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getProjectFileContract } from '@/lib/api/contracts/project-files'
 import { listProjectsContract } from '@/lib/api/contracts/projects'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 const PROJECT_LIST_STALE_TIME = 30_000
 const PROJECT_FILE_STALE_TIME = 30_000
@@ -52,5 +53,20 @@ export function useProjectFile(projectId: string, fileId: string) {
     },
     staleTime: PROJECT_FILE_STALE_TIME,
     enabled: projectsEnabled && Boolean(projectId) && Boolean(fileId),
+  })
+}
+
+/**
+ * Refetches an open Project file view after the agent changes the file: its record, and the bytes
+ * the file viewer caches under the Project id it uses in place of a workspace id.
+ */
+export function invalidateProjectFileQueries(
+  queryClient: QueryClient,
+  projectId: string,
+  fileId: string
+): void {
+  void queryClient.invalidateQueries({ queryKey: projectKeys.file(projectId, fileId) })
+  void queryClient.invalidateQueries({
+    queryKey: workspaceFilesKeys.contentFile(projectId, fileId),
   })
 }
