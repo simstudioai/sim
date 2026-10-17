@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { resolve, sectionAccess } = vi.hoisted(() => ({ resolve: vi.fn(), sectionAccess: vi.fn() }))
@@ -50,10 +53,16 @@ const organizationPrincipal: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
   organizationId: 'trusted-org',
 }
-const workspacePrincipal: DelegatedPrincipal = {
-  ...base,
+const { resourceScope, ...workspaceBase } = base
+const workspacePrincipal: WorkspaceDelegatedPrincipal = {
+  ...workspaceBase,
   kind: 'delegated',
-  workspaceId: 'trusted-workspace',
+  grant: {
+    kind: 'entity',
+    owner: { entityType: 'workspace', entityId: 'trusted-workspace' },
+    restrictions: resourceScope,
+  },
+  invocation: { kind: 'chat', chatId: 'current-chat' },
 }
 function target(scope: 'account' | 'organization' | 'workspace') {
   resolve.mockResolvedValue({

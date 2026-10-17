@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { resolveEffectiveWorkspacePermission } from '@sim/platform-authz/workspace'
 import { authorizeWorkspaceOperation, defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
@@ -41,7 +42,8 @@ export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
   authorizationOptions: {
     delegation: {
       audience: WORKSPACE_TARGET_AUDIENCE,
-      isWithinScope: (principal, context) => principal.resourceScope?.chatId === context.chatId,
+      isWithinScope: (principal, context) =>
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
     },
   },
   async execute({ context, input }) {

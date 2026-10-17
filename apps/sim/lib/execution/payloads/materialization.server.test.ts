@@ -365,7 +365,10 @@ describe('readUserFileContent', () => {
   )(
     'preserves delegated file/chat limits after canonical rejection: %j',
     async ({ context, code, resourceScope }) => {
-      const principal = { ...delegatedReader, resourceScope }
+      const principal = {
+        ...delegatedReader,
+        grant: { ...delegatedReader.grant, restrictions: resourceScope },
+      }
       mockReadWorkspaceFileByKey.mockRejectedValue(new OrchestrationError(code, 'Denied'))
 
       await expect(
@@ -376,7 +379,9 @@ describe('readUserFileContent', () => {
       ).rejects.toMatchObject({ code })
       expect(mockReadWorkspaceFileByKey).toHaveBeenCalledWith(
         expect.objectContaining({
-          principal: expect.objectContaining({ resourceScope: principal.resourceScope }),
+          principal: expect.objectContaining({
+            grant: expect.objectContaining({ restrictions: resourceScope }),
+          }),
         })
       )
       expect(mockVerifyFileAccess).not.toHaveBeenCalled()
@@ -417,7 +422,13 @@ describe('readUserFileContent', () => {
       [
         createSessionPrincipal({ userId: 'reader' }),
         delegatedReader,
-        { ...delegatedReader, resourceScope: { fileId: 'file-1', chatId: 'chat-1' } },
+        {
+          ...delegatedReader,
+          grant: {
+            ...delegatedReader.grant,
+            restrictions: { fileId: 'file-1', chatId: 'chat-1' },
+          },
+        },
       ].map((principal) => ({ context, principal }))
     )
   )(

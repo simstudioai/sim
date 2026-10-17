@@ -89,9 +89,13 @@ describe('private embedded upload control', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'reader',
-        workspaceId,
         audience: 'sim:workspace-files',
-        resourceScope: { chatId: 'chat' },
+        invocation: { kind: 'chat', chatId: 'chat' } as const,
+        grant: {
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: workspaceId },
+          restrictions: { chatId: 'chat' },
+        } as const,
       })
     expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
   })

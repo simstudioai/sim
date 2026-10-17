@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import type { OperationUseCase } from '@/lib/core/application'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
@@ -50,7 +53,7 @@ export function requireCopilotKnowledgeWorkspaceId(
 /** Normalizes immutable Copilot execution identity into a knowledge delegation. */
 export function resolveCopilotKnowledgePrincipal(
   context: CopilotKnowledgeDelegationContext | undefined
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   return createCopilotApplicationPrincipal(
     requireTrustedCopilotExecutionContext(context),
     knowledgeDelegation
@@ -60,7 +63,7 @@ export function resolveCopilotKnowledgePrincipal(
 /** Creates the trusted Knowledge principal used while resolving Copilot chat context. */
 export function createCopilotChatKnowledgePrincipal(
   context: CopilotChatKnowledgeDelegationContext
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   return createCopilotChatPrincipal(context, knowledgeDelegationPolicy.audience)
 }
 

@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { promisify } from 'node:util'
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { Principal, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   auditLog,
@@ -344,7 +344,7 @@ vi.mock('@/lib/internal/principals/executor', async (importOriginal) => ({
     audience,
     context,
     resourceScope,
-  }: CreateExecutorPrincipalFromExecutionContextInput): Promise<DelegatedPrincipal> => ({
+  }: CreateExecutorPrincipalFromExecutionContextInput): Promise<WorkspaceDelegatedPrincipal> => ({
     kind: 'delegated',
     serviceId: 'executor',
     subjectUserId: 'run-reader',

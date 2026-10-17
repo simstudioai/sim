@@ -242,12 +242,16 @@ describe('Mothership workflow lint scope', () => {
         principal: {
           kind: 'delegated',
           serviceId: 'copilot',
-          workspaceId: 'workflow-workspace',
           subjectUserId: 'authenticated-user',
           delegationId: 'delegation-1',
           audience: 'copilot',
           issuedAt: new Date(0),
           expiresAt: new Date(8640000000000000),
+          invocation: { kind: 'workspace', workspaceId: 'workflow-workspace' } as const,
+          grant: {
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workflow-workspace' },
+          } as const,
         },
         input: { workflowId: 'wf-1' },
       })
@@ -279,9 +283,12 @@ describe('Mothership workflow lint scope', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'chat-actor',
-          workspaceId: 'workflow-workspace',
           audience: 'sim:secrets',
-          resourceScope: { chatId: 'org-chat' },
+          grant: expect.objectContaining({
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workflow-workspace' },
+            restrictions: { chatId: 'org-chat' },
+          }),
         }),
       })
     )

@@ -385,10 +385,10 @@ it('reconstructs Project authority from the admitted lease without borrowing its
       delegationAudience: 'sim:project-files',
     })
     expect(principal).toMatchObject({
-      kind: 'resource_delegated',
+      kind: 'delegated',
       subjectUserId: scope.userId,
-      invocation: { kind: 'chat', chatId: scope.chatId },
-      scope: { kind: 'entity', entityType: 'project', entityId: 'project' },
+      invocation: { kind: 'chat', chatId: scope.chatId } as const,
+      grant: { kind: 'entity', owner: { entityType: 'project', entityId: 'project' } } as const,
     })
     expect(principal).not.toHaveProperty('workspaceId')
     return Response.json({ data: [] })

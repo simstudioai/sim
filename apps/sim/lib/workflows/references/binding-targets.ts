@@ -1,4 +1,8 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  principalWorkspaceId,
+  requirePrincipalSubjectUserId,
+} from '@sim/auth/principal'
 import {
   credential,
   customBlock,
@@ -211,7 +215,7 @@ export async function authorizeWorkflowBindingCredentials(
     !(
       principal.kind === 'delegated' &&
       principal.serviceId === 'copilot' &&
-      principal.workspaceId === workspaceId &&
+      principalWorkspaceId(principal) === workspaceId &&
       isCopilotWorkspaceInvocation(principal) &&
       ['sim:workflows', 'sim:workspaces'].includes(principal.audience)
     )

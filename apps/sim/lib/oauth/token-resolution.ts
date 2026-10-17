@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
+import {
+  principalWorkspaceId,
+  resolvePrincipalSubject,
+  type WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -441,7 +445,7 @@ export interface ResolveCredentialAccessTokenInput
    * managed credentials are rejected with `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
    * Must throw {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
    */
-  resolveManagedPrincipal?: (credentialId: string) => Promise<DelegatedPrincipal>
+  resolveManagedPrincipal?: (credentialId: string) => Promise<WorkspaceDelegatedPrincipal>
 }
 
 /**
@@ -486,7 +490,7 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  let principal: DelegatedPrincipal
+  let principal: WorkspaceDelegatedPrincipal
   try {
     principal = await input.resolveManagedPrincipal(resolved.credentialId)
   } catch (error) {
@@ -556,9 +560,9 @@ export async function resolveCredentialAccessToken(
         {
           credential_type: 'managed_oauth',
           provider_id: toolMetadata.oauth.provider,
-          workspace_id: principal.workspaceId,
+          workspace_id: principalWorkspaceId(principal),
         },
-        { groups: { workspace: principal.workspaceId } }
+        { groups: { workspace: principalWorkspaceId(principal) } }
       )
     }
 

@@ -1,4 +1,8 @@
-import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
+import {
+  isUserCredentialPrincipal,
+  type Principal,
+  principalWorkspaceId,
+} from '@sim/auth/principal'
 import type { AuditLogOperation, AuditLogPrincipal } from '@/lib/audit-logs/application/operations'
 import { copilotAuditLogOperations } from '@/lib/audit-logs/application/operations'
 import {
@@ -114,11 +118,13 @@ export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperatio
           (candidate) => candidate.id === definition.operation.id
         )
         if (!workspaceOperation) throw new Error('Missing private workspace read policy')
-        const workspace = await resolveActiveWorkspaceApplicationContext(principal.workspaceId)
+        const workspace = await resolveActiveWorkspaceApplicationContext(
+          principalWorkspaceId(principal)
+        )
         await authorizeWorkspaceOperation(principal, workspaceOperation, workspace, {
           delegation: {
             audience: 'sim:audit-logs',
-            isWithinScope: (actor, target) => actor.workspaceId === target.workspaceId,
+            isWithinScope: (actor, target) => principalWorkspaceId(actor) === target.workspaceId,
           },
         })
         if (

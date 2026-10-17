@@ -1,10 +1,11 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 const WORKSPACE_FILE_DELEGATION_TTL_MS = 5 * 60 * 1000
 
 export interface WorkspaceFileDelegationInput {
-  serviceId: DelegatedPrincipal['serviceId']
+  serviceId: WorkspaceDelegatedPrincipal['serviceId']
   subjectUserId: string
   workspaceId: string
   delegationId: string
@@ -16,13 +17,13 @@ export interface WorkspaceFileDelegationInput {
 /** Binds a trusted service execution to the shared workspace-file principal shape. */
 export function createWorkspaceFileDelegatedPrincipal(
   input: WorkspaceFileDelegationInput
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   if (!input.subjectUserId || !input.workspaceId || !input.delegationId) {
     throw new Error('Workspace file delegation requires subject, workspace, and delegation IDs')
   }
   const issuedAt = new Date()
-  return {
-    kind: 'delegated',
+  const principal = {
+    kind: 'delegated' as const,
     serviceId: input.serviceId,
     subjectUserId: input.subjectUserId,
     workspaceId: input.workspaceId,
@@ -36,10 +37,33 @@ export function createWorkspaceFileDelegatedPrincipal(
       ...(input.executionId ? { executionId: input.executionId } : {}),
     },
   }
+  if (input.serviceId === 'executor') return { ...principal, serviceId: 'executor' }
+  const { workspaceId, resourceScope, ...envelope } = principal
+  const grant = {
+    kind: 'entity' as const,
+    owner: { entityType: 'workspace' as const, entityId: workspaceId },
+    restrictions: resourceScope,
+  }
+  if (input.serviceId === 'copilot') {
+    return {
+      ...envelope,
+      serviceId: 'copilot',
+      invocation: input.chatId
+        ? { kind: 'chat' as const, chatId: input.chatId }
+        : { kind: 'workspace' as const, workspaceId },
+      grant,
+    }
+  }
+  return {
+    ...envelope,
+    serviceId: 'realtime',
+    invocation: { kind: 'workspace' as const, workspaceId },
+    grant,
+  }
 }
 
 export interface RebindWorkspaceFileDelegationInput {
-  principal: DelegatedPrincipal
+  principal: WorkspaceDelegatedPrincipal
   workspaceId: string
   delegationId: string
   fileId?: string
@@ -50,14 +74,12 @@ export interface RebindWorkspaceFileDelegationInput {
 /** Rebinds an already-authorized service principal without changing its workflow actor. */
 export function rebindWorkspaceFileDelegatedPrincipal(
   input: RebindWorkspaceFileDelegationInput
-): DelegatedPrincipal {
-  if (input.principal.workspaceId !== input.workspaceId || !input.delegationId) {
+): WorkspaceDelegatedPrincipal {
+  if (principalWorkspaceId(input.principal) !== input.workspaceId || !input.delegationId) {
     throw new Error('Workspace file delegation does not match its authorized workspace')
   }
   const issuedAt = new Date()
-  return {
-    ...input.principal,
-    workspaceId: input.workspaceId,
+  const updates = {
     delegationId: input.delegationId,
     audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
     issuedAt,
@@ -67,10 +89,28 @@ export function rebindWorkspaceFileDelegatedPrincipal(
         issuedAt.getTime() + WORKSPACE_FILE_DELEGATION_TTL_MS
       )
     ),
-    resourceScope: {
-      ...(input.fileId ? { fileId: input.fileId } : {}),
-      ...(input.chatId ? { chatId: input.chatId } : {}),
-      ...(input.executionId ? { executionId: input.executionId } : {}),
-    },
+  }
+  const restrictions = {
+    ...(input.fileId ? { fileId: input.fileId } : {}),
+    ...(input.chatId ? { chatId: input.chatId } : {}),
+    ...(input.executionId ? { executionId: input.executionId } : {}),
+  }
+  if (input.principal.serviceId === 'executor')
+    return { ...input.principal, ...updates, resourceScope: restrictions }
+  if (input.principal.serviceId === 'copilot') {
+    return {
+      ...input.principal,
+      ...updates,
+      invocation: restrictions.chatId
+        ? { kind: 'chat' as const, chatId: restrictions.chatId }
+        : { kind: 'workspace' as const, workspaceId: input.workspaceId },
+      grant: { ...input.principal.grant, restrictions },
+    }
+  }
+  return {
+    ...input.principal,
+    ...updates,
+    invocation: { kind: 'workspace' as const, workspaceId: input.workspaceId },
+    grant: { ...input.principal.grant, restrictions },
   }
 }

@@ -17,7 +17,12 @@ describe('chat table delegation', () => {
     expect(principal).toMatchObject({
       subjectUserId: 'user-1',
       audience: tableDelegationPolicy.audience,
-      resourceScope: { tableId: 'table-1', chatId: 'chat-1' },
+      invocation: { kind: 'chat', chatId: 'chat-1' },
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        restrictions: { tableId: 'table-1', chatId: 'chat-1' },
+      },
     })
     expect(tableDelegationPolicy.isWithinScope(principal, { ...context, tableId: 'table-1' })).toBe(
       true

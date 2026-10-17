@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import { MANAGED_OAUTH_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
@@ -17,7 +17,7 @@ import {
 export function createCopilotManagedOAuthPrincipal(
   context: CopilotExecutionContext | undefined,
   credentialId: string
-): DelegatedPrincipal {
+): WorkspaceDelegatedPrincipal {
   const trustedContext = requireTrustedCopilotExecutionContext(context)
   return createCopilotApplicationPrincipal(trustedContext, {
     audience: MANAGED_OAUTH_DELEGATION_AUDIENCE,

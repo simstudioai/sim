@@ -1,9 +1,10 @@
 import type {
-  DelegatedPrincipal,
   Principal,
-  ResourceDelegatedPrincipal,
   ResourceDelegationScope,
+  ResourceOperationPrincipal,
+  WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   type ApplicationOperation,
   type OperationUseCase,
@@ -26,7 +27,7 @@ import {
 type CopilotApplicationPrincipalFactory = (args: {
   context: TrustedCopilotExecutionContext
   resourceScope: CopilotResourceScope
-}) => DelegatedPrincipal
+}) => WorkspaceDelegatedPrincipal
 
 interface CopilotApplicationAdapterOptions<O extends WorkspaceOperation, ScopeInput = undefined> {
   mode?: 'workspace'
@@ -41,8 +42,9 @@ interface CopilotApplicationAdapterOptions<O extends WorkspaceOperation, ScopeIn
 }
 
 interface CopilotResourceOperation extends ApplicationOperation {
+  readonly delegationScope?: 'resource'
   readonly principalKinds: readonly Principal['kind'][]
-  readonly delegatedServices?: readonly ResourceDelegatedPrincipal['serviceId'][]
+  readonly delegatedServices?: readonly ResourceOperationPrincipal['serviceId'][]
   readonly delegationAudience?: string
 }
 
@@ -92,7 +94,7 @@ function requireValidProjectedResourceScope(resourceScope: CopilotResourceScope)
 function expectedResourceScope(
   context: TrustedCopilotExecutionContext,
   resourceScope: CopilotResourceScope
-): NonNullable<DelegatedPrincipal['resourceScope']> {
+): NonNullable<ReturnType<typeof workspaceDelegationRestrictions>> {
   return {
     ...resourceScope,
     ...(context.chatId ? { chatId: context.chatId } : {}),
@@ -101,7 +103,7 @@ function expectedResourceScope(
 }
 
 function requireMatchingPrincipal(
-  principal: DelegatedPrincipal,
+  principal: WorkspaceDelegatedPrincipal,
   context: TrustedCopilotExecutionContext,
   delegation: CopilotDelegationConfiguration,
   resourceScope: CopilotResourceScope
@@ -111,7 +113,7 @@ function requireMatchingPrincipal(
     principal.kind !== 'delegated' ||
     principal.serviceId !== 'copilot' ||
     principal.subjectUserId !== context.userId ||
-    principal.workspaceId !== context.workspaceId ||
+    principalWorkspaceId(principal) !== context.workspaceId ||
     !delegationId.trim() ||
     principal.delegationId !== delegationId ||
     principal.audience !== delegation.audience
@@ -132,7 +134,11 @@ function requireMatchingPrincipal(
   }
 
   const expectedScope = expectedResourceScope(context, resourceScope)
-  if (RESOURCE_SCOPE_KEYS.some((key) => principal.resourceScope?.[key] !== expectedScope[key])) {
+  if (
+    RESOURCE_SCOPE_KEYS.some(
+      (key) => workspaceDelegationRestrictions(principal)?.[key] !== expectedScope[key]
+    )
+  ) {
     throw new Error('Copilot principal factory violated the configured resource scope')
   }
 }
@@ -210,7 +216,8 @@ function createWorkspaceApplicationAdapter<O extends WorkspaceOperation, ScopeIn
 /** Whether an operation accepts a Copilot resource grant at all; its audience is checked separately. */
 export function admitsCopilotResourceDelegation(operation: CopilotResourceOperation): boolean {
   return (
-    operation.principalKinds.includes('resource_delegated') &&
+    operation.delegationScope === 'resource' &&
+    operation.principalKinds.includes('delegated') &&
     operation.delegatedServices?.includes('copilot') === true
   )
 }

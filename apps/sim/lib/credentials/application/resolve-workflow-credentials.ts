@@ -1,3 +1,4 @@
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
@@ -33,7 +34,7 @@ export const resolveWorkflowCredentials = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {
     delegation: {
       audience: CREDENTIAL_GROUP_DELEGATION_AUDIENCE,
-      isWithinScope: (principal) => principal.resourceScope === undefined,
+      isWithinScope: (principal) => workspaceDelegationRestrictions(principal) === undefined,
     },
   },
   authorizeResource: ({ principal }) => {

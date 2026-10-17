@@ -1,4 +1,8 @@
-import { type Principal, resolvePrincipalExecutionActorUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalExecutionActorUserId,
+  workspaceDelegationRestrictions,
+} from '@sim/auth/principal'
 import type { WorkspaceDelegationPolicy } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { ManagedMcpCredentialApplicationContext } from '@/lib/credentials/managed-mcp'
@@ -22,7 +26,7 @@ export const managedOAuthCredentialDelegationPolicy = {
   isWithinScope: (
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: ManagedOAuthCredentialApplicationContext
-  ) => principal.resourceScope?.credentialId === context.credentialId,
+  ) => workspaceDelegationRestrictions(principal)?.credentialId === context.credentialId,
 } satisfies WorkspaceDelegationPolicy<ManagedOAuthCredentialApplicationContext>
 
 export const managedMcpCredentialDelegationPolicy = {
@@ -30,7 +34,7 @@ export const managedMcpCredentialDelegationPolicy = {
   isWithinScope: (
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: ManagedMcpCredentialApplicationContext
-  ) => principal.resourceScope?.credentialId === context.credentialId,
+  ) => workspaceDelegationRestrictions(principal)?.credentialId === context.credentialId,
 } satisfies WorkspaceDelegationPolicy<ManagedMcpCredentialApplicationContext>
 
 /**

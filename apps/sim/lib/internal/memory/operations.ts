@@ -1,4 +1,5 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 import type { ContractBody, ContractQuery } from '@/lib/api/contracts'
 import type {
   createMemoryContract,
@@ -49,7 +50,7 @@ export async function executeMemoryAdd(
   const result = await appendMemoryUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: principalWorkspaceId(context.principal),
       key: body.key ?? '',
       data: body.data,
       ...(resolveWriteProvenance ? { resolveWriteProvenance } : {}),
@@ -76,7 +77,7 @@ export async function executeMemoryList(
   const result = await listMemoriesUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: principalWorkspaceId(context.principal),
       query: query.query,
       limit: query.limit,
       includePersistedSecretProvenance: memoryToolRequestsProvenance(context.headers),
@@ -107,7 +108,7 @@ export async function executeMemoryGet(
   const result = await readMemoryUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: principalWorkspaceId(context.principal),
       key,
       includePersistedSecretProvenance: memoryToolRequestsProvenance(context.headers),
       resolveBillingAttribution: async (workspaceId) =>
@@ -132,7 +133,7 @@ export async function executeMemoryDelete(
   const result = await deleteMemoryUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: principalWorkspaceId(context.principal),
       key: query.conversationId ?? '',
       signal: context.signal,
     },

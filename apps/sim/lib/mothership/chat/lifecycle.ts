@@ -1,4 +1,8 @@
-import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
+import {
+  type Principal,
+  resolvePrincipalSubjectUserId,
+  workspaceDelegationRestrictions,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -361,7 +365,8 @@ async function authorizeCopilotChatRow<T extends CopilotChatAuthRow>(
     if (!principal || resolvePrincipalSubjectUserId(principal) !== userId) return null
     if (
       principal.kind === 'organization_delegated' &&
-      (principal.serviceId !== 'copilot' || principal.resourceScope.chatId !== chat.id)
+      (principal.serviceId !== 'copilot' ||
+        workspaceDelegationRestrictions(principal)?.chatId !== chat.id)
     )
       return null
     try {

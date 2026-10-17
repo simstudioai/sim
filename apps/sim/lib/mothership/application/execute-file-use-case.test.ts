@@ -45,9 +45,12 @@ describe('executeCopilotFileUseCase', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
         delegationId: 'copilot-tool:tool-call-1',
-        resourceScope: expect.objectContaining({ fileId: 'file-1' }),
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          restrictions: expect.objectContaining({ fileId: 'file-1' }),
+        }),
       }),
       input: { fileId: 'file-1', name: 'renamed.txt' },
     })
@@ -77,7 +80,10 @@ describe('executeCopilotFileUseCase', () => {
     expect(resolveWorkspaceFileReference).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
-        workspaceId: 'workspace-1',
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        }),
         delegationId: 'copilot-tool:tool-call-1',
       }),
       operation: fileOperations.readContent,

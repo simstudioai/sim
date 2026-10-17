@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { isWorkspaceDelegation, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { createLogger, type Logger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -287,21 +288,20 @@ export async function assertUserFileContentAccess(
   }
 
   if (context === 'workspace' && options.principal && options.workspaceId) {
-    const principal =
-      options.principal.kind === 'delegated'
-        ? rebindWorkspaceFileDelegatedPrincipal({
-            principal: options.principal,
-            workspaceId: options.workspaceId,
-            delegationId: `execution-file-read:${options.requestId ?? 'unknown'}`,
-            ...(options.principal.resourceScope?.fileId
-              ? { fileId: options.principal.resourceScope.fileId }
-              : {}),
-            ...(options.principal.resourceScope?.chatId
-              ? { chatId: options.principal.resourceScope.chatId }
-              : {}),
-            ...(options.executionId ? { executionId: options.executionId } : {}),
-          })
-        : options.principal
+    const principal = isWorkspaceDelegation(options.principal)
+      ? rebindWorkspaceFileDelegatedPrincipal({
+          principal: options.principal,
+          workspaceId: options.workspaceId,
+          delegationId: `execution-file-read:${options.requestId ?? 'unknown'}`,
+          ...(workspaceDelegationRestrictions(options.principal)?.fileId
+            ? { fileId: workspaceDelegationRestrictions(options.principal)?.fileId }
+            : {}),
+          ...(workspaceDelegationRestrictions(options.principal)?.chatId
+            ? { chatId: workspaceDelegationRestrictions(options.principal)?.chatId }
+            : {}),
+          ...(options.executionId ? { executionId: options.executionId } : {}),
+        })
+      : options.principal
     try {
       await readStoredWorkspaceFileRecordByKey.execute({
         principal,
@@ -317,8 +317,8 @@ export async function assertUserFileContentAccess(
       /** Legacy storage metadata cannot prove a delegated file or chat identity. */
       if (
         options.principal.kind === 'delegated' &&
-        (options.principal.resourceScope?.fileId !== undefined ||
-          options.principal.resourceScope?.chatId !== undefined)
+        (workspaceDelegationRestrictions(options.principal)?.fileId !== undefined ||
+          workspaceDelegationRestrictions(options.principal)?.chatId !== undefined)
       ) {
         throw error
       }

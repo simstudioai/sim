@@ -1,6 +1,51 @@
+import { parsePrincipal, serializePrincipal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
-import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
+import {
+  createWorkspaceFileDelegatedPrincipal,
+  rebindWorkspaceFileDelegatedPrincipal,
+} from '@/lib/workspace-files/application/delegated-principal'
+
+describe('createWorkspaceFileDelegatedPrincipal', () => {
+  it('keeps a copilot file principal on its chat invocation through a snapshot round trip', () => {
+    const minted = createWorkspaceFileDelegatedPrincipal({
+      serviceId: 'copilot',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      fileId: 'file-1',
+      chatId: 'chat-1',
+    })
+    expect(minted).toMatchObject({
+      serviceId: 'copilot',
+      invocation: { kind: 'chat', chatId: 'chat-1' },
+      grant: { restrictions: { fileId: 'file-1', chatId: 'chat-1' } },
+    })
+    expect(parsePrincipal(structuredClone(serializePrincipal(minted)))).toMatchObject({
+      serviceId: 'copilot',
+      invocation: { kind: 'chat', chatId: 'chat-1' },
+      grant: {
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+        restrictions: { fileId: 'file-1', chatId: 'chat-1' },
+      },
+    })
+  })
+
+  it('keeps realtime workspace-file authority on a workspace invocation', () => {
+    expect(
+      createWorkspaceFileDelegatedPrincipal({
+        serviceId: 'realtime',
+        subjectUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        delegationId: 'delegation-1',
+        chatId: 'chat-1',
+      })
+    ).toMatchObject({
+      serviceId: 'realtime',
+      invocation: { kind: 'workspace', workspaceId: 'workspace-1' },
+    })
+  })
+})
 
 describe('rebindWorkspaceFileDelegatedPrincipal', () => {
   it('preserves actorless workflow identity and deployment authority', () => {
@@ -57,11 +102,15 @@ describe('rebindWorkspaceFileDelegatedPrincipal', () => {
           kind: 'delegated',
           serviceId: 'copilot',
           subjectUserId: 'user-1',
-          workspaceId: 'workspace-1',
           delegationId: 'copilot-1',
           audience: 'sim:function-executions',
           issuedAt: new Date(),
           expiresAt: new Date(Date.now() + 60_000),
+          invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+          grant: {
+            kind: 'entity',
+            owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          } as const,
         },
         workspaceId: 'workspace-2',
         delegationId: 'file-1',

@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 import type {
   WorkspaceAuthorizationContext,
   WorkspaceAuthorizationOptions,
@@ -40,6 +41,6 @@ export const knowledgeDelegationPolicy = {
     delegated: Extract<Principal, { kind: 'delegated' }>,
     canonicalContext: KnowledgeAuthorizationContext
   ) {
-    return delegated.workspaceId === canonicalContext.workspaceId
+    return principalWorkspaceId(delegated) === canonicalContext.workspaceId
   },
 } as const

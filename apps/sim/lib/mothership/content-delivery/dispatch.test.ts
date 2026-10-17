@@ -23,11 +23,12 @@ const CHAT: Principal = {
   kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
   delegationId: 'delegation-1',
   audience: 'sim:test',
   issuedAt: new Date(now),
   expiresAt: new Date(now + 60_000),
+  invocation: { kind: 'workspace', workspaceId: 'workspace-1' } as const,
+  grant: { kind: 'entity', owner: { entityType: 'workspace', entityId: 'workspace-1' } } as const,
 }
 
 const SOURCED = defineWorkspaceOperation({

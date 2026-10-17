@@ -32,14 +32,17 @@ describe('executeCopilotTableUseCase', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
         audience: 'sim:tables',
         delegationId: 'copilot-tool:tool-call-1',
-        resourceScope: {
-          tableId: 'table-1',
-          chatId: 'chat-1',
-          executionId: 'execution-1',
-        },
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: 'workspace-1' },
+          restrictions: {
+            tableId: 'table-1',
+            chatId: 'chat-1',
+            executionId: 'execution-1',
+          },
+        }),
       }),
       input: { tableId: 'model-table' },
     })
@@ -57,7 +60,9 @@ describe('executeCopilotTableUseCase', () => {
     expect(execute).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         serviceId: 'copilot',
-        resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
+        grant: expect.objectContaining({
+          restrictions: { chatId: 'chat-1', executionId: 'execution-1' },
+        }),
       }),
       input: { workspaceId: 'workspace-1' },
     })

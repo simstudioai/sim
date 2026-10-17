@@ -32,12 +32,15 @@ describe('executeCopilotCustomToolUseCase', () => {
         kind: 'delegated',
         serviceId: 'copilot',
         subjectUserId: trustedContext.userId,
-        workspaceId: trustedContext.workspaceId,
         delegationId: `copilot-tool:${trustedContext.toolCallId}`,
         audience: 'sim:custom-tools',
-        resourceScope: expect.objectContaining({
-          chatId: trustedContext.chatId,
-          executionId: trustedContext.executionId,
+        grant: expect.objectContaining({
+          kind: 'entity',
+          owner: { entityType: 'workspace', entityId: trustedContext.workspaceId },
+          restrictions: expect.objectContaining({
+            chatId: trustedContext.chatId,
+            executionId: trustedContext.executionId,
+          }),
         }),
       }),
       input,

@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  WorkflowExecutionDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import {
   credentialGroupsAvailabilityMock,
   credentialGroupsAvailabilityMockFns,
@@ -102,21 +105,28 @@ function executorPrincipal(): WorkflowExecutionDelegatedPrincipal {
   }
 }
 
-function copilotPrincipal(subjectUserId: string | null = 'user-1'): DelegatedPrincipal {
+function copilotPrincipal(subjectUserId: string | null = 'user-1'): WorkspaceDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'copilot',
     ...(subjectUserId ? { subjectUserId } : {}),
-    workspaceId: 'workspace-1',
     delegationId: 'copilot-tool:call-1',
     audience: 'sim:managed-oauth-credentials',
     issuedAt: new Date(Date.now() - 1_000),
     expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: { credentialId: 'credential-1', chatId: 'chat-1' },
+    invocation: { kind: 'chat', chatId: 'chat-1' } as const,
+    grant: {
+      kind: 'entity',
+      owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      restrictions: { credentialId: 'credential-1', chatId: 'chat-1' },
+    } as const,
   }
 }
 
-function requireAccess(principal: DelegatedPrincipal, accessContext = context): Promise<void> {
+function requireAccess(
+  principal: WorkspaceDelegatedPrincipal,
+  accessContext = context
+): Promise<void> {
   return requireCredentialGroupCredentialAccess(
     principal,
     accessContext,

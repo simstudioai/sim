@@ -1,5 +1,6 @@
 import {
   type BoundWorkflowExecutionDelegatedPrincipal,
+  principalWorkspaceId,
   resolvePrincipalExecutionActorUserId,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
@@ -486,7 +487,7 @@ async function storeDownloadedFile({
   if (executionId) {
     const file = await uploadExecutionFile(
       {
-        workspaceId: principal.workspaceId,
+        workspaceId: principalWorkspaceId(principal),
         workflowId,
         executionId,
       },

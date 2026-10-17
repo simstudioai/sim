@@ -1,4 +1,5 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { principalWorkspaceId } from '@sim/auth/principal'
 import type { ContractQuery } from '@/lib/api/contracts'
 import type { listLogsContract } from '@/lib/api/contracts/logs'
 import { listLogsUseCase } from '@/lib/logs/application/list-logs'
@@ -22,7 +23,11 @@ export async function executeLogsList(
   context.signal?.throwIfAborted()
   const result = await listLogsUseCase.execute({
     principal: context.principal,
-    input: { ...query, workspaceId: context.principal.workspaceId, signal: context.signal },
+    input: {
+      ...query,
+      workspaceId: principalWorkspaceId(context.principal),
+      signal: context.signal,
+    },
   })
   return complete(context, result)
 }
@@ -31,7 +36,7 @@ export async function executeLogsGet(id: string, context: LogsToolOperationConte
   const result = await readLogDetailUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: principalWorkspaceId(context.principal),
       lookupColumn: 'id',
       lookupValue: id,
       signal: context.signal,
@@ -47,7 +52,7 @@ export async function executeLogsGetRunDetails(
   const result = await readLogDetailUseCase.execute({
     principal: context.principal,
     input: {
-      workspaceId: context.principal.workspaceId,
+      workspaceId: principalWorkspaceId(context.principal),
       lookupColumn: 'executionId',
       lookupValue: executionId,
       signal: context.signal,

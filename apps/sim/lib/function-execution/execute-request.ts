@@ -1,7 +1,7 @@
 import type {
-  DelegatedPrincipal,
   OrganizationDelegatedPrincipal,
   Principal,
+  WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
@@ -1004,7 +1004,7 @@ function serializeForShellEnv(value: unknown, nullValue = ''): string {
 }
 
 interface FunctionRouteExecutionContext {
-  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+  principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -2243,7 +2243,7 @@ async function collectSandboxOutputFiles(args: {
 export interface TrustedFunctionExecutionAuth {
   attributedUserId: string
   fileAccessUserId?: string
-  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+  principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
   sandboxProfile?: 'mothership'
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }

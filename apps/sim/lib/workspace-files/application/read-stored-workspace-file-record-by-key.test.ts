@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { Principal, WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import {
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
@@ -52,7 +52,9 @@ const file = {
 }
 const session = createSessionPrincipal({ userId: 'reader' })
 
-function executor(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
+function executor(
+  overrides: Partial<WorkspaceDelegatedPrincipal> = {}
+): WorkspaceDelegatedPrincipal {
   return {
     kind: 'delegated',
     serviceId: 'executor',
@@ -146,7 +148,7 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
     ).resolves.toMatchObject({ file: { context: 'workspace' } })
   })
 
-  it.each<Partial<DelegatedPrincipal>>([
+  it.each<Partial<WorkspaceDelegatedPrincipal>>([
     { resourceScope: { fileId: 'other-file' } },
     { resourceScope: { chatId: 'other-chat' } },
     { resourceScope: { fileId: 'file-1', chatId: 'other-chat' } },

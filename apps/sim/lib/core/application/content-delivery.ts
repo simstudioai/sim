@@ -163,9 +163,7 @@ class ContentDeliveryUndeclaredError extends Error {
  */
 export function isCopilotPrincipal(principal: Principal): boolean {
   return (
-    (principal.kind === 'delegated' ||
-      principal.kind === 'organization_delegated' ||
-      principal.kind === 'resource_delegated') &&
+    (principal.kind === 'delegated' || principal.kind === 'organization_delegated') &&
     principal.serviceId === 'copilot' &&
     workflowRuns.getStore() === undefined
   )

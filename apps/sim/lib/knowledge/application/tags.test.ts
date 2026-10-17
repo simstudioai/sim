@@ -370,7 +370,13 @@ describe('knowledge tag application use cases', () => {
   )
 
   describe('tag usage Chat may see', () => {
-    const chat = { ...delegatedPrincipal, workspaceId: 'workspace-b' }
+    const chat = createDelegatedPrincipal({
+      subjectUserId: 'shared-user',
+      workspaceId: 'workspace-b',
+      delegationId: 'tool-call-1',
+      audience: 'sim:knowledge',
+      resourceScope: {},
+    })
     /** One document under two definitions: its value is refused under one and admitted under the other. */
     const detailed = [
       {

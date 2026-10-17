@@ -1,4 +1,8 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
+import { workspaceDelegationRestrictions } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -31,20 +35,22 @@ export const readWorkspaceContext = defineAuthorizedChatUseCase({
   async resolveContext({
     principal,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
     input: { workspaceId: string }
   }) {
-    const chatId =
-      principal.resourceScope && 'chatId' in principal.resourceScope
-        ? principal.resourceScope.chatId
-        : undefined
+    const restrictions =
+      principal.kind === 'organization_delegated'
+        ? principal.resourceScope
+        : workspaceDelegationRestrictions(principal)
+    const chatId = restrictions && 'chatId' in restrictions ? restrictions.chatId : undefined
     if (!chatId) throw new OrchestrationError('not_found', 'Conversation not found')
     return resolveOwnedChatContext(principal, chatId)
   },
   authorizationOptions: {
     delegation: {
       audience: WORKSPACE_TARGET_AUDIENCE,
-      isWithinScope: (principal, context) => principal.resourceScope?.chatId === context.chatId,
+      isWithinScope: (principal, context) =>
+        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
     },
   },
   async execute({ principal, input, context }) {

@@ -1,8 +1,9 @@
 import type {
-  DelegatedPrincipal,
   OrganizationDelegatedPrincipal,
   Principal,
+  WorkspaceDelegatedPrincipal,
 } from '@sim/auth/principal'
+import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
 import {
   type AuthorizingUseCase,
   DelegatedServiceAuthorizationError,
@@ -47,7 +48,7 @@ const readLiveRunControl = defineAuthorizedChatUseCase({
     principal,
     input,
   }: {
-    principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
     input: RunControlRequest
   }) => resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: {
@@ -55,8 +56,9 @@ const readLiveRunControl = defineAuthorizedChatUseCase({
       audience: RUN_CONTROL_AUDIENCE,
       isWithinScope: (principal, context) =>
         principal.serviceId === 'copilot' &&
-        principal.workspaceId === context.workspaceId &&
-        (!principal.resourceScope?.chatId || principal.resourceScope.chatId === context.chatId),
+        principalWorkspaceId(principal) === context.workspaceId &&
+        (!workspaceDelegationRestrictions(principal)?.chatId ||
+          workspaceDelegationRestrictions(principal)?.chatId === context.chatId),
     },
   },
   async execute({ input, context }) {
@@ -93,7 +95,7 @@ function requireRunControlCaller(principal: Principal, input: RunControlRequest)
   /** A workspace delegation may leave the chat unscoped; an organization one always names it. */
   const chatScope =
     principal.kind === 'delegated'
-      ? (principal.resourceScope?.chatId ?? input.chatId)
+      ? (workspaceDelegationRestrictions(principal)?.chatId ?? input.chatId)
       : principal.serviceId === 'copilot'
         ? principal.resourceScope.chatId
         : undefined

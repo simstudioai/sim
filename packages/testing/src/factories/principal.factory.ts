@@ -1,9 +1,9 @@
 import type {
   PersonalApiKeyPrincipal,
   SessionPrincipal,
-  SubjectDelegatedPrincipal,
   WorkflowExecutionDelegatedPrincipal,
   WorkspaceApiKeyPrincipal,
+  WorkspaceSubjectDelegation,
 } from '@sim/auth/principal'
 
 /**
@@ -57,18 +57,33 @@ export function createWorkspaceApiKeyPrincipal(
  * ```
  */
 export function createDelegatedPrincipal(
-  overrides: Partial<SubjectDelegatedPrincipal> = {}
-): SubjectDelegatedPrincipal {
+  overrides: Omit<
+    Partial<WorkspaceSubjectDelegation>,
+    'workspaceId' | 'resourceScope' | 'invocation'
+  > &
+    Pick<Partial<WorkflowExecutionDelegatedPrincipal>, 'workspaceId' | 'resourceScope'> = {}
+): WorkspaceSubjectDelegation {
+  const { workspaceId = 'workspace-1', resourceScope, grant: grantOverride, ...rest } = overrides
+  const grant = grantOverride ?? {
+    kind: 'entity' as const,
+    owner: { entityType: 'workspace' as const, entityId: workspaceId },
+    ...(resourceScope ? { restrictions: resourceScope } : {}),
+  }
+  const boundWorkspaceId =
+    grant.kind === 'entity' && grant.owner.entityType === 'workspace'
+      ? grant.owner.entityId
+      : workspaceId
   return {
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
     delegationId: 'delegation-1',
     audience: 'sim:test',
     issuedAt: new Date(TEST_PRINCIPAL_ISSUED_AT),
     expiresAt: new Date(TEST_PRINCIPAL_EXPIRES_AT),
-    ...overrides,
+    invocation: { kind: 'workspace', workspaceId: boundWorkspaceId },
+    grant,
+    ...rest,
   }
 }
 

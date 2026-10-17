@@ -156,7 +156,14 @@ describe('private memory scope', () => {
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     await expect(
       readMemoryScope.execute({
-        principal: { ...caller, resourceScope: { chatId: 'other' } },
+        principal: {
+          ...caller,
+          invocation: { kind: 'chat', chatId: 'other' },
+          grant: {
+            ...caller.grant,
+            restrictions: { ...caller.grant.restrictions, chatId: 'other' },
+          },
+        },
         input,
       })
     ).rejects.toThrow()

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import type { OAuthAccessTokenPrincipal, ResourceDelegatedPrincipal } from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal, ResourceOperationPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   copilotChats,
@@ -205,17 +205,17 @@ function delegated(
   userId: string,
   projectId: string,
   workspaceId: string
-): Extract<ResourceDelegatedPrincipal, { serviceId: 'copilot' }> {
+): Extract<ResourceOperationPrincipal, { serviceId: 'copilot' }> {
   return {
-    kind: 'resource_delegated',
+    kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: userId,
     audience: 'sim:project-files',
     delegationId: generateId(),
     issuedAt: new Date(),
     expiresAt: new Date(Date.now() + 30_000),
-    scope: { kind: 'entity', entityType: 'project', entityId: projectId },
-    invocation: { kind: 'workspace', workspaceId },
+    grant: { kind: 'entity', owner: { entityType: 'project', entityId: projectId } } as const,
+    invocation: { kind: 'workspace', workspaceId } as const,
   }
 }
 
@@ -918,7 +918,11 @@ describe('Project file authority at the database boundary', () => {
         readAccess.execute({
           principal: {
             ...principal,
-            scope: { kind: 'entity', entityType: 'project', entityId: f.projectId, fileId },
+            grant: {
+              kind: 'entity',
+              fileId,
+              owner: { entityType: 'project', entityId: f.projectId },
+            },
           },
           input: { ...input, fileId },
         })
@@ -927,7 +931,7 @@ describe('Project file authority at the database boundary', () => {
         readAccess.execute({
           principal: {
             ...principal,
-            scope: { kind: 'entity', entityType: 'project', entityId: generateId() },
+            grant: { kind: 'entity', owner: { entityType: 'project', entityId: generateId() } },
           },
           input,
         })
@@ -953,7 +957,7 @@ describe('Project file authority at the database boundary', () => {
         config: { conversationMode: 'agent' },
         title: 'Project context',
       })
-      const principal: ResourceDelegatedPrincipal = {
+      const principal: ResourceOperationPrincipal = {
         ...delegated(f.readerId, f.projectId, f.workspaces[0]),
         serviceId: 'copilot',
         invocation: { kind: 'chat', chatId },
@@ -1100,16 +1104,20 @@ describe('Project file authority at the database boundary', () => {
         contentType: 'text/markdown',
         sizeBytes: 0,
       })
-      const principal: ResourceDelegatedPrincipal = {
-        kind: 'resource_delegated',
+      const principal: ResourceOperationPrincipal = {
+        kind: 'delegated',
         serviceId: 'realtime',
         subjectUserId: f.readerId,
         delegationId: generateId(),
         audience: 'sim:project-files',
         issuedAt: new Date(),
         expiresAt: new Date(Date.now() + 30_000),
-        scope: { kind: 'entity', entityType: 'project', entityId: f.projectId, fileId },
-        invocation: { kind: 'realtime', connectionId: 'fixture-connection' },
+        grant: {
+          kind: 'entity',
+          fileId,
+          owner: { entityType: 'project', entityId: f.projectId },
+        } as const,
+        invocation: { kind: 'realtime', connectionId: 'fixture-connection' } as const,
       }
       expect(
         await readFile.execute({ principal, input: { projectId: f.projectId, fileId } })

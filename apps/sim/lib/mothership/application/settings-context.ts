@@ -1,4 +1,7 @@
-import type { DelegatedPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
+import type {
+  OrganizationDelegatedPrincipal,
+  WorkspaceDelegatedPrincipal,
+} from '@sim/auth/principal'
 import type { MothershipSettingsScope } from '@/lib/api/contracts/mothership-settings'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
@@ -14,7 +17,7 @@ import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import { readSettingsWorkspaceContext } from '@/lib/settings/application/context'
 
 export interface SettingsContext {
-  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+  principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
   scope: MothershipSettingsScope
   workspaceId?: string
   organizationId?: string

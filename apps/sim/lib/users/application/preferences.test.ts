@@ -1,4 +1,4 @@
-import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceSubjectDelegation } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { mothershipAgentUrlMock } from '@sim/testing/mocks/mothership-agent-url.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,16 +14,20 @@ import {
   updateCurrentUserPreferences,
 } from '@/lib/users/application/preferences'
 
-const delegated: SubjectDelegatedPrincipal = {
+const delegated: WorkspaceSubjectDelegation = {
   kind: 'delegated',
   serviceId: 'copilot',
   subjectUserId: 'actor',
-  workspaceId: 'workspace',
   delegationId: 'call',
   audience: 'sim:settings',
   issuedAt: new Date(),
   expiresAt: new Date(Date.now() + 1000),
-  resourceScope: { chatId: 'chat' },
+  invocation: { kind: 'chat', chatId: 'chat' } as const,
+  grant: {
+    kind: 'entity',
+    owner: { entityType: 'workspace', entityId: 'workspace' },
+    restrictions: { chatId: 'chat' },
+  } as const,
 }
 
 describe('account preference mutations', () => {

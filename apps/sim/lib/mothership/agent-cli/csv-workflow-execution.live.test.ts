@@ -9,7 +9,7 @@ import { createReadStream } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkspaceDelegatedPrincipal } from '@sim/auth/principal'
 import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
@@ -232,7 +232,7 @@ vi.mock('@/lib/internal/principals/executor', async (importOriginal) => ({
   createExecutorPrincipalFromExecutionContext: async ({
     audience,
     context,
-  }: CreateExecutorPrincipalFromExecutionContextInput): Promise<DelegatedPrincipal> => {
+  }: CreateExecutorPrincipalFromExecutionContextInput): Promise<WorkspaceDelegatedPrincipal> => {
     if (!context.workspaceId) throw new Error('Fixture execution requires a workspace')
     fixtures.audiences.push(audience)
     return {
