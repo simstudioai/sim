@@ -191,6 +191,13 @@ function calculateOrgUsageLimit(
  */
 const usersCreatedInAuthRequest = new WeakMap<object, string>()
 
+function isUserCreatedInAuthRequest(
+  userId: string,
+  authRequest: object | null | undefined
+): boolean {
+  return authRequest ? usersCreatedInAuthRequest.get(authRequest) === userId : false
+}
+
 /**
  * Handle new user setup when they join the platform.
  * Creates the userStats record with the free allowance, which is zero when the
@@ -253,7 +260,7 @@ export async function handleNewSignInAccount(
   },
   authRequest: object | null | undefined
 ): Promise<void> {
-  if (!authRequest || usersCreatedInAuthRequest.get(authRequest) !== userId) return
+  if (!isUserCreatedInAuthRequest(userId, authRequest)) return
   if (!(await isDeletedAccountIdentity({ oauthSubjects: [{ providerId, accountId }] }))) return
   await forfeitFreeTierAllowance(userId)
 }
@@ -289,9 +296,7 @@ export async function ensureUserStatsExists(
   if (created.length === 0) return
 
   try {
-    const includeSignIns = authRequest
-      ? usersCreatedInAuthRequest.get(authRequest) === userId
-      : false
+    const includeSignIns = isUserCreatedInAuthRequest(userId, authRequest)
     if (await userHasDeletedAccountIdentity(userId, { includeSignIns })) {
       await forfeitFreeTierAllowance(userId)
     }
@@ -705,15 +710,10 @@ export async function syncUsageLimitsFromSubscription(
   userId: string,
   executor: DbOrTx = db
 ): Promise<void> {
-  const subscription = await getHighestPriorityPersonalSubscription(userId, {
-    onError: 'throw',
-    executor,
-  })
-  const currentUserStats = await executor
-    .select()
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .limit(1)
+  const [subscription, currentUserStats] = await Promise.all([
+    getHighestPriorityPersonalSubscription(userId, { onError: 'throw', executor }),
+    executor.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
+  ])
 
   if (currentUserStats.length === 0) {
     throw new Error(`User stats not found for userId: ${userId}`)

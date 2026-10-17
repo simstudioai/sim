@@ -3,6 +3,7 @@ import { account, deletedAccountIdentity, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
@@ -102,7 +103,7 @@ function getIdentityKey(): string {
  * `googlemail.com` alias.
  */
 function canonicalizeEmail(email: string): string | null {
-  const normalized = email.trim().toLowerCase()
+  const normalized = normalizeEmail(email)
   const at = normalized.lastIndexOf('@')
   if (at <= 0 || at === normalized.length - 1) return null
   let local = normalized.slice(0, at)
@@ -164,18 +165,18 @@ export async function recordDeletedAccountIdentities(tx: DbOrTx, userId: string)
       const hashes = identityHashes(await loadSignInIdentity(savepoint, userId))
       if (hashes.length === 0) return
 
-      await savepoint
-        .delete(deletedAccountIdentity)
-        .where(
-          inArray(
-            deletedAccountIdentity.identityHash,
-            savepoint
-              .select({ identityHash: deletedAccountIdentity.identityHash })
-              .from(deletedAccountIdentity)
-              .where(lte(deletedAccountIdentity.expiresAt, sql`now()`))
-              .limit(EXPIRED_PURGE_BATCH)
-          )
+      await savepoint.delete(deletedAccountIdentity).where(
+        inArray(
+          deletedAccountIdentity.identityHash,
+          savepoint
+            .select({ identityHash: deletedAccountIdentity.identityHash })
+            .from(deletedAccountIdentity)
+            .where(lte(deletedAccountIdentity.expiresAt, sql`now()`))
+            .limit(EXPIRED_PURGE_BATCH)
+            // Concurrent deletions skip each other's purge batch instead of waiting on its commit.
+            .for('update', { skipLocked: true })
         )
+      )
 
       const expiresAt = new Date(Date.now() + DELETED_IDENTITY_RETENTION_MS)
       await savepoint
