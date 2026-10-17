@@ -59,6 +59,7 @@ import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import { processContextsServer } from '@/lib/mothership/chat/process-contents'
 import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
 import {
+  CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH,
   MAX_FILE_SELECTION_TEXT_LENGTH,
   MAX_TABLE_SELECTION_COLUMNS,
   MAX_TABLE_SELECTION_ROWS,
@@ -112,7 +113,6 @@ const logger = createLogger('UnifiedChatAPI')
 const DEFAULT_MODEL = 'claude-opus-4-8'
 const CHAT_SELECTION_TEXT_MAX_LENGTH = 100_000
 const CHAT_SELECTION_SOURCE_URL_MAX_LENGTH = 8_192
-const CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH = 512
 const TERMINAL_SELECTION_LINE_MAX = 10_000_000
 
 const FileAttachmentSchema = z.object({
