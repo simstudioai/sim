@@ -14,6 +14,7 @@ import type { Edge } from '@xyflow/react'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { type EffectivePiiRedaction, resolveEffectivePiiRedaction } from '@/lib/billing/retention'
+import { runWorkflowOutsideContentDelivery } from '@/lib/core/application/content-delivery'
 import { ExecutionScopeDeletedError } from '@/lib/core/errors/execution-scope-deleted'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import { UserFailure } from '@/lib/core/errors/user-failure'
@@ -604,8 +605,14 @@ function prefetchExecutionReads(options: ExecuteWorkflowCoreOptions): ExecutionR
  * paid inside its readiness budget. Connecting on intent rather than at worker
  * start keeps the tasks that never execute a workflow, most of the fleet by
  * volume, from opening a connection they would never use.
+ *
+ * Runs under `runWorkflowOutsideContentDelivery`, so a run Chat started reads what any run reads.
  */
-export async function executeWorkflowCore(
+export function executeWorkflowCore(options: ExecuteWorkflowCoreOptions): Promise<ExecutionResult> {
+  return runWorkflowOutsideContentDelivery(() => executeWorkflowCoreInRun(options))
+}
+
+async function executeWorkflowCoreInRun(
   options: ExecuteWorkflowCoreOptions
 ): Promise<ExecutionResult> {
   connectExecutionSignalHub()

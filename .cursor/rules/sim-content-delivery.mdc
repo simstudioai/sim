@@ -19,6 +19,11 @@ Only Copilot principals (`delegated` / `organization_delegated` with `serviceId:
 classified. Every other caller is admitted without a provenance read, so the UI, API keys, MCP and
 the workflow executor see byte-identical results.
 
+A run Chat starts executes as Chat's principal, so `executeWorkflowCore` runs every execution under
+`runWorkflowOutsideContentDelivery`, where that principal reads like any other. What the run returns
+is gated where Chat started it: run execute/resume keep inline file bytes only for admitted files
+(`withholdUnadmittedInlineFiles`), and Chat's in-app run tools strip `base64` from their result.
+
 ## The pieces
 
 - `lib/core/application/content-delivery.ts`: the primitive.

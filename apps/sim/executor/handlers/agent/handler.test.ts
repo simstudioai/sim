@@ -574,20 +574,20 @@ describe('AgentBlockHandler', () => {
       context: 'execution',
       base64: 'iVBORw0KGgo=',
     }
+    const hydrateWithBytes = () =>
+      vi.spyOn(userFileBase64, 'hydrateUserFilesWithBase64').mockImplementation(
+        async (value) =>
+          (value as (typeof file)[]).map((attachment) => ({
+            ...attachment,
+            base64: file.base64,
+          })) as typeof value
+      )
 
     it.each(['files', 'messages', 'userPrompt'] as const)(
       'replays a previous turn from %s with a fresh provider attachment',
       async (source) => {
         mockGetProviderFromModel.mockReturnValue('openai')
-        const hydrate = vi
-          .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
-          .mockImplementation(async (value) => {
-            const files = value as (typeof file)[]
-            return files.map((attachment) => ({
-              ...attachment,
-              base64: file.base64,
-            })) as typeof value
-          })
+        const hydrate = hydrateWithBytes()
         const inputs: AgentInputs = {
           model: 'gpt-4o',
           memoryType: 'conversation',
@@ -681,6 +681,127 @@ describe('AgentBlockHandler', () => {
           ([row]) => toRecord(toArray(toRecord(row).data)[0]).role === 'user'
         )
       ).toBe(false)
+    })
+
+    const numbered = (index: number) => ({
+      ...file,
+      id: `file-${index}`,
+      name: `page-${index}.png`,
+      key: `execution/test-workspace/test-workflow/exec-1/page-${index}.png`,
+    })
+
+    it('replays files every turn re-attached once each, where they first appear', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      const hydrate = hydrateWithBytes()
+      const attachments = Array.from({ length: 7 }, (_, index) => numbered(index))
+      queueTableRows(schemaMock.memory, [
+        {
+          secretProvenanceVersion: null,
+          data: [1, 2, 3].flatMap((turn) => [
+            { role: 'user', content: `Turn ${turn}`, files: attachments },
+            { role: 'assistant', content: `Answer ${turn}` },
+          ]),
+        },
+      ])
+      await handler.execute({ ...mockContext, executionId: 'exec-4' }, mockBlock, {
+        model: 'gpt-4o',
+        memoryType: 'conversation',
+        conversationId: 'conversation-1',
+        messages: [{ role: 'user', content: 'Turn 4' }],
+        files: attachments,
+      })
+      const sent = mockExecuteProviderRequest.mock.calls.at(-1)?.[1].messages as Message[]
+      const userTurns = sent.filter((message) => message.role === 'user')
+      expect(userTurns.map((message) => message.content)).toEqual([
+        'Turn 1',
+        'Turn 2',
+        'Turn 3',
+        'Turn 4',
+      ])
+      expect(userTurns[0].files?.map((attachment) => attachment.key)).toEqual(
+        attachments.map((attachment) => attachment.key)
+      )
+      expect(userTurns.slice(1).map((message) => message.files)).toEqual([
+        undefined,
+        undefined,
+        undefined,
+      ])
+      expect(hydrate.mock.calls.flatMap(([value]) => value as unknown[])).toHaveLength(7)
+      hydrate.mockRestore()
+    })
+
+    it('still refuses a replay of more distinct files than the memory limit', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      const hydrate = hydrateWithBytes()
+      queueTableRows(schemaMock.memory, [
+        {
+          secretProvenanceVersion: null,
+          data: [0, 1, 2].map((turn) => ({
+            role: 'user',
+            content: `Turn ${turn}`,
+            files: Array.from({ length: 7 }, (_, index) => numbered(turn * 7 + index)),
+          })),
+        },
+      ])
+      await expect(
+        handler.execute({ ...mockContext, executionId: 'exec-4' }, mockBlock, {
+          model: 'gpt-4o',
+          memoryType: 'conversation',
+          conversationId: 'conversation-1',
+          messages: [{ role: 'user', content: 'Turn 3' }],
+        })
+      ).rejects.toThrow('Conversation memory exceeds 20 file attachments')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+      hydrate.mockRestore()
+    })
+
+    it('keeps a repeated file on a turn that has no text to stand on without it', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      const hydrate = hydrateWithBytes()
+      queueTableRows(schemaMock.memory, [
+        {
+          secretProvenanceVersion: null,
+          data: [
+            { role: 'user', content: 'Read this', files: [file] },
+            { role: 'assistant', content: 'Read it' },
+            { role: 'user', content: '', files: [file] },
+            { role: 'assistant', content: 'Same file' },
+          ],
+        },
+      ])
+      await handler.execute({ ...mockContext, executionId: 'exec-3' }, mockBlock, {
+        model: 'gpt-4o',
+        memoryType: 'conversation',
+        conversationId: 'conversation-1',
+        messages: [{ role: 'user', content: 'And now?' }],
+      })
+      const sent = mockExecuteProviderRequest.mock.calls.at(-1)?.[1].messages as Message[]
+      const userTurns = sent.filter((message) => message.role === 'user')
+      expect(userTurns.map((message) => message.files?.length)).toEqual([1, 1, undefined])
+      hydrate.mockRestore()
+    })
+
+    it('keeps a user turn’s file when only an earlier assistant turn carried it', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      const hydrate = hydrateWithBytes()
+      queueTableRows(schemaMock.memory, [
+        {
+          secretProvenanceVersion: null,
+          data: [
+            { role: 'assistant', content: 'Here is a file', files: [file] },
+            { role: 'user', content: 'Read it', files: [file] },
+          ],
+        },
+      ])
+      await handler.execute({ ...mockContext, executionId: 'exec-3' }, mockBlock, {
+        model: 'gpt-4o',
+        memoryType: 'conversation',
+        conversationId: 'conversation-1',
+        messages: [{ role: 'user', content: 'And now?' }],
+      })
+      const sent = mockExecuteProviderRequest.mock.calls.at(-1)?.[1].messages as Message[]
+      expect(sent.find((message) => message.content === 'Read it')?.files).toHaveLength(1)
+      hydrate.mockRestore()
     })
   })
 
