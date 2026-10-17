@@ -25,7 +25,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
-import { type ContentProvenance, observeContentDelivery } from '@/lib/core/application'
+import {
+  type ContentProvenance,
+  observeContentDelivery,
+  runWorkflowOutsideContentDelivery,
+} from '@/lib/core/application'
 import {
   createOwnedWorkspaceFile,
   uploadWorkspaceFile,
@@ -33,9 +37,11 @@ import {
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
 import { createFileReadReceipt, recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
+import type { UserFile } from '@/executor/types'
 
 const uploadRoot = mkdtempSync(join(tmpdir(), 'sim-delivery-test-'))
 setUploadDirServer(uploadRoot)
@@ -294,6 +300,77 @@ check('same-revision provenance downgrade reaches the content admission gate', a
   const [current] = await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, file.id))
   expect(current.contentUpdatedAt).toEqual(file.contentUpdatedAt)
   expect(observed.at(-1)).toEqual({ status: 'unknown' })
+})
+
+describe('A workflow run Chat started reads workspace files as any run does', () => {
+  async function chatStartedRunRead(provenance: 'recorded' | 'unknown') {
+    const f = await fixture()
+    const uploaded = await uploadWorkspaceFile(
+      f.workspaceId,
+      f.editorId,
+      Buffer.from('run input'),
+      'digest.md',
+      'text/markdown',
+      { notifyWorkspaceChange: false }
+    )
+    if (provenance === 'unknown') {
+      await markWorkspaceFileSecretProvenanceUnknown(f.workspaceId, [uploaded.id])
+    }
+    const file: UserFile = {
+      id: uploaded.id,
+      name: uploaded.name,
+      url: uploaded.url,
+      size: uploaded.size,
+      type: uploaded.type,
+      key: uploaded.key,
+      context: 'workspace',
+    }
+    const executionId = generateId()
+    const hydrate = () =>
+      hydrateUserFilesWithBase64([file], {
+        principal: createDelegatedPrincipal({
+          subjectUserId: f.editorId,
+          workspaceId: f.workspaceId,
+          audience: 'sim:workflows',
+          resourceScope: { chatId: generateId() },
+        }),
+        workspaceId: f.workspaceId,
+        workflowId: generateId(),
+        executionId,
+        userId: f.editorId,
+        requestId: executionId,
+      }).then(([hydrated]) => hydrated.base64)
+    return { hydrate, expected: Buffer.from('run input').toString('base64') }
+  }
+
+  check('a queued run hydrates its file with no Chat gate around it', async () => {
+    const { hydrate, expected } = await chatStartedRunRead('recorded')
+    await expect(runWorkflowOutsideContentDelivery(hydrate)).resolves.toBe(expected)
+  })
+
+  check(
+    'an in-process run neither consults nor is refused by the Chat gate around it',
+    async () => {
+      const { hydrate, expected } = await chatStartedRunRead('unknown')
+      const consulted: string[] = []
+      const base64 = await observeContentDelivery(
+        {
+          async admit(sources) {
+            consulted.push(...sources.map((item) => item.id))
+            return sources.map(() => false)
+          },
+        },
+        () => runWorkflowOutsideContentDelivery(hydrate)
+      )
+      expect(base64).toBe(expected)
+      expect(consulted).toEqual([])
+    }
+  )
+
+  check('Chat reading outside a run with no gate still gets no bytes', async () => {
+    const { hydrate } = await chatStartedRunRead('recorded')
+    await expect(hydrate()).resolves.toBeUndefined()
+  })
 })
 
 afterAll(async () => {

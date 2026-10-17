@@ -51,6 +51,7 @@ import {
   type PreparedCollabDocState,
   saveCollabDocStateInTx,
 } from '@/lib/collab-doc/state'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
@@ -877,9 +878,10 @@ export async function uploadWorkspaceFile(
       logger.error(`Failed to upload workspace file ${fileName}:`, {
         cause: describeError(error),
       })
-      throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`, {
-        cause: error,
-      })
+      throw new Error(
+        `Failed to upload file: ${getUserFacingErrorMessage(error, 'Unknown error')}`,
+        { cause: error }
+      )
     }
   }
 
@@ -2494,9 +2496,10 @@ export async function fetchWorkspaceFileBuffer(
     // transport failure to answer with their own placeholder, and re-wrapping it in a
     // plain Error would erase the only thing that tells the two apart.
     if (isPayloadSizeLimitError(error)) throw error
-    throw new Error(`Failed to download file: ${getErrorMessage(error, 'Unknown error')}`, {
-      cause: error,
-    })
+    throw new Error(
+      `Failed to download file: ${getUserFacingErrorMessage(error, 'Unknown error')}`,
+      { cause: error }
+    )
   }
 }
 
@@ -2792,9 +2795,10 @@ export async function updateWorkspaceFileContent(
     const classified = asOrchestrationError(error)
     if (classified) throw classified
     logger.error(`Failed to update workspace file content ${fileId}:`, error)
-    throw new Error(`Failed to update file content: ${getErrorMessage(error, 'Unknown error')}`, {
-      cause: error,
-    })
+    throw new Error(
+      `Failed to update file content: ${getUserFacingErrorMessage(error, 'Unknown error')}`,
+      { cause: error }
+    )
   }
 }
 

@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
+import type { AuthorizedWorkspaceUseCaseContext, ContentSourceKind } from '@/lib/core/application'
 import { redactBeforeCutting } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -48,8 +48,8 @@ export interface ReadWorkspaceFileTextInput {
   allowPlainText?: boolean
 }
 
-export interface ReadWorkspaceFileTextResult {
-  file: WorkspaceFileRecord
+/** Text extracted from one file's bytes, whichever owner stores them. */
+export interface ExtractedFileText {
   text: string
   /** True when a parser limit stopped extraction before the input was exhausted. */
   truncated: boolean
@@ -71,6 +71,39 @@ export interface ReadWorkspaceFileTextResult {
   }
 }
 
+export interface ReadWorkspaceFileTextResult extends ExtractedFileText {
+  file: WorkspaceFileRecord
+}
+
+/** Refuses a text read of a file whose format has no extractor. */
+export function textExtractionUnsupportedError(name: string): OrchestrationError {
+  return new OrchestrationError(
+    'validation',
+    `Text extraction is not supported for "${name}"; download the raw bytes instead of extracting text`
+  )
+}
+
+/**
+ * Refuses a text read whose stored bytes exceed the limit. Sizes render with `includeBytes`
+ * because a caller-supplied `maxBytes` is routinely under 1 KB, and the default formatting collapses
+ * every sub-1 KB value to "0 Bytes" — naming neither the real size nor the limit to raise.
+ */
+export function textExtractionTooLargeError(
+  name: string,
+  size: number,
+  maxBytes: number
+): OrchestrationError {
+  return new OrchestrationError(
+    'payload_too_large',
+    `"${name}" is ${formatFileSize(size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
+  )
+}
+
+/** The refusal for a generated document whose render exceeds the text-extraction limit. */
+export function renderedTextTooLargeMessage(name: string, limit: string): string {
+  return `"${name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`
+}
+
 /**
  * Reads an ordinary uploaded file's bytes.
  *
@@ -83,17 +116,7 @@ async function readSourceBuffer(
   maxBytes: number,
   signal?: AbortSignal
 ): Promise<Buffer> {
-  if (file.size > maxBytes) {
-    /**
-     * Sizes render with `includeBytes` because a caller-supplied `maxBytes` is
-     * routinely under 1 KB, and the default formatting collapses every sub-1 KB
-     * value to "0 Bytes" — naming neither the real size nor the limit to raise.
-     */
-    throw new OrchestrationError(
-      'payload_too_large',
-      `"${file.name}" is ${formatFileSize(file.size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
-    )
-  }
+  if (file.size > maxBytes) throw textExtractionTooLargeError(file.name, file.size, maxBytes)
   return fetchWorkspaceFileBuffer(file, { maxBytes, signal })
 }
 
@@ -134,12 +157,7 @@ export async function extractWorkspaceFileRecordText(
   const extension = input.allowPlainText
     ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))
     : getFileExtension(file.name)
-  if (!isSupportedFileType(extension)) {
-    throw new OrchestrationError(
-      'validation',
-      `Text extraction is not supported for "${file.name}"; download the raw bytes instead of extracting text`
-    )
-  }
+  if (!isSupportedFileType(extension)) throw textExtractionUnsupportedError(file.name)
 
   const maxBytes = Math.min(input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES, MAX_TEXT_EXTRACTION_BYTES)
 
@@ -156,8 +174,7 @@ export async function extractWorkspaceFileRecordText(
     const rendered = await resolveRenderedWorkspaceArtifact(file, principal, {
       maxBytes,
       signal,
-      tooLargeMessage: (limit) =>
-        `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
+      tooLargeMessage: (limit) => renderedTextTooLargeMessage(file.name, limit),
     })
     await requireAdmittedContributors(
       principal,
@@ -169,22 +186,41 @@ export async function extractWorkspaceFileRecordText(
   } else {
     content = await readSourceBuffer(file, maxBytes, signal)
   }
-  const parsed = await parseFileText(content, extension, file.name, signal)
-  const metadata = parsed.metadata ?? {}
-
-  const truncated = metadata.truncated === true
-  const ranged = input.offset !== undefined || input.limit !== undefined
-  const { text, lineRange } = sliceFileTextLines(
-    ranged
-      ? await redactBeforeCutting(principal, parsed.content, 'workspace-file')
-      : parsed.content,
-    input.offset,
-    input.limit,
-    truncated
-  )
-
   return {
     file,
+    ...(await extractFileTextFromBytes(content, extension, file.name, input, {
+      principal,
+      kind: 'workspace-file',
+      signal,
+    })),
+  }
+}
+
+/**
+ * Turns admitted bytes into text for every file owner. The caller admits the content as `complete`
+ * first; a line window is cut only after redaction, so it can never split a secret the registry
+ * would otherwise mask whole.
+ */
+export async function extractFileTextFromBytes(
+  content: Buffer,
+  format: string,
+  fileName: string,
+  window: { offset?: number; limit?: number },
+  options: { principal?: Principal; kind: ContentSourceKind; signal?: AbortSignal }
+): Promise<ExtractedFileText> {
+  const parsed = await parseFileText(content, format, fileName, options.signal)
+  const metadata = parsed.metadata ?? {}
+  const truncated = metadata.truncated === true
+  const ranged = window.offset !== undefined || window.limit !== undefined
+  const { text, lineRange } = sliceFileTextLines(
+    ranged
+      ? await redactBeforeCutting(options.principal, parsed.content, options.kind)
+      : parsed.content,
+    window.offset,
+    window.limit,
+    truncated
+  )
+  return {
     text,
     truncated,
     degraded: metadata.degraded === true,
@@ -209,7 +245,7 @@ export async function extractWorkspaceFileRecordText(
  * well formed, it is the stored bytes that cannot become the representation
  * being asked for, and the caller needs to know that retrying will not help.
  */
-export async function parseFileText(
+async function parseFileText(
   content: Buffer,
   extension: string,
   fileName: string,

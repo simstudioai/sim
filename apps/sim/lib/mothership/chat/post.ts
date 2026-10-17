@@ -20,7 +20,6 @@ import {
   resolveBillingAttribution,
   resolveOrganizationBillingAttribution,
 } from '@/lib/billing/core/attribution'
-import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { type AtomicClaimResult, chatSendIdempotency } from '@/lib/core/idempotency'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { listPersonalCredentials } from '@/lib/credentials/application/personal-credentials'
@@ -30,7 +29,10 @@ import {
 } from '@/lib/knowledge/access/availability'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
 import { chatOperations } from '@/lib/mothership/application/operations'
-import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
+import {
+  authoringInvocation,
+  createCopilotResourceAdmission,
+} from '@/lib/mothership/auth/application-delegation'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
 import { ChatSendSupersededError } from '@/lib/mothership/chat/application/send-superseded'
 import {
@@ -54,11 +56,10 @@ import {
 } from '@/lib/mothership/chat/lifecycle'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
+import { processContextsServer } from '@/lib/mothership/chat/process-contents'
+import { resolveResourceAttachmentContexts } from '@/lib/mothership/chat/resource-attachments'
 import {
-  processContextsServer,
-  resolveActiveResourceContext,
-} from '@/lib/mothership/chat/process-contents'
-import {
+  CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH,
   MAX_FILE_SELECTION_TEXT_LENGTH,
   MAX_TABLE_SELECTION_COLUMNS,
   MAX_TABLE_SELECTION_ROWS,
@@ -72,7 +73,9 @@ import {
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import { FileOperationOwner } from '@/lib/mothership/generated/file-owner'
 import {
+  type ChatContextItem,
   type ChatRequest,
   type ModelSelection,
   ModelSelectionSchema,
@@ -83,6 +86,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
+import { durableResourceAuthoringVersion } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/mothership/request/otel'
 import {
@@ -92,13 +96,7 @@ import {
 } from '@/lib/mothership/request/session'
 import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
-import { persistChatResources } from '@/lib/mothership/resources/persistence'
-import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
-import {
-  hasAddressableId,
-  isEphemeralResource,
-  sanitizeChatResources,
-} from '@/lib/mothership/resources/types'
+import { hasAddressableId } from '@/lib/mothership/resources/types'
 import { prepareExecutionContext } from '@/lib/mothership/tools/handlers/context'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
@@ -115,7 +113,6 @@ const logger = createLogger('UnifiedChatAPI')
 const DEFAULT_MODEL = 'claude-opus-4-8'
 const CHAT_SELECTION_TEXT_MAX_LENGTH = 100_000
 const CHAT_SELECTION_SOURCE_URL_MAX_LENGTH = 8_192
-const CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH = 512
 const TERMINAL_SELECTION_LINE_MAX = 10_000_000
 
 const FileAttachmentSchema = z.object({
@@ -126,38 +123,6 @@ const FileAttachmentSchema = z.object({
   size: z.number(),
   path: z.string().optional(),
 })
-
-const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
-  search: 'Search results',
-  sources: 'Sources',
-  workflow: 'Workflow',
-  table: 'Table',
-  integration: 'Integration',
-  file: 'File',
-  dashboard: 'Dashboard',
-  test: 'Test',
-  knowledgebase: 'Knowledge Base',
-  folder: 'Folder',
-  filefolder: 'File Folder',
-  task: 'Task',
-  log: 'Log',
-  generic: 'Resource',
-  browser: 'Browser',
-  terminal: 'Terminal',
-}
-
-/**
- * Synthetic client-side panels are context-only: never persisted to the chat.
- * Browser tabs are among them — the desktop app restores its own pages — so
- * their page title and URL remain request context only.
- */
-function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSchema>): boolean {
-  return !isEphemeralResource({
-    type: resource.type,
-    id: resource.id,
-    title: resource.title ?? '',
-  })
-}
 
 /**
  * Drops open tabs the client cannot address, so one unusable tab does not fail
@@ -230,6 +195,7 @@ const ChatContextSchema = z
       'browser_tab',
       'terminal_tab',
       'workspace',
+      'project',
     ]),
     label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
     chatId: z.string().optional(),
@@ -243,11 +209,13 @@ const ChatContextSchema = z
     viewId: mothershipResourceSchema.shape.viewId,
     currentView: mothershipTableViewContextSchema.optional(),
     fileId: z.string().optional(),
+    owner: FileOperationOwner.optional(),
     dashboardId: z.string().optional(),
     folderId: z.string().optional(),
     fileFolderId: z.string().optional(),
     skillId: z.string().optional(),
     workspaceId: z.string().min(1).max(200).optional(),
+    projectId: z.string().min(1).max(200).optional(),
     serverId: z.string().optional(),
     scheduleId: z.string().optional(),
     tabId: z.string().optional(),
@@ -261,7 +229,28 @@ const ChatContextSchema = z
     columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
     selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
   })
-  .superRefine(({ kind, selection, workspaceId }, refinementContext) => {
+  .superRefine(({ kind, selection, workspaceId, projectId, owner }, refinementContext) => {
+    if (
+      (kind === 'project' && (!projectId || workspaceId !== undefined)) ||
+      (kind !== 'project' && projectId !== undefined)
+    ) {
+      refinementContext.addIssue({
+        code: 'custom',
+        path: ['projectId'],
+        message: 'A Project context requires only a Project target',
+      })
+    }
+    if (
+      owner &&
+      ((kind !== 'file' && kind !== 'file_selection') ||
+        (owner.entityType !== 'workspace' && workspaceId) ||
+        (owner.entityType === 'workspace' && workspaceId && owner.entityId !== workspaceId))
+    )
+      refinementContext.addIssue({
+        code: 'custom',
+        path: ['owner'],
+        message: 'File owner conflicts with the context target',
+      })
     if (kind === 'workspace' && !workspaceId) {
       refinementContext.addIssue({
         code: 'custom',
@@ -543,6 +532,7 @@ function collectChatMcpServerIds(
 }
 
 async function resolveAgentContexts(params: {
+  requestMode: UnifiedChatRequest['mode']
   contexts?: UnifiedChatRequest['contexts']
   resourceAttachments?: UnifiedChatRequest['resourceAttachments']
   organizationId?: string
@@ -554,8 +544,9 @@ async function resolveAgentContexts(params: {
   chatId?: string
   resolvedSecretTraceRegistry?: ExecutionContext['resolvedSecretTraceRegistry']
   requestId: string
-}): Promise<Array<{ type: string; content: string; tag?: string; path?: string }>> {
+}): Promise<ChatContextItem[]> {
   const {
+    requestMode,
     contexts,
     resourceAttachments,
     organizationId,
@@ -569,7 +560,7 @@ async function resolveAgentContexts(params: {
     requestId,
   } = params
 
-  let agentContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
+  let agentContexts: ChatContextItem[] = []
 
   if (Array.isArray(contexts) && contexts.length > 0) {
     try {
@@ -580,109 +571,27 @@ async function resolveAgentContexts(params: {
         workspaceId,
         chatId,
         resolvedSecretTraceRegistry,
-        organizationId
+        organizationId,
+        requestMode
       )
     } catch (error) {
       logger.error(`[${requestId}] Failed to process contexts`, error)
     }
   }
 
-  const authorizedResources: z.infer<typeof mothershipResourceSchema>[] = []
-  if (
-    Array.isArray(resourceAttachments) &&
-    resourceAttachments.length > 0 &&
-    (workspaceId || organizationId)
-  ) {
-    const results = await Promise.allSettled(
-      resourceAttachments.map(async (resource) => {
-        if (resource.type === 'sources') return null
-        // The live browser panel resolves from the attachment itself: its
-        // page state is client-held (the desktop app's embedded browser),
-        // not a workspace entity the server could look up.
-        if (resource.type === 'browser') {
-          if (!resource.url) return null
-          const title = resource.title?.trim()
-          return {
-            type: 'active_resource',
-            tag: resource.active ? '@active_tab' : '@open_tab',
-            content: `The user's ${
-              resource.active ? 'currently visible browser tab' : 'other open browser tab'
-            } is open on: ${
-              title ? `"${title}" — ` : ''
-            }${resource.url}. ${browserAvailable ? 'Browser tools are available for inspecting and interacting with this tab.' : 'This attachment supplies only the title and URL; browser tools are unavailable.'}`,
-          }
-        }
-        if (resource.type === 'search') {
-          if (
-            !resource.search ||
-            !searchResourceMatchesOwner(resource.search, { organizationId, workspaceId })
-          )
-            return null
-          if (persistResources)
-            authorizedResources.push(
-              mothershipResourceSchema.parse({ ...resource, title: 'Search results' })
-            )
-          return {
-            type: 'active_resource',
-            tag: resource.active ? '@active_tab' : '@open_tab',
-            content: `The user's Search results tab has this retrieval address: ${JSON.stringify(resource.search)}. This is query context, not retrieved evidence; use the search tools for current authorized results.`,
-          }
-        }
-        const target =
-          organizationId || resource.workspaceId
-            ? await resolveInvocationWorkspace(
-                { userId, workspaceId, organizationId, chatId },
-                resource.workspaceId
-              )
-            : workspaceId
-              ? { workspaceId }
-              : null
-        if (!target) return null
-        const ctx = await withWorkspaceInvocationScope(
-          { workspaceId: target.workspaceId, organizationId },
-          () =>
-            resolveActiveResourceContext(
-              resource.type,
-              resource.id,
-              target.workspaceId,
-              userId,
-              chatId,
-              resource.viewId,
-              resource.currentView
-            )
-        )
-        if (!ctx) return null
-        if (persistResources && isPersistableAttachment(resource))
-          authorizedResources.push(
-            mothershipResourceSchema.parse({
-              ...resource,
-              title: resource.title ?? GENERIC_RESOURCE_TITLE[resource.type],
-              ...(organizationId
-                ? { workspaceId: target.workspaceId }
-                : { workspaceId: undefined, workspaceName: undefined }),
-            })
-          )
-        return {
-          ...ctx,
-          ...(organizationId
-            ? { content: `Workspace ${target.workspaceId}:\n${ctx.content}` }
-            : {}),
-          tag: resource.active ? '@active_tab' : '@open_tab',
-        }
-      })
-    )
-
-    for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        agentContexts.push(result.value)
-      } else if (result.status === 'rejected') {
-        logger.error(`[${requestId}] Failed to resolve resource attachment`, result.reason)
-      }
-    }
-  }
-
-  if (chatId && authorizedResources.length)
-    await persistChatResources(chatId, sanitizeChatResources(authorizedResources))
+  agentContexts.push(
+    ...(await resolveResourceAttachmentContexts({
+      resourceAttachments,
+      userId,
+      workspaceId,
+      organizationId,
+      chatId,
+      requestMode,
+      persistResources,
+      browserAvailable,
+      requestId,
+    }))
+  )
   return agentContexts
 }
 
@@ -1331,6 +1240,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           },
           () =>
             resolveAgentContexts({
+              requestMode: body.mode,
               contexts: normalizedContexts,
               resourceAttachments: body.resourceAttachments,
               organizationId: branch.kind === 'organization' ? branch.organizationId : undefined,
@@ -1394,6 +1304,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         executionContext.assistantSearch = body.assistantSearch
 
       executionContext.userPermission = userPermission ?? undefined
+      const invocation = authoringInvocation({ chatId: actualChatId, workspaceId })
+      if (invocation)
+        executionContext.copilotResourceAdmission = createCopilotResourceAdmission({
+          userId: authenticatedUserId,
+          invocation,
+        })
 
       /** Trace catalog preparation and attachment tracking before durable admission. */
       const preparedPayload = await withCopilotSpan(
@@ -1490,6 +1406,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         if (!lease || !sendClaim?.claimToken || sendClaim.storageMethod !== 'database') {
           throw new Error('Chat admission requires its controller and durable send claim')
         }
+        const resourceAuthoringVersion = await durableResourceAuthoringVersion(
+          executionContext.copilotResourceAdmission !== undefined
+        )
         admittedRun = await admitChatTurn.execute({
           principal: {
             kind: 'session',
@@ -1513,6 +1432,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             },
             recovery: {
               kind: 'interactive_stream',
+              resourceAuthoringVersion,
               request: { ...requestPayload, messageId: userMessageId, chatId: actualChatId },
               goRoute: branch.goRoute,
               clientToolPickupExpected,

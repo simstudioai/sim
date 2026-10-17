@@ -1,17 +1,31 @@
 import { createLogger } from '@sim/logger'
+import { validateSalesforceInstanceUrl } from '@/lib/core/security/input-validation'
 import { isSalesforceLoginOrigin } from '@/lib/oauth/salesforce'
 
 const logger = createLogger('SalesforceUtils')
+
+/** The https origin of `url` when it is an org API host on a Salesforce domain. */
+function toInstanceOrigin(url: string): string | undefined {
+  const result = validateSalesforceInstanceUrl(url)
+  if (!result.isValid || !result.sanitized || isSalesforceLoginOrigin(result.sanitized)) {
+    return undefined
+  }
+  return result.sanitized
+}
 
 /**
  * Extracts Salesforce instance URL from ID token or uses provided instance URL
  * @param idToken - The Salesforce ID token containing instance URL
  * @param instanceUrl - Direct instance URL if provided
- * @returns The Salesforce instance URL
- * @throws Error if instance URL cannot be determined
+ * @returns The Salesforce instance URL, as an https origin on a Salesforce domain
+ * @throws Error if instance URL cannot be determined or is not on a Salesforce domain
  */
 export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
-  if (instanceUrl) return instanceUrl
+  if (instanceUrl) {
+    const origin = toInstanceOrigin(instanceUrl)
+    if (!origin) throw new Error('Salesforce instance URL must be on a Salesforce domain')
+    return origin
+  }
   if (idToken) {
     try {
       const base64Url = idToken.split('.')[1]
@@ -29,18 +43,8 @@ export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
       // `sub` be tried rather than short-circuiting the whole lookup.
       for (const claim of [decoded.profile, decoded.sub]) {
         if (typeof claim !== 'string') continue
-        // `URL` rather than a hand-rolled prefix regex: it normalizes away
-        // userinfo, default ports, and case, so the origin compared against the
-        // login-host set is the same one a fetch would actually use.
-        let origin: string
-        try {
-          const url = new URL(claim)
-          if (url.protocol !== 'https:') continue
-          origin = url.origin
-        } catch {
-          continue
-        }
-        if (!isSalesforceLoginOrigin(origin)) return origin
+        const origin = toInstanceOrigin(claim)
+        if (origin) return origin
       }
     } catch (error) {
       logger.error('Failed to decode Salesforce idToken', { error })

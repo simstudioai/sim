@@ -339,7 +339,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             ...(params.admittedRun?.requestContext ?? {}),
             requestId,
             controllerToken: lease?.value,
-            recovery: streamRecoveryConfig(orchestrateOptions, requestPayload),
+            recovery: await streamRecoveryConfig(orchestrateOptions, requestPayload),
           }
           try {
             if (chatId && !orchestrateOptions.recovery) {

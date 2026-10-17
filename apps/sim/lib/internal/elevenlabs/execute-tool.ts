@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import type { z } from 'zod'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { ElevenLabsOperationError } from '@/lib/internal/elevenlabs/errors'
 import {
@@ -70,7 +70,7 @@ async function executeOperation<Input>(
     if (error instanceof ElevenLabsOperationError) {
       return Response.json(error.body, { status: error.status })
     }
-    const message = getErrorMessage(error, 'Unknown error')
+    const message = getUserFacingErrorMessage(error, 'Unknown error')
     logger.error('ElevenLabs operation failed', {
       error: message,
       requestId: request.requestId,

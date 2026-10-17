@@ -14,6 +14,7 @@ import {
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-events'
 import type { LazyOutboxHandlerGroup } from '@/lib/core/outbox/service'
+import { EXECUTION_REMOVAL_STOP_EVENT } from '@/lib/execution/removal-stop-event'
 import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
 import { SLACK_SEARCH_TURN_EVENT } from '@/lib/knowledge/application/slack-search/turn-event'
 import {
@@ -44,6 +45,10 @@ import {
   WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
   WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
 } from '@/lib/uploads/contexts/workspace/file-outbox-events'
+import {
+  ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT,
+  ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT,
+} from '@/lib/users/storage-sweep-events'
 import { WORKFLOW_DEPLOYMENT_OUTBOX_EVENTS } from '@/lib/workflows/deployment-outbox-events'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import {
@@ -187,6 +192,13 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
     },
   },
   {
+    events: [EXECUTION_REMOVAL_STOP_EVENT],
+    load: async () => {
+      const { executionRemovalStopOutboxHandlers } = await import('@/lib/execution/removal-stops')
+      return executionRemovalStopOutboxHandlers
+    },
+  },
+  {
     events: [INBOX_CLEANUP_EVENT],
     load: async () => {
       const { inboxCleanupOutboxHandlers } = await import('@/lib/mothership/inbox/cleanup-outbox')
@@ -229,6 +241,13 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
         '@/lib/projects/files/prefix-cleanup'
       )
       return projectFilePrefixCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [ACCOUNT_WORKSPACE_STORAGE_SWEEP_EVENT, ACCOUNT_STORAGE_OBJECT_CLEANUP_EVENT],
+    load: async () => {
+      const { accountStorageSweepOutboxHandlers } = await import('@/lib/users/storage-sweep')
+      return accountStorageSweepOutboxHandlers
     },
   },
   {

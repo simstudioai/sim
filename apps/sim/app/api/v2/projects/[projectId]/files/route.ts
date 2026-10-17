@@ -11,10 +11,10 @@ import {
   v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
+import { toCreateProjectFileInput } from '@/lib/projects/files/api'
 import { toV2ProjectFile } from '@/lib/projects/files/api/presenters'
 import { createProjectFile, listProjectFiles } from '@/lib/projects/files/application'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
-import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
@@ -68,15 +68,7 @@ export const POST = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
   parseOptions: { maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES },
-  mapInput: ({ params, body }) => ({
-    projectId: params.projectId,
-    name: body.name,
-    contentType: body.contentType ?? getMimeTypeFromExtension(getFileExtension(body.name)),
-    content: body.content,
-    encoding: body.encoding,
-    folderPath: body.folderPath ?? '/',
-    exactName: true,
-  }),
+  mapInput: ({ params, body }) => toCreateProjectFileInput(params.projectId, body),
   useCase: createProjectFile,
   present: ({ file }) => ({ data: toV2ProjectFile(file) }),
 })

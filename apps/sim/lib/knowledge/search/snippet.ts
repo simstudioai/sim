@@ -44,13 +44,13 @@ export function stripLeadingHeaders(content: string): string {
  * The query's terms worth matching, longest first so the most specific one
  * wins: quotes and other search syntax around a term are not part of it.
  */
-export function queryTerms(query: string | undefined): string[] {
+export function queryTerms(query: string | undefined, minLength = MIN_TERM_LENGTH): string[] {
   return [
     ...new Set(
       (query ?? '')
         .split(/\s+/)
         .map((term) => term.replace(/^["'“”‘’(]+|["'“”‘’),.;:!?]+$/g, '').trim())
-        .filter((term) => term.length >= MIN_TERM_LENGTH)
+        .filter((term) => term.length >= minLength)
     ),
   ].sort((a, b) => b.length - a.length)
 }

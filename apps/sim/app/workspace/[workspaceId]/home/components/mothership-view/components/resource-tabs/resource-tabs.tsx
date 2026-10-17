@@ -460,7 +460,7 @@ export function ResourceTabs({
           )
           continue
         }
-        onRemoveResource(r.type, r.id, r.workspaceId)
+        onRemoveResource(r)
         if (r.type === 'browser') {
           sendBrowserPanelAction('close-tab', { tabId: r.id }, desktopScopeId)
         }

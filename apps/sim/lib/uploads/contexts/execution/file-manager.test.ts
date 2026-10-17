@@ -5,6 +5,7 @@ import {
   uploadsConfigMockFns,
 } from '@sim/testing/mocks/uploads-config.mock'
 import { toRecord } from '@sim/utils/object'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUploadToS3, mockGetPresignedUrlWithConfig, mockDeleteFromS3 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   deleteFromS3: mockDeleteFromS3,
 }))
 
+import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { processExecutionFiles } from '@/lib/execution/files'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/file-manager'
 
@@ -208,6 +210,29 @@ describe('uploadExecutionFile key allocation', () => {
     expect(mockDeleteFromS3.mock.calls[0]?.[0]).toBe(mockUploadToS3.mock.calls[0]?.[1])
     expect(mockDeleteFromS3).toHaveBeenCalledOnce()
     expect(mockGetPresignedUrlWithConfig).not.toHaveBeenCalled()
+  })
+
+  it('never puts the SQL or bound parameters of a failed metadata write in its error message', async () => {
+    const queryError = new DrizzleQueryError(
+      'insert into "workspace_files" ("user_id", "workspace_id", "key") values ($1, $2, $3)',
+      ['owner-secret-id', 'workspace-1', 'execution/storage-key'],
+      Object.assign(new Error('violates foreign key constraint'), { code: '23503' })
+    )
+    dbChainMockFns.returning.mockRejectedValueOnce(queryError)
+
+    const thrown = await uploadExecutionFile(
+      context,
+      Buffer.from('file'),
+      'file.txt',
+      'text/plain',
+      'owner-secret-id'
+    ).catch((error: unknown) => error)
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/^Failed to upload file: /)
+    expect((thrown as Error).message).not.toContain('Failed query')
+    expect((thrown as Error).message).not.toContain('owner-secret-id')
+    expect(findDatabaseQueryError(thrown)).toBe(queryError)
   })
 
   it('keeps the original upload error if cleanup also fails', async () => {

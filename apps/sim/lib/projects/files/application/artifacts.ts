@@ -4,6 +4,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
+import type { AuthorizingUseCase } from '@/lib/core/application'
 import { requireAdmittedContent } from '@/lib/core/application/content-delivery'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
@@ -41,7 +42,19 @@ import {
 import { fileDocumentInputIdentity } from '@/lib/uploads/documents/input-identity'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
 import { getWorkspaceFileSize, MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+import {
+  MAX_TEXT_EXTRACTION_BYTES,
+  needsRenderedArtifact,
+  observedMediaType,
+} from '@/lib/uploads/utils/file'
 import { reportWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
+import {
+  type ExtractedFileText,
+  extractFileTextFromBytes,
+  renderedTextTooLargeMessage,
+  textExtractionTooLargeError,
+  textExtractionUnsupportedError,
+} from '@/lib/workspace-files/application/read-workspace-file-text'
 import { fileOwnerCondition } from '@/lib/workspace-files/ownership-query'
 import {
   isSimPageSource,
@@ -61,6 +74,7 @@ import {
   type FileSearchArtifactCompletion,
   requeueFileSearchForRenderedArtifact,
 } from '@/lib/workspace-files/search/artifact-ready'
+import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
 
 const logger = createLogger('ProjectFileArtifacts')
 
@@ -75,6 +89,10 @@ interface ArtifactInput extends ProjectFileTarget {
   maxBytes: number
   forModel?: boolean
   preview?: boolean
+  /** Bytes are only extracted as text, so an unextractable or oversized source is refused unread. */
+  text?: boolean
+  /** The caller never reads `file.folderPath`, so the owner's folder tree is not loaded for it. */
+  skipFolderPath?: boolean
 }
 interface SourceSnapshot {
   file: WorkspaceFileRow
@@ -229,77 +247,97 @@ async function downloadDependencies(
   }
 }
 
-const snapshotSource = defineAuthorizedProjectFileUseCase<
-  typeof projectFileOperations.readArtifact,
-  ArtifactInput,
-  SourceSnapshot
->({
-  operation: projectFileOperations.readArtifact,
-  async execute({
-    context,
-    tx,
-  }: {
-    context: ProjectFileAuthorizationContext
-    tx: DbTransaction
-    input: ArtifactInput
-  }) {
-    const file = context.file
-    if (!file) throw new OrchestrationError('not_found', 'File not found')
-    const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
-    return {
-      file,
-      owner: context.owner,
-      organizationId: context.organizationId,
-      secretProvenance: evidence.get(file.id),
-    }
-  },
-  afterSuccess: ({ principal, result }) =>
-    requireAdmittedContent(principal, {
-      kind: 'workspace-file',
-      id: result.file.id,
-      provenance: result.secretProvenance ?? { status: 'unknown' },
-      view: 'opaque',
-    }),
-})
+/**
+ * How a read's bytes leave: `opaque` bytes reach a caller as is, so no redaction can mask a secret
+ * in them; `complete` bytes are only ever turned into text, which the registry redacts. Every
+ * admission in one read uses the same view, so it is fixed per read rather than chosen per call.
+ */
+type ArtifactView = 'opaque' | 'complete'
+
+const defineSnapshotSource = (view: ArtifactView) =>
+  defineAuthorizedProjectFileUseCase<
+    typeof projectFileOperations.readArtifact,
+    ArtifactInput,
+    SourceSnapshot
+  >({
+    operation: projectFileOperations.readArtifact,
+    async execute({
+      context,
+      tx,
+    }: {
+      context: ProjectFileAuthorizationContext
+      tx: DbTransaction
+      input: ArtifactInput
+    }) {
+      const file = context.file
+      if (!file) throw new OrchestrationError('not_found', 'File not found')
+      const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [file])
+      return {
+        file,
+        owner: context.owner,
+        organizationId: context.organizationId,
+        secretProvenance: evidence.get(file.id),
+      }
+    },
+    afterSuccess: ({ principal, result }) =>
+      requireAdmittedContent(principal, {
+        kind: 'workspace-file',
+        id: result.file.id,
+        provenance: result.secretProvenance ?? { status: 'unknown' },
+        view,
+      }),
+  })
 
 /** Locks the named inputs against the unchanged source and admits their merged provenance before any input read. */
-const snapshotDependencies = defineAuthorizedProjectFileUseCase<
-  typeof projectFileOperations.readArtifact,
-  ArtifactInput & { source: WorkspaceFileRow; dependencyIds: string[] },
-  { dependencies: WorkspaceFileRow[]; secretProvenance: WorkspaceFileSecretProvenance }
->({
-  operation: projectFileOperations.readArtifact,
-  async execute({ input, context, tx }) {
-    requireSameRevision(context.file, input.source)
-    const dependencies = await loadDependencies(tx, context.owner, input.dependencyIds)
-    const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [
-      input.source,
-      ...dependencies,
-    ])
-    return {
-      dependencies,
-      secretProvenance: mergeWorkspaceFileSecretProvenance(...evidence.values()),
-    }
-  },
-  afterSuccess: ({ principal, input, result }) =>
-    requireAdmittedContent(principal, {
-      kind: 'workspace-file',
-      id: input.source.id,
-      provenance: result.secretProvenance,
-      view: 'opaque',
-    }),
-})
+const defineSnapshotDependencies = (view: ArtifactView) =>
+  defineAuthorizedProjectFileUseCase<
+    typeof projectFileOperations.readArtifact,
+    ArtifactInput & { source: WorkspaceFileRow; dependencyIds: string[] },
+    { dependencies: WorkspaceFileRow[]; secretProvenance: WorkspaceFileSecretProvenance }
+  >({
+    operation: projectFileOperations.readArtifact,
+    async execute({ input, context, tx }) {
+      requireSameRevision(context.file, input.source)
+      const dependencies = await loadDependencies(tx, context.owner, input.dependencyIds)
+      const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [
+        input.source,
+        ...dependencies,
+      ])
+      return {
+        dependencies,
+        secretProvenance: mergeWorkspaceFileSecretProvenance(...evidence.values()),
+      }
+    },
+    afterSuccess: ({ principal, input, result }) =>
+      requireAdmittedContent(principal, {
+        kind: 'workspace-file',
+        id: input.source.id,
+        provenance: result.secretProvenance,
+        view,
+      }),
+  })
+type SnapshotDependencies = ReturnType<typeof defineSnapshotDependencies>
 
 async function renderArtifact(
   principal: Principal,
   input: ArtifactInput,
   snapshot: SourceSnapshot,
+  snapshotDependencies: SnapshotDependencies,
   signal?: AbortSignal
 ): Promise<PreparedArtifact> {
   const { file, owner } = snapshot
   const artifact = await resolveDocumentRender(
     file.originalName,
-    { maxBytes: input.maxBytes, signal },
+    {
+      maxBytes: input.maxBytes,
+      signal,
+      ...(input.text
+        ? {
+            tooLargeMessage: (limit: string) =>
+              renderedTextTooLargeMessage(file.originalName, limit),
+          }
+        : {}),
+    },
     async (): Promise<PreparedArtifact> => {
       const content = await downloadFile({
         key: file.key,
@@ -375,6 +413,19 @@ async function renderArtifact(
   return { ...artifact, ...derivative }
 }
 
+/**
+ * Refuses a text read before any byte is fetched, as the workspace text path does. The stored size
+ * is authoritative only for an ordinary upload; a generation source is bounded by the render.
+ */
+function assertTextExtractable(file: WorkspaceFileRow, maxBytes: number) {
+  const name = file.originalName
+  if (!workspaceFileTextFormat({ name, type: observedMediaType(file.contentType, name) }))
+    throw textExtractionUnsupportedError(name)
+  const size = getWorkspaceFileSize(file)
+  if (!needsRenderedArtifact(file.contentType, name) && size > maxBytes)
+    throw textExtractionTooLargeError(name, size, maxBytes)
+}
+
 /** Indexing is best effort: a contended or failed requeue never fails a delivered read. */
 async function requeueRenderedSearchArtifact(completion: FileSearchArtifactCompletion) {
   try {
@@ -388,84 +439,173 @@ async function requeueRenderedSearchArtifact(completion: FileSearchArtifactCompl
 }
 
 /** Renders only source-owned dependencies, then rechecks the source, every input, and current authority. */
-export const readProjectFileArtifact = defineAuthorizedProjectFileUseCase<
-  typeof projectFileOperations.readArtifact,
-  ArtifactInput,
-  ArtifactResult,
-  PreparedArtifact
->({
-  operation: projectFileOperations.readArtifact,
-  async prepareFromSnapshot({ principal, input, request }) {
-    if (
-      !Number.isSafeInteger(input.maxBytes) ||
-      input.maxBytes <= 0 ||
-      input.maxBytes > MAX_BUFFERED_TRANSFER_BYTES
-    ) {
-      throw new OrchestrationError('validation', 'Invalid document byte limit')
-    }
-    const snapshot = await snapshotSource.execute({ principal, input })
-    return runWithOutboundOrganization(snapshot.organizationId, () =>
-      renderArtifact(principal, input, snapshot, request?.signal)
-    )
-  },
-  async execute({ input, context, tx, prepared }) {
-    if (!prepared) throw new Error('Prepared document is unavailable')
-    requireSameRevision(context.file, prepared.source)
-    const dependencies = await loadDependencies(
-      tx,
-      context.owner,
-      prepared.dependencies.map((file) => file.id)
-    )
-    const currentById = new Map(dependencies.map((file) => [file.id, file]))
-    for (const expected of prepared.dependencies)
-      requireSameRevision(currentById.get(expected.id), expected)
-    const source = context.file
-    if (!source) throw new OrchestrationError('not_found', 'File not found')
-    const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [
-      source,
-      ...dependencies,
-    ])
-    const secretProvenance = mergeWorkspaceFileSecretProvenance(...evidence.values())
-    if (
-      input.forModel &&
-      (secretProvenance.status !== 'exact' || secretProvenance.entries.length !== 0)
-    ) {
-      throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
-    }
-    const folders = source.folderId
-      ? await listFileFolders(context.owner, { scope: 'all' }, tx)
-      : []
-    const result = {
-      file: mapFileRecord(source, context.owner, buildWorkspaceFileFolderPathMap(folders)),
-      buffer: prepared.buffer,
-      contentType: prepared.contentType,
-      dependsOnReferencedFiles: prepared.dependsOnReferencedFiles,
-      secretProvenance,
-      receipt: createFileReadReceipt(context.owner, [source, ...dependencies]),
-    }
-    if (prepared.artifactKey)
-      renderedSearchArtifacts.set(result, {
-        owner: context.owner,
-        file: { fileId: source.id, key: source.key, contentUpdatedAt: source.contentUpdatedAt },
-        dependencies: dependencies.map((file) => ({
-          fileId: file.id,
-          key: file.key,
-          sourceContentUpdatedAt: file.contentUpdatedAt,
-        })),
-        artifactKey: prepared.artifactKey,
+function defineArtifactRead(view: ArtifactView) {
+  const snapshotSource = defineSnapshotSource(view)
+  const snapshotDependencies = defineSnapshotDependencies(view)
+  return defineAuthorizedProjectFileUseCase<
+    typeof projectFileOperations.readArtifact,
+    ArtifactInput,
+    ArtifactResult,
+    PreparedArtifact
+  >({
+    operation: projectFileOperations.readArtifact,
+    async prepareFromSnapshot({ principal, input, request }) {
+      if (
+        !Number.isSafeInteger(input.maxBytes) ||
+        input.maxBytes <= 0 ||
+        input.maxBytes > MAX_BUFFERED_TRANSFER_BYTES
+      ) {
+        throw new OrchestrationError('validation', 'Invalid document byte limit')
+      }
+      const snapshot = await snapshotSource.execute({ principal, input })
+      if (input.text) assertTextExtractable(snapshot.file, input.maxBytes)
+      return runWithOutboundOrganization(snapshot.organizationId, () =>
+        renderArtifact(principal, input, snapshot, snapshotDependencies, request?.signal)
+      )
+    },
+    async execute({ input, context, tx, prepared }) {
+      if (!prepared) throw new Error('Prepared document is unavailable')
+      requireSameRevision(context.file, prepared.source)
+      const dependencies = await loadDependencies(
+        tx,
+        context.owner,
+        prepared.dependencies.map((file) => file.id)
+      )
+      const currentById = new Map(dependencies.map((file) => [file.id, file]))
+      for (const expected of prepared.dependencies)
+        requireSameRevision(currentById.get(expected.id), expected)
+      const source = context.file
+      if (!source) throw new OrchestrationError('not_found', 'File not found')
+      const evidence = await getBoundWorkspaceFileSecretProvenanceByMetadata(tx, [
+        source,
+        ...dependencies,
+      ])
+      const secretProvenance = mergeWorkspaceFileSecretProvenance(...evidence.values())
+      if (
+        input.forModel &&
+        (secretProvenance.status !== 'exact' || secretProvenance.entries.length !== 0)
+      ) {
+        throw new OrchestrationError('forbidden', MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
+      }
+      const folders =
+        source.folderId && !input.skipFolderPath
+          ? await listFileFolders(context.owner, { scope: 'all' }, tx)
+          : []
+      const result = {
+        file: mapFileRecord(source, context.owner, buildWorkspaceFileFolderPathMap(folders)),
+        buffer: prepared.buffer,
+        contentType: prepared.contentType,
+        dependsOnReferencedFiles: prepared.dependsOnReferencedFiles,
+        secretProvenance,
+        receipt: createFileReadReceipt(context.owner, [source, ...dependencies]),
+      }
+      if (prepared.artifactKey)
+        renderedSearchArtifacts.set(result, {
+          owner: context.owner,
+          file: { fileId: source.id, key: source.key, contentUpdatedAt: source.contentUpdatedAt },
+          dependencies: dependencies.map((file) => ({
+            fileId: file.id,
+            key: file.key,
+            sourceContentUpdatedAt: file.contentUpdatedAt,
+          })),
+          artifactKey: prepared.artifactKey,
+        })
+      return result
+    },
+    async afterSuccess({ principal, result }) {
+      await requireAdmittedContent(principal, {
+        kind: 'workspace-file',
+        id: result.file.id,
+        provenance: result.secretProvenance,
+        view,
       })
-    return result
-  },
-  async afterSuccess({ principal, result }) {
-    await requireAdmittedContent(principal, {
-      kind: 'workspace-file',
-      id: result.file.id,
-      provenance: result.secretProvenance,
-      view: 'opaque',
+      await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
+      const completion = renderedSearchArtifacts.get(result)
+      renderedSearchArtifacts.delete(result)
+      if (completion) await requeueRenderedSearchArtifact(completion)
+    },
+  })
+}
+
+/** A Project file's stored or rendered bytes. No redaction reaches them, so a secret refuses the read. */
+export const readProjectFileArtifact = defineArtifactRead('opaque')
+
+/** Admitted as text, so these bytes never leave except as extracted text. */
+const readProjectFileArtifactAsText = defineArtifactRead('complete')
+
+interface ProjectFileTextInput extends ProjectFileTarget {
+  fileId: string
+  maxBytes?: number
+  offset?: number
+  limit?: number
+  skipFolderPath?: boolean
+}
+
+interface ProjectFileTextResult extends ExtractedFileText {
+  file: OwnedFileRecord<ProjectOwner>
+  contentType: string
+  secretProvenance: WorkspaceFileSecretProvenance
+}
+
+/**
+ * Reads a Project file's text the way a workspace file's text is read: the source and every input
+ * a render embeds are admitted as `complete`, the registry masks their secrets, and only text
+ * leaves. A generated document is read from its rendered artifact, like the workspace path.
+ *
+ * Only a ranged read is redacted here, before the window is cut. Whole-file text comes back raw:
+ * the caller must import `secretProvenance` into its egress registry before the text reaches an
+ * agent, as `importProjectFileProvenance` does.
+ */
+export const readProjectFileText: AuthorizingUseCase<
+  typeof projectFileOperations.readArtifact,
+  ProjectFileTextInput,
+  ProjectFileTextResult
+> = {
+  operation: readProjectFileArtifactAsText.operation,
+  delegationAudience: readProjectFileArtifactAsText.delegationAudience,
+  authorize: (args) =>
+    readProjectFileArtifactAsText.authorize({
+      ...args,
+      input: {
+        projectId: args.input.projectId,
+        fileId: args.input.fileId,
+        maxBytes: MAX_TEXT_EXTRACTION_BYTES,
+      },
+    }),
+  async execute(args) {
+    const { input, principal } = args
+    const maxBytes = Math.min(
+      input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES,
+      MAX_TEXT_EXTRACTION_BYTES
+    )
+    const artifact = await readProjectFileArtifactAsText.execute({
+      ...args,
+      input: {
+        projectId: input.projectId,
+        fileId: input.fileId,
+        maxBytes,
+        text: true,
+        skipFolderPath: input.skipFolderPath,
+      },
     })
-    await reportWorkspaceFileDelivery(result.secretProvenance, result.file.id)
-    const completion = renderedSearchArtifacts.get(result)
-    renderedSearchArtifacts.delete(result)
-    if (completion) await requeueRenderedSearchArtifact(completion)
+    const format = workspaceFileTextFormat({ name: artifact.file.name, type: artifact.contentType })
+    if (!format) throw textExtractionUnsupportedError(artifact.file.name)
+    const extracted = await extractFileTextFromBytes(
+      artifact.buffer,
+      format,
+      artifact.file.name,
+      input,
+      {
+        principal,
+        kind: 'workspace-file',
+        signal: args.request?.signal,
+      }
+    )
+    return {
+      ...extracted,
+      file: artifact.file,
+      contentType: artifact.contentType,
+      secretProvenance: artifact.secretProvenance,
+    }
   },
-})
+}

@@ -39,6 +39,11 @@ import {
 } from '@/lib/billing/organizations/resource-handoff'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import {
+  type ExecutionStopPlan,
+  recordExecutionStops,
+  signalExecutionStops,
+} from '@/lib/execution/removal-stop-records'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
@@ -54,6 +59,13 @@ import {
 } from '@/lib/table/rows/executions'
 import type { StorageContext } from '@/lib/uploads'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
+import { isPublicStorageKey } from '@/lib/uploads/utils/file'
+import { recordDeletedAccountIdentities } from '@/lib/users/deleted-identity'
+import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
+import {
+  collectAccountStorageObjects,
+  enqueueAccountStorageCleanupInTx,
+} from '@/lib/users/storage-sweep'
 import {
   listSharedResourceWorkspaceIdsForUser,
   listUnresolvedSharedResourceWorkspaces,
@@ -493,31 +505,6 @@ function countKeys(batches: StorageKeyBatch[]): number {
 }
 
 /**
- * The account's own uploaded avatar, as a storage key.
- *
- * `user.image` holds either a `/api/files/serve/...` path (an upload we own) or
- * an absolute URL from an OAuth provider (which we must not try to delete). Only
- * the former yields a key, and only under the `profile-pictures/` prefix — the
- * image is personal data, so an erasure that leaves it in the bucket is not an
- * erasure.
- */
-export function extractProfilePictureKey(image: string | null): string | null {
-  if (!image) return null
-  try {
-    const parsed = new URL(image, 'http://placeholder')
-    if (parsed.origin !== 'http://placeholder') return null
-    const segments = parsed.pathname.split('/')
-    if (segments[1] !== 'api' || segments[2] !== 'files' || segments[3] !== 'serve') return null
-    let keySegments = segments.slice(4)
-    if (['s3', 'blob', 'gcs'].includes(keySegments[0])) keySegments = keySegments.slice(1)
-    const key = decodeURIComponent(keySegments.join('/'))
-    return key.startsWith('profile-pictures/') ? key : null
-  } catch {
-    return null
-  }
-}
-
-/**
  * Collects the account's private images and stored objects in workspaces that go with it.
  *
  * This has to run *before* the rows are deleted: they disappear with the
@@ -554,16 +541,6 @@ async function collectAccountStorageKeys(
   )
 
   if (!isUsingCloudStorage()) return batches
-
-  const [profile] = await db
-    .select({ image: user.image })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
-  const profilePictureKey = extractProfilePictureKey(profile?.image ?? null)
-  if (profilePictureKey) {
-    batches.push({ context: 'profile-pictures', keys: [profilePictureKey] })
-  }
 
   if (workspaceIds.length === 0) return batches
 
@@ -637,11 +614,27 @@ async function collectAccountStorageKeys(
  * time this runs the account is already gone, and the request must not report a
  * failure for work that cannot be undone. An orphaned object is recoverable from
  * the log; a deletion the caller believes failed is not.
+ *
+ * Keys a surviving row still names are kept (a legacy `kb/` object can back
+ * documents in more than one workspace); see `createStorageReferenceGuard`.
+ * World-readable keys are left to the delayed durable cleanup, whose guard also
+ * reads stored asset URLs, so this request never does.
  */
 async function purgeStorageObjects(userId: string, batches: StorageKeyBatch[]): Promise<void> {
-  for (const { context, keys } of batches) {
-    if (keys.length === 0) continue
+  const isReferenced = createStorageReferenceGuard()
+  for (const { context, keys: listed } of batches) {
+    const collected = listed.filter((key) => !isPublicStorageKey(key))
+    if (collected.length === 0) continue
     try {
+      const referenced = await isReferenced(collected)
+      if (referenced.size > 0) {
+        logger.warn('Keeping objects a surviving reference still names', {
+          context,
+          kept: referenced.size,
+        })
+      }
+      const keys = collected.filter((key) => !referenced.has(key))
+      if (keys.length === 0) continue
       const { failed } = await StorageService.deleteFiles(keys, context)
       for (const { key, error } of failed) {
         logger.error('Failed to erase stored object during account deletion', {
@@ -742,6 +735,15 @@ async function announceCancelledTableWork(
   }
 }
 
+interface DeleteUserAccountOptions {
+  /**
+   * Keep keyed digests of the account's sign-in identities so a new account on
+   * them gets no second free allowance. True for a holder-requested erasure;
+   * false for rolling back an account that was never handed to anyone.
+   */
+  recordIdentity: boolean
+}
+
 /**
  * Erases an account and everything only it can reach.
  *
@@ -771,17 +773,25 @@ async function announceCancelledTableWork(
  * The plan is recomputed here rather than accepted from the caller: a preview is
  * a display, never an authorization.
  */
-export async function deleteUserAccount(userId: string): Promise<AccountDeletionPlan> {
+export async function deleteUserAccount(
+  userId: string,
+  { recordIdentity }: DeleteUserAccountOptions
+): Promise<AccountDeletionPlan> {
   const plan = await getAccountDeletionPlan(userId)
   if (plan.blockers.length > 0) throw new AccountDeletionBlockedError(plan.blockers)
 
   const doomedWorkspaceIds = plan.workspacesToDelete.map((workspace) => workspace.id)
   const doomed = new Set(doomedWorkspaceIds)
   const storageKeys = await collectAccountStorageKeys(userId, doomedWorkspaceIds)
+  const durableStorageObjects = await collectAccountStorageObjects({
+    userId,
+    workspaceIds: doomedWorkspaceIds,
+  })
 
   let cancelledDispatches: CancelledDispatch[] = []
   let cancelledMarkers: CancelledCellMarker[] = []
   let stoppedRuns: StoppedRun[] = []
+  let executionStops: ExecutionStopPlan['executions'] = []
   /**
    * Resolved while the account's settings still exist to route a superuser's runs. It only
    * routes the best-effort push, so a failed lookup falls back to the default endpoint.
@@ -861,7 +871,21 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
      * workspace and user deletes cascade their rows away; delivered after commit.
      */
     stoppedRuns = await stopLiveRunsTx(tx, { userId })
+    /** Queues the pre-read keys plus a delta of the account's rows written since, read under the account lock. */
+    await enqueueAccountStorageCleanupInTx(tx, {
+      userId,
+      workspaceIds: doomedWorkspaceIds,
+      objects: durableStorageObjects,
+    })
     if (doomedWorkspaceIds.length > 0) {
+      /**
+       * Workflow runs in the doomed workspaces lose their log rows to the cascade below, after
+       * which no cancel path can find them, and they would keep spending hosted keys for an
+       * account that no longer exists. The workspace rows are locked, so no new run can log
+       * here before commit; the stops commit with the erasure. After commit the in-flight runs
+       * are signalled at once and the outbox worker sweeps the job queue.
+       */
+      executionStops = await recordExecutionStops(tx, { workspaceIds: doomedWorkspaceIds })
       /**
        * Re-checked here rather than trusted from the plan: a workspace that
        * gained a member since the preview is no longer private, and deleting it
@@ -992,6 +1016,8 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       ...projectIdsToDelete.map((projectId) => ({ kind: 'project' as const, projectId })),
     ])
 
+    if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
+
     try {
       await tx.delete(user).where(eq(user.id, userId))
     } catch (error) {
@@ -1012,6 +1038,13 @@ export async function deleteUserAccount(userId: string): Promise<AccountDeletion
       throw error
     }
   })
+
+  /**
+   * Not awaited: every second a run keeps going spends hosted keys, and nothing below should
+   * wait on Redis. It never throws and stops at its own deadline; the committed outbox stops
+   * repeat it and sweep the job queue.
+   */
+  void signalExecutionStops(executionStops)
 
   await invalidateReportingUsagePrefixes()
 

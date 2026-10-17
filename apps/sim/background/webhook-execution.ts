@@ -25,6 +25,7 @@ import {
 import { getJobQueue } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { env, envNumber } from '@/lib/core/config/env'
+import type { ExecutionScope } from '@/lib/core/errors/execution-scope-deleted'
 import { logFailureOnce } from '@/lib/core/errors/failure-log'
 import {
   describeRetryableInfrastructureError,
@@ -74,9 +75,12 @@ import { readSlackStreamResponseConfig } from '@/lib/webhooks/slack-stream-confi
 import {
   executeWorkflowCore,
   type PreloadedExecutionEnvironment,
-  wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import {
+  isRecordedWorkflowFailure,
+  resolveDeletedExecutionScope,
+} from '@/lib/workflows/executor/recorded-failure'
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
@@ -1277,23 +1281,31 @@ async function executeWebhookJobInternal(
       executionId,
     })
 
-    // The finalized flag is set inside a fire-and-forget post-execution promise; await it so the
-    // signal is reliable and the failure is fully persisted before we decide fault vs error.
-    await loggingSession.waitForPostExecution()
+    const failedRunResult = () => ({
+      success: false,
+      workflowId: payload.workflowId,
+      executionId,
+      output: hasExecutionResult(error) ? error.executionResult.output : {},
+      executedAt: new Date().toISOString(),
+      provider: payload.provider,
+    })
+    const completeWithDeletedScope = (scope: ExecutionScope) => {
+      logger.info(`[${requestId}] Webhook execution ended: its ${scope} was deleted`, {
+        workflowId: payload.workflowId,
+        executionId,
+      })
+      return failedRunResult()
+    }
+
+    const deletedScope = await resolveDeletedExecutionScope(error, loggingSession)
+    if (deletedScope) return completeWithDeletedScope(deletedScope)
 
     // A failure inside workflow execution (block error, provider 4xx, missing required field, etc.)
     // is finalized by core and already recorded in the execution logs. That is a user/workflow error,
     // not a trigger.dev job fault — complete the run normally so we don't fire a false alert. Errors
     // that were not finalized came from the webhook pipeline itself, so we re-throw to fault below.
-    if (wasExecutionFinalizedByCore(error, executionId)) {
-      return {
-        success: false,
-        workflowId: payload.workflowId,
-        executionId,
-        output: hasExecutionResult(error) ? error.executionResult.output : {},
-        executedAt: new Date().toISOString(),
-        provider: payload.provider,
-      }
+    if (await isRecordedWorkflowFailure(error, executionId, loggingSession)) {
+      return failedRunResult()
     }
 
     try {
@@ -1335,6 +1347,9 @@ async function executeWebhookJobInternal(
         loggingSession.projectDiagnosticError(loggingError)
       )
     }
+
+    const scopeDeletedOnCompletion = loggingSession.getDeletedScope()
+    if (scopeDeletedOnCompletion) return completeWithDeletedScope(scopeDeletedOnCompletion)
 
     if (retryableSetupCause) {
       throw new RetryableSetupError(errorMessage, { cause: retryableSetupCause })

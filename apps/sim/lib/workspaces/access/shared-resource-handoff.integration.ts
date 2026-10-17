@@ -284,7 +284,7 @@ describe('shared resource retention across workspace departure and account erasu
       )
       expect(result.revoked).toBe(true)
       await assertTransferred(fixture)
-      await deleteUserAccount(fixture.departingId)
+      await deleteUserAccount(fixture.departingId, { recordIdentity: false })
       await assertRetained(fixture)
     }
   )
@@ -424,7 +424,7 @@ describe('shared resource retention across workspace departure and account erasu
       sizeBytes: 1,
     })
     expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toEqual([])
-    await deleteUserAccount(fixture.departingId)
+    await deleteUserAccount(fixture.departingId, { recordIdentity: false })
     expect(
       await db
         .select({ userId: workspaceFiles.userId })
@@ -457,7 +457,7 @@ describe('shared resource retention across workspace departure and account erasu
         userId: fixture.departingId,
       })
     )
-    await deleteUserAccount(fixture.departingId)
+    await deleteUserAccount(fixture.departingId, { recordIdentity: false })
     expect(
       await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, logoId))
     ).toMatchObject([
@@ -482,7 +482,7 @@ describe('shared resource retention across workspace departure and account erasu
     ).toMatchObject([
       { version: 1, source: 'upload', authorUserIds: [fixture.departingId], supersededAt: null },
     ])
-    await deleteUserAccount(fixture.departingId)
+    await deleteUserAccount(fixture.departingId, { recordIdentity: false })
     expect(
       await db
         .select()
@@ -493,7 +493,7 @@ describe('shared resource retention across workspace departure and account erasu
 
   it('repairs references left by departures before the handoff fix', async () => {
     const fixture = await seedResources(true, false)
-    await deleteUserAccount(fixture.departingId)
+    await deleteUserAccount(fixture.departingId, { recordIdentity: false })
     await assertRetained(fixture)
   })
 
@@ -515,7 +515,7 @@ describe('shared resource retention across workspace departure and account erasu
       await release.promise
     })
     const writerPid = await ready.promise
-    const deletion = deleteUserAccount(fixture.departingId)
+    const deletion = deleteUserAccount(fixture.departingId, { recordIdentity: false })
     try {
       await expect
         .poll(
@@ -589,7 +589,7 @@ describe('shared resource retention across workspace departure and account erasu
       })
       const blockerPid = await ready.promise
       const operations = {
-        deletion: () => deleteUserAccount(fixture.departingId),
+        deletion: () => deleteUserAccount(fixture.departingId, { recordIdentity: false }),
         detachment: () =>
           db.transaction((tx) => detachOrganizationWorkspacesTx(tx, organizationId)),
       }
@@ -708,7 +708,9 @@ describe('shared resource retention across workspace departure and account erasu
       })
       const holderPid = await ready.promise
       const holderOutcome = Promise.allSettled([holding])
-      const deleting = Promise.allSettled([deleteUserAccount(fixture.departingId)])
+      const deleting = Promise.allSettled([
+        deleteUserAccount(fixture.departingId, { recordIdentity: false }),
+      ])
       let removal: Promise<PromiseSettledResult<unknown>[]> | undefined
       try {
         await expect
@@ -778,7 +780,7 @@ describe('shared resource retention across workspace departure and account erasu
           entityType: 'workspace',
           permissionType: 'admin',
         })
-        await deleteUserAccount(fixture.departingId)
+        await deleteUserAccount(fixture.departingId, { recordIdentity: false })
       } else {
         expect(deleted.filter((result) => result.status === 'rejected')).toEqual([])
         expect((await removal)?.filter((result) => result.status === 'rejected')).toEqual([])
@@ -843,12 +845,12 @@ describe('shared resource retention across workspace departure and account erasu
       })
       const creatorPid = await ready.promise
       let settled = false
-      const deleting = Promise.allSettled([deleteUserAccount(fixture.departingId)]).then(
-        (results) => {
-          settled = true
-          return results
-        }
-      )
+      const deleting = Promise.allSettled([
+        deleteUserAccount(fixture.departingId, { recordIdentity: false }),
+      ]).then((results) => {
+        settled = true
+        return results
+      })
       const created = Promise.allSettled([creating])
       try {
         await expect
@@ -893,7 +895,7 @@ describe('shared resource retention across workspace departure and account erasu
             .from(knowledgeBase)
             .where(eq(knowledgeBase.id, kbId))
         ).toEqual([{ userId: fixture.departingId }])
-        await deleteUserAccount(fixture.departingId)
+        await deleteUserAccount(fixture.departingId, { recordIdentity: false })
       } else {
         expect(result.filter((entry) => entry.status === 'rejected')).toEqual([])
       }
@@ -945,7 +947,10 @@ describe('shared resource retention across workspace departure and account erasu
       await tx.insert(workflow).values(row)
     })
     const creatorPid = await ready.promise
-    const outcomes = Promise.allSettled([creating, deleteUserAccount(fixture.departingId)])
+    const outcomes = Promise.allSettled([
+      creating,
+      deleteUserAccount(fixture.departingId, { recordIdentity: false }),
+    ])
     try {
       await expect
         .poll(
@@ -999,7 +1004,9 @@ describe('shared resource retention across workspace departure and account erasu
         await release.promise
       })
       const blockerPid = await ready.promise
-      const outcome = Promise.allSettled([deleteUserAccount(fixture.departingId)])
+      const outcome = Promise.allSettled([
+        deleteUserAccount(fixture.departingId, { recordIdentity: false }),
+      ])
       try {
         await expect
           .poll(
@@ -1078,7 +1085,7 @@ describe('shared resource retention across workspace departure and account erasu
       await release.promise
     })
     const blockerPid = await ready.promise
-    const deletion = deleteUserAccount(fixture.departingId)
+    const deletion = deleteUserAccount(fixture.departingId, { recordIdentity: false })
     let lateWrite: Promise<unknown> | undefined
     try {
       await expect
@@ -1243,7 +1250,7 @@ describe('shared resource retention across workspace departure and account erasu
     expect(await db.select().from(account).where(eq(account.id, credentialId))).toMatchObject([
       { userId: fixture.departingId, accessToken: 'synthetic-private-token' },
     ])
-    await deleteUserAccount(fixture.departingId)
+    await deleteUserAccount(fixture.departingId, { recordIdentity: false })
     expect(
       await db.select().from(workspaceFiles).where(eq(workspaceFiles.id, privateFileId))
     ).toHaveLength(0)
@@ -1280,7 +1287,7 @@ describe('shared resource retention across workspace departure and account erasu
         expect.objectContaining({ message: expect.stringContaining('active organization owner') }),
       ])
     )
-    await expect(deleteUserAccount(fixture.departingId)).rejects.toThrow(
+    await expect(deleteUserAccount(fixture.departingId, { recordIdentity: false })).rejects.toThrow(
       'active organization owner'
     )
     expect(await db.select().from(user).where(eq(user.id, fixture.departingId))).toHaveLength(1)
@@ -1326,7 +1333,9 @@ describe('shared resource retention across workspace departure and account erasu
         expect.objectContaining({ message: expect.stringContaining('active billing account') }),
       ])
     )
-    await expect(deleteUserAccount(fixture.departingId)).rejects.toThrow('active billing account')
+    await expect(deleteUserAccount(fixture.departingId, { recordIdentity: false })).rejects.toThrow(
+      'active billing account'
+    )
     expect(await db.select().from(user).where(eq(user.id, fixture.departingId))).toHaveLength(1)
   })
 
@@ -1356,7 +1365,7 @@ describe('shared resource retention across workspace departure and account erasu
           .from(knowledgeBase)
           .where(eq(knowledgeBase.id, fixture.kbId))
       ).toEqual([{ userId: fixture.departingId }])
-      await deleteUserAccount(fixture.departingId)
+      await deleteUserAccount(fixture.departingId, { recordIdentity: false })
       await assertRetained(fixture)
     }
   )
@@ -1392,7 +1401,7 @@ describe('shared resource retention across workspace departure and account erasu
         ])
       } else {
         expect(plan.blockers).toEqual([])
-        await deleteUserAccount(fixture.departingId)
+        await deleteUserAccount(fixture.departingId, { recordIdentity: false })
         await assertRetained(fixture)
       }
     }
@@ -1411,7 +1420,9 @@ describe('shared resource retention across workspace departure and account erasu
       await tx.delete(permissions).where(eq(permissions.entityId, fixture.workspaceId))
     })
     const pid = await ready.promise
-    const deleting = Promise.allSettled([deleteUserAccount(fixture.departingId)])
+    const deleting = Promise.allSettled([
+      deleteUserAccount(fixture.departingId, { recordIdentity: false }),
+    ])
     try {
       await expect
         .poll(
@@ -1504,10 +1515,12 @@ describe('shared resource retention across workspace departure and account erasu
       expect((await getAccountDeletionPlan(fixture.departingId)).blockers).toMatchObject([
         { message: expect.stringContaining('Public MCP servers') },
       ])
-      await expect(deleteUserAccount(fixture.departingId)).rejects.toThrow('Public MCP servers')
+      await expect(
+        deleteUserAccount(fixture.departingId, { recordIdentity: false })
+      ).rejects.toThrow('Public MCP servers')
       expect(await db.select().from(user).where(eq(user.id, fixture.departingId))).toHaveLength(1)
       await db.delete(workflowMcpServer).where(eq(workflowMcpServer.id, serverId))
-      await deleteUserAccount(fixture.departingId)
+      await deleteUserAccount(fixture.departingId, { recordIdentity: false })
       await assertRetained(fixture)
     }
   )
@@ -1561,7 +1574,7 @@ describe('shared resource retention across workspace departure and account erasu
         }
       })
       const changerPid = await ready.promise
-      const deletion = deleteUserAccount(fixture.departingId).then(
+      const deletion = deleteUserAccount(fixture.departingId, { recordIdentity: false }).then(
         () => ({ deleted: true }),
         (error: unknown) => ({ error })
       )
@@ -1605,7 +1618,7 @@ describe('shared resource retention across workspace departure and account erasu
       name: 'Retained authenticated endpoint',
       isPublic: false,
     })
-    await deleteUserAccount(fixture.departingId)
+    await deleteUserAccount(fixture.departingId, { recordIdentity: false })
     expect(
       await db.select().from(workflowMcpServer).where(eq(workflowMcpServer.id, serverId))
     ).toMatchObject([{ createdBy: fixture.ownerId, isPublic: false }])
@@ -1632,13 +1645,15 @@ describe('shared resource retention across workspace departure and account erasu
       })
       if (state === 'revoked') await db.delete(apiKey).where(eq(apiKey.id, keyId))
       if (state === 'permanent' || state === 'future') {
-        await expect(deleteUserAccount(fixture.departingId)).rejects.toThrow('Workspace API keys')
+        await expect(
+          deleteUserAccount(fixture.departingId, { recordIdentity: false })
+        ).rejects.toThrow('Workspace API keys')
         expect(await db.select().from(apiKey).where(eq(apiKey.id, keyId))).toMatchObject([
           { userId: fixture.departingId },
         ])
         await db.delete(apiKey).where(eq(apiKey.id, keyId))
       }
-      await deleteUserAccount(fixture.departingId)
+      await deleteUserAccount(fixture.departingId, { recordIdentity: false })
       await assertRetained(fixture)
     }
   )
@@ -1810,7 +1825,7 @@ describe('shared resource retention across workspace departure and account erasu
           await db.select().from(ssoProvider).where(eq(ssoProvider.id, providerId))
         ).toMatchObject([{ userId: fixture.ownerId }])
       }
-      await deleteUserAccount(fixture.departingId)
+      await deleteUserAccount(fixture.departingId, { recordIdentity: false })
       expect(
         await db
           .select()

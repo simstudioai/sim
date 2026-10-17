@@ -37,6 +37,7 @@ export const mockJobQueue = {
   cancelJob: vi.fn(),
   cancelByExecution: vi.fn(),
   cancelByKey: vi.fn(),
+  cancelByWorkspace: vi.fn(),
 }
 
 /**

@@ -504,6 +504,41 @@ describe('BlockExecutor', () => {
     expect(logFailureOnce(createLogger('OuterBoundary'), 'probe', thrown)).toBeUndefined()
   })
 
+  it('never surfaces a database failure that a wrapper interpolated into its own message', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = { canHandle: () => true, execute: vi.fn() }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    const databaseError = new DrizzleQueryError(
+      'insert into "workspace_files" ("user_id", "workspace_id") values ($1, $2)',
+      ['owner-secret-id', 'workspace-secret-id'],
+      Object.assign(new Error('violates foreign key constraint'), { code: '23503' })
+    )
+    const wrapped = new Error(`Failed to upload file: ${databaseError.message}`, {
+      cause: databaseError,
+    })
+    vi.mocked(validateBlockType).mockRejectedValueOnce(wrapped)
+    const message = 'An internal error occurred while executing the block. Please try again.'
+
+    const thrown = await executor.execute(ctx, createNode(block), block).catch((error) => error)
+
+    expect(thrown.message).toBe(`Function: ${message}`)
+    expect(state.getBlockOutput(block.id)).toEqual({ error: message })
+    const surfaced = JSON.stringify([thrown.message, state.getBlockOutput(block.id), ctx.blockLogs])
+    expect(surfaced).not.toContain('Failed query')
+    expect(surfaced).not.toContain('owner-secret-id')
+    expect(surfaced).not.toContain('workspace-secret-id')
+  })
+
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {
     const block = {
       ...createBlock(),

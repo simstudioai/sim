@@ -14,6 +14,7 @@ export const DESTINATION_TYPES = [
   's3',
   'gcs',
   'azure_blob',
+  'sentinel',
   'datadog',
   'bigquery',
   'snowflake',

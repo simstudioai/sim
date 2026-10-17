@@ -374,7 +374,7 @@ describe('Private Project teardown and durable object cleanup', () => {
       const obstructed = join(storageRoot, f.keys[0])
       await rm(obstructed)
       await mkdir(obstructed)
-      await deleteUserAccount(f.userId)
+      await deleteUserAccount(f.userId, { recordIdentity: false })
       expect(await db.select().from(user).where(eq(user.id, f.userId))).toEqual([])
       expect(await db.select().from(project).where(eq(project.id, f.projectId))).toEqual([])
       const events = await cleanupEvents(f.projectId)

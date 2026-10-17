@@ -50,7 +50,7 @@ const HOME_PATH = '/?home'
 
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
-const responses: { path: string; status: number; location?: string }[] = []
+const responses: { path: string; accept?: string; status: number; location?: string }[] = []
 const startedAt = new Date().toISOString()
 
 async function check(name: string, run: () => Promise<void>) {
@@ -71,17 +71,26 @@ async function check(name: string, run: () => Promise<void>) {
 }
 
 async function get(
-  path: string
-): Promise<{ status: number; location: string | null; body: string }> {
+  path: string,
+  accept?: string
+): Promise<{ status: number; location: string | null; body: string; headers: Headers }> {
   const response = await fetch(new URL(path, baseUrl), {
     redirect: 'manual',
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SimLandingSeoE2E/1.0)' },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; SimLandingSeoE2E/1.0)',
+      ...(accept ? { Accept: accept } : {}),
+    },
     signal: AbortSignal.timeout(30_000),
   })
   const body = await response.text()
   const location = response.headers.get('location')
-  responses.push({ path, status: response.status, ...(location ? { location } : {}) })
-  return { status: response.status, location, body }
+  responses.push({
+    path,
+    ...(accept ? { accept } : {}),
+    status: response.status,
+    ...(location ? { location } : {}),
+  })
+  return { status: response.status, location, body, headers: response.headers }
 }
 
 function robotsDirectives(html: string): string[] {
@@ -332,6 +341,31 @@ async function run() {
       if (!link || new URL(link[1]).pathname !== feed) missing.push(path)
     }
     assert.deepEqual(missing, [])
+  })
+
+  await check('the homepage answers a Markdown request in Markdown', async () => {
+    const markdown = await get(HOME_PATH, 'text/markdown')
+    assert.equal(markdown.status, 200)
+    assert.match(markdown.headers.get('content-type') ?? '', /^text\/markdown/)
+    assert.match(markdown.headers.get('vary') ?? '', /\bAccept\b/)
+    assert.equal(markdown.headers.get('cache-control'), 'no-store')
+    assert.match(markdown.body, /^# Sim: /)
+    assert.match(markdown.body, /\]\([^)]*\/signup\)/)
+
+    const refused = await get(HOME_PATH, 'text/html, text/markdown;q=0')
+    assert.match(refused.headers.get('content-type') ?? '', /^text\/html/)
+
+    const html = await get(HOME_PATH, 'text/html,application/xhtml+xml,*/*;q=0.8')
+    assert.match(html.headers.get('content-type') ?? '', /^text\/html/)
+    assert.match(html.headers.get('vary') ?? '', /\bAccept\b/)
+    const alternate = /<link rel="alternate" type="text\/markdown" href="([^"]+)"/.exec(html.body)
+    assert.ok(alternate, 'homepage HTML does not advertise its Markdown alternate')
+    const alternatePath = new URL(alternate[1]).pathname
+    assert.equal(alternatePath, '/index.md')
+
+    const direct = await get(alternatePath)
+    assert.equal(direct.body, markdown.body)
+    assert.match(direct.headers.get('link') ?? '', /rel="canonical"/)
   })
 }
 

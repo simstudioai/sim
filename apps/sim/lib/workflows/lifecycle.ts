@@ -292,8 +292,16 @@ export async function archiveWorkflowsByIdsInWorkspace(
 
 /**
  * Disables all resources owned by a banned user by archiving every workspace
- * they own (cascading to workflows, chats, KBs, tables, files, etc.)
- * and deleting their personal API keys.
+ * they own (cascading to workflows, chats, KBs, tables, files, etc.),
+ * deleting their personal API keys, and stopping the workflow runs in progress
+ * in every workspace they own once it is archived, including ones archived
+ * earlier. Each archive records Stop for its Chat runs, which they read on their
+ * next run-control call.
+ *
+ * Runs the user started in workspaces they do not own keep going. The log row
+ * has no actor column, and the user it records is the billed account for
+ * schedule and webhook runs, so it cannot tell whose run it is; revoking the
+ * keys and sessions stops the user starting more.
  */
 export async function disableUserResources(userId: string): Promise<void> {
   const requestId = generateRequestId()
@@ -304,20 +312,60 @@ export async function disableUserResources(userId: string): Promise<void> {
   /** Revoked first: the keys are the ban's access boundary, and an archive may fail. */
   await db.delete(apiKey).where(eq(apiKey.userId, userId))
 
-  const ownedWorkspaces = await db
-    .select({ id: workspace.id })
+  const owned = await db
+    .select({ id: workspace.id, archivedAt: workspace.archivedAt })
     .from(workspace)
-    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
+    .where(eq(workspace.ownerId, userId))
+  const ownedWorkspaces = owned.filter((row) => !row.archivedAt)
+
+  const { recordExecutionStops, signalExecutionStops } = await import(
+    '@/lib/execution/removal-stop-records'
+  )
+  /**
+   * Records the workspaces' stops and signals their in-flight runs; the recorded stop's queue
+   * sweep and retries run in the outbox worker, since this module sits in page graphs that must
+   * not load that delivery. Logged, not thrown: the ban and archives have committed, and banning
+   * the user again records the stops again, since every owned workspace is stopped, archived or
+   * not.
+   */
+  let stopFailed = false
+  const stopRuns = async (workspaceIds: string[]): Promise<void> => {
+    if (workspaceIds.length === 0) return
+    try {
+      const executions = await db.transaction((tx) =>
+        recordExecutionStops(tx, { workspaceIds, ownerId: userId })
+      )
+      await signalExecutionStops(executions)
+    } catch (error) {
+      stopFailed = true
+      logger.error(`[${requestId}] Failed to stop runs for banned user ${userId}`, {
+        workspaceIds,
+        error: getErrorMessage(error),
+      })
+    }
+  }
 
   const failures: { workspaceId: string; error: unknown }[] = []
+  /** Workspaces archived before this ban still have the runs an archive leaves going. */
+  const stopping = [stopRuns(owned.filter((row) => row.archivedAt).map((row) => row.id))]
   // Sequential: environments of one Project contend on its exclusive lock.
   for (const row of ownedWorkspaces) {
     try {
-      await archiveWorkspace(row.id, { requestId, expectedOwnerId: userId })
+      await archiveWorkspace(row.id, {
+        requestId,
+        expectedOwnerId: userId,
+        /** Called once the archive commits, before its slower post-commit cleanup. */
+        deliverStops: () => {
+          stopping.push(stopRuns([row.id]))
+        },
+      })
     } catch (error) {
       failures.push({ workspaceId: row.id, error })
     }
   }
+
+  await Promise.all(stopping)
+
   if (failures.length > 0) {
     logger.error(`[${requestId}] Failed to archive workspaces for banned user ${userId}`, {
       failures: failures.map(({ workspaceId, error }) => ({
@@ -332,7 +380,7 @@ export async function disableUserResources(userId: string): Promise<void> {
   }
 
   logger.info(
-    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys`
+    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys, ${stopFailed ? 'failed to stop some of their runs' : 'stopped their runs'}`
   )
 }
 

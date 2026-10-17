@@ -1158,8 +1158,14 @@ function validateVendorHostedUrl(
 
   // These vendors are public SaaS reached over TLS. Enforced here rather than
   // left to the egress policy, which would permit plain HTTP to a host an
-  // operator happened to put in their allowlist.
-  if (/^http:\/\//i.test(candidate)) {
+  // operator happened to put in their allowlist. Checked on the parsed URL:
+  // the parser also reads `http:\\host`, `http:host`, and a scheme split by a
+  // tab or newline as `http://host`.
+  let scheme: string | undefined
+  try {
+    scheme = new URL(candidate).protocol
+  } catch {}
+  if (scheme === 'http:') {
     return { isValid: false, error: `${paramName} must use https://` }
   }
 
@@ -1267,6 +1273,40 @@ export function validateWorkdayTenantUrl(
     suffixes: WORKDAY_ALLOWED_HOST_SUFFIXES,
     vendor: 'Workday',
     paramName,
+  })
+}
+
+const SALESFORCE_ALLOWED_HOST_SUFFIXES = [
+  '.salesforce.com',
+  '.force.com',
+  '.cloudforce.com',
+  '.database.com',
+  '.salesforce.mil',
+  '.sfcrmproducts.cn',
+] as const
+
+/**
+ * Validates a Salesforce org instance URL to prevent SSRF attacks.
+ *
+ * Org API hosts live on Salesforce-owned domains: `*.my.salesforce.com` (including
+ * sandbox, scratch, and legacy `na1.salesforce.com` pods), `*.force.com`, the legacy
+ * `cloudforce.com` and `database.com` hosts, Government Cloud Plus on
+ * `salesforce.mil`, and Salesforce on Alibaba Cloud on `sfcrmproducts.cn`.
+ *
+ * @param url - The instance URL to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult whose `sanitized` value is the https origin
+ */
+export function validateSalesforceInstanceUrl(
+  url: string | null | undefined,
+  paramName = 'instanceUrl'
+): ValidationResult {
+  return validateVendorHostedUrl(url, {
+    suffixes: SALESFORCE_ALLOWED_HOST_SUFFIXES,
+    vendor: 'Salesforce',
+    paramName,
+    sanitize: 'origin',
+    allowBareSuffix: false,
   })
 }
 

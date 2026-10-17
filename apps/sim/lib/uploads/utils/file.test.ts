@@ -5,6 +5,7 @@ import {
   extractWorkspaceIdFromStorageKey,
   inferContextFromKey,
   isInternalFileUrl,
+  observedMediaType,
   processSingleFileToUserFile,
   resolveEffectiveMimeType,
   resolveFileType,
@@ -167,5 +168,19 @@ describe('resolveEffectiveMimeType', () => {
       'audio/webm'
     )
     expect(resolveFileType({ type: 'audio/webm', name: 'clip.webm' })).toBe('audio/webm')
+  })
+})
+
+describe('observedMediaType', () => {
+  it('reads a generated document as the type it renders to, not its source type', () => {
+    expect(observedMediaType('text/x-python-pdf', 'report.pdf')).toBe('application/pdf')
+    expect(observedMediaType('text/x-docxjs', 'brief.docx')).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+  })
+
+  it('reads a stored file as its own base media type', () => {
+    expect(observedMediaType('text/plain; charset=utf-8', 'notes.txt')).toBe('text/plain')
+    expect(observedMediaType('IMAGE/PNG', 'photo.png')).toBe('image/png')
   })
 })

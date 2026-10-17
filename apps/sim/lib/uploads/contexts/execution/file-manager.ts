@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { describeError, getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { getUserFacingErrorMessage } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import type { ExecutionContext } from '@/lib/uploads/contexts/execution/utils'
@@ -197,8 +198,10 @@ export async function uploadExecutionFile(
         })
       }
     }
-    logger.error(`Failed to upload execution file ${fileName}:`, error)
-    throw new Error(`Failed to upload file: ${getErrorMessage(error, 'Unknown error')}`)
+    logger.error(`Failed to upload execution file ${fileName}:`, { cause: describeError(error) })
+    throw new Error(`Failed to upload file: ${getUserFacingErrorMessage(error, 'Unknown error')}`, {
+      cause: error,
+    })
   }
 }
 
