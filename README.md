@@ -77,16 +77,13 @@ macOS 12+, Apple Silicon and Intel. See the [desktop docs](https://docs.sim.ai/d
 
 ## MCP server
 
-Connect Claude, Cursor, VS Code, Codex, or any MCP client to Sim Cloud at `https://mcp.sim.ai/mcp`. Your agent can manage workspaces, run and deploy workflows, and work with tables, knowledge bases, files, and logs. Sign in with OAuth or use an API key.
+Connect Claude, Claude Code, Codex, or any MCP client to Sim Cloud at `https://mcp.sim.ai/mcp`. Your agent can manage workspaces, run and deploy workflows, and work with tables, knowledge bases, files, and logs. Sign in with OAuth or use an API key.
 
-<a href="https://cursor.com/install-mcp?name=sim&config=eyJ1cmwiOiJodHRwczovL21jcC5zaW0uYWkvbWNwIn0%3D" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Add%20to-Cursor-E6E6E6?logo=cursor&logoColor=1A1A1A&labelColor=C3C3C3&color=E6E6E6" alt="Add Sim to Cursor"></a>
-<a href="https://vscode.dev/redirect/mcp/install?name=sim&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.sim.ai%2Fmcp%22%7D" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Install%20in-VS%20Code-E6E6E6?labelColor=C3C3C3&color=E6E6E6" alt="Install Sim in VS Code"></a>
+- **Claude Code:** `claude mcp add --transport http sim https://mcp.sim.ai/mcp`, then open `/mcp` to sign in
+- **Claude:** add `https://mcp.sim.ai/mcp` as a custom connector under **Customize → Connectors**
+- **Codex:** `codex mcp add sim --url https://mcp.sim.ai/mcp`
 
-```bash
-claude mcp add --transport http sim https://mcp.sim.ai/mcp
-```
-
-See the [MCP docs](https://docs.sim.ai/mcp/overview) for every client and for self-hosted URLs.
+See the [MCP docs](https://docs.sim.ai/mcp/overview) for other clients and for self-hosted URLs.
 
 ## Self-hosting
 

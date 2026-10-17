@@ -11,14 +11,14 @@
   },
   "icons": [
     {
-      "src": "https://www.sim.ai/brandbook/icon/green.svg",
-      "mimeType": "image/svg+xml",
-      "sizes": ["any"]
-    },
-    {
       "src": "https://www.sim.ai/favicon/android-chrome-512x512.png",
       "mimeType": "image/png",
       "sizes": ["512x512"]
+    },
+    {
+      "src": "https://www.sim.ai/favicon/android-chrome-192x192.png",
+      "mimeType": "image/png",
+      "sizes": ["192x192"]
     }
   ],
   "remotes": [

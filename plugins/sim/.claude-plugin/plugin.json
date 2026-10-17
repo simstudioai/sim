@@ -11,7 +11,7 @@
   "repository": "https://github.com/simstudioai/sim",
   "license": "Apache-2.0",
   "keywords": ["mcp", "ai-agents", "workflows"],
-  "icon": "./assets/logo.svg",
+  "icon": "./assets/logo.png",
   "mcpServers": {
     "sim": {
       "type": "http",
