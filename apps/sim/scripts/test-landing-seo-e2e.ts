@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import {
   LANDING_INTEGRATION_SLUGS,
@@ -8,6 +8,7 @@ import {
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import matter from 'gray-matter'
 import {
   dustProfile,
   gumloopProfile,
@@ -17,6 +18,7 @@ import {
   pipedreamProfile,
   vellumProfile,
 } from '@/lib/compare/data'
+import { ContentFrontmatterSchema } from '@/lib/content/schema'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
@@ -197,6 +199,34 @@ async function run() {
     }
     assert.deepEqual(failures, [])
   })
+
+  await check(
+    'a library seoTitle and seoDescription are the search and social copy; title stays the H1',
+    async () => {
+      const slug = 'openai-vs-n8n-vs-sim'
+      const source = await readFile(
+        new URL(`../content/library/${slug}/index.mdx`, import.meta.url)
+      )
+      const { title, seoTitle, description, seoDescription } = ContentFrontmatterSchema.parse(
+        matter(source.toString()).data
+      )
+      assert(seoTitle && seoTitle !== title, `${slug} has no distinct seoTitle`)
+      assert(
+        seoDescription && seoDescription !== description,
+        `${slug} has no distinct seoDescription`
+      )
+      const { status, body } = await get(`/library/${slug}`)
+      assert.equal(status, 200)
+      const capture = (pattern: RegExp) => {
+        const value = pattern.exec(body)?.[1]
+        return value === undefined ? undefined : decodeHtml(value)
+      }
+      assert.equal(capture(/<title>([^<]*)<\/title>/), `${seoTitle} | Sim`)
+      assert.equal(capture(/<meta property="og:title" content="([^"]*)"/), seoTitle)
+      assert.equal(capture(/<meta name="description" content="([^"]*)"/), seoDescription)
+      assert.equal(capture(/<h1[^>]*>([^<]*)<\/h1>/), title)
+    }
+  )
 
   await check('docs integration slugs redirect to their landing page', async () => {
     const failures: string[] = []

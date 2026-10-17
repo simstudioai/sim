@@ -26,10 +26,17 @@
  *   belong to `check:site-urls`.
  *   Changelog integration, model, and docs links also resolve against the generated catalogs,
  *   docs source files, and generated OpenAPI operation pages, including reference-style links.
+ * - `search-title` / `search-description`: a published post's search title (`seoTitle ?? title`
+ *   with the " | Sim" suffix) fits in 60 characters and its search description
+ *   (`seoDescription ?? description`) in 160, the lengths Google shows before truncating.
+ *
+ * The two search rules are ratcheted: posts over a limit when the rule landed are listed in
+ * `scripts/check-library-content.baseline.json`. A new offender fails, and so does a baselined
+ * post that now fits. Shrink the baseline with `--update`.
  *
  * Run one post with `--slug <section>/<slug>` or `--slug <slug>`.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { compile } from '@mdx-js/mdx'
 import integrationsJson from '@sim/deployment-config/integrations.json'
@@ -52,7 +59,22 @@ import { foldDocsIndexPath } from '../apps/sim/lib/mothership/docs/path'
 export const SECTIONS = ['blog', 'library', 'customers', 'changelog'] as const
 export type Section = (typeof SECTIONS)[number]
 
-export type Rule = 'frontmatter' | 'slug' | 'og-image' | 'mdx' | 'media' | 'faq' | 'internal-link'
+export type Rule =
+  | 'frontmatter'
+  | 'slug'
+  | 'og-image'
+  | 'mdx'
+  | 'media'
+  | 'faq'
+  | 'internal-link'
+  | SearchRule
+
+const SEARCH_RULES = ['search-title', 'search-description'] as const
+type SearchRule = (typeof SEARCH_RULES)[number]
+/** Appended to every post title by the root layout's `title.template`. */
+const SEARCH_TITLE_SUFFIX = ' | Sim'
+const SEARCH_TITLE_MAX_LENGTH = 60
+const SEARCH_DESCRIPTION_MAX_LENGTH = 160
 
 export interface Finding {
   file: string
@@ -408,6 +430,28 @@ export async function checkPost(
     }
   }
 
+  if (result.success && !result.data.draft) {
+    const { seoTitle, title, seoDescription, description } = result.data
+    const searchTitle = `${seoTitle ?? title}${SEARCH_TITLE_SUFFIX}`
+    if (searchTitle.length > SEARCH_TITLE_MAX_LENGTH) {
+      report(
+        lineOfKey(frontmatterLines, seoTitle ? 'seoTitle' : 'title'),
+        'search-title',
+        `Search title "${searchTitle}" is ${searchTitle.length} characters; Google truncates past ${SEARCH_TITLE_MAX_LENGTH}.`,
+        `${seoTitle ? 'Shorten seoTitle' : 'Add a seoTitle'} to at most ${SEARCH_TITLE_MAX_LENGTH - SEARCH_TITLE_SUFFIX.length} characters, leading with the searched keyword; title stays the H1.`
+      )
+    }
+    const searchDescription = seoDescription ?? description
+    if (searchDescription.length > SEARCH_DESCRIPTION_MAX_LENGTH) {
+      report(
+        lineOfKey(frontmatterLines, seoDescription ? 'seoDescription' : 'description'),
+        'search-description',
+        `Search description is ${searchDescription.length} characters; Google truncates past ${SEARCH_DESCRIPTION_MAX_LENGTH}.`,
+        `${seoDescription ? 'Shorten seoDescription' : 'Add a seoDescription'} to at most ${SEARCH_DESCRIPTION_MAX_LENGTH} characters; description stays the on-page summary.`
+      )
+    }
+  }
+
   if (Array.isArray(data.authors)) {
     for (const author of data.authors) {
       if (typeof author === 'string' && !authorIds.has(author)) {
@@ -719,6 +763,91 @@ function readLinkedPages(docsAppDir: string): Set<string> {
   return pages
 }
 
+type SearchBaseline = Record<SearchRule, string[]>
+
+function isSearchRule(rule: Rule): rule is SearchRule {
+  return (SEARCH_RULES as readonly Rule[]).includes(rule)
+}
+
+/** `<section>/<slug>` of the post a finding belongs to. */
+function postKey(contentDir: string, file: string): string {
+  return path.relative(contentDir, path.dirname(file)).split(path.sep).join('/')
+}
+
+/**
+ * The committed search-length baseline. A missing file fails closed: restore it from git.
+ * `--update --init` is the only way to create one, and it accepts every current offender.
+ */
+function readSearchBaseline(file: string, current: SearchBaseline, init: boolean): SearchBaseline {
+  if (existsSync(file)) {
+    return JSON.parse(readFileSync(file, 'utf-8')) as SearchBaseline
+  }
+  if (init) return current
+  console.error(
+    `${path.basename(file)} is missing. Restore it from git; create a new one only with --update --init.`
+  )
+  process.exit(1)
+}
+
+/**
+ * Drops baselined search-length findings, and on a full run reports baseline entries that no
+ * longer occur. With `update`, rewrites the baseline shrunk to the current offenders, or exits
+ * without writing when a post is over a limit that the baseline does not already hold.
+ */
+function applySearchBaseline(
+  findings: Finding[],
+  contentDir: string,
+  baselineFile: string,
+  { fullRun, update, init }: { fullRun: boolean; update: boolean; init: boolean }
+): Finding[] {
+  const current: SearchBaseline = { 'search-title': [], 'search-description': [] }
+  for (const finding of findings) {
+    if (isSearchRule(finding.rule)) current[finding.rule].push(postKey(contentDir, finding.file))
+  }
+  const baseline = readSearchBaseline(baselineFile, current, init)
+  const isBaselined = (rule: SearchRule, key: string) => baseline[rule].includes(key)
+
+  if (update) {
+    const added = SEARCH_RULES.flatMap((rule) =>
+      current[rule].filter((key) => !isBaselined(rule, key)).map((key) => `${rule} ${key}`)
+    )
+    if (added.length > 0) {
+      console.error(
+        `Refusing to add to the baseline; fix these posts instead:\n${added.map((entry) => `  ${entry}`).join('\n')}`
+      )
+      process.exit(1)
+    }
+    const next: SearchBaseline = {
+      'search-title': [...current['search-title']].sort(),
+      'search-description': [...current['search-description']].sort(),
+    }
+    writeFileSync(baselineFile, `${JSON.stringify(next, null, 2)}\n`)
+    console.log(
+      `Wrote ${SEARCH_RULES.map((rule) => `${next[rule].length} ${rule}`).join(', ')} baseline entries.`
+    )
+    return findings.filter((finding) => !isSearchRule(finding.rule))
+  }
+
+  const kept = findings.filter(
+    (finding) =>
+      !isSearchRule(finding.rule) || !isBaselined(finding.rule, postKey(contentDir, finding.file))
+  )
+  if (!fullRun) return kept
+  for (const rule of SEARCH_RULES) {
+    for (const key of baseline[rule]) {
+      if (current[rule].includes(key)) continue
+      kept.push({
+        file: baselineFile,
+        line: 1,
+        rule,
+        message: `${key} is baselined for ${rule} but no longer exceeds the limit.`,
+        hint: 'Shrink the baseline: bun run scripts/check-library-content.ts --update',
+      })
+    }
+  }
+  return kept
+}
+
 async function main() {
   const root = path.resolve(import.meta.dir, '..')
   const appDir = path.join(root, 'apps/sim')
@@ -735,10 +864,13 @@ async function main() {
   }
 
   const args = process.argv.slice(2)
+  const update = args.includes('--update')
   const flagIndex = args.indexOf('--slug')
   const slugArg = flagIndex === -1 ? args.find((arg) => !arg.startsWith('-')) : args[flagIndex + 1]
   if (flagIndex !== -1 && !slugArg) {
-    console.error('Usage: bun run check:library-content [--slug <section>/<slug> | <slug>]')
+    console.error(
+      'Usage: bun run check:library-content [--slug <section>/<slug> | <slug>] [--update]'
+    )
     process.exit(1)
   }
 
@@ -748,6 +880,10 @@ async function main() {
     const resolved = resolvePostArg(slugArg, indexPosts(config.contentDir))
     if (typeof resolved === 'string') {
       console.error(resolved)
+      process.exit(1)
+    }
+    if (update) {
+      console.error('--update rewrites the whole baseline; run it without --slug.')
       process.exit(1)
     }
     only = resolved
@@ -762,7 +898,14 @@ async function main() {
   }
 
   const result = await checkContent(config, only)
-  findings.push(...result.findings)
+  findings.push(
+    ...applySearchBaseline(
+      result.findings,
+      config.contentDir,
+      path.join(root, 'scripts/check-library-content.baseline.json'),
+      { fullRun: !only, update, init: update && args.includes('--init') }
+    )
+  )
 
   if (findings.length > 0) {
     findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
