@@ -703,6 +703,36 @@ async function forfeitFreeTierAllowance(userId: string): Promise<void> {
 }
 
 /**
+ * Withholds the free allowance from a `user_stats` row the caller just created
+ * in `tx`, when the user's email belongs to an account deleted within the
+ * retention window: the email-only check {@link ensureUserStatsExists} makes for
+ * its fallback row, on the caller's transaction so the row never commits
+ * holding an allowance it should not. Call it only when the insert created the
+ * row, so an existing row costs nothing. Runs in a savepoint and fails open: a
+ * failure leaves the row eligible and the caller's transaction intact.
+ */
+export async function withholdFreeAllowanceFromCreatedStatsRow(
+  tx: DbOrTx,
+  userId: string
+): Promise<void> {
+  if (!(await userHasDeletedAccountIdentity(userId, { includeSignIns: false }, tx))) return
+  try {
+    await tx.transaction(async (savepoint) => {
+      await savepoint
+        .update(userStats)
+        .set({ freeTierEligible: false })
+        .where(eq(userStats.userId, userId))
+      await syncUsageLimitsFromSubscription(userId, savepoint)
+    })
+    logger.info('Withheld the free allowance from a returning deleted-account identity', {
+      userId,
+    })
+  } catch (error) {
+    logger.error('Failed to withhold the free allowance from a new stats row', { userId, error })
+  }
+}
+
+/**
  * Syncs the user's personal billing pool from their exact personal subscription.
  * Organization subscriptions have a separate pool and never clear personal limits.
  */

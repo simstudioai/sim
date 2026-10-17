@@ -17,6 +17,7 @@ import {
   handleNewUser,
   syncUsageLimitsFromSubscription,
 } from '@/lib/billing/core/usage'
+import { checkAndIncrementStorageUsageInTx } from '@/lib/billing/storage/tracking'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { purgeExpiredDeletedAccountIdentities } from '@/lib/users/deleted-identity'
@@ -248,6 +249,28 @@ describe('deleted account identities and the free allowance', () => {
 
     expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
     expect(await statsOf(stranger)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+  })
+
+  it('withholds the allowance from a stats row a storage write creates', async () => {
+    const email = `storage.${generateId()}@deleted-identity.test`
+    await deleteOwnAccount(await signUp(email))
+    const returning = await insertUser(email)
+    const stranger = await insertUser(`storage-stranger.${generateId()}@deleted-identity.test`)
+    const store = (userId: string) =>
+      db.transaction((tx) => checkAndIncrementStorageUsageInTx(tx, null, userId, 1024))
+
+    const first = await store(returning)
+    const second = await store(returning)
+    await store(stranger)
+
+    expect([first.allowed, second.allowed]).toEqual([true, true])
+    expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
+    expect(await statsOf(stranger)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    const [stored] = await db
+      .select({ bytes: userStats.storageUsedBytes })
+      .from(userStats)
+      .where(eq(userStats.userId, returning))
+    expect(stored.bytes).toBe(2048)
   })
 
   it('never withholds from a stats-less user’s fallback row for a sign-in linked in a later request', async () => {

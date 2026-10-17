@@ -24,6 +24,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { withholdFreeAllowanceFromCreatedStatsRow } from '@/lib/billing/core/usage'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import type {
   ProjectStorageBillingContext,
@@ -771,7 +772,8 @@ export async function incrementAdmittedStorageUsageForBillingContextInTx(
  * matches 0 rows, and therefore reads as "quota exceeded", if that row
  * doesn't exist yet. `ensureUserStatsExists` itself isn't reused here since
  * it writes through the standalone `db` client, which would open a second
- * pooled connection while this transaction's is held.
+ * pooled connection while this transaction's is held; a row created here gets
+ * its deleted-identity check on `tx` instead.
  */
 export async function checkAndIncrementStorageUsageInTx(
   tx: DbOrTx,
@@ -792,7 +794,7 @@ export async function checkAndIncrementStorageUsageInTx(
   const orgScoped = isOrgScopedSubscription(sub, userId) && sub
 
   if (!orgScoped) {
-    await tx
+    const created = await tx
       .insert(userStats)
       .values({
         id: generateId(),
@@ -801,6 +803,8 @@ export async function checkAndIncrementStorageUsageInTx(
         usageLimitUpdatedAt: new Date(),
       })
       .onConflictDoNothing({ target: userStats.userId })
+      .returning({ id: userStats.id })
+    if (created.length > 0) await withholdFreeAllowanceFromCreatedStatsRow(tx, userId)
   }
 
   const [updated] = orgScoped
