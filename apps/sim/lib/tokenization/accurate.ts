@@ -43,8 +43,10 @@ const O200K_MODEL_FAMILY = /^(?:gpt-(?:4o|4\.1|4\.5|5|6|oss)|chatgpt-4o|o\d)/
  * The encoding for a model id. Exact OpenAI names resolve through `js-tiktoken`; newer
  * OpenAI ids resolve by family; every other model (Claude, Gemini, …) has no public
  * tiktoken encoding and is approximated with `cl100k_base`.
+ *
+ * @public The token counter reaches this through a lazy `import()` knip cannot trace.
  */
-function resolveEncodingName(modelName: string): TiktokenEncoding {
+export function resolveEncodingName(modelName: string): TiktokenEncoding {
   const cached = encodingNameByModel.get(modelName)
   if (cached) return cached
   let encodingName: TiktokenEncoding

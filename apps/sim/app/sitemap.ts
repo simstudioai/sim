@@ -12,6 +12,7 @@ import {
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
 import {
   MODEL_PROVIDERS_WITH_CATALOGS,
   MODEL_PROVIDERS_WITH_MODELS,
@@ -150,6 +151,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/models`,
       lastModified: latestModelDate,
     },
+    ...Object.values(MODEL_TOOLS).map((tool) => ({
+      url: `${baseUrl}${tool.href}`,
+      lastModified: latestModelDate,
+    })),
     {
       url: `${baseUrl}/terms`,
       lastModified: new Date('2024-10-14'),

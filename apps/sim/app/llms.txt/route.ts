@@ -10,6 +10,7 @@ import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
 import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 import {
   DOCS_LINE,
@@ -90,6 +91,9 @@ export async function GET() {
           'Models',
           '/models',
           'Every supported model with pricing, context window, and capabilities'
+        ),
+        ...Object.values(MODEL_TOOLS).map((tool) =>
+          linkLine(tool.name, tool.href, tool.description)
         ),
         ...MODEL_PROVIDERS_WITH_CATALOGS.map((provider) =>
           linkLine(`${provider.name} models`, provider.href, provider.description)

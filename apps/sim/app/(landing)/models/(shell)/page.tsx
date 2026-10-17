@@ -10,7 +10,9 @@ import {
   FeaturedModelCard,
   FeaturedProviderCard,
 } from '@/app/(landing)/models/components/model-primitives'
+import { ModelToolLink } from '@/app/(landing)/models/components/model-tool-link'
 import { modelsSearchParamsCache } from '@/app/(landing)/models/search-params'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
 import {
   ALL_CATALOG_MODELS,
   getPricingBounds,
@@ -222,6 +224,18 @@ export default async function ModelsPage({
                 <div className='h-px w-full bg-[var(--border)]' />
               </>
             )}
+
+            <nav aria-label='Free tools' className='flex flex-col sm:flex-row'>
+              {Object.values(MODEL_TOOLS).map((tool) => (
+                <ModelToolLink
+                  key={tool.href}
+                  href={tool.href}
+                  title={tool.name}
+                  description={tool.description}
+                />
+              ))}
+            </nav>
+            <div className='h-px w-full bg-[var(--border)]' />
 
             <ModelComparisonCharts models={ALL_CATALOG_MODELS} />
 
