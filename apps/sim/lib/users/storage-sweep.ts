@@ -62,6 +62,13 @@ const OBJECTS_PER_EVENT = 100
 const MAX_PAGE_TOKEN_LENGTH = 4096
 
 /**
+ * Runs one workspace sweep may continue on a moved listing position alone. Provider cursors are
+ * opaque, so nothing here proves one never revisits a position; past this, a run that only moved
+ * its position spends an attempt, keeping the sweep bounded even by a cursor that cycles.
+ */
+const MAX_POSITION_RESUMES = 1000
+
+/**
  * Ceiling on exact keys one deletion records for durable cleanup. Past it the rest are logged
  * and left; the workspace prefix sweeps are unaffected, since they list storage instead.
  */
@@ -101,6 +108,8 @@ interface WorkspaceSweepPayload {
   family: number
   /** Listing position inside `family` a stopped run saved; absent from events queued before it. */
   pageToken?: string
+  /** Runs continued on a moved listing position alone; see {@link MAX_POSITION_RESUMES}. */
+  resumes: number
 }
 
 interface ObjectCleanupPayload {
@@ -135,7 +144,10 @@ function parseWorkspaceSweep(value: unknown): WorkspaceSweepPayload {
       pageToken.length > MAX_PAGE_TOKEN_LENGTH)
   )
     throw new Error('Invalid workspace storage sweep page token')
-  return { workspaceId: value.workspaceId, family, ...(pageToken ? { pageToken } : {}) }
+  const resumes = value.resumes ?? 0
+  if (typeof resumes !== 'number' || !Number.isSafeInteger(resumes) || resumes < 0)
+    throw new Error('Invalid workspace storage sweep resume count')
+  return { workspaceId: value.workspaceId, family, resumes, ...(pageToken ? { pageToken } : {}) }
 }
 
 function isSafeKey(key: string): boolean {
@@ -294,7 +306,8 @@ async function sweepWorkspacePrefix(
  * recovery), so the sweep stops without touching storage; it looks again before every page it
  * deletes from. A run stopped by its deadline saves its listing position, so a family whose early
  * pages are all kept still reaches the objects behind them; moving that position counts as
- * progress, except after a restart from the start, so a cursor that never lists stays bounded.
+ * progress, except after a restart from the start or past {@link MAX_POSITION_RESUMES}, so a
+ * cursor that never lists or never ends stays bounded by the attempt budget.
  */
 const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
   const payload = parseWorkspaceSweep(raw)
@@ -331,8 +344,10 @@ const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
       return deferOutboxHandler('Workspace storage sweep made no progress on a full listing page')
     if (result.status === 'partial') {
       if (result.pageToken !== startToken) {
-        await context.checkpointPayload({ family, pageToken: result.pageToken ?? null })
-        if (!result.restarted) progressed = true
+        const movedOnly = !progressed && !result.restarted
+        const resumes = payload.resumes + (movedOnly ? 1 : 0)
+        await context.checkpointPayload({ family, pageToken: result.pageToken ?? null, resumes })
+        if (movedOnly && resumes <= MAX_POSITION_RESUMES) progressed = true
       }
       return progressed
         ? continueOutboxHandler('Continuing workspace storage sweep')

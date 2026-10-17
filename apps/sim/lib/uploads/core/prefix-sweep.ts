@@ -173,6 +173,8 @@ export async function listStorageKeyPage(
         : undefined
     )
   }
+  if (pageToken && !pageToken.startsWith(prefix))
+    throw new Error('Local storage page token is not a key under the prefix')
   const keys = await localKeys(prefix, signal, pageToken)
   return keyPage(keys, keys.length < STORAGE_KEY_PAGE_SIZE ? undefined : keys[keys.length - 1])
 }
