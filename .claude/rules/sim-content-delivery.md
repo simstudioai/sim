@@ -30,8 +30,8 @@ the workflow executor see byte-identical results.
 
 A run Chat starts executes as Chat's principal, so `executeWorkflowCore` runs every execution under
 `runWorkflowOutsideContentDelivery`, where that principal reads like any other. What the run returns
-is gated where Chat started it: run execute/resume withhold unadmitted inline file bytes
-(`withholdUnadmittedInlineFiles`); Chat's run tools return no file bytes.
+is gated where Chat started it: run execute/resume keep inline file bytes only for admitted files
+(`withholdUnadmittedInlineFiles`), and Chat's in-app run tools strip `base64` from their result.
 
 ## The pieces
 

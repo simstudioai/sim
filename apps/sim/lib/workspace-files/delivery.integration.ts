@@ -41,6 +41,7 @@ import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64
 import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 import { readWorkspaceInlineFile } from '@/lib/workspace-files/application/read-workspace-inline-file'
 import { createFileReadReceipt, recheckFileReadReceipt } from '@/lib/workspace-files/read-receipt'
+import type { UserFile } from '@/executor/types'
 
 const uploadRoot = mkdtempSync(join(tmpdir(), 'sim-delivery-test-'))
 setUploadDirServer(uploadRoot)
@@ -315,7 +316,7 @@ describe('A workflow run Chat started reads workspace files as any run does', ()
     if (provenance === 'unknown') {
       await markWorkspaceFileSecretProvenanceUnknown(f.workspaceId, [uploaded.id])
     }
-    const file = {
+    const file: UserFile = {
       id: uploaded.id,
       name: uploaded.name,
       url: uploaded.url,

@@ -119,14 +119,16 @@ function isOptionalMemoryStorageFailure(error: unknown): boolean {
 }
 
 /**
- * The attachments each message sends to the model. A storage key pins its bytes, so a file attached
- * on several turns is sent once, where it first appears, keeping the replayed prefix stable across
- * runs; a message with no text keeps its own so it is never sent empty.
+ * The attachments each message sends to the model. A storage key pins its bytes, so a file a user
+ * attached on several turns is sent once, where it first appears, keeping the replayed prefix
+ * stable across runs; a user turn with no text keeps its own so it is never sent empty. Only user
+ * turns are deduplicated: every provider sends their attachments, while some drop other roles'.
  */
 export function selectReplayAttachments(messages: readonly Message[]): UserFile[][] {
   const sent = new Set<string>()
   return messages.map((message) => {
     const files = message.files ?? []
+    if (message.role !== 'user') return files
     const unsent = files.filter((file) => {
       const identity = file.key || file.id
       if (sent.has(identity)) return false

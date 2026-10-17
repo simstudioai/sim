@@ -780,6 +780,29 @@ describe('AgentBlockHandler', () => {
       expect(userTurns.map((message) => message.files?.length)).toEqual([1, 1, undefined])
       hydrate.mockRestore()
     })
+
+    it('keeps a user turn’s file when only an earlier assistant turn carried it', async () => {
+      mockGetProviderFromModel.mockReturnValue('openai')
+      const hydrate = hydrateWithBytes()
+      queueTableRows(schemaMock.memory, [
+        {
+          secretProvenanceVersion: null,
+          data: [
+            { role: 'assistant', content: 'Here is a file', files: [file] },
+            { role: 'user', content: 'Read it', files: [file] },
+          ],
+        },
+      ])
+      await handler.execute({ ...mockContext, executionId: 'exec-3' }, mockBlock, {
+        model: 'gpt-4o',
+        memoryType: 'conversation',
+        conversationId: 'conversation-1',
+        messages: [{ role: 'user', content: 'And now?' }],
+      })
+      const sent = mockExecuteProviderRequest.mock.calls.at(-1)?.[1].messages as Message[]
+      expect(sent.find((message) => message.content === 'Read it')?.files).toHaveLength(1)
+      hydrate.mockRestore()
+    })
   })
 
   describe('model fallback', () => {
