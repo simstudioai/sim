@@ -682,14 +682,19 @@ describe('async preprocessing correlation threading', () => {
     }
 
     it.each([
-      { statusCode: 404, message: 'Workflow not found' },
-      { statusCode: 403, message: 'Workflow is not deployed', code: 'WORKFLOW_NOT_DEPLOYED' },
+      { statusCode: 404, message: 'Workflow not found', workflowState: 'not_found' },
+      {
+        statusCode: 403,
+        message: 'Workflow is not deployed',
+        code: 'WORKFLOW_NOT_DEPLOYED',
+        workflowState: 'not_deployed',
+      },
       {
         statusCode: 403,
         message:
           'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
+        workflowState: 'not_attached',
       },
-      { statusCode: 403, message: 'Account suspended', code: 'ACCOUNT_SUSPENDED' },
     ])('completes the job for a $statusCode $message that never started a log', async (error) => {
       loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
 
@@ -701,40 +706,55 @@ describe('async preprocessing correlation threading', () => {
       })
     })
 
-    it.each([
-      { statusCode: 402, message: 'Usage limit exceeded. Please upgrade your plan to continue.' },
-      { statusCode: 429, message: 'Rate limit exceeded. Please try again later.' },
-    ])(
-      'completes the job for a logged $statusCode quota rejection',
-      async ({ statusCode, message }) => {
-        loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(true)
+    const loggedRejections = [
+      {
+        statusCode: 402,
+        message: 'Usage limit exceeded. Please upgrade your plan to continue.',
+        code: 'USAGE_LIMIT_EXCEEDED',
+      },
+      {
+        statusCode: 402,
+        message: 'Usage headroom exhausted',
+        code: 'EXECUTION_PAYER_HEADROOM_EXHAUSTED',
+        retryable: false,
+      },
+      {
+        statusCode: 429,
+        message: 'Rate limit exceeded. Please try again later.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      },
+      { statusCode: 403, message: 'Account suspended', code: 'ACCOUNT_SUSPENDED' },
+    ]
 
-        await expect(runRejected({ statusCode, message })).resolves.toMatchObject({
-          success: false,
-          workflowId: 'workflow-1',
-          executionId: 'execution-rejected',
-          error: message,
-        })
-        expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
-          expect.objectContaining({ error: expect.objectContaining({ message }) })
-        )
+    it.each(loggedRejections)('completes the job for a logged $code rejection', async (error) => {
+      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(true)
+
+      await expect(runRejected(error)).resolves.toMatchObject({
+        success: false,
+        workflowId: 'workflow-1',
+        executionId: 'execution-rejected',
+        error: error.message,
+      })
+      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.objectContaining({ message: error.message }) })
+      )
+    })
+
+    it.each(loggedRejections)(
+      'fails the job when a $code rejection could not be logged',
+      async (error) => {
+        loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
+
+        await expect(runRejected(error)).rejects.toThrow(error.message)
       }
     )
-
-    it.each([
-      { statusCode: 402, message: 'Usage limit exceeded. Please upgrade your plan to continue.' },
-      { statusCode: 429, message: 'Rate limit exceeded. Please try again later.' },
-    ])('fails the job when a $statusCode quota rejection could not be logged', async (error) => {
-      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
-
-      await expect(runRejected(error)).rejects.toThrow(error.message)
-    })
 
     it.each([
       { statusCode: 429, message: 'Too many concurrent executions', retryable: true },
       { statusCode: 402, message: 'Usage is temporarily unavailable', retryable: true },
       { statusCode: 503, message: 'Usage admission is temporarily unavailable', retryable: true },
       { statusCode: 500, message: 'Internal error while fetching workflow' },
+      { statusCode: 404, message: 'Workflow not found' },
     ])('fails the job for $statusCode $message', async (error) => {
       await expect(runRejected(error)).rejects.toThrow(error.message)
     })
