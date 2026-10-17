@@ -347,7 +347,7 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     expect(mockEnqueueResume.mock.calls[0]?.[2]).not.toHaveProperty('jobId')
   })
 
-  it('uses deterministic dispatch and execution polling for the v2 surface', async () => {
+  it('uses deterministic dispatch for the v2 surface', async () => {
     mockGetPausedExecutionDetail.mockResolvedValueOnce(
       createPausedExecution({ executionMode: 'async' })
     )
