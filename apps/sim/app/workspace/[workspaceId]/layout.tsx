@@ -150,7 +150,7 @@ async function WorkspaceContent({
     isWorkflowTestsEnabled(hostContext.hostOrganizationId),
     isChangelogEnabled(hostContext.hostOrganizationId),
     hasDesktopBackgroundExecutor(session.user.id),
-    isComputerUseAvailable(),
+    isComputerUseAvailable(hostContext.hostOrganizationId),
     isProjectsEnabled(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),

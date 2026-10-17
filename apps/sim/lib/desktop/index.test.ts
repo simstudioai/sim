@@ -62,8 +62,12 @@ describe('desktop surface availability', () => {
         terminalEnabled: false,
       })
       requestAvailability.mockResolvedValueOnce({ enabled: rollout })
-      const result = await getDesktopChatCapabilities('chat-1', true)
+      const result = await getDesktopChatCapabilities('chat-1', { workspaceId: 'ws-1' })
       expect(result.desktopCapabilities?.computerUse ?? false).toBe(expected)
+      expect(requestAvailability).toHaveBeenCalledWith(
+        expect.objectContaining({ path: '/api/desktop/computer/availability' }),
+        expect.objectContaining({ query: { workspaceId: 'ws-1' } })
+      )
     }
   )
   it('leaves ordinary chat capabilities independent of computer use while rollout is off', async () => {
@@ -75,7 +79,7 @@ describe('desktop surface availability', () => {
       browserAgent: { getKnownSessions: vi.fn(async () => ({ sessions: [] })) },
     })
     requestAvailability.mockResolvedValue({ enabled: false })
-    const result = await getDesktopChatCapabilities('chat-1', false)
+    const result = await getDesktopChatCapabilities('chat-1', null)
     expect(requestAvailability).not.toHaveBeenCalled()
     expect(getStatus).not.toHaveBeenCalled()
     expect(result.desktopCapabilities).toMatchObject({
@@ -95,7 +99,7 @@ describe('desktop surface availability', () => {
       terminalEnabled: false,
     })
     requestAvailability.mockReturnValueOnce(rollout.promise)
-    const result = getDesktopChatCapabilities('chat-1', true)
+    const result = getDesktopChatCapabilities('chat-1', { workspaceId: 'ws-1' })
     await vi.waitFor(() => expect(requestAvailability).toHaveBeenCalledOnce())
     expect(getStatus).not.toHaveBeenCalled()
     rollout.resolve({ enabled: false })
@@ -113,7 +117,8 @@ describe('desktop surface availability', () => {
     })
     requestAvailability.mockRejectedValueOnce(new Error('offline'))
     expect(
-      (await getDesktopChatCapabilities('chat-1', true)).desktopCapabilities?.computerUse
+      (await getDesktopChatCapabilities('chat-1', { workspaceId: 'ws-1' })).desktopCapabilities
+        ?.computerUse
     ).toBeUndefined()
     expect(getStatus).not.toHaveBeenCalled()
   })
@@ -143,12 +148,12 @@ describe('desktop surface availability', () => {
       browserEnabled: false,
       terminalEnabled: false,
     })
-    expect(await getDesktopChatCapabilities('org-chat', false)).toMatchObject({
+    expect(await getDesktopChatCapabilities('org-chat', null)).toMatchObject({
       desktopCapabilities: { localFiles: true },
     })
     installBridge({})
     expect(
-      (await getDesktopChatCapabilities('org-chat', false)).desktopCapabilities?.localFiles
+      (await getDesktopChatCapabilities('org-chat', null)).desktopCapabilities?.localFiles
     ).toBeUndefined()
   })
 
@@ -160,7 +165,9 @@ describe('desktop surface availability', () => {
     })
     const offerFrom = async (bridge: Record<string, unknown>) => {
       installBridge({ localFiles: vi.fn(), ...bridge })
-      const { desktopCapabilities } = await getDesktopChatCapabilities('chat-1', true)
+      const { desktopCapabilities } = await getDesktopChatCapabilities('chat-1', {
+        workspaceId: 'ws-1',
+      })
       return { deviceId: desktopCapabilities?.deviceId, executor: desktopCapabilities?.executor }
     }
     const unset = { deviceId: undefined, executor: undefined }
@@ -208,7 +215,7 @@ describe('desktop surface availability', () => {
       browserEnabled: false,
     })
 
-    const capabilities = await getDesktopChatCapabilities('chat-1', true)
+    const capabilities = await getDesktopChatCapabilities('chat-1', { workspaceId: 'ws-1' })
 
     expect(capabilities.desktopCapabilities?.terminals).toEqual([
       {

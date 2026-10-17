@@ -43,8 +43,8 @@ const {
   mockSearchIntegrationToolsEnabled: vi.fn(async () => true),
 }))
 
-vi.mock('@/lib/computer-use/availability.server', () => ({
-  isComputerUseAvailable: mockComputerUseAvailable,
+vi.mock('@/lib/computer-use/application/availability', () => ({
+  isComputerUseAvailableFor: mockComputerUseAvailable,
 }))
 
 vi.mock('@/lib/mothership/feature-flags', () => ({
@@ -811,21 +811,27 @@ describe('Assistant payload', () => {
 })
 
 describe('desktop request capabilities', () => {
-  it.each([false, true])(
-    'rechecks the server rollout for a forged computer capability (enabled=%s)',
-    async (enabled) => {
+  it.each([
+    [false, { workspaceId: 'workspace' }],
+    [true, { workspaceId: 'workspace' }],
+    [true, { organizationId: 'organization' }],
+  ])(
+    "rechecks the chat owner's rollout for a forged computer capability (enabled=%s, %j)",
+    async (enabled, owner) => {
+      const principal = { kind: 'session', userId: 'user', sessionId: 'session' } as const
       mockComputerUseAvailable.mockResolvedValueOnce(enabled)
       const payload = await buildCopilotRequestPayload({
         message: 'Use Notes',
-        workspaceId: 'workspace',
+        ...owner,
         userId: 'user',
+        principal,
         userMessageId: 'message',
         mode: 'agent',
         model: 'gpt-6-astra',
         computerUse: true,
       })
       expect(payload.desktop?.computerUse ?? false).toBe(enabled)
-      expect(mockComputerUseAvailable).toHaveBeenCalledWith()
+      expect(mockComputerUseAvailable).toHaveBeenCalledWith(principal, owner)
     }
   )
 
