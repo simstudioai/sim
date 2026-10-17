@@ -109,18 +109,34 @@ type LegacyWorkflowExecutionPayload = Omit<WorkflowExecutionPayload, 'principal'
 type WorkflowExecutionJobPayload = WorkflowExecutionPayload | LegacyWorkflowExecutionPayload
 
 /**
- * Preprocessing rejections that are an outcome of the workflow's or account's
- * state — deleted or undeployed workflow, suspended account, exhausted usage
- * or rate quota — rather than a fault. A retryable rejection (concurrency
+ * Rejections read from the workflow's own state — deleted, archived, undeployed,
+ * not attached to a workspace, or a suspended account. Preprocessing returns
+ * these only after a successful read (a failed read is a 5xx), and not-found
+ * and undeployed rejections never write an execution log, so the job completes
+ * without waiting for one.
+ */
+const WORKFLOW_STATE_REJECTION_STATUS_CODES: ReadonlySet<number> = new Set([403, 404])
+
+/**
+ * Exhausted usage or rate quota. These rejections write an execution log, so
+ * the job completes only once that log is saved; an unsaved one (an outage)
+ * still fails the job and alerts.
+ */
+const QUOTA_REJECTION_STATUS_CODES: ReadonlySet<number> = new Set([402, 429])
+
+/**
+ * Whether a preprocessing rejection is an outcome of the workflow's or
+ * account's state rather than a fault. A retryable rejection (concurrency
  * capacity, an unreadable usage ledger, reservation infrastructure) and every
  * 5xx still fail the job.
  */
-const NON_FAULT_PREPROCESSING_STATUS_CODES: ReadonlySet<number> = new Set([402, 403, 404, 429])
-
-function isNonFaultPreprocessingRejection(rejection: PreprocessExecutionError): boolean {
-  return (
-    NON_FAULT_PREPROCESSING_STATUS_CODES.has(rejection.statusCode) && rejection.retryable !== true
-  )
+function isNonFaultPreprocessingRejection(
+  rejection: PreprocessExecutionError,
+  rejectionLogged: boolean
+): boolean {
+  if (rejection.retryable === true) return false
+  if (WORKFLOW_STATE_REJECTION_STATUS_CODES.has(rejection.statusCode)) return true
+  return QUOTA_REJECTION_STATUS_CODES.has(rejection.statusCode) && rejectionLogged
 }
 
 /** Completes the job with a failure already in the execution log, keeping it on the run's span. */
@@ -378,11 +394,9 @@ export async function executeWorkflowJob(
         const scopeDeletedOnCompletion = loggingSession.getDeletedScope()
         if (scopeDeletedOnCompletion) return completeWithDeletedScope(scopeDeletedOnCompletion)
 
-        // Complete only when the rejection is durably logged; an unsaved one must still alert.
         if (
           preprocessingRejection &&
-          isNonFaultPreprocessingRejection(preprocessingRejection) &&
-          loggingSession.hasCompleted()
+          isNonFaultPreprocessingRejection(preprocessingRejection, loggingSession.hasCompleted())
         ) {
           return completeWithRecordedFailure(workflowId, executionId, error)
         }

@@ -683,28 +683,51 @@ describe('async preprocessing correlation threading', () => {
 
     it.each([
       { statusCode: 404, message: 'Workflow not found' },
-      { statusCode: 403, message: 'Workflow is not deployed' },
-      { statusCode: 402, message: 'Usage limit exceeded. Please upgrade your plan to continue.' },
-      { statusCode: 429, message: 'Rate limit exceeded. Please try again later.' },
-    ])('completes the job for a non-retryable $statusCode', async ({ statusCode, message }) => {
-      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(true)
-      await expect(runRejected({ statusCode, message })).resolves.toMatchObject({
+      { statusCode: 403, message: 'Workflow is not deployed', code: 'WORKFLOW_NOT_DEPLOYED' },
+      {
+        statusCode: 403,
+        message:
+          'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot execute.',
+      },
+      { statusCode: 403, message: 'Account suspended', code: 'ACCOUNT_SUSPENDED' },
+    ])('completes the job for a $statusCode $message that never started a log', async (error) => {
+      loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
+
+      await expect(runRejected(error)).resolves.toMatchObject({
         success: false,
         workflowId: 'workflow-1',
         executionId: 'execution-rejected',
-        error: message,
+        error: error.message,
       })
-      expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
-        expect.objectContaining({ error: expect.objectContaining({ message }) })
-      )
     })
 
-    it('fails the job when the rejection could not be logged', async () => {
+    it.each([
+      { statusCode: 402, message: 'Usage limit exceeded. Please upgrade your plan to continue.' },
+      { statusCode: 429, message: 'Rate limit exceeded. Please try again later.' },
+    ])(
+      'completes the job for a logged $statusCode quota rejection',
+      async ({ statusCode, message }) => {
+        loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(true)
+
+        await expect(runRejected({ statusCode, message })).resolves.toMatchObject({
+          success: false,
+          workflowId: 'workflow-1',
+          executionId: 'execution-rejected',
+          error: message,
+        })
+        expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
+          expect.objectContaining({ error: expect.objectContaining({ message }) })
+        )
+      }
+    )
+
+    it.each([
+      { statusCode: 402, message: 'Usage limit exceeded. Please upgrade your plan to continue.' },
+      { statusCode: 429, message: 'Rate limit exceeded. Please try again later.' },
+    ])('fails the job when a $statusCode quota rejection could not be logged', async (error) => {
       loggingSessionMockFns.mockHasCompleted.mockReturnValueOnce(false)
 
-      await expect(
-        runRejected({ statusCode: 403, message: 'Workflow is not deployed' })
-      ).rejects.toThrow('Workflow is not deployed')
+      await expect(runRejected(error)).rejects.toThrow(error.message)
     })
 
     it.each([
