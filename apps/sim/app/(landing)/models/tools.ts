@@ -1,6 +1,7 @@
 import {
   ALL_CATALOG_MODELS,
   type CatalogModel,
+  isPromptModel,
   MODEL_PROVIDERS_WITH_CATALOGS,
 } from '@/app/(landing)/models/utils'
 
@@ -26,8 +27,10 @@ export const MODEL_TOOLS = {
   },
 } as const satisfies Record<string, ModelTool>
 
-/** Every current first-party model; deprecated models drop out of the pickers. */
-export const TOOL_MODELS: CatalogModel[] = ALL_CATALOG_MODELS.filter((model) => !model.deprecated)
+/** Every current first-party prompt model; deprecated and evaluation models drop out of the pickers. */
+export const TOOL_MODELS: CatalogModel[] = ALL_CATALOG_MODELS.filter(
+  (model) => isPromptModel(model) && !model.deprecated
+)
 
 const TOOL_MODELS_BY_ID = new Map(TOOL_MODELS.map((model) => [model.id, model]))
 

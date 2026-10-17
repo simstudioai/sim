@@ -47,22 +47,25 @@ export function TokenCounter() {
   const selectedModels = useMemo(() => resolveToolModels(modelIds), [modelIds])
 
   const rows = useMemo(() => {
-    const exactCountByEncoding = new Map<string, number>()
+    const exactCountByEncoding = new Map<string, number | null>()
     const countExact = (activeTokenizer: AccurateTokenizer, modelId: string) => {
       const encodingName = activeTokenizer.resolveEncodingName(modelId)
-      let count = exactCountByEncoding.get(encodingName)
-      if (count === undefined) {
-        count = activeTokenizer.getAccurateTokenCount(deferredText, modelId)
-        exactCountByEncoding.set(encodingName, count)
+      if (!exactCountByEncoding.has(encodingName)) {
+        exactCountByEncoding.set(
+          encodingName,
+          activeTokenizer.getExactTokenCount(deferredText, modelId)
+        )
       }
-      return count
+      return exactCountByEncoding.get(encodingName) ?? null
     }
 
     return selectedModels.map((model) => {
-      const exact = tokenizer !== null && EXACT_TOKENIZER_PROVIDER_IDS.has(model.providerId)
-      const tokens = exact
-        ? countExact(tokenizer, model.id)
-        : estimateTokenCount(deferredText, model.providerId).count
+      const exactTokens =
+        tokenizer !== null && EXACT_TOKENIZER_PROVIDER_IDS.has(model.providerId)
+          ? countExact(tokenizer, model.id)
+          : null
+      const exact = exactTokens !== null
+      const tokens = exactTokens ?? estimateTokenCount(deferredText, model.providerId).count
       const inputCost = priceTokenUsage(model.pricing, { input: tokens, output: 0 }).total
       return { model, exact, tokens, inputCost }
     })

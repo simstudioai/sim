@@ -117,15 +117,26 @@ export default function ContextWindowsPage() {
       <JsonLd data={itemListJsonLd} />
       <JsonLd data={faqJsonLd} />
 
-      <section className='bg-[var(--bg)]'>
+      <section
+        id='context-windows'
+        aria-labelledby='context-windows-heading'
+        className='bg-[var(--bg)]'
+      >
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+          <p className='sr-only'>
+            Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
+            This page ranks the context windows and max output tokens of{' '}
+            {CONTEXT_WINDOW_MODELS.length} models from {CONTEXT_WINDOW_PROVIDER_COUNT} providers,
+            including Claude, GPT, Gemini, and Grok, with API prices per 1M tokens. Every model
+            listed is available in the Sim Agent block.
+          </p>
           <div className='mb-6'>
             <BackLink href='/models' label='Back to Models' />
           </div>
 
           <h1
             id='context-windows-heading'
-            className='mb-6 text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'
+            className='mb-6 text-[40px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[28px]'
           >
             LLM context window comparison
           </h1>
@@ -145,11 +156,11 @@ export default function ContextWindowsPage() {
 
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
           <div className='border-[var(--border)] border-x'>
-            <section aria-labelledby='largest-by-provider-heading'>
+            <section id='largest-by-provider' aria-labelledby='largest-by-provider-heading'>
               <div className='px-6 pt-10 pb-4'>
                 <h2
                   id='largest-by-provider-heading'
-                  className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                  className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
                 >
                   Largest context window by provider
                 </h2>
@@ -175,11 +186,11 @@ export default function ContextWindowsPage() {
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='all-context-windows-heading'>
+            <section id='all-context-windows' aria-labelledby='all-context-windows-heading'>
               <div className='px-6 pt-10 pb-4'>
                 <h2
                   id='all-context-windows-heading'
-                  className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                  className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
                 >
                   Every model by context window
                 </h2>
@@ -193,10 +204,14 @@ export default function ContextWindowsPage() {
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='context-windows-faq-heading' className='px-6 py-10'>
+            <section
+              id='context-windows-faq'
+              aria-labelledby='context-windows-faq-heading'
+              className='px-6 py-10'
+            >
               <h2
                 id='context-windows-faq-heading'
-                className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-8 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 Frequently asked questions
               </h2>

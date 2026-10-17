@@ -282,7 +282,7 @@ export default async function ModelPage({
                 <nav aria-labelledby='model-comparisons-heading' className='px-6 py-10'>
                   <h2
                     id='model-comparisons-heading'
-                    className='mb-6 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                    className='mb-6 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
                   >
                     Compare {model.displayName}
                   </h2>
