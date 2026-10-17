@@ -9,11 +9,7 @@ export function ComparisonLinks({ comparisons }: ComparisonLinksProps) {
   return (
     <div className='flex flex-wrap gap-2'>
       {comparisons.map((comparison) => (
-        <ChipLink
-          key={comparison.slug}
-          href={comparison.href}
-          className='border border-[var(--border-1)]'
-        >
+        <ChipLink key={comparison.slug} href={comparison.href} variant='outline'>
           {comparison.title}
         </ChipLink>
       ))}
