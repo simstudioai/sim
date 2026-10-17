@@ -586,6 +586,22 @@ describe('authorized live retrieval', () => {
       'sheet',
     ])
   })
+  it('counts two-letter query terms, so a page named for the query leads one sharing a word', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [
+        { ...document, id: 'generic', title: 'Agents', url: 'https://docs.google.com/generic' },
+        { ...document, id: 'named', title: 'AI agents', url: 'https://docs.google.com/named' },
+      ],
+    })
+    const { results } = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: 'AI agents' },
+    })
+    expect(results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'named',
+      'generic',
+    ])
+  })
   it('applies date filters before spending provider verification', async () => {
     const verify = vi.fn(async () => true)
     mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })

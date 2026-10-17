@@ -4,6 +4,7 @@ import type { ScimUserAttributes } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { APIError } from 'better-auth/api'
 import { auth } from '@/lib/auth'
+import { revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
@@ -184,8 +185,9 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
             email,
             name: accountName(attributes),
           })
-          if (emailChanged && attributes.active) {
+          if (emailChanged) {
             await revokeUserSessionsTx(tx, { userId, organizationId: context.organizationId })
+            await revokeUserOAuthGrants(userId, tx)
           }
           /** A relinked account may still carry the suspension a lost deprovisioning left behind. */
           if (attributes.active) await unsuspendMemberTx(tx, { userId, source: 'scim' })

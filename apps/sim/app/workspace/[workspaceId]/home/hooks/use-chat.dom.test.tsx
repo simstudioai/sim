@@ -95,7 +95,10 @@ import {
   type MothershipStreamV1EventEnvelope,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import {
+  getChatResourceSelectionId,
+  type MothershipResource,
+} from '@/lib/mothership/resources/types'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { ModelSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
@@ -935,6 +938,84 @@ describe('useChat remount send recovery', () => {
       expect(writes).toEqual(writesBeforeRemoval)
       expect(getResult().resources.map((resource) => resource.id)).not.toContain('deleted-file')
       expect(JSON.stringify(sentAttachments.at(-1) ?? [])).not.toContain('deleted-file')
+    })
+  })
+
+  describe('closing a file tab', () => {
+    const projectFile: MothershipResource = {
+      type: 'file',
+      id: 'shared-file',
+      title: 'brief.md',
+      owner: { entityType: 'project', entityId: 'project-1' },
+    }
+    const workspaceFile: MothershipResource = {
+      type: 'file',
+      id: 'shared-file',
+      title: 'notes.md',
+      workspaceId: 'ws-1',
+      owner: { entityType: 'workspace', entityId: 'ws-1' },
+    }
+
+    /** Opens a chat holding `resources` and records each resource DELETE body. */
+    function renderChatRecordingRemovals(resources: MothershipResource[], selected?: string) {
+      const history: MothershipChatHistory = {
+        id: 'chat-file-tabs',
+        title: 'Files',
+        messages: [],
+        activeStreamId: null,
+        resources,
+      }
+      const removals: unknown[] = []
+      mockRequestJson.mockImplementation(async (contract: AnyApiRouteContract, input) => {
+        if (contract.path !== '/api/mothership/chat/resources') return { chats: [] }
+        removals.push((input as { body: unknown }).body)
+        return { resources: [] }
+      })
+      const { getResult } = renderUseChatInChat(history.id, history, undefined, selected)
+      return { history, removals, getResult }
+    }
+
+    it('closes a Project file tab by its owner and leaves a workspace file with the same id', async () => {
+      const { history, removals, getResult } = renderChatRecordingRemovals(
+        [projectFile, workspaceFile],
+        getChatResourceSelectionId(projectFile)
+      )
+
+      await act(async () => {
+        getResult().removeResource(projectFile)
+        await sleep(0)
+      })
+
+      expect(removals).toEqual([
+        {
+          chatId: history.id,
+          resourceType: 'file',
+          resourceId: 'shared-file',
+          owner: { entityType: 'project', entityId: 'project-1' },
+        },
+      ])
+      expect(getResult().resources).toEqual([workspaceFile])
+      expect(getResult().activeResourceId).not.toBe(getChatResourceSelectionId(projectFile))
+    })
+
+    it('closes a workspace file tab named only by type and id, deleting it as stored', async () => {
+      const { history, removals, getResult } = renderChatRecordingRemovals([workspaceFile])
+
+      await act(async () => {
+        getResult().removeResource({ type: 'file', id: 'shared-file' })
+        await sleep(0)
+      })
+
+      expect(removals).toEqual([
+        {
+          chatId: history.id,
+          resourceType: 'file',
+          resourceId: 'shared-file',
+          workspaceId: 'ws-1',
+          owner: { entityType: 'workspace', entityId: 'ws-1' },
+        },
+      ])
+      expect(getResult().resources).toEqual([])
     })
   })
 

@@ -6,7 +6,7 @@ import { toError } from '@sim/utils/errors'
 import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
-import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
+import { isComputerUseAvailableFor } from '@/lib/computer-use/application/availability'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
@@ -323,8 +323,17 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
     params
   const effectiveMode = mode === 'agent' ? 'build' : mode
   const isAssistant = effectiveMode === 'assistant'
+  const computerUseOwner = params.organizationId
+    ? { organizationId: params.organizationId }
+    : params.workspaceId
+      ? { workspaceId: params.workspaceId }
+      : null
   const computerUse =
-    !isAssistant && params.computerUse === true && (await isComputerUseAvailable())
+    !isAssistant &&
+    params.computerUse === true &&
+    params.principal !== undefined &&
+    computerUseOwner !== null &&
+    (await isComputerUseAvailableFor(params.principal, computerUseOwner))
   const integrationGateway = !isAssistant || (await isSearchIntegrationToolsEnabled())
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining.

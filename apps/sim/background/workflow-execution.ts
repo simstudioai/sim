@@ -16,6 +16,8 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
+import { getDeterministicAdmissionRejectionCode } from '@/lib/core/admission/rejection'
+import { isReservationHeadroomDenial } from '@/lib/core/admission/transient-failure'
 import { buildRecordedJobFailureResult } from '@/lib/core/async-jobs/recorded-failure'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { ExecutionScope } from '@/lib/core/errors/execution-scope-deleted'
@@ -30,7 +32,12 @@ import {
   RESERVATION_TTL_BUFFER_MS,
 } from '@/lib/core/execution-limits'
 import type { RequestAttribution } from '@/lib/core/utils/request-attribution'
-import { type PreprocessExecutionError, preprocessExecution } from '@/lib/execution/preprocessing'
+import {
+  isWorkflowStateRejection,
+  type PreprocessExecutionError,
+  preprocessExecution,
+  RATE_LIMIT_EXCEEDED_CODE,
+} from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { cleanupExecutionBase64Cache } from '@/lib/uploads/utils/user-file-base64.server'
@@ -109,18 +116,23 @@ type LegacyWorkflowExecutionPayload = Omit<WorkflowExecutionPayload, 'principal'
 type WorkflowExecutionJobPayload = WorkflowExecutionPayload | LegacyWorkflowExecutionPayload
 
 /**
- * Preprocessing rejections that are an outcome of the workflow's or account's
- * state — deleted or undeployed workflow, suspended account, exhausted usage
- * or rate quota — rather than a fault. A retryable rejection (concurrency
- * capacity, an unreadable usage ledger, reservation infrastructure) and every
- * 5xx still fail the job.
+ * Whether a preprocessing rejection is an outcome of the workflow's or account's state rather
+ * than a fault. A workflow-state rejection writes no execution log, so it completes at once. A
+ * quota or account rejection (exhausted usage, spent headroom, rate limit, suspended account)
+ * writes one, so it completes only once that log is saved; an unsaved one (an outage) still fails
+ * the job and alerts. A retryable rejection and every other failure fail the job.
  */
-const NON_FAULT_PREPROCESSING_STATUS_CODES: ReadonlySet<number> = new Set([402, 403, 404, 429])
-
-function isNonFaultPreprocessingRejection(rejection: PreprocessExecutionError): boolean {
-  return (
-    NON_FAULT_PREPROCESSING_STATUS_CODES.has(rejection.statusCode) && rejection.retryable !== true
-  )
+function isNonFaultPreprocessingRejection(
+  rejection: PreprocessExecutionError,
+  rejectionLogged: boolean
+): boolean {
+  if (rejection.retryable === true) return false
+  if (isWorkflowStateRejection(rejection)) return true
+  const quotaRejection =
+    getDeterministicAdmissionRejectionCode(rejection) !== undefined ||
+    isReservationHeadroomDenial(rejection) ||
+    rejection.code === RATE_LIMIT_EXCEEDED_CODE
+  return quotaRejection && rejectionLogged
 }
 
 /** Completes the job with a failure already in the execution log, keeping it on the run's span. */
@@ -378,11 +390,9 @@ export async function executeWorkflowJob(
         const scopeDeletedOnCompletion = loggingSession.getDeletedScope()
         if (scopeDeletedOnCompletion) return completeWithDeletedScope(scopeDeletedOnCompletion)
 
-        // Complete only when the rejection is durably logged; an unsaved one must still alert.
         if (
           preprocessingRejection &&
-          isNonFaultPreprocessingRejection(preprocessingRejection) &&
-          loggingSession.hasCompleted()
+          isNonFaultPreprocessingRejection(preprocessingRejection, loggingSession.hasCompleted())
         ) {
           return completeWithRecordedFailure(workflowId, executionId, error)
         }

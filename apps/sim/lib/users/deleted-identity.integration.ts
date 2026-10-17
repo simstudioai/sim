@@ -4,19 +4,30 @@
  * and plan-sync paths.
  */
 import { db } from '@sim/db'
-import { account, deletedAccountIdentity, user, userStats } from '@sim/db/schema'
+import {
+  account,
+  deletedAccountIdentity,
+  member,
+  organization,
+  user,
+  userStats,
+} from '@sim/db/schema'
+import { createDeferred } from '@sim/testing'
 import { authMock } from '@sim/testing/mocks/auth.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { generateRandomHex } from '@sim/utils/random'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
+  createUserStatsIfMissing,
   ensureUserStatsExists,
   handleNewSignInAccount,
   handleNewUser,
   syncUsageLimitsFromSubscription,
 } from '@/lib/billing/core/usage'
+import { transferOrganizationOwnership } from '@/lib/billing/organizations/membership'
+import { checkAndIncrementStorageUsageInTx } from '@/lib/billing/storage/tracking'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
 import { purgeExpiredDeletedAccountIdentities } from '@/lib/users/deleted-identity'
@@ -29,6 +40,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 vi.mock('@/lib/auth', () => authMock)
 
 const userIds: string[] = []
+const organizationIds: string[] = []
 const recordedHashes: string[] = []
 
 interface SignIn {
@@ -111,6 +123,8 @@ afterAll(async () => {
       .delete(deletedAccountIdentity)
       .where(inArray(deletedAccountIdentity.identityHash, recordedHashes))
   }
+  if (organizationIds.length)
+    await db.delete(organization).where(inArray(organization.id, organizationIds))
   if (userIds.length) await db.delete(user).where(inArray(user.id, userIds))
 })
 
@@ -248,6 +262,108 @@ describe('deleted account identities and the free allowance', () => {
 
     expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
     expect(await statsOf(stranger)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+  })
+
+  it('withholds the allowance from a stats row a storage write creates', async () => {
+    const email = `storage.${generateId()}@deleted-identity.test`
+    await deleteOwnAccount(await signUp(email))
+    const returning = await insertUser(email)
+    const stranger = await insertUser(`storage-stranger.${generateId()}@deleted-identity.test`)
+    const store = (userId: string) =>
+      db.transaction((tx) => checkAndIncrementStorageUsageInTx(tx, null, userId, 1024))
+
+    const first = await store(returning)
+    const second = await store(returning)
+    await store(stranger)
+
+    expect([first.allowed, second.allowed]).toEqual([true, true])
+    expect(await statsOf(returning)).toEqual({ freeTierEligible: false, limit: 0 })
+    expect(await statsOf(stranger)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    const [stored] = await db
+      .select({ bytes: userStats.storageUsedBytes })
+      .from(userStats)
+      .where(eq(userStats.userId, returning))
+    expect(stored.bytes).toBe(2048)
+  })
+
+  it('withholds the allowance from a stats row an ownership transfer creates for the new owner', async () => {
+    const email = `new-owner.${generateId()}@deleted-identity.test`
+    await deleteOwnAccount(await signUp(email))
+    const owner = await signUp(`owner.${generateId()}@deleted-identity.test`)
+    const newOwner = await insertUser(email)
+    const organizationId = generateId()
+    organizationIds.push(organizationId)
+    const now = new Date()
+    await db.insert(organization).values({
+      id: organizationId,
+      name: 'Transfer fixture',
+      slug: `transfer-${organizationId}`,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await db.insert(member).values([
+      { id: generateId(), organizationId, userId: owner, role: 'owner', createdAt: now },
+      { id: generateId(), organizationId, userId: newOwner, role: 'member', createdAt: now },
+    ])
+
+    const result = await transferOrganizationOwnership({
+      organizationId,
+      currentOwnerUserId: owner,
+      newOwnerUserId: newOwner,
+    })
+
+    expect(result).toMatchObject({ success: true })
+    expect(await statsOf(newOwner)).toEqual({ freeTierEligible: false, limit: 0 })
+  })
+
+  it('leaves an existing stats row untouched on a returning identity', async () => {
+    const email = `existing.${generateId()}@deleted-identity.test`
+    await deleteOwnAccount(await signUp(email))
+    const returning = await insertUser(email)
+    await db.insert(userStats).values({ id: generateId(), userId: returning })
+
+    const created = await db.transaction((tx) => createUserStatsIfMissing(tx, returning))
+
+    expect(created).toBe(false)
+    expect(await statsOf(returning)).toMatchObject({ freeTierEligible: true })
+  })
+
+  it('fails open without aborting the caller’s transaction when the identity lookup fails', async () => {
+    const email = `lookup-fails.${generateId()}@deleted-identity.test`
+    await deleteOwnAccount(await signUp(email))
+    const returning = await insertUser(email)
+    const locked = createDeferred<void>()
+    const release = createDeferred<void>()
+    const holder = db.transaction(async (tx) => {
+      await tx.execute(sql`LOCK TABLE deleted_account_identity IN ACCESS EXCLUSIVE MODE`)
+      locked.resolve()
+      await release.promise
+    })
+    await locked.promise
+
+    let created: boolean
+    try {
+      created = await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL lock_timeout = '200ms'`)
+        const result = await createUserStatsIfMissing(tx, returning)
+        await tx
+          .update(userStats)
+          .set({ storageUsedBytes: 7 })
+          .where(eq(userStats.userId, returning))
+        return result
+      })
+    } finally {
+      release.resolve()
+      await holder
+    }
+
+    expect(created).toBe(true)
+    expect(await statsOf(returning)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    const [stored] = await db
+      .select({ bytes: userStats.storageUsedBytes })
+      .from(userStats)
+      .where(eq(userStats.userId, returning))
+    expect(stored.bytes).toBe(7)
   })
 
   it('never withholds from a stats-less user’s fallback row for a sign-in linked in a later request', async () => {

@@ -122,14 +122,14 @@ export function createSimMcpServer(context: Omit<McpDispatchContext, 'signal'>):
       websiteUrl: `${SIM_DOCS_URL}/mcp/overview`,
       icons: [
         {
-          src: `${baseUrl}/brandbook/icon/green.svg`,
-          mimeType: 'image/svg+xml',
-          sizes: ['any'],
-        },
-        {
           src: `${baseUrl}/favicon/android-chrome-512x512.png`,
           mimeType: 'image/png',
           sizes: ['512x512'],
+        },
+        {
+          src: `${baseUrl}/favicon/android-chrome-192x192.png`,
+          mimeType: 'image/png',
+          sizes: ['192x192'],
         },
       ],
     },

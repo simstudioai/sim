@@ -115,13 +115,16 @@ export function normalizeChatResource(
   }
 }
 
+/** The fields that identify a chat tab; everything else on a resource is display metadata. */
+export type ChatResourceAddress = Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>
+
 /**
  * Tab identity, shared by the server store and the browser. Scope is part of identity for aliases
  * such as integration names and folder paths. The chat's workspace is the fallback scope, so an
  * unscoped tab and the same tab addressed by that workspace are one tab on both sides.
  */
 export function getChatResourceKey(
-  resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>,
+  resource: ChatResourceAddress,
   chatWorkspaceId?: string
 ): string {
   if (resource.owner && resource.owner.entityType !== 'workspace')
@@ -140,12 +143,12 @@ export function getChatResourceKey(
 /** {@link getChatResourceKey} bound to one chat's workspace, for comparing that chat's tabs. */
 export function chatResourceKeyFor(
   chatWorkspaceId?: string
-): (resource: Pick<MothershipResource, 'type' | 'id' | 'workspaceId' | 'owner'>) => string {
+): (resource: ChatResourceAddress) => string {
   return (resource) => getChatResourceKey(resource, chatWorkspaceId)
 }
 
 /** UUID resources keep their existing deep links; workspace aliases need their owner in the URL. */
-export function getChatResourceSelectionId(resource: MothershipResource): string {
+export function getChatResourceSelectionId(resource: ChatResourceAddress): string {
   if (resource.owner && resource.owner.entityType !== 'workspace')
     return getChatResourceKey(resource)
   const canonicalId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -218,7 +221,7 @@ export function isDesktopOnlyResource(resource: MothershipResource): boolean {
   return RESOURCE_POLICY[resource.type]?.desktopOnly === true
 }
 
-export function isEphemeralResource(resource: MothershipResource): boolean {
+export function isEphemeralResource(resource: Pick<MothershipResource, 'type' | 'id'>): boolean {
   // The in-flight file preview is a placeholder that becomes a real file once
   // the write lands, so persisting it would restore a tab for a file that was
   // never created.

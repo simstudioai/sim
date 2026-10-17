@@ -25,7 +25,10 @@ import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
 import { truncate } from '@sim/utils/string'
 import { requestJson } from '@/lib/api/client/request'
-import { computerUseAvailabilityContract } from '@/lib/api/contracts/computer-use'
+import {
+  type ComputerUseOwner,
+  computerUseAvailabilityContract,
+} from '@/lib/api/contracts/computer-use'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -177,7 +180,7 @@ export interface DesktopChatCapabilities {
  */
 export async function getDesktopChatCapabilities(
   scopeId: string,
-  computerUseEnabled: boolean
+  computerUseOwner: ComputerUseOwner | null
 ): Promise<DesktopChatCapabilities> {
   const bridge = getDesktopBridge()
   // Never advertise a surface the user switched off, even on the first
@@ -188,8 +191,11 @@ export async function getDesktopChatCapabilities(
   const browser = isBrowserAgentEnabled()
   const terminal = isTerminalEnabled()
   const computerUse =
-    computerUseEnabled && bridge?.computerUse
-      ? await requestJson(computerUseAvailabilityContract, { signal: AbortSignal.timeout(5000) })
+    computerUseOwner && bridge?.computerUse
+      ? await requestJson(computerUseAvailabilityContract, {
+          query: computerUseOwner,
+          signal: AbortSignal.timeout(5000),
+        })
           .then(async (rollout) => {
             if (!rollout.enabled) return false
             const status = await bridge.computerUse?.getStatus()

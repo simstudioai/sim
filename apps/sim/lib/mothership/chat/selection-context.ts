@@ -29,6 +29,9 @@ export const MAX_TABLE_SELECTION_COLUMNS = 200
  */
 export const MAX_TABLE_SELECTION_PREVIEW_LENGTH = MAX_FILE_SELECTION_TEXT_LENGTH
 
+/** Max characters of a browser page title carried as chat context. */
+export const CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH = 512
+
 /** Length of the ellipsis {@link truncate} appends when it shortens a string. */
 const TRUNCATE_SUFFIX_LENGTH = 3
 
@@ -40,6 +43,11 @@ const TRUNCATE_SUFFIX_LENGTH = 3
  */
 export function truncateSelectionText(text: string): string {
   return truncate(text, MAX_FILE_SELECTION_TEXT_LENGTH - TRUNCATE_SUFFIX_LENGTH)
+}
+
+/** Truncates a page title so the result, ellipsis included, fits {@link CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH}. */
+export function truncateSelectionTitle(title: string): string {
+  return truncate(title, CHAT_SELECTION_SOURCE_TITLE_MAX_LENGTH - TRUNCATE_SUFFIX_LENGTH)
 }
 
 /**
@@ -64,6 +72,24 @@ export function safeBrowserSelectionUrl(value: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/**
+ * Quotes client-supplied content (page text, terminal output, tab metadata) as
+ * one JSON block between `--- BEGIN/END UNTRUSTED <label> (JSON) ---` markers,
+ * after a preamble telling the model to treat it as data, never as instructions.
+ */
+export function formatUntrustedJsonBlock(
+  label: string,
+  preamble: string,
+  payload: unknown
+): string {
+  return [
+    preamble,
+    `--- BEGIN UNTRUSTED ${label} (JSON) ---`,
+    JSON.stringify(payload),
+    `--- END UNTRUSTED ${label} (JSON) ---`,
+  ].join('\n')
 }
 
 /**

@@ -42,6 +42,7 @@ import {
   deleteStorageKeysUnderPrefix,
   listStorageKeyPage,
   outboxDeadlineNear,
+  type StorageKeyPage,
   storageCleanupAvailableAt,
 } from '@/lib/uploads/core/prefix-sweep'
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
@@ -58,6 +59,14 @@ const logger = createLogger('AccountStorageSweep')
 
 const ROW_PAGE_SIZE = 1000
 const OBJECTS_PER_EVENT = 100
+const MAX_PAGE_TOKEN_LENGTH = 4096
+
+/**
+ * Runs one workspace sweep may continue on a moved listing position alone. Provider cursors are
+ * opaque, so nothing here proves one never revisits a position; past this, a run that only moved
+ * its position spends an attempt, keeping the sweep bounded even by a cursor that cycles.
+ */
+const MAX_POSITION_RESUMES = 1000
 
 /**
  * Ceiling on exact keys one deletion records for durable cleanup. Past it the rest are logged
@@ -97,6 +106,15 @@ interface StorageObject {
 interface WorkspaceSweepPayload {
   workspaceId: string
   family: number
+  /** Listing position inside `family` a stopped run saved; absent from events queued before it. */
+  pageToken?: string
+  /** Runs continued on a moved listing position alone; see {@link MAX_POSITION_RESUMES}. */
+  resumes: number
+  /**
+   * Set once listing from `pageToken` failed. A second failure from the same token restarts the
+   * family; a single one is retried in place, since providers do not reliably mark a dead cursor.
+   */
+  tokenFailed: boolean
 }
 
 interface ObjectCleanupPayload {
@@ -123,7 +141,27 @@ function parseWorkspaceSweep(value: unknown): WorkspaceSweepPayload {
     family > WORKSPACE_STORAGE_FAMILIES.length
   )
     throw new Error('Invalid workspace storage sweep cursor')
-  return { workspaceId: value.workspaceId, family }
+  const pageToken = value.pageToken ?? undefined
+  if (
+    pageToken !== undefined &&
+    (typeof pageToken !== 'string' ||
+      pageToken.length === 0 ||
+      pageToken.length > MAX_PAGE_TOKEN_LENGTH)
+  )
+    throw new Error('Invalid workspace storage sweep page token')
+  const resumes = value.resumes ?? 0
+  if (typeof resumes !== 'number' || !Number.isSafeInteger(resumes) || resumes < 0)
+    throw new Error('Invalid workspace storage sweep resume count')
+  const tokenFailures = value.tokenFailures ?? 0
+  if (tokenFailures !== 0 && tokenFailures !== 1)
+    throw new Error('Invalid workspace storage sweep page token failure count')
+  return {
+    workspaceId: value.workspaceId,
+    family,
+    resumes,
+    tokenFailed: tokenFailures === 1,
+    ...(pageToken ? { pageToken } : {}),
+  }
 }
 
 function isSafeKey(key: string): boolean {
@@ -205,24 +243,60 @@ function sidecarOwner(key: string): string | null {
     : null
 }
 
+interface PrefixSweepResult {
+  deleted: number
+  status: 'done' | 'partial' | 'stalled' | 'refused'
+  /** On `partial`, the listing position the next run resumes from; absent means the start. */
+  pageToken?: string
+  /** The saved position could not be listed from, so this run walked from the start instead. */
+  restarted: boolean
+}
+
 /**
- * Walks one prefix to its end, deleting every listed object the reference guard does not keep,
- * following the listing's page token within a run so kept objects never hold back later ones. A
+ * Walks one prefix to its end from `startToken`, deleting every listed object the reference guard
+ * does not keep, following the listing's page token so kept objects never hold back later ones. A
  * page that neither advances the token nor removes anything is `stalled` rather than re-listed
- * forever.
+ * forever. A saved token is provider-specific and may no longer list (an expired or rejected
+ * cursor). The first failed listing from one is recorded and rethrown, so the outbox retries from
+ * the same position; when that token has failed before, the walk restarts from the prefix start.
  */
 async function sweepWorkspacePrefix(
   prefix: string,
   storageContext: StorageContext,
   context: OutboxEventContext,
   isReferenced: (keys: readonly string[]) => Promise<Set<string>>,
-  workspaceExists: () => Promise<boolean>
-): Promise<{ deleted: number; status: 'done' | 'partial' | 'stalled' | 'refused' }> {
+  workspaceExists: () => Promise<boolean>,
+  startToken: string | undefined,
+  startTokenFailed: boolean
+): Promise<PrefixSweepResult> {
   let deleted = 0
-  let pageToken: string | undefined
+  let pageToken = startToken
+  let restarted = false
+  let failureRecorded = startTokenFailed
   for (;;) {
-    if (outboxDeadlineNear(context)) return { deleted, status: 'partial' }
-    const page = await listStorageKeyPage(prefix, storageContext, context.signal, pageToken)
+    if (outboxDeadlineNear(context)) return { deleted, status: 'partial', pageToken, restarted }
+    let page: StorageKeyPage
+    try {
+      page = await listStorageKeyPage(prefix, storageContext, context.signal, pageToken)
+    } catch (error) {
+      if (pageToken === undefined || pageToken !== startToken || restarted) throw error
+      context.signal.throwIfAborted()
+      if (!failureRecorded) {
+        await context.checkpointPayload({ tokenFailures: 1 })
+        throw error
+      }
+      logger.warn('Workspace storage sweep could not resume its saved listing position', {
+        prefix,
+        error: describeError(error),
+      })
+      restarted = true
+      pageToken = undefined
+      continue
+    }
+    if (failureRecorded) {
+      await context.checkpointPayload({ tokenFailures: 0 })
+      failureRecorded = false
+    }
     if (page.keys.some((key) => !key.startsWith(prefix)))
       throw new Error('Storage provider returned a key outside the workspace prefix')
     const owners = page.keys.flatMap((key) => sidecarOwner(key) ?? [])
@@ -231,7 +305,7 @@ async function sweepWorkspacePrefix(
     const keptCount = page.keys.filter(kept).length
     if (keptCount > 0)
       logger.warn('Keeping objects a surviving reference still names', { prefix, kept: keptCount })
-    if (await workspaceExists()) return { deleted, status: 'refused' }
+    if (await workspaceExists()) return { deleted, status: 'refused', restarted }
     const result = await deleteStorageKeysUnderPrefix(
       prefix,
       storageContext,
@@ -239,14 +313,14 @@ async function sweepWorkspacePrefix(
       context
     )
     deleted += result.deleted
-    if (!result.complete) return { deleted, status: 'partial' }
-    if (page.done) return { deleted, status: 'done' }
+    if (!result.complete) return { deleted, status: 'partial', pageToken, restarted }
+    if (page.done) return { deleted, status: 'done', restarted }
     const advanced = page.nextPageToken !== undefined && page.nextPageToken !== pageToken
     if (advanced) {
       pageToken = page.nextPageToken
     } else if (result.deleted === 0) {
       logger.error('Workspace storage sweep made no progress on a full listing page', { prefix })
-      return { deleted, status: 'stalled' }
+      return { deleted, status: 'stalled', restarted }
     }
   }
 }
@@ -255,7 +329,10 @@ async function sweepWorkspacePrefix(
  * Deletes a deleted workspace's objects by prefix in each bucket. A workspace row with the same
  * id means the database no longer agrees the workspace is gone (a restore, a point-in-time
  * recovery), so the sweep stops without touching storage; it looks again before every page it
- * deletes from.
+ * deletes from. A run stopped by its deadline saves its listing position, so a family whose early
+ * pages are all kept still reaches the objects behind them; moving that position counts as
+ * progress, except after a restart from the start or past {@link MAX_POSITION_RESUMES}, so a
+ * cursor that never lists or never ends stays bounded by the attempt budget.
  */
 const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
   const payload = parseWorkspaceSweep(raw)
@@ -277,22 +354,32 @@ const sweepWorkspaceStorage: OutboxHandler<unknown> = async (raw, context) => {
   for (let family = payload.family; family < WORKSPACE_STORAGE_FAMILIES.length; family++) {
     const { root, context: storageContext } = WORKSPACE_STORAGE_FAMILIES[family]
     const prefix = workspaceStoragePrefix(root, payload.workspaceId)
+    const startToken = family === payload.family ? payload.pageToken : undefined
     const result = await sweepWorkspacePrefix(
       prefix,
       storageContext,
       context,
       isReferenced,
-      workspaceExists
+      workspaceExists,
+      startToken,
+      family === payload.family && payload.tokenFailed
     )
     if (result.status === 'refused') return
     if (result.deleted > 0) progressed = true
     if (result.status === 'stalled')
       return deferOutboxHandler('Workspace storage sweep made no progress on a full listing page')
-    if (result.status === 'partial')
+    if (result.status === 'partial') {
+      if (result.pageToken !== startToken) {
+        const movedOnly = !progressed && !result.restarted
+        const resumes = payload.resumes + (movedOnly ? 1 : 0)
+        await context.checkpointPayload({ family, pageToken: result.pageToken ?? null, resumes })
+        if (movedOnly && resumes <= MAX_POSITION_RESUMES) progressed = true
+      }
       return progressed
         ? continueOutboxHandler('Continuing workspace storage sweep')
         : deferOutboxHandler('Workspace storage sweep made no progress before its deadline')
-    await context.checkpointPayload({ family: family + 1 })
+    }
+    await context.checkpointPayload({ family: family + 1, pageToken: null })
     progressed = true
   }
 }

@@ -40,6 +40,7 @@ const SERVE_PATH = '/api/files/serve/'
 /**
  * The storage keys a stored URL can name: a `/api/files/serve/...` path (relative or absolute,
  * with or without a provider segment), or a direct bucket URL in virtual-host or path style.
+ * A relative path is also read without its `#fragment`, which a key may hold literally.
  * Over-matching only keeps an object. Never throws: a value whose percent-encoding is malformed
  * yields its raw path and that path with each valid escape decoded (a legacy key can hold a
  * literal `%`), so one bad stored string cannot disable every purge.
@@ -72,10 +73,13 @@ function keysNamedByUrl(value: string): string[] {
     const serveAt = raw.indexOf(SERVE_PATH)
     path = serveAt >= 0 ? raw.slice(serveAt + SERVE_PATH.length) : raw
   }
-  path = path.replace(/^\/+/, '')
-  add(path)
-  const slash = path.indexOf('/')
-  if (slash > 0) add(path.slice(slash + 1))
+  const fragmentAt = path.indexOf('#')
+  for (const candidate of fragmentAt >= 0 ? [path, path.slice(0, fragmentAt)] : [path]) {
+    const key = candidate.replace(/^\/+/, '')
+    add(key)
+    const slash = key.indexOf('/')
+    if (slash > 0) add(key.slice(slash + 1))
+  }
   return [...keys]
 }
 

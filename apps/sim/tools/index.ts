@@ -3086,7 +3086,15 @@ async function executeToolRequest(
         headers: response.headers,
         url: fullUrl,
         body: response.body,
-        json: () => response.json(),
+        json: async () => {
+          try {
+            return await response.json()
+          } catch (error) {
+            throw error instanceof SyntaxError
+              ? markFailureKind(error, 'third_party_server')
+              : error
+          }
+        },
         text: () => response.text(),
         arrayBuffer: () => response.arrayBuffer(),
         blob: () => response.blob(),

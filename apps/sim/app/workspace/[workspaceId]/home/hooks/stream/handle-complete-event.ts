@@ -24,6 +24,6 @@ export function handleCompleteEvent(ctx: StreamLoopContext, parsed: CompleteEven
       (item) => getChatResourceKey(item) === getChatResourceKey(streamedSearch)
     )
   if (streamedSearch && !wasVisible) {
-    ctx.deps.removeResource('search', streamedSearch.id, streamedSearch.workspaceId)
+    ctx.deps.removeResource(streamedSearch)
   }
 }

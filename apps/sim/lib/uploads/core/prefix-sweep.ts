@@ -16,7 +16,7 @@ import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
 
 /** Most keys one {@link listStorageKeyPage} call returns. */
-export const STORAGE_KEY_PAGE_SIZE = 500
+const STORAGE_KEY_PAGE_SIZE = 500
 const CLOCK_SKEW_MS = 60_000
 const DEADLINE_MARGIN_MS = 5000
 
@@ -94,10 +94,13 @@ async function localKeys(
 }
 
 /** One provider page of object keys; `done` once the listing has nothing after this page. */
-interface StorageKeyPage {
+export interface StorageKeyPage {
   keys: string[]
   done: boolean
-  /** Provider cursor for the following page, valid only within the current run. */
+  /**
+   * Opaque provider cursor for the following page. A caller may persist it across runs, but a
+   * stored one can stop listing (a provider expiring or rejecting it), which that caller handles.
+   */
   nextPageToken?: string
 }
 
@@ -170,6 +173,8 @@ export async function listStorageKeyPage(
         : undefined
     )
   }
+  if (pageToken && !pageToken.startsWith(prefix))
+    throw new Error('Local storage page token is not a key under the prefix')
   const keys = await localKeys(prefix, signal, pageToken)
   return keyPage(keys, keys.length < STORAGE_KEY_PAGE_SIZE ? undefined : keys[keys.length - 1])
 }

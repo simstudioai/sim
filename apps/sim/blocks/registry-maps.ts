@@ -257,6 +257,10 @@ import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock, OpenAIBlockMeta } from '@/blocks/blocks/openai'
+import {
+  OracleFusionFinancialsBlock,
+  OracleFusionFinancialsBlockMeta,
+} from '@/blocks/blocks/oracle_fusion_financials'
 import { OracleDatabaseBlock, OracleDatabaseBlockMeta } from '@/blocks/blocks/oracledb'
 import { OtterBlock, OtterBlockMeta } from '@/blocks/blocks/otter'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
@@ -618,6 +622,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   onedrive: OneDriveBlock,
   onepassword: OnePasswordBlock,
   openai: OpenAIBlock,
+  oracle_fusion_financials: OracleFusionFinancialsBlock,
   oracledb: OracleDatabaseBlock,
   otter: OtterBlock,
   outlook: OutlookBlock,
@@ -958,6 +963,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   onedrive: OneDriveBlockMeta,
   onepassword: OnePasswordBlockMeta,
   openai: OpenAIBlockMeta,
+  oracle_fusion_financials: OracleFusionFinancialsBlockMeta,
   oracledb: OracleDatabaseBlockMeta,
   otter: OtterBlockMeta,
   outlook: OutlookBlockMeta,

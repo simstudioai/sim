@@ -3,6 +3,7 @@ import { db } from '@sim/db'
 import type { ScimUserAttributes } from '@sim/db/schema'
 import { normalizeEmail } from '@sim/utils/string'
 import type { ScimPatchOperation } from '@/lib/api/contracts/scim'
+import { revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import type { StoppedRun } from '@/lib/mothership/async-runs/repository'
@@ -86,16 +87,15 @@ async function applyUserUpdate(
     })
 
     /**
-     * An address change ends the sessions established under the old one. A
-     * deactivation in the same request revokes them itself, so this only runs
-     * when nothing else will.
+     * An address change ends the sessions and OAuth grants established under
+     * the old one. Sessions go first: issuance references its session, so no
+     * grant can be minted behind the sweep.
      */
-    if (!deactivated) {
-      await revokeUserSessionsTx(tx, {
-        userId: current.userId,
-        organizationId: context.organizationId,
-      })
-    }
+    await revokeUserSessionsTx(tx, {
+      userId: current.userId,
+      organizationId: context.organizationId,
+    })
+    await revokeUserOAuthGrants(current.userId, tx)
   } else if (nextName !== current.name) {
     await syncAccountIdentityTx(tx, { userId: current.userId, name: nextName })
   }

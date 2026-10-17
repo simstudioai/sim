@@ -10,6 +10,7 @@ import { searchResourceMatchesOwner } from '@/lib/mothership/resources/search'
 import {
   chatResourceKeyFor,
   getChatResourceSelectionId,
+  isFileResourceType,
   mergeChatResource,
 } from '@/lib/mothership/resources/types'
 import { notifyWorkflowExternalUpdate } from '@/lib/workflows/external-update'
@@ -29,6 +30,7 @@ import {
   mothershipChatKeys,
   refreshMothershipChatDetail,
 } from '@/hooks/queries/mothership-chats'
+import { invalidateProjectFileQueries } from '@/hooks/queries/projects'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
@@ -189,13 +191,23 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     onResourceEvent?.(getChatResourceSelectionId(resource))
     return
   }
+  const owner = 'owner' in payload.resource ? payload.resource.owner : undefined
+  if (owner?.entityType === 'project' && payload.resource.type === 'file' && payload.resource.id)
+    invalidateProjectFileQueries(queryClient, owner.entityId, payload.resource.id)
   const workspaceId = payload.resource.workspaceId ?? chatWorkspaceId
-  if (!workspaceId || (chatWorkspaceId && workspaceId !== chatWorkspaceId)) return
+  /** A Project file names no workspace, so an organization chat has none to check it against. */
+  if (
+    workspaceId
+      ? chatWorkspaceId && workspaceId !== chatWorkspaceId
+      : !(owner?.entityType === 'project' && isFileResourceType(payload.resource.type))
+  )
+    return
   // Browser and terminal tabs are projected from the desktop app's live
   // lists, never from the stream; older servers announced them as resources.
   if (payload.resource.type === 'browser' || payload.resource.type === 'terminal') return
   const resourceType = payload.resource.type
-  invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
+  if (workspaceId)
+    invalidateResourceQueries(queryClient, workspaceId, resourceType, payload.resource.id)
   if (resourceType === 'workflow' && payload.op !== 'remove' && payload.resource.id) {
     notifyWorkflowExternalUpdate(payload.resource.id)
   }
@@ -203,8 +215,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   if (payload.op === 'remove' && payload.effectId) {
     // The server applied this removal before publishing it, so a client add
     // still queued for the resource must not restore it, live or on recovery.
-    const { type, id } = payload.resource
-    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: payload.resource.workspaceId })
+    const { type, id, workspaceId: resourceWorkspaceId, owner } = payload.resource
+    ctx.deps.discardPendingResourceUpsert({ type, id, workspaceId: resourceWorkspaceId, owner })
   }
   if (payload.replay || ctx.deps.options.deferFlushes) {
     refreshRecoveredChatResources(ctx)
@@ -242,7 +254,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       : undefined
   const resource: MothershipResource = {
     ...payload.resource,
-    ...(chatWorkspaceId ? {} : { workspaceId }),
+    ...(!chatWorkspaceId && workspaceId ? { workspaceId } : {}),
     type: payload.resource.type as MothershipResourceType,
     title:
       typeof payload.resource.title === 'string' ? payload.resource.title : payload.resource.id,
@@ -259,9 +271,8 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
       ctx.deps.setActiveResourceId((current) =>
         current === getChatResourceSelectionId(resource) ? null : current
       )
-    } else if (resource.workspaceId) removeResource(resourceType, resource.id, resource.workspaceId)
-    else removeResource(resourceType, resource.id)
-    if (resourceType === 'workflow') {
+    } else removeResource(resource)
+    if (resourceType === 'workflow' && workspaceId) {
       removeWorkflowFromActiveCache(queryClient, workspaceId, resource.id)
     }
     return
@@ -349,7 +360,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
     } else onResourceEvent?.(getChatResourceSelectionId(resource))
   }
 
-  if (resource.type === 'workflow') {
+  if (resource.type === 'workflow' && workspaceId) {
     ensureWorkflowInRegistry(resource.id, resource.title, workspaceId)
   }
 }
