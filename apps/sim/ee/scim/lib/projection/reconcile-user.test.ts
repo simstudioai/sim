@@ -23,6 +23,7 @@ const hoistedMocks = vi.hoisted(() => ({
   lowerWorkspace: vi.fn(),
   readPermission: vi.fn(),
   revokeWorkspace: vi.fn(),
+  stopRuns: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
@@ -42,6 +43,7 @@ vi.mock('@/lib/workspaces/access/workspace-access', () => ({
   lowerWorkspaceAccessTx: hoistedMocks.lowerWorkspace,
   readWorkspacePermission: hoistedMocks.readPermission,
   revokeWorkspaceAccessTx: hoistedMocks.revokeWorkspace,
+  stopRunsWithoutWorkspaceAccessTx: hoistedMocks.stopRuns,
   permissionRank: (permission: string) => ({ read: 1, write: 2, admin: 3 })[permission] ?? 0,
 }))
 
@@ -117,10 +119,20 @@ describe('reconcileUserProjection', () => {
     mocks.grantWorkspace.mockResolvedValue('granted')
     mocks.lowerWorkspace.mockResolvedValue('lowered')
     mocks.readPermission.mockResolvedValue('write')
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
+    mocks.stopRuns.mockResolvedValue([])
     mocks.addMember.mockResolvedValue('added')
     mocks.removeMember.mockResolvedValue('removed')
-    mocks.changeMemberRole.mockResolvedValue({ changed: true, from: 'member', to: 'admin' })
+    mocks.changeMemberRole.mockResolvedValue({
+      changed: true,
+      from: 'member',
+      to: 'admin',
+      stoppedRuns: [],
+    })
   })
 
   it('takes the organization and user locks before reading any grant', async () => {
@@ -198,6 +210,7 @@ describe('reconcileUserProjection', () => {
       organizationId: 'org-1',
       userId: 'u-1',
       role: 'admin',
+      deferRunStops: true,
     })
   })
 
@@ -301,7 +314,11 @@ describe('reconcileUserProjection', () => {
 
     vi.clearAllMocks()
     resetDbChainMock()
-    mocks.revokeWorkspace.mockResolvedValue({ revoked: true, ownershipTransferred: false })
+    mocks.revokeWorkspace.mockResolvedValue({
+      revoked: true,
+      ownershipTransferred: false,
+      stoppedRuns: [],
+    })
     mocks.readPermission.mockResolvedValue('write')
     stage({
       current: [

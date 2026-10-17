@@ -73,6 +73,8 @@ export const ORPHANED_RUN_GRACE_MS = 60 * 60 * 1000
 export const LEGACY_RUN_GRACE_MS = 24 * 60 * 60 * 1000
 
 export const ORPHANED_RUN_ERROR = 'This response was interrupted before it finished.'
+export const REVOKED_RUN_ERROR =
+  'This response was stopped because you no longer have access to continue it.'
 export const LEGACY_RUN_ERROR = 'Run was never finalized (pre-lease run).'
 
 const SWEEP_BATCH_SIZE = 500
@@ -124,7 +126,7 @@ const stopRequested = sql`(EXISTS (SELECT 1 FROM ${copilotRequestStops} s
     WHERE s.user_id = ${copilotRuns.userId} AND s.organization_id = ${copilotRuns.organizationId}
       AND s.stream_id = ${copilotRuns.streamId}))`
 
-interface UnownedRun {
+export interface UnownedRun {
   id: string
   chatId: string
   streamId: string
@@ -144,9 +146,15 @@ const unownedRunColumns = {
   controllerToken,
 }
 
+const SETTLED_RUN_ERRORS = {
+  orphaned: ORPHANED_RUN_ERROR,
+  revoked: REVOKED_RUN_ERROR,
+  legacy: LEGACY_RUN_ERROR,
+} as const
+
 /** A run ends cancelled only if its user pressed Stop, whoever settles it. */
-function terminalValues(reason: 'orphaned' | 'legacy') {
-  const error = reason === 'orphaned' ? ORPHANED_RUN_ERROR : LEGACY_RUN_ERROR
+function terminalValues(reason: keyof typeof SETTLED_RUN_ERRORS) {
+  const error = SETTLED_RUN_ERRORS[reason]
   return {
     status: sql`(CASE WHEN ${stopRequested} THEN 'cancelled' ELSE 'error' END)::copilot_run_status`,
     error: sql`CASE WHEN ${stopRequested} THEN NULL ELSE ${error}::text END`,
@@ -171,7 +179,8 @@ function terminalValues(reason: 'orphaned' | 'legacy') {
 async function settleRuns(
   tx: DbTransaction,
   runs: UnownedRun[],
-  guard: SQL | undefined
+  guard: SQL | undefined,
+  reason: Exclude<keyof typeof SETTLED_RUN_ERRORS, 'legacy'> = 'orphaned'
 ): Promise<{ settled: UnownedRun[]; released: UnownedRun[] }> {
   if (runs.length === 0) return { settled: [], released: [] }
   const chatIds = [...new Set(runs.map((run) => run.chatId))]
@@ -235,7 +244,7 @@ async function settleRuns(
   for (const run of runs) {
     if (run.controllerToken === null) continue
     await apply([run], eq(controllerToken, run.controllerToken), {
-      ...terminalValues('orphaned'),
+      ...terminalValues(reason),
       completedAt: sql`now()`,
       updatedAt: sql`now()`,
     })
@@ -337,9 +346,9 @@ async function releaseChatLocks(fences: ChatLockFence[]): Promise<void> {
   )
 }
 
-async function readSweepCursor(): Promise<string | undefined> {
+async function readSweepCursor(key = SWEEP_CURSOR_KEY): Promise<string | undefined> {
   try {
-    return (await getRedisClient()?.get(SWEEP_CURSOR_KEY)) ?? undefined
+    return (await getRedisClient()?.get(key)) ?? undefined
   } catch (error) {
     logger.warn('Orphaned-run sweep cursor is unreadable; starting from the first run', {
       error: getErrorMessage(error),
@@ -348,12 +357,12 @@ async function readSweepCursor(): Promise<string | undefined> {
   }
 }
 
-async function writeSweepCursor(cursor: string | undefined): Promise<void> {
+async function writeSweepCursor(cursor: string | undefined, key = SWEEP_CURSOR_KEY): Promise<void> {
   try {
     const redis = getRedisClient()
     if (!redis) return
-    if (cursor) await redis.set(SWEEP_CURSOR_KEY, cursor, 'EX', SWEEP_CURSOR_TTL_SECONDS)
-    else await redis.del(SWEEP_CURSOR_KEY)
+    if (cursor) await redis.set(key, cursor, 'EX', SWEEP_CURSOR_TTL_SECONDS)
+    else await redis.del(key)
   } catch (error) {
     logger.warn('Orphaned-run sweep cursor could not be saved', { error: getErrorMessage(error) })
   }
@@ -452,4 +461,97 @@ export async function settleStoppedRunWithoutController(runId: string): Promise<
   const { settled, released } = await db.transaction((tx) => settleRuns(tx, [run], stopRequested))
   announceReleased(released)
   return settled.length > 0
+}
+
+/**
+ * Settles a run its controller abandoned as an error when its user may no longer continue
+ * it. The run's chat lock is fenced as a takeover's would be, so a reconnect cannot claim
+ * the run while it settles; a run whose lock is held, or whose controller changed, is left.
+ */
+export async function settleRunWithoutAccess(run: UnownedRun): Promise<boolean> {
+  if (!run.controllerToken) return false
+  const fences = await fenceChatLocks([run])
+  if (fences.length === 0) return false
+  try {
+    const { settled, released } = await db.transaction((tx) =>
+      settleRuns(tx, [run], undefined, 'revoked')
+    )
+    announceReleased(released)
+    return settled.length > 0
+  } finally {
+    await releaseChatLocks(fences)
+  }
+}
+
+/**
+ * A run its controller is still driving writes its status at least once per leg, and a dead
+ * controller's chat lock lapses within this long, so a run written to more recently is not
+ * worth checking yet.
+ */
+const ABANDONED_RUN_IDLE_MS = 60_000
+/** Where the last takeover scan stopped, so live runs it skipped never hide the runs after them. */
+export const ABANDONED_RUN_CURSOR_KEY = 'copilot:abandoned-runs:scan-cursor'
+
+/**
+ * Runs an interactive controller abandoned that a takeover can still resume: unfinished and
+ * not stopped, saved with their recovery intent, idle for a minute but within the recovery
+ * window, and with no controller holding their chat lock. Each scan examines at most
+ * `maxExamined` candidates, resuming after the last one the previous scan examined and wrapping
+ * to the first, so runs whose controller is alive cost one examination per pass and never
+ * crowd out an abandoned run. Empty while the locks cannot be read, since then no run is
+ * provably abandoned.
+ */
+export async function findAbandonedRecoverableRuns(
+  limit: number,
+  { pageSize = SWEEP_BATCH_SIZE, maxExamined = SWEEP_BATCH_SIZE } = {}
+): Promise<UnownedRun[]> {
+  const abandoned: UnownedRun[] = []
+  const start = await readSweepCursor(ABANDONED_RUN_CURSOR_KEY)
+  let cursor = start
+  let wrapped = start === undefined
+  let examined = 0
+  while (abandoned.length < limit && examined < maxExamined) {
+    const size = Math.min(pageSize, maxExamined - examined)
+    const page: UnownedRun[] = await db
+      .select(unownedRunColumns)
+      .from(copilotRuns)
+      .where(
+        and(
+          inArray(copilotRuns.status, UNFINISHED_RUN_STATUSES),
+          isNotNull(controllerToken),
+          sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`,
+          idleFor(ABANDONED_RUN_IDLE_MS),
+          not(idleFor(ORPHANED_RUN_GRACE_MS)),
+          not(stopRequested),
+          cursor ? gt(copilotRuns.id, cursor) : undefined,
+          wrapped && start ? lte(copilotRuns.id, start) : undefined
+        )
+      )
+      .orderBy(asc(copilotRuns.id))
+      .limit(size)
+    let locked: Set<string>
+    try {
+      locked = page.length > 0 ? await findStreamsHoldingChatLock(page) : new Set()
+    } catch (error) {
+      logger.warn('Chat stream ownership is unreadable; no run is taken over this round', {
+        error: getErrorMessage(error),
+      })
+      return []
+    }
+    for (const run of page) {
+      examined++
+      cursor = run.id
+      if (locked.has(run.streamId)) continue
+      abandoned.push(run)
+      if (abandoned.length === limit) break
+    }
+    if (abandoned.length < limit && page.length < size) {
+      /** The end of the table: wrap once to cover the runs before the starting point. */
+      cursor = undefined
+      if (wrapped) break
+      wrapped = true
+    }
+  }
+  await writeSweepCursor(cursor, ABANDONED_RUN_CURSOR_KEY)
+  return abandoned
 }

@@ -8,6 +8,16 @@ import {
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import {
+  dustProfile,
+  gumloopProfile,
+  langflowProfile,
+  n8nProfile,
+  openClawProfile,
+  pipedreamProfile,
+  vellumProfile,
+} from '@/lib/compare/data'
+import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
  * Crawls a running landing site the way a search or AI crawler does: plain GETs, no JavaScript,
@@ -40,7 +50,7 @@ const HOME_PATH = '/?home'
 
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
-const responses: { path: string; status: number; location?: string }[] = []
+const responses: { path: string; accept?: string; status: number; location?: string }[] = []
 const startedAt = new Date().toISOString()
 
 async function check(name: string, run: () => Promise<void>) {
@@ -61,17 +71,26 @@ async function check(name: string, run: () => Promise<void>) {
 }
 
 async function get(
-  path: string
-): Promise<{ status: number; location: string | null; body: string }> {
+  path: string,
+  accept?: string
+): Promise<{ status: number; location: string | null; body: string; headers: Headers }> {
   const response = await fetch(new URL(path, baseUrl), {
     redirect: 'manual',
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SimLandingSeoE2E/1.0)' },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; SimLandingSeoE2E/1.0)',
+      ...(accept ? { Accept: accept } : {}),
+    },
     signal: AbortSignal.timeout(30_000),
   })
   const body = await response.text()
   const location = response.headers.get('location')
-  responses.push({ path, status: response.status, ...(location ? { location } : {}) })
-  return { status: response.status, location, body }
+  responses.push({
+    path,
+    ...(accept ? { accept } : {}),
+    status: response.status,
+    ...(location ? { location } : {}),
+  })
+  return { status: response.status, location, body, headers: response.headers }
 }
 
 function robotsDirectives(html: string): string[] {
@@ -92,6 +111,23 @@ function jsonLdNodes(html: string): Record<string, unknown>[] {
     }
   }
   return nodes
+}
+
+/** Undoes the entity escaping React applies to text, so rendered copy compares to its source. */
+function decodeHtml(html: string): string {
+  return html
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+/** Question text of every FAQPage entry on the page, in order. */
+function faqQuestions(html: string): string[] {
+  const faqPage = jsonLdNodes(html).find((node) => node['@type'] === 'FAQPage')
+  const entries = (faqPage?.mainEntity ?? []) as { name?: string }[]
+  return entries.map((entry) => entry.name ?? '')
 }
 
 /** Paths and lastmod values from the sitemap, keyed by path. */
@@ -240,6 +276,59 @@ async function run() {
     assert(String(product['@id']).endsWith('#software'), `Offers sit on ${product['@id']}`)
   })
 
+  await check('comparison pages lead with their answer and their tracked-prompt FAQs', async () => {
+    const failures: string[] = []
+    for (const profile of [
+      n8nProfile,
+      dustProfile,
+      gumloopProfile,
+      vellumProfile,
+      langflowProfile,
+      pipedreamProfile,
+      openClawProfile,
+    ]) {
+      const { status, body } = await get(`/comparisons/${profile.id}`)
+      if (status !== 200) {
+        failures.push(`${profile.id}: status ${status}`)
+        continue
+      }
+      const text = decodeHtml(body)
+      const lead = profile.leadAnswer?.map((part) => (typeof part === 'string' ? part : part.text))
+      const firstSection = text.indexOf('<h2')
+      const leadAt = lead ? text.indexOf(lead.join('')) : -1
+      if (leadAt < 0 || leadAt > firstSection) {
+        failures.push(`${profile.id}: lead answer missing or below the first section`)
+      }
+      const expected = (profile.faqs ?? []).map((faq) => faq.question)
+      const questions = faqQuestions(body).slice(0, expected.length)
+      if (expected.length === 0 || questions.join('|') !== expected.join('|')) {
+        failures.push(`${profile.id}: FAQPage does not open with the profile FAQs`)
+      }
+    }
+    assert.deepEqual(failures, [])
+  })
+
+  await check('rebuilt integration pages render their comparison and FAQs', async () => {
+    const failures: string[] = []
+    for (const slug of ['github', 'shopify', 'snowflake']) {
+      const seo = INTEGRATION_SEO[slug]
+      const { status, body } = await get(`/integrations/${slug}`)
+      if (status !== 200) {
+        failures.push(`${slug}: status ${status}`)
+        continue
+      }
+      const text = decodeHtml(body)
+      if (!seo?.comparison || !text.includes(seo.comparison.heading)) {
+        failures.push(`${slug}: comparison section missing`)
+      }
+      const expected = (seo?.faqs ?? []).map((faq) => faq.question)
+      if (expected.length === 0 || faqQuestions(body).join('|') !== expected.join('|')) {
+        failures.push(`${slug}: FAQPage does not match the hand-written FAQs`)
+      }
+    }
+    assert.deepEqual(failures, [])
+  })
+
   await check('blog, library, and changelog advertise their RSS feeds', async () => {
     const missing: string[] = []
     for (const [path, feed] of [
@@ -252,6 +341,31 @@ async function run() {
       if (!link || new URL(link[1]).pathname !== feed) missing.push(path)
     }
     assert.deepEqual(missing, [])
+  })
+
+  await check('the homepage answers a Markdown request in Markdown', async () => {
+    const markdown = await get(HOME_PATH, 'text/markdown')
+    assert.equal(markdown.status, 200)
+    assert.match(markdown.headers.get('content-type') ?? '', /^text\/markdown/)
+    assert.match(markdown.headers.get('vary') ?? '', /\bAccept\b/)
+    assert.equal(markdown.headers.get('cache-control'), 'no-store')
+    assert.match(markdown.body, /^# Sim: /)
+    assert.match(markdown.body, /\]\([^)]*\/signup\)/)
+
+    const refused = await get(HOME_PATH, 'text/html, text/markdown;q=0')
+    assert.match(refused.headers.get('content-type') ?? '', /^text\/html/)
+
+    const html = await get(HOME_PATH, 'text/html,application/xhtml+xml,*/*;q=0.8')
+    assert.match(html.headers.get('content-type') ?? '', /^text\/html/)
+    assert.match(html.headers.get('vary') ?? '', /\bAccept\b/)
+    const alternate = /<link rel="alternate" type="text\/markdown" href="([^"]+)"/.exec(html.body)
+    assert.ok(alternate, 'homepage HTML does not advertise its Markdown alternate')
+    const alternatePath = new URL(alternate[1]).pathname
+    assert.equal(alternatePath, '/index.md')
+
+    const direct = await get(alternatePath)
+    assert.equal(direct.body, markdown.body)
+    assert.match(direct.headers.get('link') ?? '', /rel="canonical"/)
   })
 }
 

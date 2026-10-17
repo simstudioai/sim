@@ -44,6 +44,24 @@ export const dustProfile: CompetitorProfile = {
       'Both products provide documentation and learning resources. Sim emphasizes its open-source community and an Enterprise dedicated-support option, while Dust also documents community forums and enterprise onboarding.',
     ],
   },
+  faqs: [
+    {
+      question:
+        'We use Dust for company knowledge but need real workflow automation too. What should we look at?',
+      answer:
+        "Sim is worth evaluating when Dust's knowledge agents need to run inside multi-step automations. Dust builds agents from instructions, tools, and connected data sources, and offers no loop container or branch-and-join execution model. Sim adds a visual workflow canvas with loops, parallel branches, error-handling paths, and human approval steps, started by webhooks, schedules, API calls, or events from connected apps.",
+    },
+    {
+      question: 'Sim vs Dust for building company knowledge agents: which is better?',
+      answer:
+        "It depends on where the agent needs to live. Dust connects agents to sources such as Slack, Notion, Google Drive, Confluence, and GitHub and serves them in its web chat, Slack, and Microsoft Teams, with access scoped by Spaces. Sim's knowledge base combines vector and full-text search over 15 file types with connectors that keep sources such as Google Drive, Confluence, and Slack in sync, and a knowledge agent can be published as a chat interface, a REST API, or an MCP server. Dust suits a managed assistant used mainly in chat; Sim suits a knowledge agent that also has to feed workflows or other systems.",
+    },
+    {
+      question: 'How does Sim compare to Dust for shared team AI assistants?',
+      answer:
+        'Both are built for teams, but they share different things. Dust shares agents and conversations: people and agents work in a common workspace, access is set by roles plus Spaces, and Pro seats cost $30 or €30 per month ($24 or €24 per month billed annually) with 8,000 credits each. Sim shares the build: several people can edit the same workflow canvas live, workspaces carry admin, write, and read permissions, and the Pro plan is $25 per user per month.',
+    },
+  ],
   standoutFeatures: [
     {
       title:
@@ -195,29 +213,34 @@ export const dustProfile: CompetitorProfile = {
         value:
           "No: the core repository is MIT-licensed and public on GitHub, but self-hosting isn't an officially supported deployment path; Dust is sold and operated only as hosted SaaS",
         detail:
-          'dust-tt/dust is publicly available and MIT-licensed, but Dust the company documents only its hosted product (with US/EU region choice), not a supported self-managed installation.',
+          'dust-tt/dust is publicly available and MIT-licensed, but Dust documents only its hosted product: US or EU data residency on Business, plus single-tenant deployment on Enterprise. It does not document a supported self-managed installation.',
         shortValue: 'No, MIT code exists but only SaaS is supported',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://github.com/dust-tt/dust/blob/main/LICENSE',
             label: 'dust-tt/dust LICENSE (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://dust.tt/home/pricing',
+            label: 'Dust Pricing',
+            asOf: '2026-10-15',
           },
         ],
       },
       deploymentOptions: {
         value:
-          'Multi-tenant hosted cloud by default; an EU data-hosting option for databases, files, and vectors is available, documented as exclusive to Enterprise customers rather than a self-serve region choice on every tier',
+          'Hosted cloud only, with US or EU data residency on the Business plan and single-tenant deployment on Enterprise',
         detail:
-          "Dust's changelog states the EU data hosting option is 'available exclusively for enterprise customers' and covers 'storage of databases, files, and vectors' (calls to third-party LLM provider APIs remain outside this hosting boundary). No Dust source documents a selectable US-region toggle or a named single-tenant deployment tier.",
-        shortValue: 'Multi-tenant cloud by default; EU data hosting is Enterprise-exclusive',
-        confidence: 'estimated',
+          'Dust\'s pricing page lists "US & EU data residency" on Business and "US & EU data residency & single-tenant deployment" on Enterprise. Calls to third-party LLM provider APIs remain outside the hosting boundary.',
+        shortValue: 'Hosted cloud; US/EU residency, single-tenant on Enterprise',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.dust.tt/docs/changelog#-eu-data-hosting-option-available',
-            label: 'EU data hosting option available | Dust changelog',
-            asOf: '2026-07-08',
+            url: 'https://dust.tt/home/pricing',
+            label: 'Dust Pricing',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -247,7 +270,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://github.com/dust-tt/dust/blob/main/LICENSE',
             label: 'dust-tt/dust LICENSE (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
@@ -752,61 +775,74 @@ export const dustProfile: CompetitorProfile = {
     },
     pricing: {
       pricingModel: {
-        value: 'Per-seat subscription with a monthly AI-usage credit allocation per seat',
+        value:
+          'Per-seat subscription (Free, Pro, and Max seat types on the Business plan, for teams up to 100 people) with a monthly AI-usage credit allocation per paid seat; Enterprise is sales-led',
         detail:
-          'Business plan seats (Pro, Max) each include a monthly credit allocation that resets every billing period; credit consumption depends on the model used, task complexity, and any tools the agent invokes (search, retrieval, code execution, connected-app actions).',
+          'Pro and Max seats each include a monthly credit allocation that resets every billing period. Credits are charged per message based on the model used and the actions performed.',
         shortValue: 'Per-seat pricing with monthly credit allocations',
         confidence: 'verified',
         sources: [
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
       entryPaidPlan: {
-        value: 'Business Pro: $30/month per seat ($24/month billed yearly), 8,000 credits/month',
+        value:
+          'Business Pro seat: 30/month per seat (24/month billed yearly), 8,000 credits per seat per month; shown in dollars in the US and euros elsewhere, excluding VAT',
         detail:
-          "The Business plan's Pro tier is the entry paid tier above the free plan; a higher Max tier ($150/month, or $120/month billed yearly) includes 40,000 credits/month.",
-        shortValue: '$30/month per seat (or $24/month annual), 8,000 credits',
+          'Pro is the entry paid seat above the Free seat. The higher Max seat is 150/month (120/month billed yearly) with 40,000 credits per seat per month. The pricing page shows dollars to US visitors and euros elsewhere, with the same amounts, excluding VAT.',
+        shortValue: '$30 or €30/seat/month ($24 or €24/month billed annually), 8,000 credits',
         confidence: 'verified',
         sources: [
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
         ],
       },
       freeTier: {
         value:
-          'Yes: a free Business tier for new workspaces, capped at 5 users, 3 connectors, and 5 Spaces, no credit card required',
+          'Yes: a free Business option for new workspaces (no credit card, up to 5 users, 3 connectors, 5 Spaces); each Free seat gets a one-time allocation of 500 credits that does not renew',
         detail:
-          'This free tier is what a new workspace gets by default without a paid subscription. It is distinct from what happens when an existing paid workspace downgrades: canceling removes all users except the earliest-assigned admin, deletes existing connections, and deletes data sources over 50MB combined after a 7-day warning period, while original source data in the connected provider itself is untouched.',
-        shortValue: 'Free for new workspaces: up to 5 users, 3 connectors, 5 Spaces',
+          'The Free seat works as a trial: a member can hold it only once. Cancelling a paid subscription does not switch the workspace back to the free option; the subscription stays active until the end of the billing period, and by default Dust deletes the workspace data 30 days after that.',
+        shortValue: 'Free: up to 5 users, 500 one-time credits per seat',
         confidence: 'verified',
         sources: [
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-10-15',
           },
           {
             url: 'https://docs.dust.tt/docs/subscriptions',
             label: 'Subscriptions & Payments | Dust Docs',
-            asOf: '2026-07-04',
+            asOf: '2026-10-15',
           },
         ],
       },
       byok: {
         value:
-          'No dedicated BYOK program: Dust bills usage via plan-included AI credits rather than a bring-your-own-provider-API-key option',
+          'Not documented: Dust bills model usage through its own plan-included credits, and neither its pricing page nor its credits docs describe supplying your own provider API key',
         detail:
-          'Pricing is structured around per-seat monthly credits that scale with model/task/tool complexity; no Dust source describes letting a workspace supply its own OpenAI/Anthropic API key in place of credit consumption.',
+          'The pricing page states that all plans include access to 20+ models from OpenAI, Anthropic, Google, Mistral, and DeepSeek, consumed as Dust credits per message.',
         shortValue: 'Not documented; usage billed via included credits',
-        confidence: 'unknown',
-        sources: [],
+        confidence: 'estimated',
+        sources: [
+          {
+            url: 'https://dust.tt/home/pricing',
+            label: 'Dust Pricing',
+            asOf: '2026-10-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/credits',
+            label: 'Credits | Dust Docs',
+            asOf: '2026-10-15',
+          },
+        ],
       },
     },
     security: {

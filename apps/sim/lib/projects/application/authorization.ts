@@ -192,16 +192,17 @@ function projectVisibility(
  * Loads and holds canonical Project membership for a resource-specific access policy. `lock` is
  * the mode the Project is held in: `shared` for a caller that only needs it fenced against
  * lifecycle and payer changes, `exclusive` for one that will take it exclusively later in the
- * transaction, which must never upgrade a shared hold.
+ * transaction, which must never upgrade a shared hold. `snapshot` holds nothing and relies on
+ * the caller's read-only snapshot, for a caller that acts on nothing in the transaction.
  */
 export async function loadProjectAccess(
   tx: DbTransaction,
   userId: string,
   input: ProjectAuthorizationInput & { projectId: string },
-  lock: 'shared' | 'exclusive' = 'exclusive'
+  lock: 'shared' | 'exclusive' | 'snapshot' = 'exclusive'
 ) {
   if (lock === 'shared') await lockProjectShared(tx, input.projectId)
-  else await lockProject(tx, input.projectId)
+  else if (lock === 'exclusive') await lockProject(tx, input.projectId)
   const [record] = await tx.select().from(project).where(eq(project.id, input.projectId)).limit(1)
   if (
     !record ||
@@ -210,7 +211,7 @@ export async function loadProjectAccess(
     throw new OrchestrationError('not_found', 'Project not found')
   return projectVisibility(
     record,
-    await loadProjectMemberships(tx, userId, [record], 'hold'),
+    await loadProjectMemberships(tx, userId, [record], lock === 'snapshot' ? 'snapshot' : 'hold'),
     input
   )
 }

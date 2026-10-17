@@ -259,22 +259,29 @@ export function deploymentAuthCookieName(cookiePrefix: DeploymentAuthKind, id: s
   return `${cookiePrefix}_auth_${id}`
 }
 
-/** Sets a signed, resource-bound authentication cookie for a deployment. */
-export async function setDeploymentAuthCookie({
-  response,
+/** Builds the existing deployment cookie without coupling domain authorization to an HTTP response. */
+export async function createDeploymentAuthCookie({
   cookiePrefix,
   resource,
   verifiedEmail,
-}: SetDeploymentAuthCookieParams): Promise<void> {
-  response.cookies.set({
+}: Omit<SetDeploymentAuthCookieParams, 'response'>) {
+  return {
     name: deploymentAuthCookieName(cookiePrefix, resource.id),
     value: await generateAuthToken(resource, verifiedEmail),
-    httpOnly: true,
+    httpOnly: true as const,
     secure: !isDev,
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     path: '/',
     maxAge: DEPLOYMENT_AUTH_TOKEN_TTL_MS / 1000,
-  })
+  }
+}
+
+/** Sets a signed, resource-bound authentication cookie for a deployment. */
+export async function setDeploymentAuthCookie({
+  response,
+  ...input
+}: SetDeploymentAuthCookieParams): Promise<void> {
+  response.cookies.set(await createDeploymentAuthCookie(input))
 }
 
 /**

@@ -66,7 +66,10 @@ import {
   beginFileSearchBuild,
   publishFileSearchBuild,
 } from '@/lib/workspace-files/search/index-state'
-import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
+import {
+  indexWorkspaceFileForSearch,
+  markWorkspaceFileSearchIndexFailed,
+} from '@/lib/workspace-files/search/indexing'
 
 async function requireDocxFormat() {
   const format = await getE2BDocFormat('report.docx')
@@ -678,7 +681,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       onError: 'throw',
     })
     expect(removal.success).toBe(true)
-    await deleteUserAccount(f.readerId)
+    await deleteUserAccount(f.readerId, { recordIdentity: false })
     const surviving = { ...f, reader: f.principal }
     await indexWorkspaceFileForSearch({ owner: f.owner, ...(await claim(created.file.id)) }, signal)
     expect((await search(surviving, 'folderneedle', { folderPaths: [] })).results).toEqual([])
@@ -911,6 +914,45 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       expect(unchanged.buildId).toBe(ready.buildId)
     }
   )
+  check('keeps a skipped artifact build on later reads but requeues a failed one', async () => {
+    const f = await fixture()
+    const source = 'binaryartifactsource'
+    const generated = await create(f, source, { name: 'binary.docx' })
+    await storeCompiledDoc(
+      f.owner,
+      source,
+      'docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      Buffer.concat([Buffer.from('PK\x03\x04'), Buffer.alloc(64), Buffer.from([0xff, 0xfe])]),
+      fileDocumentCacheIdentity(source, await requireDocxFormat(), 'text/plain')
+    )
+    const input = { projectId: f.projectId, fileId: generated.file.id, maxBytes: 1_000_000 }
+    const revisionOf = async () => {
+      const [row] = await db
+        .select()
+        .from(workspaceFileSearchRevision)
+        .where(eq(workspaceFileSearchRevision.fileId, generated.file.id))
+      return row
+    }
+    await readProjectFileArtifact.execute({ principal: f.reader, input })
+    await markWorkspaceFileSearchIndexFailed({
+      owner: f.owner,
+      ...(await claim(generated.file.id)),
+    })
+    expect((await revisionOf()).status).toBe('failed')
+    await readProjectFileArtifact.execute({ principal: f.reader, input })
+    expect((await revisionOf()).status).toBe('pending')
+    await indexWorkspaceFileForSearch(
+      { owner: f.owner, ...(await claim(generated.file.id)) },
+      signal
+    )
+    const skipped = await revisionOf()
+    expect(skipped).toMatchObject({ status: 'skipped', failureReason: 'binary_or_degraded' })
+    await readProjectFileArtifact.execute({ principal: f.reader, input })
+    const unchanged = await revisionOf()
+    expect(unchanged.status).toBe('skipped')
+    expect(unchanged.buildId).toBe(skipped.buildId)
+  })
 
   check('retains workspace generated-input provenance in indexed snippet delivery', async () => {
     const f = await fixture()

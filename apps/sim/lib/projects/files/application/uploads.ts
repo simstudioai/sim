@@ -29,10 +29,7 @@ import {
   prepareProjectFileAccounting,
   recordProjectFileWriteEffects,
 } from '@/lib/projects/files/application/write-effects'
-import {
-  projectUploadCleanupAvailableAt,
-  queueRetiredProjectUploadCleanup,
-} from '@/lib/projects/files/prefix-cleanup'
+import { queueRetiredProjectUploadCleanup } from '@/lib/projects/files/prefix-cleanup'
 import { resolveFileFolderTarget } from '@/lib/uploads/contexts/workspace/file-folder-manager'
 import {
   adoptVerifiedUploadSession,
@@ -43,6 +40,7 @@ import {
 } from '@/lib/uploads/contexts/workspace/file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { enqueueWorkspaceFileStorageCleanups } from '@/lib/uploads/contexts/workspace/file-storage-cleanup-outbox'
+import { storageCleanupAvailableAt } from '@/lib/uploads/core/prefix-sweep'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import { assertProjectFileUploadBinding } from '@/lib/uploads/upload-session/project-file-binding'
@@ -321,7 +319,7 @@ const registerProjectUpload = defineAuthorizedProjectFileUseCase({
     await registration.registerFile(file.id)
     const cleanupIds = prepared.restored
       ? await enqueueWorkspaceFileStorageCleanups(tx, [input.session.finalKey], 'project', {
-          availableAt: projectUploadCleanupAvailableAt(),
+          availableAt: storageCleanupAvailableAt(),
         })
       : []
     const result = await mapProjectFileResult(tx, context, file)

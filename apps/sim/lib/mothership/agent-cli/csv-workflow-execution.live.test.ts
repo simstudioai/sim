@@ -181,6 +181,9 @@ vi.mock('@/lib/logs/execution/logging-session', () => ({
     async safeStart() {
       return true
     }
+    getDeletedScope() {
+      return null
+    }
     async onBlockStart() {}
     async onBlockComplete() {}
     async safeComplete(input: Parameters<LoggingSession['safeComplete']>[0]) {

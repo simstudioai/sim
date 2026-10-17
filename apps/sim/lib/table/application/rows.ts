@@ -654,7 +654,7 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         rowCount: isCopilotPrincipal(principal) ? rows.length : result.rowCount,
         rows: rowsForReader(principal, rows),
         ...(input.includePersistedSecretProvenance && readProvenance
-          ? { secretProvenance: readProvenance.exportProvenance() }
+          ? { secretProvenance: readProvenance.exportProvenance(rows.map((row) => row.id)) }
           : {}),
       }
     } catch (error) {

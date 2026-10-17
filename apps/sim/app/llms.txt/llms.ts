@@ -1,5 +1,6 @@
 import { INTEGRATION_REACH } from '@sim/deployment-config/integration-claims'
 import { SITE_URL, toSiteUrl } from '@/lib/core/utils/urls'
+import { DOCS_URL } from '@/lib/help-links'
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
 import { COMPLIANCE_PAGE_DESCRIPTION } from '@/app/(landing)/solutions/compliance/compliance'
 import { ENGINEERING_PAGE_DESCRIPTION } from '@/app/(landing)/solutions/engineering/engineering'
@@ -35,6 +36,20 @@ const SOLUTIONS = [
   { title: 'AI agents for IT', path: '/solutions/it', description: IT_PAGE_DESCRIPTION },
   { title: 'AI agents for sales', path: '/solutions/sales', description: SALES_PAGE_DESCRIPTION },
 ] as const
+
+/** Link lines both `/llms.txt` and the homepage's Markdown (`/index.md`) list. */
+export const PRICING_LINE = linkLine('Pricing', '/pricing', 'Free, Pro, Max, and Enterprise plans')
+export const DOCS_LINE = linkLine('Documentation', DOCS_URL, 'Guides, SDKs, and API reference')
+export const GITHUB_LINE = linkLine(
+  'GitHub',
+  'https://github.com/simstudioai/sim',
+  'Open-source codebase'
+)
+export const SITEMAP_LINE = linkLine(
+  'Sitemap',
+  '/sitemap.xml',
+  'Every public URL, including each integration and model'
+)
 
 /** One llms.txt entry per `/solutions/*` page. */
 export const SOLUTION_LINES = SOLUTIONS.map((s) => linkLine(s.title, s.path, s.description))

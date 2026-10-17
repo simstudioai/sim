@@ -22,17 +22,19 @@ import { ProjectConflictError } from '@/lib/projects/errors'
 const PROJECT_LOCK_TIMEOUT_MS = 5_000
 
 /**
- * Waits in `acquire` are bounded by {@link PROJECT_LOCK_TIMEOUT_MS} and a timeout or
- * deadlock becomes a retryable Project conflict. The caller's own `lock_timeout` is
- * restored afterwards, so the bound never leaks into the work done under the locks.
+ * Waits in `acquire` are bounded by `timeoutMs` ({@link PROJECT_LOCK_TIMEOUT_MS} unless a caller
+ * needs a shorter wait) and a timeout or deadlock becomes a retryable Project conflict. The
+ * caller's own `lock_timeout` is restored afterwards, so the bound never leaks into the work done
+ * under the locks.
  */
 async function withProjectLockTimeout<T>(
   tx: DbTransaction,
   message: string,
-  acquire: () => Promise<T>
+  acquire: () => Promise<T>,
+  timeoutMs = PROJECT_LOCK_TIMEOUT_MS
 ): Promise<T> {
   try {
-    return await withLockTimeout(tx, PROJECT_LOCK_TIMEOUT_MS, acquire)
+    return await withLockTimeout(tx, timeoutMs, acquire)
   } catch (error) {
     const code = getPostgresErrorCode(error)
     if (code === '55P03' || code === '40P01') throw new ProjectConflictError(message)
@@ -71,9 +73,16 @@ export async function lockProjectBackfillWrites(
 }
 
 /** Canonical Project mutex; membership and lifecycle writers hold it until commit. */
-export async function lockProject(tx: DbTransaction, projectId: string): Promise<void> {
-  await withProjectLockTimeout(tx, PROJECT_CHANGING, () =>
-    acquireAdvisoryXactLock(tx, 'project', projectLockKey(projectId))
+export async function lockProject(
+  tx: DbTransaction,
+  projectId: string,
+  options: { timeoutMs?: number } = {}
+): Promise<void> {
+  await withProjectLockTimeout(
+    tx,
+    PROJECT_CHANGING,
+    () => acquireAdvisoryXactLock(tx, 'project', projectLockKey(projectId)),
+    options.timeoutMs
   )
 }
 

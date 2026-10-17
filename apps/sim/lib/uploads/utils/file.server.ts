@@ -474,7 +474,8 @@ export async function downloadServableFileFromStorage(
         buffer: rendered,
         contentType: 'text/html',
         contributingFiles: page.contributingFiles,
-        dependsOnReferencedFiles: page.contributingFiles.length > 0,
+        /** Even with no inlined images, the render bakes in the deployed stylesheet and shell. */
+        dependsOnReferencedFiles: true,
       }
     }
   }

@@ -38,6 +38,7 @@ import { readAttributionProperties } from '@/lib/analytics/attribution'
 import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
 import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
+import { holdAdminRemovalStops, stopAdminRemovedRuns } from '@/lib/auth/admin-removal-stops'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import {
@@ -53,7 +54,7 @@ import {
   recordAuthenticationSecurityAudit,
   recordPasswordResetAudit,
 } from '@/lib/auth/lifecycle-audit'
-import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
+import { hashOAuthToken, revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import {
   consentRequestNamesClient,
   OAUTH_ACCESS_TOKEN_PREFIX,
@@ -92,7 +93,7 @@ import {
   syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
-import { handleNewUser } from '@/lib/billing/core/usage'
+import { handleNewSignInAccount, handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
@@ -404,7 +405,7 @@ export const auth = betterAuth({
           }
 
           try {
-            await handleNewUser(user.id)
+            await handleNewUser(user.id, context)
           } catch (error) {
             logger.error('[databaseHooks.user.create.after] Failed to initialize user stats', {
               userId: user.id,
@@ -469,11 +470,15 @@ export const auth = betterAuth({
       },
       /**
        * The admin plugin's `/admin/remove-user` deletes the user row through Better Auth, so its
-       * usage rows cascade away without `deleteUserAccount`. Better Auth runs this once the delete
-       * commits, which is when the stored reporting prefixes that counted them must be discarded.
+       * usage rows cascade away without `deleteUserAccount`. Better Auth runs `after` once the
+       * delete commits, which is when the stored reporting prefixes that counted them must be
+       * discarded, and when the runs the cascade orphaned are stopped: in-flight ones at once,
+       * queued ones by the outbox worker, since this module cannot load that delivery.
        */
       delete: {
-        after: async () => {
+        before: holdAdminRemovalStops,
+        after: async (user) => {
+          await stopAdminRemovedRuns(user)
           await invalidateReportingUsagePrefixes()
         },
       },
@@ -646,11 +651,20 @@ export const auth = betterAuth({
 
           try {
             const { ensureUserStatsExists } = await import('@/lib/billing/core/usage')
-            await ensureUserStatsExists(account.userId)
+            await ensureUserStatsExists(account.userId, context)
           } catch (error) {
             logger.error('[databaseHooks.account.create.after] Failed to ensure user stats', {
               userId: account.userId,
               accountId: account.id,
+              error,
+            })
+          }
+
+          try {
+            await handleNewSignInAccount(account, context)
+          } catch (error) {
+            logger.error('[databaseHooks.account.create.after] Deleted-identity check failed', {
+              userId: account.userId,
               error,
             })
           }
@@ -974,7 +988,19 @@ export const auth = betterAuth({
         throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
+    /**
+     * Re-sweeps sessions after `onPasswordReset`, catching one created while it ran (e.g. a social
+     * sign-in). Cookie-cached sessions survive until `cookieCache.maxAge`.
+     */
+    revokeSessionsOnPasswordReset: true,
+    /**
+     * Sessions go first: OAuth issuance references its session, so once they are deleted no new
+     * grant can be minted behind the sweep. A failure fails the reset, and the retry from a new
+     * link redoes the revocation.
+     */
     onPasswordReset: async ({ user: resetUser }, request) => {
+      await db.delete(schema.session).where(eq(schema.session.userId, resetUser.id))
+      await revokeUserOAuthGrants(resetUser.id)
       await recordPasswordResetAudit({ kind: 'completed', userId: resetUser.id, request })
     },
   },

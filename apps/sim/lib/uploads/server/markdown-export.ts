@@ -25,7 +25,7 @@ const logger = createLogger('MarkdownExport')
 export const MAX_EXPORT_TOTAL_BYTES = 250 * 1024 * 1024
 /** Larger documents remain available as exact Markdown without allocating a syntax tree. */
 export const MAX_EXPORT_MARKDOWN_PARSE_BYTES = 10 * 1024 * 1024
-const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
+export const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
 const markdownProcessor = unified()
   .use(remarkParse)
   .use(remarkGfm)

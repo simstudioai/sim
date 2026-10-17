@@ -47,6 +47,26 @@ describe('getFalAICostMetadata fallback floor', () => {
     expect(result.costDollars).toBe(expected)
   })
 
+  it('bills the floor when the pricing estimate answers with an unreadable body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL) =>
+        String(url).includes('pricing/estimate')
+          ? new Response('not json', { status: 200 })
+          : new Response('error', { status: 500 })
+      )
+    )
+
+    const result = await getFalAICostMetadata({
+      apiKey: 'test-key',
+      endpointId: 'fal-ai/veo-3.1',
+      requestId: 'req_123',
+    })
+
+    expect(result.source).toBe('fallback_floor')
+    expect(result.costDollars).toBe(FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS)
+  })
+
   it('never bills an audio clip at the video floor', () => {
     expect(FALAI_AUDIO_FALLBACK_PROVIDER_COST_DOLLARS).toBeLessThan(
       FALAI_VIDEO_FALLBACK_PROVIDER_COST_DOLLARS

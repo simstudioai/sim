@@ -5,6 +5,7 @@ import {
   RESOURCE_ERRORS,
   WORKSPACE_API_KEY_DENIED,
 } from '@/lib/api/contracts/v2/openapi/shared'
+import { v2UnzipProjectFileContract } from '@/lib/api/contracts/v2/project-file-extraction'
 import {
   v2ArchiveProjectFileItemsContract,
   v2MoveProjectFileItemsContract,
@@ -23,6 +24,36 @@ import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
 
 export const projectFileOpenApiRoutes = [
+  defineOpenApiRoute(
+    v2UnzipProjectFileContract,
+    {
+      applicationOperation: projectFileOperations.extractArchive,
+      operationId: 'unzipProjectFile',
+      summary: 'Unzip Project File',
+      description: `Extract a ZIP archive into a new sibling folder in the same Project. Use List Project Files to inspect its contents. Concurrent extraction of the same archive returns \`409\`; size or processing-time limits return \`413\`. ${WORKSPACE_API_KEY_DENIED}`,
+      tags: ['Files'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
+      success: {
+        description: 'Counts and destination folder for the unpacked archive.',
+        headers: RATE_LIMIT_HEADERS,
+      },
+    },
+    {
+      params: documentedSchema(
+        v2UnzipProjectFileContract.params,
+        'ProjectFileParams',
+        'Project file identity',
+        'The owning Project and the file identifier.'
+      ),
+      query: v2UnzipProjectFileContract.query,
+      response: documentedSchema(
+        v2UnzipProjectFileContract.response.schema,
+        'V2ProjectFileUnzipResponse',
+        'Unzip Project file response',
+        'Counts and destination folder for the unpacked archive.'
+      ),
+    }
+  ),
   defineOpenApiRoute(
     v2SearchProjectFileContentContract,
     {

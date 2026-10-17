@@ -1,6 +1,7 @@
 // GENERATED — do not edit. Source of truth: mothership worker packages/contracts/src/protocol.ts
 // Regenerate with `bun run contracts:sync` in the worker.
 
+import { FileOwnerContext } from "./file-owner";
 /**
  * The sim⇄worker wire protocol surface — THE shared source of truth (P3, S31).
  *
@@ -18,6 +19,7 @@
 import { z } from "zod";
 import { AssistantImage, AssistantSearch, AssistantSearchLevel } from "./assistant";
 import { IntegrationCatalogContext } from "./integration-catalog";
+import { ResourceAddress } from "./resources";
 import { SimConnection } from "./sim-transport";
 
 export const PROTOCOL_VERSION = 2;
@@ -180,6 +182,7 @@ export const ChatPayloadSchema = z
           content: z.string(),
           tag: z.string().optional(),
           path: z.string().optional(),
+          resource: ResourceAddress.optional(),
         }),
       )
       .default([]),
@@ -195,6 +198,9 @@ export const ChatPayloadSchema = z
     modelSelection: ModelSelectionSchema.optional(),
     /** Workspace orientation (contracts ChatRequest.inventory): names and ids per world. */
     inventory: WorkspaceInventorySchema.optional(),
+    fileOwnerProtocolVersion: FileOwnerContext.shape.fileOwnerProtocolVersion.optional(),
+    project: FileOwnerContext.shape.project,
+    fileOwnerCapabilities: FileOwnerContext.shape.fileOwnerCapabilities.optional(),
   })
   .superRefine((value, ctx) => {
     if (
@@ -274,8 +280,32 @@ export interface StreamToolReplay {
   workspaceId?: string | undefined;
 }
 
+/**
+ * How long the worker waits for one handed tool call's result, measured from the hand-off.
+ * Sim converts it to an absolute deadline on receipt, persists it with the call (a takeover
+ * re-run inherits what remains) and settles the call, cancellation included, by
+ * `deadlineMs - TOOL_DEADLINE_SETTLE_MARGIN_MS`: approval wait, pickup, execution and lease
+ * extensions all fit inside it. Sim policy may only end a call sooner. Absent = the
+ * receiver's own bounds.
+ */
+export interface StreamToolDeadline {
+  deadlineMs?: number | undefined;
+}
+
+/**
+ * Room between Sim settling a call and the worker's own bound for it: Sim's resume-gate
+ * grace plus the time its result takes to reach the worker.
+ */
+export const TOOL_DEADLINE_SETTLE_MARGIN_MS = 90_000;
+
+/** The `clientCapabilities` token a Sim sends when it honors `StreamToolDeadline`. */
+export const TOOL_DEADLINE_CAPABILITY = "tool-deadline";
+
 /** POST /api/mothership — the chat request sim sends. */
 export interface ChatRequest extends StreamResponseReceipt {
+  fileOwnerProtocolVersion?: 1 | undefined;
+  project?: FileOwnerContext["project"] | undefined;
+  fileOwnerCapabilities?: FileOwnerContext["fileOwnerCapabilities"] | undefined;
   desktop?: DesktopContext | undefined;
   effort?: "none" | "low" | "medium" | "high" | "xhigh" | "max" | undefined;
   modelSelection?: ModelSelection | undefined;
@@ -315,7 +345,8 @@ export interface ChatRequest extends StreamResponseReceipt {
    * empty array means "I pick up nothing", so sim-side dispatch must skip client-pickup
    * grace windows and run tools server-side immediately. ABSENT = older/unknown caller —
    * dispatch keeps its conservative grace (deploy-skew safe: a stale tab that predates
-   * this field still gets waited on). Known capability: "workflow-tool-pickup".
+   * this field still gets waited on). Known capability: "workflow-tool-pickup". Sim also
+   * declares its own {@link TOOL_DEADLINE_CAPABILITY} here.
    */
   clientCapabilities?: string[] | undefined;
   /**
@@ -350,6 +381,8 @@ export interface ChatContextItem {
   content: string;
   tag?: string | undefined;
   path?: string | undefined;
+  /** Requested resource identity; Sim authorizes access independently on every read. */
+  resource?: ResourceAddress | undefined;
 }
 
 /** POST /api/tools/resume — deferred tool results. */

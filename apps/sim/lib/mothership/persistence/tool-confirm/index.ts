@@ -156,7 +156,7 @@ export async function waitForToolConfirmation(
     const checkDurableConfirmation = async (source: 'subscribe' | 'pubsub' | 'poll') => {
       if (options.executionScope) {
         try {
-          await revokeExpiredSimToolExecutions(options.executionScope)
+          await revokeExpiredSimToolExecutions({ ...options.executionScope, toolCallId })
         } catch (error) {
           logger.warn('Could not verify retained tool execution ownership', {
             toolCallId,

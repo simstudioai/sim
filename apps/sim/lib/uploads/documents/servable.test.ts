@@ -1,5 +1,9 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadataMockFns,
+} from '@sim/testing/mocks/read-workspace-file-metadata.mock'
 import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,7 +12,6 @@ const {
   mockLoadPublishedCompiledDoc,
   mockPublishCompiledDocArtifact,
   mockReadWorkspaceFileContent,
-  mockReadWorkspaceFileMetadata,
   mockRunSandboxTask,
   mockStoreCompiledDoc,
 } = vi.hoisted(() => ({
@@ -16,7 +19,6 @@ const {
   mockLoadPublishedCompiledDoc: vi.fn(),
   mockPublishCompiledDocArtifact: vi.fn(),
   mockReadWorkspaceFileContent: vi.fn(),
-  mockReadWorkspaceFileMetadata: vi.fn(),
   mockRunSandboxTask: vi.fn(),
   mockStoreCompiledDoc: vi.fn(),
 }))
@@ -31,9 +33,10 @@ vi.mock('@/lib/execution/sandbox/run-task', () => ({
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: { execute: mockReadWorkspaceFileContent },
 }))
-vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
-  readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-workspace-file-metadata',
+  () => readWorkspaceFileMetadataMock
+)
 vi.mock('@/lib/uploads/documents/compiled-store', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/uploads/documents/compiled-store')>()),
   loadCompiledDoc: mockLoadCompiledDoc,
@@ -50,6 +53,7 @@ import {
 import { DocCompileUserError } from '@/lib/uploads/documents/compile-error'
 
 const { mockExecuteInSandbox } = remoteSandboxMockFns
+const { mockReadWorkspaceFileMetadata } = readWorkspaceFileMetadataMockFns
 
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = createSessionPrincipal()

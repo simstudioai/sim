@@ -146,6 +146,7 @@ export {
   billingUsageLogMock,
   billingUsageLogMockFns,
   MockCumulativeUsageContextMismatchError,
+  MockCumulativeUsageInFlightError,
   MockCumulativeUsagePeriodClosedError,
   MockUnknownUsageCursorError,
 } from './billing-usage-log.mock'
@@ -690,6 +691,10 @@ export {
   reactQueryMock,
   reactQueryMockFns,
 } from './react-query.mock'
+export {
+  readWorkspaceFileMetadataMock,
+  readWorkspaceFileMetadataMockFns,
+} from './read-workspace-file-metadata.mock'
 export {
   realtimeNotifyMock,
   realtimeNotifyMockFns,

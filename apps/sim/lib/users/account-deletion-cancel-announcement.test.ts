@@ -57,7 +57,7 @@ describe('announcing the work a deleted account’s cancels stopped', () => {
    * in-flight pill until something unrelated touches the row.
    */
   it('publishes the same terminal dispatch and cell events a Stop would', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(mocks.appendTableEvent).toHaveBeenCalledWith({
       kind: 'dispatch',
@@ -90,7 +90,9 @@ describe('announcing the work a deleted account’s cancels stopped', () => {
       throw new Error('rolled back')
     })
 
-    await expect(deleteUserAccount('user-1')).rejects.toThrow('rolled back')
+    await expect(deleteUserAccount('user-1', { recordIdentity: false })).rejects.toThrow(
+      'rolled back'
+    )
     expect(mocks.appendTableEvent).not.toHaveBeenCalled()
   })
 
@@ -104,7 +106,7 @@ describe('announcing the work a deleted account’s cancels stopped', () => {
    * and drained by a sibling worker as actorless.
    */
   it('locks the departing user’s row before cancelling anything it governs', async () => {
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
     const lockedAt = Math.min(...dbChainMockFns.for.mock.invocationCallOrder)

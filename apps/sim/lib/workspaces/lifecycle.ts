@@ -21,6 +21,7 @@ import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { mcpService } from '@/lib/mcp/service'
+import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import {
   archiveProjectWithLastEnvironment,
   lockWorkspaceProjectExclusive,
@@ -40,11 +41,22 @@ export interface EnvironmentArchiveEffects {
   workspaceId: string
   workflows: { id: string; serverIds: string[] }[]
   serverIds: string[]
+  /**
+   * Chat runs the archive stopped. The caller delivers their Stop with `deliverRunStops`:
+   * this module sits in page graphs that must not load that delivery.
+   */
+  stoppedRuns: StoppedRun[]
 }
 
 interface ArchiveWorkspaceOptions {
   requestId: string
   expectedOwnerId?: string
+  /**
+   * Starts delivering the Stop the archive committed for its live Chat runs, before the slower
+   * post-commit cleanup. Injected because this module sits in page graphs that must not load
+   * the delivery; without it the runs stop on run control's next read.
+   */
+  deliverStops?: (runs: StoppedRun[]) => void
 }
 
 interface ArchiveWorkspaceResult {
@@ -90,6 +102,7 @@ export async function archiveWorkspace(
   if (!outcome) return { archived: false }
 
   logger.info(`[${options.requestId}] Archived workspace ${workspaceId}`)
+  options.deliverStops?.(outcome.effects.stoppedRuns)
 
   await finishEnvironmentArchive(outcome.effects, options.requestId)
 
@@ -101,9 +114,9 @@ export async function archiveWorkspace(
 }
 
 /**
- * Archives an environment and its active workflows in the caller's transaction, batching
- * the workflow statements; callers own the Project lifecycle. Announce the returned
- * effects with {@link finishEnvironmentArchive} after commit.
+ * Archives an environment, its active workflows and its live Chat runs in the caller's
+ * transaction, batching the workflow statements; callers own the Project lifecycle. Announce
+ * the returned effects with {@link finishEnvironmentArchive} after commit.
  */
 export async function archiveEnvironmentInTransaction(
   tx: DbTransaction,
@@ -134,7 +147,8 @@ export async function archiveEnvironmentInTransaction(
     for (const id of batch) workflows.push({ id, serverIds: serverIdsByWorkflow.get(id) ?? [] })
   }
   const serverIds = await archiveWorkspaceRecordsInTransaction(tx, workspaceId, now)
-  return { workspaceId, workflows, serverIds }
+  const stoppedRuns = await stopLiveRunsTx(tx, { workspaceId })
+  return { workspaceId, workflows, serverIds, stoppedRuns }
 }
 
 /**

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-14",
+  "updatedAt": "2026-10-17",
   "integrations": [
     {
       "type": "onepassword",
@@ -7082,7 +7082,7 @@
       "slug": "databricks",
       "name": "Databricks",
       "description": "Run SQL, manage jobs, and ask Genie agents on Databricks",
-      "longDescription": "Run SQL against Databricks warehouses, trigger and monitor job runs, inspect clusters, and retrieve run output. Ask questions of a Genie space, continue a conversation, or run Genie agent research. Supply a personal access token and workspace host URL.",
+      "longDescription": "Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts. Connect with a personal access token and workspace host URL.",
       "bgColor": "#F9F7F4",
       "iconName": "DatabricksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/databricks",
@@ -7096,8 +7096,12 @@
           "description": "Poll a SQL statement by its ID to retrieve status and results. Use this after Execute SQL when a query runs longer than the wait timeout."
         },
         {
-          "name": "List Warehouses",
-          "description": "List all SQL warehouses in a Databricks workspace including their size, state, and type. Use this to discover the warehouse ID needed for Execute SQL."
+          "name": "Get Statement Chunk",
+          "description": "Retrieve one chunk of an INLINE SQL result using nextChunkIndex from Execute SQL or Get Statement."
+        },
+        {
+          "name": "Cancel Statement",
+          "description": "Request cancellation of an executing SQL statement; poll Get Statement to confirm its final status."
         },
         {
           "name": "List Jobs",
@@ -7108,32 +7112,140 @@
           "description": "Get the full definition and settings of a single Databricks job by its job ID."
         },
         {
+          "name": "Create Job",
+          "description": "Create a Databricks job with tasks, scheduling, execution identity, and notifications."
+        },
+        {
+          "name": "Update Job",
+          "description": "Merge selected settings into a Databricks job and optionally remove settings or tasks."
+        },
+        {
+          "name": "Reset Job",
+          "description": "Replace all settings of a Databricks job."
+        },
+        {
+          "name": "Delete Job",
+          "description": "Delete a Databricks job and cancel its active runs."
+        },
+        {
           "name": "Run Job",
           "description": "Trigger an existing Databricks job to run immediately with optional job-level or notebook parameters."
         },
         {
-          "name": "Get Run",
-          "description": "Get the status, timing, and details of a Databricks job run by its run ID."
+          "name": "Submit Run",
+          "description": "Submit a one-time task run without creating a saved job."
         },
         {
           "name": "List Runs",
           "description": "List job runs in a Databricks workspace with optional filtering by job, status, and time range."
         },
         {
-          "name": "Cancel Run",
-          "description": "Cancel a running or pending Databricks job run. Cancellation is asynchronous; poll the run status to confirm termination."
+          "name": "Get Run",
+          "description": "Get the status, timing, and details of a Databricks job run by its run ID."
         },
         {
           "name": "Get Run Output",
           "description": "Get the output of a completed Databricks job run, including notebook results, error messages, and logs. For multi-task jobs, use the task run ID (not the parent run ID)."
         },
         {
+          "name": "Repair Run",
+          "description": "Rerun failed or selected tasks within an existing Databricks run."
+        },
+        {
+          "name": "Cancel Run",
+          "description": "Cancel a running or pending Databricks job run. Cancellation is asynchronous; poll the run status to confirm termination."
+        },
+        {
+          "name": "Cancel All Runs",
+          "description": "Request cancellation of active runs of a job or queued runs in the workspace."
+        },
+        {
+          "name": "Delete Run",
+          "description": "Delete a completed Databricks job run."
+        },
+        {
           "name": "List Clusters",
-          "description": "List all clusters in a Databricks workspace including their state, configuration, and resource details."
+          "description": "List a page of clusters in a Databricks workspace including their state, configuration, and resource details."
         },
         {
           "name": "Get Cluster",
           "description": "Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID."
+        },
+        {
+          "name": "Create Cluster",
+          "description": "Create a compute cluster with runtime, sizing, policy, and cloud-specific settings."
+        },
+        {
+          "name": "Edit Cluster",
+          "description": "Replace a compute cluster configuration; a running cluster restarts to apply the changes."
+        },
+        {
+          "name": "Start Cluster",
+          "description": "Start a terminated all-purpose compute cluster."
+        },
+        {
+          "name": "Restart Cluster",
+          "description": "Restart a running compute cluster."
+        },
+        {
+          "name": "Resize Cluster",
+          "description": "Change the fixed worker count or autoscaling range of a running cluster."
+        },
+        {
+          "name": "Terminate Cluster",
+          "description": "Terminate a compute cluster while retaining its configuration for a later restart."
+        },
+        {
+          "name": "Delete Cluster",
+          "description": "Permanently delete a compute cluster and its configuration."
+        },
+        {
+          "name": "List Warehouses",
+          "description": "List a page of SQL warehouses in a Databricks workspace including their size, state, and type. Use this to discover the warehouse ID needed for Execute SQL."
+        },
+        {
+          "name": "Get Warehouse",
+          "description": "Get the configuration, state, and scaling settings of a SQL warehouse."
+        },
+        {
+          "name": "Create Warehouse",
+          "description": "Create a SQL warehouse with sizing, autoscaling, and serverless settings."
+        },
+        {
+          "name": "Edit Warehouse",
+          "description": "Update a SQL warehouse configuration."
+        },
+        {
+          "name": "Start Warehouse",
+          "description": "Start a stopped SQL warehouse."
+        },
+        {
+          "name": "Stop Warehouse",
+          "description": "Stop a running SQL warehouse."
+        },
+        {
+          "name": "Delete Warehouse",
+          "description": "Delete a SQL warehouse."
+        },
+        {
+          "name": "List Genie Spaces",
+          "description": "List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question."
+        },
+        {
+          "name": "Get Genie Space",
+          "description": "Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions)."
+        },
+        {
+          "name": "Create Genie Space",
+          "description": "Create a Genie space from its serialized configuration and a SQL warehouse."
+        },
+        {
+          "name": "Update Genie Space",
+          "description": "Update a Genie space, optionally protecting the change with its current ETag."
+        },
+        {
+          "name": "Trash Genie Space",
+          "description": "Move a Genie space to the trash."
         },
         {
           "name": "Ask Genie",
@@ -7176,30 +7288,26 @@
           "description": "Delete a Genie conversation you no longer need."
         },
         {
-          "name": "List Genie Spaces",
-          "description": "List the Genie spaces (Genie agents) you can access. Use this to find the space ID needed to ask Genie a question."
-        },
-        {
-          "name": "Get Genie Space",
-          "description": "Get a Genie space's title, description, and SQL warehouse, optionally with its full configuration export (tables, instructions, sample questions)."
-        },
-        {
           "name": "Ask Genie Agent",
           "description": "Ask a Genie agent a question in agent mode, where Genie plans multi-step research, runs several SQL queries, and writes a report with citations. Waits for the final report. Starts a new agent-mode conversation, or continues one when a conversation ID is given. Agent mode is in preview and must be enabled on the workspace."
         },
         {
           "name": "List Genie Agent Items",
           "description": "List an agent-mode conversation's full history in order: questions, reasoning, SQL calls, query results, and reports. Agent mode is in preview and must be enabled on the workspace."
+        },
+        {
+          "name": "Cancel Genie Agent Response",
+          "description": "Cancel an in-flight Genie agent response using the response ID returned by the agent stream."
         }
       ],
-      "operationCount": 26,
+      "operationCount": 53,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-17"
     },
     {
       "type": "datadog",
@@ -17883,6 +17991,171 @@
       "integrationType": "databases",
       "tags": ["data-analytics"],
       "updatedAt": "2026-10-08"
+    },
+    {
+      "type": "oracle_fusion_financials",
+      "slug": "oracle-fusion-financials",
+      "name": "Oracle Fusion Financials",
+      "description": "Manage receivables and expenses, and report on payables and ledgers",
+      "longDescription": "Connect your Oracle Fusion Applications integration user through a reusable saved credential. Read payables invoices and payments; create and update receivables invoices, read their lines and installments, create credit memos, and create and apply receipts. Create, update, and submit expense reports and their expense lines. Read ledgers, journal batches, and ledger balances. Lists return one bounded page at a time. Oracle roles, business-unit access, and business validation still apply.",
+      "bgColor": "#C74634",
+      "iconName": "OracleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/oracle_fusion_financials",
+      "operations": [
+        {
+          "name": "Apply Receivables Receipt",
+          "description": "Apply a standard receipt to a Receivables invoice installment. An omitted amount applies the full open transaction balance."
+        },
+        {
+          "name": "Approve Receivables Invoice",
+          "description": "Approve a pending-approval Oracle Fusion receivables invoice. Returns the action result, not a refreshed transaction."
+        },
+        {
+          "name": "Create Expense Line",
+          "description": "Create an Oracle Fusion expense line."
+        },
+        {
+          "name": "Create Expense Report",
+          "description": "Create an Oracle Fusion expense report."
+        },
+        {
+          "name": "Create Receivables Credit Memo",
+          "description": "Create Oracle Fusion receivables credit memo."
+        },
+        {
+          "name": "Create Receivables Invoice",
+          "description": "Create Oracle Fusion receivables invoice."
+        },
+        {
+          "name": "Create Receivables Receipt",
+          "description": "Create Oracle Fusion receivables receipt."
+        },
+        {
+          "name": "Get Expense Line",
+          "description": "Get an Oracle Fusion expense line."
+        },
+        {
+          "name": "Get Expense Report",
+          "description": "Get an Oracle Fusion expense report."
+        },
+        {
+          "name": "Get GL Journal Batch",
+          "description": "Get an Oracle Fusion gl journal batch."
+        },
+        {
+          "name": "Get GL Ledger",
+          "description": "Get an Oracle Fusion gl ledger."
+        },
+        {
+          "name": "Get Payables Invoice",
+          "description": "Get one Oracle Fusion Payables invoice by its opaque Oracle resource key."
+        },
+        {
+          "name": "Get Payables Invoice Line",
+          "description": "Get one Oracle Fusion Payables invoice line by its Oracle-derived opaque key."
+        },
+        {
+          "name": "Get Payables Payment",
+          "description": "Get one Oracle Fusion Payables payment by its CheckId."
+        },
+        {
+          "name": "Get Receivables Credit Memo",
+          "description": "Get Oracle Fusion receivables credit memo."
+        },
+        {
+          "name": "Get Receivables Invoice",
+          "description": "Get Oracle Fusion receivables invoice."
+        },
+        {
+          "name": "Get Receivables Invoice Installment",
+          "description": "Get Oracle Fusion receivables invoice installment."
+        },
+        {
+          "name": "Get Receivables Invoice Line",
+          "description": "Get Oracle Fusion receivables invoice line."
+        },
+        {
+          "name": "Get Receivables Receipt",
+          "description": "Get Oracle Fusion receivables receipt."
+        },
+        {
+          "name": "List Expense Lines",
+          "description": "List one bounded page of Oracle Fusion expense lines."
+        },
+        {
+          "name": "List Expense Reports",
+          "description": "List one bounded page of Oracle Fusion expense reports."
+        },
+        {
+          "name": "List GL Balances",
+          "description": "List one bounded page of Oracle Fusion gl balances."
+        },
+        {
+          "name": "List GL Journal Batches",
+          "description": "List one bounded page of Oracle Fusion gl journal batches."
+        },
+        {
+          "name": "List GL Ledgers",
+          "description": "List one bounded page of Oracle Fusion gl ledgers."
+        },
+        {
+          "name": "List Payables Invoice Lines",
+          "description": "List one page of lines for an Oracle Fusion Payables invoice."
+        },
+        {
+          "name": "List Payables Invoices",
+          "description": "List one page of Oracle Fusion Payables invoices using a fixed safe projection."
+        },
+        {
+          "name": "List Payables Payments",
+          "description": "List one page of Oracle Fusion Payables payments using a fixed safe projection."
+        },
+        {
+          "name": "List Receivables Credit Memos",
+          "description": "List one page of Oracle Fusion receivables credit memos."
+        },
+        {
+          "name": "List Receivables Invoice Installments",
+          "description": "List one page of Oracle Fusion receivables invoice installments."
+        },
+        {
+          "name": "List Receivables Invoice Lines",
+          "description": "List one page of Oracle Fusion receivables invoice lines."
+        },
+        {
+          "name": "List Receivables Invoices",
+          "description": "List one page of Oracle Fusion receivables invoices."
+        },
+        {
+          "name": "List Receivables Receipts",
+          "description": "List one page of Oracle Fusion receivables receipts."
+        },
+        {
+          "name": "Submit Expense Report",
+          "description": "Submit an Oracle Fusion expense report. Only result S means submission without errors; other results are returned as business failures."
+        },
+        {
+          "name": "Update Expense Line",
+          "description": "Update an Oracle Fusion expense line."
+        },
+        {
+          "name": "Update Expense Report",
+          "description": "Update an Oracle Fusion expense report."
+        },
+        {
+          "name": "Update Receivables Invoice",
+          "description": "Update Oracle Fusion receivables invoice."
+        }
+      ],
+      "operationCount": 36,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "oracle-fusion",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["automation", "data-analytics"],
+      "updatedAt": "2026-10-17"
     },
     {
       "type": "netsuite",

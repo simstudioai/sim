@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { addCopilotChatResourceBodySchema } from '@/lib/api/contracts/copilot'
-import { mothershipResourceSchema } from '@/lib/api/contracts/mothership-resources'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  mothershipResourceRemovalSchema,
+  mothershipResourceSchema,
+} from '@/lib/api/contracts/mothership-resources'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import {
   mountedSecretNamesSchema,
@@ -168,15 +170,6 @@ export type MothershipExecuteBody = z.input<typeof mothershipExecuteBodySchema>
 
 export const mothershipEventsQuerySchema = mothershipChatOwnerSchema
 
-export const mothershipChatGetQuerySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    workspaceId: z.string().optional(),
-    organizationId: z.string().optional(),
-    chatId: z.string().optional(),
-  })
-  .passthrough()
-
 export const mothershipChatPostEnvelopeSchema = z
   .object({
     message: z.string().max(MAX_CHAT_MESSAGE_LENGTH).optional(),
@@ -243,11 +236,8 @@ const reorderMothershipChatResourcesBodySchema = z.object({
   resources: z.array(mothershipResourceSchema),
 })
 
-const removeMothershipChatResourceBodySchema = z.object({
-  workspaceId: workspaceIdSchema.optional(),
+const removeMothershipChatResourceBodySchema = mothershipResourceRemovalSchema.safeExtend({
   chatId: z.string().min(1),
-  resourceType: mothershipResourceSchema.shape.type,
-  resourceId: z.string().min(1),
 })
 
 export const addMothershipChatResourceContract = defineRouteContract({

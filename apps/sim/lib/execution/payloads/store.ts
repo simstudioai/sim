@@ -90,6 +90,7 @@ async function persistValue(
       context: 'execution',
       preserveKey: true,
       customKey: key,
+      cleanupOnMetadataFailure: true,
       metadata: {
         originalName: `large-value-${id}.json`,
         uploadedAt: new Date().toISOString(),

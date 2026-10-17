@@ -12,10 +12,14 @@ import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 import {
+  DOCS_LINE,
+  GITHUB_LINE,
   LLMS_HEADER,
   linkLine,
   markdownResponse,
   navMenuLines,
+  PRICING_LINE,
+  SITEMAP_LINE,
   SOLUTION_LINES,
   section,
 } from '@/app/llms.txt/llms'
@@ -44,7 +48,7 @@ export async function GET() {
       section('Platform', [
         linkLine('Home', '/', 'Product overview and primary entry point'),
         ...navMenuLines(PLATFORM_MENU),
-        linkLine('Pricing', '/pricing', 'Free, Pro, Max, and Enterprise plans'),
+        PRICING_LINE,
       ]),
       section('Solutions', SOLUTION_LINES),
       section(
@@ -98,7 +102,7 @@ export async function GET() {
           `${DOCS_URL}/llms-full.txt`,
           'Full text of the Sim documentation'
         ),
-        linkLine('Documentation', DOCS_URL, 'Guides, SDKs, and API reference'),
+        DOCS_LINE,
       ]),
       section('Blog', [
         linkLine('Blog', '/blog', 'Announcements, engineering deep dives, and product context'),
@@ -106,16 +110,12 @@ export async function GET() {
       ]),
       section('Optional', [
         linkLine('Changelog', '/changelog', 'Product updates and release notes'),
-        linkLine('GitHub', 'https://github.com/simstudioai/sim', 'Open-source codebase'),
+        GITHUB_LINE,
         linkLine('Community Slack', SLACK_COMMUNITY_URL, 'Community workspace'),
         linkLine('Terms of Service', '/terms'),
         linkLine('Privacy Policy', '/privacy'),
         linkLine('Cookie Policy', '/cookie-policy'),
-        linkLine(
-          'Sitemap',
-          '/sitemap.xml',
-          'Every public URL, including each integration and model'
-        ),
+        SITEMAP_LINE,
       ]),
     ],
     revalidate

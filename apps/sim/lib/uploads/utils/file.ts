@@ -269,6 +269,21 @@ export function needsRenderedArtifact(
     : isRenderableDocumentName(fileName)
 }
 
+/**
+ * The base media type a reader sees for a stored file: a generated document's rendered type, as
+ * its name promises, otherwise its own effective type. Readers choose a representation from this.
+ */
+export function observedMediaType(
+  contentType: string | null | undefined,
+  fileName: string
+): string {
+  return normalizeMimeType(
+    needsRenderedArtifact(contentType, fileName)
+      ? getMimeTypeFromExtension(getFileExtension(fileName))
+      : resolveEffectiveMimeType(contentType, fileName)
+  )
+}
+
 const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
 
 /**
@@ -787,6 +802,12 @@ const PUBLIC_STORAGE_CONTEXTS = new Set<StorageContext>([
 /** Whether a trusted storage context is world-readable. */
 export function isPublicStorageContext(context: StorageContext): boolean {
   return PUBLIC_STORAGE_CONTEXTS.has(context)
+}
+
+/** Whether a stored key sits under a world-readable prefix, served without a row or a session. */
+export function isPublicStorageKey(key: string): boolean {
+  const context = tryInferContextFromKey(key)
+  return context !== null && isPublicStorageContext(context)
 }
 
 /**

@@ -5,7 +5,10 @@ import { cn } from '@sim/emcn'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
-import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import {
+  getChatResourceSelectionId,
+  getChatResourceWorkspaceId,
+} from '@/lib/mothership/resources/types'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
@@ -34,7 +37,7 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
-import { ResourceActions, ResourceContent, ResourceTabs } from './components'
+import { EmbeddedProjectFile, ResourceActions, ResourceContent, ResourceTabs } from './components'
 
 /**
  * Panels that are kept mounted across resource switches rather than rebuilt.
@@ -130,7 +133,7 @@ export const MothershipView = memo(
     ref
   ) {
     const active = resources.find((r) => getChatResourceSelectionId(r) === activeResourceId) ?? null
-    const activeWorkspaceId = active?.workspaceId ?? workspaceId
+    const activeWorkspaceId = active ? getChatResourceWorkspaceId(active, workspaceId) : workspaceId
     const inheritedPermissions = useUserPermissionsContext()
     const permissions = useWorkspacePermissionsQuery(organizationId ? activeWorkspaceId : undefined)
     const scopedPermissions = useUserPermissions(
@@ -206,6 +209,7 @@ export const MothershipView = memo(
     const isActiveFilePreviewable =
       canEdit &&
       active?.type === 'file' &&
+      Boolean(activeWorkspaceId) &&
       // Dashboards store extensionless names, so the record's type decides once it loads.
       (activeFile
         ? isPreviewable(activeFile)
@@ -316,7 +320,9 @@ export const MothershipView = memo(
                 previewSession={previewForActive}
                 isAgentResponding={isAgentResponding}
                 previewContextKey={chatId}
-                onNotFound={(resourceId) => removeResource('log', resourceId, active.workspaceId)}
+                onNotFound={(resourceId) =>
+                  removeResource({ type: 'log', id: resourceId, workspaceId: active.workspaceId })
+                }
               />
             )}
             {!active && (
@@ -345,6 +351,10 @@ function ScopedResourceContent({
 }) {
   if (props.resource.type === 'search')
     return <SearchResourceContent resource={props.resource} onSummarize={onSummarize} />
+  if (props.resource.type === 'file' && props.resource.owner?.entityType === 'project')
+    return (
+      <EmbeddedProjectFile projectId={props.resource.owner.entityId} fileId={props.resource.id} />
+    )
   if (!workspaceId) {
     if (props.resource.type === 'generic') return <GenericResourceContent />
     if (props.resource.type === 'browser')

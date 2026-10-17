@@ -1,1 +1,1 @@
-export { ResourceActions, ResourceContent } from './resource-content'
+export { EmbeddedProjectFile, ResourceActions, ResourceContent } from './resource-content'

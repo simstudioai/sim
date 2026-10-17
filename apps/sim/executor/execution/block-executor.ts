@@ -2,7 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { logFailureOnce, markFailureKind, markFailureLogged } from '@/lib/core/errors/failure-log'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -660,7 +660,8 @@ export class BlockExecutor {
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
-    const isDatabaseError = error instanceof DrizzleQueryError
+    /** A wrapper that interpolated a query failure's message carries its SQL and parameters too. */
+    const isDatabaseError = findDatabaseQueryError(error) !== undefined
     const errorMessage = isDatabaseError ? INTERNAL_DATABASE_ERROR_MESSAGE : normalizeError(error)
     const hasLogInputs =
       inputsForLog && typeof inputsForLog === 'object' && Object.keys(inputsForLog).length > 0

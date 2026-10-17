@@ -252,6 +252,7 @@ const downloadVersion = defineAuthorizedWorkspaceFileUseCase({
       streamWorkspaceFileRecord(recordAtVersion(file, version), principal)
     )
     await finishFileDelivery({
+      principal,
       async authorize() {
         await downloadVersion.authorize({ principal, input })
         const currentFile = await loadActiveFile(context)

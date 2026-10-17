@@ -3,7 +3,9 @@ import { truncateAtCodePoint } from '@sim/utils/string'
 
 // Keep encoded pixels below the 10 MiB completion body cap, with room for state and its envelope.
 const MAX_SCREENSHOT_BASE64_BYTES = 9 * 1024 * 1024
-const MAX_STATE_BYTES = 44 * 1024
+// Mothership stores a computer result over 24,000 characters and shows the model a preview cut
+// through the middle of the tree; staying under it keeps the prioritized rows the model needs.
+const MAX_STATE_BYTES = 22 * 1024
 const encoder = new TextEncoder()
 
 /** Screenshots are image observations; a bounded readable tree keeps actionable references inline. */
@@ -105,8 +107,10 @@ function snapshotForModel(result: ComputerUseSnapshot, envelopeBytes = 0) {
     const primaryAction = node.actions.some(
       (action) => action === 'AXPress' || action === 'AXConfirm' || action === 'AXPick'
     )
+    /** Items of an open menu have an on-screen frame; closed menus report none. */
+    const openMenuItem = node.role === 'AXMenuItem' && (node.height ?? 0) > 0
     return (
-      (node.focused
+      (node.focused || openMenuItem
         ? 100
         : node.editable
           ? 80

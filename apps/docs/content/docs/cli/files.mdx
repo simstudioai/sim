@@ -802,6 +802,27 @@ sim files mkdir <path>
 
 API request and response schemas: [createFileFolder](/api-reference/files/createFilesFolder).
 
+## Other commands
+
+### Copy file items
+
+OAuth login or personal API key required.
+
+```bash
+sim files copy [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source <json\|@file>` | Yes | Source owner and selected fileIds or folderIds (JSON, or @path / @- to read a file or stdin). |
+| `--destination <json\|@file>` | Yes | Destination owner and optional folderId (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ## Related docs
 
 - [Files](/files)

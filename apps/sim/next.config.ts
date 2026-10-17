@@ -12,6 +12,19 @@ import {
 import { LANDING_ROUTES } from './lib/landing/routes'
 import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
 
+/**
+ * `Accept` header patterns for Markdown negotiation. `text/markdown` must be one of the listed
+ * media ranges, and `q=0` (RFC 9110 §12.4.2: not acceptable) keeps the HTML page. Next anchors
+ * both patterns to the whole header.
+ */
+const ACCEPTS_MARKDOWN = '(.*,)?\\s*text/markdown\\s*([;,].*)?'
+const REFUSES_MARKDOWN =
+  '(.*,)?\\s*text/markdown(\\s*;[^,]*?)?\\s*;\\s*q\\s*=\\s*0(\\.0{0,3})?\\s*(,.*)?'
+const MARKDOWN_REQUEST = {
+  has: [{ type: 'header' as const, key: 'accept', value: ACCEPTS_MARKDOWN }],
+  missing: [{ type: 'header' as const, key: 'accept', value: REFUSES_MARKDOWN }],
+}
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
@@ -264,6 +277,11 @@ const nextConfig: NextConfig = {
   ],
   async headers() {
     return [
+      {
+        /** `/` answers in HTML or Markdown by `Accept` (see the `beforeFiles` rewrite). */
+        source: '/',
+        headers: [{ key: 'Vary', value: 'Accept' }],
+      },
       {
         // `/public`-served assets keep their path across deploys (no content
         // hash), so a shorter TTL + revalidation window bounds how long a
@@ -668,16 +686,31 @@ const nextConfig: NextConfig = {
     return redirects
   },
   async rewrites() {
-    return [
-      {
-        source: '/favicon.ico',
-        destination: '/icon.svg',
-      },
-      {
-        source: '/r/:shortCode',
-        destination: 'https://go.trybeluga.ai/:shortCode',
-      },
-    ]
+    return {
+      /** `beforeFiles` so a Markdown client's `/` reaches `/index.md` ahead of the HTML page. */
+      beforeFiles: [{ source: '/', ...MARKDOWN_REQUEST, destination: '/index.md' }],
+      afterFiles: [
+        {
+          source: '/favicon.ico',
+          destination: '/icon.svg',
+        },
+        {
+          source: '/r/:shortCode',
+          destination: 'https://go.trybeluga.ai/:shortCode',
+        },
+      ],
+      /**
+       * Fallback rewrites run only after every page and dynamic route has failed to match, so
+       * this answers a Markdown client's 404 in Markdown without shadowing any real route.
+       */
+      fallback: [
+        {
+          source: '/:path*',
+          ...MARKDOWN_REQUEST,
+          destination: '/markdown-not-found',
+        },
+      ],
+    }
   },
 }
 

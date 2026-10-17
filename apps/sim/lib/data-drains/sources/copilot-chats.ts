@@ -1,5 +1,7 @@
 import { copilotChats, copilotMessages } from '@sim/db/schema'
+import { isRecordLike, omit } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { persistedContentBlockSchema } from '@/lib/api/contracts/copilot-messages'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { DATA_DRAIN_LIMITS } from '@/lib/data-drains/limits'
 import {
@@ -11,6 +13,7 @@ import {
 } from '@/lib/data-drains/sources/cursor'
 import { readBoundedSourcePage, workspaceInOrganization } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
+import { stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
 
 /**
  * The transcript no longer lives on `copilot_chats.messages` — it is assembled
@@ -141,6 +144,47 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
   }
 }
 
+/** A message written before content blocks keeps its tool calls in a top-level `toolCalls` list. */
+function projectLegacyToolCall(call: unknown): unknown {
+  if (!isRecordLike(call) || call.name !== 'remember') return call
+  return {
+    name: 'remember',
+    ...(typeof call.id === 'string' ? { id: call.id } : {}),
+    ...(typeof call.status === 'string' ? { status: call.status } : {}),
+  }
+}
+
+/** Tool payloads can contain private notes even when their mutation failed or targeted a shared note. */
+function projectExportMessage(message: unknown): unknown {
+  if (!isRecordLike(message)) return message
+  const projected = Array.isArray(message.toolCalls)
+    ? { ...message, toolCalls: message.toolCalls.map(projectLegacyToolCall) }
+    : message
+  if (!Array.isArray(projected.contentBlocks)) return projected
+  return {
+    ...projected,
+    contentBlocks: projected.contentBlocks.map((block: unknown) => {
+      if (!isRecordLike(block) || !isRecordLike(block.toolCall)) return block
+      if (block.toolCall.name !== 'remember') {
+        if (!isRecordLike(block.toolCall.result) || !('output' in block.toolCall.result))
+          return block
+        const parsed = persistedContentBlockSchema.safeParse(block)
+        if (!parsed.success) return { ...block, toolCall: omit(block.toolCall, ['result']) }
+        const projected = stripToolResultOutput({ contentBlocks: [parsed.data] }).contentBlocks[0]
+        return { ...block, toolCall: { ...block.toolCall, result: projected.toolCall?.result } }
+      }
+      return {
+        type: 'tool',
+        toolCall: {
+          name: 'remember',
+          ...(typeof block.toolCall.id === 'string' ? { id: block.toolCall.id } : {}),
+          ...(typeof block.toolCall.state === 'string' ? { state: block.toolCall.state } : {}),
+        },
+      }
+    }),
+  }
+}
+
 export const copilotChatsSource: DrainSource<CopilotChatRow> = {
   type: 'copilot_chats',
   displayName: 'Chats',
@@ -153,7 +197,7 @@ export const copilotChatsSource: DrainSource<CopilotChatRow> = {
       workspaceId: row.workspaceId,
       type: row.type,
       title: row.title,
-      messages: row.messages,
+      messages: row.messages.map(projectExportMessage),
       model: row.model,
       conversationId: row.conversationId,
       previewYaml: row.previewYaml,

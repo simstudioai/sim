@@ -795,6 +795,13 @@ export const CLI_CONTRACT: CliContract = {
       },
     },
   },
+  copyFileItems: {
+    command: 'files copy',
+    flags: {
+      source: { json: true, describe: 'Source owner and selected fileIds or folderIds' },
+      destination: { json: true, describe: 'Destination owner and optional folderId' },
+    },
+  },
   renameProjectFile: { command: 'projects files rename' },
   listProjectFileFolders: {
     command: 'projects files folders list',
@@ -1739,6 +1746,11 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Unzip an archive into a new folder beside it',
     confirm: 'This writes every file in the archive into the workspace.',
   },
+  unzipProjectFile: {
+    command: 'projects files unzip',
+    describe: 'Unzip an archive into a new folder beside it in the Project',
+    confirm: 'This writes every file in the archive into the Project.',
+  },
   /**
    * Configured even though `buildGeneratedCommands` skips it: it only builds
    * operations whose `responseMode` is `json` (runtime/build.ts), so this
@@ -1753,6 +1765,18 @@ export const CLI_CONTRACT: CliContract = {
       fileIds: { list: true },
       folderPaths: FOLDER_PATHS_FLAG,
     },
+  },
+  downloadProjectFileItems: {
+    command: 'projects files bulk-download',
+    describe: 'Download Project files and folders as a zip archive',
+    flags: {
+      fileIds: { list: true },
+      folderIds: { list: true },
+    },
+  },
+  exportProjectFileSnapshot: {
+    command: 'projects files export',
+    describe: 'Export a visible Project Markdown snapshot with its embedded assets',
   },
   editFileContent: {
     command: 'files edit',
@@ -1775,11 +1799,24 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'Show a file’s share settings',
     fields: FILE_SHARE_FIELDS,
   },
+  getProjectFileShare: {
+    command: 'projects files share get',
+    describe: 'Show a Project file’s share settings',
+    fields: FILE_SHARE_FIELDS,
+  },
   // v2 folds share and unshare into one PATCH; `--is-active false` disables it,
   // so there is no separate unshare operation to expose.
   upsertFileShare: {
     command: 'files share set',
     describe: 'Enable or disable sharing for a file',
+    flags: {
+      allowedEmails: { list: true },
+    },
+    fields: FILE_SHARE_FIELDS,
+  },
+  updateProjectFileShare: {
+    command: 'projects files share set',
+    describe: 'Enable or disable sharing for a Project file',
     flags: {
       allowedEmails: { list: true },
     },

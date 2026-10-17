@@ -295,15 +295,16 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
     pathname.startsWith('/api/webhooks/tiktok') ||
     pathname.startsWith('/api/webhooks/agentmail')
   const isMcpEndpoint = pathname.startsWith('/api/mcp/')
-  const isMcpDiscoveryEndpoint =
+  const isDiscoveryEndpoint =
     pathname.startsWith('/.well-known/oauth-authorization-server') ||
     pathname.startsWith('/.well-known/oauth-protected-resource') ||
-    pathname === '/.well-known/openai-apps-challenge'
+    pathname === '/.well-known/openai-apps-challenge' ||
+    pathname === '/.well-known/api-catalog'
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
   // Block suspicious requests, but exempt machine-to-machine endpoints that may
-  // legitimately omit User-Agent headers (webhooks and MCP protocol discovery/calls).
-  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpDiscoveryEndpoint) {
+  // legitimately omit User-Agent headers (webhooks, MCP calls, and protocol discovery).
+  if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isDiscoveryEndpoint) {
     // Scanner traffic (empty or tool user agents probing /admin.php etc.); the 403 is the response.
     logger.debug('Blocked suspicious request', {
       userAgent,
@@ -469,10 +470,10 @@ export const config = {
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes
-    // Runtime CORS. The desktop's raw upload routes and the realtime relay's document persist are
+    // Runtime CORS. The desktop's raw upload routes and the realtime relay's document persists are
     // left out: running the proxy makes Next buffer the body, cutting it off at its 10 MB proxy
     // limit, and those bodies are whole files or document snapshots.
-    '/api/((?!desktop/tool/(?:import|file)$|internal/project-file-doc/[^/]+/[^/]+/persist$).*)',
+    '/api/((?!desktop/tool/(?:import|file)$|internal/file-doc/persist$|internal/project-file-doc/[^/]+/[^/]+/persist$).*)',
     // Next's image optimizer fetches public editorial images without a User-Agent.
     '/((?!api/|api$|_next/static|_next/image|(?:blog|changelog)/.*\\.(?:avif|gif|jpe?g|png|svg|webp)$|ingest|favicon.ico|logo/|landing/|static/|footer/|social/|enterprise/|favicon/|twitter/|robots.txt|sitemap.xml).*)',
   ],

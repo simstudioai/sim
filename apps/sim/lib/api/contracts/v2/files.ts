@@ -1070,7 +1070,7 @@ export const v2MoveFileItemsContract = defineRouteContract({
  * Comma-separated only: v2 rejects a query parameter sent more than once, so a
  * repeated-parameter form would never reach this schema.
  */
-function v2QuerySelectionListSchema(field: string) {
+export function v2QuerySelectionListSchema(field: string) {
   return z
     .string()
     .optional()

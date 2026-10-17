@@ -8,6 +8,7 @@ const history = vi.hoisted(() => ({ recordExistingSessionFileInput: vi.fn() }))
 vi.mock('@/lib/execution/remote-sandbox/session-file-provenance', () => history)
 const telemetry = vi.hoisted(() => ({
   reportDurableSecretProvenanceRefusal: vi.fn(),
+  reportDurableSecretProvenanceRefusals: vi.fn(),
   reportDurableSecretProvenanceUnrecordedBatch: vi.fn(),
 }))
 vi.mock('@/lib/execution/durable-secret-provenance-telemetry', () => telemetry)
@@ -42,11 +43,23 @@ beforeEach(() => {
 
 describe('createSessionContentGate', () => {
   it('keeps an unknown item out of the machine and its history', async () => {
-    expect(await gate().admit([item('tainted', { status: 'unknown' })])).toEqual([false])
+    expect(await gate().admit([item('tainted', { status: 'unknown' })])).toEqual(['unknown'])
     expect(history.recordExistingSessionFileInput).not.toHaveBeenCalled()
-    expect(telemetry.reportDurableSecretProvenanceRefusal).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceId: 'tainted' })
+    expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledWith([
+      expect.objectContaining({ resourceId: 'tainted' }),
+    ])
+  })
+
+  it('reports every item one admission refuses as one batch, not one line per item', async () => {
+    telemetry.reportDurableSecretProvenanceRefusals.mockClear()
+    const refused = Array.from({ length: 50 }, (_, index) =>
+      item(`tainted-${index}`, { status: 'unknown' })
     )
+    expect(await gate().admit(refused)).toEqual(refused.map(() => 'unknown'))
+    expect(telemetry.reportDurableSecretProvenanceRefusals).toHaveBeenCalledTimes(1)
+    const [reports] = telemetry.reportDurableSecretProvenanceRefusals.mock.calls[0]
+    expect(reports).toHaveLength(50)
+    expect(telemetry.reportDurableSecretProvenanceRefusal).not.toHaveBeenCalled()
   })
 
   it('admits secret-bearing bytes, even opaque, after merging their entries into the history', async () => {
@@ -55,7 +68,7 @@ describe('createSessionContentGate', () => {
       item('tainted', { status: 'unknown' }),
       item('clean', { status: 'exact', entries: [] }),
     ])
-    expect(verdicts).toEqual([true, false, true])
+    expect(verdicts).toEqual([true, 'unknown', true])
     expect(history.recordExistingSessionFileInput).toHaveBeenCalledTimes(1)
     expect(history.recordExistingSessionFileInput).toHaveBeenCalledWith('session-1', {
       status: 'exact',

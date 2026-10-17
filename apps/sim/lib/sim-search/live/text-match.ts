@@ -10,34 +10,64 @@ export type TextMatch = 'all' | 'any'
 /** Terms an any-term query sends; more would make the provider query long without adding recall. */
 const MAX_ANY_TERMS = 8
 
+/**
+ * Ranking also counts two-letter words such as `AI` or `VM`: every title word counts toward the
+ * title's share of query terms, so skipping them would rank a page named `AI agents` below one
+ * named `Agents` for the query `AI agents`.
+ */
+const MIN_RANKING_TERM_LENGTH = 2
+
 /** Words that match nearly every page, so they would make an any-term query return noise. */
 const STOPWORDS = new Set([
   'about',
   'all',
+  'am',
+  'an',
   'and',
   'any',
   'are',
+  'as',
+  'at',
+  'be',
+  'by',
   'can',
   'could',
   'did',
+  'do',
   'does',
   'for',
   'from',
   'had',
   'has',
   'have',
+  'he',
   'how',
+  'if',
+  'in',
   'into',
+  'is',
+  'it',
   'its',
+  'me',
+  'my',
+  'no',
   'not',
+  'of',
+  'on',
+  'or',
   'our',
   'should',
+  'so',
   'that',
   'the',
   'their',
   'there',
   'this',
+  'to',
+  'up',
+  'us',
   'was',
+  'we',
   'were',
   'what',
   'when',
@@ -60,12 +90,20 @@ export function significantTerms(query: string): string[] {
   return distinctTerms(query, (term) => term.toLowerCase())
 }
 
-function distinctTerms(query: string, keyOf: (term: string) => string): string[] {
+/** A two-letter word written in capitals, such as `IT` or `US`, is an acronym, not a stopword. */
+const isStopword = (term: string) =>
+  STOPWORDS.has(term.toLowerCase()) && !(term.length === 2 && term === term.toUpperCase())
+
+function distinctTerms(
+  query: string,
+  keyOf: (term: string) => string,
+  minLength?: number
+): string[] {
   const seen = new Set<string>()
-  return queryTerms(query)
+  return queryTerms(query, minLength)
     .filter((term) => {
       const key = keyOf(term)
-      if (STOPWORDS.has(term.toLowerCase()) || seen.has(key)) return false
+      if (isStopword(term) || seen.has(key)) return false
       seen.add(key)
       return true
     })
@@ -75,10 +113,12 @@ function distinctTerms(query: string, keyOf: (term: string) => string): string[]
 /**
  * One key for a word and its regular plural (`token`/`tokens`, `process`/`processes`). As in the
  * Porter stemmer, a final `-y` and `-ie(s)` fold to `i`, so `policy`/`policies` and
- * `movie`/`movies` each share a key.
+ * `movie`/`movies` each share a key. A word of two letters or fewer is its own key, so `OS` never
+ * folds to the letter `o`.
  */
 function singularKey(term: string): string {
   const key = term.toLowerCase()
+  if (key.length <= 2) return key
   const stripped = /[^su]s$/.test(key) ? key.slice(0, -1) : key
   const stem = /(?:s|x|z|ch|sh|i)e$/.test(stripped) ? stripped.slice(0, -1) : stripped
   return stem.replace(/y$/, 'i')
@@ -121,19 +161,54 @@ export function termCoverage(text: string, terms: readonly string[]): number {
 }
 
 /**
- * A test for whether a text holds at least half the query's distinct terms. Query and text words
- * are compared by their singular key, so a word and its regular plural count as one term as a
- * stemmed search matches them; a term with punctuation inside it is matched as written.
+ * The query's distinct terms as a stemmed search counts them, and how many of them a text holds.
+ * Query and text words are compared by their singular key, so a word and its regular plural count
+ * as one term; a term with punctuation inside it is matched as written.
+ */
+function stemmedTerms(
+  query: string,
+  minLength?: number
+): {
+  count: number
+  /** At least half the terms, the minimum a partial match must hold. */
+  required: number
+  held: (text: string) => number
+} {
+  const terms = distinctTerms(query, singularKey, minLength)
+  const keys = terms.map(singularKey)
+  return {
+    count: terms.length,
+    required: Math.ceil(terms.length / 2),
+    held: (text) => {
+      const words = new Set(textWords(text).map(singularKey))
+      return terms.filter(
+        (term, index) => words.has(keys[index]) || findTermMatches(text, [term]).length > 0
+      ).length
+    },
+  }
+}
+
+/**
+ * A sort key, highest first, for comparing results from different sources against a plain query:
+ * the terms the title and text hold together, then the terms the title holds, then the share of
+ * the title's words that are query terms, so a page named for the query leads one that mentions it.
+ * Each source ranks only its own results, so this is the comparison they share.
+ */
+export function queryRelevance(
+  query: string
+): (title: string, text: string) => [number, number, number] {
+  const { held } = stemmedTerms(query, MIN_RANKING_TERM_LENGTH)
+  return (title, text) => {
+    const inTitle = held(title)
+    return [held(`${title}\n${text}`), inTitle, inTitle / Math.max(1, textWords(title).length)]
+  }
+}
+
+/**
+ * A test for whether a text holds at least half the query's distinct terms, as `stemmedTerms`
+ * counts them.
  */
 export function holdsHalfTheTerms(query: string): (text: string) => boolean {
-  const terms = distinctTerms(query, singularKey)
-  const keys = terms.map(singularKey)
-  const required = Math.ceil(terms.length / 2)
-  return (text) => {
-    const words = new Set(textWords(text).map(singularKey))
-    const present = terms.filter(
-      (term, index) => words.has(keys[index]) || findTermMatches(text, [term]).length > 0
-    )
-    return present.length >= required
-  }
+  const { required, held } = stemmedTerms(query)
+  return (text) => held(text) >= required
 }

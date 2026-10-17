@@ -11,6 +11,7 @@ import {
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
 import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
 import {
   getAccessibleCopilotChatAuth,
@@ -29,6 +30,7 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/mothership/request/http'
+import { presentChatResourceForBrowser } from '@/lib/mothership/resources/presentation'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')
@@ -52,7 +54,6 @@ export const GET = withRouteHandler(
 
       const chat = await getAccessibleCopilotChatWithMessages(chatId, userId, {
         principal,
-        type: 'mothership',
         window: fromPosition
           ? { kind: 'from', position: fromPosition }
           : window === 'latest'
@@ -107,7 +108,9 @@ export const GET = withRouteHandler(
           mode: chat.mode,
           messages: effectiveMessages,
           activeStreamId: liveStreamId,
-          resources: Array.isArray(chat.resources) ? chat.resources : [],
+          resources: Array.isArray(chat.resources)
+            ? chat.resources.map(presentChatResourceForBrowser)
+            : [],
           effort: chat.effort,
           olderCursor: chat.olderCursor,
           windowStartCursor: chat.windowStartCursor,
@@ -255,21 +258,7 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ success: true })
       }
 
-      const [deletedChat] = await db
-        .update(copilotChats)
-        .set({ deletedAt: new Date() })
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership'),
-            isNull(copilotChats.deletedAt)
-          )
-        )
-        .returning({
-          workspaceId: copilotChats.workspaceId,
-          organizationId: copilotChats.organizationId,
-        })
+      const deletedChat = await softDeleteMothershipChat({ chatId, userId })
 
       if (!deletedChat) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })

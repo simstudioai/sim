@@ -576,6 +576,10 @@ export const fileUtilsMockFns = {
   mockInferContextFromKey: vi.fn(inferContextFromKey),
   mockTryInferContextFromKey: vi.fn(tryInferContextFromKey),
   mockIsPublicStorageContext: vi.fn(isPublicStorageContext),
+  mockIsPublicStorageKey: vi.fn((key: string) => {
+    const context = tryInferContextFromKey(key)
+    return context !== null && isPublicStorageContext(context)
+  }),
   mockResolveTrustedFileContext: vi.fn((key: string, context?: string): string => {
     try {
       return inferContextFromKey(key)
@@ -735,6 +739,7 @@ export const fileUtilsMock = {
   inferContextFromKey: fileUtilsMockFns.mockInferContextFromKey,
   tryInferContextFromKey: fileUtilsMockFns.mockTryInferContextFromKey,
   isPublicStorageContext: fileUtilsMockFns.mockIsPublicStorageContext,
+  isPublicStorageKey: fileUtilsMockFns.mockIsPublicStorageKey,
   resolveTrustedFileContext: fileUtilsMockFns.mockResolveTrustedFileContext,
   parseInternalFileUrl: fileUtilsMockFns.mockParseInternalFileUrl,
   resolveHttpsUrlFromFileInput: fileUtilsMockFns.mockResolveHttpsUrlFromFileInput,

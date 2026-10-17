@@ -51,7 +51,7 @@ const target = {
 beforeEach(() => {
   vi.resetAllMocks()
   resetDbChainMock()
-  mocks.remove.mockResolvedValue({ success: true })
+  mocks.remove.mockResolvedValue({ success: true, stoppedRuns: [] })
   mocks.seats.mockResolvedValue({ changed: false })
 })
 describe('organization member managers', () => {
@@ -98,10 +98,38 @@ describe('organization member managers', () => {
     expect(mocks.scim).not.toHaveBeenCalled()
   })
 
+  it('never returns the stopped runs’ workflow and sandbox identities to the caller', async () => {
+    const stoppedRuns = [
+      {
+        id: 'run',
+        streamId: 'stream',
+        userId: 'target',
+        chatId: 'chat',
+        desktopDeviceId: null,
+        clientWorkflowExecutionIds: ['execution'],
+        sandboxProcesses: [],
+      },
+    ]
+    queueTableRows(member, [target])
+    mocks.remove.mockResolvedValue({ success: true, stoppedRuns })
+    const internal = await removeOrganizationMemberRecord(input)
+    expect(internal.removal).not.toHaveProperty('stoppedRuns')
+
+    queueTableRows(member, [])
+    queueTableRows(user, [{ id: 'target', name: 'Person', email: 'person@example.com' }])
+    mocks.external.mockResolvedValue({ success: true, workspaceAccessRevoked: 1, stoppedRuns })
+    const external = await removeOrganizationMemberRecord(input)
+    expect(external.removal).not.toHaveProperty('stoppedRuns')
+  })
+
   it('reports membership added before external-removal preflight as a conflict', async () => {
     queueTableRows(member, [])
     queueTableRows(user, [{ id: 'target', name: 'Person', email: 'person@example.com' }])
-    mocks.external.mockResolvedValue({ success: false, error: 'User is an organization member' })
+    mocks.external.mockResolvedValue({
+      success: false,
+      error: 'User is an organization member',
+      stoppedRuns: [],
+    })
 
     await expect(removeOrganizationMemberRecord(input)).rejects.toMatchObject({
       code: 'conflict',

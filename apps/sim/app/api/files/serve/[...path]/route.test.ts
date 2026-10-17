@@ -34,6 +34,7 @@ import {
   workspaceFileManagerMock,
   workspaceFileManagerMockFns,
 } from '@sim/testing/mocks/workspace-file-manager.mock'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
@@ -325,6 +326,24 @@ describe('File Serve API Route', () => {
     expect(serveLogger.error).not.toHaveBeenCalled()
   })
 
+  it('answers 499 without an error log when the client disconnects mid-read', async () => {
+    const controller = new AbortController()
+    mockReadLocalFileWithinLimit.mockImplementation(async () => {
+      controller.abort()
+      throw new Error('Request aborted')
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/report.md', {
+        signal: controller.signal,
+      }),
+      createRouteContext({ path: ['workspace', 'ws', 'report.md'] })
+    )
+
+    expect(response.status).toBe(499)
+    expect(serveLogger.error).not.toHaveBeenCalled()
+  })
+
   describe('versioned cache lifetime', () => {
     const principal = createExecutorPrincipal({
       subjectUserId: 'test-user-id',
@@ -380,6 +399,37 @@ describe('File Serve API Route', () => {
     it('requires revalidation for a versioned document with referenced inputs', async () => {
       const response = await serveVersionedDoc(true)
       expect(response.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
+    })
+
+    it('serves stored bytes under the type their extension names, not the recorded type', async () => {
+      mockResolveStoredFileContext.mockResolvedValue('workspace')
+      mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
+      mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
+      mockReadWorkspaceFileRecordByKey.mockResolvedValue({
+        file: {
+          id: 'file-1',
+          workspaceId: 'test-workspace-id',
+          name: 'export.csv',
+          key: 'workspace/test-workspace-id/export.csv',
+          type: 'application/vnd.ms-excel',
+          size: 3,
+          contentUpdatedAt: new Date('2026-09-06'),
+        },
+      })
+      fileUtilsServerMockFns.mockDownloadServableFileFromStorage.mockResolvedValue({
+        buffer: Buffer.from('a,b'),
+        contentType: 'application/vnd.ms-excel',
+      })
+
+      const response = await GET(
+        createMockRequest({
+          url: 'http://localhost:3000/api/files/serve/workspace/test-workspace-id/export.csv',
+        }),
+        createRouteContext({ path: ['workspace', 'test-workspace-id', 'export.csv'] })
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('text/csv')
     })
   })
 })

@@ -6,8 +6,9 @@ import { vi } from 'vitest'
  * Every repository call is a bare `vi.fn()` except:
  * - `mockWithRunAdmissionLock` runs its `action` with an empty transaction object `{}` and returns
  *   its result (the advisory lock itself is not modelled).
+ * - `mockGetRunSecretAuthority` resolves the no-secrets authority.
  * - `mockGetClaimedWorkflowExecutionId` is a faithful port (strips the real `'workflow:'` claim prefix).
- * - `mockGetUnsettledStreamSandboxProcesses`, `mockGetUnsettledClientWorkflowExecutions` and
+ * - `mockStopLiveRunsTx`, `mockFindWorkspacesWithLiveRunsTx`, `mockGetUnsettledStreamSandboxProcesses`, `mockGetUnsettledClientWorkflowExecutions` and
  *   `mockGetAsyncToolCalls` resolve `[]`.
  *
  * @example
@@ -22,12 +23,18 @@ export const mothershipAsyncRunsMockFns = {
     async (_userId: string, _streamId: string, action: (tx: unknown) => unknown) => action({})
   ),
   mockRequestRunStop: vi.fn(),
+  mockStopLiveRunsTx: vi.fn(async () => []),
+  mockFindWorkspacesWithLiveRunsTx: vi.fn(async () => []),
   mockIsRunStopRequested: vi.fn(),
   mockCreateRunSegment: vi.fn(),
   mockInsertRunSegment: vi.fn(),
   mockUpdateRunStatus: vi.fn(),
   mockRecordRunBillingAdmission: vi.fn(),
   mockGetLatestRunForStream: vi.fn(),
+  mockGetRunSecretAuthority: vi.fn(async (..._args: unknown[]) => ({
+    secretMountPolicy: { secretScope: 'selected' as const, mountedSecrets: [] as string[] },
+    secretActorUserId: null as string | null,
+  })),
   mockGetRunSegment: vi.fn(),
   mockUpsertAsyncToolCall: vi.fn(),
   mockGetAsyncToolCall: vi.fn(),
@@ -40,6 +47,9 @@ export const mothershipAsyncRunsMockFns = {
     async (_toolCallId: string): Promise<number | null> => null
   ),
   mockRevokeExpiredSimToolExecutions: vi.fn(),
+  /** No Sim tool still running by default, so a takeover may proceed. */
+  mockHasLiveSimToolExecution: vi.fn(async (_runId: string): Promise<boolean> => false),
+  mockRevokeExhaustedSimToolExecutions: vi.fn(async (_runId: string): Promise<unknown[]> => []),
   mockSettleSimToolExecution: vi.fn(),
   mockSettleClientWorkflowToolExecution: vi.fn(),
   mockRecordSimSandboxProcess: vi.fn(),
@@ -87,12 +97,15 @@ export const mothershipAsyncRunsMockFns = {
 export const mothershipAsyncRunsMock = {
   withRunAdmissionLock: mothershipAsyncRunsMockFns.mockWithRunAdmissionLock,
   requestRunStop: mothershipAsyncRunsMockFns.mockRequestRunStop,
+  stopLiveRunsTx: mothershipAsyncRunsMockFns.mockStopLiveRunsTx,
+  findWorkspacesWithLiveRunsTx: mothershipAsyncRunsMockFns.mockFindWorkspacesWithLiveRunsTx,
   isRunStopRequested: mothershipAsyncRunsMockFns.mockIsRunStopRequested,
   createRunSegment: mothershipAsyncRunsMockFns.mockCreateRunSegment,
   insertRunSegment: mothershipAsyncRunsMockFns.mockInsertRunSegment,
   updateRunStatus: mothershipAsyncRunsMockFns.mockUpdateRunStatus,
   recordRunBillingAdmission: mothershipAsyncRunsMockFns.mockRecordRunBillingAdmission,
   getLatestRunForStream: mothershipAsyncRunsMockFns.mockGetLatestRunForStream,
+  getRunSecretAuthority: mothershipAsyncRunsMockFns.mockGetRunSecretAuthority,
   getRunSegment: mothershipAsyncRunsMockFns.mockGetRunSegment,
   upsertAsyncToolCall: mothershipAsyncRunsMockFns.mockUpsertAsyncToolCall,
   getAsyncToolCall: mothershipAsyncRunsMockFns.mockGetAsyncToolCall,
@@ -103,6 +116,8 @@ export const mothershipAsyncRunsMock = {
   getChatViewDesktopLeaseRemainingMs:
     mothershipAsyncRunsMockFns.mockGetChatViewDesktopLeaseRemainingMs,
   revokeExpiredSimToolExecutions: mothershipAsyncRunsMockFns.mockRevokeExpiredSimToolExecutions,
+  hasLiveSimToolExecution: mothershipAsyncRunsMockFns.mockHasLiveSimToolExecution,
+  revokeExhaustedSimToolExecutions: mothershipAsyncRunsMockFns.mockRevokeExhaustedSimToolExecutions,
   settleSimToolExecution: mothershipAsyncRunsMockFns.mockSettleSimToolExecution,
   settleClientWorkflowToolExecution:
     mothershipAsyncRunsMockFns.mockSettleClientWorkflowToolExecution,

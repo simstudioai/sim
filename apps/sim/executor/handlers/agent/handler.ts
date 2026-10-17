@@ -68,6 +68,7 @@ import {
   getMemoryMessageAppendKey,
   getMemoryMessageTurnId,
   memoryService,
+  selectReplayAttachments,
 } from '@/executor/handlers/agent/memory'
 import {
   buildLoadSkillTool,
@@ -1754,22 +1755,30 @@ export class AgentBlockHandler implements BlockHandler {
 
     const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
 
+    const replayAttachments = selectReplayAttachments(messages)
+
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]
       if (!message.files?.length) {
         continue
       }
+      const files = replayAttachments[messageIndex]
+      if (files.length === 0) {
+        nextMessages[messageIndex] = omit(message, ['files'])
+        copyNativeConversationMessage(message, nextMessages[messageIndex])
+        continue
+      }
 
       const unsafeGeneratedDocumentFiles = new Set<string>()
       const groups = new Map<boolean, Array<{ file: UserFile; index: number }>>()
-      message.files.forEach((file, index) => {
+      files.forEach((file, index) => {
         const workspaceFile =
           ctx.principal?.kind === 'system' && tryInferContextFromKey(file.key) === 'workspace'
         const group = groups.get(workspaceFile) ?? []
         group.push({ file, index })
         groups.set(workspaceFile, group)
       })
-      const hydratedFiles = [...message.files]
+      const hydratedFiles = [...files]
       await Promise.all(
         [...groups.values()].map(async (group) => {
           const hydrated = await hydrateUserFilesWithBase64(
@@ -1805,7 +1814,7 @@ export class AgentBlockHandler implements BlockHandler {
       const modelSafeHydratedFiles = hydratedFiles.flatMap((file, fileIndex) => {
         if (unsafeGeneratedDocumentFiles.has(`${file.key}:${file.id}`)) return []
 
-        const sourceFile = message.files?.[fileIndex]
+        const sourceFile = files[fileIndex]
         const nameProjection = sourceFile ? projectedNameByFile.get(sourceFile) : undefined
         if (
           !nameProjection ||

@@ -17,6 +17,7 @@ import {
   checkExecutionUsageLimits,
   USAGE_GATE_SETTLE_TIMEOUT_MS,
   USAGE_GATE_TTL_MS,
+  usageAdmissionTtlMs,
 } from '@/lib/billing/core/usage-gate-cache'
 import type { UsageUpgradePayer } from '@/lib/billing/usage-upgrade'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
@@ -141,7 +142,7 @@ export async function readMidRunUsageVerdict(
 }
 
 /**
- * Admitted direct-v1 verdicts, served for the execution gate's TTL like
+ * Admitted direct-v1 verdicts, served for {@link usageAdmissionTtlMs} like
  * {@link checkExecutionUsageLimits} serves attributed ones: the worker re-validates a run on
  * every resume leg, and each uncached read sums the payer's ledger for the period. Only a
  * `within` verdict is stored, so a refusal or an unreadable ledger is always read again.
@@ -227,7 +228,7 @@ export async function readMidRunAccountUsageVerdict(
       }
     }
     const within: MidRunUsageVerdict = { status: 'within' }
-    accountVerdictCache.set(key, within)
+    accountVerdictCache.set(key, within, { ttl: usageAdmissionTtlMs(usage) })
     return within
   } catch (error) {
     logger.warn('Mid-run account usage read failed; continuing the run', {

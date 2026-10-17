@@ -139,8 +139,11 @@ function job() {
   }
 }
 
-/** Runs one Slack turn in a fresh private chat and returns the run it recorded. */
-async function slackTurn() {
+/**
+ * Runs one Slack turn in a fresh private chat and returns the run it recorded. `deletedAt`
+ * stands for a delete committed after the turn resolved its chat.
+ */
+async function slackTurn(deletedAt?: Date) {
   const chatId = generateId()
   const turnId = generateId()
   hoisted.chat = { id: chatId, model: 'default' }
@@ -150,6 +153,7 @@ async function slackTurn() {
     userId: hoisted.userId,
     organizationId: hoisted.organizationId,
     type: 'mothership',
+    deletedAt,
   })
   const controller = new AbortController()
   hoisted.controller = controller
@@ -235,6 +239,17 @@ describe('Slack Assistant run record', () => {
 
     expect(run.status).toBe('cancelled')
     expect(run.completedAt).not.toBeNull()
+  })
+
+  it('never starts the worker for a turn whose chat was deleted before its run', async () => {
+    mockRunHeadlessCopilotLifecycle.mockClear()
+
+    const { run, outcome } = await slackTurn(new Date())
+
+    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
+    expect(outcome).toBeInstanceOf(Error)
+    expect(run.status).toBe('cancelled')
+    expect(run.toolAdmissionClosedAt).not.toBeNull()
   })
 
   it('records a failed turn as an error', async () => {

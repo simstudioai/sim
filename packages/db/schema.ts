@@ -1450,6 +1450,13 @@ export const userStats = pgTable('user_stats', {
    * org-scoped storage writes update `organization.storageUsedBytes`.
    */
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
+  /**
+   * Whether the personal free-tier allowance counts toward this user's limit.
+   * False when the account reuses an identity from a recently deleted account
+   * (see `deletedAccountIdentity`): the free allowance is granted once per
+   * person, not once per account row. Prepaid credit and paid plans are unaffected.
+   */
+  freeTierEligible: boolean('free_tier_eligible').notNull().default(true),
   billingBlocked: boolean('billing_blocked').notNull().default(false),
   billingBlockedReason: billingBlockedReasonEnum('billing_blocked_reason'),
   /**
@@ -1472,6 +1479,28 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .default({}),
 })
+
+/**
+ * Keyed one-way digests of the sign-in identities (canonical email, OAuth
+ * provider subject) of accounts deleted at their holder's request, kept for a
+ * bounded window so a new account on the same identity does not receive a
+ * second free-tier allowance. Holds no user id, address, or other profile
+ * data. The digests are pseudonymous: the server key (derived from
+ * `BETTER_AUTH_SECRET`) can test a candidate identity against them, and
+ * rotating that secret orphans them. Rows are purged once `expiresAt` passes.
+ */
+export const deletedAccountIdentity = pgTable(
+  'deleted_account_identity',
+  {
+    /** HMAC-SHA256 (hex) of `<kind>:<canonical identity>`. */
+    identityHash: text('identity_hash').primaryKey(),
+    deletedAt: timestamp('deleted_at').notNull().defaultNow(),
+    expiresAt: timestamp('expires_at').notNull(),
+  },
+  (table) => ({
+    expiresAtIdx: index('deleted_account_identity_expires_at_idx').on(table.expiresAt),
+  })
+)
 
 export const customTools = pgTable(
   'custom_tools',
@@ -4955,10 +4984,24 @@ export const copilotAsyncToolCalls = pgTable(
     executionOwnerToken: text('execution_owner_token'),
     executionLeaseExpiresAt: timestamp('execution_lease_expires_at', { withTimezone: true }),
     executionRevokedAt: timestamp('execution_revoked_at', { withTimezone: true }),
+    /** Sim executions started for this call, counting each re-run after its owner died. */
+    executionAttempts: integer('execution_attempts').notNull().default(0),
+    /**
+     * When Sim must have settled this call: the worker's wait from the frame, less the settle
+     * margin, fixed at first receipt. Every wait, execution and re-run of the call ends by it.
+     * Null when the frame named no deadline.
+     */
+    executionDeadlineAt: timestamp('execution_deadline_at', { withTimezone: true }),
     /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
     clientWorkflowExecutionId: text('client_workflow_execution_id'),
     sandboxProcesses: jsonb('sandbox_processes')
-      .$type<Record<string, { sandboxId: string; sessionKey: string; settled: boolean }>>()
+      /** `ownerToken` names the execution attempt that started the command. */
+      .$type<
+        Record<
+          string,
+          { sandboxId: string; sessionKey: string; settled: boolean; ownerToken?: string }
+        >
+      >()
       .notNull()
       .default({}),
     completedAt: timestamp('completed_at'),
@@ -7896,6 +7939,7 @@ export const dataDrainDestinationEnum = pgEnum('data_drain_destination', [
   's3',
   'gcs',
   'azure_blob',
+  'sentinel',
   'datadog',
   'bigquery',
   'snowflake',

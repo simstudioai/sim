@@ -5,8 +5,8 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { presentProjectFileContent } from '@/lib/projects/files/api'
 import { readProjectInlineFile } from '@/lib/projects/files/application'
+import { presentFileDelivery, workspaceFileCacheControl } from '@/lib/uploads/server/delivery'
 
 export const GET = defineInternalBinaryRoute({
   contract: getInlineProjectFileContract,
@@ -21,5 +21,12 @@ export const GET = defineInternalBinaryRoute({
     referenceFileId: query.fileId,
   }),
   useCase: readProjectInlineFile,
-  present: presentProjectFileContent,
+  present: ({ file, stream, contentLength, contentAddressed }) =>
+    presentFileDelivery({
+      body: stream,
+      filename: file.name,
+      contentType: file.type,
+      contentLength,
+      cacheControl: workspaceFileCacheControl(contentAddressed),
+    }),
 })

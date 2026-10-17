@@ -19,6 +19,11 @@ Only Copilot principals (`delegated` / `organization_delegated` with `serviceId:
 classified. Every other caller is admitted without a provenance read, so the UI, API keys, MCP and
 the workflow executor see byte-identical results.
 
+A run Chat starts executes as Chat's principal, so `executeWorkflowCore` runs every execution under
+`runWorkflowOutsideContentDelivery`, where that principal reads like any other. What the run returns
+is gated where Chat started it: run execute/resume keep inline file bytes only for admitted files
+(`withholdUnadmittedInlineFiles`), and Chat's in-app run tools strip `base64` from their result.
+
 ## The pieces
 
 - `lib/core/application/content-delivery.ts`: the primitive.
@@ -68,7 +73,7 @@ own unless noted.
 
 | Path | U | E | R / C |
 |---|---|---|---|
-| File download (CLI `files get`) | Delivered once; invocation withheld from the model; workbench copy stays unknown | Redacted | Delivered |
+| File download (CLI `files get`) | Delivered once; invocation withheld from the model; workbench copy stays unknown | Opaque: into a chat workbench with entries imported, so output is redacted; refused without one | Delivered |
 | File download (run_code proxy) | Refused before bytes enter workbench history | Recorded in workbench history | Delivered |
 | Requested mounts | Refused before code executes, listed in `excludedInputs`; later calls remain usable | Recorded in workbench history | Delivered |
 | File text, version text, `files read`, grep | 403 | Redacted (grep redacts before clipping) | Delivered |

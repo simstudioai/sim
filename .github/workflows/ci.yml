@@ -520,8 +520,11 @@ jobs:
         run: |
           REGISTRY="${{ steps.login-ecr.outputs.registry }}"
 
+          RELEASE_TAG=""
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
+            # ECR lifecycle retains release- aliases as prod rollback targets.
+            RELEASE_TAG="release-${SOURCE_TAG}"
           elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
             ECR_TAG="dev"
           else
@@ -540,13 +543,11 @@ jobs:
           # Move the app last so a preceding tag failure cannot start app rollout
           # and then skip the downstream Trigger promotion job.
           for repo in $ECR_REPOS; do
-            echo "🚀 Promoting ${repo}:${SOURCE_TAG} to ${ECR_TAG}"
+            echo "🚀 Promoting ${repo}:${SOURCE_TAG} to ${ECR_TAG}${RELEASE_TAG:+ and ${RELEASE_TAG}}"
             if [ "$repo" = "$APP_REPO" ]; then
-              bash .github/scripts/promote-app-image.sh "$REGISTRY" "$APP_REPO" "$SOURCE_TAG" "$ECR_TAG"
+              bash .github/scripts/promote-app-image.sh "$REGISTRY" "$APP_REPO" "$SOURCE_TAG" "$ECR_TAG" "$RELEASE_TAG"
             else
-              docker buildx imagetools create \
-                -t "${REGISTRY}/${repo}:${ECR_TAG}" \
-                "${REGISTRY}/${repo}:${SOURCE_TAG}"
+              bash .github/scripts/promote-image.sh "$REGISTRY" "$repo" "$SOURCE_TAG" "$ECR_TAG" "$RELEASE_TAG"
             fi
           done
 

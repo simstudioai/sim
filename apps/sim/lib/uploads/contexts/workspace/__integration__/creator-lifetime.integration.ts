@@ -253,7 +253,9 @@ it('partial departure retains Project attribution; successor handoff and prior-d
       .update(permissions)
       .set({ permissionType: 'write' })
       .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, workspaceId)))
-    await expect(deleteUserAccount(creatorId)).rejects.toThrow(/Project.*successor/)
+    await expect(deleteUserAccount(creatorId, { recordIdentity: false })).rejects.toThrow(
+      /Project.*successor/
+    )
     expect(await db.select({ id: user.id }).from(user).where(eq(user.id, creatorId))).toHaveLength(
       1
     )
@@ -261,7 +263,7 @@ it('partial departure retains Project attribution; successor handoff and prior-d
       .update(permissions)
       .set({ permissionType: 'admin' })
       .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, workspaceId)))
-    const deletion = await deleteUserAccount(creatorId)
+    const deletion = await deleteUserAccount(creatorId, { recordIdentity: false })
     expect(deletion.blockers).toEqual([])
     expect(await db.select({ id: user.id }).from(user).where(eq(user.id, creatorId))).toEqual([])
     const retained = await getWorkspaceFile(workspaceId, uploaded.id, { throwOnError: true })

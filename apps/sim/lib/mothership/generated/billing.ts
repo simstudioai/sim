@@ -90,6 +90,8 @@ export const UsageLimitRefusal = z.object({
   usageUpgrade: UsageUpgrade.optional().catch(undefined),
 });
 export const BillingDuplicateCode = "DUPLICATE_BILLING_EVENT";
+/** A 503: another attempt of the same request is still being applied, so this one's outcome is unknown. */
+export const BillingInFlightCode = "BILLING_REQUEST_IN_FLIGHT";
 
 /** Sim authors receipts at the paid execution boundary; tool output carries no billing authority. */
 export const ServiceUsageReceipt = z.strictObject({

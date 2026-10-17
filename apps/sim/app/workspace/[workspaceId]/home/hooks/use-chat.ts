@@ -70,7 +70,8 @@ import type { FilePreviewSession } from '@/lib/mothership/request/session/file-p
 import { canDisplayResource } from '@/lib/mothership/resources/availability'
 import { ResourcePersistenceQueue } from '@/lib/mothership/resources/client-persistence-queue'
 import {
-  getChatResourceKey,
+  type ChatResourceAddress,
+  chatResourceKeyFor,
   getChatResourceSelectionId,
   isAddressableResource,
   isEphemeralResource,
@@ -162,7 +163,6 @@ import type {
   ContentBlock,
   FileAttachmentForApi,
   MothershipResource,
-  MothershipResourceType,
   QueuedMessage,
   SendPayload,
   ToolCallInfo,
@@ -319,11 +319,7 @@ export interface UseChatReturn {
   setActiveResourceId: (id: string | null) => void
   addResource: (resource: MothershipResourceUpdate) => boolean
   setTableViewContext: (tableId: string, context: MothershipTableViewContext) => void
-  removeResource: (
-    resourceType: MothershipResourceType,
-    resourceId: string,
-    workspaceId?: string
-  ) => void
+  removeResource: (resource: ChatResourceAddress) => void
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
   removeFromQueue: (id: string) => void
@@ -818,6 +814,8 @@ export function useChat(
    * make the tabs disappear for the desktop app too.
    */
   const undisplayableResourcesRef = useRef<MothershipResource[]>([])
+  const workspaceIdRef = useRef(workspaceId)
+  workspaceIdRef.current = workspaceId
   const resourcePersistenceQueueRef = useRef<ResourcePersistenceQueue | null>(null)
   const pendingResourceReordersRef = useRef<Map<string, MothershipResource[]> | null>(null)
   const pendingResourceReorders = (pendingResourceReordersRef.current ??= new Map())
@@ -836,13 +834,13 @@ export function useChat(
         return {
           ...current,
           resources: pendingOrder
-            ? (reorderStoredChatResources(resources, pendingOrder) ?? resources)
+            ? (reorderStoredChatResources(resources, pendingOrder, workspaceId) ?? resources)
             : resources,
         }
       })
       void queryClient.invalidateQueries(query)
     },
-    [queryClient]
+    [queryClient, workspaceId]
   )
   if (!resourcePersistenceQueueRef.current) {
     resourcePersistenceQueueRef.current = new ResourcePersistenceQueue({
@@ -861,6 +859,7 @@ export function useChat(
       onError: (error) => {
         logger.warn('Failed to persist resource; will retry on next hydration', error)
       },
+      chatWorkspaceId: () => workspaceIdRef.current,
     })
   }
   const resourcePersistenceQueue = resourcePersistenceQueueRef.current
@@ -1428,9 +1427,8 @@ export function useChat(
         })
         return false
       }
-      const existing = resourcesRef.current.find(
-        (r) => getChatResourceKey(r) === getChatResourceKey(resourceUpdate)
-      )
+      const keyOf = chatResourceKeyFor(workspaceId)
+      const existing = resourcesRef.current.find((r) => keyOf(r) === keyOf(resourceUpdate))
       const resource = mergeChatResource(existing, resourceUpdate)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       if (persistChatId && !isEphemeralResource(resource)) {
@@ -1438,17 +1436,13 @@ export function useChat(
           mothershipChatKeys.detail(persistChatId),
           (current) => {
             if (!current) return current
-            const cached = current.resources.find(
-              (item) => getChatResourceKey(item) === getChatResourceKey(resource)
-            )
+            const cached = current.resources.find((item) => keyOf(item) === keyOf(resource))
             const merged = mergeChatResource(cached, resourceUpdate)
             if (cached === merged) return current
             return {
               ...current,
               resources: cached
-                ? current.resources.map((item) =>
-                    getChatResourceKey(item) === getChatResourceKey(resource) ? merged : item
-                  )
+                ? current.resources.map((item) => (keyOf(item) === keyOf(resource) ? merged : item))
                 : [...current.resources, merged],
             }
           }
@@ -1459,12 +1453,12 @@ export function useChat(
       }
 
       setResources((prev) => {
-        const current = prev.find((r) => getChatResourceKey(r) === getChatResourceKey(resource))
+        const current = prev.find((r) => keyOf(r) === keyOf(resource))
         if (!current) return [...prev, resource]
         const merged = mergeChatResource(current, resourceUpdate)
         return merged === current
           ? prev
-          : prev.map((r) => (getChatResourceKey(r) === getChatResourceKey(resource) ? merged : r))
+          : prev.map((r) => (keyOf(r) === keyOf(resource) ? merged : r))
       })
       // Synthetic result/preview panels are in-memory only. The browser tab
       // metadata is persisted even though its live page remains desktop-owned.
@@ -1476,33 +1470,27 @@ export function useChat(
       resourcePersistenceQueue.enqueue(resourceUpdate, persistChatId, persistenceScopeId, existing)
       return existing === undefined
     },
-    [queryClient, resourcePersistenceQueue]
+    [queryClient, resourcePersistenceQueue, workspaceId]
   )
 
   const removeResource = useCallback(
-    (resourceType: MothershipResourceType, resourceId: string, resourceWorkspaceId?: string) => {
-      const matches = (resource: MothershipResource) =>
-        resource.type === resourceType &&
-        resource.id === resourceId &&
-        resource.workspaceId === resourceWorkspaceId
-      if (resourceType === 'table') tableViewContextsRef.current.views.delete(resourceId)
+    (address: ChatResourceAddress) => {
+      const keyOf = chatResourceKeyFor(workspaceId)
+      const removedKey = keyOf(address)
+      const matches = (resource: MothershipResource) => keyOf(resource) === removedKey
+      const existing = resourcesRef.current.find(matches)
+      // The open tab's own address, so a caller that only knows `type` and `id` still removes,
+      // un-queues, and deletes the tab exactly as it was stored.
+      const removed: ChatResourceAddress = existing ?? address
+      const { type, id, workspaceId: resourceWorkspaceId, owner } = removed
+      if (type === 'table') tableViewContextsRef.current.views.delete(id)
       setResources((prev) => prev.filter((r) => !matches(r)))
-      setActiveResourceId((prev) =>
-        prev ===
-        getChatResourceSelectionId({
-          type: resourceType,
-          id: resourceId,
-          workspaceId: resourceWorkspaceId,
-          title: '',
-        })
-          ? null
-          : prev
-      )
+      const removedSelectionId = getChatResourceSelectionId(removed)
+      setActiveResourceId((prev) => (prev === removedSelectionId ? null : prev))
 
       // Ephemeral panels were never persisted; nothing to delete server-side.
-      if (isEphemeralResource({ type: resourceType, id: resourceId, title: '' })) return
+      if (isEphemeralResource(removed)) return
 
-      const existing = resourcesRef.current.find(matches)
       const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
       const persistenceScopeId = persistChatId ?? pendingChatKeyRef.current
       if (persistChatId) {
@@ -1518,11 +1506,9 @@ export function useChat(
         wasPending,
         wasPersisted,
       } = resourcePersistenceQueue.remove(
-        resourceType,
-        resourceId,
+        removed,
         persistenceScopeId,
-        Boolean(existing && persistChatId),
-        resourceWorkspaceId
+        Boolean(existing && persistChatId)
       )
       if (wasPending && !inFlightAdd && !wasPersisted) return
 
@@ -1531,20 +1517,21 @@ export function useChat(
         const result = await requestJson(removeMothershipChatResourceContract, {
           body: {
             chatId: persistChatId,
-            resourceType,
-            resourceId,
+            resourceType: type,
+            resourceId: id,
             workspaceId: resourceWorkspaceId,
+            owner,
           },
         })
         await refreshResourceHistory(persistChatId)
         return result
       })
     },
-    [queryClient, refreshResourceHistory, resourcePersistenceQueue]
+    [queryClient, refreshResourceHistory, resourcePersistenceQueue, workspaceId]
   )
 
   const discardPendingResourceUpsert = useCallback(
-    ({ type, id, workspaceId }: Pick<MothershipResource, 'type' | 'id' | 'workspaceId'>) => {
+    (address: ChatResourceAddress) => {
       // An add queued before the chat id resolved stays in the provisional
       // bucket until a flush adopts it, so both scopes may hold it.
       const scopes = new Set([
@@ -1552,7 +1539,7 @@ export function useChat(
         pendingChatKeyRef.current,
       ])
       for (const scopeId of scopes) {
-        if (scopeId) resourcePersistenceQueue.discardUpsert(type, id, scopeId, workspaceId)
+        if (scopeId) resourcePersistenceQueue.discardUpsert(address, scopeId)
       }
     },
     [resourcePersistenceQueue]
@@ -1605,7 +1592,7 @@ export function useChat(
                 error.status === 404 &&
                 (chatIdRef.current ?? selectedChatIdRef.current) === chatId
               )
-                removeResource('workflow', resource.id, resource.workspaceId)
+                removeResource(resource)
             }
           }
         })
@@ -2121,6 +2108,7 @@ export function useChat(
     const persistedResources = sanitizeChatResources(
       chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     )
+    const keyOf = chatResourceKeyFor(workspaceId)
     let updatedResources = resourcePersistenceQueue.applyPendingUpdates(
       chatHistory.id,
       persistedResources
@@ -2135,11 +2123,9 @@ export function useChat(
         if (
           resource.type === 'search' &&
           getChatResourceSelectionId(resource) !== selectedResourceIdRef.current &&
-          !resourcesRef.current.some(
-            (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
-          )
+          !resourcesRef.current.some((visible) => keyOf(visible) === keyOf(resource))
         ) {
-          removeResource('search', resource.id, resource.workspaceId)
+          removeResource(resource)
         }
       }
       updatedResources = resourcePersistenceQueue.applyPendingUpdates(
@@ -2152,7 +2138,8 @@ export function useChat(
     // desktop app still gets it back.
     const pendingOrder = pendingResourceReorders.get(chatHistory.id)
     const projectedResources = pendingOrder
-      ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
+      ? (reorderStoredChatResources(updatedResources, pendingOrder, workspaceId) ??
+        updatedResources)
       : updatedResources
     const keepSearchPanelStable =
       requestModeRef.current === 'assistant' &&
@@ -2162,9 +2149,7 @@ export function useChat(
       .filter(canDisplayResource)
       .flatMap((resource) => {
         if (!keepSearchPanelStable || resource.type !== 'search') return [resource]
-        const visible = resourcesRef.current.find(
-          (item) => getChatResourceKey(item) === getChatResourceKey(resource)
-        )
+        const visible = resourcesRef.current.find((item) => keyOf(item) === keyOf(resource))
         if (visible) return [visible]
         return getChatResourceSelectionId(resource) === selectedResourceIdRef.current
           ? [resource]
@@ -2173,27 +2158,22 @@ export function useChat(
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a
     // resource being hidden cannot make it look local-only and get re-added.
-    const serverKeys = new Set(persistedResources.map(getChatResourceKey))
+    const serverKeys = new Set(persistedResources.map((r) => keyOf(r)))
     const localOnly = resourcesRef.current.filter(
       (r) =>
         r.id !== 'streaming-file' &&
-        !serverKeys.has(getChatResourceKey(r)) &&
-        (isEphemeralResource(r) ||
-          resourcePersistenceQueue.hasPendingUpsert(chatHistory.id, r.type, r.id, r.workspaceId))
+        !serverKeys.has(keyOf(r)) &&
+        (isEphemeralResource(r) || resourcePersistenceQueue.hasPendingUpsert(chatHistory.id, r))
     )
     // Server order is authoritative for persisted resources, but local-only
     // items (pending-persist adds and synthetic ephemeral panels)
     // keep their current on-screen position — hydration reruns on every send
     // and stream completion, and appending them at the end made those tabs
     // visibly jump/flash each time.
-    const localOnlyKeys = new Set(localOnly.map(getChatResourceKey))
-    const mergedResources = restorableResources.filter(
-      (r) => !localOnlyKeys.has(getChatResourceKey(r))
-    )
+    const localOnlyKeys = new Set(localOnly.map((r) => keyOf(r)))
+    const mergedResources = restorableResources.filter((r) => !localOnlyKeys.has(keyOf(r)))
     for (const resource of localOnly) {
-      const currentIndex = resourcesRef.current.findIndex(
-        (r) => getChatResourceKey(r) === getChatResourceKey(resource)
-      )
+      const currentIndex = resourcesRef.current.findIndex((r) => keyOf(r) === keyOf(resource))
       const insertAt =
         currentIndex < 0 ? mergedResources.length : Math.min(currentIndex, mergedResources.length)
       mergedResources.splice(insertAt, 0, resource)

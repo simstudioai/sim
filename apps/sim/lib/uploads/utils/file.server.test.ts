@@ -225,4 +225,28 @@ describe('servable page provenance', () => {
       dependsOnReferencedFiles: true,
     })
   })
+
+  it('never reports a page render as derived from its source alone, even with no inlined images', async () => {
+    const workspaceId = '2f1d8c3e-5b6a-4c7d-8e9f-0a1b2c3d4e5f'
+    mockParseWorkspaceFileKey.mockReturnValue(workspaceId)
+    mockDownloadFile.mockResolvedValue(Buffer.from('---\ntitle: Example\n---\nPage body'))
+    mockRenderPage.mockResolvedValue({ html: '<html>styled page</html>', contributingFiles: [] })
+
+    const rendered = await downloadServableFileFromStorage(
+      {
+        id: 'page-file',
+        name: 'Page',
+        key: `workspace/${workspaceId}/page`,
+        url: '',
+        type: 'text/x-sim-page',
+        size: 100,
+        context: 'workspace',
+      },
+      'request',
+      createLogger('test'),
+      { maxBytes: 1024 }
+    )
+
+    expect(rendered.dependsOnReferencedFiles).toBe(true)
+  })
 })

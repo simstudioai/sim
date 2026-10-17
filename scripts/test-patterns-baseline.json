@@ -151,7 +151,6 @@
   "real-wait\tapps/sim/hooks/queries/workspace.test.tsx\tsleep() #1",
   "real-wait\tapps/sim/lib/billing/core/reporting-usage-cache.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/billing/core/reporting-usage-cache.test.ts\tsleep() #2",
-  "real-wait\tapps/sim/lib/billing/core/usage-gate-cache.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/concurrency/leader-lock.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/concurrency/singleflight.test.ts\tsleep() #1",
   "real-wait\tapps/sim/lib/core/async-jobs/backends/database.test.ts\tsleep() #1",

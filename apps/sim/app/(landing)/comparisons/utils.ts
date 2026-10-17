@@ -100,13 +100,14 @@ export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdic
     : `Choose ${competitor.name} if its specific strengths, documented above, matter more to your team than an AI-native, self-hostable workspace.`
 
   return {
-    chooseSim: `Choose Sim if you want an open-source, self-hostable AI workspace that treats AI agents as first-class citizens: native multi-LLM support, real-time multiplayer editing, environment promotion (dev/qa/prod), human-in-the-loop approvals, and enterprise governance (SSO, credential-level permissions, audit logs) built in rather than bolted on.`,
+    chooseSim: `Choose Sim if you want an open-source, self-hostable AI workspace that treats AI agents as first-class citizens: native multi-LLM support, real-time multiplayer editing, human-in-the-loop approvals, and, on the Enterprise plan, environment promotion (dev/qa/prod) and governance (SSO, credential-level permissions, audit logs) built in rather than bolted on.`,
     chooseCompetitor,
   }
 }
 
 /**
- * Builds the FAQ set for a "Sim vs {Competitor}" page. Answer-first, each
+ * Builds the FAQ set for a "Sim vs {Competitor}" page: the profile's
+ * hand-written FAQs first, then the generated ones. Answer-first, each
  * question/answer pair is independently quotable per the landing GEO rules,
  * and every answer names "Sim" and the competitor explicitly. Every answer
  * draws on a real, sourced {@link Fact} field rather than a generic claim,
@@ -116,9 +117,10 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
   const name = competitor.name
   const facts = competitor.facts
   const faqs: ComparisonFaq[] = [
+    ...(competitor.faqs ?? []),
     {
       question: `Is Sim a good alternative to ${name}?`,
-      answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
+      answer: `Sim is an open-source AI workspace where teams build, deploy, and manage AI agents visually, conversationally, or with code. ${ensurePeriod(competitor.oneLiner)} Teams considering a switch typically weigh licensing (Sim's core is Apache 2.0 and self-hostable), pricing model, and how AI-native the platform's agent-building experience is.`,
     },
     {
       question: `What is the main difference between Sim and ${name}?`,
@@ -126,7 +128,7 @@ export function buildComparisonFaqs(competitor: CompetitorProfile): ComparisonFa
     },
     {
       question: `Does Sim support self-hosting compared to ${name}?`,
-      answer: `Sim can be self-hosted via Docker or Kubernetes under an Apache 2.0 license, in addition to a managed cloud-hosted plan. ${name}'s self-hosting position: ${ensurePeriod(firstSentence(facts.platform.selfHostOption.value))}`,
+      answer: `Sim can be self-hosted via Docker or Kubernetes with an Apache 2.0-licensed core, in addition to a managed cloud-hosted plan. Enterprise features such as SSO and audit logs require an Enterprise license. ${name}'s self-hosting position: ${ensurePeriod(firstSentence(facts.platform.selfHostOption.value))}`,
     },
     {
       question: `How does Sim's pricing compare to ${name}?`,

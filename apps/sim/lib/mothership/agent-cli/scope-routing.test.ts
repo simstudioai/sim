@@ -149,4 +149,26 @@ describe('worker-local CLI authorization through the real handler and scope reso
     expect(boundary.target).not.toHaveBeenCalled()
     expect(boundary.route).not.toHaveBeenCalled()
   })
+
+  it.each([
+    { entityType: 'workspace' as const, entityId: selected },
+    { entityType: 'project' as const, entityId: 'project' },
+  ])(
+    'rejects a file owner on a service before any owner adapter runs: $entityType',
+    async (owner) => {
+      expect(
+        await executeSimCli(
+          {
+            request: {
+              fileOwner: owner,
+              invocation: { kind: 'service', name: 'dashboards', input: {} },
+            },
+          },
+          workspace
+        )
+      ).toEqual({ success: false, error: 'Service invocations do not take a file owner' })
+      expect(boundary.target).not.toHaveBeenCalled()
+      expect(boundary.route).not.toHaveBeenCalled()
+    }
+  )
 })

@@ -1,0 +1,40 @@
+---
+slug: oracle-checkr-and-shopify
+title: 'Oracle Database, Checkr, and Shopify updates'
+description: 'Connect Sim agents to Oracle Database and Checkr, manage more Shopify operations, and reuse saved Ramp and Vanta connections across workflows.'
+date: '2026-10-15T17:00:00Z'
+authors: [waleed]
+tags: [Integrations, Workflows]
+ogImage: /changelog/oracle-operations-v1.jpg
+ogAlt: 'Oracle Database operations in the Sim workflow editor'
+technical: false
+draft: false
+release:
+  versions: [v0.9.17, v0.9.23]
+---
+
+<div className="mx-auto max-w-lg">
+<ChangelogImage
+  src="/changelog/oracle-operations-v1.jpg"
+  alt="Oracle Database query, write, and schema operations in Sim"
+  width="496"
+  height="226"
+/>
+</div>
+
+[Oracle Database](/integrations/oracle-database) joins Sim's integrations. Query records, insert or update rows, and inspect tables and columns from a workflow. Save a connection in Integrations and reuse it across your agents, with support for encrypted connections.
+
+Requires Oracle Database 12.1 or later, reachable from your Sim runtime; self-hosted installations need Node.js 24. [Connect Oracle Database](https://docs.sim.ai/integrations/oracledb).
+
+### More integrations in v0.9.17
+
+- **[Checkr](/integrations/checkr):** Create candidates, send background-check invitations, read reports, and start workflows from report or invitation events using your Checkr API key.
+- **[Shopify](/integrations/shopify):** Create or update product variants in bulk, look up fulfillment orders, and update shipment tracking; expiring connections refresh automatically.
+- **[Ramp](/integrations/ramp) and [Vanta](/integrations/vanta):** Save a client ID and secret once and reuse the connection across blocks. Existing workflows with inline Vanta credentials must [create and select a saved credential](https://docs.sim.ai/integrations/vanta) before running again.
+
+### Chat fixes in v0.9.23
+
+- Interrupted Chat runs can recover after a server restart without waiting for you to reopen the chat.
+- Resizing a Chat panel keeps your chosen width even if you switch windows before releasing the pointer.
+
+See the full technical notes for [v0.9.17](https://github.com/simstudioai/sim/releases/tag/v0.9.17) and [v0.9.23](https://github.com/simstudioai/sim/releases/tag/v0.9.23).

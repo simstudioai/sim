@@ -117,7 +117,7 @@ describe('native computer model projection', () => {
       const result = computerToolResultForModel(nested ? sequence(state) : state)
       const textResult = { ...result, observations: undefined }
       const serialized = JSON.stringify(textResult)
-      expect(new TextEncoder().encode(serialized).length).toBeLessThan(44 * 1024)
+      expect(new TextEncoder().encode(serialized).length).toBeLessThan(22 * 1024)
       expect(serialized).toContain('editor-late AXTextArea parent=e782')
       expect(serialized).toContain('e782 AXStaticText parent=e0')
       expect(serialized).toContain('send-late AXButton parent=e782')
@@ -193,7 +193,7 @@ describe('native computer model projection', () => {
     expect(ids.size).toBeLessThan(state.nodes.length)
     for (const match of tree.matchAll(/\bparent=(\S+)/g)) expect(ids.has(match[1])).toBe(true)
     expect(Buffer.byteLength(JSON.stringify({ ...result, observations: undefined }))).toBeLessThan(
-      44 * 1024
+      22 * 1024
     )
     expect(result).toMatchObject({ dispatched: true, sequence: { completedSteps: 1 } })
   })

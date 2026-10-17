@@ -32,6 +32,42 @@ export const HOME_PAGE_DESCRIPTION = `Sim is the open-source AI workspace where 
  */
 export const HOME_PAGE_TITLE = 'The AI Workspace | Build, Distribute & Govern AI Agents | Sim'
 
+/** The hero's `<h1>`, one entry per rendered line. */
+export const HOME_HERO_HEADING = ['Build and govern', 'every AI agent in one place'] as const
+
+/**
+ * The hero's summary paragraph, shared with the homepage's Markdown representation (`/index.md`).
+ */
+export const HOME_HERO_SUMMARY = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents for their organization. Connect ${INTEGRATION_COUNT_LABEL} integrations and every major LLM, then govern access, spend, data, and deployment from one place. Build visually, conversationally, or with code, and run Sim in your own cloud.`
+
+/**
+ * The product's feature claims, shared by the JSON-LD `featureList` below and the homepage's
+ * Markdown representation (`/index.md`).
+ */
+export const HOME_FEATURES = [
+  'AI workspace for teams',
+  'Chat: build and manage agents in natural language',
+  'Visual workflow builder',
+  'CLI access for coding agents and terminal workflows',
+  `${INTEGRATION_COUNT_LABEL} integrations`,
+  'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
+  'Knowledge base creation',
+  'Table creation',
+  'Document creation',
+  'API access',
+  'Custom functions',
+  'Scheduled workflows',
+  'Event triggers',
+  'Permission groups for model, integration, and tool access',
+  'Organization and per-member spend limits',
+  'Usage analytics by workspace and member',
+  'Agent deployment as chat, API, or MCP with SSO, email, or password access',
+  'Single sign-on with domain verification',
+  'Audit records and run tracing',
+  'Configurable data retention',
+  'Self-hosting with Docker or Kubernetes',
+] as const
+
 const HOME_JSON_LD = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -68,29 +104,7 @@ const HOME_JSON_LD = {
       browserRequirements: 'Requires a modern browser with JavaScript enabled',
       installUrl: `${SITE_URL}/signup`,
       publisher: { '@id': `${SITE_URL}#organization` },
-      featureList: [
-        'AI workspace for teams',
-        'Chat: build and manage agents in natural language',
-        'Visual workflow builder',
-        'CLI access for coding agents and terminal workflows',
-        `${INTEGRATION_COUNT_LABEL} integrations`,
-        'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
-        'Knowledge base creation',
-        'Table creation',
-        'Document creation',
-        'API access',
-        'Custom functions',
-        'Scheduled workflows',
-        'Event triggers',
-        'Permission groups for model, integration, and tool access',
-        'Organization and per-member spend limits',
-        'Usage analytics by workspace and member',
-        'Agent deployment as chat, API, or MCP with SSO, email, or password access',
-        'Single sign-on with domain verification',
-        'Audit records and run tracing',
-        'Configurable data retention',
-        'Self-hosting with Docker or Kubernetes',
-      ],
+      featureList: HOME_FEATURES,
     },
     {
       '@type': 'SoftwareSourceCode',

@@ -94,6 +94,7 @@ describe('replaceScimGroup', () => {
       memberIds.delete(scimUserId)
     )
     mocks.countMembers.mockImplementation(async () => memberIds.size)
+    mocks.reconcile.mockResolvedValue({ added: [], removed: [], raised: [], stoppedRuns: [] })
     mocks.touch.mockImplementation(async () => {
       group = { ...group, updatedAt: new Date('2026-01-02T00:00:00.000Z') }
     })

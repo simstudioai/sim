@@ -98,6 +98,10 @@ const PATH_REDIRECTS: DocsRedirect[] = [
     permanent: true,
   },
   { source: '/api-reference', destination: '/api-reference/getting-started', permanent: true },
+  // sdks/* folded into api-reference/
+  { source: '/sdks', destination: '/api-reference/getting-started', permanent: true },
+  { source: '/sdks/typescript', destination: '/api-reference/typescript', permanent: true },
+  { source: '/sdks/python', destination: '/api-reference/python', permanent: true },
   // building-agents/agents merged into the building-agents overview
   { source: '/building-agents/agents', destination: '/agents', permanent: true },
   // form deployment removed

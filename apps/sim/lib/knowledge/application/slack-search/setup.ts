@@ -10,12 +10,12 @@ import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   adoptOrganizationSlackMemberApp,
-  loadOrganizationSlackMemberApps,
   lockOrganizationSlackApp,
+  requireSearchBotMatchesMemberApp,
+  resolveOrganizationSlackMemberApp,
 } from '@/lib/credential-groups/organization-slack-app'
 import { configureSharedSlackMemberApp } from '@/lib/credential-groups/shared-slack-app'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
-import type { DbOrTx } from '@/lib/db/types'
 import { buildSlackAppCreationUrl } from '@/lib/integrations/slack-manifest'
 import {
   exchangeSlackBotAuthorization,
@@ -63,36 +63,13 @@ interface CompleteInput {
   error?: string
 }
 
-async function existingMemberApp(organizationId: string, executor: DbOrTx = db) {
-  const rows = await loadOrganizationSlackMemberApps(organizationId, executor)
-  const configurations = rows.flatMap((row) =>
-    row.configuration.slack ? [row.configuration.slack] : []
-  )
-  const first = configurations[0]
-  if (
-    first &&
-    configurations.some(
-      (configuration) =>
-        configuration.appId !== first.appId || configuration.teamId !== first.teamId
-    )
-  )
-    throw new OrchestrationError(
-      'conflict',
-      'Organization Slack member accounts reference multiple apps. Consolidate them before configuring Search.'
-    )
-  return {
-    app: first ? { appId: first.appId, teamId: first.teamId } : null,
-    scopes: [...new Set(configurations.flatMap((configuration) => configuration.scopes))],
-  }
-}
-
 export const prepareSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.prepareSlackInstallation,
   resolveContext: ({ input }: { input: PrepareInput }) =>
     resolveKnowledgeOrganizationContext(input),
   async execute({ input, context }) {
     await requireOrganizationSearchAvailable(context.organizationId)
-    const member = await existingMemberApp(context.organizationId)
+    const member = await resolveOrganizationSlackMemberApp(context.organizationId)
     const manifest = createSlackSearchManifest(
       input.name,
       input.description,
@@ -114,7 +91,7 @@ async function prepareInstallationAttempt(
   input: StartInput
 ): Promise<SlackSearchOAuthAttempt> {
   const origin = getBaseUrl()
-  const member = await existingMemberApp(input.organizationId)
+  const member = await resolveOrganizationSlackMemberApp(input.organizationId)
   const [installation] = input.installationId
     ? await db
         .select()
@@ -279,15 +256,7 @@ async function saveInstallation(
       attempt.customInstallation.appId === identity.appId)
   )
     throw new OrchestrationError('conflict', 'Install Sim Search in the same Slack workspace')
-  if (
-    attempt.memberApp &&
-    ((!attempt.sharedApp && attempt.memberApp.appId !== identity.appId) ||
-      attempt.memberApp.teamId !== identity.teamId)
-  )
-    throw new OrchestrationError(
-      'conflict',
-      'Install the same Slack app and workspace connected by your members'
-    )
+  requireSearchBotMatchesMemberApp(attempt.memberApp, identity, Boolean(attempt.sharedApp))
   const { encrypted: encryptedToken } = await encryptSecret(
     JSON.stringify({
       type: SLACK_CUSTOM_BOT_SECRET_TYPE,
@@ -440,7 +409,7 @@ async function saveInstallation(
         .values(appValues)
         .onConflictDoUpdate({ target: slackApp.id, set: appValues })
     }
-    const member = await existingMemberApp(attempt.organizationId, tx)
+    const member = await resolveOrganizationSlackMemberApp(attempt.organizationId, tx)
     if (
       member.app?.appId !== attempt.memberApp?.appId ||
       member.app?.teamId !== attempt.memberApp?.teamId
