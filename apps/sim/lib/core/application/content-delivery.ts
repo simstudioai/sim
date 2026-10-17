@@ -99,6 +99,8 @@ interface ContentLedger {
 
 const gates = new AsyncLocalStorage<ContentDeliveryGate>()
 const ledgers = new AsyncLocalStorage<ContentLedger>()
+/** Set inside {@link runWorkflowOutsideContentDelivery}; any gate installed within clears it. */
+const workflowRuns = new AsyncLocalStorage<true>()
 
 const MODEL_UNSAFE_CONTENT_MESSAGES: Record<ContentSourceKind, string> = {
   'workspace-file': 'File cannot be sent to a model because its secret provenance is unavailable',
@@ -155,19 +157,32 @@ class ContentDeliveryUndeclaredError extends Error {
   }
 }
 
-/** Chat's own workspace, organization, and resource delegations. */
+/**
+ * Chat's own workspace, organization, and resource delegations, outside a workflow run (see
+ * {@link runWorkflowOutsideContentDelivery}).
+ */
 export function isCopilotPrincipal(principal: Principal): boolean {
   return (
     (principal.kind === 'delegated' ||
       principal.kind === 'organization_delegated' ||
       principal.kind === 'resource_delegated') &&
-    principal.serviceId === 'copilot'
+    principal.serviceId === 'copilot' &&
+    workflowRuns.getStore() === undefined
   )
 }
 
 /** Installs the gate every item reported inside `execute` is decided by; the innermost gate wins. */
 export function observeContentDelivery<T>(gate: ContentDeliveryGate, execute: () => T): T {
-  return gates.run(gate, execute)
+  return workflowRuns.exit(() => gates.run(gate, execute))
+}
+
+/**
+ * Runs a workflow execution as any caller, even when Chat started it: its blocks read for the run,
+ * and what the run returns is gated where Chat started it. It neither consults nor accounts to a
+ * Chat request it runs in-process under; a gate installed inside it classifies again.
+ */
+export function runWorkflowOutsideContentDelivery<T>(execute: () => T): T {
+  return ledgers.exit(() => workflowRuns.run(true, execute))
 }
 
 /**
@@ -202,7 +217,7 @@ const OUTSIDE_MODEL_GATE: ContentDeliveryGate = {
  * so a tainted source still yields a derived file that carries its taint. Each use names why.
  */
 export function observeContentOutsideModel<T>(execute: () => T): T {
-  return gates.run(OUTSIDE_MODEL_GATE, execute)
+  return observeContentDelivery(OUTSIDE_MODEL_GATE, execute)
 }
 
 /**
