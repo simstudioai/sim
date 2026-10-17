@@ -35,6 +35,7 @@ import {
 } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
+import type { OAuthConfig } from '@/tools/types'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('OAuthTokenResolution')
@@ -233,14 +234,11 @@ export async function completeOAuthCredentialToken(params: {
   }
 }
 
-function validateToolCredentialBinding(
-  toolId: string | undefined,
-  providerId: string | null | undefined,
-  credentialKind: 'oauth' | 'service-account'
+function validateToolCredentialKind(
+  requiredKind: OAuthConfig['credentialKind'],
+  actualKind: NonNullable<OAuthConfig['credentialKind']>
 ): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
-  if (!toolId) return
-  const policy = getToolMetadata(toolId)?.oauth
-  if (policy?.credentialKind && policy.credentialKind !== credentialKind) {
+  if (requiredKind && requiredKind !== actualKind) {
     return {
       ok: false,
       status: 400,
@@ -248,6 +246,17 @@ function validateToolCredentialBinding(
       error: 'The selected credential type is not supported by this tool',
     }
   }
+}
+
+function validateToolCredentialBinding(
+  toolId: string | undefined,
+  providerId: string | null | undefined,
+  credentialKind: NonNullable<OAuthConfig['credentialKind']>
+): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
+  if (!toolId) return
+  const policy = getToolMetadata(toolId)?.oauth
+  const kindError = validateToolCredentialKind(policy?.credentialKind, credentialKind)
+  if (kindError) return kindError
   const service = policy?.required
     ? (getServiceConfigByServiceId(policy.provider) ??
       getServiceConfigByProviderId(policy.provider))
@@ -509,6 +518,9 @@ export async function resolveCredentialAccessToken(
       error: 'This tool is not configured to use managed credentials',
     }
   }
+  const kindError = validateToolCredentialKind(toolMetadata.oauth.credentialKind, 'oauth')
+  if (kindError) return kindError
+
   const requiredScopes =
     toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
   if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {
