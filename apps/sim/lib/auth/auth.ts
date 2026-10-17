@@ -55,6 +55,7 @@ import {
   recordPasswordResetAudit,
 } from '@/lib/auth/lifecycle-audit'
 import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
+import { revokeUserOAuthGrants } from '@/lib/auth/oauth-grants'
 import {
   consentRequestNamesClient,
   OAUTH_ACCESS_TOKEN_PREFIX,
@@ -67,7 +68,6 @@ import {
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
 import { bindOAuthIssuedResource, oauthResourcePlugin } from '@/lib/auth/oauth-resource'
-import { revokeUserOAuthGrants } from '@/lib/auth/oauth-token-family'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
