@@ -605,6 +605,7 @@ async function run() {
         )
       } finally {
         await sql`delete from oauth_client where client_id = ${clientId}`
+        await sql`delete from "user" where id = ${userId}`
       }
     }
   )
