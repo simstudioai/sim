@@ -1,6 +1,6 @@
 ---
 title: Data drains
-description: Export retained logs and Chat data to storage, a warehouse, Datadog, or a webhook endpoint.
+description: Export retained logs and Chat data to storage, a warehouse, Microsoft Sentinel, Datadog, or a webhook endpoint.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -21,7 +21,7 @@ The detail page shows the last ten runs with status, trigger, time, row count, b
 
 ## Sources and row format
 
-Create separate drains for different sources. Every delivered row is JSON-safe NDJSON: one JSON object per line, with an `id` for deduplication.
+Create separate drains for different sources. Source rows are JSON-safe NDJSON: one JSON object per line, with an `id` for deduplication. Destinations such as Sentinel convert these rows to their required ingestion format.
 
 | UI source | Wire value | Records |
 | --- | --- | --- |
@@ -71,6 +71,86 @@ Object names use the S3 layout above. `sim-*` object metadata uses `x-goog-meta-
 Supply **Account name** (3–24 lowercase characters), an existing **Container**, optional **Prefix**, and an **Account key** with write access. Each chunk becomes an NDJSON block blob using the same object layout. Metadata keys are lowercased for Azure.
 
 **Endpoint suffix** supports `blob.core.usgovcloudapi.net` for US Gov and `blob.core.chinacloudapi.cn` for China. Sim also accepts the legacy Germany suffix `blob.core.cloudapi.de`; verify that the particular account still uses that endpoint before selecting it.
+
+### Microsoft Sentinel
+
+Sends JSON arrays through the Azure Monitor Logs Ingestion API into a custom Log Analytics table in your Sentinel workspace. All five drain sources use the same envelope. This destination supports **Azure public cloud with Microsoft Entra client-secret authentication**; it does not use the legacy workspace shared-key Data Collector API.
+
+#### Prepare Azure
+
+1. Create a custom table, for example `SimLogs_CL`, in the Log Analytics workspace used by Microsoft Sentinel. Use the **Analytics** table plan for Sentinel analytics rules.
+2. Create a data collection rule (DCR) with an input stream such as `Custom-SimLogs`. Declare the columns below in both the input stream and the destination table. Route the stream to that workspace/table, with `transformKql: "source"` and `outputStream: "Custom-SimLogs_CL"`.
+3. Copy the DCR's **immutable ID** (`dcr-…`) and **logs ingestion endpoint**. A DCR with direct ingestion can provide its own endpoint. For Azure Private Link, use the linked data collection endpoint (DCE); self-hosted Sim must have network access and an outbound policy permitting the resolved private address.
+4. Register a Microsoft Entra application, create a client secret, and assign its service principal **Monitoring Metrics Publisher** on the DCR. Copy the tenant ID, application client ID, and secret **value**. Role assignment propagation can take up to 30 minutes.
+
+See Microsoft's [Logs Ingestion API setup](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/tutorial-logs-ingestion-portal) and [DCR routing requirements](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/logs-ingestion-api-overview). Sim does not provision these Azure resources.
+
+Use this input stream declaration:
+
+```json
+{
+  "Custom-SimLogs": {
+    "columns": [
+      { "name": "TimeGenerated", "type": "datetime" },
+      { "name": "Source", "type": "string" },
+      { "name": "RecordId", "type": "string" },
+      { "name": "DrainId", "type": "string" },
+      { "name": "RunId", "type": "string" },
+      { "name": "Data", "type": "dynamic" }
+    ]
+  }
+}
+```
+
+#### Configure and verify the drain
+
+Choose **Microsoft Sentinel**, then supply **Logs ingestion endpoint**, **DCR immutable ID**, **Stream name**, **Tenant ID**, **Client ID**, and **Client secret**. Enter only the endpoint origin, such as `https://my-dcr.eastus-1.ingest.monitor.azure.com`; Sim appends the DCR path and API version. Endpoints must use HTTPS on the Azure public-cloud ingestion domain. Sim validates DNS, pins the resolved address and refuses redirects.
+
+Sim obtains an access token from the tenant's `/oauth2/v2.0/token` endpoint using `client_credentials` and scope `https://monitor.azure.com//.default`. The client secret uses the existing encrypted drain-credential storage; access tokens stay in memory for the run and are refreshed before expiry.
+
+**Test connection writes one probe event** with `Source: "connection_test"` and `Data: {"sim":"connection-test"}`. Successful testing confirms Azure accepted the request, not that a row is already queryable or a Sentinel rule fired. Run the drain and verify receipt in Log Analytics; initial ingestion can take several minutes.
+
+An audit event is delivered as:
+
+```json
+[
+  {
+    "TimeGenerated": "2026-10-16T12:00:00.000Z",
+    "Source": "audit_logs",
+    "RecordId": "audit-event-123",
+    "DrainId": "drain-123",
+    "RunId": "run-123",
+    "Data": {
+      "id": "audit-event-123",
+      "createdAt": "2026-10-15T09:00:00.000Z",
+      "action": "workflow.updated",
+      "actorId": "user-123"
+    }
+  }
+]
+```
+
+`TimeGenerated` is the **drain run start**, allowing retained-history backfills to be ingested without changing the original event. Source timestamps remain in `Data.createdAt`, `Data.startedAt`, `Data.endedAt`, or `Data.completedAt`. Use the appropriate original timestamp for security correlation; ingestion time alone does not establish when an action happened. The destination preserves the full original row under `Data` and does not automatically create Sentinel analytics rules or map entities to ASIM schemas.
+
+For audit events, query and deduplicate by source and record ID:
+
+```kusto
+SimLogs_CL
+| where Source == "audit_logs"
+| summarize arg_max(TimeGenerated, *) by Source, RecordId
+| extend EventTime = todatetime(Data.createdAt),
+         ActorId = tostring(Data.actorId),
+         Action = tostring(Data.action)
+| order by EventTime desc
+```
+
+#### Limits and failures
+
+Sim splits JSON arrays at **1,000,000 UTF-8 bytes** and checkpoints each accepted batch before sending the next. Azure can truncate field values above 64 KB, so Sim conservatively rejects a source row whose serialized `Data` exceeds **64,000 UTF-8 bytes**, before sending that chunk. It never truncates the row to fit. Large Chat transcripts and workflow outputs may need an object-storage drain instead. See [Azure ingestion limits](https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/service-limits#logs-ingestion-api).
+
+Network failures, `408`, `429`, and `5xx` receive up to three retries after the initial attempt. Sim respects `Retry-After` up to 60 seconds; a longer delay fails the run for later retry rather than sending early. Invalid schema/stream (`400`) and missing DCR permissions (`403`) fail immediately. An ingestion `401` refreshes authentication once. Errors omit provider response bodies and token values.
+
+Delivery remains **at least once**. Azure acceptance followed by a lost response or failed checkpoint can replay rows; successful earlier batches remain checkpointed when a later batch fails. Deduplicate using `Source` and `RecordId`, including across recreated drains. The standard hourly/daily cadence and five-minute source stability window still apply; this is not real-time streaming.
 
 ### Google BigQuery
 
@@ -188,6 +268,8 @@ curl --fail-with-body \
 ```
 
 Trigger.dev is optional. The database backend executes the registered runner with at most two active drain jobs per app process; Trigger.dev uses serialized per-drain jobs. Database claims apply in both modes. Verify scheduler calls and actual destination receipt after enabling the feature.
+
+When upgrading to add the Sentinel destination, apply the additive database migration and deploy the updated app **and all drain workers** before creating Sentinel drains. Older versions do not recognize the new destination type, so creating them during a mixed-version rollout is unsupported.
 
 ## Related docs
 
