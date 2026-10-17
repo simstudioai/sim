@@ -149,3 +149,11 @@ bun run apps/sim/scripts/check-block-registry.ts origin/staging
 ```
 
 Author a `packages/db` schema change or migration with the `db-migrate` skill. CI also runs `bun run check:migrations` (it diffs against a base ref, `origin/staging` by default, so it is not in `check:audits`; run it when you touch `packages/db/migrations/**`), checks that `drizzle-kit generate` in `packages/db` produces no new migration, and runs a non-blocking `bun audit`. When an audit fails, its output and its script's header say what the rule protects; fix the code, never the check. Ratchet baselines (`scripts/*baseline.json`) only shrink: regenerate one with `--update` after removing violations; it refuses to admit new debt. The one exception is `check:tool-registry-boundary`, whose module-count baseline is re-recorded with `--update-baseline` when growth is deliberate (see its skill).
+
+## Cursor Cloud specific instructions
+
+The Cloud Agent VM already has Bun 1.4.2 on `/usr/local/bin` and Node.js 24 at `/usr/local/lib/nodejs/bin`. Prepend that Node directory to `PATH` before any `node` or native rebuild. The default `PATH` finds `/exec-daemon/node` first, and that binary is Node 22. App engines and `isolated-vm` need Node 24.
+
+Postgres 17 (pgvector, `btree_gin`, `pg_trgm`) listens on `127.0.0.1:5432`. Redis listens on `127.0.0.1:6379`. systemd is not available in this VM, so start them with `sudo pg_ctlcluster 17 main start` and `sudo redis-server /etc/redis/redis.conf --daemonize yes --supervised no`. The local database URL is `postgresql://postgres:postgres@127.0.0.1:5432/simstudio`.
+
+`apps/sim/.env`, `apps/realtime/.env`, and `packages/db/.env` are generated at install and gitignored. Keep the shared secrets identical across the app and realtime files. Run the product with `bun run dev:full:capped` (Next.js on port 3000, Socket.IO on port 3002). Uncapped `bun run dev:full` lets the Next.js heap grow to about 8GB and the 16GB VM OOM-kills the dev server. Email verification stays off when no mail provider is configured, so local signup reaches `/home` directly. Docker is not required for this loop.
