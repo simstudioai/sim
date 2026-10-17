@@ -10,34 +10,64 @@ export type TextMatch = 'all' | 'any'
 /** Terms an any-term query sends; more would make the provider query long without adding recall. */
 const MAX_ANY_TERMS = 8
 
+/**
+ * Ranking also counts two-letter words such as `AI` or `VM`: every title word counts toward the
+ * title's share of query terms, so skipping them would rank a page named `AI agents` below one
+ * named `Agents` for the query `AI agents`.
+ */
+const MIN_RANKING_TERM_LENGTH = 2
+
 /** Words that match nearly every page, so they would make an any-term query return noise. */
 const STOPWORDS = new Set([
   'about',
   'all',
+  'am',
+  'an',
   'and',
   'any',
   'are',
+  'as',
+  'at',
+  'be',
+  'by',
   'can',
   'could',
   'did',
+  'do',
   'does',
   'for',
   'from',
   'had',
   'has',
   'have',
+  'he',
   'how',
+  'if',
+  'in',
   'into',
+  'is',
+  'it',
   'its',
+  'me',
+  'my',
+  'no',
   'not',
+  'of',
+  'on',
+  'or',
   'our',
   'should',
+  'so',
   'that',
   'the',
   'their',
   'there',
   'this',
+  'to',
+  'up',
+  'us',
   'was',
+  'we',
   'were',
   'what',
   'when',
@@ -60,9 +90,13 @@ export function significantTerms(query: string): string[] {
   return distinctTerms(query, (term) => term.toLowerCase())
 }
 
-function distinctTerms(query: string, keyOf: (term: string) => string): string[] {
+function distinctTerms(
+  query: string,
+  keyOf: (term: string) => string,
+  minLength?: number
+): string[] {
   const seen = new Set<string>()
-  return queryTerms(query)
+  return queryTerms(query, minLength)
     .filter((term) => {
       const key = keyOf(term)
       if (STOPWORDS.has(term.toLowerCase()) || seen.has(key)) return false
@@ -125,13 +159,16 @@ export function termCoverage(text: string, terms: readonly string[]): number {
  * Query and text words are compared by their singular key, so a word and its regular plural count
  * as one term; a term with punctuation inside it is matched as written.
  */
-function stemmedTerms(query: string): {
+function stemmedTerms(
+  query: string,
+  minLength?: number
+): {
   count: number
   /** At least half the terms, the minimum a partial match must hold. */
   required: number
   held: (text: string) => number
 } {
-  const terms = distinctTerms(query, singularKey)
+  const terms = distinctTerms(query, singularKey, minLength)
   const keys = terms.map(singularKey)
   return {
     count: terms.length,
@@ -154,7 +191,7 @@ function stemmedTerms(query: string): {
 export function queryRelevance(
   query: string
 ): (title: string, text: string) => [number, number, number] {
-  const { held } = stemmedTerms(query)
+  const { held } = stemmedTerms(query, MIN_RANKING_TERM_LENGTH)
   return (title, text) => {
     const inTitle = held(title)
     return [held(`${title}\n${text}`), inTitle, inTitle / Math.max(1, textWords(title).length)]
