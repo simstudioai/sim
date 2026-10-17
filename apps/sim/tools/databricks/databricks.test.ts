@@ -1,4 +1,5 @@
 import { inputValidationMock } from '@sim/testing'
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { partialToolRegistry } from '@sim/testing/mocks/tool-registry.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it, vi } from 'vitest'
@@ -6,6 +7,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import * as databricksTools from '@/tools/databricks'
+import { executeSqlTool } from '@/tools/databricks/execute_sql'
+import { getRunTool } from '@/tools/databricks/get_run'
 import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'
 
@@ -28,6 +31,8 @@ const REQUEST_PARAMS = {
   messageId: 'msg1',
   attachmentId: 'att1',
   statementId: 'stmt1',
+  chunkIndex: 0,
+  responseId: 'response1',
   clusterId: 'cluster1',
   jobId: 1,
   runId: 2,
@@ -86,15 +91,9 @@ describe('databricks workspace host allowlist', () => {
     ['https://acme.databricks.com/', 'https://acme.databricks.com'],
   ])('builds the same request URLs for workspace host %s', (host, origin) => {
     const params = { ...REQUEST_PARAMS, host }
-    expect(urlBuilder('databricks_list_clusters')(params)).toBe(`${origin}/api/2.0/clusters/list`)
-    expect(urlBuilder('databricks_execute_sql')(params)).toBe(`${origin}/api/2.0/sql/statements/`)
-    expect(urlBuilder('databricks_get_job')(params)).toBe(`${origin}/api/2.1/jobs/get?job_id=1`)
-    expect(urlBuilder('databricks_get_run_output')(params)).toBe(
-      `${origin}/api/2.1/jobs/runs/get-output?run_id=2`
-    )
-    expect(urlBuilder('databricks_genie_get_message')(params)).toBe(
-      `${origin}/api/2.0/genie/spaces/space1/conversations/conv1/messages/msg1`
-    )
+    for (const toolId of DATABRICKS_TOOL_IDS) {
+      expect(new URL(urlBuilder(toolId)(params)).origin).toBe(origin)
+    }
   })
 
   it.each([
@@ -103,9 +102,68 @@ describe('databricks workspace host allowlist', () => {
   ])(
     'drops the trailing FQDN dot of %s, which the old tools kept and Bun TLS rejects',
     (host, origin) => {
-      expect(urlBuilder('databricks_list_clusters')({ ...REQUEST_PARAMS, host })).toBe(
-        `${origin}/api/2.0/clusters/list`
-      )
+      expect(
+        new URL(urlBuilder('databricks_list_clusters')({ ...REQUEST_PARAMS, host })).origin
+      ).toBe(origin)
     }
   )
+})
+
+describe('Databricks paginated results', () => {
+  it('keeps SQL null values and the cursor needed to retrieve rows beyond the first chunk', async () => {
+    const result = await executeSqlTool.transformResponse?.(
+      jsonResponse({
+        statement_id: 'statement-1',
+        status: { state: 'SUCCEEDED' },
+        manifest: { total_row_count: 3, total_chunk_count: 2, truncated: false },
+        result: {
+          data_array: [['first', null]],
+          chunk_index: 0,
+          row_count: 1,
+          row_offset: 0,
+          next_chunk_index: 1,
+        },
+      })
+    )
+
+    expect(result?.output).toMatchObject({
+      data: [['first', null]],
+      totalRows: 3,
+      chunkIndex: 0,
+      rowCount: 1,
+      rowOffset: 0,
+      nextChunkIndex: 1,
+      totalChunks: 2,
+    })
+  })
+
+  it('preserves task run IDs and repair history so a multi-task run can be inspected and repaired', async () => {
+    const result = await getRunTool.transformResponse?.(
+      jsonResponse({
+        run_id: 10,
+        tasks: [
+          {
+            task_key: 'extract',
+            run_id: 11,
+            state: { result_state: 'FAILED' },
+            resolved_values: { notebook_task: { base_parameters: { date: '2026-01-01' } } },
+          },
+        ],
+        repair_history: [{ id: 12, type: 'REPAIR', task_run_ids: [11] }],
+        next_page_token: 'next-tasks',
+      })
+    )
+
+    expect(result?.output).toMatchObject({
+      tasks: [
+        {
+          task_key: 'extract',
+          run_id: 11,
+          resolved_values: { notebook_task: { base_parameters: { date: '2026-01-01' } } },
+        },
+      ],
+      repairHistory: [{ id: 12, type: 'REPAIR', task_run_ids: [11] }],
+      nextPageToken: 'next-tasks',
+    })
+  })
 })
