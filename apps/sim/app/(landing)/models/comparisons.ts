@@ -9,6 +9,7 @@ import {
   getLatestModelUpdate,
   getProviderBySlug,
   hasPublishedPricing,
+  isPromptModel,
 } from '@/app/(landing)/models/utils'
 import { resolveModelTokenPricing } from '@/providers/pricing'
 
@@ -84,6 +85,7 @@ interface ComparedModel {
   provider: CatalogProvider
 }
 
+/** A curated pair, rendered at `href`; `a` and `b` keep the pair's curated order. */
 export interface ModelComparison {
   slug: string
   href: string
@@ -104,6 +106,9 @@ function resolveComparedModel(id: string): ComparedModel {
     throw new Error(
       `Model comparison id "${id}" is retired by its provider; update MODEL_COMPARISON_PAIRS`
     )
+  }
+  if (!isPromptModel(model)) {
+    throw new Error(`Model comparison id "${id}" is an evaluation model, not a prompt model`)
   }
   if (!hasPublishedPricing(model.pricing)) {
     throw new Error(`Model comparison id "${id}" has no published token pricing`)
@@ -143,6 +148,7 @@ function buildComparisons(): ModelComparison[] {
   })
 }
 
+/** Every curated comparison, in {@link MODEL_COMPARISON_PAIRS} order. */
 export const MODEL_COMPARISONS: ModelComparison[] = buildComparisons()
 
 /** Longest page title that keeps the rendered `<title>` (with the " | Sim" template) at 60 chars. */
@@ -168,6 +174,7 @@ export function getComparisonPageDescription(comparison: ModelComparison): strin
   return withSim.length <= 155 ? withSim : lead
 }
 
+/** The curated comparison at `/models/compare/{slug}`; `null` for a reversed or unknown pair. */
 export function getModelComparisonBySlug(slug: string): ModelComparison | null {
   return MODEL_COMPARISONS.find((comparison) => comparison.slug === slug) ?? null
 }
@@ -326,6 +333,7 @@ export function buildComparisonVerdict(comparison: ModelComparison): string[] {
   ].filter((sentence): sentence is string => sentence !== null)
 }
 
+/** FAQ entries for a comparison page, built from the same sentences as the verdict. */
 export function buildComparisonFaqs(comparison: ModelComparison): CatalogFaq[] {
   const { a, b } = comparison
   const [cheaper, pricier] =

@@ -49,11 +49,11 @@ export async function generateStaticParams() {
   return MODEL_COMPARISONS.map((comparison) => ({ pair: comparison.slug }))
 }
 
-export async function generateMetadata({
-  params,
-}: {
+interface ModelComparisonPageProps {
   params: Promise<{ pair: string }>
-}): Promise<Metadata> {
+}
+
+export async function generateMetadata({ params }: ModelComparisonPageProps): Promise<Metadata> {
   const { pair } = await params
   const comparison = getModelComparisonBySlug(pair)
 
@@ -95,11 +95,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function ModelComparisonPage({
-  params,
-}: {
-  params: Promise<{ pair: string }>
-}) {
+export default async function ModelComparisonPage({ params }: ModelComparisonPageProps) {
   const { pair } = await params
   const comparison = getModelComparisonBySlug(pair)
 
@@ -181,8 +177,18 @@ export default async function ModelComparisonPage({
       <JsonLd data={itemListJsonLd} />
       <JsonLd data={faqJsonLd} />
 
-      <section className='bg-[var(--bg)]'>
+      <section
+        id='model-comparison'
+        aria-labelledby='comparison-heading'
+        className='bg-[var(--bg)]'
+      >
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+          <p className='sr-only'>
+            Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
+            This page compares {a.model.displayName} and {b.model.displayName} on API pricing per 1M
+            tokens, context window, max output, and capabilities. Both models are available in the
+            Sim Agent block, and each Agent block in a Sim agent can use a different model.
+          </p>
           <div className='mb-6'>
             <BackLink href='/models' label='Back to Models' />
           </div>
@@ -206,7 +212,7 @@ export default async function ModelComparisonPage({
               </p>
               <h1
                 id='comparison-heading'
-                className='text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
+                className='text-[44px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-sm:text-[28px] max-lg:text-[36px]'
               >
                 {comparison.title}
               </h1>
@@ -236,11 +242,11 @@ export default async function ModelComparisonPage({
 
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
           <div className='border-[var(--border)] border-x'>
-            <section aria-labelledby='comparison-specs-heading'>
+            <section id='comparison-specs' aria-labelledby='comparison-specs-heading'>
               <div className='px-6 pt-10 pb-4'>
                 <h2
                   id='comparison-specs-heading'
-                  className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                  className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
                 >
                   Pricing, context window, and capabilities
                 </h2>
@@ -257,10 +263,14 @@ export default async function ModelComparisonPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='comparison-build-heading' className='px-6 py-10'>
+            <section
+              id='comparison-build'
+              aria-labelledby='comparison-build-heading'
+              className='px-6 py-10'
+            >
               <h2
                 id='comparison-build-heading'
-                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 Use {a.model.displayName} or {b.model.displayName} in a Sim agent
               </h2>
@@ -297,7 +307,7 @@ export default async function ModelComparisonPage({
                 <nav aria-labelledby='related-comparisons-heading' className='px-6 py-10'>
                   <h2
                     id='related-comparisons-heading'
-                    className='mb-6 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                    className='mb-6 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
                   >
                     Related comparisons
                   </h2>
@@ -308,10 +318,14 @@ export default async function ModelComparisonPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='comparison-faq-heading' className='px-6 py-10'>
+            <section
+              id='comparison-faq'
+              aria-labelledby='comparison-faq-heading'
+              className='px-6 py-10'
+            >
               <h2
                 id='comparison-faq-heading'
-                className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-8 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 Frequently asked questions
               </h2>

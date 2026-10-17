@@ -247,6 +247,15 @@ export function hasPublishedPricing(pricing: PricingInfo): boolean {
   return pricing.input > 0 || pricing.output > 0
 }
 
+/**
+ * True for a model that takes a prompt. Evaluation models (`capabilities.evaluation`) take native
+ * state and questions instead, so prompt token, cost, and context-window comparisons leave them out,
+ * as the non-Agent model pickers do.
+ */
+export function isPromptModel(model: CatalogModel): boolean {
+  return !model.capabilities.evaluation
+}
+
 /** One long-context surcharge tier as a sentence fragment, without trailing punctuation. */
 export function formatPricingTier(tier: ModelPricingTier): string {
   return `Above ${formatTokenCount(tier.aboveInputTokens)} input tokens, the full request is priced at ${formatPrice(tier.input)}/1M input tokens${tier.cachedInput !== undefined ? `, ${formatPrice(tier.cachedInput)}/1M cached input tokens` : ''}, and ${formatPrice(tier.output)}/1M output tokens`
@@ -881,7 +890,7 @@ export function compareByContextWindow(a: CatalogModel, b: CatalogModel): number
  * The provider's callable (not retired) model with the largest published context window, ranked
  * by {@link compareByContextWindow} so provider FAQs agree with the context-window comparison.
  */
-export function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
+function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
   const candidates = provider.models.filter((model) => !model.retired && model.contextWindow)
   if (candidates.length === 0) return null
   return candidates.reduce((best, model) =>

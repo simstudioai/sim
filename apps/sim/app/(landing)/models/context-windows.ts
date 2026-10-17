@@ -6,18 +6,23 @@ import {
   type CatalogProvider,
   compareByContextWindow,
   formatTokenCount,
-  getLargestContextProviderModel,
+  isPromptModel,
   MODEL_PROVIDERS_WITH_CATALOGS,
 } from '@/app/(landing)/models/utils'
 
 /**
- * Callable first-party models with a published context window, ordered by
+ * Callable first-party prompt models with a published context window, ordered by
  * {@link compareByContextWindow}. Retired models are left out: their API calls fail.
  */
 export const CONTEXT_WINDOW_MODELS: CatalogModel[] = ALL_CATALOG_MODELS.filter(
-  (model) => !model.retired && model.contextWindow !== null && model.contextWindow > 0
+  (model) =>
+    isPromptModel(model) &&
+    !model.retired &&
+    model.contextWindow !== null &&
+    model.contextWindow > 0
 ).sort(compareByContextWindow)
 
+/** Distinct providers across {@link CONTEXT_WINDOW_MODELS}. */
 export const CONTEXT_WINDOW_PROVIDER_COUNT = new Set(
   CONTEXT_WINDOW_MODELS.map((model) => model.providerId)
 ).size
@@ -35,17 +40,21 @@ const CONTEXT_WINDOW_FAQ_PROVIDERS: ReadonlyArray<{ id: string; label?: string }
   { id: 'deepseek' },
 ]
 
-/** Providers with context-window data, each paired with its largest-context model. */
+/**
+ * Providers with context-window data, each paired with its largest-context model: the provider's
+ * first entry in the already-ranked {@link CONTEXT_WINDOW_MODELS}.
+ */
 export function getLargestContextByProvider(): Array<{
   provider: CatalogProvider
   model: CatalogModel
 }> {
   return MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) => {
-    const model = getLargestContextProviderModel(provider)
+    const model = CONTEXT_WINDOW_MODELS.find((entry) => entry.providerId === provider.id)
     return model ? [{ provider, model }] : []
   })
 }
 
+/** FAQ entries for the context-window page: the overall largest window, then per-provider ranges. */
 export function buildContextWindowFaqs(): CatalogFaq[] {
   const largest = CONTEXT_WINDOW_MODELS[0]
   const faqs: CatalogFaq[] = []

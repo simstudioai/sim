@@ -228,7 +228,7 @@ export default async function ModelsPage({
               </>
             )}
 
-            <nav aria-label='Free tools' className='flex flex-col sm:flex-row'>
+            <nav aria-label='Free tools' className='flex max-sm:flex-col'>
               {Object.values(MODEL_TOOLS).map((tool) => (
                 <ModelToolLink
                   key={tool.href}
@@ -244,10 +244,14 @@ export default async function ModelsPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='head-to-head-heading' className='px-6 py-10'>
+            <section
+              id='head-to-head'
+              aria-labelledby='head-to-head-heading'
+              className='px-6 py-10'
+            >
               <h2
                 id='head-to-head-heading'
-                className='mb-2 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-2 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 Head-to-head comparisons
               </h2>

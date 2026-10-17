@@ -112,11 +112,11 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function PricingCalculatorPage({
-  searchParams,
-}: {
+interface PricingCalculatorPageProps {
   searchParams: Promise<SearchParams>
-}) {
+}
+
+export default async function PricingCalculatorPage({ searchParams }: PricingCalculatorPageProps) {
   await pricingCalculatorSearchParamsCache.parse(searchParams)
 
   const breadcrumbJsonLd = {
@@ -167,8 +167,19 @@ export default async function PricingCalculatorPage({
       <JsonLd data={applicationJsonLd} />
       <JsonLd data={faqJsonLd} />
 
-      <section className='bg-[var(--bg)]' aria-labelledby='pricing-calculator-heading'>
+      <section
+        id='pricing-calculator'
+        aria-labelledby='pricing-calculator-heading'
+        className='bg-[var(--bg)]'
+      >
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+          <p className='sr-only'>
+            Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. The
+            free Sim LLM API pricing calculator estimates cost per request, per day, and per month
+            for {TOOL_MODELS.length} OpenAI, Anthropic Claude, Google Gemini, and other models,
+            using the same rates and long-context tier rules Sim uses to cost model calls in its
+            execution logs.
+          </p>
           <div className='mb-6'>
             <BackLink href='/models' label='Back to models' />
           </div>
@@ -177,7 +188,7 @@ export default async function PricingCalculatorPage({
           </p>
           <h1
             id='pricing-calculator-heading'
-            className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'
+            className='text-balance text-[40px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[28px]'
           >
             LLM API pricing calculator
           </h1>
@@ -203,10 +214,14 @@ export default async function PricingCalculatorPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='cost-drivers-heading' className='px-6 py-10'>
+            <section
+              id='cost-drivers'
+              aria-labelledby='cost-drivers-heading'
+              className='px-6 py-10'
+            >
               <h2
                 id='cost-drivers-heading'
-                className='mb-3 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-3 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 What drives LLM API cost
               </h2>
@@ -227,7 +242,7 @@ export default async function PricingCalculatorPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <nav aria-label='Related resources' className='flex flex-col sm:flex-row'>
+            <nav aria-label='Related resources' className='flex max-sm:flex-col'>
               <ModelToolLink
                 href={MODEL_TOOLS.tokenCounter.href}
                 title={MODEL_TOOLS.tokenCounter.name}
@@ -247,10 +262,10 @@ export default async function PricingCalculatorPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='faq-heading' className='px-6 py-10'>
+            <section id='faq' aria-labelledby='faq-heading' className='px-6 py-10'>
               <h2
                 id='faq-heading'
-                className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-8 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 Frequently asked questions
               </h2>

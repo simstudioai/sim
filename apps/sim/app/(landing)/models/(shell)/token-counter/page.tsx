@@ -59,7 +59,7 @@ const faqItems = [
   },
   {
     question: 'How do token counts translate to cost?',
-    answer: `Each model bills input and output tokens at its own rate per one million tokens. The Sim token counter multiplies your token count by the input rate of each selected model; use the Sim LLM API pricing calculator to add output tokens, prompt caching, and monthly volume across ${TOOL_MODELS.length} models.`,
+    answer: `Each model bills input and output tokens at its own rate per one million tokens. The Sim token counter multiplies your token count by the input rate of each selected model, switching to the higher long-context rate when the count crosses a model's pricing tier threshold; use the Sim LLM API pricing calculator to add output tokens, prompt caching, and monthly volume across ${TOOL_MODELS.length} models.`,
   },
 ]
 
@@ -95,11 +95,11 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function TokenCounterPage({
-  searchParams,
-}: {
+interface TokenCounterPageProps {
   searchParams: Promise<SearchParams>
-}) {
+}
+
+export default async function TokenCounterPage({ searchParams }: TokenCounterPageProps) {
   await tokenCounterSearchParamsCache.parse(searchParams)
 
   const breadcrumbJsonLd = {
@@ -149,8 +149,18 @@ export default async function TokenCounterPage({
       <JsonLd data={applicationJsonLd} />
       <JsonLd data={faqJsonLd} />
 
-      <section className='bg-[var(--bg)]' aria-labelledby='token-counter-heading'>
+      <section
+        id='token-counter'
+        aria-labelledby='token-counter-heading'
+        className='bg-[var(--bg)]'
+      >
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
+          <p className='sr-only'>
+            Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. The
+            free Sim token counter counts the tokens and characters in pasted text for OpenAI,
+            Anthropic Claude, Google Gemini, and other models, exactly for OpenAI and as an estimate
+            for the rest, and shows each model's input cost. Text never leaves the browser.
+          </p>
           <div className='mb-6'>
             <BackLink href='/models' label='Back to models' />
           </div>
@@ -159,7 +169,7 @@ export default async function TokenCounterPage({
           </p>
           <h1
             id='token-counter-heading'
-            className='text-balance text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[40px]'
+            className='text-balance text-[40px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[28px]'
           >
             Token counter
           </h1>
@@ -178,10 +188,10 @@ export default async function TokenCounterPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='tokenizer-heading' className='px-6 py-10'>
+            <section id='tokenizer' aria-labelledby='tokenizer-heading' className='px-6 py-10'>
               <h2
                 id='tokenizer-heading'
-                className='mb-3 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-3 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 How LLM tokenizers count text
               </h2>
@@ -201,7 +211,7 @@ export default async function TokenCounterPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <nav aria-label='Related resources' className='flex flex-col sm:flex-row'>
+            <nav aria-label='Related resources' className='flex max-sm:flex-col'>
               <ModelToolLink
                 href={MODEL_TOOLS.pricingCalculator.href}
                 title={MODEL_TOOLS.pricingCalculator.name}
@@ -216,10 +226,10 @@ export default async function TokenCounterPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='faq-heading' className='px-6 py-10'>
+            <section id='faq' aria-labelledby='faq-heading' className='px-6 py-10'>
               <h2
                 id='faq-heading'
-                className='mb-8 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-8 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
               >
                 Frequently asked questions
               </h2>
