@@ -33,7 +33,7 @@ export const executeSalesforceUpdateCustomFieldOperation: InternalToolOperationI
     Authorization: `Bearer ${params.accessToken}`,
     'Content-Type': 'application/json',
   }
-  const validation = await validateUrlWithDNS(url, 'instanceUrl', 'configuredEndpoint')
+  const validation = await validateUrlWithDNS(url, 'instanceUrl', 'configuredEndpoint', { signal })
   signal?.throwIfAborted()
   if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid Salesforce instance URL')

@@ -1158,8 +1158,14 @@ function validateVendorHostedUrl(
 
   // These vendors are public SaaS reached over TLS. Enforced here rather than
   // left to the egress policy, which would permit plain HTTP to a host an
-  // operator happened to put in their allowlist.
-  if (/^http:\/\//i.test(candidate)) {
+  // operator happened to put in their allowlist. Checked on the parsed URL:
+  // the parser also reads `http:\\host`, `http:host`, and a scheme split by a
+  // tab or newline as `http://host`.
+  let scheme: string | undefined
+  try {
+    scheme = new URL(candidate).protocol
+  } catch {}
+  if (scheme === 'http:') {
     return { isValid: false, error: `${paramName} must use https://` }
   }
 
