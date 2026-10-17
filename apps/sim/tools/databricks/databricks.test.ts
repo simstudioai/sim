@@ -3,6 +3,7 @@ import { jsonResponse } from '@sim/testing/helpers/http'
 import { partialToolRegistry } from '@sim/testing/mocks/tool-registry.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { describe, expect, it, vi } from 'vitest'
+import { adoptToolFailure, classifyFailure } from '@/lib/core/errors/failure-log'
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -11,6 +12,7 @@ import { executeSqlTool } from '@/tools/databricks/execute_sql'
 import { getRunTool } from '@/tools/databricks/get_run'
 import { executeTool } from '@/tools/index'
 import { tools } from '@/tools/registry'
+import { prepareToolRequest } from '@/tools/request-transport'
 
 /** Registers only this service's configs in the global registry mock; the full one is ~6,000 modules. */
 Object.assign(tools, partialToolRegistry(databricksTools))
@@ -47,6 +49,53 @@ const HOST_ALLOWLIST_ERROR =
   'host must be a Databricks-hosted domain (e.g., *.cloud.databricks.com, *.cloud.databricks.us, *.cloud.databricks.mil, *.gcp.databricks.com, *.databricks.com, *.azuredatabricks.net, *.databricks.azure.us, *.databricks.azure.cn)'
 
 const DATABRICKS_TOOL_IDS = Object.keys(tools).filter((id) => id.startsWith('databricks_'))
+
+describe('Databricks mutation intent', () => {
+  const credentials = { host: 'dbc-test.cloud.databricks.com', apiKey: 'test-token' }
+
+  it('distinguishes clearing a Genie description from leaving it unchanged', () => {
+    const update = (description?: string) =>
+      JSON.parse(
+        prepareToolRequest(databricksTools.databricksGenieUpdateSpaceTool, {
+          ...credentials,
+          spaceId: 'space1',
+          description,
+        }).body ?? '{}'
+      )
+
+    expect(update('')).toEqual({ description: '' })
+    expect(update()).not.toHaveProperty('description')
+    expect(update(' \n\t ')).not.toHaveProperty('description')
+  })
+
+  it.each([undefined, false])(
+    'rejects cancellation without a job or explicit queued scope (%s)',
+    async (allQueuedRuns) => {
+      const result = await executeTool('databricks_cancel_all_runs', {
+        ...credentials,
+        allQueuedRuns,
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Provide jobId or set allQueuedRuns to true')
+      expect(classifyFailure(adoptToolFailure(new Error(result.error), result))).toBe('user')
+    }
+  )
+
+  it.each([
+    [{ jobId: 42 }, { job_id: 42 }],
+    [{ allQueuedRuns: true }, { all_queued_runs: true }],
+    [
+      { jobId: 42, allQueuedRuns: true },
+      { job_id: 42, all_queued_runs: true },
+    ],
+  ])('retains an explicit cancellation scope %j', (scope, body) => {
+    const request = prepareToolRequest(databricksTools.databricksCancelAllRunsTool, {
+      ...credentials,
+      ...scope,
+    })
+    expect(JSON.parse(request.body ?? '{}')).toEqual(body)
+  })
+})
 
 describe('databricks workspace host allowlist', () => {
   it.each([
