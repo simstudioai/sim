@@ -234,25 +234,14 @@ async function findDeletedIdentityMatch(
 }
 
 /**
- * Runs a lookup on `executor`. Inside a caller's transaction it runs in a savepoint, so a failed
- * lookup rolls back only itself instead of aborting the caller's transaction.
- */
-function readIdentity<T>(executor: DbOrTx, read: (reader: DbOrTx) => Promise<T>): Promise<T> {
-  return executor === db ? read(db) : executor.transaction(read)
-}
-
-/**
  * Whether any of these identities belonged to an account deleted within the
  * retention window. Fails open: a lookup error returns `false` and is logged,
  * because refusing a legitimate person's allowance is worse than one missed match.
  */
-export async function isDeletedAccountIdentity(
-  identity: SignInIdentity,
-  executor: DbOrTx = db
-): Promise<boolean> {
+export async function isDeletedAccountIdentity(identity: SignInIdentity): Promise<boolean> {
   if (!isBillingEnabled) return false
   try {
-    return await readIdentity(executor, (reader) => findDeletedIdentityMatch(reader, identity))
+    return await findDeletedIdentityMatch(db, identity)
   } catch (error) {
     logger.error('Deleted-identity lookup failed; granting the free allowance', { error })
     return false
@@ -264,8 +253,9 @@ export async function isDeletedAccountIdentity(
  * the retention window: always its email, and its linked social sign-ins only
  * when `includeSignIns` is set, which callers do only for a user created in the
  * current signup request (a sign-in linked later never withholds anything).
- * Pass the caller's transaction as `executor` to read on it. Fails open like
- * {@link isDeletedAccountIdentity}.
+ * Pass the caller's transaction as `executor` to read on it; the read then runs
+ * in a savepoint, so a failed lookup never aborts that transaction. Fails open
+ * like {@link isDeletedAccountIdentity}.
  */
 export async function userHasDeletedAccountIdentity(
   userId: string,
@@ -273,11 +263,12 @@ export async function userHasDeletedAccountIdentity(
   executor: DbOrTx = db
 ): Promise<boolean> {
   if (!isBillingEnabled) return false
+  const read = async (reader: DbOrTx) => {
+    const identity = await loadSignInIdentity(reader, userId)
+    return findDeletedIdentityMatch(reader, includeSignIns ? identity : { email: identity.email })
+  }
   try {
-    return await readIdentity(executor, async (reader) => {
-      const identity = await loadSignInIdentity(reader, userId)
-      return findDeletedIdentityMatch(reader, includeSignIns ? identity : { email: identity.email })
-    })
+    return await (executor === db ? read(db) : executor.transaction(read))
   } catch (error) {
     logger.error('Deleted-identity lookup failed; granting the free allowance', { userId, error })
     return false
