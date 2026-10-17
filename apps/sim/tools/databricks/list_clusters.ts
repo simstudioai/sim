@@ -121,25 +121,25 @@ export const listClustersTool: ToolConfig<
   },
 
   outputs: {
-    nextPageToken: { type: 'string', optional: true, description: 'Token for the next page' },
-    prevPageToken: { type: 'string', optional: true, description: 'Token for the previous page' },
+    nextPageToken: { type: 'string', nullable: true, description: 'Token for the next page' },
+    prevPageToken: { type: 'string', nullable: true, description: 'Token for the previous page' },
     clusters: {
       type: 'array',
       description: 'List of clusters in the workspace',
       items: {
         type: 'object',
         properties: {
-          policyId: { type: 'string', optional: true, description: 'Compute policy identifier' },
-          dataSecurityMode: { type: 'string', optional: true, description: 'Cluster access mode' },
+          policyId: { type: 'string', nullable: true, description: 'Compute policy identifier' },
+          dataSecurityMode: { type: 'string', nullable: true, description: 'Cluster access mode' },
           terminatedTime: {
             type: 'number',
-            optional: true,
+            nullable: true,
             description: 'Cluster termination time in epoch milliseconds',
           },
-          customTags: { type: 'object', optional: true, description: 'Custom cluster tags' },
+          customTags: { type: 'object', nullable: true, description: 'Custom cluster tags' },
           terminationReason: {
             type: 'object',
-            optional: true,
+            nullable: true,
             description: 'Reason for termination (code, type, parameters)',
             properties: {
               code: { type: 'string' },
@@ -168,12 +168,12 @@ export const listClustersTool: ToolConfig<
           numWorkers: {
             type: 'number',
             description: 'Number of worker nodes (for fixed-size clusters)',
-            optional: true,
+            nullable: true,
           },
           autoscale: {
             type: 'object',
             description: 'Autoscaling configuration (null for fixed-size clusters)',
-            optional: true,
+            nullable: true,
             properties: {
               minWorkers: { type: 'number', description: 'Minimum number of workers' },
               maxWorkers: { type: 'number', description: 'Maximum number of workers' },
@@ -190,7 +190,7 @@ export const listClustersTool: ToolConfig<
           startTime: {
             type: 'number',
             description: 'Cluster start timestamp (epoch ms)',
-            optional: true,
+            nullable: true,
           },
         },
       },

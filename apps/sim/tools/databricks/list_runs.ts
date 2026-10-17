@@ -174,7 +174,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
   },
 
   outputs: {
-    prevPageToken: { type: 'string', optional: true, description: 'Token for the previous page' },
+    prevPageToken: { type: 'string', nullable: true, description: 'Token for the previous page' },
     runs: {
       type: 'array',
       description: 'List of job runs',
@@ -188,7 +188,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
             type: 'boolean',
             description: 'Whether tasks or job clusters have additional pages',
           },
-          runPageUrl: { type: 'string', optional: true, description: 'Run details URL' },
+          runPageUrl: { type: 'string', nullable: true, description: 'Run details URL' },
 
           runId: { type: 'number', description: 'Unique run identifier' },
           jobId: { type: 'number', description: 'Job this run belongs to' },
@@ -207,7 +207,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
                 type: 'string',
                 description:
                   'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED)',
-                optional: true,
+                nullable: true,
               },
               stateMessage: { type: 'string', description: 'Descriptive state message' },
               userCancelledOrTimedout: {
@@ -219,9 +219,9 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
           startTime: {
             type: 'number',
             description: 'Run start timestamp (epoch ms)',
-            optional: true,
+            nullable: true,
           },
-          endTime: { type: 'number', description: 'Run end timestamp (epoch ms)', optional: true },
+          endTime: { type: 'number', description: 'Run end timestamp (epoch ms)', nullable: true },
         },
       },
     },
@@ -232,7 +232,7 @@ export const listRunsTool: ToolConfig<DatabricksListRunsParams, DatabricksListRu
     nextPageToken: {
       type: 'string',
       description: 'Token for fetching the next page of results',
-      optional: true,
+      nullable: true,
     },
   },
 }

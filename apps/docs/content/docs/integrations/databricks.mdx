@@ -120,12 +120,12 @@ Retrieve one chunk of an INLINE SQL result using nextChunkIndex from Execute SQL
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
 | `chunkIndex` | number | Index of this result chunk |
 | `rowOffset` | number | Starting row offset of this chunk |
 | `rowCount` | number | Number of rows in this chunk |
 | `nextChunkIndex` | number | Next chunk to retrieve with Get Statement Chunk; null on the final chunk |
 | `nextChunkInternalLink` | string | Workspace-relative path to the next result chunk |
+| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
 
 ### Databricks Cancel Statement
 
@@ -579,6 +579,8 @@ Get the status, timing, and details of a Databricks job run by its run ID.
 |     ↳ `code` | string |  |
 |     ↳ `message` | string |  |
 | `repairHistory` | array | Prior repairs; pass the latest id to Repair Run |
+|   ↳ `id` | number |  |
+|   ↳ `task_run_ids` | array |  |
 |   ↳ `status` | object | Run lifecycle and termination or queue details |
 |     ↳ `state` | string | Current lifecycle state |
 |     ↳ `termination_details` | object |  |
@@ -588,8 +590,6 @@ Get the status, timing, and details of a Databricks job run by its run ID.
 |     ↳ `queue_details` | object |  |
 |       ↳ `code` | string |  |
 |       ↳ `message` | string |  |
-|   ↳ `id` | number |  |
-|   ↳ `task_run_ids` | array |  |
 | `jobParameters` | array | Resolved job parameter values |
 | `runDuration` | number | Run duration including repairs in milliseconds |
 | `nextPageToken` | string | Token for the next page of tasks or job clusters |
@@ -1414,7 +1414,7 @@ Ask a Databricks Genie space a question in natural language and wait for the ans
 |   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
 | `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
 | `totalRows` | number | Total number of rows in the result |
-| `truncated` | boolean | Whether the result set was truncated |
+| `truncated` | boolean | Whether the result set was truncated; null when no query result was retrieved |
 
 ### Databricks Genie Get Message
 

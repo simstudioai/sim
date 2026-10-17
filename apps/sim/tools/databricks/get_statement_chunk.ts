@@ -6,6 +6,7 @@ import { STATEMENT_RESULT_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
   databricksUrl,
+  optionalDatabricksString,
   readDatabricksError,
 } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -49,7 +50,8 @@ export const getStatementChunkTool: ToolConfig<
       const url = new URL(
         `${origin}/api/2.0/sql/statements/${safeUrlPathSegment(params.statementId, 'statementId')}/result/chunks/${safeUrlPathSegment(String(params.chunkIndex), 'chunkIndex')}`
       )
-      if (params.warehouseId) url.searchParams.set('warehouse_id', params.warehouseId)
+      const warehouseId = optionalDatabricksString(params.warehouseId)
+      if (warehouseId) url.searchParams.set('warehouse_id', warehouseId)
       return url.toString()
     },
     method: 'GET',
@@ -76,7 +78,12 @@ export const getStatementChunkTool: ToolConfig<
     }
   },
   outputs: {
-    data: STATEMENT_RESULT_OUTPUT_PROPERTIES.data,
+    data: {
+      type: 'array',
+      description:
+        'Result rows as a 2D array; each non-null value is a string and null values stay null',
+      items: { type: 'array', description: 'A single row of column values' },
+    },
     chunkIndex: STATEMENT_RESULT_OUTPUT_PROPERTIES.chunkIndex,
     rowOffset: STATEMENT_RESULT_OUTPUT_PROPERTIES.rowOffset,
     rowCount: STATEMENT_RESULT_OUTPUT_PROPERTIES.rowCount,

@@ -133,6 +133,6 @@ export const createWarehouseTool: ToolConfig<
     return { success: true, output: { warehouseId: data.id ?? null } }
   },
   outputs: {
-    warehouseId: { type: 'string', optional: true, description: 'SQL warehouse identifier' },
+    warehouseId: { type: 'string', nullable: true, description: 'SQL warehouse identifier' },
   },
 }

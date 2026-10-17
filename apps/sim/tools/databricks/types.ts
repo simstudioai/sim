@@ -525,33 +525,29 @@ export interface DatabricksGenieAgentListItemsResponse extends ToolResponse {
 }
 
 export const GENIE_SPACE_OUTPUT_PROPERTIES = {
-  etag: { type: 'string', optional: true, description: 'Space version for conditional updates' },
+  etag: { type: 'string', nullable: true, description: 'Space version for conditional updates' },
   spaceId: { type: 'string', description: 'Genie space ID' },
   title: { type: 'string', description: 'Space title' },
-  description: { type: 'string', description: 'Space description', nullable: true, optional: true },
+  description: { type: 'string', description: 'Space description', nullable: true },
   warehouseId: {
     type: 'string',
     description: 'SQL warehouse the space runs queries on',
     nullable: true,
-    optional: true,
   },
   parentPath: {
     type: 'string',
     description: 'Workspace folder containing the space',
     nullable: true,
-    optional: true,
   },
   createTime: {
     type: 'string',
     description: 'When the space was created (ISO 8601)',
     nullable: true,
-    optional: true,
   },
   updateTime: {
     type: 'string',
     description: 'When the space was last modified (ISO 8601)',
     nullable: true,
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -568,44 +564,37 @@ export const GENIE_MESSAGE_OUTPUT_PROPERTIES = {
     type: 'string',
     description: "Genie's text answer or summary",
     nullable: true,
-    optional: true,
   },
   followUpQuestion: {
     type: 'string',
     description: 'Clarifying question Genie asked instead of, or alongside, an answer',
     nullable: true,
-    optional: true,
   },
   queryTitle: {
     type: 'string',
     description: 'Title of the generated query',
     nullable: true,
-    optional: true,
   },
-  sql: { type: 'string', description: 'SQL query Genie generated', nullable: true, optional: true },
+  sql: { type: 'string', description: 'SQL query Genie generated', nullable: true },
   queryDescription: {
     type: 'string',
     description: 'Plain-language description of the generated SQL',
     nullable: true,
-    optional: true,
   },
   queryAttachmentId: {
     type: 'string',
     description: 'Attachment ID of the generated query, used to fetch or re-run its result',
     nullable: true,
-    optional: true,
   },
   statementId: {
     type: 'string',
     description: 'SQL statement ID of the generated query',
     nullable: true,
-    optional: true,
   },
   rowCount: {
     type: 'number',
     description: 'Number of rows the generated query returned',
     nullable: true,
-    optional: true,
   },
   thoughts: {
     type: 'array',
@@ -618,7 +607,6 @@ export const GENIE_MESSAGE_OUTPUT_PROPERTIES = {
           description:
             'Thought category (THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS)',
           nullable: true,
-          optional: true,
         },
         content: { type: 'string', description: 'Markdown-formatted thought' },
       },
@@ -639,12 +627,11 @@ export const GENIE_MESSAGE_OUTPUT_PROPERTIES = {
           type: 'string',
           description: 'Visualization attachment ID, used to download the chart',
         },
-        title: { type: 'string', description: 'Chart title', nullable: true, optional: true },
+        title: { type: 'string', description: 'Chart title', nullable: true },
         queryAttachmentId: {
           type: 'string',
           description: 'Query attachment the chart was built from',
           nullable: true,
-          optional: true,
         },
       },
     },
@@ -653,30 +640,28 @@ export const GENIE_MESSAGE_OUTPUT_PROPERTIES = {
     type: 'string',
     description: 'Why Genie failed to answer',
     nullable: true,
-    optional: true,
   },
-  errorType: { type: 'string', description: 'Genie error type', nullable: true, optional: true },
+  errorType: { type: 'string', description: 'Genie error type', nullable: true },
   createdTimestamp: {
     type: 'number',
     description: 'When the message was created',
     nullable: true,
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
 export const STATEMENT_RESULT_OUTPUT_PROPERTIES = {
-  totalChunks: { type: 'number', optional: true, description: 'Number of result chunks' },
-  chunkIndex: { type: 'number', optional: true, description: 'Index of this result chunk' },
-  rowOffset: { type: 'number', optional: true, description: 'Starting row offset of this chunk' },
-  rowCount: { type: 'number', optional: true, description: 'Number of rows in this chunk' },
+  totalChunks: { type: 'number', nullable: true, description: 'Number of result chunks' },
+  chunkIndex: { type: 'number', nullable: true, description: 'Index of this result chunk' },
+  rowOffset: { type: 'number', nullable: true, description: 'Starting row offset of this chunk' },
+  rowCount: { type: 'number', nullable: true, description: 'Number of rows in this chunk' },
   nextChunkIndex: {
     type: 'number',
-    optional: true,
+    nullable: true,
     description: 'Next chunk to retrieve with Get Statement Chunk; null on the final chunk',
   },
   nextChunkInternalLink: {
     type: 'string',
-    optional: true,
+    nullable: true,
     description: 'Workspace-relative path to the next result chunk',
   },
 
@@ -684,7 +669,6 @@ export const STATEMENT_RESULT_OUTPUT_PROPERTIES = {
     type: 'array',
     description: 'Column schema of the query result',
     nullable: true,
-    optional: true,
     items: {
       type: 'object',
       properties: {
@@ -703,20 +687,16 @@ export const STATEMENT_RESULT_OUTPUT_PROPERTIES = {
     description:
       'Result rows as a 2D array; each non-null value is a string and null values stay null',
     nullable: true,
-    optional: true,
     items: { type: 'array', description: 'A single row of column values' },
   },
   totalRows: {
     type: 'number',
     description: 'Total number of rows in the result',
     nullable: true,
-    optional: true,
   },
   truncated: {
     type: 'boolean',
     description: 'Whether the result set was truncated',
-    nullable: true,
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -735,42 +715,36 @@ export const GENIE_AGENT_ITEM_OUTPUT_PROPERTIES = {
     description: 'Item type (message, reasoning, function_call, function_call_output)',
   },
   id: { type: 'string', description: 'Item ID' },
-  status: { type: 'string', description: 'Item status', nullable: true, optional: true },
+  status: { type: 'string', description: 'Item status', nullable: true },
   role: {
     type: 'string',
     description: 'Message role (user, assistant, or system) for message items',
     nullable: true,
-    optional: true,
   },
   text: {
     type: 'string',
     description: 'Text of a message or reasoning item',
     nullable: true,
-    optional: true,
   },
   callId: {
     type: 'string',
     description: 'Pairs a function_call with its function_call_output',
     nullable: true,
-    optional: true,
   },
   name: {
     type: 'string',
     description: 'Function name (execute_sql)',
     nullable: true,
-    optional: true,
   },
   arguments: {
     type: 'string',
     description: 'Function call arguments as a JSON string (title and sql)',
     nullable: true,
-    optional: true,
   },
   output: {
     type: 'string',
     description: 'Query result: the query title followed by a Markdown table',
     nullable: true,
-    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -1105,10 +1079,10 @@ export interface DatabricksGenieAgentCancelParams extends DatabricksBaseParams {
 }
 
 export const WAREHOUSE_OUTPUT_PROPERTIES = {
-  jdbcUrl: { type: 'string', optional: true, description: 'JDBC connection string' },
+  jdbcUrl: { type: 'string', nullable: true, description: 'JDBC connection string' },
   odbcParams: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'ODBC connection settings',
     properties: {
       hostname: { type: 'string' },
@@ -1119,7 +1093,7 @@ export const WAREHOUSE_OUTPUT_PROPERTIES = {
   },
   health: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'Warehouse health and failure reason',
     properties: {
       status: { type: 'string' },
@@ -1135,7 +1109,7 @@ export const WAREHOUSE_OUTPUT_PROPERTIES = {
   },
   tags: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'Warehouse tags',
     properties: {
       custom_tags: {
@@ -1147,15 +1121,15 @@ export const WAREHOUSE_OUTPUT_PROPERTIES = {
       },
     },
   },
-  enablePhoton: { type: 'boolean', optional: true, description: 'Whether Photon is enabled' },
-  spotInstancePolicy: { type: 'string', optional: true, description: 'Spot instance policy' },
+  enablePhoton: { type: 'boolean', nullable: true, description: 'Whether Photon is enabled' },
+  spotInstancePolicy: { type: 'string', nullable: true, description: 'Spot instance policy' },
   channel: {
     type: 'object',
-    optional: true,
+    nullable: true,
     description: 'Warehouse release channel',
     properties: { name: { type: 'string' } },
   },
-  statementTimeout: { type: 'number', optional: true, description: 'Statement timeout in seconds' },
+  statementTimeout: { type: 'number', nullable: true, description: 'Statement timeout in seconds' },
 
   warehouseId: { type: 'string', description: 'Unique warehouse identifier' },
   name: { type: 'string', description: 'Warehouse display name' },
@@ -1272,25 +1246,27 @@ export const JOB_CLUSTERS_OUTPUT = {
   },
 } as const satisfies OutputProperty
 
-export const RUN_STATUS_OUTPUT = {
-  type: 'object',
-  optional: true,
-  description: 'Run lifecycle and termination or queue details',
-  properties: {
-    state: { type: 'string', description: 'Current lifecycle state' },
-    termination_details: {
-      type: 'object',
-      optional: true,
-      properties: {
-        code: { type: 'string' },
-        type: { type: 'string' },
-        message: { type: 'string' },
-      },
-    },
-    queue_details: {
-      type: 'object',
-      optional: true,
-      properties: { code: { type: 'string' }, message: { type: 'string' } },
+export const RUN_STATUS_OUTPUT_PROPERTIES = {
+  state: { type: 'string', description: 'Current lifecycle state' },
+  termination_details: {
+    type: 'object',
+    optional: true,
+    properties: {
+      code: { type: 'string' },
+      type: { type: 'string' },
+      message: { type: 'string' },
     },
   },
+  queue_details: {
+    type: 'object',
+    optional: true,
+    properties: { code: { type: 'string' }, message: { type: 'string' } },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const RUN_STATUS_OUTPUT = {
+  type: 'object',
+  nullable: true,
+  description: 'Run lifecycle and termination or queue details',
+  properties: RUN_STATUS_OUTPUT_PROPERTIES,
 } as const satisfies OutputProperty

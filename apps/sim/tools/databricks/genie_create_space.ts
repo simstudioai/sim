@@ -71,8 +71,8 @@ export const genieCreateSpaceTool: ToolConfig<
         warehouse_id: params.warehouseId,
         parent_path: optionalDatabricksString(params.parentPath),
         serialized_space: params.serializedSpace,
-        title: params.title ?? undefined,
-        description: params.description ?? undefined,
+        title: optionalDatabricksString(params.title),
+        description: optionalDatabricksString(params.description),
       })
     },
   },
@@ -89,7 +89,7 @@ export const genieCreateSpaceTool: ToolConfig<
     ...GENIE_SPACE_OUTPUT_PROPERTIES,
     serializedSpace: {
       type: 'string',
-      optional: true,
+      nullable: true,
       description:
         'Serialized Genie configuration (data_sources, instructions, config, benchmarks)',
     },

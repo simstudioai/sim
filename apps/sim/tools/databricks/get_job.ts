@@ -94,7 +94,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
   outputs: {
     tasks: JOB_TASK_OUTPUT,
     jobClusters: JOB_CLUSTERS_OUTPUT,
-    description: { type: 'string', optional: true, description: 'Job description' },
+    description: { type: 'string', nullable: true, description: 'Job description' },
     parameters: {
       type: 'array',
       description: 'Job parameter definitions',
@@ -105,13 +105,13 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
     },
     queue: {
       type: 'object',
-      optional: true,
+      nullable: true,
       description: 'Job queue settings',
       properties: { enabled: { type: 'boolean' } },
     },
     triggerState: {
       type: 'object',
-      optional: true,
+      nullable: true,
       description: 'Current file-arrival, table-update, or periodic trigger state',
       properties: {
         file_arrival: { type: 'object', properties: { using_file_events: { type: 'boolean' } } },
@@ -135,7 +135,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
     },
     nextPageToken: {
       type: 'string',
-      optional: true,
+      nullable: true,
       description: 'Token for the next page of tasks or job clusters',
     },
 
@@ -149,7 +149,7 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
     timeoutSeconds: {
       type: 'number',
       description: 'Job-level timeout in seconds (0 or null means no timeout)',
-      optional: true,
+      nullable: true,
     },
     schedule: {
       type: 'object',
@@ -160,12 +160,12 @@ export const getJobTool: ToolConfig<DatabricksGetJobParams, DatabricksGetJobResp
         timezone_id: { type: 'string' },
         pause_status: { type: 'string' },
       },
-      optional: true,
+      nullable: true,
     },
     tags: {
       type: 'object',
       description: 'Key-value tags applied to the job',
-      optional: true,
+      nullable: true,
     },
   },
 }

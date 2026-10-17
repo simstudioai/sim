@@ -1,5 +1,10 @@
 import type { DatabricksGetRunParams, DatabricksGetRunResponse } from '@/tools/databricks/types'
-import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT, RUN_STATUS_OUTPUT } from '@/tools/databricks/types'
+import {
+  JOB_CLUSTERS_OUTPUT,
+  JOB_TASK_OUTPUT,
+  RUN_STATUS_OUTPUT,
+  RUN_STATUS_OUTPUT_PROPERTIES,
+} from '@/tools/databricks/types'
 import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -119,7 +124,12 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
           start_time: { type: 'number' },
           end_time: { type: 'number' },
           task_run_ids: { type: 'array', items: { type: 'number' } },
-          status: RUN_STATUS_OUTPUT,
+          status: {
+            type: 'object',
+            optional: true,
+            description: 'Run lifecycle and termination or queue details',
+            properties: RUN_STATUS_OUTPUT_PROPERTIES,
+          },
         },
       },
     },
@@ -133,12 +143,12 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
     },
     runDuration: {
       type: 'number',
-      optional: true,
+      nullable: true,
       description: 'Run duration including repairs in milliseconds',
     },
     nextPageToken: {
       type: 'string',
-      optional: true,
+      nullable: true,
       description: 'Token for the next page of tasks or job clusters',
     },
 
@@ -175,7 +185,7 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
           type: 'string',
           description:
             'Result state (SUCCESS, FAILED, TIMEDOUT, CANCELED, SUCCESS_WITH_FAILURES, UPSTREAM_FAILED, UPSTREAM_CANCELED, EXCLUDED)',
-          optional: true,
+          nullable: true,
         },
         stateMessage: {
           type: 'string',
@@ -190,32 +200,32 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
     startTime: {
       type: 'number',
       description: 'Run start timestamp (epoch ms)',
-      optional: true,
+      nullable: true,
     },
     endTime: {
       type: 'number',
       description: 'Run end timestamp (epoch ms, 0 if still running)',
-      optional: true,
+      nullable: true,
     },
     setupDuration: {
       type: 'number',
       description: 'Cluster setup duration (ms)',
-      optional: true,
+      nullable: true,
     },
     executionDuration: {
       type: 'number',
       description: 'Execution duration (ms)',
-      optional: true,
+      nullable: true,
     },
     cleanupDuration: {
       type: 'number',
       description: 'Cleanup duration (ms)',
-      optional: true,
+      nullable: true,
     },
     queueDuration: {
       type: 'number',
       description: 'Time spent in queue before execution (ms)',
-      optional: true,
+      nullable: true,
     },
     runPageUrl: {
       type: 'string',

@@ -121,7 +121,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
   },
 
   outputs: {
-    prevPageToken: { type: 'string', optional: true, description: 'Token for the previous page' },
+    prevPageToken: { type: 'string', nullable: true, description: 'Token for the previous page' },
     jobs: {
       type: 'array',
       description: 'List of jobs in the workspace',
@@ -151,7 +151,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
     nextPageToken: {
       type: 'string',
       description: 'Token for fetching the next page of results',
-      optional: true,
+      nullable: true,
     },
   },
 }

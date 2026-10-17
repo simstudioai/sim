@@ -218,7 +218,7 @@ export const createJobTool: ToolConfig<DatabricksCreateJobParams, DatabricksCrea
           'array'
         ),
         name: optionalDatabricksString(params.name),
-        description: params.description ?? undefined,
+        description: optionalDatabricksString(params.description),
         email_notifications: parseDatabricksJson(
           params.emailNotifications,
           'emailNotifications',
@@ -271,6 +271,6 @@ export const createJobTool: ToolConfig<DatabricksCreateJobParams, DatabricksCrea
     return { success: true, output: { jobId: data.job_id ?? null } }
   },
   outputs: {
-    jobId: { type: 'number', optional: true, description: 'Job identifier' },
+    jobId: { type: 'number', nullable: true, description: 'Job identifier' },
   },
 }

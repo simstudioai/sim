@@ -172,6 +172,6 @@ export const submitRunTool: ToolConfig<DatabricksSubmitRunParams, DatabricksSubm
     return { success: true, output: { runId: data.run_id ?? null } }
   },
   outputs: {
-    runId: { type: 'number', optional: true, description: 'Run identifier' },
+    runId: { type: 'number', nullable: true, description: 'Run identifier' },
   },
 }

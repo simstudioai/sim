@@ -99,7 +99,7 @@ export const repairRunTool: ToolConfig<DatabricksRepairRunParams, DatabricksRepa
   outputs: {
     repairId: {
       type: 'number',
-      optional: true,
+      nullable: true,
       description: 'Identifier of the repair; pass it as latestRepairId on the next repair',
     },
   },

@@ -232,6 +232,11 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
   outputs: {
     ...GENIE_MESSAGE_OUTPUT_PROPERTIES,
     ...STATEMENT_RESULT_OUTPUT_PROPERTIES,
+    truncated: {
+      type: 'boolean',
+      nullable: true,
+      description: 'Whether the result set was truncated; null when no query result was retrieved',
+    },
     rowCount: GENIE_MESSAGE_OUTPUT_PROPERTIES.rowCount,
   },
 }

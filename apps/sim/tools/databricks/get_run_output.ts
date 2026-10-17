@@ -78,16 +78,16 @@ export const getRunOutputTool: ToolConfig<
   },
 
   outputs: {
-    info: { type: 'string', optional: true, description: 'Additional output information' },
+    info: { type: 'string', nullable: true, description: 'Additional output information' },
     runJobOutput: {
       type: 'object',
-      optional: true,
+      nullable: true,
       description: 'Run Job task result',
       properties: { run_id: { type: 'number', description: 'Child run identifier' } },
     },
     dbtOutput: {
       type: 'object',
-      optional: true,
+      nullable: true,
       description: 'dbt artifact download information',
       properties: {
         artifacts_link: { type: 'string', description: 'Temporary artifact URL' },
@@ -99,7 +99,7 @@ export const getRunOutputTool: ToolConfig<
     },
     sqlOutput: {
       type: 'object',
-      optional: true,
+      nullable: true,
       description: 'SQL query, alert, or dashboard task results',
       properties: {
         query_output: {
@@ -141,12 +141,12 @@ export const getRunOutputTool: ToolConfig<
     notebookOutput: {
       type: 'object',
       description: 'Notebook task output (from dbutils.notebook.exit())',
-      optional: true,
+      nullable: true,
       properties: {
         result: {
           type: 'string',
           description: 'Value passed to dbutils.notebook.exit() (max 5 MB)',
-          optional: true,
+          nullable: true,
         },
         truncated: {
           type: 'boolean',
@@ -157,17 +157,17 @@ export const getRunOutputTool: ToolConfig<
     error: {
       type: 'string',
       description: 'Error message if the run failed or output is unavailable',
-      optional: true,
+      nullable: true,
     },
     errorTrace: {
       type: 'string',
       description: 'Error stack trace if available',
-      optional: true,
+      nullable: true,
     },
     logs: {
       type: 'string',
       description: 'Log output (last 5 MB) from spark_jar, spark_python, or python_wheel tasks',
-      optional: true,
+      nullable: true,
     },
     logsTruncated: {
       type: 'boolean',

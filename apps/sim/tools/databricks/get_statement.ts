@@ -3,7 +3,11 @@ import type {
   DatabricksGetStatementParams,
 } from '@/tools/databricks/types'
 import { GENIE_QUERY_RESULT_OUTPUTS } from '@/tools/databricks/types'
-import { databricksUrl, mapStatementResult } from '@/tools/databricks/utils'
+import {
+  databricksUrl,
+  mapStatementResult,
+  optionalDatabricksString,
+} from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -45,11 +49,17 @@ export const getStatementTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      databricksUrl(
-        params.host,
-        `/api/2.0/sql/statements/${safeUrlPathSegment(params.statementId, 'statementId')}${params.warehouseId ? `?warehouse_id=${encodeURIComponent(params.warehouseId)}` : ''}`
-      ),
+    url: (params) => {
+      const url = new URL(
+        databricksUrl(
+          params.host,
+          `/api/2.0/sql/statements/${safeUrlPathSegment(params.statementId, 'statementId')}`
+        )
+      )
+      const warehouseId = optionalDatabricksString(params.warehouseId)
+      if (warehouseId) url.searchParams.set('warehouse_id', warehouseId)
+      return url.toString()
+    },
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',

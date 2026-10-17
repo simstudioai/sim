@@ -1,5 +1,9 @@
 import type { DatabricksRunJobParams, DatabricksRunJobResponse } from '@/tools/databricks/types'
-import { databricksUrl, parseDatabricksJson } from '@/tools/databricks/utils'
+import {
+  databricksUrl,
+  optionalDatabricksString,
+  parseDatabricksJson,
+} from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResponse> = {
@@ -73,8 +77,7 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   },
 
   request: {
-    url: (params) =>
-      databricksUrl(params.host, `/api/${params.notebookParams ? '2.1' : '2.2'}/jobs/run-now`),
+    url: (params) => databricksUrl(params.host, '/api/2.2/jobs/run-now'),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -88,14 +91,16 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
       if (jobParameters) body.job_parameters = jobParameters
       const notebookParams = parseDatabricksJson(params.notebookParams, 'notebookParams', 'object')
       if (notebookParams) body.notebook_params = notebookParams
-      if (params.idempotencyToken) body.idempotency_token = params.idempotencyToken
+      const idempotencyToken = optionalDatabricksString(params.idempotencyToken)
+      if (idempotencyToken) body.idempotency_token = idempotencyToken
       const only = parseDatabricksJson(params.only, 'only', 'array')
       if (only) body.only = only
       const queue = parseDatabricksJson(params.queue, 'queue', 'object')
       if (queue) body.queue = queue
       const pipelineParams = parseDatabricksJson(params.pipelineParams, 'pipelineParams', 'object')
       if (pipelineParams) body.pipeline_params = pipelineParams
-      if (params.performanceTarget) body.performance_target = params.performanceTarget
+      const performanceTarget = optionalDatabricksString(params.performanceTarget)
+      if (performanceTarget) body.performance_target = performanceTarget
       return body
     },
   },

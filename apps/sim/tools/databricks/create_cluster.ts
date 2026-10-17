@@ -304,6 +304,6 @@ export const createClusterTool: ToolConfig<
     return { success: true, output: { clusterId: data.cluster_id ?? null } }
   },
   outputs: {
-    clusterId: { type: 'string', optional: true, description: 'Compute cluster identifier' },
+    clusterId: { type: 'string', nullable: true, description: 'Compute cluster identifier' },
   },
 }

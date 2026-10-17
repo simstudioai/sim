@@ -86,8 +86,8 @@ export const genieUpdateSpaceTool: ToolConfig<
     body: (params) => {
       return filterUndefined({
         serialized_space: optionalDatabricksString(params.serializedSpace),
-        title: params.title ?? undefined,
-        description: params.description ?? undefined,
+        title: optionalDatabricksString(params.title),
+        description: optionalDatabricksString(params.description),
         warehouse_id: optionalDatabricksString(params.warehouseId),
         etag: optionalDatabricksString(params.etag),
         parent_path: optionalDatabricksString(params.parentPath),
@@ -107,7 +107,7 @@ export const genieUpdateSpaceTool: ToolConfig<
     ...GENIE_SPACE_OUTPUT_PROPERTIES,
     serializedSpace: {
       type: 'string',
-      optional: true,
+      nullable: true,
       description:
         'Serialized Genie configuration (data_sources, instructions, config, benchmarks)',
     },

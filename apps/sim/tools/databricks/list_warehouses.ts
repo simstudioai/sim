@@ -76,7 +76,7 @@ export const listWarehousesTool: ToolConfig<
   },
 
   outputs: {
-    nextPageToken: { type: 'string', optional: true, description: 'Token for the next page' },
+    nextPageToken: { type: 'string', nullable: true, description: 'Token for the next page' },
     warehouses: {
       type: 'array',
       description: 'List of SQL warehouses in the workspace',
