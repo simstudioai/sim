@@ -32,7 +32,7 @@ export type ProviderId =
   | 'litellm'
   | 'bedrock'
 
-export interface ModelTokenPricing {
+interface ModelTokenPricing {
   input: number // Per 1M tokens
   cachedInput?: number // Per 1M tokens (if supported)
   output: number // Per 1M tokens

@@ -15,7 +15,7 @@ const logger = createLogger('TokenizationEstimators')
 /**
  * Gets tokenization configuration for a specific provider
  */
-export function getProviderConfig(providerId: string): ProviderTokenizationConfig {
+function getProviderConfig(providerId: string): ProviderTokenizationConfig {
   const config =
     TOKENIZATION_CONFIG.providers[providerId as keyof typeof TOKENIZATION_CONFIG.providers]
 
