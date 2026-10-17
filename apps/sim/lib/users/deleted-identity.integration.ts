@@ -249,18 +249,45 @@ describe('deleted account identities and the free allowance', () => {
   })
 
   it('never withholds from a stats-less user’s fallback row for a sign-in linked in a later request', async () => {
-    const google = { providerId: 'google', accountId: `google-${generateId()}` }
-    await deleteOwnAccount(
-      await signUp(`google-gone.${generateId()}@deleted-identity.test`, google)
-    )
+    const microsoft = { providerId: 'microsoft', accountId: `ms-${generateId()}` }
+    await deleteOwnAccount(await signUp(`ms-gone.${generateId()}@deleted-identity.test`, microsoft))
     const legacy = await insertUser(`legacy.${generateId()}@deleted-identity.test`)
     const laterRequest = {}
-    await linkAccount(legacy, google)
+    await linkAccount(legacy, microsoft)
 
     await ensureUserStatsExists(legacy, laterRequest)
-    await handleNewSignInAccount({ userId: legacy, ...google }, laterRequest)
+    await handleNewSignInAccount({ userId: legacy, ...microsoft }, laterRequest)
 
     expect(await statsOf(legacy)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+  })
+
+  it('catches a Google re-signup by its email and never records the Google subject', async () => {
+    const email = `google.${generateId()}@deleted-identity.test`
+    const google = { providerId: 'google', accountId: `google-${generateId()}` }
+    const written = await deleteOwnAccount(await signUp(email, google))
+
+    const sameEmail = await signUp(email, google)
+    const newEmail = await signUp(`google-new.${generateId()}@deleted-identity.test`, google)
+
+    expect(written).toHaveLength(1)
+    expect(await statsOf(sameEmail)).toEqual({ freeTierEligible: false, limit: 0 })
+    expect(await statsOf(newEmail)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+  })
+
+  it('keeps a deleted identity for 30 days from the deletion', async () => {
+    const email = `window.${generateId()}@deleted-identity.test`
+    const userId = await signUp(email)
+    const deletedAt = Date.now()
+    const written = await deleteOwnAccount(userId)
+
+    const rows = await db
+      .select({ expiresAt: deletedAccountIdentity.expiresAt })
+      .from(deletedAccountIdentity)
+      .where(inArray(deletedAccountIdentity.identityHash, written))
+
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000
+    expect(rows).toHaveLength(1)
+    expect(Math.abs(rows[0].expiresAt.getTime() - (deletedAt + thirtyDays))).toBeLessThan(60_000)
   })
 
   it('records only sign-in identities, as keyed digests holding no address or subject', async () => {

@@ -3,7 +3,6 @@ import { member, organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { isSignInProviderAllowed } from '@/lib/auth/constants'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
@@ -237,7 +236,8 @@ export async function handleNewUser(userId: string, authRequest?: object | null)
  * same auth request as its user is a signup. A sign-in linked to an existing
  * user in a later request never withholds anything; that includes a SCIM- or
  * SSO-provisioned user, whose email was already checked when it was created.
- * Integration connections are skipped.
+ * Only GitHub and Microsoft subjects are matched (see `lib/users/deleted-identity`);
+ * a Google sign-in is matched by its email, and integration connections never are.
  *
  * @param authRequest Better Auth's endpoint context for the request creating the account
  */
@@ -254,7 +254,6 @@ export async function handleNewSignInAccount(
   authRequest: object | null | undefined
 ): Promise<void> {
   if (!authRequest || usersCreatedInAuthRequest.get(authRequest) !== userId) return
-  if (!isSignInProviderAllowed(providerId)) return
   if (!(await isDeletedAccountIdentity({ oauthSubjects: [{ providerId, accountId }] }))) return
   await forfeitFreeTierAllowance(userId)
 }

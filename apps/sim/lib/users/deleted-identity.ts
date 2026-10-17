@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm'
-import { isSignInProviderAllowed, SIGN_IN_PROVIDER_IDS } from '@/lib/auth/constants'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
@@ -14,7 +13,7 @@ import type { DbOrTx } from '@/lib/db/types'
  *
  * The free allowance is a one-time grant per person, but deletion erases the
  * account row and the usage ledger with it, so without this a person could
- * delete and re-register the same Google, GitHub, or email identity for a fresh
+ * delete and re-register the same email, GitHub, or Microsoft identity for a fresh
  * allowance each time. Deletion keeps only keyed one-way digests of the
  * account's sign-in identities; a new account on a matching identity is created
  * normally but without the free allowance. This is the "one free trial per
@@ -35,10 +34,12 @@ const logger = createLogger('DeletedAccountIdentity')
 
 /**
  * How long a deleted account's identity digests are kept, and so how long they
- * withhold the free allowance from new accounts on the same identity: 365 days.
- * Each recorded deletion restarts the window for the identities it records.
+ * withhold the free allowance from new accounts on the same identity: 30 days,
+ * inside the privacy policy's stated retention of Account Data "for 30 days
+ * after a deletion request". Each recorded deletion restarts the window for
+ * the identities it records.
  */
-const DELETED_IDENTITY_RETENTION_MS = 365 * 24 * 60 * 60 * 1000
+const DELETED_IDENTITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 /** Expired rows removed per recorded deletion, which keeps the table bounded without a cron. */
 const EXPIRED_PURGE_BATCH = 100
@@ -66,11 +67,17 @@ const PLUS_ADDRESSING_DOMAINS = new Set([
 ])
 
 /**
- * One social sign-in identity: the provider and that provider's stable subject
- * id. Only `SIGN_IN_PROVIDER_IDS` count; integration connections share the
- * `account` table but carry per-connection ids, and the email/password row's
- * `accountId` is the user id itself.
+ * Sign-in providers whose subject ids are recorded and matched. Google is left
+ * out: the privacy policy keeps Google API data only 7 days after deletion, and
+ * a Google re-signup is still caught by its email digest. Integration
+ * connections share the `account` table but carry per-connection ids, and the
+ * email/password row's `accountId` is the user id itself, so neither counts.
  */
+const RECORDED_SIGN_IN_PROVIDER_IDS = ['github', 'microsoft'] as const
+
+const recordedSignInProviderIdSet: ReadonlySet<string> = new Set(RECORDED_SIGN_IN_PROVIDER_IDS)
+
+/** One social sign-in identity: the provider and that provider's stable subject id. */
 interface OAuthSubject {
   providerId: string
   accountId: string
@@ -114,7 +121,7 @@ function identityHashes(identity: SignInIdentity): string[] {
   const email = identity.email ? canonicalizeEmail(identity.email) : null
   if (email) preimages.push(`email:${email}`)
   for (const subject of identity.oauthSubjects ?? []) {
-    if (!isSignInProviderAllowed(subject.providerId) || !subject.accountId) continue
+    if (!recordedSignInProviderIdSet.has(subject.providerId) || !subject.accountId) continue
     preimages.push(`oauth:${subject.providerId}:${subject.accountId}`)
   }
   const key = getIdentityKey()
@@ -131,7 +138,12 @@ async function loadSignInIdentity(executor: DbOrTx, userId: string): Promise<Sig
   const oauthSubjects = await executor
     .select({ providerId: account.providerId, accountId: account.accountId })
     .from(account)
-    .where(and(eq(account.userId, userId), inArray(account.providerId, [...SIGN_IN_PROVIDER_IDS])))
+    .where(
+      and(
+        eq(account.userId, userId),
+        inArray(account.providerId, [...RECORDED_SIGN_IN_PROVIDER_IDS])
+      )
+    )
   return { email: profile?.email, oauthSubjects }
 }
 

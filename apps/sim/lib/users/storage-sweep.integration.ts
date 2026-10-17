@@ -278,7 +278,7 @@ describe('account deletion storage sweep', () => {
     async () => {
       const f = await seed()
       const startedAt = Date.now()
-      await deleteUserAccount(f.departingId)
+      await deleteUserAccount(f.departingId, { recordIdentity: false })
 
       const sweeps = await sweepEvents(f.doomedId)
       const objects = await objectEvents(f.departingId)
@@ -338,7 +338,7 @@ describe('account deletion storage sweep', () => {
       .update(user)
       .set({ image: avatarUrl(f.keys.othersAvatar) })
       .where(inArray(user.id, [f.ownerId, f.departingId]))
-    await deleteUserAccount(f.departingId)
+    await deleteUserAccount(f.departingId, { recordIdentity: false })
 
     await runNow((await objectEvents(f.departingId)).map((event) => event.id))
 
@@ -347,7 +347,7 @@ describe('account deletion storage sweep', () => {
 
   check('a sweep for a workspace that exists again completes without deleting', async () => {
     const f = await seed()
-    await deleteUserAccount(f.departingId)
+    await deleteUserAccount(f.departingId, { recordIdentity: false })
     const [sweep] = await sweepEvents(f.doomedId)
     await insertAdminWorkspace(f.doomedId, f.ownerId)
     const restored = `workspace/${f.doomedId}/restored.txt`

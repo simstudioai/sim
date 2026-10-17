@@ -97,7 +97,7 @@ describe('account deletion of private organization Assistant images', () => {
     ])
     queueTableRows(schemaMock.document, [{ key: IMAGE_KEY }])
 
-    await deleteUserAccount('user-1')
+    await deleteUserAccount('user-1', { recordIdentity: false })
 
     expect(mockDeleteFiles).toHaveBeenCalledExactlyOnceWith([FAILED_IMAGE_KEY], 'mothership')
   })
