@@ -7,7 +7,7 @@ import {
 } from '@/lib/api/contracts/mothership-resources'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { CONTEXT_RESOLUTION_CONCURRENCY } from '@/lib/mothership/chat/context-limits'
 import { resolveFileAttachment } from '@/lib/mothership/chat/file-attachment'
@@ -194,16 +194,10 @@ export async function resolveResourceAttachmentContexts(params: {
       }
     }
 
-    const results = await mapWithConcurrency(
+    const results = await mapSettledWithConcurrency(
       resourceAttachments,
       CONTEXT_RESOLUTION_CONCURRENCY,
-      async (resource, index): Promise<PromiseSettledResult<ChatContextItem | null>> => {
-        try {
-          return { status: 'fulfilled', value: await resolveAttachment(resource, index) }
-        } catch (reason) {
-          return { status: 'rejected', reason }
-        }
-      }
+      resolveAttachment
     )
 
     results.forEach((result, index) => {

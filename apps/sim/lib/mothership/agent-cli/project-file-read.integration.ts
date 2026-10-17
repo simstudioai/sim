@@ -740,31 +740,23 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
 
 afterAll(async () => {
   if (fixtures.length) {
-    const fileIds = (
+    const buildIds = (
       await db
-        .select({ id: workspaceFiles.id })
-        .from(workspaceFiles)
+        .select({ id: workspaceFileSearchBuild.id })
+        .from(workspaceFileSearchBuild)
         .where(
           or(
             inArray(
-              workspaceFiles.projectId,
-              fixtures.map((f) => f.projectId)
+              workspaceFileSearchBuild.workspaceId,
+              fixtures.map((f) => f.workspaceId)
             ),
             inArray(
-              workspaceFiles.workspaceId,
-              fixtures.map((f) => f.workspaceId)
+              workspaceFileSearchBuild.entityId,
+              fixtures.map((f) => f.projectId)
             )
           )
         )
     ).map((row) => row.id)
-    const buildIds = fileIds.length
-      ? (
-          await db
-            .select({ id: workspaceFileSearchBuild.id })
-            .from(workspaceFileSearchBuild)
-            .where(inArray(workspaceFileSearchBuild.fileId, fileIds))
-        ).map((row) => row.id)
-      : []
     if (buildIds.length) {
       await db
         .delete(workspaceFileSearchChunk)
