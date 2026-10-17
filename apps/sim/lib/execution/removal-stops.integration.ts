@@ -264,7 +264,7 @@ describe.runIf(Boolean(redisUrl))('removals stop the workflow runs they orphan',
     )
     const keptQueued = await seedQueuedJob(keptWorkspaceId)
 
-    await deleteUserAccount(departingId)
+    await deleteUserAccount(departingId, { recordIdentity: false })
 
     await expect.poll(() => isCancelled(running)).toBe(true)
     await expect.poll(() => isCancelled(resuming)).toBe(true)

@@ -78,6 +78,7 @@ import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transac
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import { userHasDeletedAccountIdentity } from '@/lib/users/deleted-identity'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
@@ -1497,6 +1498,14 @@ export async function grantDashboardUserBalance(
   actor: AdminMutationActor
 ) {
   const normalizedReason = reason?.trim() || null
+  /**
+   * Decides the eligibility of a stats row this grant may have to create, with
+   * the same email check as every other row creation. Looked up before the
+   * transaction so it never holds a second pooled connection inside it.
+   */
+  const freeTierEligibleIfCreated = !(await userHasDeletedAccountIdentity(userId, {
+    includeSignIns: false,
+  }))
   const outcome = await db.transaction(async (tx) => {
     await acquireUserBillingIdentityLock(tx, userId)
     const [account] = await tx
@@ -1518,13 +1527,14 @@ export async function grantDashboardUserBalance(
     const initialUsageLimit =
       initialMembership || isOrgScopedSubscription(initialSubscription, userId)
         ? null
-        : getPerUserMinimumLimit(initialSubscription).toString()
+        : getPerUserMinimumLimit(initialSubscription, freeTierEligibleIfCreated).toString()
     await tx
       .insert(userStats)
       .values({
         id: generateId(),
         userId,
         currentUsageLimit: initialUsageLimit,
+        freeTierEligible: freeTierEligibleIfCreated,
         usageLimitUpdatedAt: new Date(),
       })
       .onConflictDoNothing({ target: userStats.userId })
@@ -1533,6 +1543,7 @@ export async function grantDashboardUserBalance(
       .select({
         creditBalance: userStats.creditBalance,
         currentUsageLimit: userStats.currentUsageLimit,
+        freeTierEligible: userStats.freeTierEligible,
       })
       .from(userStats)
       .where(eq(userStats.userId, userId))
@@ -1566,7 +1577,9 @@ export async function grantDashboardUserBalance(
         }
 
         const grantDollarDelta = toDecimal(amountDollars).toString()
-        const usageLimitFallback = toDecimal(getPerUserMinimumLimit(billingSubscription))
+        const usageLimitFallback = toDecimal(
+          getPerUserMinimumLimit(billingSubscription, stats.freeTierEligible)
+        )
           .plus(toDecimal(stats.creditBalance))
           .toString()
         const nextUsageLimit =

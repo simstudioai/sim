@@ -21,6 +21,7 @@ const hoistedMocks = vi.hoisted(() => ({
   billingSubscriptions: [] as unknown[],
   idempotencyCalls: [] as { namespace: string; requestFingerprint: string }[],
   moveWorkspace: vi.fn(),
+  userHasDeletedAccountIdentity: vi.fn(async () => false),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -53,6 +54,9 @@ vi.mock('@/lib/billing/enterprise-outbox', () => ({
   resolveEnterpriseMetadataIntent: vi.fn(),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/users/deleted-identity', () => ({
+  userHasDeletedAccountIdentity: hoistedMocks.userHasDeletedAccountIdentity,
+}))
 
 import { grantDashboardOrganizationBalance, grantDashboardUserBalance } from '@/lib/admin/dashboard'
 
@@ -147,6 +151,30 @@ describe('grantDashboardUserBalance', () => {
         resourceId: 'user-1',
         metadata: expect.objectContaining({ amountDollars: 0.005, reason: 'goodwill' }),
       })
+    )
+  })
+
+  it('creates a missing stats row without the free allowance for a returning deleted identity', async () => {
+    mocks.userHasDeletedAccountIdentity.mockResolvedValueOnce(true)
+    queueTableRows(user, [{ id: 'user-1' }])
+    queueTableRows(userStats, [
+      { creditBalance: '0', currentUsageLimit: '0', freeTierEligible: false },
+    ])
+    mocks.billingSubscriptions = [null, null]
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { creditBalance: '0.005', currentUsageLimit: '0.005' },
+    ])
+
+    await grantDashboardUserBalance(
+      'user-1',
+      0.005,
+      undefined,
+      '4f0f5c4e-3a43-4f39-9d55-6b1b2f6f2a10',
+      { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', freeTierEligible: false, currentUsageLimit: '0' })
     )
   })
 
