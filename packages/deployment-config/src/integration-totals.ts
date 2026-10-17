@@ -5,7 +5,7 @@
  */
 export const INTEGRATION_TOTALS = {
   integrations: 273,
-  actions: 5457,
+  actions: 5484,
   triggers: 525,
   integrationsWithTriggers: 66,
 } as const

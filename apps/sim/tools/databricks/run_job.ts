@@ -1,6 +1,5 @@
-import { getErrorMessage } from '@sim/utils/errors'
 import type { DatabricksRunJobParams, DatabricksRunJobResponse } from '@/tools/databricks/types'
-import { databricksUrl } from '@/tools/databricks/utils'
+import { databricksUrl, parseDatabricksJson } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResponse> = {
@@ -11,6 +10,30 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   version: '1.0.0',
 
   params: {
+    only: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Task keys to run; omit to run every task',
+    },
+    queue: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Run queue settings as {enabled: true} or {enabled: false}',
+    },
+    performanceTarget: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Serverless performance: STANDARD or PERFORMANCE_OPTIMIZED',
+    },
+    pipelineParams: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pipeline full_refresh and selective table or flow settings',
+    },
     host: {
       type: 'string',
       required: true,
@@ -30,13 +53,13 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
       description: 'The ID of the job to trigger',
     },
     jobParameters: {
-      type: 'string',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'Job-level parameter overrides as a JSON object (e.g., {"key": "value"})',
     },
     notebookParams: {
-      type: 'string',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'Notebook task parameters as a JSON object (e.g., {"param1": "value1"})',
@@ -50,7 +73,8 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   },
 
   request: {
-    url: (params) => databricksUrl(params.host, '/api/2.1/jobs/run-now'),
+    url: (params) =>
+      databricksUrl(params.host, `/api/${params.notebookParams ? '2.1' : '2.2'}/jobs/run-now`),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
@@ -60,25 +84,18 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
       const body: Record<string, unknown> = {
         job_id: params.jobId,
       }
-      if (params.jobParameters) {
-        try {
-          body.job_parameters = JSON.parse(params.jobParameters)
-        } catch (error) {
-          throw new Error(
-            `Invalid JSON in jobParameters: ${getErrorMessage(error, 'unknown error')}`
-          )
-        }
-      }
-      if (params.notebookParams) {
-        try {
-          body.notebook_params = JSON.parse(params.notebookParams)
-        } catch (error) {
-          throw new Error(
-            `Invalid JSON in notebookParams: ${getErrorMessage(error, 'unknown error')}`
-          )
-        }
-      }
+      const jobParameters = parseDatabricksJson(params.jobParameters, 'jobParameters', 'object')
+      if (jobParameters) body.job_parameters = jobParameters
+      const notebookParams = parseDatabricksJson(params.notebookParams, 'notebookParams', 'object')
+      if (notebookParams) body.notebook_params = notebookParams
       if (params.idempotencyToken) body.idempotency_token = params.idempotencyToken
+      const only = parseDatabricksJson(params.only, 'only', 'array')
+      if (only) body.only = only
+      const queue = parseDatabricksJson(params.queue, 'queue', 'object')
+      if (queue) body.queue = queue
+      const pipelineParams = parseDatabricksJson(params.pipelineParams, 'pipelineParams', 'object')
+      if (pipelineParams) body.pipeline_params = pipelineParams
+      if (params.performanceTarget) body.performance_target = params.performanceTarget
       return body
     },
   },

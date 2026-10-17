@@ -36,7 +36,7 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
 
     request: {
       url: (params) => {
-        const url = new URL(databricksUrl(params.host, '/api/2.0/clusters/get'))
+        const url = new URL(databricksUrl(params.host, '/api/2.1/clusters/get'))
         url.searchParams.set('cluster_id', params.clusterId.trim())
         return url.toString()
       },
@@ -58,6 +58,11 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
         success: true,
         output: {
           cluster: {
+            policyId: data.policy_id ?? null,
+            dataSecurityMode: data.data_security_mode ?? null,
+            terminatedTime: data.terminated_time ?? null,
+            customTags: data.custom_tags ?? null,
+            terminationReason: data.termination_reason ?? null,
             clusterId: data.cluster_id ?? '',
             clusterName: data.cluster_name ?? '',
             state: data.state ?? 'UNKNOWN',
@@ -86,6 +91,27 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
         type: 'object',
         description: 'Cluster detail',
         properties: {
+          policyId: { type: 'string', optional: true, description: 'Compute policy identifier' },
+          dataSecurityMode: { type: 'string', optional: true, description: 'Cluster access mode' },
+          terminatedTime: {
+            type: 'number',
+            optional: true,
+            description: 'Cluster termination time in epoch milliseconds',
+          },
+          customTags: { type: 'object', optional: true, description: 'Custom cluster tags' },
+          terminationReason: {
+            type: 'object',
+            optional: true,
+            description: 'Reason for termination (code, type, parameters)',
+            properties: {
+              code: { type: 'string' },
+              type: { type: 'string' },
+              parameters: {
+                type: 'object',
+                description: 'Provider-specific termination parameters',
+              },
+            },
+          },
           clusterId: { type: 'string', description: 'Unique cluster identifier' },
           clusterName: { type: 'string', description: 'Cluster display name' },
           state: {

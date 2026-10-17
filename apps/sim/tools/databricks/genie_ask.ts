@@ -32,6 +32,11 @@ const EMPTY_QUERY_RESULT = {
   data: null,
   totalRows: null,
   truncated: null,
+  totalChunks: null,
+  chunkIndex: null,
+  rowOffset: null,
+  nextChunkIndex: null,
+  nextChunkInternalLink: null,
 } as const
 
 export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieAskResponse> = {
@@ -204,6 +209,11 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
           data: queryResult.output.data,
           totalRows: queryResult.output.totalRows,
           truncated: queryResult.output.truncated,
+          totalChunks: queryResult.output.totalChunks,
+          chunkIndex: queryResult.output.chunkIndex,
+          rowOffset: queryResult.output.rowOffset,
+          nextChunkIndex: queryResult.output.nextChunkIndex,
+          nextChunkInternalLink: queryResult.output.nextChunkInternalLink,
         },
       }
     } catch (error) {
@@ -222,5 +232,6 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
   outputs: {
     ...GENIE_MESSAGE_OUTPUT_PROPERTIES,
     ...STATEMENT_RESULT_OUTPUT_PROPERTIES,
+    rowCount: GENIE_MESSAGE_OUTPUT_PROPERTIES.rowCount,
   },
 }
