@@ -33,7 +33,7 @@ export const editWarehouseTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Display name of the job or SQL warehouse',
+      description: 'Display name of the SQL warehouse',
     },
     clusterSize: {
       type: 'string',

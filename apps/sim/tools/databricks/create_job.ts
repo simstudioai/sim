@@ -31,13 +31,13 @@ export const createJobTool: ToolConfig<DatabricksCreateJobParams, DatabricksCrea
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Display name of the job or SQL warehouse',
+      description: 'Display name of the job',
     },
     description: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Description of the job or Genie space',
+      description: 'Description of the job',
     },
     emailNotifications: {
       type: 'json',

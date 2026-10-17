@@ -286,8 +286,8 @@ Create a Databricks job with tasks, scheduling, execution identity, and notifica
 | `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
 | `apiKey` | string | Yes | Databricks Personal Access Token |
 | `accessControlList` | json | No | Initial permissions as \[\{user_name, group_name, service_principal_name, permission_level\}\] |
-| `name` | string | No | Display name of the job or SQL warehouse |
-| `description` | string | No | Description of the job or Genie space |
+| `name` | string | No | Display name of the job |
+| `description` | string | No | Description of the job |
 | `emailNotifications` | json | No | Email recipients by event, such as \{on_failure: \["ops@example.com"\]\} |
 | `webhookNotifications` | json | No | Notification destination IDs grouped by event |
 | `notificationSettings` | json | No | Notification preferences for skipped runs, canceled runs, and retries |
@@ -1121,7 +1121,7 @@ Create a SQL warehouse with sizing, autoscaling, and serverless settings.
 | --------- | ---- | -------- | ----------- |
 | `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
 | `apiKey` | string | Yes | Databricks Personal Access Token |
-| `name` | string | No | Display name of the job or SQL warehouse |
+| `name` | string | No | Display name of the SQL warehouse |
 | `clusterSize` | string | No | SQL warehouse size, such as Small or Medium |
 | `minNumClusters` | number | No | Minimum number of SQL warehouse clusters |
 | `maxNumClusters` | number | No | Maximum number of SQL warehouse clusters |
@@ -1152,7 +1152,7 @@ Update a SQL warehouse configuration.
 | `host` | string | Yes | Databricks workspace host \(e.g., dbc-abc123.cloud.databricks.com\) |
 | `apiKey` | string | Yes | Databricks Personal Access Token |
 | `warehouseId` | string | Yes | SQL warehouse identifier |
-| `name` | string | No | Display name of the job or SQL warehouse |
+| `name` | string | No | Display name of the SQL warehouse |
 | `clusterSize` | string | No | SQL warehouse size, such as Small or Medium |
 | `minNumClusters` | number | No | Minimum number of SQL warehouse clusters |
 | `maxNumClusters` | number | No | Maximum number of SQL warehouse clusters |
@@ -1295,7 +1295,7 @@ Create a Genie space from its serialized configuration and a SQL warehouse.
 | `parentPath` | string | No | Parent workspace folder for the Genie space |
 | `serializedSpace` | string | Yes | Serialized Genie configuration JSON, including data_sources, instructions, config, and benchmarks; get an example with Get Genie Space |
 | `title` | string | No | Genie space title |
-| `description` | string | No | Description of the job or Genie space |
+| `description` | string | No | Description of the Genie space |
 
 #### Output
 
@@ -1324,7 +1324,7 @@ Update a Genie space, optionally protecting the change with its current ETag.
 | `spaceId` | string | Yes | Genie space identifier |
 | `serializedSpace` | string | No | Serialized Genie configuration JSON, including data_sources, instructions, config, and benchmarks; get an example with Get Genie Space |
 | `title` | string | No | Genie space title |
-| `description` | string | No | Description of the job or Genie space |
+| `description` | string | No | Description of the Genie space |
 | `warehouseId` | string | No | SQL warehouse identifier |
 | `etag` | string | No | Version from Get Genie Space; prevents overwriting concurrent changes |
 | `parentPath` | string | No | Parent workspace folder for the Genie space |

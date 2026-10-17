@@ -47,7 +47,7 @@ export const genieUpdateSpaceTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Description of the job or Genie space',
+      description: 'Description of the Genie space',
     },
     warehouseId: {
       type: 'string',
