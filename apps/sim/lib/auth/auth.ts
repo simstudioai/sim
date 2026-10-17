@@ -67,6 +67,7 @@ import {
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
 import { bindOAuthIssuedResource, oauthResourcePlugin } from '@/lib/auth/oauth-resource'
+import { revokeUserOAuthGrants } from '@/lib/auth/oauth-token-family'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
@@ -988,7 +989,18 @@ export const auth = betterAuth({
         throw new Error(`Failed to send reset password email: ${result.message}`)
       }
     },
+    /** Runs after `onPasswordReset`; cookie-cached sessions survive until `cookieCache.maxAge`. */
+    revokeSessionsOnPasswordReset: true,
     onPasswordReset: async ({ user: resetUser }, request) => {
+      try {
+        await revokeUserOAuthGrants(resetUser.id)
+      } catch (error) {
+        // Throwing would skip the session revocation Better Auth runs after this hook.
+        logger.error('[onPasswordReset] Failed to revoke OAuth grants', {
+          userId: resetUser.id,
+          error,
+        })
+      }
       await recordPasswordResetAudit({ kind: 'completed', userId: resetUser.id, request })
     },
   },

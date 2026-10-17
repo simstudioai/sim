@@ -493,6 +493,19 @@ export async function rotateOAuthRefreshToken(
   })
 }
 
+/**
+ * Revokes every refresh family and access token a user holds. Families outlive the session that
+ * minted them (`session_id` is set null on delete), so deleting sessions alone leaves them
+ * rotatable. Consents are kept, so a legitimate client re-authorizes without a new consent prompt.
+ */
+export async function revokeUserOAuthGrants(
+  userId: string,
+  database: OAuthDatabase = db
+): Promise<void> {
+  await database.delete(oauthTokenFamily).where(eq(oauthTokenFamily.userId, userId))
+  await database.delete(oauthAccessToken).where(eq(oauthAccessToken.userId, userId))
+}
+
 /** Revokes one refresh family or one opaque access token. Unknown tokens are a successful no-op. */
 export async function revokeOAuthToken(
   input: { credentials: OAuthClientCredentials; token: string },
