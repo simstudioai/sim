@@ -6,6 +6,7 @@ import { vi } from 'vitest'
  * Every repository call is a bare `vi.fn()` except:
  * - `mockWithRunAdmissionLock` runs its `action` with an empty transaction object `{}` and returns
  *   its result (the advisory lock itself is not modelled).
+ * - `mockGetRunSecretAuthority` resolves the no-secrets authority.
  * - `mockGetClaimedWorkflowExecutionId` is a faithful port (strips the real `'workflow:'` claim prefix).
  * - `mockStopLiveRunsTx`, `mockFindWorkspacesWithLiveRunsTx`, `mockGetUnsettledStreamSandboxProcesses`, `mockGetUnsettledClientWorkflowExecutions` and
  *   `mockGetAsyncToolCalls` resolve `[]`.
@@ -30,6 +31,10 @@ export const mothershipAsyncRunsMockFns = {
   mockUpdateRunStatus: vi.fn(),
   mockRecordRunBillingAdmission: vi.fn(),
   mockGetLatestRunForStream: vi.fn(),
+  mockGetRunSecretAuthority: vi.fn(async (..._args: unknown[]) => ({
+    secretMountPolicy: { secretScope: 'selected' as const, mountedSecrets: [] as string[] },
+    secretActorUserId: null as string | null,
+  })),
   mockGetRunSegment: vi.fn(),
   mockUpsertAsyncToolCall: vi.fn(),
   mockGetAsyncToolCall: vi.fn(),
@@ -100,6 +105,7 @@ export const mothershipAsyncRunsMock = {
   updateRunStatus: mothershipAsyncRunsMockFns.mockUpdateRunStatus,
   recordRunBillingAdmission: mothershipAsyncRunsMockFns.mockRecordRunBillingAdmission,
   getLatestRunForStream: mothershipAsyncRunsMockFns.mockGetLatestRunForStream,
+  getRunSecretAuthority: mothershipAsyncRunsMockFns.mockGetRunSecretAuthority,
   getRunSegment: mothershipAsyncRunsMockFns.mockGetRunSegment,
   upsertAsyncToolCall: mothershipAsyncRunsMockFns.mockUpsertAsyncToolCall,
   getAsyncToolCall: mothershipAsyncRunsMockFns.mockGetAsyncToolCall,

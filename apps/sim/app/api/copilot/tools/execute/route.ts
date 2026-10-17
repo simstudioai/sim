@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { copilotToolExecuteInternalBodySchema } from '@/lib/api/contracts/copilot'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getRunSecretAuthority } from '@/lib/mothership/async-runs/repository'
 import { toolResultForModel } from '@/lib/mothership/chat/sim-key-redaction'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
@@ -19,6 +20,7 @@ import {
 } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
 import type { ToolCallResult } from '@/lib/mothership/request/types'
+import { NO_SECRET_AUTHORITY, type TurnSecretAuthority } from '@/lib/mothership/secret-mount-policy'
 import { ensureHandlersRegistered, toolRequiresApprovalLane } from '@/lib/mothership/tool-executor'
 import { executeTool } from '@/lib/mothership/tool-executor/executor'
 import { TOOL_EFFECT_PHASE } from '@/lib/mothership/tool-executor/types'
@@ -32,31 +34,44 @@ const logger = createLogger('CopilotToolExecuteInternalAPI')
  * egress projection, exactly as the request-lifecycle registry accumulates
  * across a turn. Keyed by the turn (messageId) so one background lane shares
  * one registry; TTL-evicted since nothing signals turn end on this route.
+ *
+ * The turn's secret authority, which Go's body cannot carry, is cached beside it
+ * (see {@link getRunSecretAuthority}).
  */
 const TURN_REGISTRY_TTL_MS = 10 * 60 * 1000
 const TURN_REGISTRY_CACHE_MAX = 256
 const turnRegistryCache = new Map<
   string,
-  { registry: ResolvedSecretTraceRegistry; expiresAt: number }
+  {
+    registry: ResolvedSecretTraceRegistry
+    secretAuthority: TurnSecretAuthority
+    expiresAt: number
+  }
 >()
 
-async function getTurnEgressRegistry(
+async function getTurnToolContext(
   userId: string,
   workspaceId: string | undefined,
+  chatId: string | undefined,
   messageId: string | undefined,
   requestMode?: string,
   organizationId?: string
-): Promise<ResolvedSecretTraceRegistry> {
-  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${organizationId ?? ''}\u0000${messageId ?? ''}\u0000${requestMode ?? ''}`
+): Promise<{ registry: ResolvedSecretTraceRegistry; secretAuthority: TurnSecretAuthority }> {
+  const key = `${userId}\u0000${workspaceId ?? ''}\u0000${organizationId ?? ''}\u0000${chatId ?? ''}\u0000${messageId ?? ''}\u0000${requestMode ?? ''}`
   const now = Date.now()
   const hit = turnRegistryCache.get(key)
   if (hit && hit.expiresAt > now) {
     hit.expiresAt = now + TURN_REGISTRY_TTL_MS
-    return hit.registry
+    return hit
   }
-  const environmentContext = await prepareCopilotEnvironmentContext(userId, workspaceId, {
-    includeSecrets: requestMode !== 'assistant',
-  })
+  const [environmentContext, secretAuthority] = await Promise.all([
+    prepareCopilotEnvironmentContext(userId, workspaceId, {
+      includeSecrets: requestMode !== 'assistant',
+    }),
+    chatId && messageId
+      ? getRunSecretAuthority({ streamId: messageId, userId, chatId })
+      : NO_SECRET_AUTHORITY,
+  ])
   for (const [cachedKey, cached] of turnRegistryCache) {
     if (cached.expiresAt <= now) turnRegistryCache.delete(cachedKey)
   }
@@ -64,11 +79,13 @@ async function getTurnEgressRegistry(
     const oldest = turnRegistryCache.keys().next().value
     if (oldest !== undefined) turnRegistryCache.delete(oldest)
   }
-  turnRegistryCache.set(key, {
+  const entry = {
     registry: environmentContext.resolvedSecretTraceRegistry,
+    secretAuthority,
     expiresAt: now + TURN_REGISTRY_TTL_MS,
-  })
-  return environmentContext.resolvedSecretTraceRegistry
+  }
+  turnRegistryCache.set(key, entry)
+  return entry
 }
 
 // POST /api/copilot/tools/execute — internal (Go → Sim) in-band execution of
@@ -153,14 +170,18 @@ export const POST = withRouteHandler((request: NextRequest) =>
 
       let toolRegistry: ResolvedSecretTraceRegistry
       let turnRegistry: ResolvedSecretTraceRegistry
+      let secretAuthority: TurnSecretAuthority
       try {
-        turnRegistry = await getTurnEgressRegistry(
+        const turn = await getTurnToolContext(
           userId,
           workspaceId,
+          chatId,
           messageId,
           requestMode,
           organizationId
         )
+        turnRegistry = turn.registry
+        secretAuthority = turn.secretAuthority
         toolRegistry = turnRegistry.forkForInputPaths([])
       } catch (err) {
         /**
@@ -218,6 +239,8 @@ export const POST = withRouteHandler((request: NextRequest) =>
           assistantSearch,
           targetWorkspaceId,
           resolvedSecretTraceRegistry: toolRegistry,
+          secretMountPolicy: secretAuthority.secretMountPolicy,
+          secretActorUserId: secretAuthority.secretActorUserId,
         })
         const projection = inspectToolResultForCopilot(result, toolRegistry, toolName)
         const projected = projection.result

@@ -30,6 +30,8 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
+import { z } from 'zod'
+import { secretMountPolicySchema } from '@/lib/api/contracts/secret-mount-policy'
 import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -65,6 +67,11 @@ import {
 import type { BillingAdmission } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { markSpanForError } from '@/lib/mothership/request/otel'
 import { sealClientToolSettlement } from '@/lib/mothership/request/tools/client-completion-seal.server'
+import {
+  DEFAULT_SECRET_MOUNT_POLICY,
+  NO_SECRET_AUTHORITY,
+  type TurnSecretAuthority,
+} from '@/lib/mothership/secret-mount-policy'
 import {
   type DesktopToolClaimOwner,
   isDesktopToolCall,
@@ -571,6 +578,49 @@ export async function recordRunBillingAdmission(
       return run ?? null
     }
   )
+}
+
+const recordedSecretAuthoritySchema = z.object({
+  secretMountPolicy: secretMountPolicySchema,
+  secretActorUserId: z.string().nullable(),
+})
+
+/**
+ * The secret authority a turn was admitted with, for a lane that rebuilds its tool context from
+ * Go's request instead of inheriting the turn's. Headless runs record it at admission; an
+ * interactive chat narrows it only in assistant mode, so its saved request decides. Anything
+ * else — no run, another user's or chat's run, an unrecorded headless run — mounts nothing.
+ */
+export async function getRunSecretAuthority(input: {
+  streamId: string
+  userId: string
+  chatId: string
+}): Promise<TurnSecretAuthority> {
+  const [run] = await db
+    .select({
+      chatId: copilotRuns.chatId,
+      recorded: sql<unknown>`${copilotRuns.requestContext}->'secretAuthority'`,
+      recoveryKind: sql<string | null>`${copilotRuns.requestContext}->'recovery'->>'kind'`,
+      requestMode: sql<
+        string | null
+      >`COALESCE(${copilotRuns.requestContext}->'recovery'->>'requestMode', ${copilotRuns.requestContext}->'recovery'->'request'->>'mode')`,
+    })
+    .from(copilotRuns)
+    .where(and(eq(copilotRuns.streamId, input.streamId), eq(copilotRuns.userId, input.userId)))
+    .limit(1)
+  if (!run || run.chatId !== input.chatId) return NO_SECRET_AUTHORITY
+
+  if (run.recorded !== null) {
+    const recorded = recordedSecretAuthoritySchema.safeParse(run.recorded)
+    return recorded.success ? recorded.data : NO_SECRET_AUTHORITY
+  }
+  if (run.recoveryKind === 'interactive_stream' && run.requestMode !== 'assistant') {
+    return {
+      secretMountPolicy: { ...DEFAULT_SECRET_MOUNT_POLICY },
+      secretActorUserId: input.userId,
+    }
+  }
+  return NO_SECRET_AUTHORITY
 }
 
 // Un-instrumented: called from a 4 Hz resume poll; per-call spans
