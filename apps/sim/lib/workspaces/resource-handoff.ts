@@ -20,19 +20,11 @@ import {
   lockProjectsForResourceDepartureTx,
 } from '@/lib/projects/resource-handoff'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
+import { WORKSPACE_SHARED_FILE_CONTEXTS } from '@/lib/uploads/shared/types'
 import {
   findWorkspaceBillingReplacement,
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
 } from '@/lib/workspaces/utils'
-
-/** Private chat attachments keep their user's lifecycle even when stored under a workspace key. */
-const SHARED_FILE_CONTEXTS = [
-  'workspace',
-  'knowledge-base',
-  'execution',
-  'chat',
-  'workspace-logos',
-] as const
 
 /** Finds surviving containers from ownership references, including departures predating handoff. */
 export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, userId: string) {
@@ -43,7 +35,7 @@ export async function listSharedResourceWorkspaceIdsForUser(executor: DbOrTx, us
       UNION ALL SELECT ${userTableDefinitions.workspaceId} FROM ${userTableDefinitions} WHERE ${userTableDefinitions.createdBy} = ${userId}
       UNION ALL SELECT ${knowledgeBase.workspaceId} FROM ${knowledgeBase} WHERE ${knowledgeBase.userId} = ${userId}
       UNION ALL SELECT ${workspaceFiles.workspaceId} FROM ${workspaceFiles}
-        WHERE ${workspaceFiles.userId} = ${userId} AND ${inArray(workspaceFiles.context, SHARED_FILE_CONTEXTS)} AND ${workspaceFiles.chatId} IS NULL
+        WHERE ${workspaceFiles.userId} = ${userId} AND ${inArray(workspaceFiles.context, WORKSPACE_SHARED_FILE_CONTEXTS)} AND ${workspaceFiles.chatId} IS NULL
       UNION ALL SELECT ${workspaceFile.workspaceId} FROM ${workspaceFile} WHERE ${workspaceFile.uploadedBy} = ${userId}
       UNION ALL SELECT ${workflowMcpServer.workspaceId} FROM ${workflowMcpServer}
         WHERE ${workflowMcpServer.createdBy} = ${userId} AND NOT ${workflowMcpServer.isPublic}
@@ -206,7 +198,7 @@ export async function reassignSharedResourceOwnershipForWorkspaceMemberRemovalTx
       and(
         eq(workspaceFiles.workspaceId, row.id),
         eq(workspaceFiles.userId, departingUserId),
-        inArray(workspaceFiles.context, SHARED_FILE_CONTEXTS),
+        inArray(workspaceFiles.context, WORKSPACE_SHARED_FILE_CONTEXTS),
         isNull(workspaceFiles.chatId)
       ),
       userId

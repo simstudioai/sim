@@ -90,6 +90,18 @@ describe('account deletion of private organization Assistant images', () => {
     }
   )
 
+  it('keeps an object a surviving row still references', async () => {
+    queueTableRows(schemaMock.uploadSession, [
+      { id: 'upload-1', key: IMAGE_KEY },
+      { id: 'upload-2', key: FAILED_IMAGE_KEY },
+    ])
+    queueTableRows(schemaMock.document, [{ key: IMAGE_KEY }])
+
+    await deleteUserAccount('user-1')
+
+    expect(mockDeleteFiles).toHaveBeenCalledExactlyOnceWith([FAILED_IMAGE_KEY], 'mothership')
+  })
+
   it('retains ownership while an issued upload URL could recreate a purged object', async () => {
     queueTableRows(schemaMock.uploadSession, [{ id: 'upload-1', key: IMAGE_KEY }])
 

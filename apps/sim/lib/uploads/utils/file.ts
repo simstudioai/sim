@@ -804,6 +804,12 @@ export function isPublicStorageContext(context: StorageContext): boolean {
   return PUBLIC_STORAGE_CONTEXTS.has(context)
 }
 
+/** Whether a stored key sits under a world-readable prefix, served without a row or a session. */
+export function isPublicStorageKey(key: string): boolean {
+  const context = tryInferContextFromKey(key)
+  return context !== null && isPublicStorageContext(context)
+}
+
 /**
  * Resolve the storage context for a stored file from its trusted key prefix.
  *

@@ -1,5 +1,3 @@
-import { opendir, rmdir } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
 import { project, uploadSession } from '@sim/db/schema'
 import { describeError } from '@sim/utils/errors'
@@ -7,6 +5,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
 import {
   continueOutboxHandler,
+  deferOutboxHandler,
   enqueueOutboxEvent,
   type OutboxEventContext,
   type OutboxHandler,
@@ -17,21 +16,19 @@ import {
   PROJECT_FILE_PREFIX_CLEANUP_EVENT,
   PROJECT_STORAGE_RECONCILE_EVENT,
 } from '@/lib/projects/files/outbox-events'
-import {
-  getStorageConfig,
-  USE_BLOB_STORAGE,
-  USE_GCS_STORAGE,
-  USE_S3_STORAGE,
-} from '@/lib/uploads/config'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
-import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
-import { deleteFile } from '@/lib/uploads/core/storage-service'
-import { abortProviderUpload, UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
+import {
+  deleteStorageKeysUnderPrefix,
+  listStorageKeyPage,
+  outboxDeadlineNear,
+  STORAGE_KEY_PAGE_SIZE,
+  storageCleanupAvailableAt,
+} from '@/lib/uploads/core/prefix-sweep'
+import { abortProviderUpload } from '@/lib/uploads/upload-session/provider'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { PROJECT_FILE_UPLOAD_BINDING_KEY } from '@/lib/uploads/upload-session/types'
 
 const PAGE_SIZE = 500
-const CLOCK_SKEW_MS = 60_000
 
 type UploadCleanup = Pick<
   UploadSessionRecord,
@@ -41,11 +38,6 @@ interface CleanupPayload {
   projectId: string
   uploads?: UploadCleanup[]
   uploadCursor?: number
-}
-
-/** Expired signatures stop new transfers, but a transfer already in progress may finish later. */
-export function projectUploadCleanupAvailableAt(now = new Date()): Date {
-  return new Date(now.getTime() + UPLOAD_URL_TTL_MS + CLOCK_SKEW_MS)
 }
 
 function prefixFor(projectId: string): string {
@@ -101,7 +93,7 @@ async function enqueueSweeps(
 ) {
   await enqueueOutboxEvent(executor, PROJECT_FILE_PREFIX_CLEANUP_EVENT, payload)
   await enqueueOutboxEvent(executor, PROJECT_FILE_PREFIX_CLEANUP_EVENT, payload, {
-    availableAt: projectUploadCleanupAvailableAt(retiredAt),
+    availableAt: storageCleanupAvailableAt(retiredAt),
   })
 }
 
@@ -210,98 +202,21 @@ export async function queueRetiredProjectUploadCleanup(
   })
 }
 
-async function removeEmptyDirectory(path: string): Promise<void> {
-  try {
-    await rmdir(path)
-  } catch (error) {
-    if (!['ENOENT', 'ENOTEMPTY', 'EEXIST'].includes(describeError(error).code ?? '')) throw error
-  }
-}
-
-async function localKeys(prefix: string, signal: AbortSignal): Promise<string[]> {
-  const keys: string[] = []
-  async function visit(key: string): Promise<void> {
-    signal.throwIfAborted()
-    let directory
-    try {
-      directory = await opendir(join(UPLOAD_DIR_SERVER, key))
-    } catch (error) {
-      if (describeError(error).code === 'ENOENT') return
-      throw error
-    }
-    for await (const entry of directory) {
-      signal.throwIfAborted()
-      const child = `${key}${entry.name}`
-      if (entry.isDirectory()) await visit(`${child}/`)
-      else keys.push(child)
-      if (keys.length >= PAGE_SIZE) return
-    }
-    await removeEmptyDirectory(join(UPLOAD_DIR_SERVER, key))
-  }
-  await visit(prefix)
-  return keys
-}
-
-async function listKeys(prefix: string, signal: AbortSignal): Promise<string[]> {
-  signal.throwIfAborted()
-  if (USE_S3_STORAGE) {
-    const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
-    const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
-    const config = getStorageConfig('project')
-    const page = await getS3Client().send(
-      new ListObjectsV2Command({ Bucket: config.bucket, Prefix: prefix, MaxKeys: PAGE_SIZE }),
-      { abortSignal: signal }
-    )
-    return (page.Contents ?? []).flatMap((object) => (object.Key ? [object.Key] : []))
-  }
-  if (USE_BLOB_STORAGE) {
-    const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')
-    const config = getStorageConfig('project')
-    if (!config.containerName) throw new Error('Project blob container missing')
-    const pages = (await getBlobServiceClient())
-      .getContainerClient(config.containerName)
-      .listBlobsFlat({ prefix, abortSignal: signal })
-      .byPage({ maxPageSize: PAGE_SIZE })
-    const page = await pages.next()
-    return page.done ? [] : page.value.segment.blobItems.map((object) => object.name)
-  }
-  if (USE_GCS_STORAGE) {
-    const { getGcsClient } = await import('@/lib/uploads/providers/google-cloud-storage/client')
-    const config = getStorageConfig('project')
-    if (!config.bucket) throw new Error('Project bucket missing')
-    const [files] = await (await getGcsClient())
-      .bucket(config.bucket)
-      .getFiles({ prefix, maxResults: PAGE_SIZE, autoPaginate: false })
-    signal.throwIfAborted()
-    return files.map((file) => file.name)
-  }
-  return localKeys(prefix, signal)
-}
-
-async function sweepPrefix(projectId: string, context: OutboxEventContext): Promise<boolean> {
+/** `stalled` when a page that must be re-listed removed nothing, so continuing cannot progress. */
+async function sweepPrefix(
+  projectId: string,
+  context: OutboxEventContext
+): Promise<'done' | 'continue' | 'stalled'> {
   const prefix = prefixFor(projectId)
-  const keys = await listKeys(prefix, context.signal)
-  let deleted = 0
-  for (const key of keys) {
-    if (!key.startsWith(prefix)) throw new Error('Storage provider returned a foreign Project key')
-    context.signal.throwIfAborted()
-    if (deleted > 0 && context.deadlineAt && Date.now() + 5000 >= context.deadlineAt) return false
-    try {
-      await deleteFile({ key, context: 'project', signal: context.signal })
-    } catch (error) {
-      if (describeError(error).code !== 'ENOENT') throw error
-    }
-    if (!USE_S3_STORAGE && !USE_BLOB_STORAGE && !USE_GCS_STORAGE) {
-      const root = join(UPLOAD_DIR_SERVER, 'project', projectId)
-      let directory = dirname(join(UPLOAD_DIR_SERVER, key))
-      while (directory === root || directory.startsWith(`${root}/`)) {
-        await removeEmptyDirectory(directory)
-        directory = dirname(directory)
-      }
-    }
-    deleted++
-  }
-  return keys.length < PAGE_SIZE
+  const page = await listStorageKeyPage(prefix, 'project', context.signal)
+  const { deleted, complete } = await deleteStorageKeysUnderPrefix(
+    prefix,
+    'project',
+    page.keys,
+    context
+  )
+  if (complete && page.keys.length < STORAGE_KEY_PAGE_SIZE) return 'done'
+  return deleted > 0 ? 'continue' : 'stalled'
 }
 
 const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
@@ -336,13 +251,15 @@ const cleanupPrefix: OutboxHandler<unknown> = async (raw, context) => {
     }
     if ((index + 1) % 20 === 0 || index === uploads.length - 1)
       await context.checkpointPayload({ uploadCursor: index + 1 })
-    if (context.deadlineAt && Date.now() + 5000 >= context.deadlineAt) {
+    if (outboxDeadlineNear(context)) {
       await context.checkpointPayload({ uploadCursor: index + 1 })
       return continueOutboxHandler('Continuing retired Project upload cleanup')
     }
   }
-  if (!(await sweepPrefix(payload.projectId, context)))
-    return continueOutboxHandler('Continuing Project storage cleanup')
+  const sweep = await sweepPrefix(payload.projectId, context)
+  if (sweep === 'continue') return continueOutboxHandler('Continuing Project storage cleanup')
+  if (sweep === 'stalled')
+    return deferOutboxHandler('Project storage cleanup removed nothing from a full listing page')
 }
 
 /**
