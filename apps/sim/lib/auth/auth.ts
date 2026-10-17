@@ -54,8 +54,7 @@ import {
   recordAuthenticationSecurityAudit,
   recordPasswordResetAudit,
 } from '@/lib/auth/lifecycle-audit'
-import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
-import { revokeUserOAuthGrants } from '@/lib/auth/oauth-grants'
+import { hashOAuthToken, revokeUserOAuthGrants } from '@/lib/auth/oauth-access-token'
 import {
   consentRequestNamesClient,
   OAUTH_ACCESS_TOKEN_PREFIX,
