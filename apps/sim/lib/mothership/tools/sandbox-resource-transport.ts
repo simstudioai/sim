@@ -1,10 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { NextRequest } from 'next/server'
-import { fileCopyInputSchema } from '@/lib/api/contracts/file-copy-input'
 import { v2CopyFileItemsContract } from '@/lib/api/contracts/v2/file-copy'
 import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { matchV2Route } from '@/lib/api/server/routes/in-process-transport'
+import { V2_PARSE_DEFAULTS } from '@/lib/api/server/routes/v2-json-route'
+import { parseRequest } from '@/lib/api/server/validation'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
@@ -203,18 +204,21 @@ async function proxyAuthorizedSandboxRequest(
   })
 }
 
-/** A valid copy naming a non-workspace source or destination needs the file-owner protocol. */
+/**
+ * A valid copy naming a non-workspace source or destination needs the file-owner protocol. Parsed
+ * as the copy route parses it, under the same body cap: an oversized or invalid body stays on the
+ * workspace route, which returns its own 413 or 400.
+ */
 async function copiesBeyondWorkspaces(request: Request): Promise<boolean> {
-  let body: unknown
-  try {
-    body = await request.clone().json()
-  } catch {
-    return false
-  }
-  const parsed = fileCopyInputSchema.safeParse(body)
+  const parsed = await parseRequest(
+    v2CopyFileItemsContract,
+    new NextRequest(request.clone()),
+    {},
+    V2_PARSE_DEFAULTS
+  )
   return (
     parsed.success &&
-    (parsed.data.source.owner.entityType !== 'workspace' ||
-      parsed.data.destination.owner.entityType !== 'workspace')
+    (parsed.data.body.source.owner.entityType !== 'workspace' ||
+      parsed.data.body.destination.owner.entityType !== 'workspace')
   )
 }

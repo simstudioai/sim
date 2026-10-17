@@ -6,6 +6,7 @@ import {
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { copilotRequestPrincipal, isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import {
   type ContentSource,
   noteContentDeliveryOperation,
@@ -464,4 +465,32 @@ it('validates a copy body itself once the lease negotiated the file-owner protoc
   )
   expect(response.status).toBe(400)
   expect(fetcher).not.toHaveBeenCalled()
+})
+
+it('leaves an oversized copy body to the workspace route without reading it past the cap', async () => {
+  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: undefined })
+  routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
+  fetcher.mockResolvedValue(Response.json({ error: 'Request body is too large' }, { status: 413 }))
+  const projectCopy = new TextEncoder().encode(
+    JSON.stringify({
+      source: { owner: workspaceOwner, fileIds: ['file'] },
+      destination: { owner: { entityType: 'project', entityId: 'project' } },
+    })
+  )
+  const padding = new Uint8Array(1024 * 1024).fill(0x20)
+  const paddingChunks = Math.ceil((2 * DEFAULT_MAX_JSON_BODY_BYTES) / padding.byteLength)
+  let pulledChunks = 0
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (pulledChunks === 0) controller.enqueue(projectCopy)
+      else if (pulledChunks <= paddingChunks) controller.enqueue(padding)
+      else controller.close()
+      pulledChunks++
+    },
+  })
+  const init: RequestInit & { duplex: 'half' } = { method: 'POST', body, duplex: 'half' }
+  const response = await proxySandboxResourceRequest(request('/api/v2/files/copy', init), token)
+  expect(response.status).toBe(413)
+  expect(fetcher).toHaveBeenCalledTimes(1)
+  expect(pulledChunks).toBeLessThan(paddingChunks)
 })
