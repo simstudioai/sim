@@ -16,7 +16,7 @@ import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { UPLOAD_URL_TTL_MS } from '@/lib/uploads/upload-session/provider'
 
 /** Most keys one {@link listStorageKeyPage} call returns. */
-export const STORAGE_KEY_PAGE_SIZE = 500
+const STORAGE_KEY_PAGE_SIZE = 500
 const CLOCK_SKEW_MS = 60_000
 const DEADLINE_MARGIN_MS = 5000
 
