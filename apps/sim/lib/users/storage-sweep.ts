@@ -3,7 +3,6 @@ import {
   copilotChats,
   document,
   knowledgeBase,
-  uploadSession,
   user,
   workspaceFile,
   workspaceFiles,
@@ -80,9 +79,8 @@ const OBJECT_CONTEXTS: ReadonlySet<string> = new Set<StorageContext>([
 /**
  * Keys no row collected here may name: Project prefix cleanup, the Assistant upload-session
  * sweep, organization logos, and profile pictures — which account deletion takes only from the
- * account's own `user.image`, and only once {@link uploadedProfilePicture} proves the account
- * uploaded it, because whitelabel logos were once uploaded as `profile-pictures` rows under an
- * admin's account.
+ * account's own `user.image` (see {@link extractProfilePictureKey}), because whitelabel logos were
+ * once uploaded as `profile-pictures` rows under an admin's account.
  */
 const FOREIGN_LIFECYCLE_ROOTS = [
   'project/',
@@ -143,10 +141,12 @@ function isAccountProfilePicture(key: string, context: string): boolean {
 }
 
 /**
- * The account's own uploaded avatar, as a storage key. `user.image` holds either a
- * `/api/files/serve/...` path (an upload this app owns) or an absolute URL from an OAuth provider,
- * which must not be deleted; only the former yields a key, and only under `profile-pictures/`.
- * The image is personal data, so an erasure that leaves it in the bucket is not an erasure.
+ * The account's avatar, as a storage key. `user.image` holds either a `/api/files/serve/...` path
+ * (an upload this app owns) or an absolute URL from an OAuth provider, which must not be deleted;
+ * only the former yields a key, and only under `profile-pictures/`. The image is personal data, so
+ * an erasure that leaves it in the bucket is not an erasure. `user.image` is user-settable, so the
+ * key can name someone else's avatar; the cleanup's reference guard keeps any key another
+ * account's `user.image` or a stored asset URL still names.
  */
 export function extractProfilePictureKey(image: string | null): string | null {
   if (!image) return null
@@ -471,44 +471,6 @@ async function collectVersionsOf(
   )
 }
 
-/**
- * Whether the account itself uploaded `key`. `user.image` is settable to any serve URL, so it
- * names a key without proving whose it is; the proof is the account's completed `profile_picture`
- * upload session (kept for a week after completion), or the `workspace_files` row an older
- * profile-picture upload wrote. Without either the avatar is left in place.
- */
-async function uploadedProfilePicture(
-  executor: DbOrTx,
-  userId: string,
-  key: string
-): Promise<boolean> {
-  const [session] = await executor
-    .select({ id: uploadSession.id })
-    .from(uploadSession)
-    .where(
-      and(
-        eq(uploadSession.finalKey, key),
-        eq(uploadSession.userId, userId),
-        eq(uploadSession.purpose, 'profile_picture'),
-        eq(uploadSession.status, 'completed')
-      )
-    )
-    .limit(1)
-  if (session) return true
-  const [row] = await executor
-    .select({ id: workspaceFiles.id })
-    .from(workspaceFiles)
-    .where(
-      and(
-        eq(workspaceFiles.key, key),
-        eq(workspaceFiles.userId, userId),
-        eq(workspaceFiles.context, 'profile-pictures')
-      )
-    )
-    .limit(1)
-  return Boolean(row)
-}
-
 interface CollectionScope {
   userId: string
   workspaceIds: string[]
@@ -534,8 +496,7 @@ async function collectInto(
     .where(eq(user.id, userId))
     .limit(1)
   const profilePicture = extractProfilePictureKey(account?.image ?? null)
-  if (profilePicture && (await uploadedProfilePicture(executor, userId, profilePicture)))
-    collector.addProfilePicture(profilePicture)
+  if (profilePicture) collector.addProfilePicture(profilePicture)
 
   const filesSince = since
     ? and(eq(workspaceFiles.userId, userId), gte(workspaceFiles.uploadedAt, since))

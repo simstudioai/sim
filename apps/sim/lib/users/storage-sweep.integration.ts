@@ -7,7 +7,6 @@ import {
   copilotChats,
   outboxEvent,
   permissions,
-  uploadSession,
   user,
   workspace,
   workspaceFiles,
@@ -102,26 +101,6 @@ async function insertAdminWorkspace(id: string, ownerId: string) {
     entityId: id,
     permissionType: 'admin',
   })
-}
-
-/** The ownership record a finished profile-picture upload leaves behind. */
-function completedAvatarUpload(userId: string, key: string) {
-  return {
-    id: generateId(),
-    tokenHash: generateId(),
-    userId,
-    purpose: 'profile_picture' as const,
-    method: 'put' as const,
-    storageContext: 'profile-pictures',
-    finalKey: key,
-    storageProvider: 'local' as const,
-    fileName: 'avatar.png',
-    contentType: 'image/png',
-    fileSize: 1,
-    status: 'completed' as const,
-    expiresAt: new Date(),
-    completedAt: new Date(),
-  }
 }
 
 function avatarUrl(key: string): string {
@@ -252,12 +231,6 @@ async function seed() {
     })
     .where(eq(workspace.id, survivingId))
   await db
-    .insert(uploadSession)
-    .values([
-      completedAvatarUpload(departingId, keys.ownAvatar),
-      completedAvatarUpload(ownerId, keys.othersAvatar),
-    ])
-  await db
     .update(user)
     .set({ image: avatarUrl(keys.ownAvatar) })
     .where(eq(user.id, departingId))
@@ -359,20 +332,15 @@ describe('account deletion storage sweep', () => {
     }
   )
 
-  check('never purges an avatar the account points at but did not upload', async () => {
+  check("keeps another account's avatar the departing image points at", async () => {
     const f = await seed()
     await db
       .update(user)
       .set({ image: avatarUrl(f.keys.othersAvatar) })
-      .where(eq(user.id, f.departingId))
+      .where(inArray(user.id, [f.ownerId, f.departingId]))
     await deleteUserAccount(f.departingId)
 
-    const objects = await objectEvents(f.departingId)
-    const queuedKeys = objects.flatMap((event) =>
-      (event.payload as { objects: { key: string }[] }).objects.map((object) => object.key)
-    )
-    expect(queuedKeys).not.toContain(f.keys.othersAvatar)
-    await runNow(objects.map((event) => event.id))
+    await runNow((await objectEvents(f.departingId)).map((event) => event.id))
 
     expect(await readFile(join(storageRoot, f.keys.othersAvatar), 'utf8')).toBe('x')
   })
@@ -403,7 +371,6 @@ afterAll(async () => {
         )
       )
     await db.delete(workspaceFiles).where(inArray(workspaceFiles.userId, userIds))
-    await db.delete(uploadSession).where(inArray(uploadSession.userId, userIds))
     await deleteWorkspaceFixture(db, inArray(workspace.id, workspaceIds))
     await db.delete(user).where(inArray(user.id, userIds))
     await rm(storageRoot, { recursive: true, force: true })

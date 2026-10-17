@@ -361,6 +361,19 @@ describe('account storage object cleanup', () => {
       expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock[table])
   })
 
+  it("keeps an avatar another account's image still names", async () => {
+    const key = 'profile-pictures/upload-0002-owner-avatar.png'
+    await put(key)
+    queueTableRows(schemaMock.user, [])
+    queueTableRows(schemaMock.user, [
+      { id: 'owner-1', value: `/api/files/serve/s3/${encodeURIComponent(key)}` },
+    ])
+
+    await cleanup(payload([{ key, context: 'profile-pictures' }]), outboxContext())
+
+    expect(await exists(key)).toBe(true)
+  })
+
   it("deletes the account's own uploaded avatar", async () => {
     await put('profile-pictures/upload-0001-avatar.png')
 
@@ -505,28 +518,16 @@ describe('queueing account storage cleanup', () => {
     queueTableRows(schemaMock.user, [
       { image: '/api/files/serve/s3/profile-pictures%2Fupload-0001-avatar.png' },
     ])
-    queueTableRows(schemaMock.uploadSession, [{ id: 'upload-0001' }])
 
     await queueCleanup()
 
     expect(queuedObjectKeys()).toEqual(['profile-pictures/upload-0001-avatar.png'])
   })
 
-  it('never queues an avatar key the account did not upload', async () => {
-    queueTableRows(schemaMock.user, [
-      { image: '/api/files/serve/s3/profile-pictures%2Fupload-0002-someone-else.png' },
-    ])
-
-    await queueCleanup()
-
-    expect(queuedObjectKeys()).toEqual([])
-  })
-
   it('never queues an avatar key that could escape its root', async () => {
     queueTableRows(schemaMock.user, [
       { image: '/api/files/serve/profile-pictures%2Fx%2F..%2F..%2Fworkspace%2Fother.png' },
     ])
-    queueTableRows(schemaMock.uploadSession, [{ id: 'upload-0003' }])
 
     await queueCleanup()
 

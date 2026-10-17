@@ -207,11 +207,12 @@ async function loadKeysNamedByUrls(runs: readonly string[], named: Set<string>):
  * - it sits under a world-readable root (`isPublicStorageKey`, the same prefixes the file-serve
  *   route's `isPublicByKeyPrefix` answers without a session) and a stored asset URL names it.
  *   Only URL rows that mention the key's {@link ownerRun} are read, on every call so a reference
- *   written mid-sweep still counts; a public key without one is kept unread. A URL that hand-encodes characters of that
- *   run is missed. Account deletion asks about public keys only under a deleted workspace's
- *   prefix (its logos) and for an avatar the account is proven to have uploaded, so such a URL can
- *   cost an object of a deleted workspace or of the erased account's own uploads, never one a
- *   surviving workspace, organization, or user uploaded.
+ *   written mid-sweep still counts; a public key without one is kept unread. A URL that
+ *   hand-encodes characters of that run is missed. Account deletion asks about public keys only
+ *   under a deleted workspace's prefix (its logos) and for the avatar the erased account's
+ *   `user.image` names, so such a URL can cost one of those, and only when no surviving reference
+ *   names it the way this app writes URLs; another user's own `user.image` naming their avatar
+ *   always keeps it.
  *
  * No URL column is read for any other key: `verifyFileAccess` serves it only through a row, by its
  * key path under a workspace that still exists (kept above), or by object metadata to a signed-in holder of a hand-pasted URL to
