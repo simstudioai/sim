@@ -8,6 +8,7 @@ import { account, deletedAccountIdentity, user, userStats } from '@sim/db/schema
 import { authMock } from '@sim/testing/mocks/auth.mock'
 import { envFlagsMock } from '@sim/testing/mocks/env-flags.mock'
 import { generateId } from '@sim/utils/id'
+import { generateRandomHex } from '@sim/utils/random'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
@@ -18,6 +19,7 @@ import {
 } from '@/lib/billing/core/usage'
 import { getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
+import { purgeExpiredDeletedAccountIdentities } from '@/lib/users/deleted-identity'
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   ...envFlagsMock,
@@ -34,7 +36,7 @@ interface SignIn {
   accountId: string
 }
 
-async function insertUser(email: string): Promise<string> {
+async function insertUser(email: string, { emailVerified = true } = {}): Promise<string> {
   const id = generateId()
   userIds.push(id)
   const now = new Date()
@@ -42,7 +44,7 @@ async function insertUser(email: string): Promise<string> {
     id,
     name: 'Deleted identity fixture',
     email,
-    emailVerified: true,
+    emailVerified,
     createdAt: now,
     updatedAt: now,
   })
@@ -288,6 +290,52 @@ describe('deleted account identities and the free allowance', () => {
     const thirtyDays = 30 * 24 * 60 * 60 * 1000
     expect(rows).toHaveLength(1)
     expect(Math.abs(rows[0].expiresAt.getTime() - (deletedAt + thirtyDays))).toBeLessThan(60_000)
+  })
+
+  it('never records an unverified email, so its real owner keeps the allowance', async () => {
+    const email = `unverified.${generateId()}@deleted-identity.test`
+    const github = { providerId: 'github', accountId: `gh-${generateId()}` }
+    const squatter = await insertUser(email, { emailVerified: false })
+    await linkAccount(squatter, github)
+    await handleNewUser(squatter, {})
+    const written = await deleteOwnAccount(squatter)
+
+    const owner = await signUp(email)
+    const sameGithub = await signUp(`unverified-gh.${generateId()}@deleted-identity.test`, github)
+
+    expect(written).toHaveLength(1)
+    expect(await statsOf(owner)).toEqual({ freeTierEligible: true, limit: getFreeTierLimit() })
+    expect(await statsOf(sameGithub)).toEqual({ freeTierEligible: false, limit: 0 })
+  })
+
+  it('drains every expired digest on the scheduled purge and keeps live ones', async () => {
+    const expired = Array.from({ length: 2_345 }, () => generateRandomHex(64))
+    const live = Array.from({ length: 3 }, () => generateRandomHex(64))
+    recordedHashes.push(...expired, ...live)
+    const past = new Date(Date.now() - 60_000)
+    const future = new Date(Date.now() + 60 * 60_000)
+    for (let start = 0; start < expired.length; start += 500) {
+      await db
+        .insert(deletedAccountIdentity)
+        .values(
+          expired
+            .slice(start, start + 500)
+            .map((identityHash) => ({ identityHash, expiresAt: past }))
+        )
+    }
+    await db
+      .insert(deletedAccountIdentity)
+      .values(live.map((identityHash) => ({ identityHash, expiresAt: future })))
+
+    const result = await purgeExpiredDeletedAccountIdentities()
+
+    const remaining = await db
+      .select({ hash: deletedAccountIdentity.identityHash })
+      .from(deletedAccountIdentity)
+      .where(inArray(deletedAccountIdentity.identityHash, [...expired, ...live]))
+    expect(result.drained).toBe(true)
+    expect(result.deleted).toBeGreaterThanOrEqual(expired.length)
+    expect(remaining.map((row) => row.hash).sort()).toEqual([...live].sort())
   })
 
   it('records only sign-in identities, as keyed digests holding no address or subject', async () => {

@@ -13,7 +13,7 @@ describe('recordDeletedAccountIdentities', () => {
   beforeEach(() => {
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
-    queueTableRows(schemaMock.user, [{ email: 'ada@example.com' }])
+    queueTableRows(schemaMock.user, [{ email: 'ada@example.com', emailVerified: true }])
   })
 
   afterEach(() => {

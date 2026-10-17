@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
@@ -42,8 +42,17 @@ const logger = createLogger('DeletedAccountIdentity')
  */
 const DELETED_IDENTITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
-/** Expired rows removed per recorded deletion, which keeps the table bounded without a cron. */
+/** Expired rows a recorded deletion removes opportunistically on its way through. */
 const EXPIRED_PURGE_BATCH = 100
+
+/** Rows per batch of the scheduled purge, each its own short transaction. */
+const SCHEDULED_PURGE_BATCH = 1_000
+
+/** Batches one scheduled run may delete before leaving the rest to the next run. */
+const SCHEDULED_PURGE_MAX_BATCHES = 50
+
+/** Stops admitting batches well inside the cron request's 60-second timeout. */
+const SCHEDULED_PURGE_BUDGET_MS = 10_000
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com'])
 
@@ -129,10 +138,13 @@ function identityHashes(identity: SignInIdentity): string[] {
   return [...new Set(preimages)].map((preimage) => hmacSha256Hex(preimage, key))
 }
 
-/** A user's email and the social sign-in subjects currently linked to it. */
-async function loadSignInIdentity(executor: DbOrTx, userId: string): Promise<SignInIdentity> {
+/** A user's email (and whether it is verified) and the social sign-in subjects linked to it. */
+async function loadSignInIdentity(
+  executor: DbOrTx,
+  userId: string
+): Promise<SignInIdentity & { emailVerified: boolean }> {
   const [profile] = await executor
-    .select({ email: user.email })
+    .select({ email: user.email, emailVerified: user.emailVerified })
     .from(user)
     .where(eq(user.id, userId))
     .limit(1)
@@ -145,13 +157,19 @@ async function loadSignInIdentity(executor: DbOrTx, userId: string): Promise<Sig
         inArray(account.providerId, [...RECORDED_SIGN_IN_PROVIDER_IDS])
       )
     )
-  return { email: profile?.email, oauthSubjects }
+  return { email: profile?.email, emailVerified: profile?.emailVerified === true, oauthSubjects }
 }
 
 /**
  * Records the sign-in identities of an account being deleted at its holder's
  * request. Runs inside the deletion transaction, before the `user` row and its
  * `account` rows cascade away, so the record and the erasure commit together.
+ *
+ * The email is recorded only when it was verified: an unverified address may
+ * belong to someone else, who must not lose the allowance for an account they
+ * never held. Its GitHub and Microsoft subjects are recorded either way. Where
+ * email verification is off, password accounts are therefore recorded by
+ * nothing (fails open).
  *
  * The write runs in a savepoint and never fails the deletion: an anti-abuse
  * record must not become a way to block an erasure request. On failure the
@@ -162,7 +180,8 @@ export async function recordDeletedAccountIdentities(tx: DbOrTx, userId: string)
 
   try {
     await tx.transaction(async (savepoint) => {
-      const hashes = identityHashes(await loadSignInIdentity(savepoint, userId))
+      const { email, emailVerified, oauthSubjects } = await loadSignInIdentity(savepoint, userId)
+      const hashes = identityHashes({ email: emailVerified ? email : null, oauthSubjects })
       if (hashes.length === 0) return
 
       await savepoint.delete(deletedAccountIdentity).where(
@@ -241,4 +260,41 @@ export async function userHasDeletedAccountIdentity(
     logger.error('Deleted-identity lookup failed; granting the free allowance', { userId, error })
     return false
   }
+}
+
+/**
+ * Deletes every expired identity digest, so none outlives its retention window
+ * even when no later deletion comes along to purge it. Drains in short batches
+ * in `expires_at` order, skipping rows a concurrent deletion has locked, until
+ * none remain, the batch cap is hit, or the time budget runs out; whatever is
+ * left goes to the next run. Runs whether or not billing is enabled, since
+ * deleting expired rows is always safe.
+ */
+export async function purgeExpiredDeletedAccountIdentities(): Promise<{
+  deleted: number
+  drained: boolean
+}> {
+  const deadline = Date.now() + SCHEDULED_PURGE_BUDGET_MS
+  let deleted = 0
+  for (let batch = 0; batch < SCHEDULED_PURGE_MAX_BATCHES; batch += 1) {
+    if (Date.now() >= deadline) return { deleted, drained: false }
+    const removed = await db
+      .delete(deletedAccountIdentity)
+      .where(
+        inArray(
+          deletedAccountIdentity.identityHash,
+          db
+            .select({ identityHash: deletedAccountIdentity.identityHash })
+            .from(deletedAccountIdentity)
+            .where(lte(deletedAccountIdentity.expiresAt, sql`now()`))
+            .orderBy(asc(deletedAccountIdentity.expiresAt))
+            .limit(SCHEDULED_PURGE_BATCH)
+            .for('update', { skipLocked: true })
+        )
+      )
+      .returning({ identityHash: deletedAccountIdentity.identityHash })
+    deleted += removed.length
+    if (removed.length < SCHEDULED_PURGE_BATCH) return { deleted, drained: true }
+  }
+  return { deleted, drained: false }
 }
