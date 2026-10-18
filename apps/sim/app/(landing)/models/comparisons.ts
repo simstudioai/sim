@@ -3,6 +3,7 @@ import {
   type CatalogFaq,
   type CatalogModel,
   type CatalogProvider,
+  fitWithinLength,
   formatPrice,
   formatTokenCount,
   getEffectiveMaxOutputTokens,
@@ -10,6 +11,7 @@ import {
   getProviderBySlug,
   hasPublishedPricing,
   isPromptModel,
+  MAX_PAGE_TITLE_LENGTH,
 } from '@/app/(landing)/models/utils'
 import { resolveModelTokenPricing } from '@/providers/pricing'
 
@@ -151,27 +153,23 @@ function buildComparisons(): ModelComparison[] {
 /** Every curated comparison, in {@link MODEL_COMPARISON_PAIRS} order. */
 export const MODEL_COMPARISONS: ModelComparison[] = buildComparisons()
 
-/** Longest page title that keeps the rendered `<title>` (with the " | Sim" template) at 60 chars. */
-const MAX_COMPARISON_TITLE_LENGTH = 54
-
 /** Page title for a comparison, as specific as the 60-character `<title>` budget allows. */
 export function getComparisonPageTitle(comparison: ModelComparison): string {
-  const candidates = [
-    `${comparison.title}: API Pricing & Context Window`,
-    `${comparison.title}: API Pricing & Specs`,
-    `${comparison.title} API Pricing`,
-  ]
-  return (
-    candidates.find((candidate) => candidate.length <= MAX_COMPARISON_TITLE_LENGTH) ??
-    comparison.title
+  return fitWithinLength(
+    [
+      `${comparison.title}: API Pricing & Context Window`,
+      `${comparison.title}: API Pricing & Specs`,
+      `${comparison.title} API Pricing`,
+      comparison.title,
+    ],
+    MAX_PAGE_TITLE_LENGTH
   )
 }
 
 /** Meta description for a comparison page; long model names drop the trailing Sim sentence. */
 export function getComparisonPageDescription(comparison: ModelComparison): string {
   const lead = `${comparison.title}: API pricing per 1M tokens, context window, max output, and capabilities side by side.`
-  const withSim = `${lead} Use either in Sim's AI agents.`
-  return withSim.length <= 155 ? withSim : lead
+  return fitWithinLength([`${lead} Use either in Sim's AI agents.`, lead], 155)
 }
 
 /** The curated comparison at `/models/compare/{slug}`; `null` for a reversed or unknown pair. */
