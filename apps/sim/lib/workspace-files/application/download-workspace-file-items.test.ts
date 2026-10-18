@@ -1,5 +1,6 @@
 import {
   createDelegatedPrincipal,
+  createExecutorPrincipal,
   createSessionPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { auditMock } from '@sim/testing/mocks/audit.mock'
@@ -388,11 +389,11 @@ describe('downloadWorkspaceFileItems', () => {
     it('does not apply the capability to a delegated executor carrying a subject', async () => {
       await expect(
         downloadWorkspaceFileItems.execute({
-          principal: {
-            ...delegatedPrincipal,
-            serviceId: 'executor' as const,
-            resourceScope: {},
-          },
+          principal: createExecutorPrincipal({
+            subjectUserId: 'u1',
+            workspaceId: 'ws-1',
+            audience: 'sim:workspace-files',
+          }),
           input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
         })
       ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f2' })] })

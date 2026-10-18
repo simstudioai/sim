@@ -674,7 +674,6 @@
     "apps/sim/app/api/webhooks/agentmail/route.ts": 1,
     "apps/sim/app/api/webhooks/route.ts": 2,
     "apps/sim/app/api/workflows/[id]/execute/route.ts": 2,
-    "apps/sim/app/api/workflows/[id]/log/route.ts": 2,
     "apps/sim/app/api/workflows/[id]/state/route.ts": 2,
     "apps/sim/app/api/workflows/[id]/variables/route.ts": 2,
     "apps/sim/app/api/workflows/reorder/route.ts": 2,

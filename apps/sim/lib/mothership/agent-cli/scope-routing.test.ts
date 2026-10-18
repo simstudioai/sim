@@ -90,8 +90,10 @@ describe('worker-local CLI authorization through the real handler and scope reso
     expect(boundary.target).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
-        workspaceId: selected,
         subjectUserId: 'actor',
+        grant: expect.objectContaining({
+          owner: { entityType: 'workspace', entityId: selected },
+        }),
       }),
       input: { chatId: 'owned-chat', workspaceId: selected },
     })

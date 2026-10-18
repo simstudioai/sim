@@ -3,15 +3,12 @@ import type {
   ResourceFileCopyScope,
   ResourceOperationPrincipal,
 } from '@sim/auth/principal'
-import { hasResourceOperationGrant } from '@sim/auth/principal'
+import { hasResourceOperationGrant, isResourceFileCopyScope } from '@sim/auth/principal'
 import { workspace } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
 import { and, asc, inArray, isNull } from 'drizzle-orm'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
-import {
-  isResourceFileCopyScope,
-  requireResourceDelegation,
-} from '@/lib/core/application/resource-delegation'
+import { requireResourceDelegation } from '@/lib/core/application/resource-delegation'
 import {
   authorizeWorkspaceOperation,
   PrincipalKindAuthorizationError,

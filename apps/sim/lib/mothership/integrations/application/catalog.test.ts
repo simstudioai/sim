@@ -378,7 +378,12 @@ it('filters organization enabled servers to the authorized target before broad M
     },
   })
   expect(mocks.listServers).toHaveBeenCalledWith({
-    principal: expect.objectContaining({ workspaceId: 'workspace-1', subjectUserId: 'actor' }),
+    principal: expect.objectContaining({
+      subjectUserId: 'actor',
+      grant: expect.objectContaining({
+        owner: { entityType: 'workspace', entityId: 'workspace-1' },
+      }),
+    }),
     input: { workspaceId: 'workspace-1' },
   })
   expect(mocks.mcp).toHaveBeenCalledWith('actor', 'workspace-1', ['mcp-abc'], undefined)

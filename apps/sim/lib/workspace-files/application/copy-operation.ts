@@ -1,4 +1,5 @@
 import {
+  assertContentDeliveryDeclaration,
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
@@ -13,10 +14,12 @@ const policy = {
   delegatedServices: ['copilot'],
   delegationScope: 'resource',
   delegationAudience: 'sim:files:copy',
+  contentDelivery: 'none',
 } as const
 
 assertOperationCapability(policy)
 assertOperationOAuthPolicy(policy)
+assertContentDeliveryDeclaration(policy, policy.delegatedServices)
 Object.freeze(policy.principalKinds)
 Object.freeze(policy.delegatedServices)
 

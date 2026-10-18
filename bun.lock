@@ -458,6 +458,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@sim/db": "workspace:*",
+        "@sim/utils": "workspace:*",
         "better-auth": "1.6.27",
       },
       "devDependencies": {

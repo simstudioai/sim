@@ -85,7 +85,11 @@ describe('handleResourceEvent removal', () => {
 
     handleResourceEvent(ctx, removeEvent('workflow', 'wf-1'))
 
-    expect(deps.removeResource).toHaveBeenCalledWith('workflow', 'wf-1')
+    expect(deps.removeResource).toHaveBeenCalledWith({
+      type: 'workflow',
+      id: 'wf-1',
+      title: 'wf-1',
+    })
     expect(mocks.removeWorkflowFromActiveCache).toHaveBeenCalledWith(
       deps.queryClient,
       'ws-1',
@@ -463,6 +467,22 @@ describe('organization resource stream', () => {
     })
     expect(org.removeResource).not.toHaveBeenCalled()
     expect(workspace.removeResource).not.toHaveBeenCalled()
+    expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
+  })
+
+  it('opens a Project file tab, which names no workspace, in an organization chat', () => {
+    const org = makeStreamLoopDeps({ workspaceId: undefined })
+    const projectFile = {
+      type: 'file' as const,
+      id: 'file-1',
+      title: 'context.md',
+      owner: { entityType: 'project' as const, entityId: 'project-1' },
+    }
+    handleResourceEvent({ deps: org } as StreamLoopContext, {
+      ...removeEvent('file', 'file-1'),
+      payload: { op: 'upsert', resource: projectFile },
+    })
+    expect(org.addResource).toHaveBeenCalledWith(projectFile)
     expect(mocks.invalidateResourceQueries).not.toHaveBeenCalled()
   })
 })

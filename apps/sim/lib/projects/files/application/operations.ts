@@ -5,6 +5,7 @@ import type {
 } from '@sim/auth/principal'
 import {
   type ApplicationOperation,
+  assertContentDeliveryDeclaration,
   assertOperationCapability,
   assertOperationOAuthPolicy,
 } from '@/lib/core/application/operation'
@@ -66,16 +67,22 @@ function defineProjectFileOperation<const O extends ProjectFilePolicy>(
   ) {
     throw new Error('Realtime Project authority must target an existing file')
   }
+  assertContentDeliveryDeclaration(operation, operation.delegatedServices)
   Object.freeze(operation.principalKinds)
   Object.freeze(operation.delegatedServices)
   return Object.freeze({ ...operation, delegationScope: 'resource' as const })
 }
 
 const PRINCIPALS = ['session', 'personal_api_key', 'oauth_access_token', 'delegated'] as const
+/**
+ * Copilot reaches these operations through a resource grant. They are outside the
+ * workspace-file content ledger, so the reviewed answer is `none`.
+ */
 const POLICY = {
   principalKinds: PRINCIPALS,
   delegationAudience: 'sim:project-files',
   delegatedServices: ['copilot'],
+  contentDelivery: 'none',
 } as const
 
 const HISTORY_POLICY = {

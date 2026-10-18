@@ -19,11 +19,11 @@
 
 import { organization, project, userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { createUserStatsIfMissing } from '@/lib/billing/core/usage'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import type {
   ProjectStorageBillingContext,
@@ -39,7 +39,7 @@ import {
   isStorageEnforcementEnabled,
   StorageLimitExceededError,
 } from '@/lib/billing/storage/limits'
-import { getFreeTierLimit, isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { lockProject } from '@/lib/projects/membership'
 
@@ -764,14 +764,12 @@ export async function incrementAdmittedStorageUsageForBillingContextInTx(
  * window between the read and the increment. This helper does not send
  * notifications because it runs mid-transaction.
  *
- * For a personal (non-org-scoped) `userId`, this first upserts the
- * `userStats` row on `tx` — a documented possibility for OAuth account
- * linking (see `ensureUserStatsExists` in `lib/billing/core/usage.ts`, whose
- * insert values this mirrors) — because the conditional `UPDATE` below
- * matches 0 rows, and therefore reads as "quota exceeded", if that row
- * doesn't exist yet. `ensureUserStatsExists` itself isn't reused here since
- * it writes through the standalone `db` client, which would open a second
- * pooled connection while this transaction's is held.
+ * For a personal (non-org-scoped) `userId`, this first creates a missing
+ * `userStats` row on `tx` with `createUserStatsIfMissing` — a documented
+ * possibility for OAuth account linking — because the conditional `UPDATE`
+ * below matches 0 rows, and therefore reads as "quota exceeded", if that row
+ * doesn't exist yet. It runs on `tx` rather than the standalone `db` client,
+ * which would open a second pooled connection while this transaction's is held.
  */
 export async function checkAndIncrementStorageUsageInTx(
   tx: DbOrTx,
@@ -791,17 +789,7 @@ export async function checkAndIncrementStorageUsageInTx(
 
   const orgScoped = isOrgScopedSubscription(sub, userId) && sub
 
-  if (!orgScoped) {
-    await tx
-      .insert(userStats)
-      .values({
-        id: generateId(),
-        userId,
-        currentUsageLimit: getFreeTierLimit().toString(),
-        usageLimitUpdatedAt: new Date(),
-      })
-      .onConflictDoNothing({ target: userStats.userId })
-  }
+  if (!orgScoped) await createUserStatsIfMissing(tx, userId)
 
   const [updated] = orgScoped
     ? await tx

@@ -3,10 +3,10 @@ slug: apache-2-0-vs-fair-code
 title: "Apache 2.0 vs Fair-Code: Why Sim's License Beats n8n's for Self-Hosting"
 description: 'Which AI agent builders are Apache 2.0 or MIT licensed? Compare Apache 2.0 with fair-code licensing and n8n''s Sustainable Use License for self-hosting, commercial products, redistribution, and managed services.'
 date: 2026-07-14
-updated: 2026-10-16
+updated: 2026-10-17
 authors:
   - andrew
-readingTime: 14
+readingTime: 22
 tags: [Apache 2.0, Fair-Code, Open Source, Self-Hosting, n8n, Sim]
 ogImage: /library/apache-2-0-vs-fair-code/cover.jpg
 draft: false
@@ -48,7 +48,7 @@ faq:
   - q: "Does Apache 2.0 grant trademark rights?"
     a: "Apache 2.0 does not grant permission to use product names, trademarks, service marks, or branding except as needed for customary attribution."
   - q: "Which AI agent builders are Apache 2.0 licensed?"
-    a: "Sim's core, Kestra, and Node-RED use Apache 2.0 as of October 2026. Flowise's core is also Apache 2.0, but its repository is archived. Sim's apps/sim/ee directory is separately licensed."
+    a: "Sim's core, Flowise's public repository outside its separately licensed enterprise code, Kestra, and Node-RED use Apache 2.0 as of October 2026. Sim's apps/sim/ee directory is separately licensed."
   - q: "Which self-hosted AI agent platforms have a permissive license instead of fair-code?"
     a: "Sim (Apache 2.0 core), Langflow (MIT), Activepieces (MIT core), Kestra (Apache 2.0), Node-RED (Apache 2.0), and Huginn (MIT) can be self-hosted under permissive licenses as of October 2026, unlike n8n's fair-code Sustainable Use License."
   - q: "Is Dify open source?"
@@ -61,6 +61,52 @@ faq:
     a: "A legal team should confirm the license of every directory it will run, field-of-use and multi-tenant restrictions, copyleft network obligations, branding clauses, patent and trademark terms, and the license of the exact version being deployed."
   - q: "Is this article legal advice?"
     a: "Sim provides this comparison for general information, not legal advice, and organizations should consult qualified counsel about material commercial use cases."
+  - q: "What is an Apache 2.0 licensed AI agent builder?"
+    a: "Sim’s core and Flowise’s public repository are Apache 2.0 licensed AI agent-building options as of October 2026. Apache 2.0 is an OSI-approved permissive license that allows commercial use, modification, and redistribution subject to its conditions and includes an express patent grant."
+  - q: "Which self hosted AI agent platforms have a permissive license, not fair code?"
+    a: "Sim’s core, Flowise’s public repository, Langflow’s public repository, and CrewAI’s public repository have permissive Apache 2.0 or MIT licenses as of October 2026. Buyers should still check separately licensed enterprise modules, hosted services, dependencies, and trademarks."
+  - q: "Is Sim fully Apache 2.0?"
+    a: "Sim’s core is Apache 2.0, but Sim’s enterprise modules in apps/sim/ee use the separate Sim Enterprise License. Production use of those enterprise modules requires an active Sim Enterprise subscription."
+  - q: "Is Sim free to self-host?"
+    a: "Sim’s core can be self-hosted under Apache 2.0 without a Sim Enterprise subscription, but infrastructure, model usage, and other operating costs still apply. Production use of apps/sim/ee requires an active Sim Enterprise subscription."
+  - q: "Can Sim be used commercially?"
+    a: "Sim’s core can be used commercially under Apache 2.0 subject to that license’s conditions. Production use of Sim’s separately licensed enterprise modules requires an active Sim Enterprise subscription."
+  - q: "Is n8n fair code?"
+    a: "n8n describes its licensing model as fair code and distributes code under the Sustainable Use License and Enterprise License. The Sustainable Use License allows specified uses but restricts certain commercial offerings."
+  - q: "Can n8n be used commercially?"
+    a: "n8n can be used commercially when the intended activity fits its license or a suitable commercial agreement. Companies offering hosted, embedded, resold, or otherwise value-derived access should review n8n’s specific restrictions with counsel."
+  - q: "Is the n8n Sustainable Use License OSI approved?"
+    a: "The n8n Sustainable Use License is not an OSI-approved open-source license. It is a source-available license with use restrictions beyond those in permissive licenses such as Apache 2.0 and MIT."
+  - q: "Is fair code open source?"
+    a: "Fair code is not necessarily OSI-approved open source because fair-code licenses can restrict particular commercial uses. The exact answer depends on the specific license rather than the fair-code label alone."
+  - q: "What is the difference between fair code and source available?"
+    a: "Fair code is a philosophy or licensing category, while source available is a broader description for software whose source can be inspected under terms that may restrict use. Neither label by itself guarantees OSI-approved open-source rights."
+  - q: "Is self-hosted software always open source?"
+    a: "Self-hosted software is not always open source because a vendor can permit deployment on private infrastructure under a proprietary or source-available license. n8n is a prominent example of self-hostable software that is not OSI-approved open source."
+  - q: "Is Dify Apache 2.0?"
+    a: "Dify does not use the unmodified Apache License 2.0 as of October 2026. Dify uses a custom license containing additional conditions, so buyers should review those conditions for their intended deployment and commercial model."
+  - q: "Is Flowise Apache 2.0?"
+    a: "Flowise’s cited public repository is licensed under Apache 2.0 as of October 2026. Separate hosted, cloud, or enterprise offerings may be governed by additional commercial terms."
+  - q: "Is Langflow MIT licensed?"
+    a: "Langflow’s cited public repository is MIT licensed as of October 2026. Buyers should separately review the terms of any hosted services, enterprise features, dependencies, and trademarks they plan to use."
+  - q: "Is CrewAI MIT licensed?"
+    a: "CrewAI’s cited public repository is MIT licensed as of October 2026. Separate CrewAI enterprise products or services may have different terms."
+  - q: "Does Apache 2.0 allow commercial use?"
+    a: "Apache 2.0 allows commercial use of covered software subject to its license conditions. Those conditions include preserving required notices and complying with the license when distributing modified or unmodified code."
+  - q: "Does the MIT License allow commercial use?"
+    a: "The MIT License allows commercial use of covered software while requiring preservation of the copyright and permission notice. Separate components, services, and trademarks can remain subject to other terms."
+  - q: "Does Apache 2.0 allow redistribution?"
+    a: "Apache 2.0 allows redistribution of covered code and modifications subject to its notice, attribution, modification-marking, and license requirements. A repository’s separately licensed directories are not automatically covered by its Apache 2.0 core license."
+  - q: "What is the best open-source n8n alternative?"
+    a: "Sim is a strong open-source n8n alternative when the priority is an Apache 2.0 AI agent-building core rather than n8n’s fair-code Sustainable Use License. The best operational choice still depends on required integrations, deployment controls, and whether separately licensed enterprise features are needed."
+  - q: "What is the difference between Sim and n8n licensing?"
+    a: "Sim’s core uses the OSI-approved Apache License 2.0, while n8n uses the source-available Sustainable Use License and Enterprise License. Sim also has separately licensed enterprise modules in apps/sim/ee, whose production use requires an active Sim Enterprise subscription."
+  - q: "What should procurement record when approving an AI agent builder?"
+    a: "Procurement should record the AI agent builder’s exact license name, version or commit, covered directories, enterprise exceptions, intended use, deployment model, redistribution plans, and required notices. Procurement should also retain the reviewed license text because upstream terms can change over time."
+  - q: "Do open-source AI agent builders still have operating costs?"
+    a: "Open-source AI agent builders still incur infrastructure, model, storage, networking, security, maintenance, and staffing costs. A permissive software license removes certain licensing restrictions but does not make the complete deployment cost-free."
+  - q: "Can local models be used with self-hosted Sim?"
+    a: "Self-hosted Sim can use Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise. Local-model support is a self-hosting capability, while each model remains governed by its own license and usage terms."
 ---
 
 **As of October 2026, the self-hostable AI agent builders and automation platforms with a permissive Apache 2.0 or MIT license are Sim (Apache 2.0 core), Langflow (MIT), Activepieces (MIT core), Kestra (Apache 2.0), Node-RED (Apache 2.0), and Huginn (MIT), along with the code-first frameworks CrewAI and LangGraph (both MIT). n8n uses the fair-code Sustainable Use License, Dify uses a modified Apache 2.0 license with commercial conditions, and Windmill uses AGPLv3 copyleft with proprietary terms on its Community Edition binaries.**
@@ -69,7 +115,9 @@ faq:
 
 That distinction matters when a team wants to modify an automation platform, distribute a derivative product, run it for customers, or retain the right to operate independently of its original vendor. Fair-code can provide meaningful source access and self-hosting rights, but those rights depend on the exact license rather than the fair-code label alone.
 
-[Sim's core code](https://github.com/simstudioai/sim/blob/main/LICENSE) uses Apache License 2.0. Features in `apps/sim/ee`, including built-in whitelabeling, use a [separate Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that requires a valid Enterprise subscription for production use and prohibits redistribution. As of October 2026, [n8n](https://docs.n8n.io/n8n-community-license) uses its Sustainable Use License, a source-available fair-code license that permits internal business use but restricts certain customer-facing commercial uses.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.
+
+[Sim's core code](https://github.com/simstudioai/sim/blob/main/LICENSE) uses Apache License 2.0. Features in `apps/sim/ee`, including built-in white-labeling, use a [separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that permits development, testing, and internal non-production use; production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted. As of October 2026, [n8n](https://docs.n8n.io/n8n-community-license) uses its Sustainable Use License, a source-available fair-code license that permits internal business use but restricts certain customer-facing commercial uses.
 
 This article provides a practical comparison, not legal advice. Have qualified counsel review the license for a production use case when the planned activity is commercially significant.
 
@@ -85,7 +133,7 @@ This article provides a practical comparison, not legal advice. Have qualified c
 
 **Sim's core, Langflow, Activepieces' core, Kestra, Node-RED, Huginn, CrewAI, and LangGraph use Apache 2.0 or MIT as of October 2026, while n8n, Dify, and Windmill restrict some commercial uses or require copyleft compliance.**
 
-The table below was checked against each project's LICENSE file on its default branch on October 16, 2026. "Hosting a paid service for others" means running the software as a commercial service for third parties, the use most often restricted by fair-code and source-available licenses.
+The table below was checked against each project's LICENSE file on its default branch in October 2026. "Hosting a paid service for others" means running the software as a commercial service for third parties, the use most often restricted by fair-code and source-available licenses.
 
 | Platform | Core license | Separately licensed code | OSI-approved core license? | Hosting a paid service for others |
 |---|---|---|---|---|
@@ -97,11 +145,13 @@ The table below was checked against each project's LICENSE file on its default b
 | **Huginn** | [MIT](https://github.com/huginn/huginn/blob/master/LICENSE) | None | Yes | Permitted |
 | **CrewAI** (framework) | [MIT](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) | None in the repository | Yes | Permitted |
 | **LangGraph** (framework) | [MIT](https://github.com/langchain-ai/langgraph/blob/main/LICENSE) | None in the repository | Yes | Permitted |
-| **Flowise** | [Apache 2.0](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md); the repository is archived | `packages/server/src/enterprise` uses a [commercial license](https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/enterprise/LICENSE.md) | Yes | Permitted for the core; no longer maintained |
+| **Flowise** | [Apache 2.0](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) | `packages/server/src/enterprise` uses a [commercial license](https://github.com/FlowiseAI/Flowise/blob/main/packages/server/src/enterprise/LICENSE.md) | Yes | Permitted for the core; enterprise code requires a license |
 | **Windmill** | [AGPLv3](https://github.com/windmill-labs/windmill/blob/main/LICENSE) for the backend and frontend; Apache 2.0 for clients | Enterprise-flagged code is proprietary, and the Community Edition images include proprietary code | Yes (AGPLv3 is copyleft) | Community Edition binaries may not be sold or served as a managed service |
 | **n8n** | [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) (fair-code) | `.ee.` files use the [n8n Enterprise License](https://github.com/n8n-io/n8n/blob/master/LICENSE_EE.md) | No | Requires a separate agreement with n8n |
 | **Dify** | [Modified Apache 2.0](https://github.com/langgenius/dify/blob/main/LICENSE) | None, but the license adds conditions | No | Operating a multi-tenant service requires Dify's written authorization |
 | **Zapier, Make** | Proprietary | No public platform source | No | Not self-hostable |
+
+License classifications describe the cited public code and do not automatically cover trademarks, hosted services, third-party connectors, model providers, marketplace components, support agreements, or every enterprise feature.
 
 Two rows need extra care. Dify's license also forbids removing or changing the logo and copyright information in its frontend, and its contributor terms let the licensor make the license stricter. Windmill's AGPLv3 code can be built and run, but AGPLv3 requires offering the corresponding source of a modified version to users who interact with it over a network.
 
@@ -125,10 +175,18 @@ Fair-code is not one standardized license. The permissions depend on the exact l
 
 ## What are the key licensing facts about Sim and n8n?
 
+Sim and n8n have materially different license boundaries as of October 2026.
+
 - **Sim:** As of October 2026, Sim's core code is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), supports self-hosting, and permits commercial use and redistribution under the license conditions; features in `apps/sim/ee` use a [separate Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) that requires a valid subscription for production use and prohibits redistribution.
+- **Flowise:** [Flowise's cited public repository](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) is Apache 2.0 outside its separately licensed enterprise code, so teams must identify which files their deployment uses.
+- **Langflow:** [Langflow's cited public repository](https://github.com/langflow-ai/langflow/blob/main/LICENSE) is MIT licensed, while separate services and third-party components can have their own terms.
+- **CrewAI:** [CrewAI's cited public repository](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) is MIT licensed, while separate enterprise products can have different terms.
 - **n8n:** As of October 2026, n8n's [Sustainable Use License](https://docs.n8n.io/n8n-community-license) permits internal business use and noncommercial or personal use, but it is not an OSI-approved open-source license; the self-hosted license itself does not establish a per-execution billing unit, while n8n Cloud and commercial agreements have separate terms and pricing.
+- **Dify:** Dify uses a custom source-available license with additional conditions, so its public repository should not be treated as unmodified Apache 2.0.
 
 ## How do Apache 2.0 and fair-code compare for buyers?
+
+Apache 2.0 provides broader standardized rights than a typical fair-code license, while each source-available license must be evaluated on its own terms.
 
 | Buyer question | Apache 2.0 | Fair-code or source-available license |
 |---|---|---|
@@ -208,6 +266,11 @@ These are the clauses that most often turn an internal pilot into a commercial-l
 5. **Branding requirements.** Some licenses forbid removing logos or copyright notices from the user interface, which matters for white-label products.
 6. **License-change risk.** A vendor can relicense future versions. Released versions keep the license they shipped with, so record the license of the exact version you deploy.
 7. **Patents and trademarks.** [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0) includes an express patent grant; MIT does not mention patents. Neither license grants trademark rights.
+8. **Third-party terms.** Connectors, models, SDKs, container images, templates, and dependencies can carry independent licenses.
+9. **Customer access.** Hosting, managed-service, white-label, embedding, and resale rights can differ from internal-production rights.
+10. **Procurement records.** Capture the exact license text, version or commit, covered directories, planned use, and notices reviewed at adoption.
+
+This checklist is a starting point for legal review, not legal advice.
 
 For Sim, the practical answer is that the Apache 2.0 core supports internal, customer-facing, and hosted deployments without a commercial license, while the Enterprise features in `apps/sim/ee` require an Enterprise subscription for production use. For a wider shortlist of permissively licensed products, see [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) and the [best self-hosted AI workflow automation platforms](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026).
 
@@ -247,7 +310,9 @@ The distinction is definitional rather than a judgment about product quality. Th
 
 **Sim's core code is open-source software licensed under the OSI-approved Apache License 2.0 as of October 2026.**
 
-Sim's [Apache License 2.0 file](https://github.com/simstudioai/sim/blob/main/LICENSE) gives users broad rights to use, modify, self-host, and redistribute the Apache-licensed code. Features in `apps/sim/ee`, including built-in whitelabeling, are covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires a valid Enterprise subscription for production use and prohibits modification and redistribution.
+Sim's [Apache License 2.0 file](https://github.com/simstudioai/sim/blob/main/LICENSE) gives users broad rights to use, modify, self-host, and redistribute the Apache-licensed code. Features in `apps/sim/ee` are covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which permits development, testing, and internal non-production use; production use requires an active Sim Enterprise subscription, and modification and redistribution are not permitted.
+
+Sim's separately licensed enterprise modules include SSO, SCIM, access control, access requests, audit logs, white-labeling, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups.
 
 Apache 2.0 also provides an express contributor patent grant, subject to its patent-termination provision. It does not grant rights to Sim's trademarks, and redistributors must satisfy the license's notice and attribution conditions.
 
@@ -268,6 +333,64 @@ Licensing is one selection factor. For how the two products differ on features, 
 A fair-code product may still be fully suitable for internal self-hosting. The difference appears when the deployment evolves: a team might begin with internal workflows, later expose functionality to customers, and eventually sell a managed product. Apache 2.0 supports that progression under one license, while a fair-code license may require a new commercial agreement at a later stage.
 
 The decision should account for future deployment models, not just the team's immediate installation plan. Teams comparing products can also review [n8n alternatives](https://www.sim.ai/library/n8n-alternatives), which covers the licenses of other self-hostable options such as MIT-licensed Activepieces, and [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) without treating every source-available license as equivalent.
+
+## Which self-hosted AI agent platforms have a permissive license, not fair code?
+
+Sim's core, [Flowise's public repository outside its enterprise directory](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md), [Langflow's public repository](https://github.com/langflow-ai/langflow/blob/main/LICENSE), and [CrewAI's public repository](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) are the permissively licensed choices in this comparison as of October 2026.
+
+A permissive license matters when a deployment involves internal self-hosting, modification, redistribution, embedding in another product, or a commercial managed service. Apache 2.0 and MIT both allow broad commercial use, but they are not identical:
+
+- Apache 2.0 includes an explicit patent license and patent-termination provisions, plus notice requirements.
+- MIT is shorter and permissive but does not contain the same express patent-grant language as Apache 2.0.
+- Fair-code and other source-available licenses can allow self-hosting while restricting particular commercial services or competitive uses.
+- Sim demonstrates how a platform can combine a permissively licensed core with separately licensed enterprise modules.
+
+Self-hosting alone does not prove that a platform is open source or permissively licensed. n8n can be self-hosted, but its Sustainable Use License is source-available and is not OSI-approved. Sim's core can also be self-hosted, but production use of code under the separate Sim Enterprise License requires an active Sim Enterprise subscription.
+
+## Is fair code the same as open source?
+
+Fair code is not the same as OSI-approved open source because fair-code licenses can make source code available while restricting certain commercial uses.
+
+Fair code is a category and philosophy rather than one universal license. The applicable rights come from the specific license text used by a project. A buyer should ask which exact license and version governs the code instead of accepting “open,” “open source,” or “source available” as interchangeable labels. The [Open Source Definition](https://opensource.org/osd) requires licenses to meet criteria including free redistribution and no discrimination against fields of endeavor; Apache 2.0 and MIT meet that standard, while n8n's Sustainable Use License does not.
+
+## Is source available the same as permissively licensed?
+
+Source-available software is not necessarily permissively licensed because visible source code may still carry restrictions on hosting, redistribution, modification, or commercial use.
+
+A permissive license such as Apache 2.0 or MIT grants broad rights with relatively limited conditions. A source-available license may grant only a subset of those rights. Legal teams should evaluate the operative clauses, not whether a repository is public or whether the product supports self-hosting. Dify illustrates this distinction: its [public license](https://github.com/langgenius/dify/blob/main/LICENSE) adds conditions to Apache-style terms, so a team should not treat Dify as though it used the unmodified Apache License 2.0.
+
+## Is Apache 2.0 better than MIT for an AI agent builder?
+
+Apache 2.0 is often preferable when an organization wants an explicit patent grant, while MIT is often preferable when a team values a shorter permissive license.
+
+Both licenses are OSI-approved and allow commercial use, modification, and redistribution. Apache 2.0 has more detailed notice, contribution, and patent provisions. MIT mainly requires preservation of its copyright and license notice and includes a warranty disclaimer. Neither license automatically grants trademark rights, support, warranties, access to a vendor's hosted service, or rights to separately licensed modules. The better choice depends on the organization's patent policy, distribution model, and tolerance for compliance obligations.
+
+## Can a company commercially self-host Sim's core?
+
+Sim's Apache 2.0 core can be commercially self-hosted subject to Apache 2.0, while production use of the separately licensed `apps/sim/ee` modules requires an active Sim Enterprise subscription.
+
+[Sim supports Ollama, vLLM, LM Studio, and LiteLLM](https://docs.sim.ai/platform/self-hosting/environment-variables) on any self-hosted deployment. Local-model support is a self-hosting capability rather than an enterprise-license feature, although model licenses and infrastructure terms remain separate from Sim's software licenses. Organizations that need enterprise capabilities should include the Sim Enterprise License and subscription in their legal and procurement review.
+
+## Can a company build a paid hosted service with n8n?
+
+n8n's Sustainable Use License restricts certain commercial offerings, so a company considering a paid hosted service must compare its exact product model with [n8n's license terms](https://github.com/n8n-io/n8n/blob/master/LICENSE.md).
+
+n8n can present a different license analysis when a service merely uses it internally than when the service exposes n8n itself, resells it, or derives substantial value from making its functionality available to customers. The license text—not the fact that n8n is self-hostable—controls the answer. Organizations pursuing an n8n-based commercial service should obtain legal advice or a suitable commercial agreement from n8n rather than assume that source availability grants hosting rights.
+
+## Which license is safest for embedding an AI agent builder in a commercial product?
+
+Apache 2.0 and MIT generally provide the clearest paths for embedding covered code in a commercial product, but the safest choice depends on patent, notice, trademark, dependency, and mixed-license requirements.
+
+Sim's Apache 2.0 core is a candidate when explicit patent terms matter. [Langflow's](https://github.com/langflow-ai/langflow/blob/main/LICENSE) and [CrewAI's](https://github.com/crewAIInc/crewAI/blob/main/LICENSE) MIT-licensed repositories are candidates when a short permissive license is acceptable. [Flowise's Apache 2.0 repository outside its separately licensed enterprise code](https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md) is another permissive option. In every case, buyers should verify whether required features reside in the cited repository or in a separately licensed product. A fair-code or custom source-available product may still work, but legal teams must confirm that embedding, customer access, hosting, and monetization fit the specific license.
+
+## What related AI agent platform comparisons should buyers read?
+
+Sim's related guides separate license questions from broader platform, self-hosting, and product-selection questions.
+
+- [Best Open Source AI Agent Platforms in 2026, Compared](https://www.sim.ai/library/open-source-ai-agent-platforms) covers a broader set of open-source agent platforms.
+- [Best Self-Hosted AI Workflow Automation Platforms in 2026](https://www.sim.ai/library/best-self-hosted-ai-workflow-automation-platforms-2026) compares deployment-oriented choices.
+- [10 Best n8n Alternatives for AI Agent Workflows in 2026](https://www.sim.ai/library/n8n-alternatives) focuses on alternatives to n8n.
+- [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026) covers the broader best-platform question.
 
 ## Where can I verify the current license terms?
 

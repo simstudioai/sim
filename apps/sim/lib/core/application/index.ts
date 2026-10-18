@@ -85,6 +85,7 @@ export {
   redactBeforeCutting,
   requireAdmittedContent,
   runDeclaredContentOperation,
+  runWorkflowOutsideContentDelivery,
   trackContentDelivery,
   type WithheldContent,
 } from './content-delivery'

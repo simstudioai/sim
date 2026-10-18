@@ -19,6 +19,7 @@ import {
   observeContentOutsideModel,
   requireAdmittedContent,
   runDeclaredContentOperation,
+  runWorkflowOutsideContentDelivery,
   trackContentDelivery,
 } from '@/lib/core/application/content-delivery'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
@@ -501,6 +502,37 @@ describe('observeContentDelivery', () => {
     )
     expect(inner.batches).toEqual([['clean']])
     expect(outer.batches).toEqual([])
+  })
+})
+
+describe('runWorkflowOutsideContentDelivery', () => {
+  it('keeps an in-process run from consulting or accounting to the Chat request around it', async () => {
+    const { gate, batches } = recordingGate()
+    const record = await observeContentDelivery(gate, () =>
+      trackContentDelivery(async () => {
+        noteContentDeliveryOperation(SOURCED, CHAT)
+        await runWorkflowOutsideContentDelivery(() =>
+          runDeclaredContentOperation(SOURCED, CHAT, () =>
+            admitContent(CHAT, [source('tainted', 'unknown')])
+          )
+        )
+      })
+    )
+    expect(batches).toEqual([])
+    expect(record.unaccounted).toBe(true)
+  })
+
+  it('classifies again under a gate installed inside the run, and after the run returns', async () => {
+    const outer = recordingGate()
+    const inner = recordingGate()
+    await observeContentDelivery(outer.gate, async () => {
+      await runWorkflowOutsideContentDelivery(() =>
+        observeContentDelivery(inner.gate, () => admitContent(CHAT, [source('inside')]))
+      )
+      await admitContent(CHAT, [source('result')])
+    })
+    expect(inner.batches).toEqual([['inside']])
+    expect(outer.batches).toEqual([['result']])
   })
 })
 

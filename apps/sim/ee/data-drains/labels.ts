@@ -12,6 +12,7 @@ export const DESTINATION_LABELS: Record<(typeof DESTINATION_TYPES)[number], stri
   s3: 'Amazon S3',
   gcs: 'Google Cloud Storage',
   azure_blob: 'Azure Blob Storage',
+  sentinel: 'Microsoft Sentinel',
   datadog: 'Datadog',
   bigquery: 'Google BigQuery',
   snowflake: 'Snowflake',

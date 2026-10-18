@@ -1,3 +1,4 @@
+import { createExecutorPrincipal } from '@sim/testing/factories/principal.factory'
 import { describe, expect, it } from 'vitest'
 import {
   bindCopilotWorkspaceOperation,
@@ -44,9 +45,21 @@ describe('private table workspace invocation', () => {
     expect(() =>
       markCopilotWorkspaceInvocation({ ...principal(), expiresAt: new Date(0) })
     ).toThrow(/current/)
-    expect(() => markCopilotWorkspaceInvocation({ ...principal(), serviceId: 'executor' })).toThrow(
-      /current/
-    )
+    expect(() =>
+      markCopilotWorkspaceInvocation(
+        createExecutorPrincipal({ subjectUserId: 'actor', workspaceId: 'workspace' })
+      )
+    ).toThrow(/current/)
+    const illegal = {
+      ...principal(),
+      invocation: { kind: 'workspace' as const, workspaceId: 'workspace' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace' },
+        fileId: 'file-1',
+      },
+    }
+    expect(() => markCopilotWorkspaceInvocation(illegal)).toThrow(/current/)
   })
 })
 describe('nested workspace operation binding', () => {

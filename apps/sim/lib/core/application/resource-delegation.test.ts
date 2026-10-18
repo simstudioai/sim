@@ -1,5 +1,8 @@
 import {
+  hasResourceOperationGrant,
+  isWorkspaceDelegation,
   parsePrincipal,
+  principalWorkspaceId,
   resolvePrincipalAttribution,
   resolvePrincipalAuditAttribution,
   resolvePrincipalSubjectUserId,
@@ -231,6 +234,36 @@ describe('resource delegation authorization', () => {
         { ...observation, services: ['copilot'] }
       )
     ).toThrow('Resource delegation is no longer valid')
+  })
+
+  it('admits neither workspace nor resource operations for a workspace grant with a top-level file id', () => {
+    const illegal = {
+      ...principal,
+      invocation: { kind: 'workspace' as const, workspaceId: 'workspace-1' },
+      grant: {
+        kind: 'entity' as const,
+        owner: { entityType: 'workspace' as const, entityId: 'workspace-1' },
+        fileId: 'file-1',
+      },
+    }
+    const operation = defineWorkspaceOperation({
+      id: 'files.read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      principalKinds: ['delegated'],
+      delegatedServices: ['copilot'],
+      contentDelivery: 'none',
+      capability: 'none',
+    })
+    expect(isWorkspaceDelegation(illegal)).toBe(false)
+    expect(hasResourceOperationGrant(illegal)).toBe(false)
+    expect(principalWorkspaceId(illegal)).toBeUndefined()
+    expect(() => requireAllowedWorkspacePrincipal(illegal, operation)).toThrow(
+      expect.objectContaining({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
+    )
+    expect(() => requireResourceDelegation(illegal, policy)).toThrow(
+      'Resource delegation is no longer valid'
+    )
   })
 
   it('cannot be admitted to workspace operations or persisted as workflow authority', () => {

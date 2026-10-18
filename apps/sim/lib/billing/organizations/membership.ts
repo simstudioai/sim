@@ -29,7 +29,7 @@ import {
   invalidateSecurityPolicyVersionCache,
 } from '@/lib/auth/security-policy'
 import { applySessionPolicyToNewMember } from '@/lib/auth/session-policy'
-import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { createUserStatsIfMissing, syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   assertNoUnresolvedEnterpriseIssuance,
   resolveEnterpriseMetadataIntent,
@@ -1935,14 +1935,7 @@ export async function transferOrganizationOwnership(
         .limit(1)
 
       if (oldStats) {
-        await tx
-          .insert(userStats)
-          .values({
-            id: generateId(),
-            userId: newOwnerUserId,
-            usageLimitUpdatedAt: new Date(),
-          })
-          .onConflictDoNothing({ target: userStats.userId })
+        await createUserStatsIfMissing(tx, newOwnerUserId)
 
         const overage = oldStats.billedOverageThisPeriod || '0'
         const overageNum = toNumber(toDecimal(overage))

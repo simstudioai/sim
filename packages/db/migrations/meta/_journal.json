@@ -3036,8 +3036,15 @@
     {
       "idx": 434,
       "version": "7",
-      "when": 1792277357473,
-      "tag": "0434_chat_run_stops",
+      "when": 1792204592687,
+      "tag": "0434_sentinel_data_drain",
+      "breakpoints": true
+    },
+    {
+      "idx": 435,
+      "version": "7",
+      "when": 1792359423643,
+      "tag": "0435_chat_run_stops",
       "breakpoints": true
     }
   ]

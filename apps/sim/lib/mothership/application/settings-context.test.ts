@@ -87,7 +87,10 @@ describe('settings conversation scope', () => {
     expect(result.principal).toMatchObject({
       kind: 'delegated',
       subjectUserId: 'actor',
-      workspaceId: 'workspace-a',
+      grant: {
+        kind: 'entity',
+        owner: { entityType: 'workspace', entityId: 'workspace-a' },
+      },
     })
   })
 

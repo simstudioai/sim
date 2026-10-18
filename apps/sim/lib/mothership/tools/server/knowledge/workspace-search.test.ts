@@ -221,7 +221,9 @@ describe('Assistant retrieval tools', () => {
         principal: expect.objectContaining({
           kind: 'delegated',
           subjectUserId: 'reader',
-          workspaceId: 'workspace',
+          grant: expect.objectContaining({
+            owner: { entityType: 'workspace', entityId: 'workspace' },
+          }),
         }),
         input: expect.objectContaining({
           workspaceId: 'workspace',

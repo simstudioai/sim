@@ -5923,6 +5923,23 @@ describe('Centralized Error Handling', () => {
       return buildBlockExecutionError({ block: apiBlock, error: thrown as Error })
     }
 
+    it.each(['<html>upstream gateway</html>', ''])(
+      'attributes a non-JSON 2xx body to the provider when a transform reads JSON (%j)',
+      async (body) => {
+        const originalTransform = tools.http_request.transformResponse
+        tools.http_request.transformResponse = async (response) => ({
+          success: true,
+          output: await response.json(),
+        })
+        try {
+          const blockError = await failApiBlock(new Response(body, { status: 200 }))
+          expect(classifyFailure(blockError)).toBe('third_party_server')
+        } finally {
+          tools.http_request.transformResponse = originalTransform
+        }
+      }
+    )
+
     it.each([
       [404, 'third_party_client'],
       [503, 'third_party_server'],
@@ -5942,6 +5959,11 @@ describe('Centralized Error Handling', () => {
         'third_party_client',
       ],
       ['a bug in the transform itself', new TypeError('data.channel is undefined'), 'internal'],
+      [
+        'a parser bug in the transform itself',
+        new SyntaxError('invalid transform configuration'),
+        'internal',
+      ],
     ] as const)('attributes %s', async (_name, transformError, kind) => {
       const originalTransform = tools.http_request.transformResponse
       tools.http_request.transformResponse = async () => {

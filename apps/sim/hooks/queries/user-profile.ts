@@ -8,6 +8,7 @@ import {
   type UpdateUserProfileBody,
   updateUserProfileContract,
 } from '@/lib/api/contracts/user'
+import { client } from '@/lib/auth/client'
 import {
   mapUserProfileResponse,
   USER_PROFILE_STALE_TIME,
@@ -85,6 +86,19 @@ export function useResetPassword() {
   return useMutation({
     mutationFn: async ({ email, redirectTo }: ResetPasswordParams) => {
       return requestJson(forgetPasswordContract, { body: { email, redirectTo } })
+    },
+  })
+}
+
+/**
+ * Ends every session except this one. Better Auth's plugin endpoint is called through the auth
+ * client, as no Sim contract types it.
+ */
+export function useSignOutOtherDevices() {
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await client.revokeOtherSessions()
+      if (error) throw new Error(error.message ?? 'Failed to sign out other devices')
     },
   })
 }

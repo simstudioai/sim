@@ -7953,6 +7953,7 @@ export const dataDrainDestinationEnum = pgEnum('data_drain_destination', [
   's3',
   'gcs',
   'azure_blob',
+  'sentinel',
   'datadog',
   'bigquery',
   'snowflake',

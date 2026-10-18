@@ -8,6 +8,7 @@ import {
   type MothershipResource,
   type MothershipResourceUpdate,
   mergeChatResource,
+  reorderStoredChatResources,
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 
@@ -112,25 +113,20 @@ export async function changeStoredChatResources(
         const incoming = sanitizeChatResources(
           change.resources.filter((resource) => resource.id !== 'streaming-file')
         )
-        const byKey = new Map(existing.map((resource) => [keyOf(resource), resource]))
         if (change.kind === 'reorder') {
-          const keys = incoming.map(keyOf)
-          if (
-            keys.length !== byKey.size ||
-            new Set(keys).size !== keys.length ||
-            keys.some((key) => !byKey.has(key))
-          ) {
+          const reordered = reorderStoredChatResources(
+            existing,
+            incoming,
+            chat.workspaceId ?? undefined
+          )
+          if (!reordered)
             throw new OrchestrationError(
               'validation',
               'Reordered resources must match existing resources'
             )
-          }
-          resources = keys.map((key) => {
-            const resource = byKey.get(key)
-            if (!resource) throw new OrchestrationError('validation', 'Resource order changed')
-            return resource
-          })
+          resources = reordered
         } else {
+          const byKey = new Map(existing.map((resource) => [keyOf(resource), resource]))
           for (const resource of incoming) {
             const key = keyOf(resource)
             const previous = byKey.get(key)

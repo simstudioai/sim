@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import {
   createDelegatedPrincipal,
+  createExecutorPrincipal,
   createPersonalApiKeyPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -199,16 +200,19 @@ describe('exportWorkspaceFileSnapshot', () => {
       scopes: ['api:read'],
       expiresAt: new Date(Date.now() + 60_000),
     },
-    ...(['copilot', 'executor'] as const).map((serviceId) => ({
-      kind: 'delegated' as const,
-      serviceId,
-      subjectUserId: 'user-1',
+    createDelegatedPrincipal({
       workspaceId: WORKSPACE_ID,
-      delegationId: 'delegation-1',
       audience: 'sim:workspace-files',
       issuedAt: new Date(),
       expiresAt: new Date(Date.now() + 60_000),
-    })),
+    }),
+    createExecutorPrincipal({
+      subjectUserId: 'user-1',
+      workspaceId: WORKSPACE_ID,
+      audience: 'sim:workspace-files',
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    }),
   ])('uses current read authorization for registered principal %j', async (principal) => {
     expect((await execute('snapshot', principal)).buffer.toString()).toBe('snapshot')
     expect(mocks.resolvePermission).toHaveBeenCalled()

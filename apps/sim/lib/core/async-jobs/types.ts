@@ -338,9 +338,12 @@ export interface JobQueueBackend {
   cancelByKey(cancelKey: string): boolean
 
   /**
-   * Cancel every queued, delayed or running workflow job (`WORKSPACE_EXECUTION_JOB_TYPES`)
-   * enqueued for a workspace, for when the workspace itself is being removed. Throws when any
-   * listing or cancellation failed, after attempting the rest, so the caller can retry.
+   * Cancel every queued, delayed or running persisted workflow job
+   * (`WORKSPACE_EXECUTION_JOB_TYPES`) enqueued for a workspace, for when the workspace itself is
+   * being removed. Runs the database backend executes through `batchEnqueueAndWait` keep no job
+   * row, so this never reaches them; they stop through their execution's cancellation signal.
+   * Throws when any listing or cancellation failed, after attempting the rest, so the caller can
+   * retry.
    */
   cancelByWorkspace(
     workspaceId: string,

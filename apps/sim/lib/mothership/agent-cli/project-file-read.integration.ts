@@ -8,6 +8,8 @@ import {
   user,
   userStats,
   workspace,
+  workspaceFileSearchBuild,
+  workspaceFileSearchChunk,
   workspaceFileSearchRevision,
   workspaceFileSecretProvenance,
   workspaceFiles,
@@ -19,7 +21,7 @@ import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { Document, Packer, Paragraph } from 'docx'
-import { eq } from 'drizzle-orm'
+import { eq, inArray, or } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -737,6 +739,33 @@ describe('Project CLI representations against PostgreSQL and stored bytes', () =
 })
 
 afterAll(async () => {
+  if (fixtures.length) {
+    const buildIds = (
+      await db
+        .select({ id: workspaceFileSearchBuild.id })
+        .from(workspaceFileSearchBuild)
+        .where(
+          or(
+            inArray(
+              workspaceFileSearchBuild.workspaceId,
+              fixtures.map((f) => f.workspaceId)
+            ),
+            inArray(
+              workspaceFileSearchBuild.entityId,
+              fixtures.map((f) => f.projectId)
+            )
+          )
+        )
+    ).map((row) => row.id)
+    if (buildIds.length) {
+      await db
+        .delete(workspaceFileSearchChunk)
+        .where(inArray(workspaceFileSearchChunk.buildId, buildIds))
+      await db
+        .delete(workspaceFileSearchBuild)
+        .where(inArray(workspaceFileSearchBuild.id, buildIds))
+    }
+  }
   for (const f of fixtures) {
     await db.delete(workspaceFiles).where(eq(workspaceFiles.projectId, f.projectId))
     await deleteWorkspaceFixture(db, eq(workspace.id, f.workspaceId))

@@ -2265,6 +2265,7 @@ export const GENERATED_SCHEMA_ENUMS = {
     's3',
     'gcs',
     'azure_blob',
+    'sentinel',
     'datadog',
     'bigquery',
     'snowflake',

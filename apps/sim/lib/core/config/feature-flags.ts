@@ -53,7 +53,8 @@ const FEATURE_FLAGS = {
   },
   'mothership-computer-use': {
     description:
-      'Enable native macOS computer use in Mothership. Global on/off only; each device must also opt in.',
+      'Enable native macOS computer use in Mothership. Supports global and organization rollout; ' +
+      'personal workspaces follow the global switch. Each device must also opt in.',
     fallback: 'MSHIP_COMPUTER_USE',
   },
   'mothership-search-integration-tools': {
