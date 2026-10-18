@@ -120,22 +120,17 @@ export async function listStorageKeyPage(
 ): Promise<StorageKeyPage> {
   signal.throwIfAborted()
   if (USE_S3_STORAGE) {
-    const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
-    const { getS3Client } = await import('@/lib/uploads/providers/s3/client')
+    const { listS3ObjectKeyPage } = await import('@/lib/uploads/providers/s3/client')
     const config = getStorageConfig(context)
-    const page = await getS3Client().send(
-      new ListObjectsV2Command({
-        Bucket: config.bucket,
-        Prefix: prefix,
-        MaxKeys: STORAGE_KEY_PAGE_SIZE,
-        ...(pageToken ? { ContinuationToken: pageToken } : {}),
-      }),
-      { abortSignal: signal }
-    )
-    return keyPage(
-      (page.Contents ?? []).flatMap((object) => (object.Key ? [object.Key] : [])),
-      page.IsTruncated ? page.NextContinuationToken : undefined
-    )
+    if (!config.bucket) throw new Error(`Bucket missing for ${context} storage`)
+    const page = await listS3ObjectKeyPage({
+      bucket: config.bucket,
+      prefix,
+      maxKeys: STORAGE_KEY_PAGE_SIZE,
+      continuationToken: pageToken,
+      signal,
+    })
+    return keyPage(page.keys, page.nextContinuationToken)
   }
   if (USE_BLOB_STORAGE) {
     const { getBlobServiceClient } = await import('@/lib/uploads/providers/blob/client')

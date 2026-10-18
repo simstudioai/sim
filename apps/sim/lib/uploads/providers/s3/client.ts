@@ -7,6 +7,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   ListPartsCommand,
   PutObjectCommand,
   S3Client,
@@ -325,7 +326,7 @@ export async function deleteS3ObjectVersion(params: {
   if (!params.etag) throw new Error('S3 upload object is missing its ETag')
   await getS3Client().send(
     new DeleteObjectCommand({
-      Bucket: params.customConfig.bucket,
+      Bucket: params.bucket,
       Key: params.key,
       IfMatch: params.etag,
     })
@@ -411,6 +412,32 @@ export async function deleteManyFromS3(
   }
 
   return { failed }
+}
+
+/**
+ * Lists one page of object keys under `prefix` in `bucket`, resuming from `continuationToken`
+ * when given; `nextContinuationToken` is set while the listing has more.
+ */
+export async function listS3ObjectKeyPage(params: {
+  bucket: string
+  prefix: string
+  maxKeys: number
+  continuationToken?: string
+  signal: AbortSignal
+}): Promise<{ keys: string[]; nextContinuationToken?: string }> {
+  const page = await getS3Client().send(
+    new ListObjectsV2Command({
+      Bucket: params.bucket,
+      Prefix: params.prefix,
+      MaxKeys: params.maxKeys,
+      ...(params.continuationToken ? { ContinuationToken: params.continuationToken } : {}),
+    }),
+    { abortSignal: params.signal }
+  )
+  const keys = (page.Contents ?? []).flatMap((object) => (object.Key ? [object.Key] : []))
+  return page.IsTruncated && page.NextContinuationToken
+    ? { keys, nextContinuationToken: page.NextContinuationToken }
+    : { keys }
 }
 
 /**
