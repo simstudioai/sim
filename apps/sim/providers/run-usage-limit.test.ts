@@ -144,6 +144,22 @@ describe('run usage limit', () => {
     expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2 })
   })
 
+  it("charges a conversation summary's steps to the request that compacted", async () => {
+    const parentCost = { input: 0, output: 0, total: 0 }
+    mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
+      await modelStep(request, 0.5, 0.25)
+      return { content: '', model: request.model }
+    })
+
+    await executeProviderRequest(
+      'anthropic',
+      { model: 'model-a' },
+      { executionContext: startRun(), settledCost: parentCost }
+    )
+
+    expect(parentCost).toEqual({ input: 0.5, output: 0.25, total: 0.75 })
+  })
+
   it('counts every block of the run, not only the request that is running', async () => {
     const run = startRun()
     await modelStep(startRequest(run), 1, 1)

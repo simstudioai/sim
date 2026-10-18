@@ -305,7 +305,8 @@ export async function executeProviderRequest(
         }
       : {}),
     failedFunctionToolCost,
-    settledCost: { input: 0, output: 0, total: 0 },
+    // A conversation summary charges its parent request, so a stop after compaction bills it.
+    settledCost: runtimeContext?.settledCost ?? { input: 0, output: 0, total: 0 },
     ...(toolIdentities.toolIdByWireId.size > 0
       ? {
           toolIdByWireId: new Map([
@@ -360,6 +361,7 @@ export async function executeProviderRequest(
             const summary = await executeProviderRequest(providerId, summaryRequest, {
               resolvedSecretTraceRegistry: requestRuntimeContext.resolvedSecretTraceRegistry,
               executionContext: requestRuntimeContext.executionContext,
+              settledCost: requestRuntimeContext.settledCost,
             })
             if (isStreamingExecution(summary) || isReadableStream(summary))
               throw new Error('Conversation summary did not return a settled response')
