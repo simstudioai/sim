@@ -5,7 +5,7 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 
 /** Maps the read/write operation to its `_v2` tool id, falling back to read on unknown ops. */
-const versionedReadWriteSelector = createVersionedToolSelector<Record<string, any>>({
+const versionedReadWriteSelector = createVersionedToolSelector<Record<string, unknown>>({
   baseToolSelector: (params) => {
     switch (params.operation) {
       case 'read':
@@ -41,7 +41,8 @@ function optionalNumber(value: unknown): number | undefined {
   const str = optionalString(value)
   if (str === undefined) return undefined
   const num = Number(str)
-  return Number.isNaN(num) ? undefined : num
+  if (!Number.isFinite(num)) throw new Error('Expected a finite number')
+  return num
 }
 
 /** Wraps a worksheet name in single quotes when it contains characters that require escaping in an address. */
@@ -158,6 +159,7 @@ export const MicrosoftExcelBlock: BlockConfig = {
     {
       id: 'spreadsheetId',
       title: 'Select Sheet',
+      required: true,
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
       serviceId: 'microsoft-excel',
@@ -178,6 +180,7 @@ export const MicrosoftExcelBlock: BlockConfig = {
     {
       id: 'manualSpreadsheetId',
       title: 'Spreadsheet ID',
+      required: true,
       type: 'short-input',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
@@ -247,7 +250,7 @@ Return ONLY the range string - no explanations, no quotes around the entire outp
       type: 'short-input',
       placeholder: 'Name of the worksheet (max 31 characters)',
       condition: { field: 'operation', value: ['worksheet_add', 'delete_worksheet'] },
-      required: true,
+      required: { field: 'operation', value: 'delete_worksheet' },
     },
     {
       id: 'values',
@@ -255,8 +258,8 @@ Return ONLY the range string - no explanations, no quotes around the entire outp
       type: 'long-input',
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
-      condition: { field: 'operation', value: 'write' },
-      required: true,
+      condition: { field: 'operation', value: ['write', 'table_add'] },
+      required: false,
       wandConfig: {
         enabled: true,
         prompt: `Generate Microsoft Excel data as a JSON array based on the user's description.
@@ -275,45 +278,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       },
     },
     {
-      id: 'valueInputOption',
-      title: 'Value Input Option',
-      type: 'dropdown',
-      options: [
-        { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
-        { label: "Raw (Don't parse formulas)", id: 'RAW' },
-      ],
-      condition: { field: 'operation', value: 'write' },
-    },
-    {
-      id: 'values',
-      title: 'Values',
-      type: 'long-input',
-      placeholder:
-        'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
-      condition: { field: 'operation', value: 'table_add' },
-      required: true,
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate Microsoft Excel table row data as a JSON array based on the user's description.
-
-Format options:
-1. Array of arrays: [["Value1", "Value2"], ["Value3", "Value4"]]
-2. Array of objects: [{"column1": "value1", "column2": "value2"}]
-
-Note: When adding to an existing table, do NOT include headers - only data rows.
-
-Examples:
-- "add new sales record" -> [["2024-01-15", "Widget Pro", 5, 249.99]]
-- "append customer info" -> [{"name": "Acme Corp", "contact": "John Smith", "status": "Active"}]
-- "add multiple rows with name, age, city" -> [["Alice", 28, "NYC"], ["Bob", 35, "LA"]]
-
-Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
-        placeholder: 'Describe the data you want to add to the table...',
-        generationType: 'json-object',
-      },
-    },
-    // Clear Range
-    {
       id: 'applyTo',
       title: 'Clear',
       type: 'dropdown',
@@ -325,7 +289,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       value: () => 'All',
       condition: { field: 'operation', value: 'clear_range' },
     },
-    // Format Range
     {
       id: 'fillColor',
       title: 'Fill Color',
@@ -381,7 +344,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'format_range' },
       mode: 'advanced',
     },
-    // Create Table
     {
       id: 'tableHasHeaders',
       title: 'First Row Has Headers',
@@ -393,7 +355,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       value: () => 'true',
       condition: { field: 'operation', value: 'create_table' },
     },
-    // Sort Range
     {
       id: 'sortTableName',
       title: 'Table Name',
@@ -408,7 +369,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       type: 'short-input',
       placeholder: 'Zero-based column index (0 = first column)',
       condition: { field: 'operation', value: 'sort_range' },
-      required: { field: 'operation', value: 'sort_range' },
+      required: false,
     },
     {
       id: 'sortAscending',
@@ -443,6 +404,162 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       ],
       value: () => 'false',
       condition: { field: 'operation', value: 'sort_range' },
+      mode: 'advanced',
+    },
+    {
+      id: 'formulas',
+      title: 'Formulas',
+      type: 'code',
+      placeholder: '[["=SUM(A1:A10)"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate formulas for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the formulas...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'formulasLocal',
+      title: 'Localized Formulas',
+      type: 'code',
+      placeholder: '[["=SUMME(A1;1,5)"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate localized formulas for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the localized formulas...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'formulasR1C1',
+      title: 'R1C1 Formulas',
+      type: 'code',
+      placeholder: '[["=SUM(R[-10]C:R[-1]C)"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate r1c1 formulas for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the r1c1 formulas...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'numberFormat',
+      title: 'Number Formats',
+      type: 'code',
+      placeholder: '[["0.00", "yyyy-mm-dd"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate number formats for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the number formats...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'columnHidden',
+      title: 'Hide Columns',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'rowHidden',
+      title: 'Hide Rows',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'fontUnderline',
+      title: 'Underline',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['format_range'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'None', id: 'None' },
+        { label: 'Single', id: 'Single' },
+        { label: 'Double', id: 'Double' },
+        { label: 'SingleAccountant', id: 'SingleAccountant' },
+        { label: 'DoubleAccountant', id: 'DoubleAccountant' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'sessionId',
+      title: 'Session ID',
+      type: 'short-input',
+      placeholder: 'Optional workbook session ID',
+      mode: 'advanced',
+    },
+    {
+      id: 'sortFields',
+      title: 'Sort Conditions',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"key":0,"ascending":true,"sortOn":"Value"}]',
+      condition: { field: 'operation', value: 'sort_range' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate Excel sort conditions with key (zero-based offset), ascending, sortOn (Value, CellColor, FontColor, Icon), optional color, dataOption (Normal, TextAsNumber), and icon ({set,index}). Return ONLY the JSON array.',
+        placeholder: 'Describe how to sort the range...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'sortMethod',
+      title: 'Chinese Sort Method',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'sort_range' },
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'PinYin', id: 'PinYin' },
+        { label: 'Stroke count', id: 'StrokeCount' },
+      ],
+    },
+    {
+      id: 'orientation',
+      title: 'Sort Orientation',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'sort_range' },
+      mode: 'advanced',
+      options: [
+        { label: 'Rows', id: 'Rows' },
+        { label: 'Columns', id: 'Columns' },
+      ],
+    },
+    {
+      id: 'index',
+      title: 'Insertion Index',
+      type: 'short-input',
+      placeholder: 'Omit to append, or enter a zero-based row index',
+      condition: { field: 'operation', value: 'table_add' },
       mode: 'advanced',
     },
   ],
@@ -507,7 +624,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           sortHasHeaders,
           sortMatchCase,
           siteId: _siteId,
-          valueInputOption,
         } = params
 
         const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
@@ -522,6 +638,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           spreadsheetId: effectiveSpreadsheetId,
           driveId: effectiveDriveId,
           oauthCredential,
+          sessionId: optionalString(params.sessionId),
+          formulas: params.formulas === '' ? undefined : params.formulas,
+          formulasLocal: params.formulasLocal === '' ? undefined : params.formulasLocal,
+          formulasR1C1: params.formulasR1C1 === '' ? undefined : params.formulasR1C1,
+          numberFormat: params.numberFormat === '' ? undefined : params.numberFormat,
         }
 
         switch (operation) {
@@ -543,6 +664,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               fontColor: optionalString(fontColor),
               fontSize: optionalNumber(fontSize),
               fontName: optionalString(fontName),
+              fontUnderline: optionalString(params.fontUnderline),
             }
           case 'create_table': {
             if (!trimmedRange) {
@@ -571,6 +693,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               range: trimmedRange,
               tableName: effectiveTableName,
               sortColumn: optionalNumber(sortColumn),
+              sortFields: params.sortFields === '' ? undefined : params.sortFields,
+              sortMethod: optionalString(params.sortMethod),
+              orientation: optionalString(params.orientation),
               sortAscending: optionalBoolean(sortAscending) ?? true,
               hasHeaders: optionalBoolean(sortHasHeaders),
               matchCase: optionalBoolean(sortMatchCase),
@@ -579,7 +704,10 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           default: {
             let parsedValues
             try {
-              parsedValues = values ? JSON.parse(values as string) : undefined
+              parsedValues =
+                typeof values === 'string' && values.trim()
+                  ? JSON.parse(values)
+                  : values || undefined
             } catch {
               throw new Error('Invalid JSON format for values')
             }
@@ -587,19 +715,17 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             if (operation === 'table_add' && !tableName) {
               throw new Error('Table name is required for table operations.')
             }
-            if (operation === 'worksheet_add' && !worksheetName) {
-              throw new Error('Worksheet name is required for worksheet operations.')
-            }
 
             const baseParams = {
               ...base,
               range: trimmedRange,
               values: parsedValues,
-              valueInputOption,
+              columnHidden: optionalBoolean(params.columnHidden),
+              rowHidden: optionalBoolean(params.rowHidden),
             }
 
             if (operation === 'table_add') {
-              return { ...baseParams, tableName }
+              return { ...baseParams, tableName, index: optionalNumber(params.index) }
             }
             if (operation === 'worksheet_add') {
               return { ...baseParams, worksheetName }
@@ -611,6 +737,18 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     },
   },
   inputs: {
+    sortFields: { type: 'json', description: 'Sort Conditions' },
+    sortMethod: { type: 'string', description: 'Chinese Sort Method' },
+    orientation: { type: 'string', description: 'Sort Orientation' },
+    index: { type: 'string', description: 'Insertion Index' },
+    sessionId: { type: 'string', description: 'Workbook session ID' },
+    formulas: { type: 'json', description: 'Formulas' },
+    formulasLocal: { type: 'json', description: 'Localized Formulas' },
+    formulasR1C1: { type: 'json', description: 'R1C1 Formulas' },
+    numberFormat: { type: 'json', description: 'Number Formats' },
+    columnHidden: { type: 'string', description: 'Hide Columns' },
+    rowHidden: { type: 'string', description: 'Hide Rows' },
+    fontUnderline: { type: 'string', description: 'Underline' },
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Microsoft Excel access token' },
     spreadsheetId: { type: 'string', description: 'Spreadsheet identifier (canonical param)' },
@@ -619,7 +757,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     tableName: { type: 'string', description: 'Table name' },
     worksheetName: { type: 'string', description: 'Worksheet name' },
     values: { type: 'string', description: 'Cell values data' },
-    valueInputOption: { type: 'string', description: 'Value input option' },
     applyTo: { type: 'string', description: 'What to clear (All, Contents, Formats)' },
     fillColor: { type: 'string', description: 'Background fill color' },
     fontBold: { type: 'string', description: 'Bold font toggle' },
@@ -681,10 +818,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 export const MicrosoftExcelV2Block: BlockConfig = {
   type: 'microsoft_excel_v2',
   name: 'Microsoft Excel',
-  description: 'Read and write data with sheet selection',
+  description: 'Manage worksheets, tables, rows, and workbook sessions',
   authMode: AuthMode.OAuth,
   hideFromToolbar: false,
-  longDescription: 'Read and write data in selected worksheets.',
+  longDescription:
+    'Read and write values and formulas, manage worksheets and table rows, format ranges, and calculate workbooks with persistent or temporary sessions.',
   docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
@@ -694,6 +832,32 @@ export const MicrosoftExcelV2Block: BlockConfig = {
     defaultTitle: 'Microsoft Excel',
     sentences: {
       byOperation: {
+        table_add: ['Add Table Rows', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        worksheet_add: ['Add Worksheet', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        list_worksheets: ['List Worksheets', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        get_worksheet: ['Get Worksheet', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        update_worksheet: [
+          'Update Worksheet',
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        list_tables: ['List Tables', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        get_table: ['Get Table', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        update_table: ['Update Table', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        delete_table: ['Delete Table', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        list_table_rows: ['List Table Rows', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        get_table_row: ['Get Table Row', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        update_table_row: [
+          'Update Table Row',
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        delete_table_row: [
+          'Delete Table Row',
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        create_session: ['Create Session', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        refresh_session: ['Refresh Session', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        close_session: ['Close Session', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
+        calculate: ['Calculate Workbook', { text: 'in', field: SPREADSHEET_FIELD, core: true }],
         read: [
           { text: 'Read', field: 'cellRange', core: true },
           { text: 'from', field: SPREADSHEET_FIELD, core: true },
@@ -731,7 +895,6 @@ export const MicrosoftExcelV2Block: BlockConfig = {
     },
   },
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -744,10 +907,26 @@ export const MicrosoftExcelV2Block: BlockConfig = {
         { label: 'Create Table', id: 'create_table' },
         { label: 'Sort Range', id: 'sort_range' },
         { label: 'Delete Worksheet', id: 'delete_worksheet' },
+        { label: 'Add Table Rows', id: 'table_add' },
+        { label: 'Add Worksheet', id: 'worksheet_add' },
+        { label: 'List Worksheets', id: 'list_worksheets' },
+        { label: 'Get Worksheet', id: 'get_worksheet' },
+        { label: 'Update Worksheet', id: 'update_worksheet' },
+        { label: 'List Tables', id: 'list_tables' },
+        { label: 'Get Table', id: 'get_table' },
+        { label: 'Update Table', id: 'update_table' },
+        { label: 'Delete Table', id: 'delete_table' },
+        { label: 'List Table Rows', id: 'list_table_rows' },
+        { label: 'Get Table Row', id: 'get_table_row' },
+        { label: 'Update Table Row', id: 'update_table_row' },
+        { label: 'Delete Table Row', id: 'delete_table_row' },
+        { label: 'Create Session', id: 'create_session' },
+        { label: 'Refresh Session', id: 'refresh_session' },
+        { label: 'Close Session', id: 'close_session' },
+        { label: 'Calculate Workbook', id: 'calculate' },
       ],
       value: () => 'read',
     },
-    // Microsoft Excel Credentials
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -768,7 +947,6 @@ export const MicrosoftExcelV2Block: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    // File Source selector (both modes)
     {
       id: 'fileSource',
       title: 'File Source',
@@ -779,7 +957,6 @@ export const MicrosoftExcelV2Block: BlockConfig = {
       ],
       value: () => 'onedrive',
     },
-    // SharePoint Site Selector (basic mode, only when SharePoint is selected)
     {
       id: 'siteSelector',
       title: 'SharePoint Site',
@@ -794,7 +971,6 @@ export const MicrosoftExcelV2Block: BlockConfig = {
       required: { field: 'fileSource', value: 'sharepoint' },
       mode: 'basic',
     },
-    // SharePoint Drive Selector (basic mode, only when SharePoint is selected)
     {
       id: 'driveSelector',
       title: 'Document Library',
@@ -808,10 +984,10 @@ export const MicrosoftExcelV2Block: BlockConfig = {
       required: { field: 'fileSource', value: 'sharepoint' },
       mode: 'basic',
     },
-    // Spreadsheet Selector (basic mode)
     {
       id: 'spreadsheetId',
       title: 'Select Spreadsheet',
+      required: true,
       type: 'file-selector',
       canonicalParamId: 'spreadsheetId',
       serviceId: 'microsoft-excel',
@@ -822,7 +998,6 @@ export const MicrosoftExcelV2Block: BlockConfig = {
       dependsOn: { all: ['credential', 'fileSource'], any: ['credential', 'driveSelector'] },
       mode: 'basic',
     },
-    // Drive ID for SharePoint (advanced mode, only when SharePoint is selected)
     {
       id: 'manualDriveId',
       title: 'Drive ID',
@@ -831,19 +1006,19 @@ export const MicrosoftExcelV2Block: BlockConfig = {
       placeholder: 'Enter the SharePoint drive ID',
       condition: { field: 'fileSource', value: 'sharepoint' },
       dependsOn: ['fileSource'],
+      required: { field: 'fileSource', value: 'sharepoint' },
       mode: 'advanced',
     },
-    // Manual Spreadsheet ID (advanced mode)
     {
       id: 'manualSpreadsheetId',
       title: 'Spreadsheet ID',
+      required: true,
       type: 'short-input',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
       dependsOn: { all: ['credential'], any: ['credential', 'manualDriveId'] },
       mode: 'advanced',
     },
-    // Sheet Name Selector (basic mode)
     {
       id: 'sheetName',
       title: 'Sheet (Tab)',
@@ -852,34 +1027,87 @@ export const MicrosoftExcelV2Block: BlockConfig = {
       serviceId: 'microsoft-excel',
       selectorKey: 'microsoft.excel.sheets',
       placeholder: 'Select a sheet',
-      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'clear_range',
+          'format_range',
+          'create_table',
+          'sort_range',
+          'delete_worksheet',
+          'get_worksheet',
+          'update_worksheet',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'clear_range',
+          'format_range',
+          'create_table',
+          'delete_worksheet',
+          'get_worksheet',
+          'update_worksheet',
+        ],
+      },
       dependsOn: {
         all: ['credential'],
         any: ['spreadsheetId', 'manualSpreadsheetId', 'driveSelector'],
       },
       mode: 'basic',
     },
-    // Manual Sheet Name (advanced mode)
     {
       id: 'manualSheetName',
       title: 'Sheet Name',
       type: 'short-input',
       canonicalParamId: 'sheetName',
       placeholder: 'Name of the sheet/tab (e.g., Sheet1)',
-      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'clear_range',
+          'format_range',
+          'create_table',
+          'sort_range',
+          'delete_worksheet',
+          'get_worksheet',
+          'update_worksheet',
+        ],
+      },
+      required: {
+        field: 'operation',
+        value: [
+          'read',
+          'write',
+          'clear_range',
+          'format_range',
+          'create_table',
+          'delete_worksheet',
+          'get_worksheet',
+          'update_worksheet',
+        ],
+      },
       dependsOn: {
         all: ['credential'],
         any: ['credential', 'manualDriveId'],
       },
       mode: 'advanced',
     },
-    // Cell Range (used by read/write/clear/format/create_table/sort)
     {
       id: 'cellRange',
       title: 'Cell Range',
       type: 'short-input',
       placeholder: 'Cell range (e.g., A1:D10). Defaults to used range for read, A1 for write.',
-      condition: { field: 'operation', value: 'delete_worksheet', not: true },
+      condition: {
+        field: 'operation',
+        value: ['read', 'write', 'clear_range', 'format_range', 'create_table', 'sort_range'],
+      },
       required: {
         field: 'operation',
         value: ['clear_range', 'format_range', 'create_table'],
@@ -911,15 +1139,14 @@ Return ONLY the range string - no sheet name, no explanations, no quotes.`,
         placeholder: 'Describe the range (e.g., "first 50 rows" or "column A")...',
       },
     },
-    // Write-specific Fields
     {
       id: 'values',
       title: 'Values',
       type: 'long-input',
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}])',
-      condition: { field: 'operation', value: 'write' },
-      required: true,
+      condition: { field: 'operation', value: ['write', 'table_add', 'update_table_row'] },
+      required: { field: 'operation', value: 'update_table_row' },
       wandConfig: {
         enabled: true,
         prompt: `Generate Microsoft Excel data as a JSON array based on the user's description.
@@ -938,17 +1165,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       },
     },
     {
-      id: 'valueInputOption',
-      title: 'Value Input Option',
-      type: 'dropdown',
-      options: [
-        { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
-        { label: "Raw (Don't parse formulas)", id: 'RAW' },
-      ],
-      condition: { field: 'operation', value: 'write' },
-    },
-    // Clear Range
-    {
       id: 'applyTo',
       title: 'Clear',
       type: 'dropdown',
@@ -960,7 +1176,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       value: () => 'All',
       condition: { field: 'operation', value: 'clear_range' },
     },
-    // Format Range
     {
       id: 'fillColor',
       title: 'Fill Color',
@@ -1016,7 +1231,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'format_range' },
       mode: 'advanced',
     },
-    // Create Table
     {
       id: 'tableHasHeaders',
       title: 'First Row Has Headers',
@@ -1028,7 +1242,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       value: () => 'true',
       condition: { field: 'operation', value: 'create_table' },
     },
-    // Sort Range
     {
       id: 'sortTableName',
       title: 'Table Name',
@@ -1043,7 +1256,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       type: 'short-input',
       placeholder: 'Zero-based column index (0 = first column)',
       condition: { field: 'operation', value: 'sort_range' },
-      required: { field: 'operation', value: 'sort_range' },
+      required: false,
     },
     {
       id: 'sortAscending',
@@ -1080,9 +1293,348 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'sort_range' },
       mode: 'advanced',
     },
+    {
+      id: 'formulas',
+      title: 'Formulas',
+      type: 'code',
+      placeholder: '[["=SUM(A1:A10)"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate formulas for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the formulas...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'formulasLocal',
+      title: 'Localized Formulas',
+      type: 'code',
+      placeholder: '[["=SUMME(A1;1,5)"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate localized formulas for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the localized formulas...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'formulasR1C1',
+      title: 'R1C1 Formulas',
+      type: 'code',
+      placeholder: '[["=SUM(R[-10]C:R[-1]C)"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate r1c1 formulas for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the r1c1 formulas...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'numberFormat',
+      title: 'Number Formats',
+      type: 'code',
+      placeholder: '[["0.00", "yyyy-mm-dd"]]',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      language: 'json',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate number formats for Microsoft Excel. Return ONLY the JSON array.',
+        placeholder: 'Describe the number formats...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'columnHidden',
+      title: 'Hide Columns',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'rowHidden',
+      title: 'Hide Rows',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['write'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'fontUnderline',
+      title: 'Underline',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['format_range'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'None', id: 'None' },
+        { label: 'Single', id: 'Single' },
+        { label: 'Double', id: 'Double' },
+        { label: 'SingleAccountant', id: 'SingleAccountant' },
+        { label: 'DoubleAccountant', id: 'DoubleAccountant' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'tableName',
+      title: 'Table ID or Name',
+      type: 'short-input',
+      placeholder: 'Table1',
+      condition: {
+        field: 'operation',
+        value: [
+          'table_add',
+          'get_table',
+          'update_table',
+          'delete_table',
+          'list_table_rows',
+          'get_table_row',
+          'update_table_row',
+          'delete_table_row',
+        ],
+      },
+      required: true,
+    },
+    {
+      id: 'worksheetName',
+      title: 'New Worksheet Name',
+      type: 'short-input',
+      placeholder: 'Leave empty for an automatic name',
+      condition: { field: 'operation', value: ['worksheet_add'] },
+    },
+    {
+      id: 'name',
+      title: 'New Name',
+      type: 'short-input',
+      placeholder: 'Enter the new name',
+      condition: { field: 'operation', value: ['update_worksheet', 'update_table'] },
+    },
+    {
+      id: 'position',
+      title: 'Worksheet Position',
+      type: 'short-input',
+      placeholder: 'Zero-based position, such as 0',
+      condition: { field: 'operation', value: ['update_worksheet'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'visibility',
+      title: 'Worksheet Visibility',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['update_worksheet'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'Visible', id: 'Visible' },
+        { label: 'Hidden', id: 'Hidden' },
+        { label: 'VeryHidden', id: 'VeryHidden' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'index',
+      title: 'Row Index',
+      type: 'short-input',
+      placeholder: 'Zero-based index; omit for Add Table Rows to append',
+      condition: {
+        field: 'operation',
+        value: ['table_add', 'get_table_row', 'update_table_row', 'delete_table_row'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_table_row', 'update_table_row', 'delete_table_row'],
+      },
+    },
+    {
+      id: 'top',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: 'Default: 100; maximum: 1000',
+      condition: {
+        field: 'operation',
+        value: ['list_worksheets', 'list_tables', 'list_table_rows'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'skip',
+      title: 'Skip',
+      type: 'short-input',
+      placeholder: 'Default: 0; increase by page count',
+      condition: {
+        field: 'operation',
+        value: ['list_worksheets', 'list_tables', 'list_table_rows'],
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'style',
+      title: 'Table Style',
+      type: 'short-input',
+      placeholder: 'TableStyleMedium2',
+      condition: { field: 'operation', value: ['update_table'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'sessionId',
+      title: 'Session ID',
+      type: 'short-input',
+      placeholder: 'Session ID from Create Session; optional for other operations',
+      condition: {
+        field: 'operation',
+        value: [
+          'table_add',
+          'worksheet_add',
+          'list_worksheets',
+          'get_worksheet',
+          'update_worksheet',
+          'list_tables',
+          'get_table',
+          'update_table',
+          'delete_table',
+          'list_table_rows',
+          'get_table_row',
+          'update_table_row',
+          'delete_table_row',
+          'refresh_session',
+          'close_session',
+          'calculate',
+          'read',
+          'write',
+          'clear_range',
+          'format_range',
+          'create_table',
+          'sort_range',
+          'delete_worksheet',
+        ],
+      },
+      required: { field: 'operation', value: ['refresh_session', 'close_session'] },
+    },
+    {
+      id: 'persistChanges',
+      title: 'Save Changes',
+      type: 'switch',
+      condition: { field: 'operation', value: ['create_session'] },
+      required: true,
+    },
+    {
+      id: 'calculationType',
+      title: 'Calculation Type',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['calculate'] },
+      required: true,
+      options: [
+        { label: 'Recalculate dirty cells', id: 'Recalculate' },
+        { label: 'Full calculation', id: 'Full' },
+        { label: 'Rebuild dependencies and calculate', id: 'FullRebuild' },
+      ],
+      value: () => 'Recalculate',
+    },
+    {
+      id: 'showHeaders',
+      title: 'Show Header Row',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['update_table'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'showTotals',
+      title: 'Show Totals Row',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['update_table'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No change', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+    },
+    {
+      id: 'sortFields',
+      title: 'Sort Conditions',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"key":0,"ascending":true,"sortOn":"Value"}]',
+      condition: { field: 'operation', value: 'sort_range' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate Excel sort conditions with key (zero-based offset), ascending, sortOn (Value, CellColor, FontColor, Icon), optional color, dataOption (Normal, TextAsNumber), and icon ({set,index}). Return ONLY the JSON array.',
+        placeholder: 'Describe how to sort the range...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'sortMethod',
+      title: 'Chinese Sort Method',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'sort_range' },
+      mode: 'advanced',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'PinYin', id: 'PinYin' },
+        { label: 'Stroke count', id: 'StrokeCount' },
+      ],
+    },
+    {
+      id: 'orientation',
+      title: 'Sort Orientation',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'sort_range' },
+      mode: 'advanced',
+      options: [
+        { label: 'Rows', id: 'Rows' },
+        { label: 'Columns', id: 'Columns' },
+      ],
+    },
   ],
   tools: {
     access: [
+      'microsoft_excel_table_add',
+      'microsoft_excel_worksheet_add',
+      'microsoft_excel_list_worksheets',
+      'microsoft_excel_get_worksheet',
+      'microsoft_excel_update_worksheet',
+      'microsoft_excel_list_tables',
+      'microsoft_excel_get_table',
+      'microsoft_excel_update_table',
+      'microsoft_excel_delete_table',
+      'microsoft_excel_list_table_rows',
+      'microsoft_excel_get_table_row',
+      'microsoft_excel_update_table_row',
+      'microsoft_excel_delete_table_row',
+      'microsoft_excel_create_session',
+      'microsoft_excel_refresh_session',
+      'microsoft_excel_close_session',
+      'microsoft_excel_calculate',
       'microsoft_excel_read_v2',
       'microsoft_excel_write_v2',
       'microsoft_excel_clear_range',
@@ -1094,6 +1646,40 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     config: {
       tool: (params) => {
         switch (params.operation) {
+          case 'table_add':
+            return 'microsoft_excel_table_add'
+          case 'worksheet_add':
+            return 'microsoft_excel_worksheet_add'
+          case 'list_worksheets':
+            return 'microsoft_excel_list_worksheets'
+          case 'get_worksheet':
+            return 'microsoft_excel_get_worksheet'
+          case 'update_worksheet':
+            return 'microsoft_excel_update_worksheet'
+          case 'list_tables':
+            return 'microsoft_excel_list_tables'
+          case 'get_table':
+            return 'microsoft_excel_get_table'
+          case 'update_table':
+            return 'microsoft_excel_update_table'
+          case 'delete_table':
+            return 'microsoft_excel_delete_table'
+          case 'list_table_rows':
+            return 'microsoft_excel_list_table_rows'
+          case 'get_table_row':
+            return 'microsoft_excel_get_table_row'
+          case 'update_table_row':
+            return 'microsoft_excel_update_table_row'
+          case 'delete_table_row':
+            return 'microsoft_excel_delete_table_row'
+          case 'create_session':
+            return 'microsoft_excel_create_session'
+          case 'refresh_session':
+            return 'microsoft_excel_refresh_session'
+          case 'close_session':
+            return 'microsoft_excel_close_session'
+          case 'calculate':
+            return 'microsoft_excel_calculate'
           case 'clear_range':
             return 'microsoft_excel_clear_range'
           case 'format_range':
@@ -1132,7 +1718,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           sortAscending,
           sortHasHeaders,
           sortMatchCase,
-          valueInputOption,
         } = params
 
         const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
@@ -1148,9 +1733,53 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           spreadsheetId: effectiveSpreadsheetId,
           driveId: effectiveDriveId,
           oauthCredential,
+          sessionId: optionalString(params.sessionId),
+          formulas: params.formulas === '' ? undefined : params.formulas,
+          formulasLocal: params.formulasLocal === '' ? undefined : params.formulasLocal,
+          formulasR1C1: params.formulasR1C1 === '' ? undefined : params.formulasR1C1,
+          numberFormat: params.numberFormat === '' ? undefined : params.numberFormat,
         }
 
         switch (operation) {
+          case 'table_add':
+          case 'worksheet_add':
+          case 'list_worksheets':
+          case 'get_worksheet':
+          case 'update_worksheet':
+          case 'list_tables':
+          case 'get_table':
+          case 'update_table':
+          case 'delete_table':
+          case 'list_table_rows':
+          case 'get_table_row':
+          case 'update_table_row':
+          case 'delete_table_row':
+          case 'create_session':
+          case 'refresh_session':
+          case 'close_session':
+          case 'calculate':
+            return {
+              ...base,
+              sheetName: effectiveSheetName || undefined,
+              tableName: optionalString(params.tableName),
+              worksheetName: optionalString(params.worksheetName),
+              name: optionalString(params.name),
+              position: optionalNumber(params.position),
+              visibility: optionalString(params.visibility),
+              index: optionalNumber(params.index),
+              top: optionalNumber(params.top),
+              skip: optionalNumber(params.skip),
+              values:
+                typeof values === 'string' && values.trim()
+                  ? JSON.parse(values)
+                  : values || undefined,
+              showHeaders: optionalBoolean(params.showHeaders),
+              showTotals: optionalBoolean(params.showTotals),
+              style: optionalString(params.style),
+              persistChanges: params.persistChanges ?? false,
+              calculationType: params.calculationType,
+            }
+
           case 'clear_range':
             return {
               ...base,
@@ -1169,6 +1798,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               fontColor: optionalString(fontColor),
               fontSize: optionalNumber(fontSize),
               fontName: optionalString(fontName),
+              fontUnderline: optionalString(params.fontUnderline),
             }
           case 'create_table': {
             if (!effectiveSheetName) {
@@ -1202,6 +1832,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               range: trimmedRange,
               tableName,
               sortColumn: optionalNumber(sortColumn),
+              sortFields: params.sortFields === '' ? undefined : params.sortFields,
+              sortMethod: optionalString(params.sortMethod),
+              orientation: optionalString(params.orientation),
               sortAscending: optionalBoolean(sortAscending) ?? true,
               hasHeaders: optionalBoolean(sortHasHeaders),
               matchCase: optionalBoolean(sortMatchCase),
@@ -1211,13 +1844,15 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             if (!effectiveSheetName) {
               throw new Error('Sheet name is required. Please select or enter a sheet name.')
             }
-            const parsedValues = values ? JSON.parse(values as string) : undefined
+            const parsedValues =
+              typeof values === 'string' && values.trim() ? JSON.parse(values) : values || undefined
             return {
               ...base,
               sheetName: effectiveSheetName,
               cellRange: trimmedRange,
               values: parsedValues,
-              valueInputOption,
+              columnHidden: optionalBoolean(params.columnHidden),
+              rowHidden: optionalBoolean(params.rowHidden),
             }
           }
         }
@@ -1225,6 +1860,30 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     },
   },
   inputs: {
+    sortFields: { type: 'json', description: 'Sort Conditions' },
+    sortMethod: { type: 'string', description: 'Chinese Sort Method' },
+    orientation: { type: 'string', description: 'Sort Orientation' },
+    tableName: { type: 'string', description: 'Table ID or Name' },
+    worksheetName: { type: 'string', description: 'New Worksheet Name' },
+    name: { type: 'string', description: 'New Name' },
+    position: { type: 'string', description: 'Worksheet Position' },
+    visibility: { type: 'string', description: 'Worksheet Visibility' },
+    index: { type: 'string', description: 'Row Index' },
+    top: { type: 'string', description: 'Page Size' },
+    skip: { type: 'string', description: 'Skip' },
+    style: { type: 'string', description: 'Table Style' },
+    sessionId: { type: 'string', description: 'Session ID' },
+    persistChanges: { type: 'boolean', description: 'Save Changes' },
+    calculationType: { type: 'string', description: 'Calculation Type' },
+    showHeaders: { type: 'string', description: 'Show Header Row' },
+    showTotals: { type: 'string', description: 'Show Totals Row' },
+    formulas: { type: 'json', description: 'Formulas' },
+    formulasLocal: { type: 'json', description: 'Localized Formulas' },
+    formulasR1C1: { type: 'json', description: 'R1C1 Formulas' },
+    numberFormat: { type: 'json', description: 'Number Formats' },
+    columnHidden: { type: 'string', description: 'Hide Columns' },
+    rowHidden: { type: 'string', description: 'Hide Rows' },
+    fontUnderline: { type: 'string', description: 'Underline' },
     operation: { type: 'string', description: 'Operation to perform' },
     fileSource: { type: 'string', description: 'File source (onedrive or sharepoint)' },
     oauthCredential: { type: 'string', description: 'Microsoft Excel access token' },
@@ -1234,7 +1893,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     sheetName: { type: 'string', description: 'Name of the sheet/tab (canonical param)' },
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },
     values: { type: 'string', description: 'Cell values data' },
-    valueInputOption: { type: 'string', description: 'Value input option' },
     applyTo: { type: 'string', description: 'What to clear (All, Contents, Formats)' },
     fillColor: { type: 'string', description: 'Background fill color' },
     fontBold: { type: 'string', description: 'Bold font toggle' },
@@ -1250,6 +1908,100 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     sortMatchCase: { type: 'string', description: 'Whether casing affects ordering' },
   },
   outputs: {
+    addressLocal: {
+      type: 'string',
+      description: 'Range property: addressLocal',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    cellCount: {
+      type: 'number',
+      description: 'Range property: cellCount',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    columnCount: {
+      type: 'number',
+      description: 'Range property: columnCount',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    columnHidden: {
+      type: 'boolean',
+      description: 'Range property: columnHidden',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    columnIndex: {
+      type: 'number',
+      description: 'Range property: columnIndex',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    formulas: {
+      type: 'json',
+      description: 'Two-dimensional cell matrix: formulas',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    formulasLocal: {
+      type: 'json',
+      description: 'Two-dimensional cell matrix: formulasLocal',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    formulasR1C1: {
+      type: 'json',
+      description: 'Two-dimensional cell matrix: formulasR1C1',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    hidden: {
+      type: 'boolean',
+      description: 'Range property: hidden',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    numberFormat: {
+      type: 'json',
+      description: 'Two-dimensional cell matrix: numberFormat',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    rowCount: {
+      type: 'number',
+      description: 'Range property: rowCount',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    rowHidden: {
+      type: 'boolean',
+      description: 'Range property: rowHidden',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    rowIndex: {
+      type: 'number',
+      description: 'Range property: rowIndex',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    text: {
+      type: 'json',
+      description: 'Two-dimensional cell matrix: text',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    valueTypes: {
+      type: 'json',
+      description: 'Two-dimensional cell matrix: valueTypes',
+      condition: { field: 'operation', value: ['read', 'write'] },
+    },
+    worksheet: {
+      type: 'json',
+      description: 'Worksheet properties (id, name, position, visibility)',
+    },
+    worksheets: { type: 'json', description: 'Worksheet page [{id, name, position, visibility}]' },
+    tables: {
+      type: 'json',
+      description:
+        'Table page with IDs, names, styles, header/totals visibility, and formatting flags',
+    },
+    rows: { type: 'json', description: 'Table row page [{index, values}]' },
+    index: { type: 'number', description: 'Zero-based table row index' },
+    nextLink: { type: 'string', description: 'Provider continuation link when returned' },
+    count: { type: 'number', description: 'Number of items returned in this page' },
+    sessionId: { type: 'string', description: 'Created workbook session ID' },
+    persistChanges: { type: 'boolean', description: 'Whether session changes are saved' },
+    closed: { type: 'boolean', description: 'Whether the session was closed' },
+    refreshed: { type: 'boolean', description: 'Whether the session was refreshed' },
+    calculated: { type: 'boolean', description: 'Whether workbook calculation completed' },
     sheetName: {
       type: 'string',
       description: 'Name of the sheet',
@@ -1262,8 +2014,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     },
     values: {
       type: 'json',
-      description: 'Cell values as 2D array',
-      condition: { field: 'operation', value: 'read' },
+      description: 'Cell values as a two-dimensional array',
+      condition: {
+        field: 'operation',
+        value: ['read', 'table_add', 'get_table_row', 'update_table_row'],
+      },
     },
     updatedRange: {
       type: 'string',
@@ -1313,12 +2068,15 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     table: {
       type: 'json',
       description: 'Created table ({id, name, showHeaders, showTotals, style})',
-      condition: { field: 'operation', value: 'create_table' },
+      condition: { field: 'operation', value: ['create_table', 'get_table', 'update_table'] },
     },
     deleted: {
       type: 'boolean',
-      description: 'Whether the worksheet was deleted',
-      condition: { field: 'operation', value: 'delete_worksheet' },
+      description: 'Whether the worksheet, table, or row was deleted',
+      condition: {
+        field: 'operation',
+        value: ['delete_worksheet', 'delete_table', 'delete_table_row'],
+      },
     },
     worksheetName: {
       type: 'string',
@@ -1357,7 +2115,7 @@ export const MicrosoftExcelBlockMeta = {
       icon: MicrosoftExcelIcon,
       title: 'Excel invoice generator',
       prompt:
-        'Create a workflow that reads a sales orders table, populates a Microsoft Excel invoice template per order, and saves the file to a SharePoint folder for finance review.',
+        'Create a workflow that reads a sales orders table, populates an existing Microsoft Excel invoice worksheet per order, and posts the workbook link for finance review.',
       modules: ['tables', 'files', 'agent', 'workflows'],
       category: 'operations',
       tags: ['finance', 'automation'],
@@ -1365,9 +2123,9 @@ export const MicrosoftExcelBlockMeta = {
     },
     {
       icon: MicrosoftExcelIcon,
-      title: 'Excel pivot refresher',
+      title: 'Excel report table refresher',
       prompt:
-        'Build a scheduled workflow that refreshes a Microsoft Excel pivot table from a SQL source, exports the rendered snapshot, and posts the file link to a Microsoft Teams channel.',
+        'Build a scheduled workflow that reads rows from a source, updates a Microsoft Excel report table, and posts the workbook link to a Microsoft Teams channel.',
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['reporting', 'enterprise'],
@@ -1406,7 +2164,7 @@ export const MicrosoftExcelBlockMeta = {
       icon: MicrosoftExcelIcon,
       title: 'Excel + Power BI feeder',
       prompt:
-        'Build a scheduled workflow that updates a Microsoft Excel data table from a Sim source, refreshes the dependent Power BI dataset, and notifies BI consumers in Teams.',
+        'Build a scheduled workflow that updates a Microsoft Excel data table from a Sim source, keeps its table ready for Power BI consumption, and notifies BI consumers in Teams.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['reporting', 'enterprise'],
@@ -1423,9 +2181,9 @@ export const MicrosoftExcelBlockMeta = {
     {
       name: 'write-sheet-data',
       description:
-        'Write or update values in a Microsoft Excel worksheet range, with formula parsing control.',
+        'Write or update values in a Microsoft Excel worksheet range, with values, formulas, and number formats.',
       content:
-        '# Write Sheet Data\n\nUpdate cells in an Excel workbook.\n\n## Steps\n1. Identify the workbook, worksheet, and target range.\n2. Prepare the values as rows matching the range shape.\n3. Use Write/Update Data, choosing User Entered to parse formulas or Raw to write values literally.\n\n## Output\nConfirmation of the cells updated and the range that was written.',
+        '# Write Sheet Data\n\nUpdate cells in an Excel workbook.\n\n## Steps\n1. Identify the workbook, worksheet, and target range.\n2. Prepare the values as rows matching the range shape.\n3. Use Write/Update Data, using the Values field for cell data or the Formulas field for A1-style formulas.\n\n## Output\nConfirmation of the cells updated and the range that was written.',
     },
     {
       name: 'append-table-row',
@@ -1458,7 +2216,4 @@ export const MicrosoftExcelBlockMeta = {
   ],
 } as const satisfies BlockMeta
 
-export const MicrosoftExcelV2BlockMeta = {
-  tags: ['spreadsheet', 'microsoft-365'],
-  url: 'https://www.microsoft.com/microsoft-365/excel',
-} as const satisfies BlockMeta
+export const MicrosoftExcelV2BlockMeta = { ...MicrosoftExcelBlockMeta } as const satisfies BlockMeta

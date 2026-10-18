@@ -16802,8 +16802,8 @@
       "type": "microsoft_excel_v2",
       "slug": "microsoft-excel",
       "name": "Microsoft Excel",
-      "description": "Read and write data with sheet selection",
-      "longDescription": "Read and write data in selected worksheets.",
+      "description": "Manage worksheets, tables, rows, and workbook sessions",
+      "longDescription": "Read and write values and formulas, manage worksheets and table rows, format ranges, and calculate workbooks with persistent or temporary sessions.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftExcelIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_excel",
@@ -16835,17 +16835,84 @@
         {
           "name": "Delete Worksheet",
           "description": "Delete a worksheet (sheet) from a Microsoft Excel workbook"
+        },
+        {
+          "name": "Add Table Rows",
+          "description": "Add new rows to a Microsoft Excel table"
+        },
+        {
+          "name": "Add Worksheet",
+          "description": "Create a new worksheet (sheet) in a Microsoft Excel workbook"
+        },
+        {
+          "name": "List Worksheets",
+          "description": "List Worksheets in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Get Worksheet",
+          "description": "Get Worksheet in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Update Worksheet",
+          "description": "Update Worksheet in a Microsoft Excel workbook."
+        },
+        {
+          "name": "List Tables",
+          "description": "List Tables in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Get Table",
+          "description": "Get Table in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Update Table",
+          "description": "Update Table in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Delete Table",
+          "description": "Delete Table in a Microsoft Excel workbook."
+        },
+        {
+          "name": "List Table Rows",
+          "description": "List Table Rows in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Get Table Row",
+          "description": "Get Table Row in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Update Table Row",
+          "description": "Update Table Row in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Delete Table Row",
+          "description": "Delete Table Row in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Create Session",
+          "description": "Create Session in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Refresh Session",
+          "description": "Refresh Session in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Close Session",
+          "description": "Close Session in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Calculate Workbook",
+          "description": "Calculate in a Microsoft Excel workbook."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
       "oauthServiceId": "microsoft-excel",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["spreadsheet", "microsoft-365"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "intune",

@@ -112,6 +112,8 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  microsoft_excel: [{ from: 'valueInputOption', to: '_removed_valueInputOption' }],
+  microsoft_excel_v2: [{ from: 'valueInputOption', to: '_removed_valueInputOption' }],
   /** MCP normalization selects the active replacement before this rename pass. */
   mcp: [
     { from: 'server', to: 'serverSelector' },
