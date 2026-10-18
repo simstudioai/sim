@@ -24,6 +24,7 @@ vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/billing/core/attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/memory/secret-provenance', () => ({
+  MEMORY_SECRET_PROVENANCE_COLUMNS: {},
   readBoundMemorySecretProvenance: hoisted.readBoundProvenance,
   replaceMemorySecretProvenanceInTx: vi.fn(),
 }))

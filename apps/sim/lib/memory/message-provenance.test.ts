@@ -73,8 +73,8 @@ function queueStoredMemory(data: Message[], entries: readonly DurableSecretProve
       data,
       secretProvenanceVersion: 1,
       provenanceContentHash: hashDurableSecretProvenanceValue(data),
-      provenanceStatus: 'exact',
-      provenanceEntries: entries,
+      status: 'exact',
+      entries,
     },
   ])
 }
