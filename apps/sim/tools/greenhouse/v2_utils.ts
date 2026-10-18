@@ -1,4 +1,4 @@
-import { isRecordLike, toRecord } from '@sim/utils/object'
+import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import type { ToolOutputProperty } from '@/tools/types'
 
 interface GreenhouseFieldRule {
@@ -13,6 +13,25 @@ interface GreenhouseFieldRule {
   enumItems?: readonly string[]
 }
 
+/** Shared fields for a candidate's first application and a standalone application creation. */
+export const GREENHOUSE_APPLICATION_FIELDS = {
+  source_id: { type: 'integer' },
+  recruiter_id: { type: 'integer' },
+  coordinator_id: { type: 'integer' },
+  referrer_id: { type: 'integer' },
+  created_at: { type: 'string' },
+  custom_fields: { type: 'array' },
+  job_id: { type: 'integer' },
+  initial_stage_id: { type: 'integer' },
+  prospect: { type: 'boolean' },
+  job_ids: { type: 'array', integerItems: true },
+  prospect_pool_id: { type: 'integer' },
+  prospect_pool_stage_id: { type: 'integer' },
+  prospect_owner_id: { type: 'integer' },
+  prospective_department_id: { type: 'integer' },
+  prospective_office_id: { type: 'integer' },
+} as const satisfies Record<string, GreenhouseFieldRule>
+
 type GreenhouseValue<T> = T extends { type: 'string' }
   ? string
   : T extends { type: 'number' }
@@ -26,9 +45,7 @@ type GreenhouseValue<T> = T extends { type: 'string' }
           : unknown
 
 export type GreenhouseV2Output<T extends Record<string, ToolOutputProperty>> = {
-  [K in keyof T]: T[K] extends { type: 'array' }
-    ? GreenhouseValue<T[K]>
-    : GreenhouseValue<T[K]> | null
+  [K in keyof T]: GreenhouseValue<T[K]> | null
 }
 
 /** Projects documented fields, including nested records, without copying provider-only keys. */
@@ -41,7 +58,10 @@ export function mapGreenhouseFields<T extends Record<string, ToolOutputProperty>
     Object.entries(fields).map(([key, field]) => {
       const item = record[key]
       if (field.type === 'array') {
-        const values = Array.isArray(item) ? item : []
+        if (item == null) return [key, null]
+        if (!Array.isArray(item))
+          throw new Error(`Greenhouse returned an invalid array field: ${key}`)
+        const values = item
         const nested = field.items?.properties
         return [key, nested ? values.map((entry) => mapGreenhouseFields(entry, nested)) : values]
       }
@@ -210,9 +230,11 @@ export function greenhouseBody(
   }
   if (operation === 'create_application') validateApplication(body)
   if (operation === 'create_candidate' && isRecordLike(body.application)) {
-    const application = structuredClone(body.application)
-    validateApplication(application)
-    body.application = application
+    body.application = greenhouseBody(
+      body.application,
+      GREENHOUSE_APPLICATION_FIELDS,
+      'create_application'
+    )
   }
   if (operation === 'create_attachment') {
     if (Boolean(body.content) === Boolean(body.url))
@@ -245,7 +267,7 @@ async function readResponse(response: Response): Promise<unknown> {
   if (!response.ok) {
     const record = toRecord(data)
     const message = typeof record.message === 'string' ? record.message : response.statusText
-    const errors = Array.isArray(record.errors) ? record.errors : []
+    const errors = toArray(record.errors)
     const detail = errors.length ? `: ${JSON.stringify(errors)}` : ''
     throw new Error(`Greenhouse API error (HTTP ${response.status}): ${message}${detail}`)
   }

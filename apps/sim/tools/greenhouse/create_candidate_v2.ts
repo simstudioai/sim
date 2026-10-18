@@ -2,6 +2,13 @@ import type {
   GreenhouseCreateCandidateV2Params,
   GreenhouseCreateCandidateV2Response,
 } from '@/tools/greenhouse/types'
+import {
+  GREENHOUSE_ADDRESS_INPUT,
+  GREENHOUSE_CUSTOM_FIELD_INPUT,
+  GREENHOUSE_EMAIL_ADDRESS_INPUT,
+  GREENHOUSE_PHONE_NUMBER_INPUT,
+  GREENHOUSE_WEBSITE_ADDRESS_INPUT,
+} from '@/tools/greenhouse/v2_inputs'
 import { CREATE_CANDIDATE_V2_OUTPUTS } from '@/tools/greenhouse/v2_outputs'
 import {
   greenhouseBody,
@@ -65,52 +72,60 @@ export const greenhouseCreateCandidateV2Tool: ToolConfig<
       description: 'Whether the candidate consents to email communication.',
     },
     phone_numbers: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_PHONE_NUMBER_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
         'Phone numbers JSON array of objects with value, type. type: home, work, mobile, skype, other.',
     },
     addresses: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_ADDRESS_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description: 'Addresses JSON array of objects with value, type. type: home, work, other.',
     },
     email_addresses: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_EMAIL_ADDRESS_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
         'Email addresses JSON array of objects with value, type. type: personal, work, other.',
     },
     website_addresses: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_WEBSITE_ADDRESS_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
         'Website addresses JSON array of objects with value, type. type: personal, company, portfolio, blog, other.',
     },
     social_media_addresses: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'object', required: ['value'], properties: { value: { type: 'string' } } },
       required: false,
       visibility: 'user-or-llm',
       description: 'Social media addresses JSON array of objects with value.',
     },
     tags: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
       description: 'Tags JSON array of string values.',
     },
     linked_user_ids: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'integer' },
       required: false,
       visibility: 'user-or-llm',
       description: 'Linked Greenhouse user IDs as a JSON array of integers.',
     },
     custom_fields: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_CUSTOM_FIELD_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:

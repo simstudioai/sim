@@ -31,7 +31,7 @@ export const greenhouseApplyCandidateTagV2Tool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Candidate ID. Required for every note and application creation.',
+      description: 'Candidate ID to tag.',
     },
     candidate_tag_id: {
       type: 'number',

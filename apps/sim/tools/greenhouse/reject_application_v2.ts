@@ -2,6 +2,7 @@ import type {
   GreenhouseRejectApplicationV2Params,
   GreenhouseRejectApplicationV2Response,
 } from '@/tools/greenhouse/types'
+import { GREENHOUSE_CUSTOM_FIELD_INPUT } from '@/tools/greenhouse/v2_inputs'
 import { greenhouseBody, greenhouseHeaders, readGreenhouseEmpty } from '@/tools/greenhouse/v2_utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
@@ -44,7 +45,8 @@ export const greenhouseRejectApplicationV2Tool: ToolConfig<
         'Optional JSON object {send_email_at, email_template_id, email_from_user_id}; supplying it sends or schedules a rejection email.',
     },
     custom_fields: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_CUSTOM_FIELD_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:

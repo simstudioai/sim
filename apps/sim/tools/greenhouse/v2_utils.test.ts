@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   greenhouseBody,
   greenhouseListUrl,
+  mapGreenhouseFields,
   readGreenhouseRecord,
 } from '@/tools/greenhouse/v2_utils'
 
@@ -36,14 +37,39 @@ describe('Greenhouse v3 wire boundaries', () => {
   })
 
   it('normalizes an embedded application without changing the caller-owned input', () => {
-    const application = Object.freeze({ job_id: 123, prospect: false })
+    const application = Object.freeze({ job_id: '123', prospect: 'false' })
     const result = greenhouseBody(
       { application },
       { application: { type: 'object' } },
       'create_candidate'
     )
     expect(JSON.stringify(result)).toBe('{"application":{"job_id":123}}')
-    expect(application).toEqual({ job_id: 123, prospect: false })
+    expect(application).toEqual({ job_id: '123', prospect: 'false' })
+  })
+
+  it('normalizes embedded prospect flags and placement IDs before choosing the application type', () => {
+    const result = greenhouseBody(
+      { application: { prospect: 'true', prospect_pool_id: '123', job_ids: [456] } },
+      { application: { type: 'object' } },
+      'create_candidate'
+    )
+    expect(result).toEqual({
+      application: { prospect: true, prospect_pool_id: 123, job_ids: [456] },
+    })
+  })
+
+  it('preserves absent arrays in partial reads without turning them into replacements', () => {
+    const fields = {
+      email_addresses: { type: 'array', items: { type: 'string' } },
+      tags: { type: 'array', items: { type: 'string' } },
+    } as const
+    expect(mapGreenhouseFields({ tags: [] }, fields)).toEqual({
+      email_addresses: null,
+      tags: [],
+    })
+    expect(() => mapGreenhouseFields({ tags: {} }, fields)).toThrow(
+      'Greenhouse returned an invalid array field: tags'
+    )
   })
 
   it.each([['123'], [1.5], [{}]])('rejects noninteger JSON ID array entries', (value) => {

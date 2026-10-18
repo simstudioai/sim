@@ -2,8 +2,10 @@ import type {
   GreenhouseCreateApplicationV2Params,
   GreenhouseCreateApplicationV2Response,
 } from '@/tools/greenhouse/types'
+import { GREENHOUSE_APPLICATION_CUSTOM_FIELD_INPUT } from '@/tools/greenhouse/v2_inputs'
 import { APPLICATIONS_V2_OUTPUTS } from '@/tools/greenhouse/v2_outputs'
 import {
+  GREENHOUSE_APPLICATION_FIELDS,
   greenhouseBody,
   greenhouseHeaders,
   mapGreenhouseFields,
@@ -58,7 +60,8 @@ export const greenhouseCreateApplicationV2Tool: ToolConfig<
       description: 'Creation time in ISO 8601 format',
     },
     custom_fields: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_APPLICATION_CUSTOM_FIELD_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -68,7 +71,7 @@ export const greenhouseCreateApplicationV2Tool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Candidate ID. Required for every note and application creation.',
+      description: 'Candidate ID to create the application for.',
     },
     job_id: { type: 'number', required: false, visibility: 'user-or-llm', description: 'Job ID' },
     initial_stage_id: {
@@ -85,7 +88,8 @@ export const greenhouseCreateApplicationV2Tool: ToolConfig<
         'Whether this is a prospect application. Set true to use prospect placement fields instead of job_id.',
     },
     job_ids: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'integer' },
       required: false,
       visibility: 'user-or-llm',
       description: 'Job IDs for a prospect as a JSON array of integers. Requires prospect=true.',
@@ -129,22 +133,8 @@ export const greenhouseCreateApplicationV2Tool: ToolConfig<
       greenhouseBody(
         params,
         {
-          source_id: { type: 'integer' },
-          recruiter_id: { type: 'integer' },
-          coordinator_id: { type: 'integer' },
-          referrer_id: { type: 'integer' },
-          created_at: { type: 'string' },
-          custom_fields: { type: 'array' },
+          ...GREENHOUSE_APPLICATION_FIELDS,
           candidate_id: { type: 'integer', required: true },
-          job_id: { type: 'integer' },
-          initial_stage_id: { type: 'integer' },
-          prospect: { type: 'boolean' },
-          job_ids: { type: 'array', integerItems: true },
-          prospect_pool_id: { type: 'integer' },
-          prospect_pool_stage_id: { type: 'integer' },
-          prospect_owner_id: { type: 'integer' },
-          prospective_department_id: { type: 'integer' },
-          prospective_office_id: { type: 'integer' },
         },
         'create_application'
       ),

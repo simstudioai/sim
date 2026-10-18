@@ -90,6 +90,7 @@ export function createGreenhouseProvider({
     const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
     let response: Response
     try {
+      // boundary-raw-fetch: Greenhouse OAuth token exchange and introspection use external form requests.
       response = await fetch(url, {
         method: 'POST',
         headers: {

@@ -111,14 +111,14 @@ export const greenhouseListInterviewsV2Tool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'All day start on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'All day start on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     all_day_end_on: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'All day end on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'All day end on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     external_event_id: {
       type: 'string',

@@ -2,6 +2,13 @@ import type {
   GreenhouseUpdateCandidateV2Params,
   GreenhouseUpdateCandidateV2Response,
 } from '@/tools/greenhouse/types'
+import {
+  GREENHOUSE_ADDRESS_INPUT,
+  GREENHOUSE_CUSTOM_FIELD_INPUT,
+  GREENHOUSE_EMAIL_ADDRESS_INPUT,
+  GREENHOUSE_PHONE_NUMBER_INPUT,
+  GREENHOUSE_WEBSITE_ADDRESS_INPUT,
+} from '@/tools/greenhouse/v2_inputs'
 import { CANDIDATES_V2_OUTPUTS } from '@/tools/greenhouse/v2_outputs'
 import {
   greenhouseBody,
@@ -79,56 +86,68 @@ export const greenhouseUpdateCandidateV2Tool: ToolConfig<
       description: 'Whether the candidate consents to email communication.',
     },
     phone_numbers: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_PHONE_NUMBER_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
         'Phone numbers JSON array of objects with value, type. type: home, work, mobile, skype, other. Read first and send the full desired collection; this replaces all existing entries. Use [] to clear it.',
     },
     addresses: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_ADDRESS_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
         'Addresses JSON array of objects with value, type. type: home, work, other. Read first and send the full desired collection; this replaces all existing entries. Use [] to clear it.',
     },
     email_addresses: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_EMAIL_ADDRESS_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
         'Email addresses JSON array of objects with value, type. type: personal, work, other. Read first and send the full desired collection; this replaces all existing entries. Use [] to clear it.',
     },
     website_addresses: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_WEBSITE_ADDRESS_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:
         'Website addresses JSON array of objects with value, type. type: personal, company, portfolio, blog, other. Read first and send the full desired collection; this replaces all existing entries. Use [] to clear it.',
     },
     social_media_addresses: {
-      type: 'json',
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['value'],
+        properties: { value: { type: 'string', maxLength: 2048 } },
+      },
       required: false,
       visibility: 'user-or-llm',
       description:
         'Social media addresses JSON array of objects with value. Read first and send the full desired collection; this replaces all existing entries. Use [] to clear it.',
     },
     tags: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
       description:
         'Tags JSON array of string values. Read first and send the full desired collection; this replaces all existing entries. Use [] to clear it.',
     },
     linked_user_ids: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'integer' },
       required: false,
       visibility: 'user-or-llm',
       description:
         'Linked Greenhouse user IDs as a JSON array of integers. Read first and send the full desired collection; this replaces all existing entries. Use [] to clear it.',
     },
     custom_fields: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_CUSTOM_FIELD_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:

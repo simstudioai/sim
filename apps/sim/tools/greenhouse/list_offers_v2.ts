@@ -122,14 +122,14 @@ export const greenhouseListOffersV2Tool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Sent on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'Sent on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     starts_on: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Starts on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'Starts on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
   },
   request: {

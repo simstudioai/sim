@@ -111,7 +111,7 @@ export const greenhouseListOpeningsV2Tool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Opening ID; required when hiring into a job with multiple open openings.',
+      description: "Filter by the opening's identifier.",
     },
   },
   request: {

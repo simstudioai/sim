@@ -146,7 +146,7 @@ export const greenhouseListApplicationsV2Tool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Whether this is a prospect application. Set true to use prospect placement fields instead of job_id.',
+        'Filter by prospect status: true for prospect applications, false for candidate applications. Omit to include both.',
     },
   },
   request: {

@@ -2,6 +2,7 @@ import type {
   GreenhouseUpdateApplicationV2Params,
   GreenhouseUpdateApplicationV2Response,
 } from '@/tools/greenhouse/types'
+import { GREENHOUSE_APPLICATION_CUSTOM_FIELD_INPUT } from '@/tools/greenhouse/v2_inputs'
 import { APPLICATIONS_V2_OUTPUTS } from '@/tools/greenhouse/v2_outputs'
 import {
   greenhouseBody,
@@ -83,7 +84,8 @@ export const greenhouseUpdateApplicationV2Tool: ToolConfig<
       description: 'Application creation date in YYYY-MM-DD format.',
     },
     custom_fields: {
-      type: 'json',
+      type: 'array',
+      items: GREENHOUSE_APPLICATION_CUSTOM_FIELD_INPUT,
       required: false,
       visibility: 'user-or-llm',
       description:

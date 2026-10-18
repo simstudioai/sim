@@ -1689,7 +1689,7 @@ export const GreenhouseV2Block: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'All day start on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}. Return ONLY the JSON.',
+          'All day start on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}. Return ONLY the JSON.',
         placeholder: 'Describe the all day start on',
       },
       mode: 'advanced',
@@ -1705,7 +1705,7 @@ export const GreenhouseV2Block: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'All day end on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}. Return ONLY the JSON.',
+          'All day end on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}. Return ONLY the JSON.',
         placeholder: 'Describe the all day end on',
       },
       mode: 'advanced',
@@ -1955,7 +1955,7 @@ export const GreenhouseV2Block: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Sent on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}. Return ONLY the JSON.',
+          'Sent on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}. Return ONLY the JSON.',
         placeholder: 'Describe the sent on',
       },
       mode: 'advanced',
@@ -1971,7 +1971,7 @@ export const GreenhouseV2Block: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Starts on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}. Return ONLY the JSON.',
+          'Starts on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}. Return ONLY the JSON.',
         placeholder: 'Describe the starts on',
       },
       mode: 'advanced',
@@ -3413,12 +3413,12 @@ export const GreenhouseV2Block: BlockConfig = {
     all_day_start_on: {
       type: 'json',
       description:
-        'All day start on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'All day start on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     all_day_end_on: {
       type: 'json',
       description:
-        'All day end on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'All day end on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     external_event_id: { type: 'string', description: 'External event ID' },
     interviews_status: {
@@ -3468,12 +3468,12 @@ export const GreenhouseV2Block: BlockConfig = {
     sent_on: {
       type: 'json',
       description:
-        'Sent on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'Sent on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     starts_on: {
       type: 'json',
       description:
-        'Starts on filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'Starts on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     close_reason_ids: {
       type: 'string',
@@ -3552,7 +3552,7 @@ export const GreenhouseV2Block: BlockConfig = {
       description: 'Application creation date (YYYY-MM-DD)',
     },
     custom_fields: {
-      type: 'json',
+      type: 'array',
       description:
         'JSON array of {name_key or custom_field_id, value}; use exactly one identifier per entry. Values follow the field type; null clears a value. JSON array of objects with name_key, custom_field_id, value. When updating a candidate, read first and send the full desired collection; supplied arrays replace all entries, and [] clears the collection.',
     },
@@ -3574,37 +3574,37 @@ export const GreenhouseV2Block: BlockConfig = {
       description: 'Whether the candidate consents to email communication.',
     },
     phone_numbers: {
-      type: 'json',
+      type: 'array',
       description:
         'Phone numbers JSON array of objects with value, type. type: home, work, mobile, skype, other. When updating a candidate, read first and send the full desired collection; supplied arrays replace all entries, and [] clears the collection.',
     },
     addresses: {
-      type: 'json',
+      type: 'array',
       description:
         'Addresses JSON array of objects with value, type. type: home, work, other. When updating a candidate, read first and send the full desired collection; supplied arrays replace all entries, and [] clears the collection.',
     },
     email_addresses: {
-      type: 'json',
+      type: 'array',
       description:
         'Email addresses JSON array of objects with value, type. type: personal, work, other. When updating a candidate, read first and send the full desired collection; supplied arrays replace all entries, and [] clears the collection.',
     },
     website_addresses: {
-      type: 'json',
+      type: 'array',
       description:
         'Website addresses JSON array of objects with value, type. type: personal, company, portfolio, blog, other. When updating a candidate, read first and send the full desired collection; supplied arrays replace all entries, and [] clears the collection.',
     },
     social_media_addresses: {
-      type: 'json',
+      type: 'array',
       description:
         'Social media addresses JSON array of objects with value. When updating a candidate, read first and send the full desired collection; supplied arrays replace all entries, and [] clears the collection.',
     },
     tags: {
-      type: 'json',
+      type: 'array',
       description:
         'Tags JSON array of string values. When updating a candidate, read first and send the full desired collection; supplied arrays replace all entries, and [] clears the collection.',
     },
     linked_user_ids: {
-      type: 'json',
+      type: 'array',
       description:
         'Linked user IDs as a JSON array of integers. When updating a candidate, read first and send the full desired array; [] clears the collection.',
     },
@@ -3619,7 +3619,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     initial_stage_id: { type: 'number', description: 'Initial stage ID' },
     create_application_job_ids: {
-      type: 'json',
+      type: 'array',
       description: 'Prospect job IDs as a JSON array of integers.',
     },
     prospect_pool_stage_id: { type: 'number', description: 'Prospect pool stage ID' },
@@ -3685,17 +3685,17 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     user_id: { type: 'number', description: 'User ID' },
     email_from: {
-      type: 'json',
+      type: 'array',
       description:
         'JSON array of sender addresses, required only when note_type is EMAIL. JSON array of string values.',
     },
     email_to: {
-      type: 'json',
+      type: 'array',
       description:
         'JSON array of recipient addresses, required only when note_type is EMAIL. JSON array of string values.',
     },
     email_cc: {
-      type: 'json',
+      type: 'array',
       description:
         'JSON array of CC addresses (may be empty), required only when note_type is EMAIL. JSON array of string values.',
     },

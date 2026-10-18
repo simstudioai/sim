@@ -31,7 +31,7 @@ export const greenhouseCreateNoteV2Tool: ToolConfig<
       type: 'number',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Candidate ID. Required for every note and application creation.',
+      description: 'Candidate ID whose activity feed receives the note.',
     },
     body: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Body' },
     subject: {
@@ -54,21 +54,24 @@ export const greenhouseCreateNoteV2Tool: ToolConfig<
       description: 'User ID',
     },
     email_from: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
       description:
         'JSON array of sender addresses, required only when note_type is EMAIL. JSON array of string values.',
     },
     email_to: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
       description:
         'JSON array of recipient addresses, required only when note_type is EMAIL. JSON array of string values.',
     },
     email_cc: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-or-llm',
       description:
