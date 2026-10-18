@@ -27,6 +27,13 @@ function optionalString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
+/** Leaves optional JSON unset until a populated value reaches the tool's bounded parser. */
+function optionalJson(value: unknown): unknown {
+  return value === null || value === undefined || (typeof value === 'string' && !value.trim())
+    ? undefined
+    : value
+}
+
 /** Coerces a 'true'/'false' dropdown value to boolean, or `undefined` when unset. */
 function optionalBoolean(value: unknown): boolean | undefined {
   const str = optionalString(value)
@@ -639,10 +646,6 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           driveId: effectiveDriveId,
           oauthCredential,
           sessionId: optionalString(params.sessionId),
-          formulas: params.formulas === '' ? undefined : params.formulas,
-          formulasLocal: params.formulasLocal === '' ? undefined : params.formulasLocal,
-          formulasR1C1: params.formulasR1C1 === '' ? undefined : params.formulasR1C1,
-          numberFormat: params.numberFormat === '' ? undefined : params.numberFormat,
         }
 
         switch (operation) {
@@ -684,6 +687,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
             return { ...base, worksheetName: effectiveWorksheetName }
           }
           case 'sort_range': {
+            const sortFields = optionalJson(params.sortFields)
             const effectiveTableName = optionalString(sortTableName)
             if (!effectiveTableName && !trimmedRange) {
               throw new Error('A range or table name is required to sort.')
@@ -692,8 +696,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               ...base,
               range: trimmedRange,
               tableName: effectiveTableName,
-              sortColumn: optionalNumber(sortColumn),
-              sortFields: params.sortFields === '' ? undefined : params.sortFields,
+              sortColumn: sortFields === undefined ? optionalNumber(sortColumn) : undefined,
+              sortFields,
               sortMethod: optionalString(params.sortMethod),
               orientation: optionalString(params.orientation),
               sortAscending: optionalBoolean(sortAscending) ?? true,
@@ -701,37 +705,31 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               matchCase: optionalBoolean(sortMatchCase),
             }
           }
-          default: {
-            let parsedValues
-            try {
-              parsedValues =
-                typeof values === 'string' && values.trim()
-                  ? JSON.parse(values)
-                  : values || undefined
-            } catch {
-              throw new Error('Invalid JSON format for values')
+          case 'table_add':
+            return {
+              ...base,
+              tableName: optionalString(tableName),
+              values: optionalJson(values),
+              index: optionalNumber(params.index),
             }
-
-            if (operation === 'table_add' && !tableName) {
-              throw new Error('Table name is required for table operations.')
-            }
-
-            const baseParams = {
+          case 'worksheet_add':
+            return { ...base, worksheetName: optionalString(worksheetName) }
+          case 'read':
+            return { ...base, range: trimmedRange }
+          case 'write':
+            return {
               ...base,
               range: trimmedRange,
-              values: parsedValues,
+              values: optionalJson(values),
+              formulas: optionalJson(params.formulas),
+              formulasLocal: optionalJson(params.formulasLocal),
+              formulasR1C1: optionalJson(params.formulasR1C1),
+              numberFormat: optionalJson(params.numberFormat),
               columnHidden: optionalBoolean(params.columnHidden),
               rowHidden: optionalBoolean(params.rowHidden),
             }
-
-            if (operation === 'table_add') {
-              return { ...baseParams, tableName, index: optionalNumber(params.index) }
-            }
-            if (operation === 'worksheet_add') {
-              return { ...baseParams, worksheetName }
-            }
-            return baseParams
-          }
+          default:
+            throw new Error(`Invalid Microsoft Excel operation: ${operation}`)
         }
       },
     },
@@ -1734,51 +1732,71 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           driveId: effectiveDriveId,
           oauthCredential,
           sessionId: optionalString(params.sessionId),
-          formulas: params.formulas === '' ? undefined : params.formulas,
-          formulasLocal: params.formulasLocal === '' ? undefined : params.formulasLocal,
-          formulasR1C1: params.formulasR1C1 === '' ? undefined : params.formulasR1C1,
-          numberFormat: params.numberFormat === '' ? undefined : params.numberFormat,
         }
 
         switch (operation) {
           case 'table_add':
-          case 'worksheet_add':
-          case 'list_worksheets':
-          case 'get_worksheet':
-          case 'update_worksheet':
-          case 'list_tables':
-          case 'get_table':
-          case 'update_table':
-          case 'delete_table':
-          case 'list_table_rows':
-          case 'get_table_row':
-          case 'update_table_row':
-          case 'delete_table_row':
-          case 'create_session':
-          case 'refresh_session':
-          case 'close_session':
-          case 'calculate':
             return {
               ...base,
-              sheetName: effectiveSheetName || undefined,
               tableName: optionalString(params.tableName),
-              worksheetName: optionalString(params.worksheetName),
+              values: optionalJson(values),
+              index: optionalNumber(params.index),
+            }
+          case 'worksheet_add':
+            return { ...base, worksheetName: optionalString(params.worksheetName) }
+          case 'list_worksheets':
+          case 'list_tables':
+            return { ...base, top: optionalNumber(params.top), skip: optionalNumber(params.skip) }
+          case 'get_worksheet':
+            return { ...base, sheetName: effectiveSheetName }
+          case 'update_worksheet':
+            return {
+              ...base,
+              sheetName: effectiveSheetName,
               name: optionalString(params.name),
               position: optionalNumber(params.position),
               visibility: optionalString(params.visibility),
-              index: optionalNumber(params.index),
-              top: optionalNumber(params.top),
-              skip: optionalNumber(params.skip),
-              values:
-                typeof values === 'string' && values.trim()
-                  ? JSON.parse(values)
-                  : values || undefined,
+            }
+          case 'get_table':
+          case 'delete_table':
+            return { ...base, tableName: optionalString(params.tableName) }
+          case 'update_table':
+            return {
+              ...base,
+              tableName: optionalString(params.tableName),
+              name: optionalString(params.name),
               showHeaders: optionalBoolean(params.showHeaders),
               showTotals: optionalBoolean(params.showTotals),
               style: optionalString(params.style),
-              persistChanges: params.persistChanges ?? false,
-              calculationType: params.calculationType,
             }
+          case 'list_table_rows':
+            return {
+              ...base,
+              tableName: optionalString(params.tableName),
+              top: optionalNumber(params.top),
+              skip: optionalNumber(params.skip),
+            }
+          case 'get_table_row':
+          case 'delete_table_row':
+            return {
+              ...base,
+              tableName: optionalString(params.tableName),
+              index: optionalNumber(params.index),
+            }
+          case 'update_table_row':
+            return {
+              ...base,
+              tableName: optionalString(params.tableName),
+              index: optionalNumber(params.index),
+              values: optionalJson(values),
+            }
+          case 'create_session':
+            return { ...base, persistChanges: optionalBoolean(params.persistChanges) ?? false }
+          case 'refresh_session':
+          case 'close_session':
+            return base
+          case 'calculate':
+            return { ...base, calculationType: params.calculationType }
 
           case 'clear_range':
             return {
@@ -1822,6 +1840,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               worksheetName: effectiveSheetName,
             }
           case 'sort_range': {
+            const sortFields = optionalJson(params.sortFields)
             const tableName = optionalString(sortTableName)
             if (!tableName && !trimmedRange) {
               throw new Error('A cell range or table name is required to sort.')
@@ -1831,8 +1850,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               sheetName: effectiveSheetName || undefined,
               range: trimmedRange,
               tableName,
-              sortColumn: optionalNumber(sortColumn),
-              sortFields: params.sortFields === '' ? undefined : params.sortFields,
+              sortColumn: sortFields === undefined ? optionalNumber(sortColumn) : undefined,
+              sortFields,
               sortMethod: optionalString(params.sortMethod),
               orientation: optionalString(params.orientation),
               sortAscending: optionalBoolean(sortAscending) ?? true,
@@ -1840,21 +1859,26 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               matchCase: optionalBoolean(sortMatchCase),
             }
           }
-          default: {
+          case 'read':
+          case 'write': {
             if (!effectiveSheetName) {
               throw new Error('Sheet name is required. Please select or enter a sheet name.')
             }
-            const parsedValues =
-              typeof values === 'string' && values.trim() ? JSON.parse(values) : values || undefined
+            const rangeParams = { ...base, sheetName: effectiveSheetName, cellRange: trimmedRange }
+            if (operation === 'read') return rangeParams
             return {
-              ...base,
-              sheetName: effectiveSheetName,
-              cellRange: trimmedRange,
-              values: parsedValues,
+              ...rangeParams,
+              values: optionalJson(values),
+              formulas: optionalJson(params.formulas),
+              formulasLocal: optionalJson(params.formulasLocal),
+              formulasR1C1: optionalJson(params.formulasR1C1),
+              numberFormat: optionalJson(params.numberFormat),
               columnHidden: optionalBoolean(params.columnHidden),
               rowHidden: optionalBoolean(params.rowHidden),
             }
           }
+          default:
+            throw new Error(`Invalid Microsoft Excel operation: ${operation}`)
         }
       },
     },
@@ -2216,4 +2240,7 @@ export const MicrosoftExcelBlockMeta = {
   ],
 } as const satisfies BlockMeta
 
-export const MicrosoftExcelV2BlockMeta = { ...MicrosoftExcelBlockMeta } as const satisfies BlockMeta
+export const MicrosoftExcelV2BlockMeta = {
+  ...MicrosoftExcelBlockMeta,
+  tags: ['spreadsheet', 'microsoft-365'],
+} as const satisfies BlockMeta

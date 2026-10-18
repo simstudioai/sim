@@ -132,9 +132,11 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     headers: excelHeaders,
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.values !== undefined) body.values = normalizeExcelValues(params.values, true)
+      if (params.values !== undefined && params.values !== null)
+        body.values = normalizeExcelValues(params.values, { includeHeaders: true })
       for (const key of ['formulas', 'formulasLocal', 'formulasR1C1', 'numberFormat'] as const) {
-        if (params[key] !== undefined) body[key] = normalizeExcelValues(params[key])
+        if (params[key] !== undefined && params[key] !== null)
+          body[key] = normalizeExcelValues(params[key], { matrixOnly: true })
       }
       if (params.columnHidden !== undefined) body.columnHidden = params.columnHidden
       if (params.rowHidden !== undefined) body.rowHidden = params.rowHidden
@@ -310,9 +312,11 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
     headers: excelHeaders,
     body: (params) => {
       const body: Record<string, unknown> = {}
-      if (params.values !== undefined) body.values = normalizeExcelValues(params.values, true)
+      if (params.values !== undefined && params.values !== null)
+        body.values = normalizeExcelValues(params.values, { includeHeaders: true })
       for (const key of ['formulas', 'formulasLocal', 'formulasR1C1', 'numberFormat'] as const) {
-        if (params[key] !== undefined) body[key] = normalizeExcelValues(params[key])
+        if (params[key] !== undefined && params[key] !== null)
+          body[key] = normalizeExcelValues(params[key], { matrixOnly: true })
       }
       if (params.columnHidden !== undefined) body.columnHidden = params.columnHidden
       if (params.rowHidden !== undefined) body.rowHidden = params.rowHidden
@@ -358,7 +362,11 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
 
   outputs: {
     ...EXCEL_RANGE_OUTPUTS,
-    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    updatedRange: {
+      type: 'string',
+      nullable: true,
+      description: 'Range of cells that were updated',
+    },
     updatedRows: { type: 'number', description: 'Number of rows updated' },
     updatedColumns: { type: 'number', description: 'Number of columns updated' },
     updatedCells: { type: 'number', description: 'Number of cells updated' },

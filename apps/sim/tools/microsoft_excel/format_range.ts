@@ -251,22 +251,22 @@ export const formatRangeTool: ToolConfig<
     fill: {
       type: 'object',
       description: 'The applied fill, or null if no fill was set',
-      optional: true,
+      nullable: true,
       properties: {
-        color: { type: 'string', description: 'The applied fill color' },
+        color: { nullable: true, type: 'string', description: 'The applied fill color' },
       },
     },
     font: {
       type: 'object',
       description: 'The applied font properties, or null if no font was set',
-      optional: true,
+      nullable: true,
       properties: {
-        bold: { type: 'boolean', description: 'Whether the font is bold' },
-        italic: { type: 'boolean', description: 'Whether the font is italic' },
-        color: { type: 'string', description: 'The font color' },
-        name: { type: 'string', description: 'The font name' },
-        underline: { type: 'string', optional: true, description: 'Underline style.' },
-        size: { type: 'number', description: 'The font size in points' },
+        bold: { nullable: true, type: 'boolean', description: 'Whether the font is bold' },
+        italic: { nullable: true, type: 'boolean', description: 'Whether the font is italic' },
+        color: { nullable: true, type: 'string', description: 'The font color' },
+        name: { nullable: true, type: 'string', description: 'The font name' },
+        underline: { type: 'string', nullable: true, description: 'Underline style.' },
+        size: { nullable: true, type: 'number', description: 'The font size in points' },
       },
     },
     metadata: {

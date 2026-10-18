@@ -18,7 +18,7 @@ import {
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
- * Sorts a worksheet range or a table by a single column.
+ * Sorts a worksheet range or a table by one or more fields.
  * Uses Microsoft Graph:
  *   - Range: POST /workbook/worksheets/{name}/range(address='...')/sort/apply
  *   - Table: POST /workbook/tables('{name}')/sort/apply
@@ -29,7 +29,7 @@ export const sortRangeTool: ToolConfig<
 > = {
   id: 'microsoft_excel_sort_range',
   name: 'Sort Microsoft Excel Range',
-  description: 'Sort a range or table by a column in a Microsoft Excel worksheet',
+  description: 'Sort a range or table by one or more fields in a Microsoft Excel worksheet',
   version: '1.0',
   errorExtractor: ErrorExtractorId.MICROSOFT_GRAPH_ERRORS,
 

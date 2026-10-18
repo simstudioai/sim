@@ -37,7 +37,7 @@ export const updateTableRowTool: ToolConfig<ExcelUpdateRowParams, ExcelRowRespon
     method: 'PATCH',
     headers: excelHeaders,
     body: (params) => {
-      const values = normalizeExcelValues(params.values)
+      const values = normalizeExcelValues(params.values, { matrixOnly: true })
       if (values.length !== 1) throw new Error('Update Table Row requires exactly one row')
       return { values }
     },
@@ -47,7 +47,7 @@ export const updateTableRowTool: ToolConfig<ExcelUpdateRowParams, ExcelRowRespon
     output: mapExcelRow(await readExcelJson(response)),
   }),
   outputs: {
-    index: { type: 'number', optional: true, description: 'Zero-based table row index.' },
+    index: { type: 'number', nullable: true, description: 'Zero-based table row index.' },
     values: { ...EXCEL_VALUES_OUTPUT },
   },
 }

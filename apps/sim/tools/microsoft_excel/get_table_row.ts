@@ -30,7 +30,7 @@ export const getTableRowTool: ToolConfig<ExcelRowParams, ExcelRowResponse> = {
     output: mapExcelRow(await readExcelJson(response)),
   }),
   outputs: {
-    index: { type: 'number', optional: true, description: 'Zero-based table row index.' },
+    index: { type: 'number', nullable: true, description: 'Zero-based table row index.' },
     values: { ...EXCEL_VALUES_OUTPUT },
   },
 }

@@ -16830,7 +16830,7 @@
         },
         {
           "name": "Sort Range",
-          "description": "Sort a range or table by a column in a Microsoft Excel worksheet"
+          "description": "Sort a range or table by one or more fields in a Microsoft Excel worksheet"
         },
         {
           "name": "Delete Worksheet",
@@ -16912,6 +16912,7 @@
       "oauthServiceId": "microsoft-excel",
       "category": "tools",
       "integrationType": "documents",
+      "tags": ["spreadsheet", "microsoft-365"],
       "updatedAt": "2026-10-18"
     },
     {

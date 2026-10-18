@@ -76,62 +76,62 @@ export const EXCEL_WORKSHEET_OUTPUT = {
   type: 'object',
   description: 'Worksheet properties.',
   properties: {
-    id: { type: 'string', description: 'Stable worksheet identifier.', optional: true },
-    name: { type: 'string', description: 'Worksheet display name.', optional: true },
+    id: { type: 'string', description: 'Stable worksheet identifier.', nullable: true },
+    name: { type: 'string', description: 'Worksheet display name.', nullable: true },
     position: {
       type: 'number',
       description: 'Zero-based position in the workbook.',
-      optional: true,
+      nullable: true,
     },
-    visibility: { type: 'string', description: 'Visible, Hidden, or VeryHidden.', optional: true },
+    visibility: { type: 'string', description: 'Visible, Hidden, or VeryHidden.', nullable: true },
   },
 } satisfies OutputProperty
 export const EXCEL_TABLE_OUTPUT = {
   type: 'object',
   description: 'Table properties.',
   properties: {
-    id: { type: 'string', description: 'Stable table identifier.', optional: true },
-    name: { type: 'string', description: 'Table name.', optional: true },
+    id: { type: 'string', description: 'Stable table identifier.', nullable: true },
+    name: { type: 'string', description: 'Table name.', nullable: true },
     showHeaders: {
       type: 'boolean',
       description: 'Whether the header row is visible.',
-      optional: true,
+      nullable: true,
     },
     showTotals: {
       type: 'boolean',
       description: 'Whether the totals row is visible.',
-      optional: true,
+      nullable: true,
     },
-    style: { type: 'string', description: 'Built-in or custom table style.', optional: true },
+    style: { type: 'string', description: 'Built-in or custom table style.', nullable: true },
     highlightFirstColumn: {
       type: 'boolean',
       description: 'Whether the first column has special formatting.',
-      optional: true,
+      nullable: true,
     },
     highlightLastColumn: {
       type: 'boolean',
       description: 'Whether the last column has special formatting.',
-      optional: true,
+      nullable: true,
     },
     showBandedColumns: {
       type: 'boolean',
       description: 'Whether alternating columns are formatted differently.',
-      optional: true,
+      nullable: true,
     },
     showBandedRows: {
       type: 'boolean',
       description: 'Whether alternating rows are formatted differently.',
-      optional: true,
+      nullable: true,
     },
     showFilterButton: {
       type: 'boolean',
       description: 'Whether header filter buttons are visible.',
-      optional: true,
+      nullable: true,
     },
     legacyId: {
       type: 'string',
       description: 'Opaque legacy identifier used by older Excel clients.',
-      optional: true,
+      nullable: true,
     },
   },
 } satisfies OutputProperty
@@ -144,7 +144,7 @@ export const EXCEL_ROW_OUTPUT = {
   type: 'object',
   description: 'Table row.',
   properties: {
-    index: { type: 'number', description: 'Zero-based row index.', optional: true },
+    index: { type: 'number', description: 'Zero-based row index.', nullable: true },
     values: { ...EXCEL_VALUES_OUTPUT },
   },
 } satisfies OutputProperty
@@ -153,7 +153,7 @@ export const EXCEL_PAGE_OUTPUTS = {
     type: 'string',
     description:
       'Provider continuation link, when supplied. This tool pages with top and skip; it does not follow links automatically.',
-    optional: true,
+    nullable: true,
   },
   count: {
     type: 'number',
@@ -172,15 +172,19 @@ export function excelHeaders(
     ...(params.sessionId?.trim() ? { 'workbook-session-id': params.sessionId.trim() } : {}),
   }
 }
+/** Build the fixed Microsoft Graph workbook endpoint after validating item and drive IDs. */
 export function excelWorkbookUrl(params: ExcelWorkbookParams): string {
   return `${getItemBasePath(params.spreadsheetId, params.driveId)}/workbook`
 }
+/** Address a workbook table by its safely encoded ID or name. */
 export function excelTableUrl(params: ExcelWorkbookParams & { tableName: string }): string {
   return `${excelWorkbookUrl(params)}/tables/${safeUrlPathSegment(params.tableName, 'tableName')}`
 }
+/** Address a workbook worksheet by its safely encoded ID or name. */
 export function excelWorksheetUrl(params: ExcelWorkbookParams & { sheetName: string }): string {
   return `${excelWorkbookUrl(params)}/worksheets/${safeUrlPathSegment(params.sheetName, 'sheetName')}`
 }
+/** Require a safe integer in the inclusive bounds, defaulting to the non-negative Int32 range. */
 export function excelInteger(
   value: number,
   name: string,
@@ -191,6 +195,7 @@ export function excelInteger(
     throw new Error(`${name} must be an integer from ${minimum} to ${maximum}`)
   return value
 }
+/** Add bounded pagination: 100 items by default, at most 1000, with a non-negative offset. */
 export function excelPageUrl(url: string, params: { top?: number; skip?: number }): string {
   const query = new URLSearchParams({
     $top: String(excelInteger(params.top ?? 100, 'top', 1, 1000)),
@@ -198,6 +203,7 @@ export function excelPageUrl(url: string, params: { top?: number; skip?: number 
   })
   return `${url}?${query}`
 }
+/** Reject unsuccessful Graph responses with the provider error message or HTTP status. */
 export async function assertExcelSuccess(response: Response): Promise<void> {
   if (!response.ok) {
     const data: unknown = await response.json().catch(() => null)
@@ -206,12 +212,14 @@ export async function assertExcelSuccess(response: Response): Promise<void> {
     )
   }
 }
+/** Require a successful JSON object response before projecting workbook data. */
 export async function readExcelJson(response: Response): Promise<Record<string, unknown>> {
   await assertExcelSuccess(response)
   const data: unknown = await response.json()
   if (!isRecordLike(data)) throw new Error('Microsoft Graph returned an invalid response object')
   return data
 }
+/** Project worksheet fields, representing missing provider scalars as null. */
 export function mapExcelWorksheet(value: unknown): ExcelWorksheet {
   const data = toRecord(value)
   return {
@@ -221,6 +229,7 @@ export function mapExcelWorksheet(value: unknown): ExcelWorksheet {
     visibility: toStringOrNull(data.visibility),
   }
 }
+/** Project table fields, representing missing provider scalars as null. */
 export function mapExcelTable(value: unknown): ExcelTable {
   const data = toRecord(value)
   return {
@@ -237,6 +246,7 @@ export function mapExcelTable(value: unknown): ExcelTable {
     legacyId: toStringOrNull(data.legacyId),
   }
 }
+/** Project a table row, defaulting missing values to an empty matrix. */
 export function mapExcelRow(value: unknown): ExcelRow {
   const data = toRecord(value)
   return {
@@ -245,12 +255,20 @@ export function mapExcelRow(value: unknown): ExcelRow {
   }
 }
 /** Preserve the established object-row convenience format, with a finite materialization budget. */
-export function normalizeExcelValues(value: unknown, includeHeaders = false): ExcelCellValue[][] {
+export function normalizeExcelValues(
+  value: unknown,
+  {
+    includeHeaders = false,
+    matrixOnly = false,
+  }: { includeHeaders?: boolean; matrixOnly?: boolean } = {}
+): ExcelCellValue[][] {
   if (typeof value === 'string' && value.length > 10 * 1024 * 1024)
     throw new Error('Excel values exceed the 10 MiB input limit')
   const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value
   if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > 10000)
     throw new Error('Values must contain between 1 and 10000 rows')
+  if (matrixOnly && !parsed.every(Array.isArray))
+    throw new Error('Values must be a two-dimensional array in worksheet or table column order')
   let rows: unknown[][]
   if (isRecordLike(parsed[0])) {
     const keySet = new Set<string>()
@@ -267,7 +285,11 @@ export function normalizeExcelValues(value: unknown, includeHeaders = false): Ex
     rows = parsed.map((row) =>
       keys.map((key) => {
         const cell = toRecord(row)[key]
-        return isRecordLike(cell) || Array.isArray(cell) ? JSON.stringify(cell) : (cell ?? '')
+        return isRecordLike(cell) || Array.isArray(cell)
+          ? JSON.stringify(cell)
+          : cell === undefined
+            ? ''
+            : cell
       })
     )
     if (includeHeaders) rows.unshift(keys)
@@ -294,57 +316,52 @@ export function normalizeExcelValues(value: unknown, includeHeaders = false): Ex
 }
 
 export const EXCEL_RANGE_OUTPUTS = {
-  addressLocal: { type: 'string', optional: true, description: 'Localized range address.' },
-  cellCount: { type: 'number', optional: true, description: 'Cell count in the returned range.' },
+  addressLocal: { type: 'string', nullable: true, description: 'Localized range address.' },
+  cellCount: { type: 'number', nullable: true, description: 'Cell count in the returned range.' },
   columnCount: {
     type: 'number',
-    optional: true,
+    nullable: true,
     description: 'Column count in the returned range.',
   },
-  columnHidden: { type: 'boolean', optional: true, description: 'Whether all columns are hidden.' },
-  columnIndex: { type: 'number', optional: true, description: 'Zero-based first column index.' },
+  columnHidden: { type: 'boolean', nullable: true, description: 'Whether all columns are hidden.' },
+  columnIndex: { type: 'number', nullable: true, description: 'Zero-based first column index.' },
   formulas: {
     type: 'array',
-    optional: true,
     description: 'A1 formulas for the full returned range.',
     items: { type: 'array', description: 'Row of cell data.' },
   },
   formulasLocal: {
     type: 'array',
-    optional: true,
     description: 'Localized A1 formulas for the full returned range.',
     items: { type: 'array', description: 'Row of cell data.' },
   },
   formulasR1C1: {
     type: 'array',
-    optional: true,
     description: 'R1C1 formulas for the full returned range.',
     items: { type: 'array', description: 'Row of cell data.' },
   },
-  hidden: { type: 'boolean', optional: true, description: 'Whether all cells are hidden.' },
+  hidden: { type: 'boolean', nullable: true, description: 'Whether all cells are hidden.' },
   numberFormat: {
     type: 'array',
-    optional: true,
     description: 'Number format codes for the full returned range.',
     items: { type: 'array', description: 'Row of cell data.' },
   },
-  rowCount: { type: 'number', optional: true, description: 'Row count in the returned range.' },
-  rowHidden: { type: 'boolean', optional: true, description: 'Whether all rows are hidden.' },
-  rowIndex: { type: 'number', optional: true, description: 'Zero-based first row index.' },
+  rowCount: { type: 'number', nullable: true, description: 'Row count in the returned range.' },
+  rowHidden: { type: 'boolean', nullable: true, description: 'Whether all rows are hidden.' },
+  rowIndex: { type: 'number', nullable: true, description: 'Zero-based first row index.' },
   text: {
     type: 'array',
-    optional: true,
     description: 'Formatted text for the full returned range.',
     items: { type: 'array', description: 'Row of cell data.' },
   },
   valueTypes: {
     type: 'array',
-    optional: true,
     description: 'Cell value types for the full returned range.',
     items: { type: 'array', description: 'Row of cell data.' },
   },
 } satisfies Record<string, OutputProperty>
 
+/** Project range metadata, with nullable scalars and empty matrices for missing fields. */
 export function mapExcelRange(data: Record<string, unknown>) {
   return {
     addressLocal: toStringOrNull(data.addressLocal),

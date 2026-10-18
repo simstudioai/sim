@@ -134,6 +134,9 @@ export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
  */
 export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
   spreadsheetId = spreadsheetId.trim()
+  if (driveId !== undefined && !driveId.trim()) {
+    throw new Error('driveId must not be blank when provided')
+  }
   driveId = driveId?.trim()
   const spreadsheetValidation = validatePathSegment(spreadsheetId, {
     paramName: 'spreadsheetId',
