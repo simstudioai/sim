@@ -4402,13 +4402,15 @@ export const CloudflareBlock: BlockConfig = {
       title: 'Rules',
       type: 'long-input',
       placeholder: 'Enter rules as JSON',
+      description:
+        'Read Get Ruleset first and include every rule to retain. This array replaces the complete rule list; [] removes all rules.',
       condition: { field: 'operation', value: ['update_ruleset'] },
       required: false,
       mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate the Cloudflare rules value. JSON array. The list of rules in the ruleset. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version. Return ONLY the value.',
+          'Generate the Cloudflare rules value. JSON array replacing the complete rule list. Preserve every existing rule the user wants to keep from their Get Ruleset output. Omitted rules are removed, and [] removes all rules. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version. Return ONLY the value.',
         placeholder: 'Describe the rules',
       },
     },

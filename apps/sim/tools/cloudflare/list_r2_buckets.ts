@@ -129,13 +129,20 @@ export const listR2BucketsTool: ToolConfig<
     total_count: {
       type: 'number',
       description:
-        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+        'Total active buckets in the requested jurisdiction, independent of filtering or pagination. Eventually consistent for accounts with elevated bucket limits. Falls back to this page’s bucket count when the API omits the total.',
     },
     result_info: {
       type: 'json',
       description: 'Pagination metadata returned by Cloudflare',
       nullable: true,
-      properties: RESULT_INFO_OUTPUTS,
+      properties: {
+        ...RESULT_INFO_OUTPUTS,
+        total_count: {
+          ...RESULT_INFO_OUTPUTS.total_count,
+          description:
+            'Total active buckets in the requested jurisdiction, independent of filtering or pagination. Eventually consistent for accounts with elevated bucket limits.',
+        },
+      },
     },
     cursor: { type: 'string', description: 'Cursor for the next page', nullable: true },
   },

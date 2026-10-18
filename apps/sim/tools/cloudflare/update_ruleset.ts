@@ -22,7 +22,7 @@ export const updateRulesetTool: ToolConfig<
   id: 'cloudflare_update_ruleset',
   name: 'Cloudflare Update Ruleset',
   description:
-    'Updates a zone ruleset, creating a new version. Replaces the configuration; resend all values to retain.',
+    'Updates a zone ruleset, creating a new version. Read the current configuration with "Get Ruleset" first and resend all values to retain. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use "Create Ruleset Rule" to add a single rule without replacing the list.',
   version: '1.0.0',
   params: {
     zoneId: {
@@ -73,7 +73,7 @@ export const updateRulesetTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON array. The list of rules in the ruleset. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version.',
+        'JSON array replacing the complete rule list. Read "Get Ruleset" first and include every rule to retain; omitted rules are removed, and [] removes all rules. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version.',
     },
     dry_run: {
       type: 'boolean',

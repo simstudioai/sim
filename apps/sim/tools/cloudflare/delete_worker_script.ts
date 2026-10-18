@@ -41,7 +41,7 @@ export const deleteWorkerScriptTool: ToolConfig<
     force: {
       type: 'boolean',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'user-only',
       description:
         'If true, delete the Worker even when other Workers still reference it. Service bindings in those Workers may be left broken. Durable Object namespaces implemented by the deleted Worker are deleted even if other Workers reference them.',
     },
