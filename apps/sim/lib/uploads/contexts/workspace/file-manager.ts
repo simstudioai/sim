@@ -24,7 +24,8 @@ import {
 } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
-import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { escapeLikePattern } from '@sim/utils/string'
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
 import {
@@ -453,16 +454,21 @@ async function cleanupWorkspaceStorageObject(key: string, reason: string): Promi
   }
 }
 
+/** Splits a name where {@link withCopySuffix} inserts its ` (n)`: before the last extension. */
+function copySuffixParts(fileName: string): { stem: string; extension: string } {
+  const lastDot = fileName.lastIndexOf('.')
+  const hasExtension = lastDot > 0 && lastDot < fileName.length - 1
+  return hasExtension
+    ? { stem: fileName.slice(0, lastDot), extension: fileName.slice(lastDot) }
+    : { stem: fileName, extension: '' }
+}
+
 /**
  * Inserts ` (n)` before the last extension (e.g. `a.pdf` → `a (1).pdf`), or appends for names without.
  */
 function withCopySuffix(fileName: string, n: number | string): string {
-  const lastDot = fileName.lastIndexOf('.')
-  const hasExtension = lastDot > 0 && lastDot < fileName.length - 1
-  if (hasExtension) {
-    return `${fileName.slice(0, lastDot)} (${n})${fileName.slice(lastDot)}`
-  }
-  return `${fileName} (${n})`
+  const { stem, extension } = copySuffixParts(fileName)
+  return `${stem} (${n})${extension}`
 }
 
 /**
@@ -1240,6 +1246,45 @@ const MAX_CHAT_DISPLAY_NAME_RETRIES = 1000
 export const CHAT_DISPLAY_NAME_INDEX = 'workspace_files_chat_display_name_unique'
 
 /**
+ * The first `suffixedName(fileName, n)` free in the chat under {@link CHAT_DISPLAY_NAME_INDEX}.
+ *
+ * Reads with the index's own predicate, so soft-deleted rows keep their slot, and skips the row
+ * being re-linked so it keeps its current name. One indexed read replaces probing each
+ * candidate with a write; `knownTaken` carries names that lost a race since the read.
+ */
+async function nextFreeChatDisplayName(
+  tx: DbTransaction,
+  chatId: string,
+  fileName: string,
+  relinkedFileId: string | null,
+  knownTaken: ReadonlySet<string>
+): Promise<string> {
+  const { stem, extension } = copySuffixParts(fileName)
+  const suffixedPattern = `${escapeLikePattern(stem)} (%)${escapeLikePattern(extension)}`
+  const rows = await tx
+    .select({ displayName: workspaceFiles.displayName })
+    .from(workspaceFiles)
+    .where(
+      and(
+        eq(workspaceFiles.chatId, chatId),
+        eq(workspaceFiles.context, 'mothership'),
+        or(
+          eq(workspaceFiles.displayName, fileName),
+          sql`${workspaceFiles.displayName} LIKE ${suffixedPattern} ESCAPE '\\'`
+        ),
+        relinkedFileId ? ne(workspaceFiles.id, relinkedFileId) : undefined
+      )
+    )
+  const taken = new Set(knownTaken)
+  for (const row of rows) if (row.displayName) taken.add(row.displayName)
+  for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
+    const candidate = suffixedName(fileName, n)
+    if (!taken.has(candidate)) return candidate
+  }
+  throw new FileConflictError(fileName)
+}
+
+/**
  * Raised when a caller-supplied storage key may not be bound to a chat upload —
  * it addresses another workspace, or it already has a `workspace_files` record
  * the caller does not own as an active chat upload.
@@ -1368,12 +1413,14 @@ export async function trackChatUpload(
     }
   }
 
-  for (let n = 1; n <= MAX_CHAT_DISPLAY_NAME_RETRIES; n++) {
-    const candidate = suffixedName(fileName, n)
+  const lostRaces = new Set<string>()
+  for (let attempt = 1; attempt <= MAX_CHAT_DISPLAY_NAME_RETRIES; attempt++) {
+    let candidate = fileName
     try {
       if (claimable.kind === 'update') {
         await db.transaction(async (tx) => {
           await lockWorkspaceProject(tx, workspaceId)
+          candidate = await nextFreeChatDisplayName(tx, chatId, fileName, claimable.id, lostRaces)
           const updated = await tx
             .update(workspaceFiles)
             .set({
@@ -1420,6 +1467,7 @@ export async function trackChatUpload(
 
       await db.transaction(async (tx) => {
         await lockWorkspaceProject(tx, workspaceId)
+        candidate = await nextFreeChatDisplayName(tx, chatId, fileName, null, lostRaces)
         const [inserted] = await tx
           .insert(workspaceFiles)
           .values({
@@ -1452,8 +1500,9 @@ export async function trackChatUpload(
         getPostgresConstraintName(error) === CHAT_DISPLAY_NAME_INDEX
       ) {
         logger.warn(
-          `Chat upload displayName collision on attempt ${n} for "${candidate}" in chat ${chatId}, retrying with suffix`
+          `Chat upload displayName collision on attempt ${attempt} for "${candidate}" in chat ${chatId}, retrying with suffix`
         )
+        lostRaces.add(candidate)
         continue
       }
       throw error
