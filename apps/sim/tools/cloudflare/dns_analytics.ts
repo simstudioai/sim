@@ -181,8 +181,7 @@ export const dnsAnalyticsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Comma-separated dimensions to group by: queryName, queryType, responseCode',
+      description: 'Comma-separated dimensions to group by: queryName, queryType, responseCode',
     },
     filters: {
       type: 'string',
@@ -195,8 +194,7 @@ export const dnsAnalyticsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Sort order, e.g. "-queryCount" or "+queryName"',
+      description: 'Sort order, e.g. "-queryCount" or "+queryName"',
     },
     limit: {
       type: 'number',
