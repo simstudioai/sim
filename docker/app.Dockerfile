@@ -196,6 +196,11 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modu
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
 
+# Markdown PDF export resolves bundled Unicode fallbacks through these packages at runtime. The
+# standalone tracer does not reliably retain fonts referenced through require.resolve, so copy the
+# font packages explicitly just like the other runtime assets above.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@fontsource ./node_modules/@fontsource
+
 # PDF.js requires native canvas primitives even for text extraction. Standalone
 # tracing can miss the platform binding behind canvas's dynamic require. Copy
 # the complete matching install after the partial standalone node_modules.
