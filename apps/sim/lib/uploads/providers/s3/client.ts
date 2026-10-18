@@ -326,7 +326,7 @@ export async function deleteS3ObjectVersion(params: {
   if (!params.etag) throw new Error('S3 upload object is missing its ETag')
   await getS3Client().send(
     new DeleteObjectCommand({
-      Bucket: params.bucket,
+      Bucket: params.customConfig.bucket,
       Key: params.key,
       IfMatch: params.etag,
     })
