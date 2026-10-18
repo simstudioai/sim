@@ -11,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { isPrivateIp } from '@sim/security/ssrf'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { captureOutboundScopeFallback } from '@/lib/core/network/context.server'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import {
@@ -142,10 +143,13 @@ export class McpClient {
             fetch: oauthFetch,
           })
         : (oauthFetch ?? guarded.fetch)
+    // The SDK sends some requests (e.g. `notifications/cancelled` from an abort listener)
+    // from whatever context fired the callback, which may carry no outbound scope.
+    const runInOutboundScope = captureOutboundScopeFallback()
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
       ...(useOauth ? {} : { requestInit: { headers: this.config.headers } }),
-      fetch: transportFetch,
+      fetch: (input, init) => runInOutboundScope(() => transportFetch(input, init)),
     })
 
     this.client = new Client(

@@ -30,3 +30,14 @@ export function captureOutboundScope(): <T>(run: () => T) => T {
   const scope = storage.getStore()
   return <T>(run: () => T): T => (scope ? storage.run(scope, run) : storage.exit(run))
 }
+
+/**
+ * Captures the outbound scope for a long-lived object whose callbacks may run from a context
+ * with no scope (e.g. an abort listener fired by a timer). A scope current at call time wins,
+ * so a pooled object never pins its creator's organization; with neither, the call fails
+ * closed as usual.
+ */
+export function captureOutboundScopeFallback(): <T>(run: () => T) => T {
+  const scope = storage.getStore()
+  return <T>(run: () => T): T => (scope && !storage.getStore() ? storage.run(scope, run) : run())
+}
