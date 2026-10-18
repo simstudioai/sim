@@ -306,6 +306,21 @@ interface CloudflareRawDnsAnalyticsAggregate {
   responseTime99th?: number
 }
 
+/** Raw GraphQL Analytics response for the `dnsAnalyticsAdaptiveGroups` dataset. */
+export interface CloudflareRawDnsAnalyticsGraphql {
+  data?: {
+    viewer?: {
+      zones?: Array<{
+        dnsAnalyticsAdaptiveGroups?: Array<{
+          count?: number
+          dimensions?: Partial<Record<'queryName' | 'queryType' | 'responseCode', string>>
+        }>
+      }>
+    }
+  } | null
+  errors?: Array<{ message?: string }> | null
+}
+
 /** Raw DNS analytics report payload. */
 export interface CloudflareRawDnsAnalyticsReport {
   totals?: CloudflareRawDnsAnalyticsAggregate

@@ -652,39 +652,98 @@ function envelope(result: unknown, success = true): Response {
   })
 }
 
-describe('DNS analytics does not fabricate metrics Cloudflare did not return', () => {
+/** Builds a GraphQL Analytics response for the dnsAnalyticsAdaptiveGroups dataset. */
+function dnsGraphql(
+  groups: Array<{ count: number; dimensions?: Record<string, string> }>,
+  errors: Array<{ message: string }> | null = null
+): Response {
+  return new Response(
+    JSON.stringify({
+      data: { viewer: { zones: [{ dnsAnalyticsAdaptiveGroups: groups }] } },
+      errors,
+    }),
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+}
+
+describe('DNS analytics reads the GraphQL Analytics API', () => {
   const tool = cloudflareTools.cloudflareDnsAnalyticsTool
+  const base = { apiKey, zoneId: ' z1 ' }
 
-  it('passes min and max through instead of filling seven zeroes', async () => {
-    // Cloudflare documents both as "currently always an empty object", so a
-    // seven-field numeric block is fabricated telemetry.
-    const out = (await tool.transformResponse!(
-      envelope({ totals: { queryCount: 12 }, min: {}, max: {}, data: [], rows: 0 }),
-      {} as never
-    )) as { output: { min: unknown; max: unknown } }
-
-    expect(out.output.min).toEqual({})
-    expect(out.output.max).toEqual({})
+  it('no longer calls the REST report Cloudflare removes on December 1, 2026', () => {
+    const url =
+      typeof tool.request.url === 'function' ? tool.request.url(base as never) : tool.request.url
+    expect(url).toBe('https://api.cloudflare.com/client/v4/graphql')
+    expect(url).not.toContain('dns_analytics/report')
+    expect(tool.request.method).toBe('POST')
   })
 
-  it('reports an absent min or max as null rather than zeroes', async () => {
-    const out = (await tool.transformResponse!(envelope({ totals: {} }), {} as never)) as {
-      output: { min: unknown; max: unknown }
+  it('builds a grouped query with the requested dimensions, filters, sort and limit', () => {
+    const body = tool.request.body!({
+      ...base,
+      since: '2026-10-01T00:00:00Z',
+      until: '2026-10-07T23:59:59Z',
+      dimensions: 'queryName,responseCode',
+      filters: 'queryType==A',
+      sort: '-queryCount',
+      limit: 50,
+    } as never) as { query: string; variables: Record<string, unknown> }
+
+    expect(body.variables).toEqual({ zoneTag: 'z1' })
+    expect(body.query).toContain('dnsAnalyticsAdaptiveGroups')
+    expect(body.query).toContain('date_geq: "2026-10-01"')
+    expect(body.query).toContain('date_leq: "2026-10-07"')
+    expect(body.query).toContain('queryType: "A"')
+    expect(body.query).toContain('orderBy: [count_DESC]')
+    expect(body.query).toContain('limit: 50')
+    expect(body.query).toContain('dimensions { queryName responseCode }')
+  })
+
+  it('refuses metrics and dimensions the GraphQL dataset lacks instead of returning zeros', () => {
+    const build = tool.request.body!
+    expect(() => build({ ...base, metrics: 'queryCount,responseTimeAvg' } as never)).toThrow(
+      /responseTimeAvg/
+    )
+    expect(() => build({ ...base, dimensions: 'coloName' } as never)).toThrow(/coloName/)
+  })
+
+  it('maps grouped rows back onto the report shape existing workflows read', async () => {
+    const out = (await tool.transformResponse!(
+      dnsGraphql([
+        { count: 7, dimensions: { queryName: 'a.example.com', responseCode: 'NOERROR' } },
+        { count: 3, dimensions: { queryName: 'b.example.com', responseCode: 'NXDOMAIN' } },
+      ]),
+      { ...base, dimensions: 'queryName,responseCode' } as never
+    )) as {
+      success: boolean
+      output: {
+        totals: Record<string, unknown>
+        data: unknown[]
+        rows: number
+        min: unknown
+        max: unknown
+      }
     }
 
+    expect(out.success).toBe(true)
+    expect(out.output.totals.queryCount).toBe(10)
+    expect(out.output.totals.responseTimeAvg).toBeUndefined()
+    expect(out.output.data).toEqual([
+      { dimensions: ['a.example.com', 'NOERROR'], metrics: [7] },
+      { dimensions: ['b.example.com', 'NXDOMAIN'], metrics: [3] },
+    ])
+    expect(out.output.rows).toBe(2)
     expect(out.output.min).toBeNull()
     expect(out.output.max).toBeNull()
   })
 
-  it('leaves an unrequested total absent instead of reading it as zero', async () => {
+  it('surfaces a GraphQL error message as a failed result', async () => {
     const out = (await tool.transformResponse!(
-      envelope({ totals: { queryCount: 12 } }),
-      {} as never
-    )) as { output: { totals: Record<string, unknown> } }
-
-    expect(out.output.totals.queryCount).toBe(12)
-    expect(out.output.totals.responseTimeAvg).toBeUndefined()
-    expect(out.output.totals.uncachedCount).toBeUndefined()
+      dnsGraphql([], [{ message: 'zone not authorized' }]),
+      base as never
+    )) as { success: boolean; error?: string }
+    expect(out.success).toBe(false)
+    expect(out.error).toBe('zone not authorized')
   })
 })
 

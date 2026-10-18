@@ -1019,26 +1019,20 @@ Return ONLY the timestamp or relative expression - no explanations, no quotes, n
       id: 'metrics',
       title: 'Metrics',
       type: 'short-input',
-      placeholder: 'Comma-separated (e.g., queryCount,uncachedCount,responseTimeAvg)',
+      placeholder: 'queryCount (the only metric in the GraphQL DNS analytics dataset)',
       condition: { field: 'operation', value: 'dns_analytics' },
       wandConfig: {
         enabled: true,
         prompt: `Generate a comma-separated list of Cloudflare DNS Analytics metrics based on the user's description.
 
-Available metrics:
+Available metrics (Cloudflare GraphQL Analytics API, dnsAnalyticsAdaptiveGroups):
 - queryCount: Total number of DNS queries
-- uncachedCount: Number of DNS queries not served from cache
-- staleCount: Number of stale DNS responses served
-- responseTimeAvg: Average response time in milliseconds
-- responseTimeMedian: Median response time in milliseconds
-- responseTime90th: 90th percentile response time
-- responseTime99th: 99th percentile response time
+
+Cache and response-time metrics from the old REST report are not available.
 
 Examples:
 - "query counts" -> queryCount
-- "all query metrics" -> queryCount,uncachedCount,staleCount
-- "response times" -> responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th
-- "everything" -> queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th
+- "everything" -> queryCount
 
 Return ONLY the comma-separated metric names - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe what to measure (e.g., "query counts and response times")...',
@@ -1059,18 +1053,11 @@ Available dimensions:
 - queryName: DNS record name being queried
 - queryType: DNS query type (A, AAAA, CNAME, MX, etc.)
 - responseCode: DNS response code (NOERROR, NXDOMAIN, SERVFAIL, etc.)
-- responseCached: Whether the response was cached
-- coloName: Cloudflare data center handling the query
-- origin: Origin server
-- dayOfWeek: Day of the week
-- tcp: Whether the query used TCP
-- ipVersion: IP version (4 or 6)
 
 Examples:
 - "by record type" -> queryType
 - "by record name and type" -> queryName,queryType
-- "by data center" -> coloName
-- "by response code and cache status" -> responseCode,responseCached
+- "by response code" -> responseCode
 
 Return ONLY the comma-separated dimension names - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe how to group results (e.g., "by record type and name")...',
@@ -1087,23 +1074,19 @@ Return ONLY the comma-separated dimension names - no explanations, no quotes, no
         enabled: true,
         prompt: `Generate a Cloudflare DNS Analytics filter expression based on the user's description.
 
-Filter syntax: field==value or field!=value
+Filter syntax: field==value
 Multiple filters can be combined with semicolons: field1==value1;field2==value2
 
 Available filter fields:
 - queryType: DNS record type (A, AAAA, CNAME, MX, TXT, NS, SRV, etc.)
 - queryName: DNS record name
 - responseCode: DNS response code (NOERROR, NXDOMAIN, SERVFAIL, REFUSED)
-- responseCached: Whether cached (0 or 1)
-- coloName: Data center name
-- origin: Origin server
 
 Examples:
 - "only A records" -> queryType==A
 - "only CNAME records" -> queryType==CNAME
 - "failed queries" -> responseCode==SERVFAIL
 - "non-existent domains" -> responseCode==NXDOMAIN
-- "A records that weren't cached" -> queryType==A;responseCached==0
 - "queries for example.com" -> queryName==example.com
 
 Return ONLY the filter expression - no explanations, no quotes, no extra text.`,

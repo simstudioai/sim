@@ -1,10 +1,143 @@
 import type {
   CloudflareDnsAnalyticsParams,
   CloudflareDnsAnalyticsResponse,
-  CloudflareRawDnsAnalyticsReport,
+  CloudflareRawDnsAnalyticsGraphql,
 } from '@/tools/cloudflare/types'
-import { readCloudflareResponse } from '@/tools/cloudflare/utils'
+import { cloudflareHeaders } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/**
+ * Cloudflare removes the REST endpoint `/zones/{zone_id}/dns_analytics/report` on
+ * December 1, 2026 (https://developers.cloudflare.com/fundamentals/api/reference/deprecations/).
+ * This tool now reads the `dnsAnalyticsAdaptiveGroups` dataset of the GraphQL Analytics
+ * API and maps it back onto the report shape, so existing workflows keep their outputs.
+ *
+ * The GraphQL dataset exposes a query count grouped by dimensions; the REST report's
+ * cache and response-time metrics have no documented equivalent there, so asking for
+ * them is an explicit error rather than a silent zero.
+ */
+const GRAPHQL_URL = 'https://api.cloudflare.com/client/v4/graphql'
+const SUPPORTED_DIMENSIONS = ['queryName', 'queryType', 'responseCode'] as const
+type DnsDimension = (typeof SUPPORTED_DIMENSIONS)[number]
+const SUPPORTED_METRICS = ['queryCount'] as const
+const DEFAULT_WINDOW_DAYS = 7
+const DEFAULT_LIMIT = 100
+const MAX_LIMIT = 10000
+
+function splitList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+/** Accepts an ISO date/datetime or a REST-style relative offset such as "-6h", "-7d" or "now". */
+export function toGraphqlDate(value: string | undefined, fallback: Date): string {
+  if (!value || value === 'now') {
+    return (value ? new Date() : fallback).toISOString().slice(0, 10)
+  }
+  const relative = /^-(\d+)([mhd])$/.exec(value.trim())
+  if (relative) {
+    const amount = Number(relative[1])
+    const unitMs = { m: 60_000, h: 3_600_000, d: 86_400_000 }[relative[2] as 'm' | 'h' | 'd']
+    return new Date(Date.now() - amount * unitMs).toISOString().slice(0, 10)
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) throw new Error(`Invalid date: ${value}`)
+  return parsed.toISOString().slice(0, 10)
+}
+
+/**
+ * REST filters used "field==value" joined by ";" (AND). Only equality on a supported
+ * dimension has a GraphQL equivalent.
+ */
+export function toGraphqlFilter(filters: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {}
+  const clauses = (filters ?? '')
+    .split(';')
+    .map((c) => c.trim())
+    .filter(Boolean)
+  for (const clause of clauses) {
+    const match = /^(\w+)==(.+)$/.exec(clause)
+    if (!match || !SUPPORTED_DIMENSIONS.includes(match[1] as DnsDimension)) {
+      throw new Error(
+        `Unsupported DNS analytics filter "${clause}". Use field==value on ${SUPPORTED_DIMENSIONS.join(', ')}, joined with ";".`
+      )
+    }
+    out[match[1]] = match[2]
+  }
+  return out
+}
+
+/** "-queryCount" / "+queryName" become orderBy values such as count_DESC / queryName_ASC. */
+export function toGraphqlOrderBy(sort: string | undefined): string[] {
+  return splitList(sort).map((entry) => {
+    const desc = entry.startsWith('-')
+    const field = entry.replace(/^[+-]/, '')
+    const name = field === 'queryCount' ? 'count' : field
+    if (name !== 'count' && !SUPPORTED_DIMENSIONS.includes(name as DnsDimension)) {
+      throw new Error(`Unsupported DNS analytics sort field "${field}"`)
+    }
+    return `${name}_${desc ? 'DESC' : 'ASC'}`
+  })
+}
+
+export function buildDnsAnalyticsQuery(params: CloudflareDnsAnalyticsParams) {
+  const dimensions = splitList(params.dimensions)
+  const unsupportedDimensions = dimensions.filter(
+    (d) => !SUPPORTED_DIMENSIONS.includes(d as DnsDimension)
+  )
+  if (unsupportedDimensions.length > 0) {
+    throw new Error(
+      `DNS analytics dimensions not available after Cloudflare's move to GraphQL: ${unsupportedDimensions.join(', ')}. Supported: ${SUPPORTED_DIMENSIONS.join(', ')}.`
+    )
+  }
+  const metrics = splitList(params.metrics)
+  const unsupportedMetrics = metrics.filter((m) => !SUPPORTED_METRICS.includes(m as 'queryCount'))
+  if (unsupportedMetrics.length > 0) {
+    throw new Error(
+      `DNS analytics metrics not available after Cloudflare's move to GraphQL: ${unsupportedMetrics.join(', ')}. Supported: queryCount.`
+    )
+  }
+
+  const now = new Date()
+  const since = toGraphqlDate(
+    params.since,
+    new Date(now.getTime() - DEFAULT_WINDOW_DAYS * 86_400_000)
+  )
+  const until = toGraphqlDate(params.until, now)
+  const filter = { date_geq: since, date_leq: until, ...toGraphqlFilter(params.filters) }
+  const orderBy = toGraphqlOrderBy(params.sort)
+  const limit = Math.min(Math.max(Number(params.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT)
+  const dimensionBlock = dimensions.length > 0 ? ` dimensions { ${dimensions.join(' ')} }` : ''
+
+  // Values are inlined as GraphQL literals (validated above, strings JSON-escaped) so the
+  // query only declares $zoneTag, whose type Cloudflare documents.
+  const literal = (value: string) => JSON.stringify(value)
+  const filterLiteral = Object.entries(filter)
+    .map(([key, value]) => `${key}: ${literal(String(value))}`)
+    .join(', ')
+  const orderLiteral = orderBy.length ? `, orderBy: [${orderBy.join(', ')}]` : ''
+  const query = `query DnsAnalytics($zoneTag: string!) {
+  viewer {
+    zones(filter: { zoneTag: $zoneTag }) {
+      dnsAnalyticsAdaptiveGroups(filter: { ${filterLiteral} }, limit: ${limit}${orderLiteral}) { count${dimensionBlock} }
+    }
+  }
+}`
+  const variables: Record<string, unknown> = { zoneTag: params.zoneId.trim() }
+  return {
+    query,
+    variables,
+    dimensions,
+    metrics,
+    since,
+    until,
+    filters: params.filters ?? '',
+    sort: splitList(params.sort),
+    limit,
+  }
+}
 
 export const dnsAnalyticsTool: ToolConfig<
   CloudflareDnsAnalyticsParams,
@@ -12,8 +145,9 @@ export const dnsAnalyticsTool: ToolConfig<
 > = {
   id: 'cloudflare_dns_analytics',
   name: 'Cloudflare DNS Analytics',
-  description: 'Gets DNS analytics report for a zone including query counts and trends.',
-  version: '1.0.0',
+  description:
+    'Gets DNS analytics for a zone: query counts grouped by query name, type and response code (Cloudflare GraphQL Analytics API).',
+  version: '2.0.0',
 
   params: {
     zoneId: {
@@ -27,41 +161,42 @@ export const dnsAnalyticsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Start date for analytics (ISO 8601, e.g., "2024-01-01T00:00:00Z") or relative (e.g., "-6h")',
+        'Start date (ISO 8601 or relative like "-7d"). The GraphQL dataset filters by day. Default: 7 days ago',
     },
     until: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'End date for analytics (ISO 8601, e.g., "2024-01-31T23:59:59Z") or relative (e.g., "now")',
+        'End date (ISO 8601 or "now"). The GraphQL dataset filters by day. Default: today',
     },
     metrics: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated metrics to retrieve (e.g., "queryCount,uncachedCount,staleCount,responseTimeAvg,responseTimeMedian,responseTime90th,responseTime99th"). Optional in the API',
+        'Comma-separated metrics. Only "queryCount" is available from the GraphQL DNS analytics dataset. Optional',
     },
     dimensions: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated dimensions to group by (e.g., "queryName,queryType,responseCode,responseCached,coloName,origin,dayOfWeek,tcp,ipVersion,querySizeBucket,responseSizeBucket")',
+        'Comma-separated dimensions to group by: queryName, queryType, responseCode',
     },
     filters: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filters to apply to the data (e.g., "queryType==A")',
+      description:
+        'Equality filters on a dimension, joined with ";" (e.g., "queryType==A;responseCode==NOERROR")',
     },
     sort: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Sort order for the result set. Fields must be included in metrics or dimensions (e.g., "+queryCount" or "-responseTimeAvg")',
+        'Sort order, e.g. "-queryCount" or "+queryName"',
     },
     limit: {
       type: 'number',
@@ -78,89 +213,56 @@ export const dnsAnalyticsTool: ToolConfig<
   },
 
   request: {
-    url: (params) => {
-      const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_analytics/report`
-      )
-      if (params.since) url.searchParams.append('since', params.since)
-      if (params.until) url.searchParams.append('until', params.until)
-      if (params.metrics) url.searchParams.append('metrics', params.metrics)
-      if (params.dimensions) url.searchParams.append('dimensions', params.dimensions)
-      if (params.filters) url.searchParams.append('filters', params.filters)
-      if (params.sort) url.searchParams.append('sort', params.sort)
-      if (params.limit) url.searchParams.append('limit', String(params.limit))
-      return url.toString()
+    url: () => GRAPHQL_URL,
+    method: 'POST',
+    headers: (params) => cloudflareHeaders(params.apiKey),
+    body: (params) => {
+      const { query, variables } = buildDnsAnalyticsQuery(params)
+      return { query, variables }
     },
-    method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
-    }),
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawDnsAnalyticsReport>(response)
+  transformResponse: async (response: Response, params?: CloudflareDnsAnalyticsParams) => {
+    const data = (await response.json()) as CloudflareRawDnsAnalyticsGraphql
+    const built = params?.zoneId ? buildDnsAnalyticsQuery(params) : undefined
+    const query = {
+      since: built?.since ?? '',
+      until: built?.until ?? '',
+      metrics: built?.metrics ?? [],
+      dimensions: built?.dimensions ?? [],
+      filters: built?.filters ?? '',
+      sort: built?.sort ?? [],
+      limit: built?.limit ?? 0,
+    }
 
-    if (!data.success) {
+    const error = data.errors?.[0]?.message
+    if (error || !response.ok) {
       return {
         success: false,
-        output: {
-          totals: {},
-          min: null,
-          max: null,
-          data: [],
-          data_lag: 0,
-          rows: 0,
-          query: {
-            since: '',
-            until: '',
-            metrics: [],
-            dimensions: [],
-            filters: '',
-            sort: [],
-            limit: 0,
-          },
-        },
-        error: data.errors?.[0]?.message ?? 'Failed to get DNS analytics',
+        output: { totals: {}, min: null, max: null, data: [], data_lag: 0, rows: 0, query },
+        error: error ?? `Failed to get DNS analytics (HTTP ${response.status})`,
       }
     }
 
-    const result = data.result
+    const groups = data.data?.viewer?.zones?.[0]?.dnsAnalyticsAdaptiveGroups ?? []
+    const dimensions = query.dimensions as DnsDimension[]
+    const wantsCount = query.metrics.length === 0 || query.metrics.includes('queryCount')
     return {
       success: true,
       output: {
-        /**
-         * Cloudflare only populates the metrics that were requested. Passing the
-         * block through untouched keeps an unrequested metric absent instead of
-         * reporting it as a measured zero.
-         */
-        totals: {
-          queryCount: result?.totals?.queryCount,
-          uncachedCount: result?.totals?.uncachedCount,
-          staleCount: result?.totals?.staleCount,
-          responseTimeAvg: result?.totals?.responseTimeAvg,
-          responseTimeMedian: result?.totals?.responseTimeMedian,
-          responseTime90th: result?.totals?.responseTime90th,
-          responseTime99th: result?.totals?.responseTime99th,
-        },
-        min: result?.min ?? null,
-        max: result?.max ?? null,
-        data:
-          result?.data?.map((entry) => ({
-            dimensions: entry.dimensions ?? [],
-            metrics: entry.metrics ?? [],
-          })) ?? [],
-        data_lag: result?.data_lag ?? 0,
-        rows: result?.rows ?? 0,
-        query: {
-          since: result?.query?.since ?? '',
-          until: result?.query?.until ?? '',
-          metrics: result?.query?.metrics ?? [],
-          dimensions: result?.query?.dimensions ?? [],
-          filters: result?.query?.filters ?? '',
-          sort: result?.query?.sort ?? [],
-          limit: result?.query?.limit ?? 0,
-        },
+        /** Only queryCount exists in the GraphQL dataset; other totals stay absent, not zero. */
+        totals: wantsCount
+          ? { queryCount: groups.reduce((sum, g) => sum + (g.count ?? 0), 0) }
+          : {},
+        min: null,
+        max: null,
+        data: groups.map((g) => ({
+          dimensions: dimensions.map((d) => String(g.dimensions?.[d] ?? '')),
+          metrics: wantsCount ? [g.count ?? 0] : [],
+        })),
+        data_lag: 0,
+        rows: groups.length,
+        query,
       },
     }
   },
