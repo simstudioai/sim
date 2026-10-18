@@ -1,17 +1,12 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
-import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { McpError as McpSdkError } from '@modelcontextprotocol/sdk/types.js'
 import { type V2McpServer, v2McpServerSchema } from '@/lib/api/contracts/v2/mcp-servers'
 import { createV2ResourceConcealmentPolicy, type V2ErrorPolicy } from '@/lib/api/server/routes'
 import { isTimeoutError } from '@/lib/core/execution-limits'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { projectMcpHeaders } from '@/lib/mcp/projection'
 import type { McpServerRow } from '@/lib/mcp/queries'
-import {
-  McpConnectionError,
-  McpOauthAuthorizationRequiredError,
-  McpServerCooldownError,
-} from '@/lib/mcp/types'
+import { McpOauthAuthorizationRequiredError, McpServerCooldownError } from '@/lib/mcp/types'
+import { isMcpServerUnavailableError } from '@/lib/mcp/utils'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 /**
@@ -116,12 +111,7 @@ export const v2McpToolDiscoveryErrorPolicy = {
       )
     }
 
-    if (
-      isTimeoutError(error) ||
-      error instanceof McpConnectionError ||
-      error instanceof McpSdkError ||
-      error instanceof StreamableHTTPError
-    ) {
+    if (isMcpServerUnavailableError(error)) {
       return v2Error('SERVICE_UNAVAILABLE', unreachableServerMessage(error))
     }
 

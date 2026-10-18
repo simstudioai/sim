@@ -210,9 +210,6 @@
   "apps/sim/app/api/mcp/oauth/callback/route.test.ts": {
     "TS2554": 7
   },
-  "apps/sim/app/api/mcp/oauth/start/route.test.ts": {
-    "TS2554": 5
-  },
   "apps/sim/app/api/mcp/serve/[serverId]/route.test.ts": {
     "TS2322": 2
   },

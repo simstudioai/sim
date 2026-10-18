@@ -273,7 +273,7 @@ describe('McpClient notification handler', () => {
 
     await expect(client.connect()).rejects.toBeInstanceOf(UnauthorizedError)
 
-    expect(mockLogger.error).toHaveBeenCalledWith(
+    expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Failed to connect'),
       expect.objectContaining({ outcome: 'unauthorized' })
     )
