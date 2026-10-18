@@ -9,6 +9,7 @@ import {
   permissionsMockFns,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,7 +62,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    await GET(request)
+    await GET(request, createRouteContext({}))
 
     // The route must call the guarded wrapper (which defaults fetchFn to the
     // SSRF-guarded fetch internally) rather than the raw SDK `auth()` — see
@@ -82,7 +83,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
 
     expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
     expect(response.status).toBe(504)
@@ -105,7 +106,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
     const body = await response.json()
 
     expect(response.status).toBe(409)
@@ -121,7 +122,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
     const body = await response.json()
 
     expect(response.status).toBe(500)
@@ -138,7 +139,7 @@ describe('MCP OAuth start route', () => {
       'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
     const body = await response.json()
 
     expect(response.status).toBe(422)
@@ -200,7 +201,8 @@ describe('MCP OAuth start route: authorization-server refusals', () => {
     GET(
       new NextRequest(
         'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
-      )
+      ),
+      createRouteContext({})
     )
 
   it.each([

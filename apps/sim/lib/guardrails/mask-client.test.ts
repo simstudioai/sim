@@ -1,4 +1,5 @@
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
@@ -133,7 +134,8 @@ describe('maskPIIBatchViaHttp', () => {
         async (url: string, init: { body: string; headers: Record<string, string> }) => {
           if (url.startsWith('http://app.internal:3000')) {
             return maskBatchRoute(
-              new NextRequest(url, { method: 'POST', body: init.body, headers: init.headers })
+              new NextRequest(url, { method: 'POST', body: init.body, headers: init.headers }),
+              createRouteContext({})
             )
           }
           const { texts } = JSON.parse(init.body) as { texts: string[] }

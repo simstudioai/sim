@@ -24,6 +24,8 @@ vi.mock('@/lib/mcp/middleware', () => ({
 
 vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 
+import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { McpConnectionError, McpServerCooldownError } from '@/lib/mcp/types'
 import { GET } from '@/app/api/mcp/tools/discover/route'
@@ -56,6 +58,11 @@ describe('GET /api/mcp/tools/discover', () => {
   it.each([
     ['cannot be reached', () => new McpConnectionError('connect ECONNREFUSED', 'Docs')],
     ['is cooling down after a recent failure', () => new McpServerCooldownError('mcp-1')],
+    ['times out on tools/list', () => new McpError(ErrorCode.RequestTimeout, 'Request timed out')],
+    [
+      'answers tools/list with an HTTP error',
+      () => new StreamableHTTPError(503, 'Service Unavailable'),
+    ],
   ])('answers 422 when the registered server %s', async (_name, makeError) => {
     mcpServiceMockFns.mockDiscoverServerTools.mockRejectedValueOnce(makeError())
 

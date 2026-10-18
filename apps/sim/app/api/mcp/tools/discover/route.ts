@@ -12,12 +12,13 @@ import {
 } from '@/lib/mcp/middleware'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
 import { mcpService } from '@/lib/mcp/service'
+import { McpOauthAuthorizationRequiredError, type McpToolDiscoveryResponse } from '@/lib/mcp/types'
 import {
-  McpConnectionError,
-  McpOauthAuthorizationRequiredError,
-  type McpToolDiscoveryResponse,
-} from '@/lib/mcp/types'
-import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+  categorizeError,
+  createMcpErrorResponse,
+  createMcpSuccessResponse,
+  isMcpServerUnavailableError,
+} from '@/lib/mcp/utils'
 
 const logger = createLogger('McpToolDiscoveryAPI')
 const MCP_REFRESH_DISCOVERY_CONCURRENCY = 5
@@ -28,26 +29,30 @@ export const dynamic = 'force-dynamic'
  * Renders a discovery failure that is not an authorization problem.
  *
  * Discovery talks to a server the workspace registered, so a server that cannot be
- * reached, times out, or is cooling down after a recent failure is a fault of that
- * server rather than of Sim: it answers 422 (the request was valid; the dependency it
- * names cannot serve it), the status this API family already uses for an upstream that
- * cannot complete the operation, and logs at warn. Anything else keeps
- * {@link categorizeError}'s status and logs at error only when that status is a 5xx.
+ * reached, times out on connect or on `tools/list`, answers with a protocol or HTTP
+ * error, or is cooling down after a recent failure is a fault of that server rather
+ * than of Sim: it answers 422 (the request was valid; the dependency it names cannot
+ * serve it), the status this API family already uses for an upstream that cannot
+ * complete the operation, and logs at warn. Anything else keeps {@link categorizeError}'s
+ * status and logs at error only when that status is a 5xx.
  */
-function discoveryFailureResponse(requestId: string, error: unknown, defaultMessage: string) {
-  if (error instanceof McpConnectionError) {
+function discoveryFailureResponse(requestId: string, error: unknown) {
+  if (isMcpServerUnavailableError(error)) {
     logger.warn(`[${requestId}] MCP server unavailable for tool discovery`, {
       error: getErrorMessage(error),
     })
-    return createMcpErrorResponse(error, defaultMessage, 422)
+    return createMcpErrorResponse(error, 'Failed to discover MCP tools', 422)
   }
   const { message, status } = categorizeError(error)
   if (status >= 500) {
-    logger.error(`[${requestId}] ${defaultMessage}:`, error)
+    logger.error(`[${requestId}] Error discovering MCP tools:`, error)
   } else {
-    logger.warn(`[${requestId}] ${defaultMessage}`, { error: getErrorMessage(error), status })
+    logger.warn(`[${requestId}] Failed to discover MCP tools`, {
+      error: getErrorMessage(error),
+      status,
+    })
   }
-  return createMcpErrorResponse(new Error(message), defaultMessage, status)
+  return createMcpErrorResponse(new Error(message), 'Failed to discover MCP tools', status)
 }
 
 async function settleWithConcurrency<T, R>(
@@ -134,7 +139,7 @@ export const GET = withRouteHandler(
       ) {
         return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
       }
-      return discoveryFailureResponse(requestId, error, 'Failed to discover MCP tools')
+      return discoveryFailureResponse(requestId, error)
     }
   })
 )
@@ -199,7 +204,9 @@ export const POST = withRouteHandler(
       ) {
         return createMcpErrorResponse(error, 'OAuth re-authorization required', 401)
       }
-      return discoveryFailureResponse(requestId, error, 'Failed to refresh tool discovery')
+      logger.error(`[${requestId}] Error refreshing tool discovery:`, error)
+      const { message, status } = categorizeError(error)
+      return createMcpErrorResponse(new Error(message), 'Failed to refresh tool discovery', status)
     }
   })
 )
