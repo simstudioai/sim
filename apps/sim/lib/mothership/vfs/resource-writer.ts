@@ -170,16 +170,21 @@ export async function validateWorkspaceFileWriteTarget(args: {
   target: WorkspaceFileWriteTarget
 }): Promise<WorkspaceFileWriteValidation> {
   if (args.target.mode === 'overwrite') {
-    const existing = await resolveWorkspaceFileReference({
-      principal: args.principal,
-      operation: fileOperations.updateContent,
-      workspaceId: args.workspaceId,
-      reference: args.target.path,
-    })
-    return {
-      mode: 'overwrite',
-      vfsPath: vfsPathForRecord(existing),
-      existingFileId: existing.id,
+    try {
+      const existing = await resolveWorkspaceFileReference({
+        principal: args.principal,
+        operation: fileOperations.updateContent,
+        workspaceId: args.workspaceId,
+        reference: args.target.path,
+      })
+      return {
+        mode: 'overwrite',
+        vfsPath: vfsPathForRecord(existing),
+        existingFileId: existing.id,
+      }
+    } catch (error) {
+      // Mirrors writeWorkspaceFileByPath: a missing overwrite target is written as a create.
+      if (asOrchestrationError(error)?.code !== 'not_found') throw error
     }
   }
 
