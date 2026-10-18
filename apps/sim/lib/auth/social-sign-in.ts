@@ -1,4 +1,5 @@
 import { client } from '@/lib/auth/client'
+import { createSocialSignUpCallbackURL } from '@/lib/auth/social-sign-up-conversion'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 
@@ -25,5 +26,9 @@ export function startSocialSignIn({
   callbackURL,
 }: StartSocialSignInOptions) {
   captureClientEvent('external_sign_in_started', { provider, view, surface })
-  return client.signIn.social({ provider, callbackURL })
+  return client.signIn.social({
+    provider,
+    callbackURL,
+    newUserCallbackURL: createSocialSignUpCallbackURL(provider, callbackURL),
+  })
 }

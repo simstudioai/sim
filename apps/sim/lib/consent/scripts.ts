@@ -22,6 +22,7 @@ export const GOOGLE_ANALYTICS_ID = 'G-QB9D67TBHR' as const
 export const GOOGLE_ADS_ID = 'AW-17916292239' as const
 export const X_PIXEL_ID = 'q5xbl' as const
 export const X_DEMO_BOOKED_EVENT_ID = 'tw-q5xbl-q5xbn' as const
+export const X_SIGN_UP_EVENT_ID = 'tw-q5xbl-rhis8' as const
 
 const AHREFS_ANALYTICS_KEY = 'WJ9yWTBAiQKZAE/2TyU/yA' as const
 

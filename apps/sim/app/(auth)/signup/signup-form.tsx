@@ -5,8 +5,7 @@ import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { trackFreebuffConversion } from '@/lib/analytics/freebuff'
-import { trackGoogleEvent } from '@/lib/analytics/google'
+import { trackSignUpConversions } from '@/lib/analytics/sign-up'
 import { client, useSession } from '@/lib/auth/client'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
@@ -347,8 +346,12 @@ function SignupFormContent({
         return
       }
 
-      if (measurement) trackGoogleEvent('sign_up', { method: 'email' })
-      if (marketing) trackFreebuffConversion('signup_completed', response.data.user.id)
+      await trackSignUpConversions({
+        method: 'email',
+        userId: response.data.user.id,
+        measurement,
+        marketing,
+      })
 
       try {
         await refetchSession()
