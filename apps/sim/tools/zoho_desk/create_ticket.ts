@@ -138,7 +138,8 @@ export const zohoDeskCreateTicketTool: ToolConfig<
         'New contact JSON: email or lastName is required; firstName is optional. Provide either this or contactId.',
     },
     uploads: {
-      type: 'json',
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -157,7 +158,9 @@ export const zohoDeskCreateTicketTool: ToolConfig<
       description: 'URL to access the resource',
     },
     sharedDepartments: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
+      maxItems: 10,
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -170,13 +173,17 @@ export const zohoDeskCreateTicketTool: ToolConfig<
       description: 'ID of the team to assign the ticket',
     },
     secondaryContacts: {
-      type: 'json',
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+      maxItems: 20,
       required: false,
       visibility: 'user-or-llm',
       description: 'List of Secondary contacts JSON array.',
     },
     entitySkills: {
-      type: 'json',
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+      maxItems: 10,
       required: false,
       visibility: 'user-or-llm',
       description:

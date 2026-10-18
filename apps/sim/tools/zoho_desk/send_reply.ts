@@ -91,7 +91,8 @@ export const zohoDeskSendReplyTool: ToolConfig<ZohoDeskSendReplyParams, ZohoDesk
           'Status of the ticket. Includes the custom statuses configured in your help desk portal.',
       },
       attachmentIds: {
-        type: 'json',
+        type: 'array',
+        items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
         required: false,
         visibility: 'user-or-llm',
         description:

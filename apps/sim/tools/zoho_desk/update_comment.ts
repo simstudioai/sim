@@ -46,7 +46,8 @@ export const zohoDeskUpdateCommentTool: ToolConfig<
         'The comment content. To mention an agent: zsu[@user:{zuid}]zsu To mention a team: zsu[@team:{teamId}_{teamName}]zsu Note: This format can also be used to retrieve agent information.',
     },
     attachmentIds: {
-      type: 'json',
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
       required: false,
       visibility: 'user-or-llm',
       description:

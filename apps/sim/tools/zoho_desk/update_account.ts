@@ -117,7 +117,8 @@ export const zohoDeskUpdateAccountTool: ToolConfig<
       description: 'Fax number of the account',
     },
     associatedSLAIds: {
-      type: 'json',
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
       required: false,
       visibility: 'user-or-llm',
       description:

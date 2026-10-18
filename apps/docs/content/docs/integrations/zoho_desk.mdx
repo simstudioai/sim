@@ -196,16 +196,16 @@ Update fields on an existing Zoho Desk ticket.
 | `contactId` | string | No | Existing contact ID |
 | `contact` | json | No | Contact JSON with email or lastName; use instead of contactId |
 | `productId` | string | No | Product ID |
-| `uploads` | json | No | JSON array of previously uploaded attachment IDs |
+| `uploads` | array | No | JSON array of previously uploaded attachment IDs |
 | `email` | string | No | Ticket email address |
 | `phone` | string | No | Ticket phone number |
 | `language` | string | No | Ticket language |
 | `channel` | string | No | Ticket origin channel |
 | `webUrl` | string | No | URL to access the ticket |
-| `sharedDepartments` | json | No | JSON array of shared departments and access privileges |
+| `sharedDepartments` | array | No | JSON array of shared departments and access privileges |
 | `teamId` | string | No | Team ID |
-| `secondaryContacts` | json | No | JSON array of secondary contact IDs |
-| `entitySkills` | json | No | JSON array of skill IDs in priority order; at most 10 |
+| `secondaryContacts` | array | No | JSON array of secondary contact IDs |
+| `entitySkills` | array | No | JSON array of skill IDs in priority order; at most 10 |
 | `disableClosureNotification` | boolean | No | Suppress the contact notification when closing the ticket |
 
 #### Output
@@ -302,7 +302,7 @@ Add a comment to a Zoho Desk ticket.
 | `content` | string | Yes | Comment content |
 | `contentType` | string | No | Content type: plainText or html. Defaults to plainText so agent-written text posts literally; pass 'html' to send markup \(Zoho's own API default is html\). |
 | `isPublic` | boolean | No | Whether the comment is public |
-| `attachmentIds` | json | No | JSON array of previously uploaded attachment IDs |
+| `attachmentIds` | array | No | JSON array of previously uploaded attachment IDs |
 
 #### Output
 
@@ -543,13 +543,13 @@ Create Ticket in Zoho Desk.
 | `contactId` | string | No | ID of the contact Note: The contactId is mandatory for creating a ticket. If the contact does not already exist, include the contact JSON object to create the contact during ticket creation. |
 | `departmentId` | string | Yes | ID of the department to associate the ticket |
 | `contact` | json | No | New contact JSON: email or lastName is required; firstName is optional. Provide either this or contactId. |
-| `uploads` | json | No | File attachments in the ticket. For more information, refer to the Uploads section JSON array. |
+| `uploads` | array | No | File attachments in the ticket. For more information, refer to the Uploads section JSON array. |
 | `resolution` | string | No | Resolution notes of the ticket |
 | `webUrl` | string | No | URL to access the resource |
-| `sharedDepartments` | json | No | List of departments to which the ticket could be shared, along with the access privileges for each department JSON array. |
+| `sharedDepartments` | array | No | List of departments to which the ticket could be shared, along with the access privileges for each department JSON array. |
 | `teamId` | string | No | ID of the team to assign the ticket |
-| `secondaryContacts` | json | No | List of Secondary contacts JSON array. |
-| `entitySkills` | json | No | JSON array of up to 10 skill IDs, ordered from highest to lowest assignment priority. |
+| `secondaryContacts` | array | No | List of Secondary contacts JSON array. |
+| `entitySkills` | array | No | JSON array of up to 10 skill IDs, ordered from highest to lowest assignment priority. |
 
 #### Output
 
@@ -716,7 +716,7 @@ Send an email reply from a configured Zoho Desk sender address.
 | `bcc` | string | No | Email ID to be BCC-ed., if any exist. Applicable only for EMAIL channel |
 | `hasAttach` | boolean | No | States whether the thread has attachments |
 | `ticketStatus` | string | No | Status of the ticket. Includes the custom statuses configured in your help desk portal. |
-| `attachmentIds` | json | No | List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array. |
+| `attachmentIds` | array | No | List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array. |
 | `to` | string | No | To email ID in the thread, applicable only for EMAIL channel |
 | `fromEmailAddress` | string | Yes | Sender email address configured in your Zoho Desk portal. |
 | `isForward` | boolean | No | Key that returns if the thread was sent as a forward. Applicable only for the EMAIL channel. |
@@ -1022,7 +1022,7 @@ Create Account in Zoho Desk.
 | `state` | string | No | State in which the account is based |
 | `ownerId` | string | No | ID of account owner |
 | `fax` | string | No | Fax number of the account |
-| `associatedSLAIds` | json | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
+| `associatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
 
 #### Output
 
@@ -1055,7 +1055,7 @@ Update Account in Zoho Desk.
 | `state` | string | No | State in which the account is based |
 | `ownerId` | string | No | ID of account owner |
 | `fax` | string | No | Fax number of the account |
-| `associatedSLAIds` | json | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
+| `associatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
 
 #### Output
 
@@ -1261,7 +1261,7 @@ Update comment content or attachments; visibility can only be set when creating 
 | `commentId` | string | Yes | Comment ID |
 | `ticketId` | string | Yes | Ticket ID |
 | `content` | string | No | The comment content. To mention an agent: zsu\[@user:\{zuid\}\]zsu To mention a team: zsu\[@team:\{teamId\}_\{teamName\}\]zsu Note: This format can also be used to retrieve agent information. |
-| `attachmentIds` | json | No | List of file attachments included in the comment.Note: For more details on attachments, refer to the Uploads section. JSON array. |
+| `attachmentIds` | array | No | List of file attachments included in the comment.Note: For more details on attachments, refer to the Uploads section. JSON array. |
 | `contentType` | string | No | Specifies the type of the content whether html or plainText. The default value is html. |
 
 #### Output

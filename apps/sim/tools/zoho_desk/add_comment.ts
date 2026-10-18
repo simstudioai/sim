@@ -62,7 +62,8 @@ export const zohoDeskAddCommentTool: ToolConfig<ZohoDeskAddCommentParams, ZohoDe
       description: 'Whether the comment is public',
     },
     attachmentIds: {
-      type: 'json',
+      type: 'array',
+      items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
       required: false,
       visibility: 'user-or-llm',
       description: 'JSON array of previously uploaded attachment IDs',

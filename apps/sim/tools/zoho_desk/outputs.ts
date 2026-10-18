@@ -83,13 +83,13 @@ export const ZOHO_DESK_TICKET_ADDITIONAL_PROPERTIES = {
   isDeleted: {
     type: 'boolean',
     description:
-      'Indicates whether the ticket has been deleted Allowed values:  true: Ticket is deleted false: Ticket is not deleted',
+      'Indicates whether the ticket has been deleted Allowed values: true: Ticket is deleted false: Ticket is not deleted',
     optional: true,
   },
   isTrashed: {
     type: 'boolean',
     description:
-      'Indicates whether the ticket is in the trash Allowed values:  true: Ticket has been moved to trash false: Ticket is not in trash',
+      'Indicates whether the ticket is in the trash Allowed values: true: Ticket has been moved to trash false: Ticket is not in trash',
     optional: true,
   },
   modifiedBy: { type: 'string', description: 'Modified by', optional: true, nullable: true },
@@ -592,21 +592,19 @@ export const ZOHO_DESK_ACCOUNT_PROPERTIES = {
 export const ZOHO_DESK_DEPARTMENT_PROPERTIES = {
   isAssignToTeamEnabled: {
     type: 'boolean',
-    description:
-      'Indicates whether the assign-to-team functionality is enabled Allowed values:  • true = assign-to-team functionality is enabled • false = assign-to-team functionality is disabled',
+    description: 'Whether assignment to teams is enabled',
     optional: true,
     nullable: true,
   },
   chatStatus: {
     type: 'string',
-    description: 'Chat status of the department Allowed values:  AVAILABLE, DISABLED, NOT_CREATED',
+    description: 'Chat status of the department Allowed values: AVAILABLE, DISABLED, NOT_CREATED',
     optional: true,
     nullable: true,
   },
   hasLogo: {
     type: 'boolean',
-    description:
-      'Indicates whether the department has a logoAllowed values: • true = department has a logo • false = department does not have a logo',
+    description: 'Whether the department has a logo',
     optional: true,
     nullable: true,
   },
@@ -618,8 +616,7 @@ export const ZOHO_DESK_DEPARTMENT_PROPERTIES = {
   },
   isVisibleInCustomerPortal: {
     type: 'boolean',
-    description:
-      'Indicates whether the department is visible in the help centerAllowed values:  • true = department is visible in the help center • false = department is not visible in the help center',
+    description: 'Whether the department is visible in the help center',
     optional: true,
     nullable: true,
   },
@@ -637,15 +634,13 @@ export const ZOHO_DESK_DEPARTMENT_PROPERTIES = {
   },
   isDefault: {
     type: 'boolean',
-    description:
-      'Indicates whether the department is the default department in the help desk portalAllowed values:  • true = default department • false = non-default department',
+    description: 'Whether this is the default department in the help desk portal',
     optional: true,
     nullable: true,
   },
   isEnabled: {
     type: 'boolean',
-    description:
-      'Indicates whether the department is enabled Allowed values:  • true = department is enabled • false = department is disabled</p.',
+    description: 'Whether the department is enabled',
     optional: true,
     nullable: true,
   },
@@ -745,7 +740,7 @@ export const ZOHO_DESK_AGENT_PROPERTIES = {
   rolePermissionType: {
     type: 'string',
     description:
-      'Role permission type of the agent. Allowed values:  AgentPublic, AgentPersonal, AgentTeamPersonal, Admin, Light, Custom',
+      'Role permission type of the agent. Allowed values: AgentPublic, AgentPersonal, AgentTeamPersonal, Admin, Light, Custom',
     optional: true,
     nullable: true,
   },
@@ -757,7 +752,7 @@ export const ZOHO_DESK_AGENT_PROPERTIES = {
   },
   status: {
     type: 'string',
-    description: 'Activation status of the agentAllowed values:  ACTIVE, DISABLED',
+    description: 'Activation status of the agent. Allowed values: ACTIVE, DISABLED',
     optional: true,
     nullable: true,
   },
@@ -789,7 +784,7 @@ export const ZOHO_DESK_AGENT_PROPERTIES = {
   isConfirmed: {
     type: 'boolean',
     description:
-      'Indicates whether the agent is a confirmed user in the portal. Allowed values:  true = confirmed, false = unconfirmed',
+      'Indicates whether the agent is a confirmed user in the portal. Allowed values: true = confirmed, false = unconfirmed',
     optional: true,
     nullable: true,
   },

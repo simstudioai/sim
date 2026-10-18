@@ -110,13 +110,13 @@ const ADDITIONAL_OPERATION_FIELDS: Record<
     contactId: { field: 'createTicketContactId', type: 'string' },
     departmentId: { field: 'createTicketDepartmentId', type: 'string' },
     contact: { field: 'createTicketContact', type: 'json' },
-    uploads: { field: 'createTicketUploads', type: 'json' },
+    uploads: { field: 'createTicketUploads', type: 'array' },
     resolution: { field: 'createTicketResolution', type: 'string' },
     webUrl: { field: 'createTicketWebUrl', type: 'string' },
-    sharedDepartments: { field: 'createTicketSharedDepartments', type: 'json' },
+    sharedDepartments: { field: 'createTicketSharedDepartments', type: 'array' },
     teamId: { field: 'createTicketTeamId', type: 'string' },
-    secondaryContacts: { field: 'createTicketSecondaryContacts', type: 'json' },
-    entitySkills: { field: 'createTicketEntitySkills', type: 'json' },
+    secondaryContacts: { field: 'createTicketSecondaryContacts', type: 'array' },
+    entitySkills: { field: 'createTicketEntitySkills', type: 'array' },
   },
   search_tickets: {
     email: { field: 'searchTicketsEmail', type: 'string' },
@@ -174,7 +174,7 @@ const ADDITIONAL_OPERATION_FIELDS: Record<
     bcc: { field: 'sendReplyBcc', type: 'string' },
     hasAttach: { field: 'sendReplyHasAttach', type: 'boolean' },
     ticketStatus: { field: 'sendReplyTicketStatus', type: 'string' },
-    attachmentIds: { field: 'sendReplyAttachmentIds', type: 'json' },
+    attachmentIds: { field: 'sendReplyAttachmentIds', type: 'array' },
     to: { field: 'sendReplyTo', type: 'string' },
     fromEmailAddress: { field: 'sendReplyFromEmailAddress', type: 'string' },
     isForward: { field: 'sendReplyIsForward', type: 'boolean' },
@@ -281,7 +281,7 @@ const ADDITIONAL_OPERATION_FIELDS: Record<
     state: { field: 'createAccountState', type: 'string' },
     ownerId: { field: 'createAccountOwnerId', type: 'string' },
     fax: { field: 'createAccountFax', type: 'string' },
-    associatedSLAIds: { field: 'createAccountAssociatedSLAIds', type: 'json' },
+    associatedSLAIds: { field: 'createAccountAssociatedSLAIds', type: 'array' },
   },
   update_account: {
     accountId: { field: 'updateAccountAccountId', type: 'string' },
@@ -300,7 +300,7 @@ const ADDITIONAL_OPERATION_FIELDS: Record<
     state: { field: 'updateAccountState', type: 'string' },
     ownerId: { field: 'updateAccountOwnerId', type: 'string' },
     fax: { field: 'updateAccountFax', type: 'string' },
-    associatedSLAIds: { field: 'updateAccountAssociatedSLAIds', type: 'json' },
+    associatedSLAIds: { field: 'updateAccountAssociatedSLAIds', type: 'array' },
   },
   search_accounts: {
     accountName: { field: 'searchAccountsAccountName', type: 'string' },
@@ -364,7 +364,7 @@ const ADDITIONAL_OPERATION_FIELDS: Record<
     commentId: { field: 'updateCommentCommentId', type: 'string' },
     ticketId: { field: 'updateCommentTicketId', type: 'string' },
     content: { field: 'updateCommentContent', type: 'string' },
-    attachmentIds: { field: 'updateCommentAttachmentIds', type: 'json' },
+    attachmentIds: { field: 'updateCommentAttachmentIds', type: 'array' },
     contentType: { field: 'updateCommentContentType', type: 'string', omitEmpty: true },
   },
   delete_comment: {
@@ -3722,7 +3722,7 @@ export const ZohoDeskBlock: BlockConfig = {
       description: 'Related data to include: mentions and plainText, comma-separated',
     },
     addCommentAttachmentIds: {
-      type: 'json',
+      type: 'array',
       description: 'JSON array of previously uploaded attachment IDs',
     },
     updateTicketDisableClosureNotification: {
@@ -3730,16 +3730,16 @@ export const ZohoDeskBlock: BlockConfig = {
       description: 'Suppress the contact notification when closing the ticket',
     },
     updateTicketEntitySkills: {
-      type: 'json',
+      type: 'array',
       description: 'JSON array of skill IDs in priority order; at most 10',
     },
     updateTicketSecondaryContacts: {
-      type: 'json',
+      type: 'array',
       description: 'JSON array of secondary contact IDs',
     },
     updateTicketTeamId: { type: 'string', description: 'Team ID' },
     updateTicketSharedDepartments: {
-      type: 'json',
+      type: 'array',
       description: 'JSON array of shared departments and access privileges',
     },
     updateTicketWebUrl: { type: 'string', description: 'URL to access the ticket' },
@@ -3748,7 +3748,7 @@ export const ZohoDeskBlock: BlockConfig = {
     updateTicketPhone: { type: 'string', description: 'Ticket phone number' },
     updateTicketEmail: { type: 'string', description: 'Ticket email address' },
     updateTicketUploads: {
-      type: 'json',
+      type: 'array',
       description: 'JSON array of previously uploaded attachment IDs',
     },
     updateTicketProductId: { type: 'string', description: 'Product ID' },
@@ -3815,24 +3815,24 @@ export const ZohoDeskBlock: BlockConfig = {
         'New contact JSON: email or lastName is required; firstName is optional. Provide either this or contactId.',
     },
     createTicketUploads: {
-      type: 'json',
+      type: 'array',
       description:
         'File attachments in the ticket. For more information, refer to the Uploads section JSON array.',
     },
     createTicketResolution: { type: 'string', description: 'Resolution notes of the ticket' },
     createTicketWebUrl: { type: 'string', description: 'URL to access the resource' },
     createTicketSharedDepartments: {
-      type: 'json',
+      type: 'array',
       description:
         'List of departments to which the ticket could be shared, along with the access privileges for each department JSON array.',
     },
     createTicketTeamId: { type: 'string', description: 'ID of the team to assign the ticket' },
     createTicketSecondaryContacts: {
-      type: 'json',
+      type: 'array',
       description: 'List of Secondary contacts JSON array.',
     },
     createTicketEntitySkills: {
-      type: 'json',
+      type: 'array',
       description:
         'JSON array of up to 10 skill IDs, ordered from highest to lowest assignment priority.',
     },
@@ -4056,7 +4056,7 @@ export const ZohoDeskBlock: BlockConfig = {
         'Status of the ticket. Includes the custom statuses configured in your help desk portal.',
     },
     sendReplyAttachmentIds: {
-      type: 'json',
+      type: 'array',
       description:
         'List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array.',
     },
@@ -4312,7 +4312,7 @@ export const ZohoDeskBlock: BlockConfig = {
     createAccountOwnerId: { type: 'string', description: 'ID of account owner' },
     createAccountFax: { type: 'string', description: 'Fax number of the account' },
     createAccountAssociatedSLAIds: {
-      type: 'json',
+      type: 'array',
       description:
         'IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array.',
     },
@@ -4339,7 +4339,7 @@ export const ZohoDeskBlock: BlockConfig = {
     updateAccountOwnerId: { type: 'string', description: 'ID of account owner' },
     updateAccountFax: { type: 'string', description: 'Fax number of the account' },
     updateAccountAssociatedSLAIds: {
-      type: 'json',
+      type: 'array',
       description:
         'IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array.',
     },
@@ -4526,7 +4526,7 @@ export const ZohoDeskBlock: BlockConfig = {
         'The comment content. To mention an agent: zsu[@user:{zuid}]zsu To mention a team: zsu[@team:{teamId}_{teamName}]zsu Note: This format can also be used to retrieve agent information.',
     },
     updateCommentAttachmentIds: {
-      type: 'json',
+      type: 'array',
       description:
         'List of file attachments included in the comment.Note: For more details on attachments, refer to the Uploads section. JSON array.',
     },
