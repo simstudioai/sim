@@ -485,6 +485,7 @@ export class DAGExecutor {
       executionOrderCounter: {
         value: restoredBlockLogs.reduce((max, log) => Math.max(max, log.executionOrder ?? 0), 0),
       },
+      unrecordedModelCost: this.contextExtensions.unrecordedModelCost ?? { total: 0 },
       metadata: {
         ...this.contextExtensions.metadata,
         ...(this.contextExtensions.billingAttribution

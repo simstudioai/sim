@@ -6,6 +6,7 @@ import {
   durableSecretProvenanceFromRegistry,
   importDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import type { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import type { AgentConversationSession } from '@/lib/memory/conversation-types'
 import {
   AGENT_MEMORY_RETRIEVAL_TOOL_ID,
@@ -22,6 +23,7 @@ import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
+import type { TokenUsageCost } from '@/providers/pricing'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { ProviderId } from '@/providers/types'
@@ -41,6 +43,10 @@ export interface ProviderRuntimeContext {
   toolIdByWireId?: ReadonlyMap<string, string>
   /** Failed canonical Function cost omitted from provider tool-result collections. */
   failedFunctionToolCost?: { total: number }
+  /** Billed cost of this request's settled model steps, charged if the run stops it mid-loop. */
+  modelCost?: TokenUsageCost
+  /** The usage-limit stop this request threw, rethrown as is past a provider's error wrapping. */
+  usageLimitStop?: NonRetryableExecutionError
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions

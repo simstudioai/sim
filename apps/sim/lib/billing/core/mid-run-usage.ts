@@ -89,8 +89,30 @@ function periodHasEnded(attribution: BillingAttributionSnapshot): boolean {
   return Date.now() >= new Date(attribution.billingPeriod.end).getTime()
 }
 
+/**
+ * The limit a run's not-yet-recorded spend takes it to, if any: the payer's pool, then the acting
+ * member's cap.
+ */
+function limitReachedWith(
+  usage: AttributedUsageLimitsResult,
+  unrecordedCost: number
+): 'payer' | 'member' | undefined {
+  // Without unrecorded spend the gate's own verdict stands, so callers that pass none are unchanged.
+  if (unrecordedCost <= 0) return undefined
+  const { payerUsage, memberUsage } = usage
+  if (payerUsage && payerUsage.currentUsage + unrecordedCost >= payerUsage.limit) return 'payer'
+  if (
+    memberUsage?.limit != null &&
+    memberUsage.currentUsage + unrecordedCost >= memberUsage.limit
+  ) {
+    return 'member'
+  }
+  return undefined
+}
+
 async function readGateVerdict(
-  attribution: BillingAttributionSnapshot
+  attribution: BillingAttributionSnapshot,
+  unrecordedCost: number
 ): Promise<MidRunUsageVerdict> {
   let usage: AttributedUsageLimitsResult
   try {
@@ -101,7 +123,10 @@ async function readGateVerdict(
     })
     return { status: 'unknown' }
   }
-  if (!usage.isExceeded) return { status: 'within' }
+  if (!usage.isExceeded) {
+    const scope = limitReachedWith(usage, unrecordedCost)
+    return scope ? { status: 'exceeded', scope } : { status: 'within' }
+  }
   if (usage.reason === 'billing_blocked') {
     return { status: 'blocked', ...(usage.message ? { message: usage.message } : {}) }
   }
@@ -120,12 +145,17 @@ async function readGateVerdict(
  * next callback judges the next period. Any other payer's charges stay in the admitted
  * period (a reporting window, or the open default one), so that period is judged, even after it
  * ends.
+ *
+ * @param unrecordedCost - Spend the ledger does not hold yet, counted as recorded usage.
  */
 export async function readMidRunUsageVerdict(
-  attribution: BillingAttributionSnapshot
+  attribution: BillingAttributionSnapshot,
+  unrecordedCost = 0
 ): Promise<MidRunUsageVerdict> {
   if (!isHosted || !isBillingEnabled) return { status: 'within' }
-  if (!rollsIntoCurrentPeriod(attribution.billingPeriod)) return readGateVerdict(attribution)
+  if (!rollsIntoCurrentPeriod(attribution.billingPeriod)) {
+    return readGateVerdict(attribution, unrecordedCost)
+  }
   let judged: BillingAttributionSnapshot
   try {
     judged = await currentAttribution(attribution)
@@ -136,7 +166,7 @@ export async function readMidRunUsageVerdict(
     return { status: 'unknown' }
   }
   if (periodHasEnded(judged)) return { status: 'unknown' }
-  const verdict = await readGateVerdict(judged)
+  const verdict = await readGateVerdict(judged, unrecordedCost)
   // A period that ended during the read is judged at the next callback, which reloads it.
   return periodHasEnded(judged) ? { status: 'unknown' } : verdict
 }

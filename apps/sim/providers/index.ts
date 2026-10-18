@@ -305,6 +305,7 @@ export async function executeProviderRequest(
         }
       : {}),
     failedFunctionToolCost,
+    modelCost: { input: 0, output: 0, total: 0 },
     ...(toolIdentities.toolIdByWireId.size > 0
       ? {
           toolIdByWireId: new Map([
@@ -407,6 +408,9 @@ export async function executeProviderRequest(
       return cachedFinalResponse
     }
     return provider.executeRequest(modelSafeRequest)
+  }).catch((error: unknown) => {
+    // Providers rewrap their failures; the usage-limit stop must keep its class and billed cost.
+    throw requestRuntimeContext.usageLimitStop ?? error
   })
 
   if (cachedFinalResponse) return cachedFinalResponse

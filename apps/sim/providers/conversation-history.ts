@@ -7,6 +7,7 @@ import type { ConversationProtocol, ConversationUsage } from '@/lib/memory/conve
 import { getConversationPrefixHash } from '@/providers/conversation-prefix'
 import { priceModelUsage, resolveModelCostPolicy } from '@/providers/cost-policy'
 import { providerHistoryAdapters } from '@/providers/history-adapters'
+import { recordModelStepCost } from '@/providers/run-usage-limit'
 import { getProviderRuntimeContext, type ProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderId, ProviderRequest, ProviderToolConfig } from '@/providers/types'
 
@@ -89,7 +90,10 @@ export function getConversationBinding(providerId: ProviderId, request: Provider
     .digest('hex')
 }
 
-/** Called with a complete provider message, including streaming terminal responses. */
+/**
+ * Called with a complete provider message, including streaming terminal responses. Its billed
+ * cost counts toward the run's usage limit whether or not the Agent keeps a conversation.
+ */
 export async function captureProviderConversationStep(
   request: ProviderRequest,
   protocol: ConversationProtocol,
@@ -102,6 +106,17 @@ export async function captureProviderConversationStep(
   }
 ): Promise<void> {
   const runtime = getConversationRequestContext(request)
+  const priced = usage
+    ? {
+        usage,
+        cost: priceModelUsage(
+          request.model,
+          usage,
+          resolveModelCostPolicy(request.model, request.isBYOK)
+        ),
+      }
+    : undefined
+  if (priced) recordModelStepCost(runtime, priced.cost)
   if (!runtime?.agentConversation || !runtime.conversationProvider) return
   try {
     const captured = providerHistoryAdapters[protocol].capture(value)
@@ -131,16 +146,7 @@ export async function captureProviderConversationStep(
           ? { prefixHash: getConversationPrefixHash(options.requestHistory) }
           : {}),
       },
-      ...(usage
-        ? {
-            usage,
-            cost: priceModelUsage(
-              request.model,
-              usage,
-              resolveModelCostPolicy(request.model, request.isBYOK)
-            ),
-          }
-        : {}),
+      ...priced,
     })
   } catch {
     logger.warn('Agent conversation capture unavailable')

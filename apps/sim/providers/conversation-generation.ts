@@ -21,6 +21,7 @@ import {
   isConversationHistoryNotice,
 } from '@/providers/conversation-metadata'
 import { getConversationModelLimits } from '@/providers/conversation-model'
+import { assertRunWithinUsageLimit } from '@/providers/run-usage-limit'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { Message, ProviderRequest } from '@/providers/types'
 
@@ -283,6 +284,7 @@ export async function prepareConversationGeneration<T>(
   payload: T
 ): Promise<T> {
   const runtime = getConversationRequestContext(request)
+  await assertRunWithinUsageLimit(runtime)
   if (!runtime?.agentConversation) return payload
   request.abortSignal?.throwIfAborted()
   if (!isRecordLike(payload))
