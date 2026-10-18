@@ -48,7 +48,7 @@ import {
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError } from '@/providers/streaming-tool-loop-shared'
+import { isAbortError, providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
@@ -1052,7 +1052,7 @@ export const bedrockProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Bedrock request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Bedrock request:', {
         error,
         duration: totalDuration,
       })

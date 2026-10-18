@@ -2,6 +2,7 @@
 import { Readable } from 'node:stream'
 import { flushMacrotask } from '@sim/testing/helpers'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,8 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { presentWorkspaceFileArchive } from '@/lib/workspace-files/api/archive-presenter'
+
+const deliveryLogger = getMockLogger('FileArchiveDelivery')
 
 function plan() {
   const filesToZip: WorkspaceFileRecord[] = Array.from({ length: 3 }, (_, index) => ({
@@ -111,5 +114,52 @@ describe('file archive resource lifetime', () => {
     await reader.read()
     await reader.cancel()
     await vi.waitFor(() => expect(source.destroyed).toBe(true))
+  })
+
+  /** A storage response torn down mid-read fails with Node's bare `aborted`, not an AbortError. */
+  function storageStreamThatFailsWhenDestroyed() {
+    return new Readable({
+      read() {
+        this.push(Buffer.alloc(65536))
+      },
+      destroy(_error, callback) {
+        callback(new Error('aborted'))
+      },
+    })
+  }
+
+  it('does not log a failure when the client disconnects mid-download', async () => {
+    deliveryLogger.error.mockClear()
+    const source = storageStreamThatFailsWhenDestroyed()
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
+    const reader = presentWorkspaceFileArchive(plan()).body.getReader()
+    await reader.read()
+    const disconnect = new Error('')
+    disconnect.name = 'ResponseAborted'
+    await reader.cancel(disconnect)
+    await vi.waitFor(() => expect(source.destroyed).toBe(true))
+    await flushMacrotask()
+
+    expect(deliveryLogger.error).not.toHaveBeenCalled()
+  })
+
+  it('still logs a storage failure while the client is connected', async () => {
+    deliveryLogger.error.mockClear()
+    const source = storageStreamThatFailsWhenDestroyed()
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
+    const result = presentWorkspaceFileArchive(plan())
+    const reader = result.body.getReader()
+    await reader.read()
+    source.destroy()
+
+    await expect(
+      (async () => {
+        while (!(await reader.read()).done) {}
+      })()
+    ).rejects.toThrow('aborted')
+    expect(deliveryLogger.error).toHaveBeenCalledWith(
+      'Failed to build file archive',
+      expect.anything()
+    )
   })
 })

@@ -37,7 +37,7 @@ import {
 } from '@/providers/models'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError } from '@/providers/streaming-tool-loop-shared'
+import { isAbortError, providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
 import { adaptAnthropicToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type { ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
@@ -952,7 +952,10 @@ export async function executeAnthropicProviderRequest(
         })
       }
     } catch (error) {
-      logger.error(`Error in ${providerLabel} request:`, { error })
+      logger[providerFailureLogLevel(error, request.abortSignal)](
+        `Error in ${providerLabel} request:`,
+        { error }
+      )
       throw error
     }
 
@@ -995,10 +998,13 @@ export async function executeAnthropicProviderRequest(
     const providerEndTimeISO = new Date(providerEndTime).toISOString()
     const totalDuration = providerEndTime - providerStartTime
 
-    logger.error(`Error in ${providerLabel} request:`, {
-      error,
-      duration: totalDuration,
-    })
+    logger[providerFailureLogLevel(error, request.abortSignal)](
+      `Error in ${providerLabel} request:`,
+      {
+        error,
+        duration: totalDuration,
+      }
+    )
 
     if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error

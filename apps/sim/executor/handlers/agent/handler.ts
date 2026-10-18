@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { isPlainRecord, isRecordLike, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { markFailureKind } from '@/lib/core/errors/failure-log'
+import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   projectModelSchemaAnnotations,
@@ -125,6 +126,7 @@ import {
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
 import { isAutoModel, isEvaluationModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import {
   type ProviderToolInputProvenance,
   registerProviderToolInputProvenance,
@@ -3064,7 +3066,7 @@ export class AgentBlockHandler implements BlockHandler {
         modelRuntimeRegistry
       )
       try {
-        this.handleExecutionError(error)
+        this.handleExecutionError(error, ctx.abortSignal)
       } finally {
         if (modelRuntimeRegistry) {
           ctx.resolvedSecretTraceRegistry = modelRuntimeRegistry.forkForPropagatedEntries()
@@ -3088,8 +3090,12 @@ export class AgentBlockHandler implements BlockHandler {
   /**
    * Attributes a provider failure and rewrites a transport failure into a message the author can
    * act on. The block executor owns the log line, with the block's and run's identity.
+   *
+   * A run the user stopped passes through untouched: its abort is not a provider timeout, and
+   * the block executor recognises it only in its original shape.
    */
-  private handleExecutionError(error: unknown) {
+  private handleExecutionError(error: unknown, abortSignal: AbortSignal | undefined) {
+    if (isRunAbortError(error, abortSignal) && !isTimeoutAbortReason(abortSignal?.reason)) return
     const transportFailure = error instanceof Error ? describeProviderTransportFailure(error) : null
     if (transportFailure) {
       throw markFailureKind(new Error(transportFailure), 'third_party_server')

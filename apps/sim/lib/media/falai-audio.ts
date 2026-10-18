@@ -21,6 +21,52 @@ export const DEFAULT_AUDIO_MODELS: Record<AudioType, string> = {
 // Zero-shot voice cloning from a reference sample (F5-TTS: ref_audio_url + gen_text).
 export const DEFAULT_CLONE_MODEL = 'fal-ai/f5-tts'
 
+/** The prebuilt voices fal's Gemini TTS endpoints accept; any other `voice` is a 422. */
+const GEMINI_TTS_VOICES = [
+  'Achernar',
+  'Achird',
+  'Algenib',
+  'Algieba',
+  'Alnilam',
+  'Aoede',
+  'Autonoe',
+  'Callirrhoe',
+  'Charon',
+  'Despina',
+  'Enceladus',
+  'Erinome',
+  'Fenrir',
+  'Gacrux',
+  'Iapetus',
+  'Kore',
+  'Laomedeia',
+  'Leda',
+  'Orus',
+  'Pulcherrima',
+  'Puck',
+  'Rasalgethi',
+  'Sadachbia',
+  'Sadaltager',
+  'Schedar',
+  'Sulafat',
+  'Umbriel',
+  'Vindemiatrix',
+  'Zephyr',
+  'Zubenelgenubi',
+] as const
+
+/**
+ * Refuses a voice the speech model does not offer before anything is submitted, naming the
+ * voices it does: an ElevenLabs name sent to Gemini TTS is otherwise a bare 422 from fal.
+ */
+function assertSpeechVoiceSupported(model: string, voice: string | undefined): void {
+  if (!voice || !/gemini.*tts/.test(model)) return
+  if ((GEMINI_TTS_VOICES as readonly string[]).includes(voice)) return
+  throw new Error(
+    `Voice "${voice}" is not available for ${model}. Use one of: ${GEMINI_TTS_VOICES.join(', ')}.`
+  )
+}
+
 export interface GenerateFalAudioParams {
   prompt: string
   type?: AudioType
@@ -122,6 +168,7 @@ export async function generateFalAudio(params: GenerateFalAudioParams): Promise<
   }
 
   const model = params.model || DEFAULT_AUDIO_MODELS[type]
+  if (type === 'speech') assertSpeechVoiceSupported(model, params.voice)
   const input = buildInput(type, params, model)
 
   // For fal audio models the model ID is the queue endpoint.

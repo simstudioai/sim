@@ -303,10 +303,10 @@ export class ProviderError extends Error {
 export class EmptyProviderInputError extends UserFailure {
   readonly retryable = false
 
-  constructor() {
-    super(
-      'The Agent has no messages to send. Add a system prompt or user message, or check that the value it references (for example <start.input>) is not empty.'
-    )
+  constructor(
+    message = 'The Agent has no messages to send. Add a system prompt or user message, or check that the value it references (for example <start.input>) is not empty.'
+  ) {
+    super(message)
     this.name = 'EmptyProviderInputError'
   }
 }

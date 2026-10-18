@@ -13,7 +13,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
+import {
+  validateCopilotWorkspaceFileWriteTarget,
+  writeCopilotWorkspaceFileByPath,
+} from '@/lib/mothership/vfs/resource-writer'
 import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -64,6 +67,14 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
     }
 
     try {
+      const outputFile = params.outputs?.files?.[0]
+      if (outputFile?.path) {
+        await validateCopilotWorkspaceFileWriteTarget(context, {
+          workspaceId,
+          target: { path: outputFile.path, mode: outputFile.mode ?? 'create' },
+        })
+      }
+
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
@@ -111,7 +122,6 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         onCost: (cost) => recordServiceCost('falai_video', cost.costDollars),
       })
 
-      const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || 'files/generated-video.mp4'
       const mode = outputFile?.mode ?? 'create'
 
