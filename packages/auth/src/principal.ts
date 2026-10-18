@@ -129,6 +129,8 @@ export interface WebhookSystemPrincipal {
 type SystemPrincipal = ActorlessSystemPrincipal | ChatSystemPrincipal | WebhookSystemPrincipal
 
 interface DelegatedPrincipalBase {
+  /** Correlation to an original Chat admission, not a target resource grant. */
+  executionStreamId?: string
   kind: 'delegated'
   delegationId: string
   audience: string
@@ -444,8 +446,37 @@ export function workspaceDelegationRestrictions(
   return principal.serviceId === 'executor' ? principal.resourceScope : principal.grant.restrictions
 }
 
+/** Copilot authority for one personal chat: the user owns the grant and the invocation is that chat. */
+export function isUserChatDelegation(
+  principal: Principal
+): principal is SubjectDelegatedPrincipal & {
+  serviceId: 'copilot'
+  invocation: { kind: 'chat'; chatId: string }
+  grant: { kind: 'entity'; owner: EntityOwner<'user'>; fileId?: undefined }
+} {
+  if (principal.kind !== 'delegated' || principal.serviceId !== 'copilot') return false
+  if (principal.invocation.kind !== 'chat') return false
+  const grant = principal.grant
+  if (grant.kind !== 'entity' || grant.owner.entityType !== 'user') return false
+  if ('fileId' in grant && grant.fileId !== undefined) return false
+  return !('workspaceId' in principal) && !('resourceScope' in principal)
+}
+
+/** Chat bound on a human delegation, from its invocation or its workspace restrictions. */
+export function delegatedChatId(principal: Principal): string | undefined {
+  if (principal.kind === 'organization_delegated')
+    return principal.serviceId === 'copilot' ? principal.resourceScope.chatId : undefined
+  if (principal.kind !== 'delegated' || principal.serviceId === 'executor') return undefined
+  if (principal.invocation.kind === 'chat') return principal.invocation.chatId
+  const grant = principal.grant
+  if (grant.kind === 'entity' && grant.owner.entityType === 'workspace' && 'restrictions' in grant)
+    return grant.restrictions?.chatId
+  return undefined
+}
+
 /** Search-only authority delegated by a current organization member. */
 interface OrganizationDelegatedPrincipalBase {
+  executionStreamId?: string
   kind: 'organization_delegated'
   organizationId: string
   subjectUserId: string

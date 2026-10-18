@@ -13,7 +13,12 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
   const { readTestRedisUrl } = await import('@sim/db/testing/test-infrastructure')
   const { createServer } = await import('node:http')
   const worker = {
-    requests: [] as Array<{ path: string; body: Record<string, unknown> }>,
+    requests: [] as Array<{
+      path: string
+      body: Record<string, unknown>
+      billingAttribution?: string
+      billingRequestId?: string
+    }>,
     /** SSE frames per worker path, set by each test once its ids are known. */
     replies: {} as Record<string, unknown[]>,
   }
@@ -26,7 +31,12 @@ const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
       response.end(JSON.stringify({ error: 'Run not found' }))
       return
     }
-    worker.requests.push({ path: request.url, body: JSON.parse(body) })
+    worker.requests.push({
+      path: request.url,
+      body: JSON.parse(body),
+      billingAttribution: request.headers['x-sim-billing-attribution'] as string | undefined,
+      billingRequestId: request.headers['x-sim-billing-request-id'] as string | undefined,
+    })
     response.writeHead(200, { 'content-type': 'text/event-stream' })
     for (const frame of frames) response.write(`data: ${JSON.stringify(frame)}\n\n`)
     response.end('data: [DONE]\n\n')
@@ -58,8 +68,12 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
+import {
+  createAttributedBillingRequestEnvelope,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/attribution'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
 import {
   claimToolExecution,
@@ -253,6 +267,40 @@ describe.runIf(Boolean(redisUrl))('recovering a run whose ring lost its head', (
     expect(worker.requests.map((request) => request.path)).toEqual(['/api/mothership'])
     expect(worker.requests[0].body).toMatchObject({ messageId: streamId, receivedTextChars: 0 })
     expect(await getRedisClient()!.get(chatStreamLockKey(chatId))).toBeNull()
+  })
+
+  it('recovers a now-personal chat with the original workspace admission and payer', async () => {
+    const { chatId, streamId, runId, frame } = await orphanedRunWithTrimmedRing()
+    const envelope = createAttributedBillingRequestEnvelope(
+      await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+    )
+    const admission = {
+      billingRequestId: envelope.billingRequestId,
+      serializedAttribution: envelope.serializedAttribution,
+    }
+    await db
+      .update(copilotRuns)
+      .set({
+        requestContext: sql`jsonb_set(${copilotRuns.requestContext}, '{recovery,billingAdmission}', ${JSON.stringify(admission)}::jsonb)`,
+      })
+      .where(eq(copilotRuns.id, runId))
+    await db.update(copilotChats).set({ workspaceId: null }).where(eq(copilotChats.id, chatId))
+    worker.requests.length = 0
+    worker.replies = {
+      '/api/mothership': [
+        frame(1, 'session', { kind: 'start' }),
+        frame(2, 'text', { channel: 'assistant', text: FULL_TEXT, textOffset: 0 }),
+        frame(3, 'complete', { status: 'complete', textLength: FULL_TEXT.length }),
+      ],
+    }
+    expect(await recoverAndFinish(streamId, runId)).toBe('complete')
+    expect(worker.requests).toHaveLength(1)
+    expect(worker.requests[0]).toMatchObject({
+      body: { messageId: streamId, workspaceId },
+      billingAttribution: envelope.serializedAttribution,
+      billingRequestId: envelope.billingRequestId,
+    })
+    expect(await assistantMessages(chatId)).toHaveLength(1)
   })
 
   it('shows replayed tools once and never re-runs a re-handed call the dead controller ran', async () => {

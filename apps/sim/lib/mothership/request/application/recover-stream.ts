@@ -1,11 +1,9 @@
 import {
-  type OrganizationDelegatedPrincipal,
+  delegatedChatId,
   type Principal,
   principalWorkspaceId,
   resolvePrincipalSubjectUserId,
   type SessionPrincipal,
-  type WorkspaceDelegatedPrincipal,
-  workspaceDelegationRestrictions,
 } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -69,17 +67,15 @@ async function resolveStreamRunContext({
   const userId = resolvePrincipalSubjectUserId(principal)
   const run = userId ? await getLatestRunForStream(input.streamId, userId) : null
   if (!run?.chatId) throw new OrchestrationError('not_found', 'Stream not found')
-  const chat = await resolveOwnedChatContext(principal, run.chatId)
-  if (
-    (run.workspaceId ?? null) !== (chat.workspaceId ?? null) ||
-    (run.organizationId ?? null) !== (chat.organizationId ?? null)
-  )
+  const chat = await resolveOwnedChatContext(principal, run.chatId, { allowPersonal: true })
+  if (run.workspaceId && run.organizationId)
     throw new OrchestrationError('not_found', 'Stream not found')
   return { ...chat, run }
 }
 
 /** The browser's reconnect, which takes over the run when its controller is gone. */
 export const readChatStream = defineAuthorizedChatUseCase({
+  personal: true,
   operation: defineWorkspaceOperation({
     id: 'mothership.runs.reconnect',
     minimumRole: 'read',
@@ -109,6 +105,8 @@ export const readChatStream = defineAuthorizedChatUseCase({
  * browser attached. It re-checks that user's current access exactly as a reconnect does.
  */
 export const takeOverStreamRun = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: RUN_TAKEOVER_AUDIENCE,
   operation: defineWorkspaceOperation({
     id: 'mothership.runs.takeover',
     minimumRole: 'read',
@@ -127,20 +125,15 @@ export const takeOverStreamRun = defineAuthorizedChatUseCase({
     delegationAudience: RUN_TAKEOVER_AUDIENCE,
     delegatedServices: ['copilot'],
   }),
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
-    input: { streamId: string }
-  }) => resolveStreamRunContext({ principal, input }),
+  resolveContext: ({ principal, input }: { principal: Principal; input: { streamId: string } }) =>
+    resolveStreamRunContext({ principal, input }),
   authorizationOptions: {
     delegation: {
       audience: RUN_TAKEOVER_AUDIENCE,
       isWithinScope: (principal, context) =>
         principal.serviceId === 'copilot' &&
         principalWorkspaceId(principal) === context.workspaceId &&
-        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
+        delegatedChatId(principal) === context.chatId,
     },
   },
   execute: ({ context, request }) => recoverStreamRun(context, request?.signal),
@@ -152,7 +145,9 @@ export const takeOverStreamRun = defineAuthorizedChatUseCase({
  * An aborted `admission` declines the run before its controller is claimed.
  */
 async function recoverStreamRun(context: StreamRunContext, admission?: AbortSignal) {
-  const { run, chatId, userId, workspaceId, organizationId } = context
+  const { run, chatId, userId } = context
+  const workspaceId = run.workspaceId ?? undefined
+  const organizationId = run.organizationId ?? undefined
   if (isTerminalStreamStatus(run.status)) return run
   const saved = run.requestContext as Record<string, unknown> | null
   const config = StreamRecoveryConfigSchema.safeParse(saved?.recovery)
@@ -162,7 +157,6 @@ async function recoverStreamRun(context: StreamRunContext, admission?: AbortSign
     intent.userId !== userId ||
     intent.workspaceId !== workspaceId ||
     intent.organizationId !== organizationId ||
-    (organizationId && intent.mode !== context.mode) ||
     intent.chatId !== chatId ||
     intent.messageId !== run.streamId
   ) {

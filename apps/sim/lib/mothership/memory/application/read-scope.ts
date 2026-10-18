@@ -1,8 +1,4 @@
-import type {
-  OrganizationDelegatedPrincipal,
-  WorkspaceDelegatedPrincipal,
-} from '@sim/auth/principal'
-import { principalWorkspaceId, workspaceDelegationRestrictions } from '@sim/auth/principal'
+import { delegatedChatId, type Principal, principalWorkspaceId } from '@sim/auth/principal'
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -25,6 +21,8 @@ export const readMemoryScopeOperation = defineWorkspaceOperation({
 
 /** Canonical, currently authorized ownership; never a model-selected graph namespace. */
 export const readMemoryScope = defineAuthorizedChatUseCase({
+  personal: true,
+  executionDelegationAudience: MEMORY_SCOPE_AUDIENCE,
   operation: readMemoryScopeOperation,
   organizationOperation: defineOrganizationOperation({
     id: readMemoryScopeOperation.id,
@@ -35,20 +33,15 @@ export const readMemoryScope = defineAuthorizedChatUseCase({
     delegationAudience: MEMORY_SCOPE_AUDIENCE,
     delegatedServices: ['copilot'],
   }),
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: WorkspaceDelegatedPrincipal | OrganizationDelegatedPrincipal
-    input: MemoryScopeRequest
-  }) => resolveOwnedChatContext(principal, input.chatId),
+  resolveContext: ({ principal, input }: { principal: Principal; input: MemoryScopeRequest }) =>
+    resolveOwnedChatContext(principal, input.chatId),
   authorizationOptions: {
     delegation: {
       audience: MEMORY_SCOPE_AUDIENCE,
       isWithinScope: (principal, context) =>
         principal.serviceId === 'copilot' &&
         principalWorkspaceId(principal) === context.workspaceId &&
-        workspaceDelegationRestrictions(principal)?.chatId === context.chatId,
+        delegatedChatId(principal) === context.chatId,
     },
   },
   async execute({ context }) {

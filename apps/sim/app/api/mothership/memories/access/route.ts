@@ -13,7 +13,7 @@ import {
 
 export const POST = defineInternalJsonRoute({
   contract: resolveMemoryNotesAccessContract,
-  auth: internalCopilotAuth(MEMORY_NOTES_ACCESS_AUDIENCE, { organization: true }),
+  auth: internalCopilotAuth(MEMORY_NOTES_ACCESS_AUDIENCE, { organization: true, personal: true }),
   operation: resolveMemoryNotesAccessOperation,
   rateLimit: internalRateLimits.none({
     reason:

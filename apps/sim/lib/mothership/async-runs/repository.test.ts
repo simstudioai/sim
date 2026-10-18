@@ -3,7 +3,10 @@ import {
   copilotChats,
   copilotOrganizationRequestStops,
   copilotRequestStops,
+  copilotRunStops,
   copilotRuns,
+  organization,
+  workspace,
 } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -36,6 +39,8 @@ describe('run admission and early Stop', () => {
   const input = { ...scope, chatId: 'chat-1', executionId: 'execution-1' }
   beforeEach(() => {
     resetDbChainMock()
+    queueTableRows(workspace, [{ id: scope.workspaceId }])
+    queueTableRows(organization, [{ id: 'org-1' }])
   })
 
   it('records a pending Stop using the authenticated actor and workspace', async () => {
@@ -64,7 +69,7 @@ describe('run admission and early Stop', () => {
     expect(dbChainMockFns.insert).toHaveBeenCalledWith(copilotOrganizationRequestStops)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(organizationScope)
     const stoppedAt = new Date()
-    queueTableRows(copilotOrganizationRequestStops, [{ ...organizationScope, stoppedAt }])
+    queueTableRows(copilotRunStops, [{ stoppedAt }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'run-1', status: 'cancelled' }])
     await createRunSegment({ ...input, workspaceId: undefined, organizationId: 'org-1' })
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
@@ -133,7 +138,7 @@ describe('run admission and early Stop', () => {
 
   it('creates a terminal, tool-closed run when a scoped Stop preceded admission', async () => {
     const stoppedAt = new Date('2026-09-01T00:00:00Z')
-    queueTableRows(copilotRequestStops, [{ ...scope, stoppedAt }])
+    queueTableRows(copilotRunStops, [{ stoppedAt }])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'run-1', status: 'cancelled' }])
     expect(await createRunSegment(input)).toMatchObject({ status: 'cancelled' })
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
@@ -151,7 +156,7 @@ describe('run admission and early Stop', () => {
       /** The chat row is read first; the Stop lookup follows it. */
       expect(
         hasMockCondition(
-          dbChainMockFns.where.mock.calls[1]?.[0],
+          dbChainMockFns.where.mock.calls[2]?.[0],
           (condition) =>
             condition.type === 'eq' && condition.left === column && condition.right === value
         )
@@ -179,7 +184,7 @@ describe('run admission and early Stop', () => {
 
   it('refuses admission when its canonical workspace cannot be resolved', async () => {
     await expect(createRunSegment({ ...input, workspaceId: undefined })).rejects.toThrow(
-      'Resource requires exactly one workspace or organization owner'
+      'Run admission requires its actor-owned chat'
     )
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })

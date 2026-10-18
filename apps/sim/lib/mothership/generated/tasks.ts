@@ -29,8 +29,8 @@ export const TaskWakeRequest = z
     status: z.enum(["completed", "failed", "stopped", "expired"]),
     summary: z.string().max(4000),
   })
-  .refine((value) => Boolean(value.workspaceId) !== Boolean(value.organizationId), {
-    message: "Exactly one workspaceId or organizationId is required",
+  .refine((value) => !(value.workspaceId && value.organizationId), {
+    message: "workspaceId and organizationId cannot both be supplied",
   });
 export type TaskWakeRequest = z.infer<typeof TaskWakeRequest>;
 

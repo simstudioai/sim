@@ -4781,7 +4781,20 @@ export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValu
 export type CopilotToolPermissionDecision =
   (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
-/** Stop may arrive before chat creation. Its actor/workspace scope cannot cancel another request. */
+/** Actor/stream intent survives chat ownership changes and source deletion. */
+export const copilotRunStops = pgTable(
+  'copilot_run_stops',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    streamId: text('stream_id').notNull(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({ pk: primaryKey({ columns: [table.userId, table.streamId] }) })
+)
+
+// contract-pending(after unified-only Stop readers and writers are deployed): drop legacy Stop stores after backfill and predecessor retirement.
 export const copilotRequestStops = pgTable(
   'copilot_request_stops',
   {
@@ -4856,8 +4869,9 @@ export const copilotRuns = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Original execution source, retained even when that source is deleted. */
+    workflowId: text('workflow_id'),
+    workspaceId: text('workspace_id'),
     streamId: text('stream_id').notNull(),
     organizationId: text('organization_id').references(() => organization.id, {
       onDelete: 'cascade',

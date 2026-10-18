@@ -29,7 +29,7 @@ import { POST } from '@/app/api/mothership/runs/control/route'
 const mocks = {
   run: mothershipAsyncRunsMockFns.mockGetLatestRunForStream,
   stopped: mothershipAsyncRunsMockFns.mockIsRunStopRequested,
-  authorize: workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation,
+  authorize: workspaceAuthorizationMockFns.mockRequireCurrentHumanRole,
   banned: authBanMockFns.mockGetActivelyBannedUserIds,
   workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
 }
@@ -60,7 +60,12 @@ beforeEach(() => {
     allowPersonalApiKeys: false,
   })
   mocks.authorize.mockResolvedValue(undefined)
-  mocks.run.mockResolvedValue({ chatId, workspaceId: 'workspace' })
+  mocks.run.mockResolvedValue({
+    userId: 'actor',
+    chatId,
+    workspaceId: 'workspace',
+    organizationId: null,
+  })
   mocks.stopped.mockResolvedValue(true)
 })
 
@@ -103,15 +108,24 @@ describe('worker run control boundary', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ stopped: false })
   })
-  it.each([
-    null,
-    { chatId: 'other-chat', workspaceId: 'workspace' },
-    { chatId, workspaceId: 'other-workspace' },
-  ])('answers Stop for a missing or mismatched canonical run: %j', async (run) => {
-    mocks.run.mockResolvedValue(run)
-    const response = await POST(request())
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ stopped: true })
+  it.each([null, { chatId: 'other-chat', workspaceId: 'workspace' }])(
+    'answers Stop for a missing or mismatched canonical run: %j',
+    async (run) => {
+      mocks.run.mockResolvedValue(run)
+      const response = await POST(request())
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ stopped: true })
+      expect(mocks.stopped).not.toHaveBeenCalled()
+    }
+  )
+  it('rejects caller scope that differs from original admission', async () => {
+    mocks.run.mockResolvedValue({
+      userId: 'actor',
+      chatId,
+      workspaceId: 'other-workspace',
+      organizationId: null,
+    })
+    expect((await POST(request())).status).toBe(403)
     expect(mocks.stopped).not.toHaveBeenCalled()
   })
   it('does not turn a database outage into permission to continue', async () => {

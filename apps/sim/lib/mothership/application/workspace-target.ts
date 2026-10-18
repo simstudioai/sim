@@ -3,6 +3,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   createCopilotChatPrincipal,
+  createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
 import {
@@ -12,6 +13,9 @@ import {
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
 
 export interface InvocationOwner {
+  /** Server-owned execution correlation, never read from model CLI arguments. */
+  messageId?: string
+  copilotToolExecution?: boolean
   userId: string
   workspaceId?: string
   organizationId?: string
@@ -31,6 +35,8 @@ export async function resolveInvocationWorkspace(owner: InvocationOwner, request
   if (!organizationId && owner.workspaceId && workspaceId !== owner.workspaceId)
     throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
   if (owner.chatId) {
+    const executionStreamId =
+      owner.copilotToolExecution && owner.messageId ? owner.messageId : undefined
     const principal = organizationId
       ? createTrustedOrganizationCopilotPrincipal(
           {
@@ -38,13 +44,29 @@ export async function resolveInvocationWorkspace(owner: InvocationOwner, request
             organizationId,
             chatId: owner.chatId,
             delegationId: `workspace-target:${owner.chatId}`,
+            ...(executionStreamId ? { executionStreamId } : {}),
           },
           { audience: WORKSPACE_TARGET_AUDIENCE, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS }
         )
-      : createCopilotChatPrincipal(
-          { userId: owner.userId, workspaceId, chatId: owner.chatId },
-          WORKSPACE_TARGET_AUDIENCE
-        )
+      : !owner.workspaceId
+        ? createTrustedCopilotPrincipal(
+            {
+              userId: owner.userId,
+              chatId: owner.chatId,
+              delegationId: `workspace-target:${owner.chatId}`,
+              ...(executionStreamId ? { executionStreamId } : {}),
+            },
+            { audience: WORKSPACE_TARGET_AUDIENCE, ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS }
+          )
+        : createCopilotChatPrincipal(
+            {
+              userId: owner.userId,
+              workspaceId,
+              chatId: owner.chatId,
+              ...(executionStreamId ? { executionStreamId } : {}),
+            },
+            WORKSPACE_TARGET_AUDIENCE
+          )
     return authorizeChatWorkspaceTarget.execute({
       principal,
       input: { chatId: owner.chatId, workspaceId },

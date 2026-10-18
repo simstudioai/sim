@@ -1,4 +1,9 @@
-import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
+import {
+  delegatedChatId,
+  isUserChatDelegation,
+  type OrganizationDelegatedPrincipal,
+  type Principal,
+} from '@sim/auth/principal'
 import {
   type AuthorizingUseCase,
   defineAuthorizedWorkspaceUseCase,
@@ -17,6 +22,10 @@ import {
   type OrchestrationRequestContext,
 } from '@/lib/core/orchestration/types'
 import type { ChatOwnerContext } from '@/lib/mothership/chat/application/context'
+import {
+  bindCurrentChatCallback,
+  requireRunDelegation,
+} from '@/lib/mothership/request/application/run-authorization'
 
 function requireDelegatedChatScope(principal: Principal, context: ChatOwnerContext): void {
   if (
@@ -35,6 +44,8 @@ type ChatPrincipal<O extends WorkspaceOperation> =
 
 interface ChatExecution<O extends WorkspaceOperation, I, C extends ChatOwnerContext> {
   principal: ChatPrincipal<O>
+  /** Authenticated original admission, before chat restrictions are narrowed. */
+  executionPrincipal?: Principal
   input: I
   context: C
   request?: OrchestrationRequestContext
@@ -46,8 +57,12 @@ export function defineAuthorizedChatUseCase<
   I,
   C extends ChatOwnerContext,
   R,
+  Personal extends boolean = false,
 >(definition: {
   operation: O
+  /** Opt-in for internal execution callbacks; never enables public chat creation. */
+  personal?: Personal
+  executionDelegationAudience?: string
   organizationOperation: OrganizationOperation
   resolveContext(args: { principal: ChatPrincipal<O>; input: I }): C | Promise<C>
   authorizationOptions: WorkspaceAuthorizationOptions<C & WorkspaceAuthorizationContext>
@@ -58,17 +73,28 @@ export function defineAuthorizedChatUseCase<
     throw new Error('Chat owner policies must declare the same semantic operation')
   }
   type WorkspaceContext = C & WorkspaceAuthorizationContext
-  type WorkspaceInput = { originalInput: I; context: WorkspaceContext }
+  type WorkspaceInput = {
+    originalInput: I
+    context: WorkspaceContext
+    executionPrincipal?: Principal
+  }
   const workspaceUseCase = defineAuthorizedWorkspaceUseCase<O, WorkspaceInput, WorkspaceContext, R>(
     {
       operation: definition.operation,
       resolveContext: ({ input }) => input.context,
       authorizationOptions: definition.authorizationOptions,
       execute: ({ principal, input, context, request }) =>
-        definition.execute({ principal, input: input.originalInput, context, request }),
+        definition.execute({
+          principal,
+          executionPrincipal: input.executionPrincipal,
+          input: input.originalInput,
+          context,
+          request,
+        }),
       afterSuccess: ({ principal, input, context, request, result }) =>
         definition.afterSuccess?.({
           principal,
+          executionPrincipal: input.executionPrincipal,
           input: input.originalInput,
           context,
           request,
@@ -77,7 +103,19 @@ export function defineAuthorizedChatUseCase<
     }
   )
   function requirePrincipal(principal: Principal): asserts principal is ChatPrincipal<O> {
-    if (principal.kind !== 'organization_delegated') {
+    if (isUserChatDelegation(principal)) {
+      const audience = definition.executionDelegationAudience
+      if (
+        !definition.personal ||
+        !audience ||
+        !definition.operation.principalKinds.includes('delegated')
+      )
+        throw new OrchestrationError(
+          'forbidden',
+          'Personal chat delegation cannot perform this operation'
+        )
+      requireRunDelegation(principal, audience, principal.invocation.chatId)
+    } else if (principal.kind !== 'organization_delegated') {
       requireAllowedWorkspacePrincipal(principal, definition.operation)
     } else if (!definition.organizationOperation.principalKinds.includes(principal.kind)) {
       throw new OrchestrationError(
@@ -90,24 +128,62 @@ export function defineAuthorizedChatUseCase<
     if (!context.workspaceId) throw new OrchestrationError('not_found', 'Chat not found')
   }
   async function resolve(principal: Principal, input: I) {
+    const executionPrincipal = definition.executionDelegationAudience ? principal : undefined
+    if (definition.executionDelegationAudience)
+      principal = await bindCurrentChatCallback(
+        principal,
+        definition.executionDelegationAudience,
+        definition.operation.capability
+      )
     requirePrincipal(principal)
     const context = await definition.resolveContext({ principal, input })
     if (context.organizationId) {
-      await authorizeOrganizationOperation(principal, definition.organizationOperation, {
-        organizationId: context.organizationId,
-      })
-      requireDelegatedChatScope(principal, context)
+      const admittedDelegated =
+        executionPrincipal?.kind === 'delegated' &&
+        'executionStreamId' in executionPrincipal &&
+        executionPrincipal.executionStreamId !== undefined
+      if (!admittedDelegated) {
+        await authorizeOrganizationOperation(principal, definition.organizationOperation, {
+          organizationId: context.organizationId,
+        })
+        requireDelegatedChatScope(principal, context)
+      }
       return {
         kind: 'organization' as const,
+        executionPrincipal,
         organizationId: context.organizationId,
         principal,
+        context,
+      }
+    }
+    if (definition.personal && principal.kind === 'session' && !context.workspaceId)
+      return {
+        kind: 'personal' as const,
+        organizationId: null,
+        principal,
+        executionPrincipal,
+        context,
+      }
+    if (isUserChatDelegation(principal)) {
+      const chatId = delegatedChatId(principal)
+      const audience = definition.executionDelegationAudience
+      if (!audience || !chatId)
+        throw new OrchestrationError('forbidden', 'Missing chat delegation audience')
+      if (context.workspaceId || !('chatId' in context) || context.chatId !== chatId)
+        throw new OrchestrationError('not_found', 'Chat not found')
+      requireRunDelegation(principal, audience, chatId)
+      return {
+        kind: 'personal' as const,
+        organizationId: null,
+        principal,
+        executionPrincipal,
         context,
       }
     }
     if (principal.kind === 'organization_delegated')
       throw new OrchestrationError('not_found', 'Chat not found')
     requireWorkspace(context)
-    return { kind: 'workspace' as const, principal, context }
+    return { kind: 'workspace' as const, principal, executionPrincipal, context }
   }
   return {
     operation: definition.operation,
@@ -116,7 +192,11 @@ export function defineAuthorizedChatUseCase<
       if (resolved.kind === 'workspace')
         await workspaceUseCase.authorize({
           principal: resolved.principal,
-          input: { originalInput: input, context: resolved.context },
+          input: {
+            originalInput: input,
+            context: resolved.context,
+            executionPrincipal: resolved.executionPrincipal,
+          },
           request,
         })
     },
@@ -125,10 +205,20 @@ export function defineAuthorizedChatUseCase<
       if (resolved.kind === 'workspace')
         return workspaceUseCase.execute({
           principal: resolved.principal,
-          input: { originalInput: input, context: resolved.context },
+          input: {
+            originalInput: input,
+            context: resolved.context,
+            executionPrincipal: resolved.executionPrincipal,
+          },
           request,
         })
-      const execution = { principal: resolved.principal, input, context: resolved.context, request }
+      const execution = {
+        principal: resolved.principal,
+        executionPrincipal: resolved.executionPrincipal,
+        input,
+        context: resolved.context,
+        request,
+      }
       return runWithOutboundOrganization(resolved.organizationId, () =>
         runDeclaredContentOperation(
           definition.operation,

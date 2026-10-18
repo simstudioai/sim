@@ -1608,7 +1608,6 @@
     "apps/sim/lib/mothership/tools/server/files/edit-roundtrip.test.ts": 11,
     "apps/sim/lib/mothership/tools/server/files/workspace-file.ts": 2,
     "apps/sim/lib/mothership/tools/server/search-sources.test.ts": 2,
-    "apps/sim/lib/mothership/transport/control.ts": 1,
     "apps/sim/lib/oauth/credential-service.ts": 4,
     "apps/sim/lib/oauth/github-installation.test.ts": 2,
     "apps/sim/lib/oauth/github-repositories.test.ts": 5,

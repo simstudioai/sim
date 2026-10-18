@@ -155,7 +155,7 @@ export const ChatPayloadSchema = z
     protocolVersion: z.number().int().optional(),
     messageId: z.uuid().optional(),
     chatId: z.uuid().optional(),
-    /** Every chat has exactly one authoritative workspace or organization owner. */
+    /** Optional execution scope; personal turns supply neither field. */
     workspaceId: z.uuid().optional(),
     organizationId: z.string().min(1).max(200).optional(),
     mode: z.enum(["agent", "assistant", "plan"]).optional(),
@@ -242,8 +242,8 @@ export const ChatPayloadSchema = z
       ctx.addIssue({ code: "custom", message: "Fast Search requires Assistant mode" });
     if (value.assistantFast && value.modelSelection)
       ctx.addIssue({ code: "custom", message: "Fast Search cannot include another model selection" });
-    if (Boolean(value.workspaceId) === Boolean(value.organizationId))
-      ctx.addIssue({ code: "custom", message: "Exactly one workspaceId or organizationId is required" });
+    if (value.workspaceId && value.organizationId)
+      ctx.addIssue({ code: "custom", message: "workspaceId and organizationId cannot both be supplied" });
     if (value.organizationId && !value.mode)
       ctx.addIssue({ code: "custom", message: "Organization chats require an explicit mode" });
     if ((value.organizationId || value.mode === "assistant") && value.workflowId)
@@ -316,7 +316,7 @@ export interface ChatRequest extends StreamResponseReceipt {
   protocolVersion?: number | undefined;
   messageId?: string | undefined;
   chatId?: string | undefined;
-  /** Exactly one owner is required, independently of the selected mode. */
+  /** Optional admitted scope; workspace and organization are mutually exclusive. */
   workspaceId?: string | undefined;
   organizationId?: string | undefined;
   mode?: "agent" | "assistant" | "plan" | undefined;
@@ -470,8 +470,8 @@ export const ForkChatRequest = z
     fileIds: z.record(z.string().min(1), z.string().min(1)),
     fileKeys: z.record(z.string().min(1), z.string().min(1)),
   })
-  .refine((scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId), {
-    message: "Exactly one workspaceId or organizationId is required",
+  .refine((scope) => !(scope.workspaceId && scope.organizationId), {
+    message: "workspaceId and organizationId cannot both be supplied",
   });
 export type ForkChatRequest = z.infer<typeof ForkChatRequest>;
 
