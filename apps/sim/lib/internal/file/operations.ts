@@ -94,7 +94,10 @@ import {
 } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 import { readWorkspaceFileSecretProvenance } from '@/lib/workspace-files/application/read-workspace-file-secret-provenance'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import {
+  resolveWorkspaceFileReference,
+  resolveWorkspaceFileStorageKey,
+} from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
   getWorkspaceFileShares,
   updateWorkspaceFileShare,
@@ -492,21 +495,20 @@ async function bindSelectedContentFile(
     })
     return { file, ...source }
   }
-  if (!file.key || file.context !== 'workspace') return { file }
+  if (!file.key || tryInferContextFromKey(file.key) !== 'workspace') return { file }
 
-  let metadata: Awaited<ReturnType<typeof resolveWorkspaceFileReference>>
+  let metadata: Awaited<ReturnType<typeof resolveWorkspaceFileStorageKey>>
   try {
-    metadata = await resolveWorkspaceFileReference({
+    metadata = await resolveWorkspaceFileStorageKey({
       principal,
       operation: fileOperations.readContent,
       workspaceId,
-      reference: file.key,
+      key: file.key,
     })
   } catch (error) {
     if (error instanceof OrchestrationError && error.code === 'not_found') return { file }
     throw error
   }
-  if (!metadata) return { file }
 
   return {
     file,
@@ -1554,11 +1556,11 @@ export async function executeFileManageOperation(
               resolvedFileId = record.fileId
             else if (typeof record.key === 'string' && record.key) {
               resolvedFileId = (
-                await resolveWorkspaceFileReference({
+                await resolveWorkspaceFileStorageKey({
                   principal,
                   operation: fileOperations.updateShare,
                   workspaceId,
-                  reference: record.key,
+                  key: record.key,
                 })
               ).id
             }
