@@ -1,4 +1,4 @@
-import { createSearchParamsCache, parseAsArrayOf, parseAsInteger, parseAsString } from 'nuqs/server'
+import { parseAsArrayOf, parseAsInteger, parseAsString } from 'nuqs/server'
 import { DEFAULT_TOOL_MODEL_IDS } from '@/app/(landing)/models/tools'
 
 /**
@@ -22,9 +22,3 @@ export const pricingCalculatorUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const
-
-/**
- * Parsed by the page so the route renders dynamically and the island's
- * `useQueryStates` reads the shared inputs during the server render.
- */
-export const pricingCalculatorSearchParamsCache = createSearchParamsCache(pricingCalculatorParsers)

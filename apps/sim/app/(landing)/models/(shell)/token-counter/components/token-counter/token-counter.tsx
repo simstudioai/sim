@@ -6,6 +6,12 @@ import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import {
+  CharacterCountNote,
+  TEXT_PLACEHOLDER,
+  TEXT_ROWS,
+  TokenCounterFootnote,
+} from '@/app/(landing)/models/(shell)/token-counter/components/token-counter/token-counter-fallback'
+import {
   tokenCounterParsers,
   tokenCounterUrlKeys,
 } from '@/app/(landing)/models/(shell)/token-counter/search-params'
@@ -80,10 +86,10 @@ export function TokenCounter() {
           </label>
           <ChipTextarea
             id={`${fieldId}-text`}
-            rows={10}
+            rows={TEXT_ROWS}
             resizable
             spellCheck={false}
-            placeholder='Paste a prompt, document, or conversation…'
+            placeholder={TEXT_PLACEHOLDER}
             value={text}
             onFocus={loadTokenizer}
             onChange={(event) => {
@@ -91,10 +97,7 @@ export function TokenCounter() {
               setText(event.target.value)
             }}
           />
-          <p className='text-[var(--text-muted)] text-caption'>
-            {COUNT_FORMAT.format(text.length)} characters. Text stays in your browser and is never
-            sent to Sim.
-          </p>
+          <CharacterCountNote characters={text.length} />
         </div>
 
         <div className='flex flex-col gap-[9px]'>
@@ -166,11 +169,7 @@ export function TokenCounter() {
         </div>
       )}
 
-      <p className='border-[var(--border)] border-t px-6 py-4 text-[var(--text-muted)] text-caption leading-[150%]'>
-        Exact counts use OpenAI&apos;s tiktoken encodings. Other providers do not publish a browser
-        tokenizer, so their counts are character-based estimates. Input cost uses list prices and
-        excludes the tokens a provider adds for message formatting.
-      </p>
+      <TokenCounterFootnote />
     </div>
   )
 }

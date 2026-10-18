@@ -1,13 +1,15 @@
+import { Suspense } from 'react'
 import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
-import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
-import { TokenCounter } from '@/app/(landing)/models/(shell)/token-counter/components/token-counter'
-import { tokenCounterSearchParamsCache } from '@/app/(landing)/models/(shell)/token-counter/search-params'
+import {
+  TokenCounter,
+  TokenCounterFallback,
+} from '@/app/(landing)/models/(shell)/token-counter/components/token-counter'
 import { ModelToolLink } from '@/app/(landing)/models/components/model-tool-link'
 import { MODEL_TOOLS, TOOL_MODELS } from '@/app/(landing)/models/tools'
 
@@ -95,13 +97,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-interface TokenCounterPageProps {
-  searchParams: Promise<SearchParams>
-}
-
-export default async function TokenCounterPage({ searchParams }: TokenCounterPageProps) {
-  await tokenCounterSearchParamsCache.parse(searchParams)
-
+export default function TokenCounterPage() {
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -184,7 +180,9 @@ export default async function TokenCounterPage({ searchParams }: TokenCounterPag
 
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
           <div className='border-[var(--border)] border-x'>
-            <TokenCounter />
+            <Suspense fallback={<TokenCounterFallback />}>
+              <TokenCounter />
+            </Suspense>
 
             <div className='h-px w-full bg-[var(--border)]' />
 

@@ -1,4 +1,4 @@
-import { createSearchParamsCache, parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { parseAsArrayOf, parseAsString } from 'nuqs/server'
 import { DEFAULT_TOOL_MODEL_IDS } from '@/app/(landing)/models/tools'
 
 /**
@@ -13,9 +13,3 @@ export const tokenCounterUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const
-
-/**
- * Parsed by the page so the route renders dynamically and the island's
- * `useQueryStates` reads the selection during the server render.
- */
-export const tokenCounterSearchParamsCache = createSearchParamsCache(tokenCounterParsers)

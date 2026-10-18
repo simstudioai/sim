@@ -6,6 +6,14 @@ import Link from 'next/link'
 import { debounce, useQueryStates } from 'nuqs'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
+  COUNT_FIELDS,
+  type CountParam,
+  DAYS_PER_MONTH,
+  MAX_REQUESTS_PER_DAY,
+  MAX_TOKENS_PER_REQUEST,
+} from '@/app/(landing)/models/(shell)/pricing-calculator/components/pricing-calculator/fields'
+import { PricingCalculatorFootnote } from '@/app/(landing)/models/(shell)/pricing-calculator/components/pricing-calculator/pricing-calculator-fallback'
+import {
   pricingCalculatorParsers,
   pricingCalculatorUrlKeys,
 } from '@/app/(landing)/models/(shell)/pricing-calculator/search-params'
@@ -13,10 +21,6 @@ import { ModelMultiSelect } from '@/app/(landing)/models/components/model-multi-
 import { formatUsd, resolveToolModels } from '@/app/(landing)/models/tools'
 import { type CatalogModel, formatPrice, formatTokenCount } from '@/app/(landing)/models/utils'
 import { priceTokenUsage, resolveModelTokenPricing } from '@/providers/pricing'
-
-const DAYS_PER_MONTH = 30
-const MAX_TOKENS_PER_REQUEST = 100_000_000
-const MAX_REQUESTS_PER_DAY = 1_000_000_000
 
 const NUMBER_URL_WRITE = { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
 
@@ -28,15 +32,6 @@ function parseCount(raw: string, max: number): number {
   const digits = raw.replace(/\D/g, '')
   return digits ? clampCount(Number(digits), max) : 0
 }
-
-type CountParam = 'input' | 'output' | 'cached' | 'requests'
-
-const COUNT_FIELDS: { key: CountParam; label: string; max: number }[] = [
-  { key: 'input', label: 'Input tokens per request', max: MAX_TOKENS_PER_REQUEST },
-  { key: 'output', label: 'Output tokens per request', max: MAX_TOKENS_PER_REQUEST },
-  { key: 'cached', label: 'Cached input (%)', max: 100 },
-  { key: 'requests', label: 'Requests per day', max: MAX_REQUESTS_PER_DAY },
-]
 
 interface CostRow {
   model: CatalogModel
@@ -183,11 +178,7 @@ export function PricingCalculator() {
         </div>
       )}
 
-      <p className='border-[var(--border)] border-t px-6 py-4 text-[var(--text-muted)] text-caption leading-[150%]'>
-        Rates are list prices in USD per 1M tokens, and a month is {DAYS_PER_MONTH} days. Reasoning
-        tokens bill as output, so count them in output tokens. Prompt-cache writes and tool calls
-        are not included.
-      </p>
+      <PricingCalculatorFootnote />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import {
   type CatalogProvider,
   compareByContextWindow,
   formatTokenCount,
+  getLargestContextProviderModel,
   isPromptModel,
   MODEL_PROVIDERS_WITH_CATALOGS,
 } from '@/app/(landing)/models/utils'
@@ -41,15 +42,16 @@ const CONTEXT_WINDOW_FAQ_PROVIDERS: ReadonlyArray<{ id: string; label?: string }
 ]
 
 /**
- * Providers with context-window data, each paired with its largest-context model: the provider's
- * first entry in the already-ranked {@link CONTEXT_WINDOW_MODELS}.
+ * Providers on the comparison, each with the same largest-context model its provider page's FAQ
+ * names ({@link getLargestContextProviderModel}).
  */
 export function getLargestContextByProvider(): Array<{
   provider: CatalogProvider
   model: CatalogModel
 }> {
   return MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) => {
-    const model = CONTEXT_WINDOW_MODELS.find((entry) => entry.providerId === provider.id)
+    if (!CONTEXT_WINDOW_MODELS.some((entry) => entry.providerId === provider.id)) return []
+    const model = getLargestContextProviderModel(provider)
     return model ? [{ provider, model }] : []
   })
 }

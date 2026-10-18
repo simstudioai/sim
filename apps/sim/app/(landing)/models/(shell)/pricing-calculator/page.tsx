@@ -1,13 +1,15 @@
+import { Suspense } from 'react'
 import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
-import type { SearchParams } from 'nuqs/server'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
-import { PricingCalculator } from '@/app/(landing)/models/(shell)/pricing-calculator/components/pricing-calculator'
-import { pricingCalculatorSearchParamsCache } from '@/app/(landing)/models/(shell)/pricing-calculator/search-params'
+import {
+  PricingCalculator,
+  PricingCalculatorFallback,
+} from '@/app/(landing)/models/(shell)/pricing-calculator/components/pricing-calculator'
 import { ModelToolLink } from '@/app/(landing)/models/components/model-tool-link'
 import { MODEL_TOOLS, TOOL_MODELS, TOOL_PRICING_UPDATED_AT } from '@/app/(landing)/models/tools'
 import { formatPrice, formatTokenCount, formatUpdatedAt } from '@/app/(landing)/models/utils'
@@ -112,13 +114,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-interface PricingCalculatorPageProps {
-  searchParams: Promise<SearchParams>
-}
-
-export default async function PricingCalculatorPage({ searchParams }: PricingCalculatorPageProps) {
-  await pricingCalculatorSearchParamsCache.parse(searchParams)
-
+export default function PricingCalculatorPage() {
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -210,7 +206,9 @@ export default async function PricingCalculatorPage({ searchParams }: PricingCal
 
         <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
           <div className='border-[var(--border)] border-x'>
-            <PricingCalculator />
+            <Suspense fallback={<PricingCalculatorFallback />}>
+              <PricingCalculator />
+            </Suspense>
 
             <div className='h-px w-full bg-[var(--border)]' />
 

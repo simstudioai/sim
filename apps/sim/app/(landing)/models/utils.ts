@@ -888,16 +888,15 @@ export function compareByContextWindow(a: CatalogModel, b: CatalogModel): number
 }
 
 /**
- * The provider's callable (not retired) model with the largest published context window, ranked
- * by {@link compareByContextWindow}. Evaluation models stay in so a provider whose catalog is only
- * evaluation models (TypeSafe) still answers its own FAQ; every provider the context-window
- * comparison lists has prompt models, so its pick matches that page.
+ * The provider's largest-context model that is not retired. Ties go to the first model in catalog
+ * order, so the answer names the provider's headline model rather than a smaller sibling with the
+ * same window.
  */
-function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
+export function getLargestContextProviderModel(provider: CatalogProvider): CatalogModel | null {
   const candidates = provider.models.filter((model) => !model.retired && model.contextWindow)
   if (candidates.length === 0) return null
-  return candidates.reduce((best, model) =>
-    compareByContextWindow(model, best) < 0 ? model : best
+  return candidates.reduce((max, model) =>
+    (model.contextWindow ?? 0) > (max.contextWindow ?? 0) ? model : max
   )
 }
 
