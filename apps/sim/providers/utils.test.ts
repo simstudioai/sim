@@ -11,6 +11,7 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
   readWorkflowMetadataForTool: workflowMetadataMocks.readWorkflowMetadataForTool,
 }))
 
+import { GreenhouseV2Block } from '@/blocks/blocks/greenhouse'
 import { IntuneBlock } from '@/blocks/blocks/intune'
 import { RampBlock } from '@/blocks/blocks/ramp'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
@@ -42,8 +43,16 @@ import {
   transformBlockTool,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import { greenhouseConvertProspectV2Tool } from '@/tools/greenhouse/convert_prospect_v2'
+import { greenhouseListCandidatesV2Tool } from '@/tools/greenhouse/list_candidates_v2'
+import type {
+  GreenhouseConvertProspectV2Params,
+  GreenhouseListCandidatesV2Params,
+} from '@/tools/greenhouse/types'
 import { intuneListDetectedAppsTool } from '@/tools/intune/list-detected-apps'
 import { intuneListDevicesTool } from '@/tools/intune/list-devices'
+import * as toolMetadata from '@/tools/metadata'
+import { getSubBlocksForToolInput } from '@/tools/params'
 import { rampListReimbursementsTool } from '@/tools/ramp/list-reimbursements'
 import { rampListTransactionsTool } from '@/tools/ramp/list-transactions'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
@@ -54,6 +63,85 @@ const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
 
 describe('integration filters through agent execution', () => {
+  it('sends configured Greenhouse conversion fields from the offered controls to the API', async () => {
+    const tool = greenhouseConvertProspectV2Tool
+    vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+    const fields = getSubBlocksForToolInput(
+      tool.id,
+      'greenhouse_v2',
+      { operation: 'convert_prospect' },
+      undefined,
+      GreenhouseV2Block
+    )?.subBlocks
+    const idField = fields?.find((field) => field.id === 'id')
+    const jobField = fields?.find((field) => field.id === 'job_id')
+    if (!idField || !jobField) throw new Error('Conversion target controls are unavailable')
+    const providerTool = await transformBlockTool(
+      { type: 'greenhouse_v2', params: { [idField.id]: '42', [jobField.id]: '81' } },
+      {
+        selectedOperation: 'convert_prospect',
+        getAllBlocks: () => [GreenhouseV2Block],
+        getTool: () => tool,
+      }
+    )
+    if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { id: 99, job_id: 98 },
+      {},
+      undefined
+    )
+    const params = {
+      ...executionParams,
+      accessToken: 'fixture-token',
+    } as GreenhouseConvertProspectV2Params
+    const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+    expect(new URL(url).pathname).toBe('/v3/applications/42/convert_to_candidate')
+    expect(tool.request.body?.(params)).toEqual({ job_id: 81 })
+  })
+
+  it.each(['configured', 'model'] as const)(
+    'sends a %s Greenhouse date range without a stored operation',
+    async (source) => {
+      const tool = greenhouseListCandidatesV2Tool
+      vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+      const field = getSubBlocksForToolInput(
+        tool.id,
+        'greenhouse_v2',
+        { operation: 'list_candidates' },
+        undefined,
+        GreenhouseV2Block
+      )?.subBlocks.find((item) => item.id === 'created_at')
+      if (!field) throw new Error('Created-at filter control is unavailable')
+      const range = { gte: '2026-01-01T00:00:00Z' }
+      const providerTool = await transformBlockTool(
+        {
+          type: 'greenhouse_v2',
+          params: source === 'configured' ? { [field.id]: JSON.stringify(range) } : {},
+        },
+        {
+          selectedOperation: 'list_candidates',
+          getAllBlocks: () => [GreenhouseV2Block],
+          getTool: () => tool,
+        }
+      )
+      if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { created_at: range },
+        {},
+        undefined
+      )
+      const params = {
+        ...executionParams,
+        accessToken: 'fixture-token',
+      } as GreenhouseListCandidatesV2Params
+      const url =
+        typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+      expect(new URL(url).searchParams.get('created_at')).toBe('gte|2026-01-01T00:00:00Z')
+    }
+  )
+
   const rampCases = [
     {
       operation: 'list_transactions',
