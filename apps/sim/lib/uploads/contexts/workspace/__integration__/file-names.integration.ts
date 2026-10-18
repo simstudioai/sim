@@ -731,7 +731,7 @@ describe('workspace file names in PostgreSQL', () => {
   it('names many same-named attachments with one write each', async () => {
     const fixture = await seedWorkspace()
     const chatId = await seedChat(fixture.workspaceId, fixture.aliceId)
-    const unlinked = []
+    const unlinked: string[] = []
     for (let n = 0; n < 10; n++) {
       unlinked.push(await seedUnlinkedChatUpload(fixture.workspaceId, fixture.aliceId, 'image.png'))
     }
