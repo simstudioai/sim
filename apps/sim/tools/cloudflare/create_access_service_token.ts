@@ -1,9 +1,17 @@
+import { isRecordLike } from '@sim/utils/object'
+import { SERVICE_TOKEN_SECRET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareCreateAccessServiceTokenParams,
   CloudflareCreateAccessServiceTokenResponse,
 } from '@/tools/cloudflare/types'
-import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import {
+  cloudflareErrorMessage,
+  cloudflareHeaders,
+  mapCloudflareFields,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const createAccessServiceTokenTool: ToolConfig<
   CloudflareCreateAccessServiceTokenParams,
@@ -16,6 +24,27 @@ export const createAccessServiceTokenTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    client_secret_version: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'A version number identifying the current `client_secret` associated with the service token. Incrementing it triggers a rotation; the previous secret will still be accepted until the time indicated by `previous_client_secret_expires_at`. If the service token was reported as leaked, `previous_client_secret_expires_at` is not required, may not be in the future, and the previous secret is discarded immediately.',
+    },
+    enabled: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the service token is enabled. A disabled service token cannot be used to authenticate; both its current and previous `client_secret` stop being accepted, but the token itself is preserved and can be re-enabled. A service token reported as leaked is disabled automatically and cannot be re-enabled until its secret is rotated; attempting to do so returns a 409. Defaults to enabled when omitted on create.',
+    },
+    previous_client_secret_expires_at: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The expiration of the previous `client_secret`. This can be modified at any point after a rotation. For example, you may extend it further into the future if you need more time to update services with the new secret; or move it into the past to immediately invalidate the previous token in case of compromise. Rotating a service token that was reported as leaked discards the previous secret entirely, so no grace period can be set.',
+    },
     accountId: {
       type: 'string',
       required: true,
@@ -45,79 +74,34 @@ export const createAccessServiceTokenTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/accounts/${params.accountId.trim()}/access/service_tokens`,
+      `https://api.cloudflare.com/client/v4/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}/access/service_tokens`,
     method: 'POST',
     headers: (params) => cloudflareHeaders(params.apiKey),
     body: (params) => {
       const body: Record<string, unknown> = { name: params.name }
       if (params.duration) body.duration = params.duration
+      if (params.client_secret_version !== undefined)
+        body.client_secret_version = params.client_secret_version
+      if (params.enabled !== undefined) body.enabled = params.enabled
+      if (
+        params.previous_client_secret_expires_at !== undefined &&
+        params.previous_client_secret_expires_at !== ''
+      )
+        body.previous_client_secret_expires_at = params.previous_client_secret_expires_at
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: {
-          id: '',
-          name: null,
-          client_id: null,
-          client_secret: null,
-          duration: null,
-          enabled: null,
-          expires_at: null,
-          last_seen_at: null,
-          created_at: null,
-          updated_at: null,
-        },
-        error: cloudflareErrorMessage(data, 'Failed to create Access service token'),
-      }
-    }
-
-    const token = data.result
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
-      success: true,
-      output: {
-        id: token?.id ?? '',
-        name: token?.name ?? null,
-        client_id: token?.client_id ?? null,
-        client_secret: token?.client_secret ?? null,
-        duration: token?.duration ?? null,
-        enabled: token?.enabled ?? null,
-        expires_at: token?.expires_at ?? null,
-        last_seen_at: token?.last_seen_at ?? null,
-        created_at: token?.created_at ?? null,
-        updated_at: token?.updated_at ?? null,
-      },
+      success,
+      output: mapCloudflareFields(data.result, SERVICE_TOKEN_SECRET_OUTPUTS),
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to create access service token') }
+        : {}),
     }
   },
-
-  outputs: {
-    id: { type: 'string', description: 'Created service token identifier' },
-    name: { type: 'string', description: 'Service token name', optional: true },
-    client_id: {
-      type: 'string',
-      description: 'Client ID sent in the CF-Access-Client-Id header',
-      optional: true,
-    },
-    client_secret: {
-      type: 'string',
-      description:
-        'Client secret sent in the CF-Access-Client-Secret header. Returned only once, at creation',
-      optional: true,
-    },
-    duration: {
-      type: 'string',
-      description: 'How long the token stays valid before it expires',
-      optional: true,
-    },
-    enabled: { type: 'boolean', description: 'Whether the token is active', optional: true },
-    expires_at: { type: 'string', description: 'Expiry timestamp', optional: true },
-    last_seen_at: { type: 'string', description: 'When the token was last used', optional: true },
-    created_at: { type: 'string', description: 'Creation timestamp', optional: true },
-    updated_at: { type: 'string', description: 'Last update timestamp', optional: true },
-  },
+  outputs: SERVICE_TOKEN_SECRET_OUTPUTS,
 }

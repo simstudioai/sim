@@ -1,8 +1,13 @@
+import { isRecordLike } from '@sim/utils/object'
+import { mapZoneSetting } from '@/tools/cloudflare/get_zone_settings'
 import type {
+  CloudflareRawZoneSetting,
   CloudflareUpdateZoneSettingParams,
   CloudflareUpdateZoneSettingResponse,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateZoneSettingTool: ToolConfig<
   CloudflareUpdateZoneSettingParams,
@@ -15,6 +20,13 @@ export const updateZoneSettingTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    enabled: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Enrollment value for ssl_recommender; this setting uses enabled instead of value',
+    },
     zoneId: {
       type: 'string',
       required: true,
@@ -30,9 +42,9 @@ export const updateZoneSettingTool: ToolConfig<
     },
     value: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: `New value for the setting as a string, or a JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, ["ECDHE-RSA-AES128-GCM-SHA256"] for ciphers)`,
+      description: `Required except for ssl_recommender. New value as a string, or a JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, ["ECDHE-RSA-AES128-GCM-SHA256"] for ciphers)`,
     },
     apiKey: {
       type: 'string',
@@ -44,30 +56,38 @@ export const updateZoneSettingTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/settings/${params.settingId.trim()}`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/settings/${safeUrlPathSegment(params.settingId, 'settingId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      // A block reference can pass an already-structured array/object straight
-      // through despite the declared string param type — send it as-is rather
-      // than stringifying it (String([...]) comma-joins, String({...}) yields
-      // "[object Object]", neither of which is the JSON shape Cloudflare expects).
+      if (params.settingId.trim() === 'ssl_recommender') {
+        if (typeof params.enabled !== 'boolean')
+          throw new Error('enabled is required for ssl_recommender')
+        return { enabled: params.enabled }
+      }
+      if (params.value === undefined || params.value === null)
+        throw new Error('value is required for this zone setting')
+      // Resolved block outputs may already be structured JSON.
       if (params.value !== null && typeof params.value === 'object') {
         return { value: params.value }
       }
 
-      // Wand-generated values can also arrive as a non-string primitive
-      // (e.g. a number, or null/undefined) at runtime despite the declared
-      // param type — coerce null/undefined to '' rather than the literal
-      // "null"/"undefined" strings String() would otherwise produce.
-      const trimmed = (params.value == null ? '' : String(params.value)).trim()
+      const trimmed = String(params.value).trim()
 
-      // browser_cache_ttl is the one setting whose value must be a number.
-      // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
-      if (params.settingId === 'browser_cache_ttl') {
+      // Number('') is zero, so preserve empty numeric input for the provider's validation.
+      if (
+        [
+          'browser_cache_ttl',
+          'challenge_ttl',
+          'edge_cache_ttl',
+          'max_upload',
+          'origin_h2_max_streams',
+          'proxy_read_timeout',
+        ].includes(params.settingId.trim())
+      ) {
         const numeric = trimmed === '' ? Number.NaN : Number(trimmed)
         return { value: Number.isNaN(numeric) ? trimmed : numeric }
       }
@@ -87,9 +107,9 @@ export const updateZoneSettingTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawZoneSetting>(response)
 
-    if (!data.success) {
+    if (!response.ok || data.success !== true || !isRecordLike(data.result)) {
       return {
         success: false,
         output: { id: '', value: '', editable: false, modified_on: '' },
@@ -100,18 +120,7 @@ export const updateZoneSettingTool: ToolConfig<
     const setting = data.result
     return {
       success: true,
-      output: {
-        id: setting?.id ?? '',
-        value:
-          typeof setting?.value === 'object' && setting?.value !== null
-            ? JSON.stringify(setting.value)
-            : String(setting?.value ?? ''),
-        editable: setting?.editable ?? false,
-        modified_on: setting?.modified_on ?? '',
-        ...(setting?.time_remaining != null
-          ? { time_remaining: setting.time_remaining as number }
-          : {}),
-      },
+      output: mapZoneSetting(typeof setting.id === 'string' ? setting.id : '', setting),
     }
   },
 
@@ -123,7 +132,7 @@ export const updateZoneSettingTool: ToolConfig<
     value: {
       type: 'string',
       description:
-        'Updated setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified.',
+        'Updated setting value as a string. Simple values returned as-is (e.g., "full", "on"). SSL Recommender returns its enabled flag. Complex values are JSON-stringified.',
     },
     editable: {
       type: 'boolean',

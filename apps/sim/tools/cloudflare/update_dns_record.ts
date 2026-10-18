@@ -1,8 +1,19 @@
+import { isRecordLike } from '@sim/utils/object'
+import { DNS_RECORD_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareUpdateDnsRecordParams,
   CloudflareUpdateDnsRecordResponse,
 } from '@/tools/cloudflare/types'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  mapCloudflareFields,
+  parseCsvParam,
+  parseJsonObjectParam,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateDnsRecordTool: ToolConfig<
   CloudflareUpdateDnsRecordParams,
@@ -14,6 +25,39 @@ export const updateDnsRecordTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    clearComment: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Clear the stored DNS record comment',
+    },
+    settings: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Settings for the DNS record. Fields: ipv4_only, ipv6_only, flatten_cname.',
+    },
+    private_routing: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Enables private network routing to the origin.',
+    },
+    data: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'JSON object. Structured record data. The available fields depend on the DNS record type. Fields: flags, tag, value, algorithm, certificate, key_tag, type, protocol, public_key, digest, digest_type, priority, target, altitude, lat_degrees, lat_direction, lat_minutes, lat_seconds, long_degrees, long_direction, long_minutes, long_seconds, precision_horz, precision_vert, size, order, preference, regex, replacement, service, matching_type, selector, usage, port, weight, fingerprint.',
+    },
+    include_shadow_metadata: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether to include shadow metadata in the `meta` field of each record in the response. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
     zoneId: {
       type: 'string',
       required: true,
@@ -61,7 +105,7 @@ export const updateDnsRecordTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Record priority. Cloudflare accepts this top-level field for MX and URI records only; an SRV record carries its priority, weight, port, and target inside the record content instead',
+        'Record priority. Cloudflare accepts this top-level field for MX and URI records only; use the data object for structured records such as SRV (priority, weight, port, target)',
     },
     comment: {
       type: 'string',
@@ -84,8 +128,13 @@ export const updateDnsRecordTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records/${params.recordId.trim()}`,
+    url: (params) => {
+      const url = new URL(
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/dns_records/${safeUrlPathSegment(params.recordId, 'recordId')}`
+      )
+      appendParam(url, 'include_shadow_metadata', params.include_shadow_metadata)
+      return url.toString()
+    },
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -107,123 +156,26 @@ export const updateDnsRecordTool: ToolConfig<
       if (params.proxied !== undefined) body.proxied = params.proxied
       if (params.priority !== undefined) body.priority = Number(params.priority)
       if (params.comment !== undefined) body.comment = params.comment
-      if (params.tags) {
-        const tagList = String(params.tags)
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-        if (tagList.length > 0) body.tags = tagList
-      }
+      const tags = parseCsvParam(params.tags)
+      if (tags) body.tags = tags
+      if (params.settings !== undefined && params.settings !== '')
+        body.settings = parseJsonObjectParam(params.settings, 'settings')
+      if (params.private_routing !== undefined) body.private_routing = params.private_routing
+      if (params.data !== undefined && params.data !== '')
+        body.data = parseJsonObjectParam(params.data, 'data')
+      if (params.clearComment === true) body.comment = ''
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: {
-          id: '',
-          zone_id: '',
-          zone_name: '',
-          type: '',
-          name: '',
-          content: '',
-          proxiable: false,
-          proxied: false,
-          ttl: 0,
-          locked: false,
-          priority: undefined,
-          comment: null,
-          tags: [],
-          comment_modified_on: null,
-          tags_modified_on: null,
-          meta: null,
-          created_on: '',
-          modified_on: '',
-        },
-        error: data.errors?.[0]?.message ?? 'Failed to update DNS record',
-      }
-    }
-
-    const record = data.result
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
-      success: true,
-      output: {
-        id: record?.id ?? '',
-        zone_id: record?.zone_id ?? '',
-        zone_name: record?.zone_name ?? '',
-        type: record?.type ?? '',
-        name: record?.name ?? '',
-        content: record?.content ?? '',
-        proxiable: record?.proxiable ?? false,
-        proxied: record?.proxied ?? false,
-        ttl: record?.ttl ?? 0,
-        locked: record?.locked ?? false,
-        priority: record?.priority ?? null,
-        comment: record?.comment ?? null,
-        tags: record?.tags ?? [],
-        comment_modified_on: record?.comment_modified_on ?? null,
-        tags_modified_on: record?.tags_modified_on ?? null,
-        meta: record?.meta ?? null,
-        created_on: record?.created_on ?? '',
-        modified_on: record?.modified_on ?? '',
-      },
+      success,
+      output: mapCloudflareFields(data.result, DNS_RECORD_OUTPUTS),
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to update dns record') } : {}),
     }
   },
-
-  outputs: {
-    id: { type: 'string', description: 'Unique identifier for the updated DNS record' },
-    zone_id: { type: 'string', description: 'The ID of the zone the record belongs to' },
-    zone_name: { type: 'string', description: 'The name of the zone' },
-    type: { type: 'string', description: 'DNS record type (A, AAAA, CNAME, MX, TXT, etc.)' },
-    name: { type: 'string', description: 'DNS record hostname' },
-    content: {
-      type: 'string',
-      description: 'DNS record value (e.g., IP address, target hostname)',
-    },
-    proxiable: {
-      type: 'boolean',
-      description: 'Whether the record can be proxied through Cloudflare',
-    },
-    proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
-    ttl: { type: 'number', description: 'Time to live in seconds (1 = automatic)' },
-    locked: { type: 'boolean', description: 'Whether the record is locked' },
-    priority: {
-      type: 'number',
-      description: 'Record priority, returned for MX and URI records',
-      optional: true,
-    },
-    comment: { type: 'string', description: 'Comment associated with the record', optional: true },
-    tags: {
-      type: 'array',
-      description: 'Tags associated with the record',
-      items: { type: 'string', description: 'Tag value' },
-    },
-    comment_modified_on: {
-      type: 'string',
-      description: 'ISO 8601 timestamp when the comment was last modified',
-      optional: true,
-    },
-    tags_modified_on: {
-      type: 'string',
-      description: 'ISO 8601 timestamp when tags were last modified',
-      optional: true,
-    },
-    meta: {
-      type: 'object',
-      description: 'Record metadata',
-      optional: true,
-      properties: {
-        source: { type: 'string', description: 'Source of the DNS record' },
-      },
-    },
-    created_on: { type: 'string', description: 'ISO 8601 timestamp when the record was created' },
-    modified_on: {
-      type: 'string',
-      description: 'ISO 8601 timestamp when the record was last modified',
-    },
-  },
+  outputs: DNS_RECORD_OUTPUTS,
 }

@@ -1,10 +1,16 @@
+import { DNS_RECORD_OUTPUTS, RESULT_INFO_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListDnsRecordsParams,
   CloudflareListDnsRecordsResponse,
-  CloudflareRawDnsRecord,
 } from '@/tools/cloudflare/types'
-import { readCloudflareResponse } from '@/tools/cloudflare/utils'
+import {
+  appendParam,
+  cloudflareErrorMessage,
+  mapCloudflareFields,
+  readCloudflareResponse,
+} from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listDnsRecordsTool: ToolConfig<
   CloudflareListDnsRecordsParams,
@@ -16,6 +22,128 @@ export const listDnsRecordsTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    name_contains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Substring of the DNS record name. Name filters are case-insensitive.',
+    },
+    name_startswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Prefix of the DNS record name. Name filters are case-insensitive.',
+    },
+    name_endswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Suffix of the DNS record name. Name filters are case-insensitive.',
+    },
+    content_contains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Substring of the DNS record content. Content filters are case-insensitive.',
+    },
+    content_startswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Prefix of the DNS record content. Content filters are case-insensitive.',
+    },
+    content_endswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Suffix of the DNS record content. Content filters are case-insensitive.',
+    },
+    comment_present: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'If this parameter is present, only records *with* a comment are returned.',
+    },
+    comment_absent: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'If this parameter is present, only records *without* a comment are returned.',
+    },
+    comment_exact: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Exact value of the DNS record comment. Comment filters are case-insensitive.',
+    },
+    comment_startswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Prefix of the DNS record comment. Comment filters are case-insensitive.',
+    },
+    comment_endswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Suffix of the DNS record comment. Comment filters are case-insensitive.',
+    },
+    tag_present: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Name of a tag which must be present on the DNS record. Tag filters are case-insensitive.',
+    },
+    tag_absent: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Name of a tag which must *not* be present on the DNS record. Tag filters are case-insensitive.',
+    },
+    tag_contains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value contains `<tag-value>`. Tag filters are case-insensitive.',
+    },
+    tag_startswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value starts with `<tag-value>`. Tag filters are case-insensitive.',
+    },
+    tag_endswith: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value ends with `<tag-value>`. Tag filters are case-insensitive.',
+    },
+    include_shadow_metadata: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether to include shadow metadata in the `meta` field of each record in the response. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
+    shadowed_by_name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filters the response to records at or below the specified NS delegation name. NS, DS, and NSEC records at the delegation name are excluded because they are not shadowed by that delegation. Those record types are included only when they exist below the delegation. The value must be a non-apex subdomain of the zone. Requires `include_shadow_metadata=true`. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
+    shadowing_name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Returns NS records that shadow the given name, searching at the name itself and each of its ancestor names within the zone, excluding the zone apex. The value must be a subdomain of the zone; the zone apex is not accepted. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).',
+    },
     zoneId: {
       type: 'string',
       required: true,
@@ -86,7 +214,7 @@ export const listDnsRecordsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by an exact tag name',
+      description: 'Filter by tag name, or an exact name:value pair (e.g., team:DNS)',
     },
     tag_match: {
       type: 'string',
@@ -112,7 +240,7 @@ export const listDnsRecordsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/dns_records`
+        `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/dns_records`
       )
       if (params.type) url.searchParams.append('type', params.type)
       if (params.name) url.searchParams.append('name.exact', params.name)
@@ -124,9 +252,28 @@ export const listDnsRecordsTool: ToolConfig<
       if (params.order) url.searchParams.append('order', params.order)
       if (params.proxied !== undefined) url.searchParams.append('proxied', String(params.proxied))
       if (params.search) url.searchParams.append('search', params.search)
-      if (params.tag) url.searchParams.append('tag.exact', params.tag)
+      if (params.tag) url.searchParams.append('tag', params.tag)
       if (params.tag_match) url.searchParams.append('tag_match', params.tag_match)
       if (params.commentFilter) url.searchParams.append('comment.contains', params.commentFilter)
+      appendParam(url, 'name.contains', params.name_contains)
+      appendParam(url, 'name.startswith', params.name_startswith)
+      appendParam(url, 'name.endswith', params.name_endswith)
+      appendParam(url, 'content.contains', params.content_contains)
+      appendParam(url, 'content.startswith', params.content_startswith)
+      appendParam(url, 'content.endswith', params.content_endswith)
+      if (params.comment_present === true) url.searchParams.set('comment.present', '')
+      if (params.comment_absent === true) url.searchParams.set('comment.absent', '')
+      appendParam(url, 'comment.exact', params.comment_exact)
+      appendParam(url, 'comment.startswith', params.comment_startswith)
+      appendParam(url, 'comment.endswith', params.comment_endswith)
+      appendParam(url, 'tag.present', params.tag_present)
+      appendParam(url, 'tag.absent', params.tag_absent)
+      appendParam(url, 'tag.contains', params.tag_contains)
+      appendParam(url, 'tag.startswith', params.tag_startswith)
+      appendParam(url, 'tag.endswith', params.tag_endswith)
+      appendParam(url, 'include_shadow_metadata', params.include_shadow_metadata)
+      appendParam(url, 'shadowed_by_name', params.shadowed_by_name)
+      appendParam(url, 'shadowing_name', params.shadowing_name)
       return url.toString()
     },
     method: 'GET',
@@ -137,108 +284,36 @@ export const listDnsRecordsTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawDnsRecord[]>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { records: [], total_count: 0 },
-        error: data.errors?.[0]?.message ?? 'Failed to list DNS records',
-      }
-    }
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        records: (Array.isArray(data.result) ? data.result : []).map((record) => ({
-          id: record.id ?? '',
-          zone_id: record.zone_id ?? '',
-          zone_name: record.zone_name ?? '',
-          type: record.type ?? '',
-          name: record.name ?? '',
-          content: record.content ?? '',
-          proxiable: record.proxiable ?? false,
-          proxied: record.proxied ?? false,
-          ttl: record.ttl ?? 0,
-          locked: record.locked ?? false,
-          priority: record.priority ?? null,
-          comment: record.comment ?? null,
-          tags: record.tags ?? [],
-          comment_modified_on: record.comment_modified_on ?? null,
-          tags_modified_on: record.tags_modified_on ?? null,
-          meta: record.meta ?? null,
-          created_on: record.created_on ?? '',
-          modified_on: record.modified_on ?? '',
-        })),
-        total_count: data.result_info?.total_count ?? data.result?.length ?? 0,
+        records: rows.map((row) => mapCloudflareFields(row, DNS_RECORD_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to list dns records') } : {}),
     }
   },
-
   outputs: {
     records: {
       type: 'array',
-      description: 'List of DNS records',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Unique identifier for the DNS record' },
-          zone_id: { type: 'string', description: 'The ID of the zone the record belongs to' },
-          zone_name: { type: 'string', description: 'The name of the zone' },
-          type: { type: 'string', description: 'Record type (A, AAAA, CNAME, MX, TXT, etc.)' },
-          name: { type: 'string', description: 'Record name (e.g., example.com)' },
-          content: { type: 'string', description: 'Record content (e.g., IP address)' },
-          proxiable: { type: 'boolean', description: 'Whether the record can be proxied' },
-          proxied: { type: 'boolean', description: 'Whether Cloudflare proxy is enabled' },
-          ttl: { type: 'number', description: 'TTL in seconds (1 = automatic)' },
-          locked: { type: 'boolean', description: 'Whether the record is locked' },
-          priority: {
-            type: 'number',
-            description: 'Record priority, returned for MX and URI records',
-            optional: true,
-          },
-          comment: {
-            type: 'string',
-            description: 'Comment associated with the record',
-            optional: true,
-          },
-          tags: {
-            type: 'array',
-            description: 'Tags associated with the record',
-            items: { type: 'string', description: 'Tag value' },
-          },
-          comment_modified_on: {
-            type: 'string',
-            description: 'ISO 8601 timestamp when the comment was last modified',
-            optional: true,
-          },
-          tags_modified_on: {
-            type: 'string',
-            description: 'ISO 8601 timestamp when tags were last modified',
-            optional: true,
-          },
-          meta: {
-            type: 'object',
-            description: 'Record metadata',
-            optional: true,
-            properties: {
-              source: { type: 'string', description: 'Source of the DNS record' },
-            },
-          },
-          created_on: {
-            type: 'string',
-            description: 'ISO 8601 timestamp when the record was created',
-          },
-          modified_on: {
-            type: 'string',
-            description: 'ISO 8601 timestamp when the record was last modified',
-          },
-        },
-      },
+      description: 'Records',
+      items: { type: 'object', properties: DNS_RECORD_OUTPUTS },
     },
     total_count: {
       type: 'number',
-      description: 'Total number of DNS records matching the query',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
     },
   },
 }
