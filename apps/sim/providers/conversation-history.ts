@@ -154,21 +154,25 @@ export async function captureProviderConversationStep(
 }
 
 /**
- * Saves model usage outside captured exchanges, including discarded decisions at the tool limit.
+ * Saves model usage outside captured exchanges, including discarded decisions at the tool limit,
+ * and counts it toward the run's usage limit.
  * The current provider response already counts these tokens; only a later attempt adds this journal usage.
  */
 export async function recordProviderConversationUsage(
   request: ProviderRequest,
   usage: ConversationUsage | undefined
 ): Promise<void> {
-  const session = getConversationRequestContext(request)?.agentConversation
-  if (!usage || !session?.recordContextUsage) return
+  if (!usage) return
+  const runtime = getConversationRequestContext(request)
+  const cost = priceModelUsage(
+    request.model,
+    usage,
+    resolveModelCostPolicy(request.model, request.isBYOK)
+  )
+  recordModelStepCost(runtime, cost)
+  const session = runtime?.agentConversation
+  if (!session?.recordContextUsage) return
   try {
-    const cost = priceModelUsage(
-      request.model,
-      usage,
-      resolveModelCostPolicy(request.model, request.isBYOK)
-    )
     await session.recordContextUsage({
       tokens: usage,
       cost: { input: cost.input, output: cost.output, total: cost.total, toolCost: 0 },

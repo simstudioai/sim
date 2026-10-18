@@ -403,6 +403,8 @@ export async function prepareConversationGeneration<T>(
       if (isAbortError(error) || request.abortSignal?.aborted) throw error
       logger.warn('Agent context compaction unavailable; retaining bounded history')
     }
+    // Summary calls spend too, and the compactor keeps going when one is stopped.
+    await assertRunWithinUsageLimit(runtime)
   }
   let selectedLength = 0
   for (const group of selected) {

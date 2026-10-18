@@ -7,6 +7,7 @@ import {
   billingUsageGateCacheMock,
   billingUsageGateCacheMockFns,
 } from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +17,7 @@ vi.mock('@/providers/registry', () => ({
   getProviderExecutor: async () => ({ executeRequest: mockExecuteRequest }),
 }))
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/providers/cost-policy', () => ({
   resolveModelCostPolicy: (_model: string, isBYOK = false) => ({
@@ -43,10 +45,13 @@ import { prepareConversationGeneration } from '@/providers/conversation-generati
 import {
   bindConversationRequestContext,
   captureProviderConversationStep,
+  recordProviderConversationUsage,
 } from '@/providers/conversation-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { ProviderError, type ProviderRequest } from '@/providers/types'
 
 const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
+const { mockExecuteTool } = toolsMockFns
 
 const attribution: BillingAttributionSnapshot = {
   actorUserId: 'actor',
@@ -68,6 +73,7 @@ function startRun(): ExecutionContext {
     environmentVariables: {},
     decisions: { router: new Map(), condition: new Map() },
     completedLoops: new Set(),
+    activeExecutionPath: new Set(),
     unrecordedModelCost: { total: 0 },
   }
 }
@@ -77,7 +83,7 @@ function startRequest(executionContext: ExecutionContext, isBYOK = false): Provi
   const request: ProviderRequest = { model: 'model-a', isBYOK }
   bindConversationRequestContext(request, {
     executionContext,
-    modelCost: { input: 0, output: 0, total: 0 },
+    settledCost: { input: 0, output: 0, total: 0 },
   })
   return request
 }
@@ -280,6 +286,47 @@ describe('run usage limit', () => {
     await prepareConversationGeneration(request, 'anthropic', { messages: [] })
 
     expect(mockCheckExecutionUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('keeps a cancellation that lands during the usage read a cancellation', async () => {
+    const controller = new AbortController()
+    const request = startRequest({ ...startRun(), abortSignal: controller.signal })
+    await modelStep(request, 1, 1)
+    mockCheckExecutionUsageLimits.mockImplementationOnce(async () => {
+      controller.abort()
+      return { isExceeded: false, payerUsage: { currentUsage: 3, limit: 5 } }
+    })
+
+    await expect(
+      prepareConversationGeneration(request, 'anthropic', { messages: [] })
+    ).resolves.toEqual({ messages: [] })
+  })
+
+  it('counts a turn recorded outside a captured exchange', async () => {
+    const request = startRequest(startRun())
+    await recordProviderConversationUsage(request, { input: 1, output: 1 })
+
+    await expect(
+      prepareConversationGeneration(request, 'anthropic', { messages: [] })
+    ).rejects.toThrow('usage limit')
+  })
+
+  it('bills the stopped block for the tool calls it already settled', async () => {
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { cost: { total: 0.25 } } })
+    mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
+      await modelStep(request, 1, 1)
+      await executeProviderTool('search', {})
+      await prepareConversationGeneration(request, 'anthropic', { messages: [] })
+      return { content: '', model: request.model }
+    })
+
+    const failure = await executeProviderRequest(
+      'anthropic',
+      { model: 'model-a' },
+      { executionContext: startRun() }
+    ).catch((caught: unknown) => caught)
+
+    expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2.25 })
   })
 
   it('reads no usage on a self-hosted deployment', async () => {

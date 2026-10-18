@@ -43,8 +43,8 @@ export interface ProviderRuntimeContext {
   toolIdByWireId?: ReadonlyMap<string, string>
   /** Failed canonical Function cost omitted from provider tool-result collections. */
   failedFunctionToolCost?: { total: number }
-  /** Billed cost of this request's settled model steps, charged if the run stops it mid-loop. */
-  modelCost?: TokenUsageCost
+  /** Billed cost of this request's settled model steps and tool calls, charged if the run stops it. */
+  settledCost?: TokenUsageCost
   /** The usage-limit stop this request threw, rethrown as is past a provider's error wrapping. */
   usageLimitStop?: NonRetryableExecutionError
 }
@@ -121,17 +121,22 @@ function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
   }
 }
 
-function accumulateFailedFunctionToolCost(
+function toolCostTotal(result: ToolResponse): number {
+  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return 0
+  const total = result.output.cost.total
+  return typeof total === 'number' && Number.isFinite(total) && total > 0 ? total : 0
+}
+
+function accumulateToolCost(
   toolId: string,
   result: ToolResponse,
-  accumulator: ProviderRuntimeContext['failedFunctionToolCost']
+  runtime: ProviderRuntimeContext | undefined
 ): void {
-  if (toolId !== 'function_execute' || result.success || !accumulator) return
-  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return
-
-  const total = result.output.cost.total
-  if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
-    accumulator.total += total
+  const total = toolCostTotal(result)
+  if (total === 0 || !runtime) return
+  if (runtime.settledCost) runtime.settledCost.total += total
+  if (toolId === 'function_execute' && !result.success && runtime.failedFunctionToolCost) {
+    runtime.failedFunctionToolCost.total += total
   }
 }
 
@@ -309,11 +314,7 @@ export async function executeProviderTool(
           ...(executionContext ? { executionContext } : {}),
           resolvedSecretTraceRegistry: toolCallRegistry,
         })
-    accumulateFailedFunctionToolCost(
-      executionToolId,
-      result,
-      runtimeContext?.failedFunctionToolCost
-    )
+    accumulateToolCost(executionToolId, result, runtimeContext)
     if (!registry || !toolCallRegistry) {
       return recordResult({ rawResponse: result, modelResponse: withoutChildTraceHandle(result) })
     }

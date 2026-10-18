@@ -305,7 +305,7 @@ export async function executeProviderRequest(
         }
       : {}),
     failedFunctionToolCost,
-    modelCost: { input: 0, output: 0, total: 0 },
+    settledCost: { input: 0, output: 0, total: 0 },
     ...(toolIdentities.toolIdByWireId.size > 0
       ? {
           toolIdByWireId: new Map([
