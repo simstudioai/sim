@@ -4629,6 +4629,11 @@ async function generateMarkdownForBlock(
           toolsSection += '| --------- | ---- | ----------- |\n'
 
           toolsSection += formatOutputStructure(toolInfo.outputs)
+        } else if (
+          Object.hasOwn(await loadToolOutputs(), tool) &&
+          Object.keys((await loadToolOutputs())[tool]).length === 0
+        ) {
+          toolsSection += 'No output fields.\n'
         } else if (Object.keys(outputs).length > 0) {
           toolsSection += '| Parameter | Type | Description |\n'
           toolsSection += '| --------- | ---- | ----------- |\n'

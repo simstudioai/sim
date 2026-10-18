@@ -504,6 +504,8 @@ export const env = createEnv({
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
     GITHUB_APP_CLIENT_ID: z.string().optional(),
     GITHUB_APP_CLIENT_SECRET: z.string().optional(),
+    GREENHOUSE_CLIENT_ID: z.string().optional(),
+    GREENHOUSE_CLIENT_SECRET: z.string().optional(),
     GITHUB_APP_ID: z.string().optional(),
     GITHUB_APP_PRIVATE_KEY: z.string().optional(),
     GITHUB_APP_SLUG: z.string().optional(),

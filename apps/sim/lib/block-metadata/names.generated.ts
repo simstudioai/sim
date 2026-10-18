@@ -118,7 +118,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   grafana: 'Grafana',
   grain_v2: 'Grain',
   granola: 'Granola',
-  greenhouse: 'Greenhouse',
+  greenhouse_v2: 'Greenhouse',
   greptile: 'Greptile',
   guardrails: 'Guardrails',
   harmonic: 'Harmonic',

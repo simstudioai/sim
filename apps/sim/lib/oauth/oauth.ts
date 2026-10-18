@@ -37,6 +37,7 @@ import {
   GoogleSheetsIcon,
   GoogleTasksIcon,
   GoogleVaultIcon,
+  GreenhouseIcon,
   HarmonicIcon,
   HubspotIcon,
   InstagramIcon,
@@ -92,6 +93,11 @@ import {
   GITHUB_TOKEN_URL,
   parseGitHubRepositoriesTokenResponse,
 } from '@/lib/oauth/github-repositories'
+import {
+  GREENHOUSE_TOKEN_URL,
+  getGreenhouseRefreshErrorCode,
+  parseGreenhouseTokens,
+} from '@/lib/oauth/greenhouse'
 import { parseInstagramLongLivedToken } from '@/lib/oauth/instagram'
 import { MONDAY_OAUTH_TOKEN_URL, resolveMondayAccessTokenExpiresAt } from '@/lib/oauth/monday'
 import type { QuickBooksOAuthClientConfig } from '@/lib/oauth/quickbooks-client-config'
@@ -120,6 +126,69 @@ export function getSlackApprovalGatedScopes(enabled: boolean): readonly string[]
 const SLACK_APPROVAL_GATED_SCOPES = getSlackApprovalGatedScopes(isSlackExtendedScopesEnabled)
 
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  greenhouse: {
+    name: 'Greenhouse',
+    icon: GreenhouseIcon,
+    services: {
+      greenhouse: {
+        name: 'Greenhouse',
+        description: 'Manage recruiting candidates, applications, jobs, and hiring activity.',
+        providerId: 'greenhouse',
+        icon: GreenhouseIcon,
+        baseProviderIcon: GreenhouseIcon,
+        scopes: [
+          'harvest:application_stages:list',
+          'harvest:applications:convert_to_candidate',
+          'harvest:applications:create',
+          'harvest:applications:destroy',
+          'harvest:applications:hire',
+          'harvest:applications:list',
+          'harvest:applications:move',
+          'harvest:applications:reject',
+          'harvest:applications:unreject',
+          'harvest:applications:update',
+          'harvest:applied_candidate_tags:create',
+          'harvest:applied_candidate_tags:destroy',
+          'harvest:applied_candidate_tags:list',
+          'harvest:attachments:create',
+          'harvest:attachments:destroy',
+          'harvest:attachments:list',
+          'harvest:candidate_educations:list',
+          'harvest:candidate_employments:list',
+          'harvest:candidate_tags:create',
+          'harvest:candidate_tags:list',
+          'harvest:candidates:create',
+          'harvest:candidates:destroy',
+          'harvest:candidates:list',
+          'harvest:candidates:update',
+          'harvest:close_reasons:list',
+          'harvest:custom_field_options:list',
+          'harvest:custom_fields:list',
+          'harvest:departments:list',
+          'harvest:email_templates:list',
+          'harvest:interviews:list',
+          'harvest:job_hiring_managers:list',
+          'harvest:job_interview_stages:list',
+          'harvest:job_owners:list',
+          'harvest:jobs:list',
+          'harvest:notes:create',
+          'harvest:notes:list',
+          'harvest:offers:list',
+          'harvest:offices:list',
+          'harvest:openings:list',
+          'harvest:prospect_pool_stages:list',
+          'harvest:prospect_pools:list',
+          'harvest:referrers:list',
+          'harvest:rejection_reasons:list',
+          'harvest:scorecards:list',
+          'harvest:sources:list',
+          'harvest:users:list',
+        ],
+      },
+    },
+    defaultService: 'greenhouse',
+  },
+
   'github-repositories': {
     name: 'GitHub',
     icon: GithubIcon,
@@ -1738,6 +1807,8 @@ interface ProviderAuthConfig {
    * TikTok requires `client_key` instead.
    */
   clientIdParamName?: string
+  /** Greenhouse requires grant parameters in the query string, with credentials in Basic auth. */
+  refreshParamsInQuery?: boolean
 }
 
 function getConfiguredClientCredentials<const TCapabilityId extends OAuthClientCapabilityId>(
@@ -1763,6 +1834,21 @@ function getProviderAuthConfig(
     throw new Error(`OAuth client override is not supported for provider ${provider}`)
   }
   switch (provider) {
+    case 'greenhouse': {
+      const { clientId, clientSecret } = getConfiguredClientCredentials(
+        'greenhouse',
+        'GREENHOUSE_CLIENT_ID',
+        'GREENHOUSE_CLIENT_SECRET'
+      )
+      return {
+        tokenEndpoint: GREENHOUSE_TOKEN_URL,
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+        refreshParamsInQuery: true,
+      }
+    }
     case 'google': {
       const { clientId, clientSecret } = getConfiguredClientCredentials(
         'google',
@@ -2527,10 +2613,18 @@ export async function refreshOAuthToken(
       bodyParams.scope = OAUTH_PROVIDERS.microsoft.services['microsoft-powerbi'].scopes.join(' ')
     }
 
-    const response = await fetch(config.tokenEndpoint, {
+    const tokenUrl = new URL(config.tokenEndpoint)
+    if (config.refreshParamsInQuery) {
+      tokenUrl.search = new URLSearchParams(bodyParams).toString()
+    }
+    const response = await fetch(tokenUrl.toString(), {
       method: 'POST',
       headers,
-      body: useJsonBody ? JSON.stringify(bodyParams) : new URLSearchParams(bodyParams).toString(),
+      body: config.refreshParamsInQuery
+        ? undefined
+        : useJsonBody
+          ? JSON.stringify(bodyParams)
+          : new URLSearchParams(bodyParams).toString(),
       redirect: 'error',
       signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
@@ -2542,7 +2636,9 @@ export async function refreshOAuthToken(
     const responseData = parseOAuthResponse(responseText)
 
     if (!response.ok) {
-      const errorCode = safeOAuthErrorCode(responseData, exactSecrets)
+      const errorCode =
+        (provider === 'greenhouse' ? getGreenhouseRefreshErrorCode(responseData) : undefined) ??
+        safeOAuthErrorCode(responseData, exactSecrets)
 
       logRefreshRejection(errorCode, providerId)('Token refresh failed:', {
         status: response.status,
@@ -2586,6 +2682,23 @@ export async function refreshOAuthToken(
         ok: false,
         errorCode,
         message: `Failed to refresh token: ${OAUTH_RESPONSE_OMITTED}`,
+      }
+    }
+
+    if (provider === 'greenhouse') {
+      const tokens = parseGreenhouseTokens(data)
+      return {
+        ok: true,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: Math.max(
+          1,
+          Math.ceil((tokens.accessTokenExpiresAt.getTime() - Date.now()) / 1000)
+        ),
+        refreshTokenExpiresIn: Math.max(
+          1,
+          Math.ceil((tokens.refreshTokenExpiresAt.getTime() - Date.now()) / 1000)
+        ),
       }
     }
 
