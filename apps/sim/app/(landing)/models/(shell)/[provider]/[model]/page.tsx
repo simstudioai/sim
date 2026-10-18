@@ -19,6 +19,9 @@ import {
   formatUpdatedAt,
   getEffectiveMaxOutputTokens,
   getModelBySlug,
+  getModelPageDescription,
+  getModelPageName,
+  getModelPageTitle,
   getPricingBounds,
   getProviderBySlug,
   getRelatedModels,
@@ -40,14 +43,6 @@ export async function generateStaticParams() {
   )
 }
 
-/**
- * Model name qualified by its reseller ("Claude Opus 4.7 on AWS Bedrock"), so a reseller's page is
- * distinguishable from the first-party page for the same model in titles and the H1.
- */
-function hostedModelName(provider: { name: string; isReseller: boolean }, displayName: string) {
-  return provider.isReseller ? `${displayName} on ${provider.name}` : displayName
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -61,11 +56,12 @@ export async function generateMetadata({
     return {}
   }
 
-  const pageName = hostedModelName(provider, model.displayName)
+  const title = getModelPageTitle(provider, model)
+  const description = getModelPageDescription(provider, model)
 
   return {
-    title: `${pageName} Pricing, Context Window, and Features`,
-    description: `${model.displayName} by ${provider.name}: pricing, cached input cost, output cost, context window, and capability support. Explore the full generated model page on Sim.`,
+    title,
+    description,
     keywords: [
       model.displayName,
       `${model.displayName} pricing`,
@@ -78,14 +74,14 @@ export async function generateMetadata({
     // og:image/twitter:image come from the sibling opengraph-image.tsx -
     // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
-      title: `${pageName} Pricing, Context Window, and Features | Sim`,
-      description: `${model.displayName} by ${provider.name}: pricing, context window, and model capability details.`,
+      title: `${title} | Sim`,
+      description,
       url: `${baseUrl}${model.href}`,
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${pageName} | Sim`,
+      title: `${title} | Sim`,
       description: model.summary,
     },
     alternates: {
@@ -184,7 +180,7 @@ export default async function ModelPage({
                 id='model-heading'
                 className='text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
               >
-                {hostedModelName(provider, model.displayName)}
+                {getModelPageName(provider, model)}
               </h1>
             </div>
           </div>

@@ -19,6 +19,7 @@ import {
   vellumProfile,
 } from '@/lib/compare/data'
 import { ContentFrontmatterSchema } from '@/lib/content/schema'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
@@ -243,26 +244,31 @@ async function run() {
   )
 
   await check(
-    'model pages carry distinct search titles within 60 characters and self-canonicalize',
+    'every model page carries a distinct search title within 60 characters and self-canonicalizes',
     async () => {
-      const comparePaths = sitemapPaths.filter((path) => path.startsWith('/models/compare/'))
+      const paths = sitemapPaths.filter((path) => path === '/models' || path.startsWith('/models/'))
+      const comparePaths = paths.filter((path) => path.startsWith('/models/compare/'))
       assert(
         comparePaths.length >= 5,
         `The sitemap lists only ${comparePaths.length} compare pages`
       )
-      const paths = [
+      for (const required of [
         '/models',
         '/models/anthropic',
         '/models/context-windows',
         '/models/pricing-calculator',
         '/models/token-counter',
-        ...comparePaths,
-      ]
+      ]) {
+        assert(paths.includes(required), `The sitemap omits ${required}`)
+      }
+      const pages = await mapWithConcurrency(paths, 8, async (path) => ({
+        path,
+        ...(await get(path)),
+      }))
       const pathByTitle = new Map<string, string>()
       let anthropicTitle = ''
       const failures: string[] = []
-      for (const path of paths) {
-        const { status, body } = await get(path)
+      for (const { path, status, body } of pages) {
         const title = pageTitle(body)
         const canonical = canonicalPath(body)
         const duplicateOf = pathByTitle.get(title)

@@ -297,17 +297,19 @@ function tokenizeModelName(value: string): string[] {
 function mergeVersionTokens(tokens: string[]): string[] {
   const merged: string[] = []
 
-  for (let index = 0; index < tokens.length; index += 1) {
-    const current = tokens[index]
-    const next = tokens[index + 1]
+  for (const token of tokens) {
+    const previous = merged[merged.length - 1]
 
-    if (/^\d{1,2}$/.test(current) && /^\d{1,2}$/.test(next)) {
-      merged.push(`${current}.${next}`)
-      index += 1
+    if (
+      previous !== undefined &&
+      /^[a-z]*\d{1,2}(\.\d{1,2})*$/i.test(previous) &&
+      /^\d{1,2}$/.test(token)
+    ) {
+      merged[merged.length - 1] = `${previous}.${token}`
       continue
     }
 
-    merged.push(current)
+    merged.push(token)
   }
 
   return merged
@@ -340,15 +342,19 @@ function formatModelToken(token: string): string {
     return token.toUpperCase()
   }
 
-  if (/^\d+\.\d+$/.test(token)) {
+  if (/^\d+(\.\d+)+$/.test(token)) {
     return token
   }
 
-  if (/^[a-z]{3,}\d+$/i.test(token)) {
-    const [, prefix, version] = token.match(/^([a-z]{3,})(\d+)$/i) ?? []
+  if (/^[a-z]{3,}\d+(\.\d+)*$/i.test(token)) {
+    const [, prefix, version] = token.match(/^([a-z]{3,})(\d+(?:\.\d+)*)$/i) ?? []
     if (prefix && version) {
       return `${formatModelToken(prefix)} ${version}`
     }
+  }
+
+  if (/^[a-z]\d+(\.\d+)+$/i.test(token)) {
+    return token.toUpperCase()
   }
 
   if (/^[a-z]\d+[a-z]$/i.test(token)) {
@@ -640,6 +646,12 @@ export const MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS = MODEL_CATALOG_PROVIDERS.fil
 export const ALL_CATALOG_MODELS = MODEL_PROVIDERS_WITH_CATALOGS.flatMap(
   (provider) => provider.models
 )
+/** Display names more than one first-party provider lists, so their pages name the provider too. */
+const SHARED_FIRST_PARTY_NAMES = new Set(
+  ALL_CATALOG_MODELS.map((model) => model.displayName).filter(
+    (name, index, names) => names.indexOf(name) !== index
+  )
+)
 export const TOTAL_MODEL_PROVIDERS = MODEL_CATALOG_PROVIDERS.length
 export const TOTAL_MODELS = ALL_CATALOG_MODELS.length
 export const TOP_MODEL_PROVIDERS = MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 8).map(
@@ -921,6 +933,55 @@ export function getProviderPageDescription(provider: CatalogProvider): string {
   return providerHasPublishedPricing(provider)
     ? `${provider.apiName} API pricing per 1M input and output tokens, context windows, and capabilities for ${models}. Use any of them in Sim's AI agents.`
     : `Context windows and capabilities for ${models}. Use any of them in Sim's AI agents.`
+}
+
+/** Longest page title that keeps the rendered `<title>` (with the " | Sim" template) at 60 chars. */
+export const MAX_PAGE_TITLE_LENGTH = 54
+
+/** The first candidate within `maxLength` characters, else the last (shortest) candidate. */
+export function fitWithinLength(candidates: readonly [string, ...string[]], maxLength: number) {
+  return (
+    candidates.find((candidate) => candidate.length <= maxLength) ??
+    candidates[candidates.length - 1]
+  )
+}
+
+/**
+ * Model name qualified by its host ("Claude Opus 4.7 on AWS Bedrock") on a reseller's page or when
+ * two first-party providers list the same name, so every model page has a distinct title and H1.
+ */
+export function getModelPageName(provider: CatalogProvider, model: CatalogModel): string {
+  return provider.isReseller || SHARED_FIRST_PARTY_NAMES.has(model.displayName)
+    ? `${model.displayName} on ${provider.name}`
+    : model.displayName
+}
+
+/**
+ * Model page title, as specific as the 60-character `<title>` budget allows. A model without
+ * published token prices is never titled for pricing.
+ */
+export function getModelPageTitle(provider: CatalogProvider, model: CatalogModel): string {
+  const name = getModelPageName(provider, model)
+  return hasPublishedPricing(model.pricing)
+    ? fitWithinLength(
+        [
+          `${name} API Pricing & Context Window`,
+          `${name} API Pricing & Specs`,
+          `${name} API Pricing`,
+          `${name} Pricing`,
+          name,
+        ],
+        MAX_PAGE_TITLE_LENGTH
+      )
+    : fitWithinLength([`${name} Context Window & Features`, name], MAX_PAGE_TITLE_LENGTH)
+}
+
+/** Model meta description; long model names drop the trailing Sim sentence. */
+export function getModelPageDescription(provider: CatalogProvider, model: CatalogModel): string {
+  const lead = hasPublishedPricing(model.pricing)
+    ? `${model.displayName} by ${provider.name}: API pricing per 1M tokens, cached input cost, context window, and capabilities.`
+    : `${model.displayName} by ${provider.name}: context window, max output, and capabilities.`
+  return fitWithinLength([`${lead} Use it in Sim's AI agents.`, lead], 155)
 }
 
 /** Most recent `pricing.updatedAt` across a non-empty list of models. */
