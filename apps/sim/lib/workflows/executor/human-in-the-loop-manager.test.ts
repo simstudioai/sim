@@ -1,4 +1,5 @@
 import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import {
   dbChainMockFns,
   flattenMockConditions,
@@ -16,6 +17,7 @@ import {
 } from '@sim/testing/mocks/execution-preprocessing.mock'
 import { largeValueMetadataMock } from '@sim/testing/mocks/large-value-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { classifyFailure, logFailureOnce } from '@/lib/core/errors/failure-log'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
@@ -518,7 +520,7 @@ describe('resume failure diagnostic projection', () => {
         expect.objectContaining({
           errorType: 'error',
           hasStack: true,
-          executionId: 'resume-execution-1',
+          executionId: 'parent-execution-1',
           failureKind: 'internal',
         })
       )
@@ -527,6 +529,57 @@ describe('resume failure diagnostic projection', () => {
       expect(loggerPayload).not.toContain('__var_')
       expect(loggerPayload).not.toContain('__sim_')
       expect(rawError.message).toBe(message)
+    } finally {
+      runResumeExecutionSpy.mockRestore()
+      markResumeFailedSpy.mockRestore()
+      processQueuedResumesSpy.mockRestore()
+    }
+  })
+
+  /** The resumed engine and execution core log under the durable run id and rethrow the same value. */
+  it('does not log again a failure the resumed run already logged', async () => {
+    const rawError = new Error('block failed inside the resumed run')
+    const managerInternals = PauseResumeManager as unknown as PauseResumeManagerInternals
+    const runResumeExecutionSpy = vi
+      .spyOn(managerInternals, 'runResumeExecution')
+      .mockImplementationOnce(async () => {
+        logFailureOnce(createLogger('ExecutionCore'), 'Execution failed', rawError, {
+          executionId: 'parent-execution-1',
+        })
+        throw rawError
+      })
+    const markResumeFailedSpy = vi
+      .spyOn(managerInternals, 'markResumeFailed')
+      .mockResolvedValueOnce()
+    const processQueuedResumesSpy = vi
+      .spyOn(PauseResumeManager, 'processQueuedResumes')
+      .mockResolvedValueOnce()
+    type StartResumeArgs = Parameters<typeof PauseResumeManager.startResumeExecution>[0]
+    humanInTheLoopLogger.error.mockClear()
+
+    try {
+      await expect(
+        PauseResumeManager.startResumeExecution({
+          resumeEntryId: 'resume-entry-1',
+          resumeExecutionId: 'resume-execution-1',
+          pausedExecution: {
+            id: 'paused-execution-1',
+            workflowId: 'workflow-1',
+            executionId: 'parent-execution-1',
+            pausePoints: { 'context-1': { contextId: 'context-1', blockId: 'hitl-1' } },
+            executionSnapshot: createSnapshotSeed(),
+            metadata: {},
+          } as StartResumeArgs['pausedExecution'],
+          contextId: 'context-1',
+          resumeInput: {},
+          userId: 'user-1',
+        })
+      ).rejects.toBe(rawError)
+
+      expect(humanInTheLoopLogger.error).not.toHaveBeenCalledWith(
+        'Resume execution failed',
+        expect.anything()
+      )
     } finally {
       runResumeExecutionSpy.mockRestore()
       markResumeFailedSpy.mockRestore()
@@ -2024,12 +2077,12 @@ describe('PauseResumeManager resume log claims', () => {
         workflowId: 'workflow-1',
         executionDeadlineAt: new Date('2026-08-04T13:00:00.000Z'),
       })
-    ).rejects.toMatchObject({
-      name: 'ResumeAdmissionError',
-      message: 'Execution can no longer be resumed',
-      statusCode: 409,
-      retryable: false,
-    })
+    ).rejects.toSatisfy(
+      (error) =>
+        error instanceof Error &&
+        error.message === 'Execution can no longer be resumed' &&
+        classifyFailure(error) === 'user'
+    )
   })
 
   it('reuses the exact historical version claimed from a deployed run log', () => {
@@ -2045,9 +2098,15 @@ describe('PauseResumeManager resume log claims', () => {
   ])(
     'rejects an inconsistent paused mode/version binding',
     ({ useDraftState, deploymentVersionId }) => {
-      expect(() => requireResumeDeploymentVersion(useDraftState, deploymentVersionId)).toThrowError(
-        expect.objectContaining({ name: 'ResumeAdmissionError', statusCode: 409, retryable: false })
-      )
+      let thrown: unknown
+      try {
+        requireResumeDeploymentVersion(useDraftState, deploymentVersionId)
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toMatchObject({ name: 'ResumeAdmissionError', statusCode: 409 })
+      /** A corrupt paused-run binding is Sim's fault and must keep logging at error. */
+      expect(classifyFailure(thrown)).toBe('internal')
     }
   )
 })

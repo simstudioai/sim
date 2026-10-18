@@ -106,11 +106,11 @@ describe('executeResumeJob terminal errors', () => {
     expect(rawError.message).toContain(secret)
   })
 
-  it('does not log again a failure the resume boundary already logged for this attempt', async () => {
+  it('does not log again a failure the resumed run already logged', async () => {
     const rawError = new Error('resume blew up')
     mockStartResumeExecution.mockImplementation(async () => {
       logFailureOnce(createLogger('ResumeBoundary'), 'Resume execution failed', rawError, {
-        executionId: payload.resumeExecutionId,
+        executionId: payload.parentExecutionId,
       })
       throw rawError
     })

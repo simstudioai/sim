@@ -250,7 +250,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload, signal?:
     }
   } catch (error) {
     logFailureOnce(logger, 'Background resume execution failed', error, {
-      executionId: resumeExecutionId,
+      executionId: parentExecutionId,
       metadata: () =>
         projectResolvedSecretDiagnosticError(error, undefined, { resumeExecutionId, workflowId }),
     })

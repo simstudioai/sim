@@ -520,9 +520,9 @@ async function dispatchRow(row: PreparedDueRow, now: Date): Promise<RowResult> {
           parentExecutionId: row.executionId,
         }).catch((error) => {
           logFailureOnce(logger, 'Background time-pause resume failed', error, {
-            executionId: enqueueResult.resumeExecutionId,
+            executionId: row.executionId,
             metadata: {
-              parentExecutionId: row.executionId,
+              resumeExecutionId: enqueueResult.resumeExecutionId,
               contextId: point.contextId,
               error: toError(error).message,
             },
