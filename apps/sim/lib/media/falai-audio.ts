@@ -55,8 +55,9 @@ function buildInput(
 ): Record<string, unknown> {
   const input: Record<string, unknown> = {}
   if (type === 'speech') {
-    // Gemini 3.1 Flash TTS takes the text (with optional inline tags) in `prompt`.
-    input.prompt = params.prompt
+    // ElevenLabs TTS requires `text`; Gemini 3.1 Flash TTS takes the text (with optional inline tags) in `prompt`.
+    if (model.includes('elevenlabs/tts')) input.text = params.prompt
+    else input.prompt = params.prompt
     if (params.voice) input.voice = params.voice
   } else if (type === 'sfx') {
     // ElevenLabs sound-effects take `text`.
