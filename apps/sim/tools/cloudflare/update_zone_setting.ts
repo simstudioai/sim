@@ -3,6 +3,7 @@ import type {
   CloudflareUpdateZoneSettingResponse,
 } from '@/tools/cloudflare/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const updateZoneSettingTool: ToolConfig<
   CloudflareUpdateZoneSettingParams,
@@ -15,6 +16,13 @@ export const updateZoneSettingTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    enabled: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Enrollment value for ssl_recommender; this setting uses enabled instead of value',
+    },
     zoneId: {
       type: 'string',
       required: true,
@@ -30,7 +38,7 @@ export const updateZoneSettingTool: ToolConfig<
     },
     value: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description: `New value for the setting as a string, or a JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, ["ECDHE-RSA-AES128-GCM-SHA256"] for ciphers)`,
     },
@@ -44,13 +52,14 @@ export const updateZoneSettingTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/settings/${params.settingId.trim()}`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/settings/${safeUrlPathSegment(params.settingId, 'settingId')}`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      if (params.settingId.trim() === 'ssl_recommender') return { enabled: params.enabled }
       // A block reference can pass an already-structured array/object straight
       // through despite the declared string param type — send it as-is rather
       // than stringifying it (String([...]) comma-joins, String({...}) yields
@@ -65,9 +74,17 @@ export const updateZoneSettingTool: ToolConfig<
       // "null"/"undefined" strings String() would otherwise produce.
       const trimmed = (params.value == null ? '' : String(params.value)).trim()
 
-      // browser_cache_ttl is the one setting whose value must be a number.
       // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
-      if (params.settingId === 'browser_cache_ttl') {
+      if (
+        [
+          'browser_cache_ttl',
+          'challenge_ttl',
+          'edge_cache_ttl',
+          'max_upload',
+          'origin_h2_max_streams',
+          'proxy_read_timeout',
+        ].includes(params.settingId.trim())
+      ) {
         const numeric = trimmed === '' ? Number.NaN : Number(trimmed)
         return { value: Number.isNaN(numeric) ? trimmed : numeric }
       }
@@ -89,7 +106,7 @@ export const updateZoneSettingTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!data.success) {
+    if (!response.ok || !data.success) {
       return {
         success: false,
         output: { id: '', value: '', editable: false, modified_on: '' },

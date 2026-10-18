@@ -6,18 +6,11 @@ import type {
 import { DEFAULT_ZONE_SETTING_IDS, MAX_ZONE_SETTING_IDS } from '@/tools/cloudflare/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
-
-function encodePathSegment(value: string, label: string): string {
-  const normalized = value.trim()
-  if (!normalized || normalized === '.' || normalized === '..') {
-    throw new Error(`${label} must identify a resource`)
-  }
-  return encodeURIComponent(normalized)
-}
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 /** Builds the per-setting endpoint Cloudflare directs integrations at. */
 export function zoneSettingUrl(zoneId: string, settingId: string): string {
-  return `https://api.cloudflare.com/client/v4/zones/${encodePathSegment(zoneId, 'Cloudflare zone ID')}/settings/${encodePathSegment(settingId, 'Cloudflare setting ID')}`
+  return `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(zoneId, 'zoneId')}/settings/${safeUrlPathSegment(settingId, 'settingId')}`
 }
 
 /**

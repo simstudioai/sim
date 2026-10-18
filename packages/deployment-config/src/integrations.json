@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-17",
+  "updatedAt": "2026-10-18",
   "integrations": [
     {
       "type": "onepassword",
@@ -5497,14 +5497,14 @@
       "slug": "cloudflare",
       "name": "Cloudflare",
       "description": "Manage DNS, WAF, Zero Trust access, and edge infrastructure",
-      "longDescription": "Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging. Configure WAF rulesets, managed rule overrides, and rate limiting rules through the current Rulesets engine. Administer Cloudflare Access (Zero Trust) applications, policies, groups, identity providers, and service tokens, and inspect R2 buckets, Workers scripts and routes, and Cloudflare Tunnels.",
+      "longDescription": "Manage Cloudflare DNS, zones, SSL, cache, and analytics. Configure WAF rulesets and rate limiting; administer Access applications, policies, groups, and service tokens; manage Worker routes and tunnels; and configure R2 buckets, CORS, and lifecycle rules.",
       "bgColor": "#F5F6FA",
       "iconName": "CloudflareIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudflare",
       "operations": [
         {
           "name": "List Zones",
-          "description": "Lists all zones (domains) in the Cloudflare account."
+          "description": "Lists one page of zones (domains) in the Cloudflare account."
         },
         {
           "name": "Get Zone Details",
@@ -5535,6 +5535,10 @@
           "description": "Deletes a DNS record from a zone."
         },
         {
+          "name": "Get DNS Record",
+          "description": "Retrieves details for a specific DNS record in the zone."
+        },
+        {
           "name": "List Certificates",
           "description": "Lists SSL/TLS certificate packs for a zone."
         },
@@ -5545,6 +5549,10 @@
         {
           "name": "Update Zone Setting",
           "description": "Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration."
+        },
+        {
+          "name": "Update Zone",
+          "description": "Edits a zone. Only one zone property can be changed at a time."
         },
         {
           "name": "DNS Analytics",
@@ -5585,6 +5593,14 @@
         {
           "name": "List Managed Ruleset Overrides",
           "description": "Lists the WAF managed rulesets deployed on a zone together with the overrides applied to each one. Cloudflare has no dedicated overrides endpoint — overrides live on the \"execute\" rules of the http_request_firewall_managed phase entry point ruleset, which this reads. Requires an API token with Zone WAF Read."
+        },
+        {
+          "name": "Delete Ruleset",
+          "description": "Deletes all versions of an existing zone ruleset."
+        },
+        {
+          "name": "Update Ruleset",
+          "description": "Updates a zone ruleset, creating a new version. Replaces the configuration; resend all values to retain."
         },
         {
           "name": "List Rate Limiting Rules",
@@ -5635,8 +5651,28 @@
           "description": "Permanently deletes a Cloudflare Access (Zero Trust) policy from an application. This changes who can reach the application the moment it runs: removing an allow policy locks out everyone it covered, and removing a deny or require policy drops that restriction. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit."
         },
         {
+          "name": "Get Access Policy",
+          "description": "Fetches a single Access policy configured for an application. Returns both exclusively owned and reusable policies used by the application."
+        },
+        {
           "name": "List Access Groups",
           "description": "Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups bundle identity rules that policies can reference by ID. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read."
+        },
+        {
+          "name": "Create Access Group",
+          "description": "Creates a new Access group."
+        },
+        {
+          "name": "Delete Access Group",
+          "description": "Deletes an Access group."
+        },
+        {
+          "name": "Get Access Group",
+          "description": "Fetches a single Access group."
+        },
+        {
+          "name": "Update Access Group",
+          "description": "Updates a configured Access group. Replaces the configuration; resend all values to retain."
         },
         {
           "name": "List Access Identity Providers",
@@ -5653,6 +5689,22 @@
         {
           "name": "Revoke Access Service Token",
           "description": "Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it. Every machine or integration still presenting that client ID and secret is locked out of the Access-protected applications immediately, and the secret cannot be recovered. This cannot be undone. Requires an API token with Account Access: Service Tokens Edit."
+        },
+        {
+          "name": "Get Access Service Token",
+          "description": "Fetches a single service token."
+        },
+        {
+          "name": "Refresh Access Service Token",
+          "description": "Refreshes the expiration of a service token."
+        },
+        {
+          "name": "Rotate Access Service Token",
+          "description": "Generates a new Client Secret for a service token and revokes the old one."
+        },
+        {
+          "name": "Update Access Service Token",
+          "description": "Updates a configured service token. Replaces the configuration; resend all values to retain."
         },
         {
           "name": "List R2 Buckets",
@@ -5679,8 +5731,28 @@
           "description": "Reads the deployment settings of a single Workers script — bindings, compatibility date and flags, limits, observability, placement, and tail consumers. The plain \"get script\" endpoint in the Cloudflare API returns raw JavaScript source rather than JSON, so this settings endpoint is the structured way to inspect one script. Requires an API token with Account Workers Scripts Read."
         },
         {
+          "name": "Delete Worker Script",
+          "description": "Delete your worker. This call has no response body on a successful delete."
+        },
+        {
           "name": "List Worker Routes",
           "description": "Lists the Workers routes on a zone, showing which URL patterns are handled by which Worker script. Unlike the Workers script endpoints, routes are zone-scoped. Requires an API token with Zone Workers Routes Read."
+        },
+        {
+          "name": "Create Worker Route",
+          "description": "Creates a route that maps a URL pattern to a Worker."
+        },
+        {
+          "name": "Delete Worker Route",
+          "description": "Deletes a Worker route."
+        },
+        {
+          "name": "Get Worker Route",
+          "description": "Returns information about a Worker route, including URL pattern and Worker."
+        },
+        {
+          "name": "Update Worker Route",
+          "description": "Replaces the URL pattern or Worker associated with a Worker route. Replaces the configuration; resend all values to retain."
         },
         {
           "name": "List Tunnels",
@@ -5693,16 +5765,56 @@
         {
           "name": "Get Tunnel Configuration",
           "description": "Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress rules, origin request settings, and WARP routing. Only tunnels whose configuration source is \"cloudflare\" have a remote configuration; locally-managed tunnels keep it in their own config file. Requires an API token with Account Cloudflare Tunnel Read."
+        },
+        {
+          "name": "Update Tunnel Configuration",
+          "description": "Replaces the configuration for a remotely managed Cloudflare Tunnel, including its ingress rules and origin request settings. Replaces the configuration; resend all values to retain."
+        },
+        {
+          "name": "Create Tunnel",
+          "description": "Creates a remotely or locally managed Cloudflare Tunnel in an account. After creation, retrieve its token and run cloudflared to establish the connector connection."
+        },
+        {
+          "name": "Delete Tunnel",
+          "description": "Permanently deletes a Cloudflare Tunnel from an account. The tunnel must have no active connections."
+        },
+        {
+          "name": "Delete R2 Bucket CORS",
+          "description": "Delete the CORS policy for a bucket."
+        },
+        {
+          "name": "Get R2 Bucket CORS",
+          "description": "Get the CORS policy for a bucket."
+        },
+        {
+          "name": "Update R2 Bucket CORS",
+          "description": "Replaces the Cross-Origin Resource Sharing (CORS) rules for an R2 bucket. Rules specify which origins, methods, and headers are allowed for browser requests to objects in the bucket. Replaces the configuration; resend all values to retain."
+        },
+        {
+          "name": "Get R2 Bucket Lifecycle",
+          "description": "Get object lifecycle rules for a bucket."
+        },
+        {
+          "name": "Update R2 Bucket Lifecycle",
+          "description": "Replaces the object lifecycle rules for an R2 bucket. Rules match object-key prefixes and can expire objects, abort incomplete multipart uploads, or transition objects to Infrequent Access storage. Replaces the configuration; resend all values to retain."
+        },
+        {
+          "name": "Get Tunnel Token",
+          "description": "Gets the connector token used to run a remotely managed Cloudflare Tunnel with cloudflared."
+        },
+        {
+          "name": "Update Tunnel",
+          "description": "Updates the name or secret of an existing Cloudflare Tunnel."
         }
       ],
-      "operationCount": 48,
+      "operationCount": 76,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "cloudformation",

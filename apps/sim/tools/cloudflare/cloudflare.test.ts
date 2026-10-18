@@ -222,6 +222,13 @@ describe('a shared subBlock id means the same thing everywhere', () => {
     'appId',
     'bucketName',
     'rulesetId',
+    'recordId',
+    'policyId',
+    'serviceTokenId',
+    'groupId',
+    'routeId',
+    'scriptName',
+    'tunnelId',
   ])
 
   /**
@@ -848,21 +855,18 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     ])
   })
 
-  it('keeps a crafted zone ID inside the zone path segment', async () => {
+  it('rejects a crafted zone ID before making a provider request', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async (input) => settingEnvelope(String(input).split('/').pop()!, 'on'))
 
-    await executeGetZoneSettingsOperation({
+    const result = await executeGetZoneSettingsOperation({
       zoneId: '../accounts',
       apiKey,
       settingIds: 'ssl',
     } as never)
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.cloudflare.com/client/v4/zones/..%2Faccounts/settings/ssl',
-      expect.any(Object)
-    )
+    expect(result.success).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('does not let a dot-segment setting ID escape the settings endpoint', async () => {
@@ -875,7 +879,7 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     } as never)) as { success: boolean; error?: string }
 
     expect(out.success).toBe(false)
-    expect(out.error).toMatch(/setting ID must identify a resource/)
+    expect(out.error).toMatch(/settingId/)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -966,6 +970,21 @@ describe('zone settings are read through the endpoints Cloudflare still supports
 
     expect(out.success).toBe(false)
     expect(out.error).toBe('Invalid zone identifier')
+  })
+
+  it('rejects a setting response whose declared size exceeds the per-setting cap', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: true, result: { id: 'ssl', value: 'full' } }), {
+        headers: { 'Content-Length': String(1024 * 1024 + 1) },
+      })
+    )
+    const result = await executeGetZoneSettingsOperation({
+      zoneId: 'z1',
+      apiKey,
+      settingIds: 'ssl',
+    } as never)
+    expect(result.success).toBe(false)
+    expect(result.error).toMatch(/exceed|limit|large/i)
   })
 
   it('refuses an unbounded fan-out instead of issuing the requests', async () => {
