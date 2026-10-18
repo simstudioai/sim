@@ -3,6 +3,7 @@ import type {
   GreenhouseGetCandidateResponse,
 } from '@/tools/greenhouse/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const greenhouseGetCandidateTool: ToolConfig<
   GreenhouseGetCandidateParams,
@@ -31,7 +32,7 @@ export const greenhouseGetCandidateTool: ToolConfig<
 
   request: {
     url: (params: GreenhouseGetCandidateParams) =>
-      `https://harvest.greenhouse.io/v1/candidates/${params.candidateId.trim()}`,
+      `https://harvest.greenhouse.io/v1/candidates/${safeUrlPathSegment(params.candidateId, 'candidateId')}`,
     method: 'GET',
     headers: (params: GreenhouseGetCandidateParams) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,

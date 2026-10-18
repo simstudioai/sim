@@ -1900,6 +1900,7 @@ export type CreateCredentialConnectionBody =
       workspaceId: string
       displayName: string
       providerId:
+        | 'greenhouse'
         | 'github-repositories'
         | 'google-email'
         | 'google-drive'

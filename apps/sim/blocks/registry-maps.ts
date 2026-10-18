@@ -143,7 +143,12 @@ import { GoogleVaultBlock, GoogleVaultBlockMeta } from '@/blocks/blocks/google_v
 import { GrafanaBlock, GrafanaBlockMeta } from '@/blocks/blocks/grafana'
 import { GrainBlock, GrainBlockMeta, GrainV2Block, GrainV2BlockMeta } from '@/blocks/blocks/grain'
 import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
-import { GreenhouseBlock, GreenhouseBlockMeta } from '@/blocks/blocks/greenhouse'
+import {
+  GreenhouseBlock,
+  GreenhouseBlockMeta,
+  GreenhouseV2Block,
+  GreenhouseV2BlockMeta,
+} from '@/blocks/blocks/greenhouse'
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
@@ -534,6 +539,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   grain_v2: GrainV2Block,
   granola: GranolaBlock,
   greenhouse: GreenhouseBlock,
+  greenhouse_v2: GreenhouseV2Block,
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
   harmonic: HarmonicBlock,
@@ -891,6 +897,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   grain_v2: GrainV2BlockMeta,
   granola: GranolaBlockMeta,
   greenhouse: GreenhouseBlockMeta,
+  greenhouse_v2: GreenhouseV2BlockMeta,
   greptile: GreptileBlockMeta,
   harmonic: HarmonicBlockMeta,
   hex: HexBlockMeta,

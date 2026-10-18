@@ -1,5 +1,6 @@
 import type { GreenhouseGetJobParams, GreenhouseGetJobResponse } from '@/tools/greenhouse/types'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const greenhouseGetJobTool: ToolConfig<GreenhouseGetJobParams, GreenhouseGetJobResponse> = {
   id: 'greenhouse_get_job',
@@ -25,7 +26,7 @@ export const greenhouseGetJobTool: ToolConfig<GreenhouseGetJobParams, Greenhouse
 
   request: {
     url: (params: GreenhouseGetJobParams) =>
-      `https://harvest.greenhouse.io/v1/jobs/${params.jobId.trim()}`,
+      `https://harvest.greenhouse.io/v1/jobs/${safeUrlPathSegment(params.jobId, 'jobId')}`,
     method: 'GET',
     headers: (params: GreenhouseGetJobParams) => ({
       Authorization: `Basic ${btoa(`${params.apiKey}:`)}`,

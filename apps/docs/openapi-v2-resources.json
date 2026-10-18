@@ -17530,6 +17530,7 @@
                   "providerId": {
                     "type": "string",
                     "enum": [
+                      "greenhouse",
                       "github-repositories",
                       "google-email",
                       "google-drive",

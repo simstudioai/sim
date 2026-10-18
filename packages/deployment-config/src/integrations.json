@@ -12312,11 +12312,11 @@
       "updatedAt": "2026-08-20"
     },
     {
-      "type": "greenhouse",
+      "type": "greenhouse_v2",
       "slug": "greenhouse",
       "name": "Greenhouse",
-      "description": "Manage candidates, jobs, and applications in Greenhouse",
-      "longDescription": "List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.",
+      "description": "Manage recruiting with Greenhouse Harvest v3",
+      "longDescription": "Read and manage candidates, applications, notes, attachments, and tags with Harvest v3 OAuth. Retrieve jobs, hiring teams, interviews, scorecards, offers, and configuration resources with cursor pagination. Existing Greenhouse webhooks remain available.",
       "bgColor": "#469776",
       "iconName": "GreenhouseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/greenhouse",
@@ -12330,12 +12330,16 @@
           "description": "Retrieves a specific candidate by ID with full details including contact info, education, and employment history"
         },
         {
-          "name": "List Jobs",
-          "description": "Lists jobs from Greenhouse with optional filtering by status, department, or office"
+          "name": "Create Candidate",
+          "description": "Creates a candidate profile and optionally its first application."
         },
         {
-          "name": "Get Job",
-          "description": "Retrieves a specific job by ID with full details including hiring team, openings, and custom fields"
+          "name": "Update Candidate",
+          "description": "Updates selected candidate fields. Read the current candidate first: supplied arrays replace the entire existing collection. Send the complete desired array, or [] to remove all entries."
+        },
+        {
+          "name": "Delete Candidate",
+          "description": "Delete candidate using Greenhouse Harvest v3."
         },
         {
           "name": "List Applications",
@@ -12344,6 +12348,126 @@
         {
           "name": "Get Application",
           "description": "Retrieves a specific application by ID with full details including source, stage, answers, and attachments"
+        },
+        {
+          "name": "Create Application",
+          "description": "Creates a job application or prospect application for an existing candidate."
+        },
+        {
+          "name": "Update Application",
+          "description": "Update application using Greenhouse Harvest v3."
+        },
+        {
+          "name": "Move Application",
+          "description": "Moves or advances an application using its current stage as a guard; configured stage rules may send emails."
+        },
+        {
+          "name": "Convert Prospect",
+          "description": "Converts a prospect application into a new candidate application on a job already associated with the prospect."
+        },
+        {
+          "name": "Reject Application",
+          "description": "Rejects an application; optionally sends or schedules the configured rejection email."
+        },
+        {
+          "name": "Unreject Application",
+          "description": "Restores a rejected application to its previous stage and clears its rejection reason and notes."
+        },
+        {
+          "name": "Hire Application",
+          "description": "Marks an application hired and closes its opening; provide opening_id when the job has multiple open openings."
+        },
+        {
+          "name": "Delete Application",
+          "description": "Delete application using Greenhouse Harvest v3."
+        },
+        {
+          "name": "List Jobs",
+          "description": "Lists jobs from Greenhouse with optional filtering by status, department, or office"
+        },
+        {
+          "name": "Get Job",
+          "description": "Retrieves a specific job by ID with full details including hiring team, openings, and custom fields"
+        },
+        {
+          "name": "List Job Interview Stages",
+          "description": "Lists one page of job interview stages with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Application Stages",
+          "description": "Lists one page of application stages with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Job Hiring Managers",
+          "description": "Lists one page of job hiring managers with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Job Owners",
+          "description": "Lists one page of job owners with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Openings",
+          "description": "Lists one page of openings with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Interviews",
+          "description": "Lists one page of interviews with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Scorecards",
+          "description": "Lists one page of scorecards with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Offers",
+          "description": "Lists one page of offers with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Notes",
+          "description": "Lists one page of notes with cursor pagination and documented filters."
+        },
+        {
+          "name": "Create Note",
+          "description": "Creates a candidate note or activity entry, or logs an email without sending it."
+        },
+        {
+          "name": "List Attachments",
+          "description": "Lists one page of attachments with cursor pagination and documented filters."
+        },
+        {
+          "name": "Create Attachment",
+          "description": "Attaches a file to an application. A new resume or cover letter reclassifies the previous attachment of that type as other."
+        },
+        {
+          "name": "Delete Attachment",
+          "description": "Delete attachment using Greenhouse Harvest v3."
+        },
+        {
+          "name": "List Candidate Tags",
+          "description": "Lists one page of candidate tags with cursor pagination and documented filters."
+        },
+        {
+          "name": "Create Candidate Tag",
+          "description": "Create candidate tag using Greenhouse Harvest v3."
+        },
+        {
+          "name": "List Applied Candidate Tags",
+          "description": "Lists one page of applied candidate tags with cursor pagination and documented filters."
+        },
+        {
+          "name": "Apply Candidate Tag",
+          "description": "Apply candidate tag using Greenhouse Harvest v3."
+        },
+        {
+          "name": "Remove Candidate Tag",
+          "description": "Removes an applied tag by its applied_candidate_tags row ID, leaving the tag dictionary intact."
+        },
+        {
+          "name": "List Candidate Educations",
+          "description": "Lists one page of candidate educations with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Candidate Employments",
+          "description": "Lists one page of candidate employments with cursor pagination and documented filters."
         },
         {
           "name": "List Users",
@@ -12362,11 +12486,43 @@
           "description": "Lists all offices configured in Greenhouse"
         },
         {
-          "name": "List Job Stages",
-          "description": "Lists all interview stages for a specific job in Greenhouse"
+          "name": "List Sources",
+          "description": "Lists one page of sources with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Referrers",
+          "description": "Lists one page of referrers with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Rejection Reasons",
+          "description": "Lists one page of rejection reasons with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Close Reasons",
+          "description": "Lists one page of close reasons with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Prospect Pools",
+          "description": "Lists one page of prospect pools with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Prospect Pool Stages",
+          "description": "Lists one page of prospect pool stages with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Custom Fields",
+          "description": "Lists one page of custom fields with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Custom Field Options",
+          "description": "Lists one page of custom field options with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Email Templates",
+          "description": "Lists one page of email templates with cursor pagination and documented filters."
         }
       ],
-      "operationCount": 11,
+      "operationCount": 50,
       "triggers": [
         {
           "id": "greenhouse_candidate_hired",
@@ -12410,11 +12566,12 @@
         }
       ],
       "triggerCount": 8,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "greenhouse",
       "category": "tools",
       "integrationType": "hr",
       "tags": ["hiring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "greptile",
