@@ -249,7 +249,7 @@ export class McpClient {
       await this.closeTransportAgent()
       const errorMessage = getErrorMessage(error, 'Unknown error')
       const outcome = classifyConnectionOutcome(error, this.config.authType)
-      logger.error(`Failed to connect to MCP server ${this.config.name}`, {
+      logger.warn(`Failed to connect to MCP server ${this.config.name}`, {
         ...diagnostics,
         durationMs: Date.now() - startedAt,
         error: getMcpSafeErrorDiagnostics(error),
@@ -511,7 +511,7 @@ export class McpClient {
       logger.info(`[${this.config.name}] Ping successful`)
       return response
     } catch (error) {
-      logger.error(`[${this.config.name}] Ping failed:`, error)
+      logger.warn(`[${this.config.name}] Ping failed:`, error)
       throw error
     }
   }

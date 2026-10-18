@@ -1,6 +1,8 @@
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
 import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
 import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
+import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetUrlsMock)
@@ -13,6 +15,7 @@ vi.mock('@/lib/auth/internal', () => authInternalMock)
 vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { maskPIIBatchViaHttp } from '@/lib/guardrails/mask-client'
+import { POST as maskBatchRoute } from '@/app/api/guardrails/mask-batch/route'
 
 const mockSleep = utilsHelpersMockFns.mockSleep
 
@@ -118,5 +121,50 @@ describe('maskPIIBatchViaHttp', () => {
     await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/unexpected result/)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(mockSleep).not.toHaveBeenCalled()
+  })
+
+  describe('through the real mask-batch route', () => {
+    let presidioTexts: string[][]
+
+    beforeEach(() => {
+      presidioTexts = []
+      hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({ success: true })
+      fetchMock.mockImplementation(
+        async (url: string, init: { body: string; headers: Record<string, string> }) => {
+          if (url.startsWith('http://app.internal:3000')) {
+            return maskBatchRoute(
+              new NextRequest(url, { method: 'POST', body: init.body, headers: init.headers })
+            )
+          }
+          const { texts } = JSON.parse(init.body) as { texts: string[] }
+          presidioTexts.push(texts)
+          return Response.json({
+            texts: texts.map((t) => t.replace('ada@example.com', '<EMAIL>')),
+          })
+        }
+      )
+    })
+
+    it('masks a chunk whose strings carry a NUL instead of failing the whole chunk', async () => {
+      const { masked, scrubbedCount } = await maskPIIBatchViaHttp(
+        ['mail ada@example.com\u0000end', 'plain text'],
+        ['EMAIL_ADDRESS'],
+        undefined,
+        undefined,
+        { failedChunkPlaceholder: '[FAILED]' }
+      )
+
+      expect(scrubbedCount).toBe(0)
+      expect(masked).toEqual(['mail <EMAIL>\uFFFDend', 'plain text'])
+    })
+
+    it('sends text without a NUL to Presidio unchanged', async () => {
+      const text = 'mail ada@example.com \u{1F600} done'
+
+      const { masked } = await maskPIIBatchViaHttp([text], ['EMAIL_ADDRESS'])
+
+      expect(presidioTexts).toEqual([[text]])
+      expect(masked).toEqual(['mail <EMAIL> \u{1F600} done'])
+    })
   })
 })

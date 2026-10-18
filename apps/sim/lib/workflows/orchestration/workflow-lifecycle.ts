@@ -31,6 +31,8 @@ const logger = createLogger('WorkflowLifecycle')
 
 /** Partial unique index on `(workspace_id, coalesce(folder_id, ''), name) WHERE archived_at IS NULL`. */
 const WORKFLOW_NAME_UNIQUE_INDEX = 'workflow_workspace_folder_name_active_unique'
+/** Primary key of `workflow`; only a caller-supplied `id` can collide with it. */
+const WORKFLOW_PRIMARY_KEY = 'workflow_pkey'
 const WORKFLOW_NAME_DEDUPLICATION_ATTEMPTS = 8
 
 export interface PerformCreateWorkflowParams {
@@ -354,10 +356,17 @@ export async function performCreateWorkflowTransition(
        * pre-check reports. Matching the constraint avoids relabeling a `23505` from
        * normalized workflow tables as a name collision.
        */
-      const isNameConflict =
-        getPostgresErrorCode(error) === '23505' &&
-        getPostgresConstraintName(error) === WORKFLOW_NAME_UNIQUE_INDEX
-      if (!isNameConflict) {
+      const conflictingConstraint =
+        getPostgresErrorCode(error) === '23505' ? getPostgresConstraintName(error) : undefined
+      if (conflictingConstraint === WORKFLOW_PRIMARY_KEY) {
+        logger.warn(`[${requestId}] Workflow id is already taken`, { workflowId })
+        return {
+          success: false,
+          error: 'A workflow with this ID already exists',
+          errorCode: 'conflict',
+        }
+      }
+      if (conflictingConstraint !== WORKFLOW_NAME_UNIQUE_INDEX) {
         throw error
       }
 

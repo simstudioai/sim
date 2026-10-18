@@ -25,6 +25,7 @@ vi.mock('@/lib/mcp/middleware', () => ({
 vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
+import { McpConnectionError, McpServerCooldownError } from '@/lib/mcp/types'
 import { GET } from '@/app/api/mcp/tools/discover/route'
 
 describe('GET /api/mcp/tools/discover', () => {
@@ -42,5 +43,33 @@ describe('GET /api/mcp/tools/discover', () => {
 
     expect(response.status).toBe(401)
     expect(JSON.stringify(await response.json())).not.toContain('secret-state')
+  })
+
+  const discover = () =>
+    GET(
+      new NextRequest(
+        'http://localhost:3000/api/mcp/tools/discover?workspaceId=workspace-1&serverId=mcp-1'
+      ),
+      createRouteContext({})
+    )
+
+  it.each([
+    ['cannot be reached', () => new McpConnectionError('connect ECONNREFUSED', 'Docs')],
+    ['is cooling down after a recent failure', () => new McpServerCooldownError('mcp-1')],
+  ])('answers 422 when the registered server %s', async (_name, makeError) => {
+    mcpServiceMockFns.mockDiscoverServerTools.mockRejectedValueOnce(makeError())
+
+    const response = await discover()
+
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('Failed to discover MCP tools')
+  })
+
+  it('keeps a 500 for a failure that is not the registered server', async () => {
+    mcpServiceMockFns.mockDiscoverServerTools.mockRejectedValueOnce(new Error('pool exhausted'))
+
+    const response = await discover()
+
+    expect(response.status).toBe(500)
   })
 })
