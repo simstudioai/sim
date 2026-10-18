@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
+import {
+  GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
+  migrateGreenhouseAgentInputs,
+} from '@/lib/workflows/migrations/greenhouse-agent-inputs'
 import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
@@ -112,6 +116,8 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  /** Greenhouse normalization selects active values and removes stale aliases before this pass. */
+  greenhouse_v2: GREENHOUSE_SUBBLOCK_ID_MIGRATIONS,
   /** MCP normalization selects the active replacement before this rename pass. */
   mcp: [
     { from: 'server', to: 'serverSelector' },
@@ -578,7 +584,7 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       continue
     }
 
-    const normalized = migrateMcpOperationControls(block)
+    const normalized = migrateGreenhouseAgentInputs(migrateMcpOperationControls(block))
     const migrations = SUBBLOCK_ID_MIGRATIONS[block.type]
     const renamed = migrations
       ? migrateBlockSubblockIds(block.type, normalized.subBlocks, migrations)
