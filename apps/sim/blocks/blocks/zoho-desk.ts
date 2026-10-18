@@ -1287,6 +1287,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {
@@ -1343,6 +1344,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {
@@ -1401,6 +1403,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {
@@ -1517,6 +1520,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {
@@ -2208,6 +2212,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {
@@ -2238,6 +2243,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {
@@ -2729,6 +2735,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {
@@ -2759,6 +2766,7 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
+        generationType: 'timestamp',
       },
     },
     {

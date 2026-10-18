@@ -213,7 +213,7 @@ export const zohoDeskCreateTicketTool: ToolConfig<
         classification: params.classification,
         category: params.category,
         status: params.status,
-        contactId: params.contactId,
+        contactId: params.contactId?.trim() || undefined,
         departmentId: params.departmentId,
         contact: parseZohoDeskJson(params.contact, 'contact', 'object'),
         uploads: parseZohoDeskJson(params.uploads, 'uploads', 'array'),
