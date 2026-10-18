@@ -320,6 +320,40 @@ describe('resource writer', () => {
     })
   })
 
+  it('validates an overwrite of a missing target as the create the writer will perform', async () => {
+    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(
+      new OrchestrationError('not_found', 'File not found')
+    )
+    mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue('folder-reports')
+    mocks.getWorkspaceFileByName.mockResolvedValue(null)
+    const target = { path: 'files/Reports/summary.csv', mode: 'overwrite' } as const
+
+    await expect(
+      validateWorkspaceFileWriteTarget({
+        workspaceId: 'workspace-1',
+        principal: createSessionPrincipal(),
+        target,
+      })
+    ).resolves.toEqual({
+      mode: 'create',
+      vfsPath: 'files/Reports/summary.csv',
+      fileName: 'summary.csv',
+      folderId: 'folder-reports',
+    })
+
+    mocks.admitCreateWorkspaceFile.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient permissions')
+    )
+    await expect(
+      validateWorkspaceFileWriteTarget({
+        workspaceId: 'workspace-1',
+        principal: createSessionPrincipal(),
+        target,
+      })
+    ).rejects.toThrow('Insufficient permissions')
+  })
+
   it('upserts: an overwrite of a missing target falls through to create', async () => {
     const { OrchestrationError } = await import('@/lib/core/orchestration/types')
     mocks.resolveWorkspaceFileReference.mockRejectedValue(

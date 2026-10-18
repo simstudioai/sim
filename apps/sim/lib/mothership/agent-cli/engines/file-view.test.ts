@@ -3,9 +3,12 @@ import { PDFDocument } from 'pdf-lib'
 import sharp from 'sharp'
 import { describe, expect, it, vi } from 'vitest'
 
-const { read } = vi.hoisted(() => ({ read: vi.fn() }))
+const { read, scratch } = vi.hoisted(() => ({ read: vi.fn(), scratch: vi.fn() }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
   readWorkspaceFileArtifact: { execute: read },
+}))
+vi.mock('@/lib/mothership/chat/application/read-sandbox-file', () => ({
+  readChatSandboxFile: { execute: scratch },
 }))
 
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
@@ -104,5 +107,32 @@ describe('registered files view boundary', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stderr).not.toContain('database host')
     expect(result.observations).toBeUndefined()
+  })
+  it('reads an absolute sandbox path from the chat scratch machine, never the workspace', async () => {
+    const bytes = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'red' } })
+      .png()
+      .toBuffer()
+    scratch.mockResolvedValue({ buffer: bytes, name: 'x.png', path: '/home/user/x.png' })
+    const result = await runEngine(
+      'files view',
+      ['/home/user/x.png'],
+      { ...runtime, chatId: 'trusted-chat' },
+      {}
+    )
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      source: 'sandbox',
+      representation: 'visual',
+      path: '/home/user/x.png',
+    })
+    expect(ArtifactObservations.parse(result.observations)).toHaveLength(1)
+    expect(result.resources).toBeUndefined()
+    expect(scratch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal,
+        input: expect.objectContaining({ chatId: 'trusted-chat', path: '/home/user/x.png' }),
+      })
+    )
+    expect(read).not.toHaveBeenCalled()
   })
 })
