@@ -89,288 +89,321 @@ function parseCustomFields(value: unknown): Record<string, unknown> | undefined 
 
 const ADDITIONAL_OPERATION_FIELDS: Record<
   string,
-  Record<string, { field: string; type: string; omitEmpty?: boolean }>
+  Record<string, { type: string; omitEmpty?: boolean }>
 > = {
   create_ticket: {
-    productId: { field: 'createTicketProductId', type: 'string' },
-    phone: { field: 'createTicketPhone', type: 'string' },
-    subject: { field: 'createTicketSubject', type: 'string' },
-    dueDate: { field: 'createTicketDueDate', type: 'string' },
-    channel: { field: 'createTicketChannel', type: 'string' },
-    language: { field: 'createTicketLanguage', type: 'string' },
-    priority: { field: 'createTicketPriority', type: 'string' },
-    assigneeId: { field: 'createTicketAssigneeId', type: 'string' },
-    email: { field: 'createTicketEmail', type: 'string' },
-    subCategory: { field: 'createTicketSubCategory', type: 'string' },
-    customFields: { field: 'createTicketCustomFields', type: 'json' },
-    description: { field: 'createTicketDescription', type: 'string' },
-    classification: { field: 'createTicketClassification', type: 'string' },
-    category: { field: 'createTicketCategory', type: 'string' },
-    status: { field: 'createTicketStatus', type: 'string' },
-    contactId: { field: 'createTicketContactId', type: 'string' },
-    departmentId: { field: 'createTicketDepartmentId', type: 'string' },
-    contact: { field: 'createTicketContact', type: 'json' },
-    uploads: { field: 'createTicketUploads', type: 'array' },
-    resolution: { field: 'createTicketResolution', type: 'string' },
-    webUrl: { field: 'createTicketWebUrl', type: 'string' },
-    sharedDepartments: { field: 'createTicketSharedDepartments', type: 'array' },
-    teamId: { field: 'createTicketTeamId', type: 'string' },
-    secondaryContacts: { field: 'createTicketSecondaryContacts', type: 'array' },
-    entitySkills: { field: 'createTicketEntitySkills', type: 'array' },
+    productId: { type: 'string' },
+    phone: { type: 'string' },
+    subject: { type: 'string' },
+    dueDate: { type: 'string' },
+    channel: { type: 'string' },
+    language: { type: 'string' },
+    priority: { type: 'string' },
+    assigneeId: { type: 'string' },
+    email: { type: 'string' },
+    subCategory: { type: 'string' },
+    customFields: { type: 'json' },
+    description: { type: 'string' },
+    classification: { type: 'string' },
+    category: { type: 'string' },
+    status: { type: 'string' },
+    contactId: { type: 'string' },
+    departmentId: { type: 'string' },
+    contact: { type: 'json' },
+    uploads: { type: 'array' },
+    resolution: { type: 'string' },
+    webUrl: { type: 'string' },
+    sharedDepartments: { type: 'array' },
+    teamId: { type: 'string' },
+    secondaryContacts: { type: 'array' },
+    entitySkills: { type: 'array' },
   },
   search_tickets: {
-    email: { field: 'searchTicketsEmail', type: 'string' },
-    phone: { field: 'searchTicketsPhone', type: 'string' },
-    ticketNumber: { field: 'searchTicketsTicketNumber', type: 'string' },
-    accountName: { field: 'searchTicketsAccountName', type: 'string' },
-    subject: { field: 'searchTicketsSubject', type: 'string' },
-    departmentId: { field: 'searchTicketsDepartmentId', type: 'string' },
-    productName: { field: 'searchTicketsProductName', type: 'string' },
-    _all: { field: 'searchTicketsQuery', type: 'string' },
-    limit: { field: 'searchTicketsLimit', type: 'number' },
-    from: { field: 'searchTicketsFrom', type: 'number' },
-    dueDateRange: { field: 'searchTicketsDueDateRange', type: 'string' },
-    id: { field: 'searchTicketsId', type: 'string' },
-    productId: { field: 'searchTicketsProductId', type: 'string' },
-    contactId: { field: 'searchTicketsContactId', type: 'string' },
-    createdTimeRange: { field: 'searchTicketsCreatedTimeRange', type: 'string' },
-    priority: { field: 'searchTicketsPriority', type: 'string' },
-    assigneeId: { field: 'searchTicketsAssigneeId', type: 'string' },
-    accountId: { field: 'searchTicketsAccountId', type: 'string' },
-    modifiedTimeRange: { field: 'searchTicketsModifiedTimeRange', type: 'string' },
-    status: { field: 'searchTicketsStatus', type: 'string' },
-    customField1: { field: 'searchTicketsCustomField1', type: 'string' },
-    customField2: { field: 'searchTicketsCustomField2', type: 'string' },
-    customField3: { field: 'searchTicketsCustomField3', type: 'string' },
-    customField4: { field: 'searchTicketsCustomField4', type: 'string' },
-    customField5: { field: 'searchTicketsCustomField5', type: 'string' },
-    customField6: { field: 'searchTicketsCustomField6', type: 'string' },
-    customField7: { field: 'searchTicketsCustomField7', type: 'string' },
-    customField8: { field: 'searchTicketsCustomField8', type: 'string' },
-    customField9: { field: 'searchTicketsCustomField9', type: 'string' },
-    customField10: { field: 'searchTicketsCustomField10', type: 'string' },
-    channel: { field: 'searchTicketsChannel', type: 'string' },
-    customerResponseTimeRange: { field: 'searchTicketsCustomerResponseTimeRange', type: 'string' },
-    description: { field: 'searchTicketsDescription', type: 'string' },
-    sortBy: { field: 'searchTicketsSortBy', type: 'string' },
-    tag: { field: 'searchTicketsTag', type: 'string' },
-    contactName: { field: 'searchTicketsContactName', type: 'string' },
-    category: { field: 'searchTicketsCategory', type: 'string' },
+    email: { type: 'string' },
+    phone: { type: 'string' },
+    ticketNumber: { type: 'string' },
+    accountName: { type: 'string' },
+    subject: { type: 'string' },
+    departmentId: { type: 'string' },
+    productName: { type: 'string' },
+    _all: { type: 'string' },
+    limit: { type: 'number' },
+    from: { type: 'number' },
+    dueDateRange: { type: 'string' },
+    id: { type: 'string' },
+    productId: { type: 'string' },
+    contactId: { type: 'string' },
+    createdTimeRange: { type: 'string' },
+    priority: { type: 'string' },
+    assigneeId: { type: 'string' },
+    accountId: { type: 'string' },
+    modifiedTimeRange: { type: 'string' },
+    status: { type: 'string' },
+    customField1: { type: 'string' },
+    customField2: { type: 'string' },
+    customField3: { type: 'string' },
+    customField4: { type: 'string' },
+    customField5: { type: 'string' },
+    customField6: { type: 'string' },
+    customField7: { type: 'string' },
+    customField8: { type: 'string' },
+    customField9: { type: 'string' },
+    customField10: { type: 'string' },
+    channel: { type: 'string' },
+    customerResponseTimeRange: { type: 'string' },
+    description: { type: 'string' },
+    sortBy: { type: 'string' },
+    tag: { type: 'string' },
+    contactName: { type: 'string' },
+    category: { type: 'string' },
   },
   move_ticket: {
-    ticketId: { field: 'moveTicketTicketId', type: 'string' },
-    departmentId: { field: 'moveTicketDepartmentId', type: 'string' },
-    forumId: { field: 'moveTicketForumId', type: 'string' },
+    ticketId: { type: 'string' },
+    departmentId: { type: 'string' },
+    forumId: { type: 'string' },
   },
   send_reply: {
-    isPrivate: { field: 'sendReplyIsPrivate', type: 'boolean' },
-    sendImmediately: { field: 'sendReplySendImmediately', type: 'boolean' },
-    ticketId: { field: 'sendReplyTicketId', type: 'string' },
-    content: { field: 'sendReplyContent', type: 'string' },
-    contentType: { field: 'sendReplyContentType', type: 'string', omitEmpty: true },
-    inReplyToThreadId: { field: 'sendReplyInReplyToThreadId', type: 'string' },
-    direction: { field: 'sendReplyDirection', type: 'string', omitEmpty: true },
-    cc: { field: 'sendReplyCc', type: 'string' },
-    bcc: { field: 'sendReplyBcc', type: 'string' },
-    hasAttach: { field: 'sendReplyHasAttach', type: 'boolean' },
-    ticketStatus: { field: 'sendReplyTicketStatus', type: 'string' },
-    attachmentIds: { field: 'sendReplyAttachmentIds', type: 'array' },
-    to: { field: 'sendReplyTo', type: 'string' },
-    fromEmailAddress: { field: 'sendReplyFromEmailAddress', type: 'string' },
-    isForward: { field: 'sendReplyIsForward', type: 'boolean' },
+    isPrivate: { type: 'boolean' },
+    sendImmediately: { type: 'boolean' },
+    ticketId: { type: 'string' },
+    content: { type: 'string' },
+    contentType: { type: 'string', omitEmpty: true },
+    inReplyToThreadId: { type: 'string' },
+    direction: { type: 'string', omitEmpty: true },
+    cc: { type: 'string' },
+    bcc: { type: 'string' },
+    hasAttach: { type: 'boolean' },
+    ticketStatus: { type: 'string' },
+    attachmentIds: { type: 'array' },
+    to: { type: 'string' },
+    fromEmailAddress: { type: 'string' },
+    isForward: { type: 'boolean' },
   },
   list_contacts: {
-    fields: { field: 'listContactsFields', type: 'string' },
-    viewId: { field: 'listContactsViewId', type: 'string' },
-    limit: { field: 'listContactsLimit', type: 'number' },
-    from: { field: 'listContactsFrom', type: 'number' },
-    include: { field: 'listContactsInclude', type: 'string' },
-    sortBy: { field: 'listContactsSortBy', type: 'string' },
+    fields: { type: 'string' },
+    viewId: { type: 'string' },
+    limit: { type: 'number' },
+    from: { type: 'number' },
+    include: { type: 'string' },
+    sortBy: { type: 'string' },
   },
   create_contact: {
-    lastName: { field: 'createContactLastName', type: 'string' },
-    accountId: { field: 'createContactAccountId', type: 'string' },
-    firstName: { field: 'createContactFirstName', type: 'string' },
-    secondaryEmail: { field: 'createContactSecondaryEmail', type: 'string' },
-    phone: { field: 'createContactPhone', type: 'string' },
-    mobile: { field: 'createContactMobile', type: 'string' },
-    ownerId: { field: 'createContactOwnerId', type: 'string' },
-    type: { field: 'createContactType', type: 'string' },
-    email: { field: 'createContactEmail', type: 'string' },
-    zip: { field: 'createContactZip', type: 'string' },
-    country: { field: 'createContactCountry', type: 'string' },
-    twitter: { field: 'createContactTwitter', type: 'string' },
-    customFields: { field: 'createContactCustomFields', type: 'json' },
-    city: { field: 'createContactCity', type: 'string' },
-    street: { field: 'createContactStreet', type: 'string' },
-    facebook: { field: 'createContactFacebook', type: 'string' },
-    description: { field: 'createContactDescription', type: 'string' },
-    state: { field: 'createContactState', type: 'string' },
-    title: { field: 'createContactTitle', type: 'string' },
-    language: { field: 'createContactLanguage', type: 'string' },
+    lastName: { type: 'string' },
+    accountId: { type: 'string' },
+    firstName: { type: 'string' },
+    secondaryEmail: { type: 'string' },
+    phone: { type: 'string' },
+    mobile: { type: 'string' },
+    ownerId: { type: 'string' },
+    type: { type: 'string' },
+    email: { type: 'string' },
+    zip: { type: 'string' },
+    country: { type: 'string' },
+    twitter: { type: 'string' },
+    customFields: { type: 'json' },
+    city: { type: 'string' },
+    street: { type: 'string' },
+    facebook: { type: 'string' },
+    description: { type: 'string' },
+    state: { type: 'string' },
+    title: { type: 'string' },
+    language: { type: 'string' },
   },
   update_contact: {
-    contactId: { field: 'updateContactContactId', type: 'string' },
-    lastName: { field: 'updateContactLastName', type: 'string' },
-    accountId: { field: 'updateContactAccountId', type: 'string' },
-    firstName: { field: 'updateContactFirstName', type: 'string' },
-    secondaryEmail: { field: 'updateContactSecondaryEmail', type: 'string' },
-    phone: { field: 'updateContactPhone', type: 'string' },
-    mobile: { field: 'updateContactMobile', type: 'string' },
-    ownerId: { field: 'updateContactOwnerId', type: 'string' },
-    type: { field: 'updateContactType', type: 'string' },
-    email: { field: 'updateContactEmail', type: 'string' },
-    zip: { field: 'updateContactZip', type: 'string' },
-    country: { field: 'updateContactCountry', type: 'string' },
-    twitter: { field: 'updateContactTwitter', type: 'string' },
-    customFields: { field: 'updateContactCustomFields', type: 'json' },
-    city: { field: 'updateContactCity', type: 'string' },
-    street: { field: 'updateContactStreet', type: 'string' },
-    facebook: { field: 'updateContactFacebook', type: 'string' },
-    description: { field: 'updateContactDescription', type: 'string' },
-    state: { field: 'updateContactState', type: 'string' },
-    title: { field: 'updateContactTitle', type: 'string' },
-    language: { field: 'updateContactLanguage', type: 'string' },
+    contactId: { type: 'string' },
+    lastName: { type: 'string' },
+    accountId: { type: 'string' },
+    firstName: { type: 'string' },
+    secondaryEmail: { type: 'string' },
+    phone: { type: 'string' },
+    mobile: { type: 'string' },
+    ownerId: { type: 'string' },
+    type: { type: 'string' },
+    email: { type: 'string' },
+    zip: { type: 'string' },
+    country: { type: 'string' },
+    twitter: { type: 'string' },
+    customFields: { type: 'json' },
+    city: { type: 'string' },
+    street: { type: 'string' },
+    facebook: { type: 'string' },
+    description: { type: 'string' },
+    state: { type: 'string' },
+    title: { type: 'string' },
+    language: { type: 'string' },
   },
   search_contacts: {
-    email: { field: 'searchContactsEmail', type: 'string' },
-    phone: { field: 'searchContactsPhone', type: 'string' },
-    mobile: { field: 'searchContactsMobile', type: 'string' },
-    accountName: { field: 'searchContactsAccountName', type: 'string' },
-    createdTimeRange: { field: 'searchContactsCreatedTimeRange', type: 'string' },
-    limit: { field: 'searchContactsLimit', type: 'number' },
-    from: { field: 'searchContactsFrom', type: 'number' },
-    modifiedTimeRange: { field: 'searchContactsModifiedTimeRange', type: 'string' },
-    id: { field: 'searchContactsId', type: 'string' },
-    _all: { field: 'searchContactsQuery', type: 'string' },
-    customField1: { field: 'searchContactsCustomField1', type: 'string' },
-    customField2: { field: 'searchContactsCustomField2', type: 'string' },
-    customField3: { field: 'searchContactsCustomField3', type: 'string' },
-    customField4: { field: 'searchContactsCustomField4', type: 'string' },
-    customField5: { field: 'searchContactsCustomField5', type: 'string' },
-    customField6: { field: 'searchContactsCustomField6', type: 'string' },
-    customField7: { field: 'searchContactsCustomField7', type: 'string' },
-    customField8: { field: 'searchContactsCustomField8', type: 'string' },
-    customField9: { field: 'searchContactsCustomField9', type: 'string' },
-    customField10: { field: 'searchContactsCustomField10', type: 'string' },
-    lastName: { field: 'searchContactsLastName', type: 'string' },
-    firstName: { field: 'searchContactsFirstName', type: 'string' },
-    fullName: { field: 'searchContactsFullName', type: 'string' },
-    sortBy: { field: 'searchContactsSortBy', type: 'string' },
+    email: { type: 'string' },
+    phone: { type: 'string' },
+    mobile: { type: 'string' },
+    accountName: { type: 'string' },
+    createdTimeRange: { type: 'string' },
+    limit: { type: 'number' },
+    from: { type: 'number' },
+    modifiedTimeRange: { type: 'string' },
+    id: { type: 'string' },
+    _all: { type: 'string' },
+    customField1: { type: 'string' },
+    customField2: { type: 'string' },
+    customField3: { type: 'string' },
+    customField4: { type: 'string' },
+    customField5: { type: 'string' },
+    customField6: { type: 'string' },
+    customField7: { type: 'string' },
+    customField8: { type: 'string' },
+    customField9: { type: 'string' },
+    customField10: { type: 'string' },
+    lastName: { type: 'string' },
+    firstName: { type: 'string' },
+    fullName: { type: 'string' },
+    sortBy: { type: 'string' },
   },
   list_accounts: {
-    viewId: { field: 'listAccountsViewId', type: 'string' },
-    limit: { field: 'listAccountsLimit', type: 'number' },
-    from: { field: 'listAccountsFrom', type: 'number' },
-    sortBy: { field: 'listAccountsSortBy', type: 'string' },
-    fields: { field: 'listAccountsFields', type: 'string' },
+    viewId: { type: 'string' },
+    limit: { type: 'number' },
+    from: { type: 'number' },
+    sortBy: { type: 'string' },
+    fields: { type: 'string' },
   },
   create_account: {
-    website: { field: 'createAccountWebsite', type: 'string' },
-    accountName: { field: 'createAccountAccountName', type: 'string' },
-    phone: { field: 'createAccountPhone', type: 'string' },
-    email: { field: 'createAccountEmail', type: 'string' },
-    country: { field: 'createAccountCountry', type: 'string' },
-    code: { field: 'createAccountCode', type: 'string' },
-    customFields: { field: 'createAccountCustomFields', type: 'json' },
-    city: { field: 'createAccountCity', type: 'string' },
-    street: { field: 'createAccountStreet', type: 'string' },
-    annualrevenue: { field: 'createAccountAnnualrevenue', type: 'number' },
-    description: { field: 'createAccountDescription', type: 'string' },
-    industry: { field: 'createAccountIndustry', type: 'string' },
-    state: { field: 'createAccountState', type: 'string' },
-    ownerId: { field: 'createAccountOwnerId', type: 'string' },
-    fax: { field: 'createAccountFax', type: 'string' },
-    associatedSLAIds: { field: 'createAccountAssociatedSLAIds', type: 'array' },
+    website: { type: 'string' },
+    accountName: { type: 'string' },
+    phone: { type: 'string' },
+    email: { type: 'string' },
+    country: { type: 'string' },
+    code: { type: 'string' },
+    customFields: { type: 'json' },
+    city: { type: 'string' },
+    street: { type: 'string' },
+    annualrevenue: { type: 'number' },
+    description: { type: 'string' },
+    industry: { type: 'string' },
+    state: { type: 'string' },
+    ownerId: { type: 'string' },
+    fax: { type: 'string' },
+    associatedSLAIds: { type: 'array' },
   },
   update_account: {
-    accountId: { field: 'updateAccountAccountId', type: 'string' },
-    website: { field: 'updateAccountWebsite', type: 'string' },
-    accountName: { field: 'updateAccountAccountName', type: 'string' },
-    phone: { field: 'updateAccountPhone', type: 'string' },
-    email: { field: 'updateAccountEmail', type: 'string' },
-    country: { field: 'updateAccountCountry', type: 'string' },
-    code: { field: 'updateAccountCode', type: 'string' },
-    customFields: { field: 'updateAccountCustomFields', type: 'json' },
-    city: { field: 'updateAccountCity', type: 'string' },
-    street: { field: 'updateAccountStreet', type: 'string' },
-    annualrevenue: { field: 'updateAccountAnnualrevenue', type: 'number' },
-    description: { field: 'updateAccountDescription', type: 'string' },
-    industry: { field: 'updateAccountIndustry', type: 'string' },
-    state: { field: 'updateAccountState', type: 'string' },
-    ownerId: { field: 'updateAccountOwnerId', type: 'string' },
-    fax: { field: 'updateAccountFax', type: 'string' },
-    associatedSLAIds: { field: 'updateAccountAssociatedSLAIds', type: 'array' },
+    accountId: { type: 'string' },
+    website: { type: 'string' },
+    accountName: { type: 'string' },
+    phone: { type: 'string' },
+    email: { type: 'string' },
+    country: { type: 'string' },
+    code: { type: 'string' },
+    customFields: { type: 'json' },
+    city: { type: 'string' },
+    street: { type: 'string' },
+    annualrevenue: { type: 'number' },
+    description: { type: 'string' },
+    industry: { type: 'string' },
+    state: { type: 'string' },
+    ownerId: { type: 'string' },
+    fax: { type: 'string' },
+    associatedSLAIds: { type: 'array' },
   },
   search_accounts: {
-    accountName: { field: 'searchAccountsAccountName', type: 'string' },
-    createdTimeRange: { field: 'searchAccountsCreatedTimeRange', type: 'string' },
-    limit: { field: 'searchAccountsLimit', type: 'number' },
-    from: { field: 'searchAccountsFrom', type: 'number' },
-    modifiedTimeRange: { field: 'searchAccountsModifiedTimeRange', type: 'string' },
-    id: { field: 'searchAccountsId', type: 'string' },
-    _all: { field: 'searchAccountsQuery', type: 'string' },
-    customField1: { field: 'searchAccountsCustomField1', type: 'string' },
-    customField2: { field: 'searchAccountsCustomField2', type: 'string' },
-    customField3: { field: 'searchAccountsCustomField3', type: 'string' },
-    customField4: { field: 'searchAccountsCustomField4', type: 'string' },
-    customField5: { field: 'searchAccountsCustomField5', type: 'string' },
-    customField6: { field: 'searchAccountsCustomField6', type: 'string' },
-    customField7: { field: 'searchAccountsCustomField7', type: 'string' },
-    customField8: { field: 'searchAccountsCustomField8', type: 'string' },
-    customField9: { field: 'searchAccountsCustomField9', type: 'string' },
-    customField10: { field: 'searchAccountsCustomField10', type: 'string' },
-    sortBy: { field: 'searchAccountsSortBy', type: 'string' },
+    accountName: { type: 'string' },
+    createdTimeRange: { type: 'string' },
+    limit: { type: 'number' },
+    from: { type: 'number' },
+    modifiedTimeRange: { type: 'string' },
+    id: { type: 'string' },
+    _all: { type: 'string' },
+    customField1: { type: 'string' },
+    customField2: { type: 'string' },
+    customField3: { type: 'string' },
+    customField4: { type: 'string' },
+    customField5: { type: 'string' },
+    customField6: { type: 'string' },
+    customField7: { type: 'string' },
+    customField8: { type: 'string' },
+    customField9: { type: 'string' },
+    customField10: { type: 'string' },
+    sortBy: { type: 'string' },
   },
   get_account: {
-    include: { field: 'getAccountInclude', type: 'string' },
-    accountId: { field: 'getAccountAccountId', type: 'string' },
+    include: { type: 'string' },
+    accountId: { type: 'string' },
   },
   list_departments: {
-    chatStatus: { field: 'listDepartmentsChatStatus', type: 'string' },
-    searchStr: { field: 'listDepartmentsSearchStr', type: 'string' },
-    isEnabled: { field: 'listDepartmentsIsEnabled', type: 'boolean' },
-    limit: { field: 'listDepartmentsLimit', type: 'number' },
-    from: { field: 'listDepartmentsFrom', type: 'number' },
+    chatStatus: { type: 'string' },
+    searchStr: { type: 'string' },
+    isEnabled: { type: 'boolean' },
+    limit: { type: 'number' },
+    from: { type: 'number' },
   },
-  get_department: { departmentId: { field: 'getDepartmentDepartmentId', type: 'string' } },
+  get_department: { departmentId: { type: 'string' } },
   list_agents: {
-    include: { field: 'listAgentsInclude', type: 'string' },
-    roleIds: { field: 'listAgentsRoleIds', type: 'string' },
-    searchStr: { field: 'listAgentsSearchStr', type: 'string' },
-    cfSearchStr: { field: 'listAgentsCfSearchStr', type: 'string' },
-    cfFieldName: { field: 'listAgentsCfFieldName', type: 'string' },
-    fieldName: { field: 'listAgentsFieldName', type: 'string' },
-    isLightAgent: { field: 'listAgentsIsLightAgent', type: 'boolean' },
-    sortOrder: { field: 'listAgentsSortOrder', type: 'string' },
-    limit: { field: 'listAgentsLimit', type: 'number' },
-    rolePermissionType: { field: 'listAgentsRolePermissionType', type: 'string' },
-    profileIds: { field: 'listAgentsProfileIds', type: 'string' },
-    from: { field: 'listAgentsFrom', type: 'number' },
-    isConfirmed: { field: 'listAgentsIsConfirmed', type: 'boolean' },
-    departmentIds: { field: 'listAgentsDepartmentIds', type: 'string' },
-    status: { field: 'listAgentsStatus', type: 'string' },
+    include: { type: 'string' },
+    roleIds: { type: 'string' },
+    searchStr: { type: 'string' },
+    cfSearchStr: { type: 'string' },
+    cfFieldName: { type: 'string' },
+    fieldName: { type: 'string' },
+    isLightAgent: { type: 'boolean' },
+    sortOrder: { type: 'string' },
+    limit: { type: 'number' },
+    rolePermissionType: { type: 'string' },
+    profileIds: { type: 'string' },
+    from: { type: 'number' },
+    isConfirmed: { type: 'boolean' },
+    departmentIds: { type: 'string' },
+    status: { type: 'string' },
   },
   get_agent: {
-    include: { field: 'getAgentInclude', type: 'string' },
-    agentId: { field: 'getAgentAgentId', type: 'string' },
+    include: { type: 'string' },
+    agentId: { type: 'string' },
   },
   get_comment: {
-    include: { field: 'getCommentInclude', type: 'string' },
-    commentId: { field: 'getCommentCommentId', type: 'string' },
-    ticketId: { field: 'getCommentTicketId', type: 'string' },
+    include: { type: 'string' },
+    commentId: { type: 'string' },
+    ticketId: { type: 'string' },
   },
   update_comment: {
-    commentId: { field: 'updateCommentCommentId', type: 'string' },
-    ticketId: { field: 'updateCommentTicketId', type: 'string' },
-    content: { field: 'updateCommentContent', type: 'string' },
-    attachmentIds: { field: 'updateCommentAttachmentIds', type: 'array' },
-    contentType: { field: 'updateCommentContentType', type: 'string', omitEmpty: true },
+    commentId: { type: 'string' },
+    ticketId: { type: 'string' },
+    content: { type: 'string' },
+    attachmentIds: { type: 'array' },
+    contentType: { type: 'string', omitEmpty: true },
   },
   delete_comment: {
-    commentId: { field: 'deleteCommentCommentId', type: 'string' },
-    ticketId: { field: 'deleteCommentTicketId', type: 'string' },
+    commentId: { type: 'string' },
+    ticketId: { type: 'string' },
   },
+}
+
+const LEGACY_AGENT_ALIASES: Record<string, string> = {
+  statusFilter: 'status',
+  priorityFilter: 'priority',
+  assigneeFilter: 'assignee',
+  channelFilter: 'channel',
+  commentSortBy: 'sortBy',
+  threadSortBy: 'sortBy',
+  ticketInclude: 'include',
+  contactInclude: 'include',
+  threadInclude: 'include',
+}
+
+const AGENT_PARAM_TYPES: Record<string, { type: string; omitEmpty?: boolean }> = {
+  ...Object.assign({}, ...Object.values(ADDITIONAL_OPERATION_FIELDS)),
+  isPublic: { type: 'boolean' },
+  disableClosureNotification: { type: 'boolean' },
+  receivedInDays: { type: 'number' },
+}
+
+function normalizeParam(
+  name: string,
+  value: unknown,
+  config: { type: string; omitEmpty?: boolean }
+): unknown {
+  if (value === undefined || value === null || (config.omitEmpty && value === '')) return undefined
+  if (name === 'departmentIds' && Array.isArray(value))
+    return value.map(String).join(',') || undefined
+  if (config.type === 'number') return value === '' ? undefined : Number(value)
+  if (config.type === 'boolean')
+    return value === '' ? undefined : value === true || value === 'true'
+  return value
 }
 
 export const ZohoDeskBlock: BlockConfig = {
@@ -423,39 +456,39 @@ export const ZohoDeskBlock: BlockConfig = {
           { text: 'as', field: 'fileName' },
         ],
         list_organizations: ['List organizations'],
-        create_ticket: [{ text: 'Create ticket', field: 'createTicketSubject', core: true }],
+        create_ticket: [{ text: 'Create ticket', field: 'subject', core: true }],
         search_tickets: ['Search Tickets'],
         move_ticket: [
-          { text: 'Move ticket', field: 'moveTicketTicketId', core: true },
-          { text: 'to department', field: 'moveTicketDepartmentId', core: true },
+          { text: 'Move ticket', field: 'ticketId', core: true },
+          { text: 'to department', field: ['departmentId', 'manualDepartmentId'], core: true },
         ],
-        send_reply: [{ text: 'Reply to ticket', field: 'sendReplyTicketId', core: true }],
+        send_reply: [{ text: 'Reply to ticket', field: 'ticketId', core: true }],
         list_contacts: ['List Contacts'],
-        create_contact: [{ text: 'Create Contact', field: 'createContactLastName', core: true }],
-        update_contact: [{ text: 'Update Contact', field: 'updateContactContactId', core: true }],
+        create_contact: [{ text: 'Create Contact', field: 'lastName', core: true }],
+        update_contact: [{ text: 'Update Contact', field: 'contactId', core: true }],
         search_contacts: ['Search Contacts'],
         list_accounts: ['List Accounts'],
-        create_account: [{ text: 'Create Account', field: 'createAccountAccountName', core: true }],
-        update_account: [{ text: 'Update Account', field: 'updateAccountAccountId', core: true }],
+        create_account: [{ text: 'Create Account', field: 'accountName', core: true }],
+        update_account: [{ text: 'Update Account', field: 'accountId', core: true }],
         search_accounts: ['Search Accounts'],
-        get_account: [{ text: 'Get Account', field: 'getAccountAccountId', core: true }],
+        get_account: [{ text: 'Get Account', field: 'accountId', core: true }],
         list_departments: ['List Departments'],
         get_department: [
-          { text: 'Get Department', field: 'getDepartmentDepartmentId', core: true },
+          { text: 'Get Department', field: ['departmentId', 'manualDepartmentId'], core: true },
         ],
         list_agents: ['List Agents'],
-        get_agent: [{ text: 'Get Agent', field: 'getAgentAgentId', core: true }],
+        get_agent: [{ text: 'Get Agent', field: 'agentId', core: true }],
         get_comment: [
-          { text: 'Get Comment', field: 'getCommentCommentId', core: true },
-          { text: 'on ticket', field: 'getCommentTicketId', core: true },
+          { text: 'Get Comment', field: 'commentId', core: true },
+          { text: 'on ticket', field: 'ticketId', core: true },
         ],
         update_comment: [
-          { text: 'Update Comment', field: 'updateCommentCommentId', core: true },
-          { text: 'on ticket', field: 'updateCommentTicketId', core: true },
+          { text: 'Update Comment', field: 'commentId', core: true },
+          { text: 'on ticket', field: 'ticketId', core: true },
         ],
         delete_comment: [
-          { text: 'Delete Comment', field: 'deleteCommentCommentId', core: true },
-          { text: 'on ticket', field: 'deleteCommentTicketId', core: true },
+          { text: 'Delete Comment', field: 'commentId', core: true },
+          { text: 'on ticket', field: 'ticketId', core: true },
         ],
       },
     },
@@ -542,7 +575,6 @@ export const ZohoDeskBlock: BlockConfig = {
       condition: { field: 'operation', value: OPERATIONS_NEEDING_ORG },
       required: { field: 'operation', value: OPERATIONS_NEEDING_ORG },
     },
-    // Ticket ID (shared by several operations)
     {
       id: 'ticketId',
       title: 'Ticket ID',
@@ -557,6 +589,11 @@ export const ZohoDeskBlock: BlockConfig = {
           'add_comment',
           'list_threads',
           'get_thread',
+          'move_ticket',
+          'send_reply',
+          'get_comment',
+          'update_comment',
+          'delete_comment',
         ],
       },
       required: {
@@ -568,6 +605,11 @@ export const ZohoDeskBlock: BlockConfig = {
           'add_comment',
           'list_threads',
           'get_thread',
+          'move_ticket',
+          'send_reply',
+          'get_comment',
+          'update_comment',
+          'delete_comment',
         ],
       },
     },
@@ -584,29 +626,37 @@ export const ZohoDeskBlock: BlockConfig = {
       title: 'Contact ID',
       type: 'short-input',
       placeholder: 'Enter contact ID',
-      condition: { field: 'operation', value: 'get_contact' },
-      required: { field: 'operation', value: 'get_contact' },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_contact',
+          'create_ticket',
+          'search_tickets',
+          'update_contact',
+          'update_ticket',
+        ],
+      },
+      required: { field: 'operation', value: ['get_contact', 'update_contact'] },
     },
-    // Add comment
     {
       id: 'content',
-      title: 'Comment',
+      title: 'Content',
       type: 'long-input',
       placeholder: 'Comment content',
-      condition: { field: 'operation', value: 'add_comment' },
-      required: { field: 'operation', value: 'add_comment' },
+      condition: { field: 'operation', value: ['add_comment', 'send_reply', 'update_comment'] },
+      required: { field: 'operation', value: ['add_comment', 'send_reply'] },
     },
     {
       id: 'contentType',
       title: 'Content Type',
       type: 'dropdown',
       options: [
+        { label: 'Not set', id: '' },
         { label: 'Plain text', id: 'plainText' },
         { label: 'HTML', id: 'html' },
       ],
-      value: () => 'plainText',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'add_comment' },
+      condition: { field: 'operation', value: ['add_comment', 'send_reply', 'update_comment'] },
     },
     {
       id: 'isPublic',
@@ -615,36 +665,40 @@ export const ZohoDeskBlock: BlockConfig = {
       defaultValue: false,
       condition: { field: 'operation', value: 'add_comment' },
     },
-    // Update ticket
     {
       id: 'subject',
       title: 'Subject',
       type: 'short-input',
-      placeholder: 'New subject',
-      condition: { field: 'operation', value: 'update_ticket' },
+      placeholder: 'Ticket subject',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket', 'create_ticket', 'search_tickets'],
+      },
+      required: { field: 'operation', value: ['create_ticket'] },
     },
-    // status/priority are deliberately split per operation rather than shared.
-    // A subBlock keeps its value when the operation changes, and the two uses are
-    // semantically opposite: on list_tickets they are filters (comma-separated,
-    // matching), on update_ticket they are the new value written to the ticket.
-    // Sharing one field meant a filter of "Open,On Hold" could be PATCHed onto a
-    // ticket, and an update value of "Closed" could silently filter a later list.
     {
       id: 'status',
       title: 'Status',
       type: 'short-input',
-      placeholder: 'e.g. Closed',
-      condition: { field: 'operation', value: 'update_ticket' },
+      placeholder: 'Status',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket', 'create_ticket', 'search_tickets', 'list_agents'],
+      },
     },
     {
       id: 'priority',
       title: 'Priority',
       type: 'short-input',
-      placeholder: 'e.g. High',
-      condition: { field: 'operation', value: 'update_ticket' },
+      placeholder: 'Priority',
+      condition: {
+        field: 'operation',
+        value: ['update_ticket', 'create_ticket', 'search_tickets'],
+      },
     },
     {
       id: 'statusFilter',
+      paramVisibility: 'user-or-llm',
       title: 'Status',
       type: 'short-input',
       placeholder: 'Filter, e.g. Open,On Hold',
@@ -652,6 +706,7 @@ export const ZohoDeskBlock: BlockConfig = {
     },
     {
       id: 'priorityFilter',
+      paramVisibility: 'user-or-llm',
       title: 'Priority',
       type: 'short-input',
       placeholder: 'Filter, e.g. High,Urgent',
@@ -667,6 +722,7 @@ export const ZohoDeskBlock: BlockConfig = {
     },
     {
       id: 'channelFilter',
+      paramVisibility: 'user-or-llm',
       title: 'Channel',
       type: 'short-input',
       placeholder: 'Filter, e.g. Email,Web',
@@ -700,7 +756,10 @@ export const ZohoDeskBlock: BlockConfig = {
       placeholder: 'Assign the ticket to this agent',
       dependsOn: ['credential', 'orgId'],
       mode: 'basic',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: {
+        field: 'operation',
+        value: ['update_ticket', 'create_ticket', 'search_tickets'],
+      },
     },
     {
       id: 'manualAssigneeId',
@@ -709,14 +768,28 @@ export const ZohoDeskBlock: BlockConfig = {
       canonicalParamId: 'assigneeId',
       placeholder: 'Agent ID',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: {
+        field: 'operation',
+        value: ['update_ticket', 'create_ticket', 'search_tickets'],
+      },
     },
     {
       id: 'description',
       title: 'Description',
       type: 'long-input',
-      placeholder: 'Replace the ticket description',
-      condition: { field: 'operation', value: 'update_ticket' },
+      placeholder: 'Description',
+      condition: {
+        field: 'operation',
+        value: [
+          'update_ticket',
+          'create_ticket',
+          'search_tickets',
+          'create_contact',
+          'update_contact',
+          'create_account',
+          'update_account',
+        ],
+      },
       mode: 'advanced',
     },
     {
@@ -724,19 +797,15 @@ export const ZohoDeskBlock: BlockConfig = {
       title: 'Resolution',
       type: 'long-input',
       placeholder: 'Resolution notes',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: { field: 'operation', value: ['update_ticket', 'create_ticket'] },
       mode: 'advanced',
     },
-    // Zoho marks classification `x-dynamic-enum` and documents "Custom values
-    // are also supported", so the picklist is portal-editable — a closed
-    // dropdown would lock out any portal that renamed or replaced the
-    // system-defined values. Free text, with those values as the placeholder.
     {
       id: 'classification',
       title: 'Classification',
       type: 'short-input',
       placeholder: 'e.g. Problem, Request, Question',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: { field: 'operation', value: ['update_ticket', 'create_ticket'] },
       mode: 'advanced',
     },
     {
@@ -749,7 +818,17 @@ export const ZohoDeskBlock: BlockConfig = {
       placeholder: 'Move ticket to this department',
       dependsOn: ['credential', 'orgId'],
       mode: 'basic',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: {
+        field: 'operation',
+        value: [
+          'update_ticket',
+          'create_ticket',
+          'search_tickets',
+          'move_ticket',
+          'get_department',
+        ],
+      },
+      required: { field: 'operation', value: ['create_ticket', 'move_ticket', 'get_department'] },
     },
     {
       id: 'manualDepartmentId',
@@ -758,14 +837,27 @@ export const ZohoDeskBlock: BlockConfig = {
       canonicalParamId: 'departmentId',
       placeholder: 'Move ticket to this department',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: {
+        field: 'operation',
+        value: [
+          'update_ticket',
+          'create_ticket',
+          'search_tickets',
+          'move_ticket',
+          'get_department',
+        ],
+      },
+      required: { field: 'operation', value: ['create_ticket', 'move_ticket', 'get_department'] },
     },
     {
       id: 'category',
       title: 'Category',
       type: 'short-input',
       placeholder: 'Ticket category',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: {
+        field: 'operation',
+        value: ['update_ticket', 'create_ticket', 'search_tickets'],
+      },
       mode: 'advanced',
     },
     {
@@ -773,7 +865,7 @@ export const ZohoDeskBlock: BlockConfig = {
       title: 'Sub-category',
       type: 'short-input',
       placeholder: 'Ticket sub-category',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: { field: 'operation', value: ['update_ticket', 'create_ticket'] },
       mode: 'advanced',
     },
     {
@@ -781,7 +873,7 @@ export const ZohoDeskBlock: BlockConfig = {
       title: 'Due Date',
       type: 'short-input',
       placeholder: 'ISO 8601 timestamp',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: { field: 'operation', value: ['update_ticket', 'create_ticket'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -793,8 +885,18 @@ export const ZohoDeskBlock: BlockConfig = {
       id: 'customFields',
       title: 'Custom Fields',
       type: 'long-input',
-      placeholder: '{"cf_severity": "High"}',
-      condition: { field: 'operation', value: 'update_ticket' },
+      placeholder: '{"cf_field": "value"}',
+      condition: {
+        field: 'operation',
+        value: [
+          'update_ticket',
+          'create_ticket',
+          'create_contact',
+          'update_contact',
+          'create_account',
+          'update_account',
+        ],
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -803,7 +905,6 @@ export const ZohoDeskBlock: BlockConfig = {
         generationType: 'json-object',
       },
     },
-    // Get attachment
     {
       id: 'href',
       title: 'Attachment href',
@@ -820,7 +921,6 @@ export const ZohoDeskBlock: BlockConfig = {
       condition: { field: 'operation', value: 'get_attachment' },
       mode: 'advanced',
     },
-    // Shared filters / options
     {
       id: 'departmentIds',
       title: 'Departments',
@@ -832,7 +932,7 @@ export const ZohoDeskBlock: BlockConfig = {
       placeholder: 'Filter by department',
       dependsOn: ['credential', 'orgId'],
       mode: 'basic',
-      condition: { field: 'operation', value: 'list_tickets' },
+      condition: { field: 'operation', value: ['list_tickets', 'list_agents'] },
     },
     {
       id: 'manualDepartmentIds',
@@ -841,23 +941,30 @@ export const ZohoDeskBlock: BlockConfig = {
       canonicalParamId: 'departmentIds',
       placeholder: 'Comma-separated department IDs',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'list_tickets' },
+      condition: { field: 'operation', value: ['list_tickets', 'list_agents'] },
     },
     {
       id: 'include',
       title: 'Include',
       type: 'short-input',
-      placeholder: 'e.g. contacts,assignee',
-      condition: { field: 'operation', value: 'list_tickets' },
+      placeholder: 'Comma-separated related data supported by this operation',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_tickets',
+          'list_contacts',
+          'get_account',
+          'list_agents',
+          'get_agent',
+          'get_comment',
+          'list_comments',
+        ],
+      },
       mode: 'advanced',
     },
-    // Split from the list_tickets `include` above rather than shared: Get Ticket
-    // additionally accepts `contract` and `skills`, which List Tickets does not
-    // document. A shared subBlock keeps its value across an operation change, so
-    // `skills` set here would follow the user to List Tickets and put an
-    // undocumented token on the wire.
     {
       id: 'ticketInclude',
+      paramVisibility: 'user-or-llm',
       title: 'Include',
       type: 'short-input',
       placeholder: 'e.g. contacts,contract,skills',
@@ -866,6 +973,7 @@ export const ZohoDeskBlock: BlockConfig = {
     },
     {
       id: 'contactInclude',
+      paramVisibility: 'user-or-llm',
       title: 'Include',
       type: 'short-input',
       placeholder: 'accounts,owner',
@@ -874,27 +982,34 @@ export const ZohoDeskBlock: BlockConfig = {
     },
     {
       id: 'threadInclude',
+      paramVisibility: 'user-or-llm',
       title: 'Include',
       type: 'short-input',
       placeholder: 'plainText',
       condition: { field: 'operation', value: 'get_thread' },
       mode: 'advanced',
     },
-    // Sort is split per operation because Zoho allows a different field set on
-    // each list endpoint (tickets sort on createdTime/customerResponseTime/
-    // responseDueDate, comments on commentedTime, threads on sendDateTime). One
-    // shared subBlock keeps its value across an operation change, so it would
-    // carry a field name the next endpoint rejects.
     {
       id: 'sortBy',
       title: 'Sort By',
       type: 'short-input',
-      placeholder: 'createdTime, customerResponseTime, or responseDueDate',
-      condition: { field: 'operation', value: 'list_tickets' },
+      placeholder: 'Sort field supported by this operation; prefix - for descending',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_tickets',
+          'search_tickets',
+          'list_contacts',
+          'search_contacts',
+          'list_accounts',
+          'search_accounts',
+        ],
+      },
       mode: 'advanced',
     },
     {
       id: 'commentSortBy',
+      paramVisibility: 'user-or-llm',
       title: 'Sort By',
       type: 'short-input',
       placeholder: 'commentedTime or -commentedTime',
@@ -903,6 +1018,7 @@ export const ZohoDeskBlock: BlockConfig = {
     },
     {
       id: 'threadSortBy',
+      paramVisibility: 'user-or-llm',
       title: 'Sort By',
       type: 'short-input',
       placeholder: 'sendDateTime or -sendDateTime',
@@ -913,10 +1029,21 @@ export const ZohoDeskBlock: BlockConfig = {
       id: 'from',
       title: 'From',
       type: 'short-input',
-      placeholder: 'Start index (0-based)',
+      placeholder: 'Pagination start index (see operation default)',
       condition: {
         field: 'operation',
-        value: ['list_tickets', 'list_comments', 'list_threads'],
+        value: [
+          'list_tickets',
+          'list_comments',
+          'list_threads',
+          'search_tickets',
+          'list_contacts',
+          'search_contacts',
+          'list_accounts',
+          'search_accounts',
+          'list_departments',
+          'list_agents',
+        ],
       },
       mode: 'advanced',
     },
@@ -924,166 +1051,102 @@ export const ZohoDeskBlock: BlockConfig = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Max results (tickets/comments 100, threads 200)',
+      placeholder: 'Maximum records for this page',
       condition: {
         field: 'operation',
-        value: ['list_tickets', 'list_comments', 'list_threads'],
+        value: [
+          'list_tickets',
+          'list_comments',
+          'list_threads',
+          'search_tickets',
+          'list_contacts',
+          'search_contacts',
+          'list_accounts',
+          'search_accounts',
+          'list_departments',
+          'list_agents',
+        ],
       },
       mode: 'advanced',
     },
     {
-      id: 'createTicketProductId',
+      id: 'productId',
       title: 'Product ID',
       type: 'short-input',
       placeholder: 'ID of the product to associate the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'search_tickets', 'update_ticket'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createTicketPhone',
+      id: 'phone',
       title: 'Phone',
       type: 'short-input',
       placeholder: 'Phone number of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketSubject',
-      title: 'Subject',
-      type: 'short-input',
-      placeholder: 'Subject of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-      required: true,
-    },
-    {
-      id: 'createTicketDueDate',
-      title: 'Due Date',
-      type: 'short-input',
-      placeholder: '2026-01-01T00:00:00.000Z',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the date or time range',
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the timestamp.',
-        generationType: 'timestamp',
+      condition: {
+        field: 'operation',
+        value: [
+          'create_ticket',
+          'search_tickets',
+          'create_contact',
+          'update_contact',
+          'search_contacts',
+          'create_account',
+          'update_account',
+          'update_ticket',
+        ],
       },
+      mode: 'advanced',
     },
     {
-      id: 'createTicketChannel',
+      id: 'channel',
       title: 'Channel',
       type: 'short-input',
       placeholder: 'Channel through which the ticket is being created.',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'search_tickets', 'update_ticket'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createTicketLanguage',
+      id: 'language',
       title: 'Language',
       type: 'short-input',
       placeholder: 'Language preference of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: {
+        field: 'operation',
+        value: ['create_ticket', 'create_contact', 'update_contact', 'update_ticket'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createTicketPriority',
-      title: 'Priority',
-      type: 'short-input',
-      placeholder: 'Enter priority',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketAssigneeId',
-      title: 'Assignee ID',
-      type: 'short-input',
-      placeholder: 'ID of the assignee',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketEmail',
+      id: 'email',
       title: 'Email',
       type: 'short-input',
       placeholder: 'Email ID of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-    },
-    {
-      id: 'createTicketSubCategory',
-      title: 'Sub Category',
-      type: 'short-input',
-      placeholder: 'Subcategory of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketCustomFields',
-      title: 'Custom Fields',
-      type: 'code',
-      placeholder: '{"cf_example": "value"}',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-object',
-        placeholder: 'Describe the custom fields',
-        prompt: 'Custom fields in the ticket JSON object. Return ONLY the JSON object.',
+      condition: {
+        field: 'operation',
+        value: [
+          'create_ticket',
+          'search_tickets',
+          'create_contact',
+          'update_contact',
+          'search_contacts',
+          'create_account',
+          'update_account',
+          'update_ticket',
+        ],
       },
     },
     {
-      id: 'createTicketDescription',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'Description of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketClassification',
-      title: 'Classification',
-      type: 'short-input',
-      placeholder: 'Enter classification',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketCategory',
-      title: 'Category',
-      type: 'short-input',
-      placeholder: 'Category of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketStatus',
-      title: 'Status',
-      type: 'short-input',
-      placeholder: 'Enter status',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketContactId',
-      title: 'Contact ID',
-      type: 'short-input',
-      placeholder: 'Enter contact id',
-      condition: { field: 'operation', value: 'create_ticket' },
-    },
-    {
-      id: 'createTicketDepartmentId',
-      title: 'Department ID',
-      type: 'short-input',
-      placeholder: 'ID of the department to associate the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-      required: true,
-    },
-    {
-      id: 'createTicketContact',
+      id: 'contact',
       title: 'Contact',
       type: 'code',
       placeholder: '{"email": "person@example.com"}',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       language: 'json',
       wandConfig: {
         enabled: true,
@@ -1094,11 +1157,11 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'createTicketUploads',
+      id: 'uploads',
       title: 'Uploads',
       type: 'code',
       placeholder: '[]',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       mode: 'advanced',
       language: 'json',
       wandConfig: {
@@ -1110,27 +1173,19 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'createTicketResolution',
-      title: 'Resolution',
-      type: 'long-input',
-      placeholder: 'Resolution notes of the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createTicketWebUrl',
+      id: 'webUrl',
       title: 'Web Url',
       type: 'short-input',
       placeholder: 'URL to access the resource',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       mode: 'advanced',
     },
     {
-      id: 'createTicketSharedDepartments',
+      id: 'sharedDepartments',
       title: 'Shared Departments',
       type: 'code',
       placeholder: '[]',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       mode: 'advanced',
       language: 'json',
       wandConfig: {
@@ -1142,19 +1197,19 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'createTicketTeamId',
+      id: 'teamId',
       title: 'Team ID',
       type: 'short-input',
       placeholder: 'ID of the team to assign the ticket',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       mode: 'advanced',
     },
     {
-      id: 'createTicketSecondaryContacts',
+      id: 'secondaryContacts',
       title: 'Secondary Contacts',
       type: 'code',
       placeholder: '[]',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       mode: 'advanced',
       language: 'json',
       wandConfig: {
@@ -1165,11 +1220,11 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'createTicketEntitySkills',
+      id: 'entitySkills',
       title: 'Entity Skills',
       type: 'code',
       placeholder: '[]',
-      condition: { field: 'operation', value: 'create_ticket' },
+      condition: { field: 'operation', value: ['create_ticket', 'update_ticket'] },
       mode: 'advanced',
       language: 'json',
       wandConfig: {
@@ -1181,37 +1236,11 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'searchTicketsEmail',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'Enter email',
-      condition: { field: 'operation', value: 'search_tickets' },
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt: `The corresponding email address associated with the ticket. example: 1. email=jack* 2.email=\${notempty} 3.email=\${empty} wildcard search empty check not empty check Comma-separated values. Return ONLY the comma-separated values.`,
-      },
-    },
-    {
-      id: 'searchTicketsPhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder: 'Enter phone',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'The phone number provided in the ticket wildcard search empty check not empty check Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchTicketsTicketNumber',
+      id: 'ticketNumber',
       title: 'Ticket Number',
       type: 'short-input',
       placeholder: "The ticket's serial number exact match Comma-separated values.",
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: { field: 'operation', value: ['search_tickets'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1221,66 +1250,48 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'searchTicketsAccountName',
+      id: 'accountName',
       title: 'Account Name',
       type: 'short-input',
       placeholder:
         'Name of the account associated with the ticket wildcard search empty check not empty check',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: [
+          'search_tickets',
+          'search_contacts',
+          'create_account',
+          'update_account',
+          'search_accounts',
+        ],
+      },
+      required: { field: 'operation', value: ['create_account'] },
     },
     {
-      id: 'searchTicketsSubject',
-      title: 'Subject',
-      type: 'short-input',
-      placeholder: 'Subject of the ticket wildcard search',
-      condition: { field: 'operation', value: 'search_tickets' },
-    },
-    {
-      id: 'searchTicketsDepartmentId',
-      title: 'Department ID',
-      type: 'short-input',
-      placeholder: 'Enter department id',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchTicketsProductName',
+      id: 'productName',
       title: 'Product Name',
       type: 'short-input',
       placeholder:
         'Name of the product associated with the ticket wildcard search empty check not empty check',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: { field: 'operation', value: ['search_tickets'] },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsQuery',
+      id: '_all',
       title: 'Search Query',
       type: 'short-input',
       placeholder: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
     },
     {
-      id: 'searchTicketsLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Page size (1-100; default 10).',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchTicketsFrom',
-      title: 'From',
-      type: 'short-input',
-      placeholder: 'Pagination start index (0-999; search returns at most the first 1000 matches).',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchTicketsDueDateRange',
+      id: 'dueDateRange',
       title: 'Due Date Range',
       type: 'short-input',
       placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: { field: 'operation', value: ['search_tickets'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1291,11 +1302,14 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'searchTicketsId',
+      id: 'id',
       title: 'Id',
       type: 'short-input',
       placeholder: 'ID of the ticket exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1305,39 +1319,14 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'searchTicketsProductId',
-      title: 'Product ID',
-      type: 'short-input',
-      placeholder:
-        'ID of the product associated with the ticket exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'ID of the product associated with the ticket exact match Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchTicketsContactId',
-      title: 'Contact ID',
-      type: 'short-input',
-      placeholder: 'ID of the contact who raised the ticket exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_tickets' },
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'ID of the contact who raised the ticket exact match Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchTicketsCreatedTimeRange',
+      id: 'createdTimeRange',
       title: 'Created Time Range',
       type: 'short-input',
       placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1348,55 +1337,38 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'searchTicketsPriority',
-      title: 'Priority',
-      type: 'short-input',
-      placeholder: 'Priority of the ticket exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Priority of the ticket exact match Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchTicketsAssigneeId',
-      title: 'Assignee ID',
-      type: 'short-input',
-      placeholder:
-        'ID of the agent who is assigned to resolve the ticket exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'ID of the agent who is assigned to resolve the ticket exact match Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchTicketsAccountId',
+      id: 'accountId',
       title: 'Account ID',
       type: 'short-input',
       placeholder:
         'ID of the account associated with the ticket exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'search_tickets',
+          'create_contact',
+          'update_contact',
+          'update_account',
+          'get_account',
+        ],
+      },
       wandConfig: {
         enabled: true,
         placeholder: 'Describe the values to include',
         prompt:
           'ID of the account associated with the ticket exact match Comma-separated values. Return ONLY the comma-separated values.',
       },
+      required: { field: 'operation', value: ['update_account', 'get_account'] },
     },
     {
-      id: 'searchTicketsModifiedTimeRange',
+      id: 'modifiedTimeRange',
       title: 'Modified Time Range',
       type: 'short-input',
       placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1407,113 +1379,121 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'searchTicketsStatus',
-      title: 'Status',
-      type: 'short-input',
-      placeholder: 'Enter status',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt: `Status of the ticket inclusive of custom status. example: 1. status=open,in progress 2. status=\${open} exact match Comma-separated values. Return ONLY the comma-separated values.`,
-      },
-    },
-    {
-      id: 'searchTicketsCustomField1',
+      id: 'customField1',
       title: 'Custom Field1',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField2',
+      id: 'customField2',
       title: 'Custom Field2',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField3',
+      id: 'customField3',
       title: 'Custom Field3',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField4',
+      id: 'customField4',
       title: 'Custom Field4',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField5',
+      id: 'customField5',
       title: 'Custom Field5',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField6',
+      id: 'customField6',
       title: 'Custom Field6',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField7',
+      id: 'customField7',
       title: 'Custom Field7',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField8',
+      id: 'customField8',
       title: 'Custom Field8',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField9',
+      id: 'customField9',
       title: 'Custom Field9',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCustomField10',
+      id: 'customField10',
       title: 'Custom Field10',
       type: 'short-input',
       placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: {
+        field: 'operation',
+        value: ['search_tickets', 'search_contacts', 'search_accounts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsChannel',
-      title: 'Channel',
-      type: 'short-input',
-      placeholder:
-        'The channel through which the ticket was received exact match empty check not empty check',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchTicketsCustomerResponseTimeRange',
+      id: 'customerResponseTimeRange',
       title: 'Customer Response Time Range',
       type: 'short-input',
       placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: { field: 'operation', value: ['search_tickets'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1524,75 +1504,35 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'searchTicketsDescription',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'Description of the ticket wildcard search',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchTicketsSortBy',
-      title: 'Sort By',
-      type: 'short-input',
-      placeholder: 'Enter sort by',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchTicketsTag',
+      id: 'tag',
       title: 'Tag',
       type: 'short-input',
       placeholder: 'The tag associated with the ticket wildcard search empty check not empty check',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: { field: 'operation', value: ['search_tickets'] },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsContactName',
+      id: 'contactName',
       title: 'Contact Name',
       type: 'short-input',
       placeholder: 'The name of the contact who raised the ticket wildcard search',
-      condition: { field: 'operation', value: 'search_tickets' },
+      condition: { field: 'operation', value: ['search_tickets'] },
       mode: 'advanced',
     },
     {
-      id: 'searchTicketsCategory',
-      title: 'Category',
-      type: 'short-input',
-      placeholder: 'The category of the ticket wildcard search empty check not empty check',
-      condition: { field: 'operation', value: 'search_tickets' },
-      mode: 'advanced',
-    },
-    {
-      id: 'moveTicketTicketId',
-      title: 'Ticket ID',
-      type: 'short-input',
-      placeholder: 'Ticket ID',
-      condition: { field: 'operation', value: 'move_ticket' },
-      required: true,
-    },
-    {
-      id: 'moveTicketDepartmentId',
-      title: 'Department ID',
-      type: 'short-input',
-      placeholder: 'ID of the department to move the ticket',
-      condition: { field: 'operation', value: 'move_ticket' },
-      required: true,
-    },
-    {
-      id: 'moveTicketForumId',
+      id: 'forumId',
       title: 'Forum ID',
       type: 'short-input',
       placeholder:
         'ID of the community sub-category to move the forum ticket (forum topic converted into a ticket).',
-      condition: { field: 'operation', value: 'move_ticket' },
+      condition: { field: 'operation', value: ['move_ticket'] },
       mode: 'advanced',
     },
     {
-      id: 'sendReplyIsPrivate',
+      id: 'isPrivate',
       title: 'Is Private',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -1602,10 +1542,10 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'sendReplySendImmediately',
+      id: 'sendImmediately',
       title: 'Send Immediately',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -1615,48 +1555,19 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'sendReplyTicketId',
-      title: 'Ticket ID',
-      type: 'short-input',
-      placeholder: 'Ticket ID',
-      condition: { field: 'operation', value: 'send_reply' },
-      required: true,
-    },
-    {
-      id: 'sendReplyContent',
-      title: 'Content',
-      type: 'long-input',
-      placeholder: 'Content of the thread',
-      condition: { field: 'operation', value: 'send_reply' },
-      required: true,
-    },
-    {
-      id: 'sendReplyContentType',
-      title: 'Content Type',
-      type: 'dropdown',
-      condition: { field: 'operation', value: 'send_reply' },
-      mode: 'advanced',
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'html', id: 'html' },
-        { label: 'plainText', id: 'plainText' },
-      ],
-      value: () => '',
-    },
-    {
-      id: 'sendReplyInReplyToThreadId',
+      id: 'inReplyToThreadId',
       title: 'In Reply To Thread ID',
       type: 'short-input',
       placeholder:
         'ID of the thread to which current thread is a reply, applicable only for EMAIL channel',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
     },
     {
-      id: 'sendReplyDirection',
+      id: 'direction',
       title: 'Direction',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -1666,26 +1577,26 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'sendReplyCc',
+      id: 'cc',
       title: 'Cc',
       type: 'short-input',
       placeholder: 'Email ID to be CC-ed. Applicable only for EMAIL channel',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
     },
     {
-      id: 'sendReplyBcc',
+      id: 'bcc',
       title: 'Bcc',
       type: 'short-input',
       placeholder: 'Email ID to be BCC-ed., if any exist. Applicable only for EMAIL channel',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
     },
     {
-      id: 'sendReplyHasAttach',
+      id: 'hasAttach',
       title: 'Has Attach',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -1695,20 +1606,20 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'sendReplyTicketStatus',
+      id: 'ticketStatus',
       title: 'Ticket Status',
       type: 'short-input',
       placeholder:
         'Status of the ticket. Includes the custom statuses configured in your help desk portal.',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
     },
     {
-      id: 'sendReplyAttachmentIds',
+      id: 'attachmentIds',
       title: 'Attachment IDs',
       type: 'code',
       placeholder: '[]',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply', 'update_comment', 'add_comment'] },
       mode: 'advanced',
       language: 'json',
       wandConfig: {
@@ -1720,26 +1631,26 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'sendReplyTo',
+      id: 'to',
       title: 'To',
       type: 'short-input',
       placeholder: 'To email ID in the thread, applicable only for EMAIL channel',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
     },
     {
-      id: 'sendReplyFromEmailAddress',
+      id: 'fromEmailAddress',
       title: 'From Email Address',
       type: 'short-input',
       placeholder: 'Sender email address configured in your Zoho Desk portal.',
-      condition: { field: 'operation', value: 'send_reply' },
-      required: true,
+      condition: { field: 'operation', value: ['send_reply'] },
+      required: { field: 'operation', value: ['send_reply'] },
     },
     {
-      id: 'sendReplyIsForward',
+      id: 'isForward',
       title: 'Is Forward',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'send_reply' },
+      condition: { field: 'operation', value: ['send_reply'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -1749,11 +1660,11 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listContactsFields',
+      id: 'fields',
       title: 'Fields',
       type: 'short-input',
       placeholder: 'Field names, separated by commas',
-      condition: { field: 'operation', value: 'list_contacts' },
+      condition: { field: 'operation', value: ['list_contacts', 'list_accounts', 'list_tickets'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -1763,799 +1674,202 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'listContactsViewId',
+      id: 'viewId',
       title: 'View ID',
       type: 'short-input',
       placeholder: 'ID of the view to apply while fetching the resources',
-      condition: { field: 'operation', value: 'list_contacts' },
+      condition: { field: 'operation', value: ['list_contacts', 'list_accounts', 'list_tickets'] },
       mode: 'advanced',
     },
     {
-      id: 'listContactsLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Page size (1-100).',
-      condition: { field: 'operation', value: 'list_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listContactsFrom',
-      title: 'From',
-      type: 'short-input',
-      placeholder: 'Pagination start index; use the provider index for this endpoint (default 1).',
-      condition: { field: 'operation', value: 'list_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listContactsInclude',
-      title: 'Include',
-      type: 'short-input',
-      placeholder:
-        'Secondary information related to the contact.Value supported is accounts. Comma-separated values.',
-      condition: { field: 'operation', value: 'list_contacts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Secondary information related to the contact.Value supported is accounts. Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'listContactsSortBy',
-      title: 'Sort By',
-      type: 'short-input',
-      placeholder: 'Enter sort by',
-      condition: { field: 'operation', value: 'list_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createContactLastName',
+      id: 'lastName',
       title: 'Last Name',
       type: 'short-input',
       placeholder: 'Last name of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'search_contacts'],
+      },
+      required: { field: 'operation', value: ['create_contact'] },
     },
     {
-      id: 'createContactAccountId',
-      title: 'Account ID',
-      type: 'short-input',
-      placeholder: 'Account to which the contact is mapped',
-      condition: { field: 'operation', value: 'create_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createContactFirstName',
+      id: 'firstName',
       title: 'First Name',
       type: 'short-input',
       placeholder: 'First name of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'search_contacts'],
+      },
     },
     {
-      id: 'createContactSecondaryEmail',
+      id: 'secondaryEmail',
       title: 'Secondary Email',
       type: 'short-input',
       placeholder: 'Secondary email ID of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
       mode: 'advanced',
     },
     {
-      id: 'createContactPhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder: 'Phone number of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createContactMobile',
+      id: 'mobile',
       title: 'Mobile',
       type: 'short-input',
       placeholder: 'Mobile number of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'search_contacts'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createContactOwnerId',
+      id: 'ownerId',
       title: 'Owner ID',
       type: 'short-input',
       placeholder: 'ID of the user who creates the contact',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'create_account', 'update_account'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createContactType',
+      id: 'type',
       title: 'Type',
       type: 'short-input',
       placeholder: 'Contact type',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
       mode: 'advanced',
     },
     {
-      id: 'createContactEmail',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'Email ID of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
-    },
-    {
-      id: 'createContactZip',
+      id: 'zip',
       title: 'Zip',
       type: 'short-input',
       placeholder: 'Zip code',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
       mode: 'advanced',
     },
     {
-      id: 'createContactCountry',
+      id: 'country',
       title: 'Country',
       type: 'short-input',
       placeholder: "Contact's country of residence",
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'create_account', 'update_account'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createContactTwitter',
+      id: 'twitter',
       title: 'Twitter',
       type: 'short-input',
       placeholder: 'Twitter ID of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
       mode: 'advanced',
     },
     {
-      id: 'createContactCustomFields',
-      title: 'Custom Fields',
-      type: 'code',
-      placeholder: '{"cf_example": "value"}',
-      condition: { field: 'operation', value: 'create_contact' },
-      mode: 'advanced',
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-object',
-        placeholder: 'Describe the custom fields',
-        prompt:
-          'User-defined fields related to the contact JSON object. Return ONLY the JSON object.',
-      },
-    },
-    {
-      id: 'createContactCity',
+      id: 'city',
       title: 'City',
       type: 'short-input',
       placeholder: "Contact's city of residence",
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'create_account', 'update_account'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createContactStreet',
+      id: 'street',
       title: 'Street',
       type: 'short-input',
       placeholder: "Contact's address",
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'create_account', 'update_account'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createContactFacebook',
+      id: 'facebook',
       title: 'Facebook',
       type: 'short-input',
       placeholder: 'Facebook ID of the contact',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
       mode: 'advanced',
     },
     {
-      id: 'createContactDescription',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'Contact description',
-      condition: { field: 'operation', value: 'create_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createContactState',
+      id: 'state',
       title: 'State',
       type: 'short-input',
       placeholder: "Contact's state of residence",
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: {
+        field: 'operation',
+        value: ['create_contact', 'update_contact', 'create_account', 'update_account'],
+      },
       mode: 'advanced',
     },
     {
-      id: 'createContactTitle',
+      id: 'title',
       title: 'Title',
       type: 'short-input',
       placeholder: 'Contact title',
-      condition: { field: 'operation', value: 'create_contact' },
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
       mode: 'advanced',
     },
     {
-      id: 'createContactLanguage',
-      title: 'Language',
-      type: 'short-input',
-      placeholder: 'Language preference to set for the Contact',
-      condition: { field: 'operation', value: 'create_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactContactId',
-      title: 'Contact ID',
-      type: 'short-input',
-      placeholder: 'Contact ID',
-      condition: { field: 'operation', value: 'update_contact' },
-      required: true,
-    },
-    {
-      id: 'updateContactLastName',
-      title: 'Last Name',
-      type: 'short-input',
-      placeholder: 'Last name of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-    },
-    {
-      id: 'updateContactAccountId',
-      title: 'Account ID',
-      type: 'short-input',
-      placeholder: 'Account to which the contact is mapped',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactFirstName',
-      title: 'First Name',
-      type: 'short-input',
-      placeholder: 'First name of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-    },
-    {
-      id: 'updateContactSecondaryEmail',
-      title: 'Secondary Email',
-      type: 'short-input',
-      placeholder: 'Secondary email ID of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactPhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder: 'Phone number of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactMobile',
-      title: 'Mobile',
-      type: 'short-input',
-      placeholder: 'Mobile number of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactOwnerId',
-      title: 'Owner ID',
-      type: 'short-input',
-      placeholder: 'ID of the user who creates the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactType',
-      title: 'Type',
-      type: 'short-input',
-      placeholder: 'Contact type',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactEmail',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'Email ID of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-    },
-    {
-      id: 'updateContactZip',
-      title: 'Zip',
-      type: 'short-input',
-      placeholder: 'Zip code',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactCountry',
-      title: 'Country',
-      type: 'short-input',
-      placeholder: "Contact's country of residence",
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactTwitter',
-      title: 'Twitter',
-      type: 'short-input',
-      placeholder: 'Twitter ID of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactCustomFields',
-      title: 'Custom Fields',
-      type: 'code',
-      placeholder: '{"cf_example": "value"}',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-object',
-        placeholder: 'Describe the custom fields',
-        prompt:
-          'User-defined fields related to the contact JSON object. Return ONLY the JSON object.',
-      },
-    },
-    {
-      id: 'updateContactCity',
-      title: 'City',
-      type: 'short-input',
-      placeholder: "Contact's city of residence",
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactStreet',
-      title: 'Street',
-      type: 'short-input',
-      placeholder: "Contact's address",
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactFacebook',
-      title: 'Facebook',
-      type: 'short-input',
-      placeholder: 'Facebook ID of the contact',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactDescription',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'Contact description',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactState',
-      title: 'State',
-      type: 'short-input',
-      placeholder: "Contact's state of residence",
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactTitle',
-      title: 'Title',
-      type: 'short-input',
-      placeholder: 'Contact title',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateContactLanguage',
-      title: 'Language',
-      type: 'short-input',
-      placeholder: 'Language preference to set for the Contact',
-      condition: { field: 'operation', value: 'update_contact' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsEmail',
-      title: 'Email',
-      type: 'short-input',
-      placeholder:
-        'Email ID of the contact wildcard search empty check not empty check Comma-separated values.',
-      condition: { field: 'operation', value: 'search_contacts' },
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Email ID of the contact wildcard search empty check not empty check Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchContactsPhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder:
-        'Phone number of the contact wildcard search empty check not empty check Comma-separated values.',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Phone number of the contact wildcard search empty check not empty check Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchContactsMobile',
-      title: 'Mobile',
-      type: 'short-input',
-      placeholder:
-        'Mobile number of the contact wildcard search empty check not empty check Comma-separated values.',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Mobile number of the contact wildcard search empty check not empty check Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchContactsAccountName',
-      title: 'Account Name',
-      type: 'short-input',
-      placeholder:
-        'Name of the account associated with the Contact wildcard search empty check not empty check',
-      condition: { field: 'operation', value: 'search_contacts' },
-    },
-    {
-      id: 'searchContactsCreatedTimeRange',
-      title: 'Created Time Range',
-      type: 'short-input',
-      placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the date or time range',
-        prompt:
-          'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
-      },
-    },
-    {
-      id: 'searchContactsLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Page size (1-100; default 10).',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsFrom',
-      title: 'From',
-      type: 'short-input',
-      placeholder: 'Pagination start index (0-999; search returns at most the first 1000 matches).',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsModifiedTimeRange',
-      title: 'Modified Time Range',
-      type: 'short-input',
-      placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the date or time range',
-        prompt:
-          'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
-      },
-    },
-    {
-      id: 'searchContactsId',
-      title: 'Id',
-      type: 'short-input',
-      placeholder: 'ID of the contact exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'ID of the contact exact match Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchContactsQuery',
-      title: 'Search Query',
-      type: 'short-input',
-      placeholder: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
-      condition: { field: 'operation', value: 'search_contacts' },
-    },
-    {
-      id: 'searchContactsCustomField1',
-      title: 'Custom Field1',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField2',
-      title: 'Custom Field2',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField3',
-      title: 'Custom Field3',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField4',
-      title: 'Custom Field4',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField5',
-      title: 'Custom Field5',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField6',
-      title: 'Custom Field6',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField7',
-      title: 'Custom Field7',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField8',
-      title: 'Custom Field8',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField9',
-      title: 'Custom Field9',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsCustomField10',
-      title: 'Custom Field10',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchContactsLastName',
-      title: 'Last Name',
-      type: 'short-input',
-      placeholder: 'Last name of the contact wildcard search',
-      condition: { field: 'operation', value: 'search_contacts' },
-    },
-    {
-      id: 'searchContactsFirstName',
-      title: 'First Name',
-      type: 'short-input',
-      placeholder: 'First name of the contact wildcard search empty check not empty check',
-      condition: { field: 'operation', value: 'search_contacts' },
-    },
-    {
-      id: 'searchContactsFullName',
+      id: 'fullName',
       title: 'Full Name',
       type: 'short-input',
       placeholder: 'Full name of the contact wildcard search',
-      condition: { field: 'operation', value: 'search_contacts' },
+      condition: { field: 'operation', value: ['search_contacts'] },
       mode: 'advanced',
     },
     {
-      id: 'searchContactsSortBy',
-      title: 'Sort By',
-      type: 'short-input',
-      placeholder: 'Enter sort by',
-      condition: { field: 'operation', value: 'search_contacts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAccountsViewId',
-      title: 'View ID',
-      type: 'short-input',
-      placeholder: 'ID of the view to apply while fetching the resources',
-      condition: { field: 'operation', value: 'list_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAccountsLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Page size (1-100).',
-      condition: { field: 'operation', value: 'list_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAccountsFrom',
-      title: 'From',
-      type: 'short-input',
-      placeholder: 'Pagination start index; use the provider index for this endpoint (default 1).',
-      condition: { field: 'operation', value: 'list_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAccountsSortBy',
-      title: 'Sort By',
-      type: 'short-input',
-      placeholder: 'Enter sort by',
-      condition: { field: 'operation', value: 'list_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAccountsFields',
-      title: 'Fields',
-      type: 'short-input',
-      placeholder: 'Field names, separated by commas',
-      condition: { field: 'operation', value: 'list_accounts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Key that returns the values of mentioned fields (both pre-defined and custom) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'createAccountWebsite',
+      id: 'website',
       title: 'Website',
       type: 'short-input',
       placeholder: 'Website of the account',
-      condition: { field: 'operation', value: 'create_account' },
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
       mode: 'advanced',
     },
     {
-      id: 'createAccountAccountName',
-      title: 'Account Name',
-      type: 'short-input',
-      placeholder: 'Name of the account',
-      condition: { field: 'operation', value: 'create_account' },
-      required: true,
-    },
-    {
-      id: 'createAccountPhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder: 'Phone number of the account',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createAccountEmail',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'Email ID of the account',
-      condition: { field: 'operation', value: 'create_account' },
-    },
-    {
-      id: 'createAccountCountry',
-      title: 'Country',
-      type: 'short-input',
-      placeholder: 'Country in which the account is based',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createAccountCode',
+      id: 'code',
       title: 'Code',
       type: 'short-input',
       placeholder: 'Zip code',
-      condition: { field: 'operation', value: 'create_account' },
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
       mode: 'advanced',
     },
     {
-      id: 'createAccountCustomFields',
-      title: 'Custom Fields',
-      type: 'code',
-      placeholder: '{"cf_example": "value"}',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-object',
-        placeholder: 'Describe the custom fields',
-        prompt:
-          'User-defined fields associated with the account JSON object. Return ONLY the JSON object.',
-      },
-    },
-    {
-      id: 'createAccountCity',
-      title: 'City',
-      type: 'short-input',
-      placeholder: 'City in which the account is based',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createAccountStreet',
-      title: 'Street',
-      type: 'short-input',
-      placeholder: 'Address of the account',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createAccountAnnualrevenue',
+      id: 'annualrevenue',
       title: 'Annualrevenue',
       type: 'short-input',
       placeholder: 'Annual revenue of the account',
-      condition: { field: 'operation', value: 'create_account' },
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
       mode: 'advanced',
     },
     {
-      id: 'createAccountDescription',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'A short description of the account',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createAccountIndustry',
+      id: 'industry',
       title: 'Industry',
       type: 'short-input',
       placeholder: 'Industry in which the account operates',
-      condition: { field: 'operation', value: 'create_account' },
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
       mode: 'advanced',
     },
     {
-      id: 'createAccountState',
-      title: 'State',
-      type: 'short-input',
-      placeholder: 'State in which the account is based',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createAccountOwnerId',
-      title: 'Owner ID',
-      type: 'short-input',
-      placeholder: 'ID of account owner',
-      condition: { field: 'operation', value: 'create_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'createAccountFax',
+      id: 'fax',
       title: 'Fax',
       type: 'short-input',
       placeholder: 'Fax number of the account',
-      condition: { field: 'operation', value: 'create_account' },
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
       mode: 'advanced',
     },
     {
-      id: 'createAccountAssociatedSLAIds',
+      id: 'associatedSLAIds',
       title: 'Associated Slaids',
       type: 'code',
       placeholder: '[]',
-      condition: { field: 'operation', value: 'create_account' },
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
       mode: 'advanced',
       language: 'json',
       wandConfig: {
@@ -2567,339 +1881,10 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'updateAccountAccountId',
-      title: 'Account ID',
-      type: 'short-input',
-      placeholder: 'Unique ID of the account',
-      condition: { field: 'operation', value: 'update_account' },
-      required: true,
-    },
-    {
-      id: 'updateAccountWebsite',
-      title: 'Website',
-      type: 'short-input',
-      placeholder: 'Website of the account',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountAccountName',
-      title: 'Account Name',
-      type: 'short-input',
-      placeholder: 'Name of the account',
-      condition: { field: 'operation', value: 'update_account' },
-    },
-    {
-      id: 'updateAccountPhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder: 'Phone number of the account',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountEmail',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'Email ID of the account',
-      condition: { field: 'operation', value: 'update_account' },
-    },
-    {
-      id: 'updateAccountCountry',
-      title: 'Country',
-      type: 'short-input',
-      placeholder: 'Country in which the account is based',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountCode',
-      title: 'Code',
-      type: 'short-input',
-      placeholder: 'Zip code',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountCustomFields',
-      title: 'Custom Fields',
-      type: 'code',
-      placeholder: '{"cf_example": "value"}',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-object',
-        placeholder: 'Describe the custom fields',
-        prompt:
-          'User-defined fields associated with the account JSON object. Return ONLY the JSON object.',
-      },
-    },
-    {
-      id: 'updateAccountCity',
-      title: 'City',
-      type: 'short-input',
-      placeholder: 'City in which the account is based',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountStreet',
-      title: 'Street',
-      type: 'short-input',
-      placeholder: 'Address of the account',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountAnnualrevenue',
-      title: 'Annualrevenue',
-      type: 'short-input',
-      placeholder: 'Annual revenue of the account',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountDescription',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'A short description of the account',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountIndustry',
-      title: 'Industry',
-      type: 'short-input',
-      placeholder: 'Industry in which the account operates',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountState',
-      title: 'State',
-      type: 'short-input',
-      placeholder: 'State in which the account is based',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountOwnerId',
-      title: 'Owner ID',
-      type: 'short-input',
-      placeholder: 'ID of account owner',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountFax',
-      title: 'Fax',
-      type: 'short-input',
-      placeholder: 'Fax number of the account',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'updateAccountAssociatedSLAIds',
-      title: 'Associated Slaids',
-      type: 'code',
-      placeholder: '[]',
-      condition: { field: 'operation', value: 'update_account' },
-      mode: 'advanced',
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-array',
-        placeholder: 'Describe the associated slaids',
-        prompt:
-          'IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. Return ONLY the JSON array.',
-      },
-    },
-    {
-      id: 'searchAccountsAccountName',
-      title: 'Account Name',
-      type: 'short-input',
-      placeholder: 'Name of the account wildcard search',
-      condition: { field: 'operation', value: 'search_accounts' },
-    },
-    {
-      id: 'searchAccountsCreatedTimeRange',
-      title: 'Created Time Range',
-      type: 'short-input',
-      placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the date or time range',
-        prompt:
-          'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
-      },
-    },
-    {
-      id: 'searchAccountsLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Page size (1-100; default 10).',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsFrom',
-      title: 'From',
-      type: 'short-input',
-      placeholder: 'Pagination start index (0-999; search returns at most the first 1000 matches).',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsModifiedTimeRange',
-      title: 'Modified Time Range',
-      type: 'short-input',
-      placeholder: '2026-01-01T00:00:00.000Z,2026-01-31T23:59:59.000Z',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the date or time range',
-        prompt:
-          'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
-      },
-    },
-    {
-      id: 'searchAccountsId',
-      title: 'Id',
-      type: 'short-input',
-      placeholder: 'ID of the account exact match Comma-separated values.',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'ID of the account exact match Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'searchAccountsQuery',
-      title: 'Search Query',
-      type: 'short-input',
-      placeholder: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
-      condition: { field: 'operation', value: 'search_accounts' },
-    },
-    {
-      id: 'searchAccountsCustomField1',
-      title: 'Custom Field1',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField2',
-      title: 'Custom Field2',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField3',
-      title: 'Custom Field3',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField4',
-      title: 'Custom Field4',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField5',
-      title: 'Custom Field5',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField6',
-      title: 'Custom Field6',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField7',
-      title: 'Custom Field7',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField8',
-      title: 'Custom Field8',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField9',
-      title: 'Custom Field9',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsCustomField10',
-      title: 'Custom Field10',
-      type: 'short-input',
-      placeholder: 'cf_field_name:search value',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'searchAccountsSortBy',
-      title: 'Sort By',
-      type: 'short-input',
-      placeholder:
-        'Sort field: relevance, modifiedTime, createdTime, accountName. Prefix with - for descending.',
-      condition: { field: 'operation', value: 'search_accounts' },
-      mode: 'advanced',
-    },
-    {
-      id: 'getAccountInclude',
-      title: 'Include',
-      type: 'short-input',
-      placeholder: 'Allowed values are : owner',
-      condition: { field: 'operation', value: 'get_account' },
-      mode: 'advanced',
-    },
-    {
-      id: 'getAccountAccountId',
-      title: 'Account ID',
-      type: 'short-input',
-      placeholder: 'Unique ID of the account',
-      condition: { field: 'operation', value: 'get_account' },
-      required: true,
-    },
-    {
-      id: 'listDepartmentsChatStatus',
+      id: 'chatStatus',
       title: 'Chat Status',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'list_departments' },
+      condition: { field: 'operation', value: ['list_departments'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -2911,18 +1896,18 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listDepartmentsSearchStr',
+      id: 'searchStr',
       title: 'Search Str',
       type: 'short-input',
       placeholder: 'Search text; use * for wildcards',
-      condition: { field: 'operation', value: 'list_departments' },
+      condition: { field: 'operation', value: ['list_departments', 'list_agents'] },
       mode: 'advanced',
     },
     {
-      id: 'listDepartmentsIsEnabled',
+      id: 'isEnabled',
       title: 'Is Enabled',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'list_departments' },
+      condition: { field: 'operation', value: ['list_departments'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -2932,50 +1917,12 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listDepartmentsLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Page size (0-200; default 10).',
-      condition: { field: 'operation', value: 'list_departments' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listDepartmentsFrom',
-      title: 'From',
-      type: 'short-input',
-      placeholder: 'Pagination start index (0-based).',
-      condition: { field: 'operation', value: 'list_departments' },
-      mode: 'advanced',
-    },
-    {
-      id: 'getDepartmentDepartmentId',
-      title: 'Department ID',
-      type: 'short-input',
-      placeholder: 'Unique ID of the department',
-      condition: { field: 'operation', value: 'get_department' },
-      required: true,
-    },
-    {
-      id: 'listAgentsInclude',
-      title: 'Include',
-      type: 'short-input',
-      placeholder: 'Related data to include, separated by commas',
-      condition: { field: 'operation', value: 'list_agents' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Secondary information related to agents, The allowed values are profile, role. You can include all two values by separating them with commas in the API request. Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'listAgentsRoleIds',
+      id: 'roleIds',
       title: 'Role IDs',
       type: 'short-input',
       placeholder:
         'Comma-separated array of role IDs. Maximum number of IDs allowed is 50. Comma-separated values.',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -2985,36 +1932,28 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'listAgentsSearchStr',
-      title: 'Search Str',
-      type: 'short-input',
-      placeholder: 'Search text; use * for wildcards',
-      condition: { field: 'operation', value: 'list_agents' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAgentsCfSearchStr',
+      id: 'cfSearchStr',
       title: 'Cf Search Str',
       type: 'short-input',
       placeholder:
         'String to search for agents by custom field. The string must contain at least one character',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
     },
     {
-      id: 'listAgentsCfFieldName',
+      id: 'cfFieldName',
       title: 'Cf Field Name',
       type: 'short-input',
       placeholder:
         'API name of the custom field that must be used for searching and listing agents',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
     },
     {
-      id: 'listAgentsFieldName',
+      id: 'fieldName',
       title: 'Field Name',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -3026,10 +1965,10 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listAgentsIsLightAgent',
+      id: 'isLightAgent',
       title: 'Is Light Agent',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -3039,10 +1978,10 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listAgentsSortOrder',
+      id: 'sortOrder',
       title: 'Sort Order',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -3052,18 +1991,10 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listAgentsLimit',
-      title: 'Limit',
-      type: 'short-input',
-      placeholder: 'Page size (0-200; default 10).',
-      condition: { field: 'operation', value: 'list_agents' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAgentsRolePermissionType',
+      id: 'rolePermissionType',
       title: 'Role Permission Type',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -3078,11 +2009,11 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listAgentsProfileIds',
+      id: 'profileIds',
       title: 'Profile IDs',
       type: 'short-input',
       placeholder: 'Enter profile ids',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -3092,18 +2023,10 @@ export const ZohoDeskBlock: BlockConfig = {
       },
     },
     {
-      id: 'listAgentsFrom',
-      title: 'From',
-      type: 'short-input',
-      placeholder: 'Pagination start index (0-based).',
-      condition: { field: 'operation', value: 'list_agents' },
-      mode: 'advanced',
-    },
-    {
-      id: 'listAgentsIsConfirmed',
+      id: 'isConfirmed',
       title: 'Is Confirmed',
       type: 'dropdown',
-      condition: { field: 'operation', value: 'list_agents' },
+      condition: { field: 'operation', value: ['list_agents'] },
       mode: 'advanced',
       options: [
         { label: 'Not set', id: '' },
@@ -3113,356 +2036,41 @@ export const ZohoDeskBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'listAgentsDepartmentIds',
-      title: 'Department IDs',
-      type: 'short-input',
-      placeholder: 'Enter department ids',
-      condition: { field: 'operation', value: 'list_agents' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Comma-separated array of department IDs. Maximum number of IDs allowed is 50. Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'listAgentsStatus',
-      title: 'Status',
-      type: 'dropdown',
-      condition: { field: 'operation', value: 'list_agents' },
-      mode: 'advanced',
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'ACTIVE', id: 'ACTIVE' },
-        { label: 'DISABLED', id: 'DISABLED' },
-        { label: 'DELETED', id: 'DELETED' },
-        { label: 'IMPORTED', id: 'IMPORTED' },
-      ],
-      value: () => '',
-    },
-    {
-      id: 'getAgentInclude',
-      title: 'Include',
-      type: 'short-input',
-      placeholder: 'Related data to include, separated by commas',
-      condition: { field: 'operation', value: 'get_agent' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Secondary information related to the agent. Values allowed are profile, role, associatedDepartments, associatedChatDepartments and verifiedEmails. Separate multiple values with commas. Comma-separated values. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'getAgentAgentId',
+      id: 'agentId',
       title: 'Agent ID',
       type: 'short-input',
       placeholder: 'Agent ID',
-      condition: { field: 'operation', value: 'get_agent' },
-      required: true,
+      condition: { field: 'operation', value: ['get_agent'] },
+      required: { field: 'operation', value: ['get_agent'] },
     },
     {
-      id: 'getCommentInclude',
-      title: 'Include',
-      type: 'short-input',
-      placeholder:
-        'Related comment data to include: mentions, plainText, or both separated by commas.',
-      condition: { field: 'operation', value: 'get_comment' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        placeholder: 'Describe the values to include',
-        prompt:
-          'Related comment data to include: mentions, plainText, or both separated by commas. Return ONLY the comma-separated values.',
-      },
-    },
-    {
-      id: 'getCommentCommentId',
+      id: 'commentId',
       title: 'Comment ID',
       type: 'short-input',
       placeholder: 'Comment ID',
-      condition: { field: 'operation', value: 'get_comment' },
-      required: true,
+      condition: { field: 'operation', value: ['get_comment', 'update_comment', 'delete_comment'] },
+      required: { field: 'operation', value: ['get_comment', 'update_comment', 'delete_comment'] },
     },
     {
-      id: 'getCommentTicketId',
-      title: 'Ticket ID',
-      type: 'short-input',
-      placeholder: 'Ticket ID',
-      condition: { field: 'operation', value: 'get_comment' },
-      required: true,
-    },
-    {
-      id: 'updateCommentCommentId',
-      title: 'Comment ID',
-      type: 'short-input',
-      placeholder: 'Comment ID',
-      condition: { field: 'operation', value: 'update_comment' },
-      required: true,
-    },
-    {
-      id: 'updateCommentTicketId',
-      title: 'Ticket ID',
-      type: 'short-input',
-      placeholder: 'Ticket ID',
-      condition: { field: 'operation', value: 'update_comment' },
-      required: true,
-    },
-    {
-      id: 'updateCommentContent',
-      title: 'Content',
-      type: 'long-input',
-      placeholder: 'Enter content',
-      condition: { field: 'operation', value: 'update_comment' },
-    },
-    {
-      id: 'updateCommentAttachmentIds',
-      title: 'Attachment IDs',
-      type: 'code',
-      placeholder: '[]',
-      condition: { field: 'operation', value: 'update_comment' },
-      mode: 'advanced',
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-array',
-        placeholder: 'Describe the attachment ids',
-        prompt:
-          'List of file attachments included in the comment.Note: For more details on attachments, refer to the Uploads section. JSON array. Return ONLY the JSON array.',
-      },
-    },
-    {
-      id: 'updateCommentContentType',
-      title: 'Content Type',
-      type: 'dropdown',
-      condition: { field: 'operation', value: 'update_comment' },
-      mode: 'advanced',
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'html', id: 'html' },
-        { label: 'plainText', id: 'plainText' },
-      ],
-      value: () => '',
-    },
-    {
-      id: 'deleteCommentCommentId',
-      title: 'Comment ID',
-      type: 'short-input',
-      placeholder: 'Comment ID',
-      condition: { field: 'operation', value: 'delete_comment' },
-      required: true,
-    },
-    {
-      id: 'deleteCommentTicketId',
-      title: 'Ticket ID',
-      type: 'short-input',
-      placeholder: 'Ticket ID',
-      condition: { field: 'operation', value: 'delete_comment' },
-      required: true,
-    },
-    {
-      id: 'listTicketsViewId',
-      title: 'View Id',
-      type: 'short-input',
-      placeholder: 'Saved view ID',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'list_tickets' },
-    },
-    {
-      id: 'listTicketsTeamIds',
+      id: 'teamIds',
       title: 'Team Ids',
       type: 'short-input',
       placeholder: 'Comma-separated team IDs or Unassigned',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'list_tickets' },
+      condition: { field: 'operation', value: ['list_tickets'] },
     },
     {
-      id: 'listTicketsFields',
-      title: 'Fields',
-      type: 'short-input',
-      placeholder: 'Comma-separated fields to return; at most 30 system or custom fields',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'list_tickets' },
-    },
-    {
-      id: 'updateTicketContactId',
-      title: 'Contact Id',
-      type: 'short-input',
-      placeholder: 'Existing contact ID',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketContact',
-      title: 'Contact',
-      type: 'code',
-      placeholder: '{}',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-object',
-        placeholder: 'Describe the requested values',
-        prompt:
-          'Contact JSON with email or lastName; use instead of contactId. Return ONLY the JSON object.',
-      },
-    },
-    {
-      id: 'updateTicketProductId',
-      title: 'Product Id',
-      type: 'short-input',
-      placeholder: 'Product ID',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketUploads',
-      title: 'Uploads',
-      type: 'code',
-      placeholder: '[]',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-array',
-        placeholder: 'Describe the requested values',
-        prompt: 'JSON array of previously uploaded attachment IDs. Return ONLY the JSON array.',
-      },
-    },
-    {
-      id: 'updateTicketEmail',
-      title: 'Email',
-      type: 'short-input',
-      placeholder: 'Ticket email address',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketPhone',
-      title: 'Phone',
-      type: 'short-input',
-      placeholder: 'Ticket phone number',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketLanguage',
-      title: 'Language',
-      type: 'short-input',
-      placeholder: 'Ticket language',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketChannel',
-      title: 'Channel',
-      type: 'short-input',
-      placeholder: 'Ticket origin channel',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketWebUrl',
-      title: 'Web Url',
-      type: 'short-input',
-      placeholder: 'URL to access the ticket',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketSharedDepartments',
-      title: 'Shared Departments',
-      type: 'code',
-      placeholder: '[]',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-array',
-        placeholder: 'Describe the requested values',
-        prompt:
-          'JSON array of shared departments and access privileges. Return ONLY the JSON array.',
-      },
-    },
-    {
-      id: 'updateTicketTeamId',
-      title: 'Team Id',
-      type: 'short-input',
-      placeholder: 'Team ID',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-    },
-    {
-      id: 'updateTicketSecondaryContacts',
-      title: 'Secondary Contacts',
-      type: 'code',
-      placeholder: '[]',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-array',
-        placeholder: 'Describe the requested values',
-        prompt: 'JSON array of secondary contact IDs. Return ONLY the JSON array.',
-      },
-    },
-    {
-      id: 'updateTicketEntitySkills',
-      title: 'Entity Skills',
-      type: 'code',
-      placeholder: '[]',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-array',
-        placeholder: 'Describe the requested values',
-        prompt:
-          'JSON array of skill IDs in priority order; at most 10. Return ONLY the JSON array.',
-      },
-    },
-    {
-      id: 'updateTicketDisableClosureNotification',
+      id: 'disableClosureNotification',
       title: 'Disable Closure Notification',
       type: 'dropdown',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'update_ticket' },
+      condition: { field: 'operation', value: ['update_ticket'] },
       options: [
         { label: 'Provider default', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
       ],
       value: () => '',
-    },
-    {
-      id: 'addCommentAttachmentIds',
-      title: 'Attachment Ids',
-      type: 'code',
-      placeholder: '[]',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'add_comment' },
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        generationType: 'json-array',
-        placeholder: 'Describe the requested values',
-        prompt: 'JSON array of previously uploaded attachment IDs. Return ONLY the JSON array.',
-      },
-    },
-    {
-      id: 'listCommentsInclude',
-      title: 'Include',
-      type: 'short-input',
-      placeholder: 'Related data to include: mentions and plainText, comma-separated',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'list_comments' },
     },
     ...getTrigger('zoho_desk').subBlocks,
   ],
@@ -3509,27 +2117,24 @@ export const ZohoDeskBlock: BlockConfig = {
         if (fields) {
           const result: Record<string, unknown> = { orgId: params.orgId }
           for (const [name, config] of Object.entries(fields)) {
-            const value = params[config.field]
-            if (value === undefined || value === null || (config.omitEmpty && value === '')) {
-              result[name] = undefined
-              continue
-            }
-            if (config.type === 'number') result[name] = value === '' ? undefined : Number(value)
-            else if (config.type === 'boolean')
-              result[name] = value === '' ? undefined : value === true || value === 'true'
-            else result[name] = value
+            const value = params[name]
+            result[name] = normalizeParam(name, value, config)
           }
           return result
         }
-        // The agent-tool path does not carry `operation` inside params - it is a
-        // sibling of the tool call, used only to pick the tool - and there the
-        // model addresses tool params by their real names. The tool is already
-        // selected, so there is no cross-operation leak to guard against, while
-        // running the scoping below WOULD overwrite the model's own values with
-        // `undefined`. Leave those params alone; only coerce the JSON field,
-        // which is a type fix rather than an operation gate.
+        // Agent tools select the operation outside params; retain model args and map only configured aliases.
         if (typeof params.operation !== 'string') {
-          return { ...params, customFields: parseCustomFields(params.customFields) }
+          const result: Record<string, unknown> = { ...params }
+          for (const [alias, name] of Object.entries(LEGACY_AGENT_ALIASES)) {
+            const value = orUndefined(params[alias])
+            if (value !== undefined) result[name] = value
+          }
+          for (const [name, config] of Object.entries(AGENT_PARAM_TYPES)) {
+            if (Object.hasOwn(result, name))
+              result[name] = normalizeParam(name, result[name], config)
+          }
+          result.customFields = parseCustomFields(result.customFields)
+          return result
         }
         // IMPORTANT: destructuring a key out of `rest` does NOT keep it from the
         // tool. Both call sites merge this function's return value on top of the
@@ -3664,7 +2269,7 @@ export const ZohoDeskBlock: BlockConfig = {
               : params.operation === 'get_contact'
                 ? rawContactInclude
                 : params.operation === 'list_comments'
-                  ? params.listCommentsInclude
+                  ? params.include
                   : params.operation === 'get_thread'
                     ? rawThreadInclude
                     : undefined
@@ -3685,877 +2290,350 @@ export const ZohoDeskBlock: BlockConfig = {
 
         result.customFields =
           params.operation === 'update_ticket' ? parseCustomFields(rawCustomFields) : undefined
-        result.viewId = params.operation === 'list_tickets' ? params.listTicketsViewId : undefined
-        result.teamIds = params.operation === 'list_tickets' ? params.listTicketsTeamIds : undefined
-        result.fields = params.operation === 'list_tickets' ? params.listTicketsFields : undefined
-        result.contactId =
-          params.operation === 'update_ticket' ? params.updateTicketContactId : params.contactId
-        result.contact =
-          params.operation === 'update_ticket' ? params.updateTicketContact : undefined
-        result.productId =
-          params.operation === 'update_ticket' ? params.updateTicketProductId : undefined
-        result.uploads =
-          params.operation === 'update_ticket' ? params.updateTicketUploads : undefined
-        result.email = params.operation === 'update_ticket' ? params.updateTicketEmail : undefined
-        result.phone = params.operation === 'update_ticket' ? params.updateTicketPhone : undefined
-        result.language =
-          params.operation === 'update_ticket' ? params.updateTicketLanguage : undefined
-        result.channel =
-          params.operation === 'update_ticket' ? params.updateTicketChannel : result.channel
-        result.webUrl = params.operation === 'update_ticket' ? params.updateTicketWebUrl : undefined
+        result.viewId = params.operation === 'list_tickets' ? params.viewId : undefined
+        result.teamIds = params.operation === 'list_tickets' ? params.teamIds : undefined
+        result.fields = params.operation === 'list_tickets' ? params.fields : undefined
+        result.contact = params.operation === 'update_ticket' ? params.contact : undefined
+        result.productId = params.operation === 'update_ticket' ? params.productId : undefined
+        result.uploads = params.operation === 'update_ticket' ? params.uploads : undefined
+        result.email = params.operation === 'update_ticket' ? params.email : undefined
+        result.phone = params.operation === 'update_ticket' ? params.phone : undefined
+        result.language = params.operation === 'update_ticket' ? params.language : undefined
+        result.channel = params.operation === 'update_ticket' ? params.channel : result.channel
+        result.webUrl = params.operation === 'update_ticket' ? params.webUrl : undefined
         result.sharedDepartments =
-          params.operation === 'update_ticket' ? params.updateTicketSharedDepartments : undefined
-        result.teamId = params.operation === 'update_ticket' ? params.updateTicketTeamId : undefined
+          params.operation === 'update_ticket' ? params.sharedDepartments : undefined
+        result.teamId = params.operation === 'update_ticket' ? params.teamId : undefined
         result.secondaryContacts =
-          params.operation === 'update_ticket' ? params.updateTicketSecondaryContacts : undefined
-        result.entitySkills =
-          params.operation === 'update_ticket' ? params.updateTicketEntitySkills : undefined
+          params.operation === 'update_ticket' ? params.secondaryContacts : undefined
+        result.entitySkills = params.operation === 'update_ticket' ? params.entitySkills : undefined
         result.disableClosureNotification =
           params.operation === 'update_ticket'
-            ? params.updateTicketDisableClosureNotification === '' ||
-              params.updateTicketDisableClosureNotification == null
+            ? params.disableClosureNotification === '' || params.disableClosureNotification == null
               ? undefined
-              : params.updateTicketDisableClosureNotification === true ||
-                params.updateTicketDisableClosureNotification === 'true'
+              : params.disableClosureNotification === true ||
+                params.disableClosureNotification === 'true'
             : undefined
-        result.attachmentIds =
-          params.operation === 'add_comment' ? params.addCommentAttachmentIds : undefined
+        result.attachmentIds = params.operation === 'add_comment' ? params.attachmentIds : undefined
         return result
       },
     },
   },
   inputs: {
-    listCommentsInclude: {
-      type: 'string',
-      description: 'Related data to include: mentions and plainText, comma-separated',
-    },
-    addCommentAttachmentIds: {
+    include: { type: 'string', description: 'Related data to include when listing tickets' },
+    attachmentIds: {
       type: 'array',
       description: 'JSON array of previously uploaded attachment IDs',
     },
-    updateTicketDisableClosureNotification: {
+    disableClosureNotification: {
       type: 'boolean',
       description: 'Suppress the contact notification when closing the ticket',
     },
-    updateTicketEntitySkills: {
+    entitySkills: {
       type: 'array',
       description: 'JSON array of skill IDs in priority order; at most 10',
     },
-    updateTicketSecondaryContacts: {
+    secondaryContacts: {
       type: 'array',
       description: 'JSON array of secondary contact IDs',
     },
-    updateTicketTeamId: { type: 'string', description: 'Team ID' },
-    updateTicketSharedDepartments: {
+    teamId: { type: 'string', description: 'Team ID' },
+    sharedDepartments: {
       type: 'array',
       description: 'JSON array of shared departments and access privileges',
     },
-    updateTicketWebUrl: { type: 'string', description: 'URL to access the ticket' },
-    updateTicketChannel: { type: 'string', description: 'Ticket origin channel' },
-    updateTicketLanguage: { type: 'string', description: 'Ticket language' },
-    updateTicketPhone: { type: 'string', description: 'Ticket phone number' },
-    updateTicketEmail: { type: 'string', description: 'Ticket email address' },
-    updateTicketUploads: {
+    webUrl: { type: 'string', description: 'URL to access the ticket' },
+    channel: { type: 'string', description: 'Ticket origin channel' },
+    language: { type: 'string', description: 'Ticket language' },
+    phone: { type: 'string', description: 'Ticket phone number' },
+    email: { type: 'string', description: 'Ticket email address' },
+    uploads: {
       type: 'array',
       description: 'JSON array of previously uploaded attachment IDs',
     },
-    updateTicketProductId: { type: 'string', description: 'Product ID' },
-    updateTicketContact: {
+    productId: { type: 'string', description: 'Product ID' },
+    contact: {
       type: 'json',
       description: 'Contact JSON with email or lastName; use instead of contactId',
     },
-    updateTicketContactId: { type: 'string', description: 'Existing contact ID' },
-    listTicketsFields: {
+    contactId: { type: 'string', description: 'Contact ID' },
+    fields: {
       type: 'string',
       description: 'Comma-separated fields to return; at most 30 system or custom fields',
     },
-    listTicketsTeamIds: { type: 'string', description: 'Comma-separated team IDs or Unassigned' },
-    listTicketsViewId: { type: 'string', description: 'Saved view ID' },
+    teamIds: { type: 'string', description: 'Comma-separated team IDs or Unassigned' },
+    viewId: { type: 'string', description: 'Saved view ID' },
     operation: { type: 'string', description: 'Operation to perform' },
-    createTicketProductId: {
-      type: 'string',
-      description: 'ID of the product to associate the ticket',
-    },
-    createTicketPhone: { type: 'string', description: 'Phone number of the ticket' },
-    createTicketSubject: { type: 'string', description: 'Subject of the ticket' },
-    createTicketDueDate: { type: 'string', description: 'Due date of the ticket' },
-    createTicketChannel: {
-      type: 'string',
-      description: 'Channel through which the ticket is being created.',
-    },
-    createTicketLanguage: { type: 'string', description: 'Language preference of the ticket' },
-    createTicketPriority: {
-      type: 'string',
-      description:
-        'Priority of the ticket Allowed values: Medium, High, Low, or a custom priority.',
-    },
-    createTicketAssigneeId: { type: 'string', description: 'ID of the assignee' },
-    createTicketEmail: { type: 'string', description: 'Email ID of the ticket' },
-    createTicketSubCategory: { type: 'string', description: 'Subcategory of the ticket' },
-    createTicketCustomFields: {
-      type: 'json',
-      description: 'Custom fields in the ticket JSON object.',
-    },
-    createTicketDescription: { type: 'string', description: 'Description of the ticket' },
-    createTicketClassification: {
-      type: 'string',
-      description:
-        'Classification type of the ticket Allowed values: Problem, Request, Question, or a custom classification.',
-    },
-    createTicketCategory: { type: 'string', description: 'Category of the ticket' },
-    createTicketStatus: {
-      type: 'string',
-      description:
-        'Status of the ticket. Note: This can be a system-defined or custom value that falls under one of the status types: OPEN, ON HOLD, or CLOSED.',
-    },
-    createTicketContactId: {
-      type: 'string',
-      description:
-        'ID of the contact Note: The contactId is mandatory for creating a ticket. If the contact does not already exist, include the contact JSON object to create the contact during ticket creation.',
-    },
-    createTicketDepartmentId: {
-      type: 'string',
-      description: 'ID of the department to associate the ticket',
-    },
-    createTicketContact: {
-      type: 'json',
-      description:
-        'New contact JSON: email or lastName is required; firstName is optional. Provide either this or contactId.',
-    },
-    createTicketUploads: {
-      type: 'array',
-      description:
-        'File attachments in the ticket. For more information, refer to the Uploads section JSON array.',
-    },
-    createTicketResolution: { type: 'string', description: 'Resolution notes of the ticket' },
-    createTicketWebUrl: { type: 'string', description: 'URL to access the resource' },
-    createTicketSharedDepartments: {
-      type: 'array',
-      description:
-        'List of departments to which the ticket could be shared, along with the access privileges for each department JSON array.',
-    },
-    createTicketTeamId: { type: 'string', description: 'ID of the team to assign the ticket' },
-    createTicketSecondaryContacts: {
-      type: 'array',
-      description: 'List of Secondary contacts JSON array.',
-    },
-    createTicketEntitySkills: {
-      type: 'array',
-      description:
-        'JSON array of up to 10 skill IDs, ordered from highest to lowest assignment priority.',
-    },
-    searchTicketsEmail: {
-      type: 'string',
-      description: `The corresponding email address associated with the ticket. example: 1. email=jack* 2.email=\${notempty} 3.email=\${empty}. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.`,
-    },
-    searchTicketsPhone: {
-      type: 'string',
-      description:
-        'The phone number provided in the ticket. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.',
-    },
-    searchTicketsTicketNumber: {
+    subject: { type: 'string', description: 'Ticket subject' },
+    dueDate: { type: 'string', description: 'Ticket due date' },
+    priority: { type: 'string', description: 'Ticket priority' },
+    assigneeId: { type: 'string', description: 'Assignee (agent) ID' },
+    subCategory: { type: 'string', description: 'Ticket sub-category' },
+    customFields: { type: 'json', description: 'Custom field values' },
+    description: { type: 'string', description: 'Ticket description' },
+    classification: { type: 'string', description: 'Ticket classification' },
+    category: { type: 'string', description: 'Ticket category' },
+    status: { type: 'string', description: 'Ticket status to set' },
+    departmentId: { type: 'string', description: 'Department ID to move a ticket to' },
+    resolution: { type: 'string', description: 'Resolution notes' },
+    ticketNumber: {
       type: 'string',
       description: "The ticket's serial number. Exact match. Comma-separated values.",
     },
-    searchTicketsAccountName: {
+    accountName: {
       type: 'string',
       description:
         'Name of the account associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators.',
     },
-    searchTicketsSubject: {
-      type: 'string',
-      description: 'Subject of the ticket. Supports * wildcards.',
-    },
-    searchTicketsDepartmentId: {
-      type: 'string',
-      description:
-        'ID of the department from which the entity must be fetched. If the ID is not passed, then searches in all permitted departments. Exact match.',
-    },
-    searchTicketsProductName: {
+    productName: {
       type: 'string',
       description:
         'Name of the product associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators.',
     },
-    searchTicketsQuery: {
+    _all: {
       type: 'string',
       description: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
     },
-    searchTicketsLimit: { type: 'number', description: 'Page size (1-100; default 10).' },
-    searchTicketsFrom: {
-      type: 'number',
-      description: 'Pagination start index (0-999; search returns at most the first 1000 matches).',
-    },
-    searchTicketsDueDateRange: {
+    limit: { type: 'number', description: 'Maximum results' },
+    from: { type: 'number', description: 'Pagination start index' },
+    dueDateRange: {
       type: 'string',
       description: 'Due date range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    searchTicketsId: {
+    id: {
       type: 'string',
       description: 'ID of the ticket. Exact match. Comma-separated values.',
     },
-    searchTicketsProductId: {
-      type: 'string',
-      description:
-        'ID of the product associated with the ticket. Exact match. Comma-separated values.',
-    },
-    searchTicketsContactId: {
-      type: 'string',
-      description: 'ID of the contact who raised the ticket. Exact match. Comma-separated values.',
-    },
-    searchTicketsCreatedTimeRange: {
+    createdTimeRange: {
       type: 'string',
       description: 'Created time range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    searchTicketsPriority: {
-      type: 'string',
-      description: 'Priority of the ticket. Exact match. Comma-separated values.',
-    },
-    searchTicketsAssigneeId: {
-      type: 'string',
-      description:
-        'ID of the agent who is assigned to resolve the ticket. Exact match. Comma-separated values.',
-    },
-    searchTicketsAccountId: {
+    accountId: {
       type: 'string',
       description:
         'ID of the account associated with the ticket. Exact match. Comma-separated values.',
     },
-    searchTicketsModifiedTimeRange: {
+    modifiedTimeRange: {
       type: 'string',
       description: 'Modified time range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    searchTicketsStatus: {
-      type: 'string',
-      description: `Status of the ticket inclusive of custom status. example: 1. status=open,in progress 2. status=\${open}. Exact match. Comma-separated values.`,
-    },
-    searchTicketsCustomField1: {
+    customField1: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField2: {
+    customField2: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField3: {
+    customField3: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField4: {
+    customField4: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField5: {
+    customField5: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField6: {
+    customField6: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField7: {
+    customField7: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField8: {
+    customField8: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField9: {
+    customField9: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsCustomField10: {
+    customField10: {
       type: 'string',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    searchTicketsChannel: {
-      type: 'string',
-      description:
-        'The channel through which the ticket was received. Exact match. Supports empty/not-empty search operators.',
-    },
-    searchTicketsCustomerResponseTimeRange: {
+    customerResponseTimeRange: {
       type: 'string',
       description:
         'Customer response time range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    searchTicketsDescription: {
-      type: 'string',
-      description: 'Description of the ticket. Supports * wildcards.',
-    },
-    searchTicketsSortBy: {
-      type: 'string',
-      description:
-        'Sort field: relevance, modifiedTime, createdTime, customerResponseTime. Prefix with - for descending.',
-    },
-    searchTicketsTag: {
+    sortBy: { type: 'string', description: 'Sort field for listing tickets' },
+    tag: {
       type: 'string',
       description:
         'The tag associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators.',
     },
-    searchTicketsContactName: {
+    contactName: {
       type: 'string',
       description: 'The name of the contact who raised the ticket. Supports * wildcards.',
     },
-    searchTicketsCategory: {
-      type: 'string',
-      description:
-        'The category of the ticket. Supports * wildcards. Supports empty/not-empty search operators.',
-    },
-    moveTicketTicketId: { type: 'string', description: 'Ticket ID' },
-    moveTicketDepartmentId: {
-      type: 'string',
-      description: 'ID of the department to move the ticket',
-    },
-    moveTicketForumId: {
+    ticketId: { type: 'string', description: 'Ticket ID' },
+    forumId: {
       type: 'string',
       description:
         'ID of the community sub-category to move the forum ticket (forum topic converted into a ticket).',
     },
-    sendReplyIsPrivate: {
+    isPrivate: {
       type: 'boolean',
       description:
         'Specifies whether the thread is Private or Public. Forwarded threads are always private.',
     },
-    sendReplySendImmediately: {
+    sendImmediately: {
       type: 'boolean',
       description: 'Specify whether the reply has to sent immediately',
     },
-    sendReplyTicketId: { type: 'string', description: 'Ticket ID' },
-    sendReplyContent: { type: 'string', description: 'Content of the thread' },
-    sendReplyContentType: {
-      type: 'string',
-      description:
-        'Formatting type of the content. Applicable only for the EMAIL channel. Values supported are html and plainText (default).',
-    },
-    sendReplyInReplyToThreadId: {
+    content: { type: 'string', description: 'Comment content' },
+    contentType: { type: 'string', description: 'Comment content type (plainText/html)' },
+    inReplyToThreadId: {
       type: 'string',
       description:
         'ID of the thread to which current thread is a reply, applicable only for EMAIL channel',
     },
-    sendReplyDirection: {
+    direction: {
       type: 'string',
       description: 'Key that returns whether the thread is incoming or outgoing',
     },
-    sendReplyCc: {
+    cc: {
       type: 'string',
       description: 'Email ID to be CC-ed. Applicable only for EMAIL channel',
     },
-    sendReplyBcc: {
+    bcc: {
       type: 'string',
       description: 'Email ID to be BCC-ed., if any exist. Applicable only for EMAIL channel',
     },
-    sendReplyHasAttach: {
+    hasAttach: {
       type: 'boolean',
       description: 'States whether the thread has attachments',
     },
-    sendReplyTicketStatus: {
+    ticketStatus: {
       type: 'string',
       description:
         'Status of the ticket. Includes the custom statuses configured in your help desk portal.',
     },
-    sendReplyAttachmentIds: {
-      type: 'array',
-      description:
-        'List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array.',
-    },
-    sendReplyTo: {
+    to: {
       type: 'string',
       description: 'To email ID in the thread, applicable only for EMAIL channel',
     },
-    sendReplyFromEmailAddress: {
+    fromEmailAddress: {
       type: 'string',
       description: 'Sender email address configured in your Zoho Desk portal.',
     },
-    sendReplyIsForward: {
+    isForward: {
       type: 'boolean',
       description:
         'Key that returns if the thread was sent as a forward. Applicable only for the EMAIL channel.',
     },
-    listContactsFields: {
-      type: 'string',
-      description:
-        'Key that returns the values of mentioned fields (both pre-defined and custom) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values.',
-    },
-    listContactsViewId: {
-      type: 'string',
-      description: 'ID of the view to apply while fetching the resources',
-    },
-    listContactsLimit: { type: 'number', description: 'Page size (1-100).' },
-    listContactsFrom: {
-      type: 'number',
-      description: 'Pagination start index; use the provider index for this endpoint (default 1).',
-    },
-    listContactsInclude: {
-      type: 'string',
-      description:
-        'Secondary information related to the contact.Value supported is accounts. Comma-separated values.',
-    },
-    listContactsSortBy: {
-      type: 'string',
-      description:
-        'Sort field: firstName, lastName, phone, email, account, createdTime, modifiedTime. Prefix with - for descending.',
-    },
-    createContactLastName: { type: 'string', description: 'Last name of the contact' },
-    createContactAccountId: {
-      type: 'string',
-      description: 'Account to which the contact is mapped',
-    },
-    createContactFirstName: { type: 'string', description: 'First name of the contact' },
-    createContactSecondaryEmail: {
+    lastName: { type: 'string', description: 'Last name of the contact' },
+    firstName: { type: 'string', description: 'First name of the contact' },
+    secondaryEmail: {
       type: 'string',
       description: 'Secondary email ID of the contact',
     },
-    createContactPhone: { type: 'string', description: 'Phone number of the contact' },
-    createContactMobile: { type: 'string', description: 'Mobile number of the contact' },
-    createContactOwnerId: { type: 'string', description: 'ID of the user who creates the contact' },
-    createContactType: { type: 'string', description: 'Contact type' },
-    createContactEmail: { type: 'string', description: 'Email ID of the contact' },
-    createContactZip: { type: 'string', description: 'Zip code' },
-    createContactCountry: { type: 'string', description: "Contact's country of residence" },
-    createContactTwitter: { type: 'string', description: 'Twitter ID of the contact' },
-    createContactCustomFields: {
-      type: 'json',
-      description: 'User-defined fields related to the contact JSON object.',
-    },
-    createContactCity: { type: 'string', description: "Contact's city of residence" },
-    createContactStreet: { type: 'string', description: "Contact's address" },
-    createContactFacebook: { type: 'string', description: 'Facebook ID of the contact' },
-    createContactDescription: { type: 'string', description: 'Contact description' },
-    createContactState: { type: 'string', description: "Contact's state of residence" },
-    createContactTitle: { type: 'string', description: 'Contact title' },
-    createContactLanguage: {
-      type: 'string',
-      description: 'Language preference to set for the Contact',
-    },
-    updateContactContactId: { type: 'string', description: 'Contact ID' },
-    updateContactLastName: { type: 'string', description: 'Last name of the contact' },
-    updateContactAccountId: {
-      type: 'string',
-      description: 'Account to which the contact is mapped',
-    },
-    updateContactFirstName: { type: 'string', description: 'First name of the contact' },
-    updateContactSecondaryEmail: {
-      type: 'string',
-      description: 'Secondary email ID of the contact',
-    },
-    updateContactPhone: { type: 'string', description: 'Phone number of the contact' },
-    updateContactMobile: { type: 'string', description: 'Mobile number of the contact' },
-    updateContactOwnerId: { type: 'string', description: 'ID of the user who creates the contact' },
-    updateContactType: { type: 'string', description: 'Contact type' },
-    updateContactEmail: { type: 'string', description: 'Email ID of the contact' },
-    updateContactZip: { type: 'string', description: 'Zip code' },
-    updateContactCountry: { type: 'string', description: "Contact's country of residence" },
-    updateContactTwitter: { type: 'string', description: 'Twitter ID of the contact' },
-    updateContactCustomFields: {
-      type: 'json',
-      description: 'User-defined fields related to the contact JSON object.',
-    },
-    updateContactCity: { type: 'string', description: "Contact's city of residence" },
-    updateContactStreet: { type: 'string', description: "Contact's address" },
-    updateContactFacebook: { type: 'string', description: 'Facebook ID of the contact' },
-    updateContactDescription: { type: 'string', description: 'Contact description' },
-    updateContactState: { type: 'string', description: "Contact's state of residence" },
-    updateContactTitle: { type: 'string', description: 'Contact title' },
-    updateContactLanguage: {
-      type: 'string',
-      description: 'Language preference to set for the Contact',
-    },
-    searchContactsEmail: {
-      type: 'string',
-      description:
-        'Email ID of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.',
-    },
-    searchContactsPhone: {
-      type: 'string',
-      description:
-        'Phone number of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.',
-    },
-    searchContactsMobile: {
-      type: 'string',
-      description:
-        'Mobile number of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.',
-    },
-    searchContactsAccountName: {
-      type: 'string',
-      description:
-        'Name of the account associated with the Contact. Supports * wildcards. Supports empty/not-empty search operators.',
-    },
-    searchContactsCreatedTimeRange: {
-      type: 'string',
-      description:
-        'Key that filters contacts created in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, createdTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z',
-    },
-    searchContactsLimit: { type: 'number', description: 'Page size (1-100; default 10).' },
-    searchContactsFrom: {
-      type: 'number',
-      description: 'Pagination start index (0-999; search returns at most the first 1000 matches).',
-    },
-    searchContactsModifiedTimeRange: {
-      type: 'string',
-      description:
-        'Key that filters contacts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z',
-    },
-    searchContactsId: {
-      type: 'string',
-      description: 'ID of the contact. Exact match. Comma-separated values.',
-    },
-    searchContactsQuery: {
-      type: 'string',
-      description: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
-    },
-    searchContactsCustomField1: {
-      type: 'string',
-      description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
-    },
-    searchContactsCustomField2: {
-      type: 'string',
-      description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
-    },
-    searchContactsCustomField3: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsCustomField4: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsCustomField5: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsCustomField6: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsCustomField7: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsCustomField8: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsCustomField9: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsCustomField10: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchContactsLastName: {
-      type: 'string',
-      description: 'Last name of the contact. Supports * wildcards.',
-    },
-    searchContactsFirstName: {
-      type: 'string',
-      description:
-        'First name of the contact. Supports * wildcards. Supports empty/not-empty search operators.',
-    },
-    searchContactsFullName: {
+    mobile: { type: 'string', description: 'Mobile number of the contact' },
+    ownerId: { type: 'string', description: 'ID of the user who creates the contact' },
+    type: { type: 'string', description: 'Contact type' },
+    zip: { type: 'string', description: 'Zip code' },
+    country: { type: 'string', description: "Contact's country of residence" },
+    twitter: { type: 'string', description: 'Twitter ID of the contact' },
+    city: { type: 'string', description: "Contact's city of residence" },
+    street: { type: 'string', description: "Contact's address" },
+    facebook: { type: 'string', description: 'Facebook ID of the contact' },
+    state: { type: 'string', description: "Contact's state of residence" },
+    title: { type: 'string', description: 'Contact title' },
+    fullName: {
       type: 'string',
       description: 'Full name of the contact. Supports * wildcards.',
     },
-    searchContactsSortBy: {
-      type: 'string',
-      description:
-        'Sort field: relevance, modifiedTime, createdTime, lastName, firstName. Prefix with - for descending.',
-    },
-    listAccountsViewId: {
-      type: 'string',
-      description: 'ID of the view to apply while fetching the resources',
-    },
-    listAccountsLimit: { type: 'number', description: 'Page size (1-100).' },
-    listAccountsFrom: {
-      type: 'number',
-      description: 'Pagination start index; use the provider index for this endpoint (default 1).',
-    },
-    listAccountsSortBy: {
-      type: 'string',
-      description:
-        'Sort field: website, email, phone, accountName, createdTime, modifiedTime. Prefix with - for descending.',
-    },
-    listAccountsFields: {
-      type: 'string',
-      description:
-        'Key that returns the values of mentioned fields (both pre-defined and custom) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values.',
-    },
-    createAccountWebsite: { type: 'string', description: 'Website of the account' },
-    createAccountAccountName: { type: 'string', description: 'Name of the account' },
-    createAccountPhone: { type: 'string', description: 'Phone number of the account' },
-    createAccountEmail: { type: 'string', description: 'Email ID of the account' },
-    createAccountCountry: { type: 'string', description: 'Country in which the account is based' },
-    createAccountCode: { type: 'string', description: 'Zip code' },
-    createAccountCustomFields: {
-      type: 'json',
-      description: 'User-defined fields associated with the account JSON object.',
-    },
-    createAccountCity: { type: 'string', description: 'City in which the account is based' },
-    createAccountStreet: { type: 'string', description: 'Address of the account' },
-    createAccountAnnualrevenue: { type: 'number', description: 'Annual revenue of the account' },
-    createAccountDescription: { type: 'string', description: 'A short description of the account' },
-    createAccountIndustry: {
+    website: { type: 'string', description: 'Website of the account' },
+    code: { type: 'string', description: 'Zip code' },
+    annualrevenue: { type: 'number', description: 'Annual revenue of the account' },
+    industry: {
       type: 'string',
       description: 'Industry in which the account operates',
     },
-    createAccountState: { type: 'string', description: 'State in which the account is based' },
-    createAccountOwnerId: { type: 'string', description: 'ID of account owner' },
-    createAccountFax: { type: 'string', description: 'Fax number of the account' },
-    createAccountAssociatedSLAIds: {
+    fax: { type: 'string', description: 'Fax number of the account' },
+    associatedSLAIds: {
       type: 'array',
       description:
         'IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array.',
     },
-    updateAccountAccountId: { type: 'string', description: 'Unique ID of the account' },
-    updateAccountWebsite: { type: 'string', description: 'Website of the account' },
-    updateAccountAccountName: { type: 'string', description: 'Name of the account' },
-    updateAccountPhone: { type: 'string', description: 'Phone number of the account' },
-    updateAccountEmail: { type: 'string', description: 'Email ID of the account' },
-    updateAccountCountry: { type: 'string', description: 'Country in which the account is based' },
-    updateAccountCode: { type: 'string', description: 'Zip code' },
-    updateAccountCustomFields: {
-      type: 'json',
-      description: 'User-defined fields associated with the account JSON object.',
-    },
-    updateAccountCity: { type: 'string', description: 'City in which the account is based' },
-    updateAccountStreet: { type: 'string', description: 'Address of the account' },
-    updateAccountAnnualrevenue: { type: 'number', description: 'Annual revenue of the account' },
-    updateAccountDescription: { type: 'string', description: 'A short description of the account' },
-    updateAccountIndustry: {
-      type: 'string',
-      description: 'Industry in which the account operates',
-    },
-    updateAccountState: { type: 'string', description: 'State in which the account is based' },
-    updateAccountOwnerId: { type: 'string', description: 'ID of account owner' },
-    updateAccountFax: { type: 'string', description: 'Fax number of the account' },
-    updateAccountAssociatedSLAIds: {
-      type: 'array',
-      description:
-        'IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array.',
-    },
-    searchAccountsAccountName: {
-      type: 'string',
-      description: 'Name of the account. Supports * wildcards.',
-    },
-    searchAccountsCreatedTimeRange: {
-      type: 'string',
-      description:
-        'Key that filters accounts created in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, createdTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z',
-    },
-    searchAccountsLimit: { type: 'number', description: 'Page size (1-100; default 10).' },
-    searchAccountsFrom: {
-      type: 'number',
-      description: 'Pagination start index (0-999; search returns at most the first 1000 matches).',
-    },
-    searchAccountsModifiedTimeRange: {
-      type: 'string',
-      description:
-        'Key that filters accounts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z',
-    },
-    searchAccountsId: {
-      type: 'string',
-      description: 'ID of the account. Exact match. Comma-separated values.',
-    },
-    searchAccountsQuery: {
-      type: 'string',
-      description: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
-    },
-    searchAccountsCustomField1: {
-      type: 'string',
-      description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
-    },
-    searchAccountsCustomField2: {
-      type: 'string',
-      description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
-    },
-    searchAccountsCustomField3: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsCustomField4: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsCustomField5: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsCustomField6: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsCustomField7: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsCustomField8: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsCustomField9: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsCustomField10: {
-      type: 'string',
-      description:
-        'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
-    },
-    searchAccountsSortBy: {
-      type: 'string',
-      description:
-        'Sort field: relevance, modifiedTime, createdTime, accountName. Prefix with - for descending.',
-    },
-    getAccountInclude: { type: 'string', description: 'Allowed values are : owner' },
-    getAccountAccountId: { type: 'string', description: 'Unique ID of the account' },
-    listDepartmentsChatStatus: {
+    chatStatus: {
       type: 'string',
       description: `Key that filters departments based on their chat status. Values allowed are AVAILABLE, DISABLED, NOT_CREATED, and \${UNAVAILABLE}. \${UNAVAILABLE} refers to departments which are not available for chat.`,
     },
-    listDepartmentsSearchStr: {
+    searchStr: {
       type: 'string',
       description:
         'String to search for departments by name, help center name, or description. The string must contain at least one character. Three search methods are supported: 1) string* - Searches for departments whose name, help center name, or description start with the string, 2) *string* - Searches for departments whose name, help center name, or description contain the string, 3) string - Searches for departments whose name, help center name, or description is an. Exact match. for the string',
     },
-    listDepartmentsIsEnabled: {
+    isEnabled: {
       type: 'boolean',
       description: 'Key that filters departments based on their enabled status',
     },
-    listDepartmentsLimit: { type: 'number', description: 'Page size (0-200; default 10).' },
-    listDepartmentsFrom: { type: 'number', description: 'Pagination start index (0-based).' },
-    getDepartmentDepartmentId: { type: 'string', description: 'Unique ID of the department' },
-    listAgentsInclude: {
-      type: 'string',
-      description:
-        'Secondary information related to agents, The allowed values are profile, role. You can include all two values by separating them with commas in the API request.',
-    },
-    listAgentsRoleIds: {
+    roleIds: {
       type: 'string',
       description:
         'Comma-separated array of role IDs. Maximum number of IDs allowed is 50. Comma-separated values.',
     },
-    listAgentsSearchStr: {
-      type: 'string',
-      description:
-        'String to search for agents by first name, last name, or email ID. The string must contain at least one character. The supported search methods: 1) string* - Searches for agents whose first name, last name, or email ID start with the string, 2) *string* - Searches for agents whose first name, last name, or email ID contain the string, 3) string - Searches for agents whose first name, last name, or email ID is an. Exact match. for the string',
-    },
-    listAgentsCfSearchStr: {
+    cfSearchStr: {
       type: 'string',
       description:
         'String to search for agents by custom field. The string must contain at least one character',
     },
-    listAgentsCfFieldName: {
+    cfFieldName: {
       type: 'string',
       description:
         'API name of the custom field that must be used for searching and listing agents',
     },
-    listAgentsFieldName: {
+    fieldName: {
       type: 'string',
       description:
         'Name of the field that must be used for searching and listing agents. The allowed values are: firstName, lastName, name, and emailId',
     },
-    listAgentsIsLightAgent: {
+    isLightAgent: {
       type: 'boolean',
       description: 'Key that denotes if the agents must be light or non light.',
     },
-    listAgentsSortOrder: {
+    sortOrder: {
       type: 'string',
       description:
         'To sort the available list of agents in either ascending or descending order. The allowed values are: asc or desc',
     },
-    listAgentsLimit: { type: 'number', description: 'Page size (0-200; default 10).' },
-    listAgentsRolePermissionType: {
+    rolePermissionType: {
       type: 'string',
       description: `Types of roles and permissions of the agents to list. The allowed values are AgentPublic, AgentPersonal,AgentTeamPersonal, Admin, Light, Custom, and \${NON_LIGHT}. \${NON_LIGHT} refers to agents who are not associated with the light agent profile.`,
     },
-    listAgentsProfileIds: {
+    profileIds: {
       type: 'string',
       description:
         'Comma-separated array of profile IDs. Maximum number of IDs allowed is 50. Comma-separated values.',
     },
-    listAgentsFrom: { type: 'number', description: 'Pagination start index (0-based).' },
-    listAgentsIsConfirmed: {
+    isConfirmed: {
       type: 'boolean',
       description: 'Key that denotes if the agents must be confirmed or unconfirmed.',
     },
-    listAgentsDepartmentIds: {
-      type: 'string',
-      description:
-        'Comma-separated array of department IDs. Maximum number of IDs allowed is 50. Comma-separated values.',
-    },
-    listAgentsStatus: {
-      type: 'string',
-      description:
-        'Key that filters agents based on their activation status: ACTIVE, DISABLED, DELETED or IMPORTED',
-    },
-    getAgentInclude: {
-      type: 'string',
-      description:
-        'Secondary information related to the agent. Values allowed are profile, role, associatedDepartments, associatedChatDepartments and verifiedEmails. Separate multiple values with commas.',
-    },
-    getAgentAgentId: { type: 'string', description: 'Agent ID' },
-    getCommentInclude: {
-      type: 'string',
-      description:
-        'Related comment data to include: mentions, plainText, or both separated by commas.',
-    },
-    getCommentCommentId: { type: 'string', description: 'Comment ID' },
-    getCommentTicketId: { type: 'string', description: 'Ticket ID' },
-    updateCommentCommentId: { type: 'string', description: 'Comment ID' },
-    updateCommentTicketId: { type: 'string', description: 'Ticket ID' },
-    updateCommentContent: {
-      type: 'string',
-      description:
-        'The comment content. To mention an agent: zsu[@user:{zuid}]zsu To mention a team: zsu[@team:{teamId}_{teamName}]zsu Note: This format can also be used to retrieve agent information.',
-    },
-    updateCommentAttachmentIds: {
-      type: 'array',
-      description:
-        'List of file attachments included in the comment.Note: For more details on attachments, refer to the Uploads section. JSON array.',
-    },
-    updateCommentContentType: {
-      type: 'string',
-      description:
-        'Specifies the type of the content whether html or plainText. The default value is html.',
-    },
-    deleteCommentCommentId: { type: 'string', description: 'Comment ID' },
-    deleteCommentTicketId: { type: 'string', description: 'Ticket ID' },
-
+    departmentIds: { type: 'string', description: 'Department IDs to filter by (comma-separated)' },
+    agentId: { type: 'string', description: 'Agent ID' },
+    commentId: { type: 'string', description: 'Comment ID' },
     oauthCredential: { type: 'string', description: 'Zoho Desk credential' },
     orgId: { type: 'string', description: 'Zoho Desk organization ID' },
-    ticketId: { type: 'string', description: 'Ticket ID' },
     threadId: { type: 'string', description: 'Thread ID' },
-    contactId: { type: 'string', description: 'Contact ID' },
-    content: { type: 'string', description: 'Comment content' },
-    contentType: { type: 'string', description: 'Comment content type (plainText/html)' },
     isPublic: { type: 'boolean', description: 'Whether a comment is public' },
-    subject: { type: 'string', description: 'Ticket subject' },
-    status: { type: 'string', description: 'Ticket status to set' },
     statusFilter: { type: 'string', description: 'Status filter for listing tickets' },
     priorityFilter: { type: 'string', description: 'Priority filter for listing tickets' },
     assigneeFilter: { type: 'string', description: 'Assignee filter for listing tickets' },
@@ -4564,28 +2642,13 @@ export const ZohoDeskBlock: BlockConfig = {
       type: 'number',
       description: 'Only tickets with a customer response in the last N days',
     },
-    priority: { type: 'string', description: 'Ticket priority' },
-    assigneeId: { type: 'string', description: 'Assignee (agent) ID' },
-    description: { type: 'string', description: 'Ticket description' },
-    resolution: { type: 'string', description: 'Resolution notes' },
-    classification: { type: 'string', description: 'Ticket classification' },
-    departmentId: { type: 'string', description: 'Department ID to move a ticket to' },
-    departmentIds: { type: 'string', description: 'Department IDs to filter by (comma-separated)' },
-    category: { type: 'string', description: 'Ticket category' },
-    subCategory: { type: 'string', description: 'Ticket sub-category' },
-    dueDate: { type: 'string', description: 'Ticket due date' },
-    customFields: { type: 'json', description: 'Custom field values' },
     href: { type: 'string', description: 'Attachment download href' },
     fileName: { type: 'string', description: 'Downloaded file name' },
-    include: { type: 'string', description: 'Related data to include when listing tickets' },
     ticketInclude: { type: 'string', description: 'Related data to include on a single ticket' },
     contactInclude: { type: 'string', description: 'Related data to include on a contact' },
     threadInclude: { type: 'string', description: 'Related data to include on a thread' },
-    sortBy: { type: 'string', description: 'Sort field for listing tickets' },
     commentSortBy: { type: 'string', description: 'Sort field for listing comments' },
     threadSortBy: { type: 'string', description: 'Sort field for listing threads' },
-    from: { type: 'number', description: 'Pagination start index' },
-    limit: { type: 'number', description: 'Maximum results' },
   },
   outputs: {
     tickets: { type: 'array', description: 'List of tickets' },
