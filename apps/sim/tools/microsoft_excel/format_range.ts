@@ -81,7 +81,7 @@ export const formatRangeTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s OneDrive for Business.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     sheetName: {
       type: 'string',

@@ -29,7 +29,7 @@ export const EXCEL_WORKBOOK_PARAMS = {
     required: false,
     visibility: 'user-or-llm',
     description:
-      'Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive for Business.',
+      'Drive ID for SharePoint or another drive. Defaults to the signed-in user’s OneDrive. Excel workbook APIs require a business account.',
   },
   sessionId: {
     type: 'string',

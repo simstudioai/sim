@@ -20,8 +20,8 @@ import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 function resolveSortFields(
   params: Pick<MicrosoftExcelSortRangeParams, 'sortFields' | 'sortColumn' | 'sortAscending'>
 ): Array<Record<string, unknown> & { key: number; ascending: boolean }> {
-  const fields: unknown =
-    typeof params.sortFields === 'string' ? JSON.parse(params.sortFields) : params.sortFields
+  let fields: unknown = params.sortFields
+  if (typeof fields === 'string') fields = fields.trim() ? JSON.parse(fields) : undefined
   if (fields === undefined || fields === null) {
     const key = params.sortColumn
     if (key === undefined || !Number.isSafeInteger(key) || key < 0)
@@ -112,7 +112,7 @@ export const sortRangeTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s OneDrive for Business.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     tableName: {
       type: 'string',
@@ -182,20 +182,21 @@ export const sortRangeTool: ToolConfig<
     headers: excelHeaders,
     body: (params) => {
       const fields = resolveSortFields(params)
-      if (params.sortMethod && !['PinYin', 'StrokeCount'].includes(params.sortMethod))
+      const sortMethod = params.sortMethod?.trim()
+      if (sortMethod && !['PinYin', 'StrokeCount'].includes(sortMethod))
         throw new Error('Invalid sort method')
-      if (params.orientation && !['Rows', 'Columns'].includes(params.orientation))
-        throw new Error('Invalid sort orientation')
 
       const body: Record<string, unknown> = {
         fields,
         matchCase: params.matchCase ?? false,
-        ...(params.sortMethod ? { method: params.sortMethod } : {}),
+        ...(sortMethod ? { method: sortMethod } : {}),
       }
 
       if (!params.tableName?.trim()) {
+        const orientation = params.orientation?.trim() || 'Rows'
+        if (!['Rows', 'Columns'].includes(orientation)) throw new Error('Invalid sort orientation')
         body.hasHeaders = params.hasHeaders ?? false
-        body.orientation = params.orientation ?? 'Rows'
+        body.orientation = orientation
       }
 
       return body

@@ -269,15 +269,11 @@ Return ONLY the range string - no explanations, no quotes around the entire outp
       required: false,
       wandConfig: {
         enabled: true,
-        prompt: `Generate Microsoft Excel data as a JSON array based on the user's description.
+        prompt: `Generate Microsoft Excel data as a two-dimensional JSON array in the column order provided by the user.
 
-Format options:
-1. Array of arrays: [["Header1", "Header2"], ["Value1", "Value2"]]
-2. Array of objects: [{"column1": "value1", "column2": "value2"}]
-
-Examples:
-- "sales data with product and revenue columns" -> [["Product", "Revenue"], ["Widget A", 1500], ["Widget B", 2300]]
-- "list of employees with name and email" -> [{"name": "John Doe", "email": "john@example.com"}, {"name": "Jane Smith", "email": "jane@example.com"}]
+Return data rows only. When adding rows to an existing table, never include a header row.
+Only include headers when the user explicitly asks to write headers to a worksheet range.
+Example data rows: [["Widget A", 1500], ["Widget B", 2300]]
 
 Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         placeholder: 'Describe the data you want to write...',
@@ -1146,15 +1142,11 @@ Return ONLY the range string - no sheet name, no explanations, no quotes.`,
       condition: { field: 'operation', value: ['write', 'table_add'] },
       wandConfig: {
         enabled: true,
-        prompt: `Generate Microsoft Excel data as a JSON array based on the user's description.
+        prompt: `Generate Microsoft Excel data as a two-dimensional JSON array in the column order provided by the user.
 
-Format options:
-1. Array of arrays: [["Header1", "Header2"], ["Value1", "Value2"]]
-2. Array of objects: [{"column1": "value1", "column2": "value2"}]
-
-Examples:
-- "sales data with product and revenue columns" -> [["Product", "Revenue"], ["Widget A", 1500], ["Widget B", 2300]]
-- "list of employees with name and email" -> [{"name": "John Doe", "email": "john@example.com"}, {"name": "Jane Smith", "email": "jane@example.com"}]
+Return data rows only. When adding rows to an existing table, never include a header row.
+Only include headers when the user explicitly asks to write headers to a worksheet range.
+Example data rows: [["Widget A", 1500], ["Widget B", 2300]]
 
 Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         placeholder: 'Describe the data you want to write...',
@@ -2261,6 +2253,6 @@ export const MicrosoftExcelBlockMeta = {
 } as const satisfies BlockMeta
 
 export const MicrosoftExcelV2BlockMeta = {
-  ...MicrosoftExcelBlockMeta,
   tags: ['spreadsheet', 'microsoft-365'],
+  url: 'https://www.microsoft.com/microsoft-365/excel',
 } as const satisfies BlockMeta

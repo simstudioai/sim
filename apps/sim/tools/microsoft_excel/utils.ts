@@ -130,11 +130,11 @@ export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
 /**
  * Returns the Graph API base path for an Excel item.
  * When driveId is provided, uses /drives/{driveId}/items/{itemId} (SharePoint/shared drives).
- * When driveId is omitted, uses /me/drive/items/{itemId} (personal OneDrive).
+ * When driveId is omitted or null, uses /me/drive/items/{itemId} (the user’s default drive).
  */
-export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
+export function getItemBasePath(spreadsheetId: string, driveId?: string | null): string {
   spreadsheetId = spreadsheetId.trim()
-  if (driveId !== undefined && !driveId.trim()) {
+  if (typeof driveId === 'string' && !driveId.trim()) {
     throw new Error('driveId must not be blank when provided')
   }
   driveId = driveId?.trim()

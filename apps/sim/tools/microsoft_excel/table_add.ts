@@ -53,7 +53,7 @@ export const tableAddTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s OneDrive for Business.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     tableName: {
       type: 'string',
@@ -72,7 +72,7 @@ export const tableAddTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The data to add as a 2D array (e.g., [["Alice", 30], ["Bob", 25]]) or array of objects',
+        'Data rows in table column order, without headers (e.g., [["Value", 30]]). Object rows are also accepted in key order for compatibility. Omit to add a blank row.',
     },
   },
 
