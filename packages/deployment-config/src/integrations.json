@@ -5600,7 +5600,7 @@
         },
         {
           "name": "Update Ruleset",
-          "description": "Updates a zone ruleset, creating a new version. Read the current configuration with \"Get Ruleset\" first and resend all values to retain. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use \"Create Ruleset Rule\" to add a single rule without replacing the list."
+          "description": "Updates the description and rules of a zone ruleset, creating a new version. Read the current rules with \"Get Ruleset\" before replacing the list. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use \"Create Ruleset Rule\" to add a single rule without replacing the list."
         },
         {
           "name": "List Rate Limiting Rules",

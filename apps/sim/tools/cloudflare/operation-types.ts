@@ -54,9 +54,6 @@ export interface CloudflareUpdateRulesetParams {
   rulesetId: string
   apiKey: string
   description?: string
-  name?: string
-  kind?: string
-  phase?: string
   rules?: string | Record<string, unknown> | unknown[]
   dry_run?: boolean
 }

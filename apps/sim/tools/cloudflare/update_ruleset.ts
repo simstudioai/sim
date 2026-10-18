@@ -22,7 +22,7 @@ export const updateRulesetTool: ToolConfig<
   id: 'cloudflare_update_ruleset',
   name: 'Cloudflare Update Ruleset',
   description:
-    'Updates a zone ruleset, creating a new version. Read the current configuration with "Get Ruleset" first and resend all values to retain. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use "Create Ruleset Rule" to add a single rule without replacing the list.',
+    'Updates the description and rules of a zone ruleset, creating a new version. Read the current rules with "Get Ruleset" before replacing the list. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use "Create Ruleset Rule" to add a single rule without replacing the list.',
   version: '1.0.0',
   params: {
     zoneId: {
@@ -48,25 +48,6 @@ export const updateRulesetTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'An informative description of the ruleset.',
-    },
-    name: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'The human-readable name of the ruleset.',
-    },
-    kind: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'The kind of the ruleset. Allowed values: managed, custom, root, zone.',
-    },
-    phase: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'The phase of the ruleset. Allowed values: ddos_l4, ddos_l7, http_config_settings, http_custom_errors, http_log_custom_fields, http_ratelimit, http_request_cache_settings, http_request_dynamic_redirect, http_request_firewall_custom, http_request_firewall_managed, http_request_late_transform, http_request_origin, http_request_redirect, http_request_sanitize, http_request_sbfm, http_request_transform, http_response_cache_settings, http_response_compression, http_response_firewall_custom, http_response_firewall_managed, http_response_headers_transform, magic_transit, magic_transit_ids_managed, magic_transit_managed, magic_transit_ratelimit.',
     },
     rules: {
       type: 'json',
@@ -95,9 +76,6 @@ export const updateRulesetTool: ToolConfig<
     headers: (params) => ({ ...cloudflareHeaders(params.apiKey) }),
     body: (params) => ({
       description: params.description,
-      name: params.name,
-      kind: params.kind,
-      phase: params.phase,
       rules: parseJsonArrayParam(params.rules, 'rules'),
     }),
   },

@@ -8030,7 +8030,7 @@ Updates a rate limiting rule in the http_ratelimit phase entry point ruleset of 
 
 ### Cloudflare Update Ruleset
 
-Updates a zone ruleset, creating a new version. Read the current configuration with "Get Ruleset" first and resend all values to retain. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use "Create Ruleset Rule" to add a single rule without replacing the list.
+Updates the description and rules of a zone ruleset, creating a new version. Read the current rules with "Get Ruleset" before replacing the list. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use "Create Ruleset Rule" to add a single rule without replacing the list.
 
 #### Input
 
@@ -8040,9 +8040,6 @@ Updates a zone ruleset, creating a new version. Read the current configuration w
 | `rulesetId` | string | Yes | Ruleset id |
 | `apiKey` | string | Yes | Cloudflare API token |
 | `description` | string | No | An informative description of the ruleset. |
-| `name` | string | No | The human-readable name of the ruleset. |
-| `kind` | string | No | The kind of the ruleset. Allowed values: managed, custom, root, zone. |
-| `phase` | string | No | The phase of the ruleset. Allowed values: ddos_l4, ddos_l7, http_config_settings, http_custom_errors, http_log_custom_fields, http_ratelimit, http_request_cache_settings, http_request_dynamic_redirect, http_request_firewall_custom, http_request_firewall_managed, http_request_late_transform, http_request_origin, http_request_redirect, http_request_sanitize, http_request_sbfm, http_request_transform, http_response_cache_settings, http_response_compression, http_response_firewall_custom, http_response_firewall_managed, http_response_headers_transform, magic_transit, magic_transit_ids_managed, magic_transit_managed, magic_transit_ratelimit. |
 | `rules` | json | No | JSON array replacing the complete rule list. Read "Get Ruleset" first and include every rule to retain; omitted rules are removed, and \[\] removes all rules. Fields: action, action_parameters, categories, description, enabled, exposed_credential_check, expression, id, last_updated, logging, ratelimit, ref, version. |
 | `dry_run` | boolean | No | Validates the request without persisting changes when set to `true`. Responses that normally return 200 return `result: null`; endpoints that normally return 204 continue to return 204. |
 
