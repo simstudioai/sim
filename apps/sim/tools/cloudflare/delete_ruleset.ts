@@ -60,7 +60,7 @@ export const deleteRulesetTool: ToolConfig<
   transformResponse: async (response) => {
     if (response.status === 204) return { success: true, output: { success: true } }
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false
+    const success = response.ok && data.success === true
     return {
       success,
       output: { success },

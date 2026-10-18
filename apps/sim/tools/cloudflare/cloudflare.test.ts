@@ -1117,3 +1117,32 @@ describe('Cloudflare review regressions', () => {
     expect(result.output.value).toBe(String(enabled))
   })
 })
+
+describe('Cloudflare response envelopes and conditional inputs', () => {
+  it.each([undefined, null])('accepts confirmed group deletion with result %s', async (result) => {
+    const transform = cloudflareTools.cloudflareDeleteAccessGroupTool.transformResponse
+    if (!transform) throw new Error('Expected response transform')
+    const response = await transform(envelope(result))
+    expect(response.success).toBe(true)
+    expect(response.output.id).toBeNull()
+  })
+
+  it.each([undefined, null, 'true'])(
+    'rejects an Access list envelope with success %s',
+    async (success) => {
+      const transform = cloudflareTools.cloudflareListAccessApplicationsTool.transformResponse
+      if (!transform) throw new Error('Expected response transform')
+      const response = await transform(new Response(JSON.stringify({ success, result: [] })))
+      expect(response.success).toBe(false)
+    }
+  )
+
+  it.each([
+    { settingId: 'ssl_recommender', field: 'enabled' },
+    { settingId: 'ssl', field: 'value' },
+  ])('rejects $settingId updates without $field', ({ settingId, field }) => {
+    const body = cloudflareTools.cloudflareUpdateZoneSettingTool.request.body
+    if (!body) throw new Error('Expected request body')
+    expect(() => body({ apiKey, zoneId: 'zone', settingId })).toThrow(field)
+  })
+})

@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 import { SERVICE_TOKEN_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareAccessServiceTokenResponse,
@@ -53,7 +52,7 @@ export const revokeAccessServiceTokenTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false && isRecordLike(data.result)
+    const success = response.ok && data.success === true
     return {
       success,
       output: mapCloudflareFields(data.result, SERVICE_TOKEN_OUTPUTS),

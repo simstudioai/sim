@@ -109,7 +109,7 @@ export const listAccessApplicationsTool: ToolConfig<
     const data = await readCloudflareResponse(response)
     const raw = data.result
     const rows = Array.isArray(raw) ? raw : []
-    const success = response.ok && data.success !== false && Array.isArray(raw)
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
       success,
       output: {

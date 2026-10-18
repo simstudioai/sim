@@ -53,7 +53,7 @@ export const getWorkerScriptSettingsTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false && isRecordLike(data.result)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
       success,
       output: mapCloudflareFields(data.result, WORKER_SETTINGS_OUTPUTS),

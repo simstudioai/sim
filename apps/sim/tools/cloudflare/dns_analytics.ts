@@ -102,7 +102,7 @@ export const dnsAnalyticsTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await readCloudflareResponse<CloudflareRawDnsAnalyticsReport>(response)
 
-    if (!response.ok || !data.success) {
+    if (!response.ok || data.success !== true) {
       return {
         success: false,
         output: {

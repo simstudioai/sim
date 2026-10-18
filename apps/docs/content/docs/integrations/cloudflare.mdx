@@ -6596,7 +6596,7 @@ Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it.
 
 ### Cloudflare Rotate Access Service Token
 
-Generates a new Client Secret for a service token and revokes the old one.
+Generates a new Client Secret. The previous secret expires immediately unless previous_client_secret_expires_at schedules a later expiration.
 
 #### Input
 
@@ -8767,7 +8767,7 @@ Updates a specific zone setting such as SSL mode, security level, cache level, o
 | `enabled` | boolean | No | Enrollment value for ssl_recommender; this setting uses enabled instead of value |
 | `zoneId` | string | Yes | The zone ID to update settings for |
 | `settingId` | string | Yes | Setting to update \(e.g., "ssl", "security_level", "cache_level", "always_use_https", "browser_cache_ttl", "http3", "min_tls_version", "ciphers"\) |
-| `value` | string | No | New value for the setting as a string, or a JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \["ECDHE-RSA-AES128-GCM-SHA256"\] for ciphers\) |
+| `value` | string | No | Required except for ssl_recommender. New value as a string, or a JSON string for complex values \(e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, \["ECDHE-RSA-AES128-GCM-SHA256"\] for ciphers\) |
 | `apiKey` | string | Yes | Cloudflare API Token |
 
 #### Output

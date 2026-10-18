@@ -47,7 +47,7 @@ export const listRateLimitRulesTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false && isRecordLike(data.result)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
       success,
       output: mapCloudflareRuleset(data.result),

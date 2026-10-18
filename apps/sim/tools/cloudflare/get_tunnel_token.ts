@@ -47,7 +47,7 @@ export const getTunnelTokenTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const data = await readCloudflareResponse<string>(response)
-    const success = response.ok && data.success !== false && typeof data.result === 'string'
+    const success = response.ok && data.success === true && typeof data.result === 'string'
     return {
       success,
       output: { token: typeof data.result === 'string' ? data.result : null },

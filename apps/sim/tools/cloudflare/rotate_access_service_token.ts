@@ -19,7 +19,8 @@ export const rotateAccessServiceTokenTool: ToolConfig<
 > = {
   id: 'cloudflare_rotate_access_service_token',
   name: 'Cloudflare Rotate Access Service Token',
-  description: 'Generates a new Client Secret for a service token and revokes the old one.',
+  description:
+    'Generates a new Client Secret. The previous secret expires immediately unless previous_client_secret_expires_at schedules a later expiration.',
   version: '1.0.0',
   params: {
     accountId: {
@@ -62,7 +63,7 @@ export const rotateAccessServiceTokenTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false && isRecordLike(data.result)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
     return {
       success,
       output: mapCloudflareFields(data.result, SERVICE_TOKEN_SECRET_OUTPUTS),

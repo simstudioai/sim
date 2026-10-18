@@ -5700,7 +5700,7 @@
         },
         {
           "name": "Rotate Access Service Token",
-          "description": "Generates a new Client Secret for a service token and revokes the old one."
+          "description": "Generates a new Client Secret. The previous secret expires immediately unless previous_client_secret_expires_at schedules a later expiration."
         },
         {
           "name": "Update Access Service Token",

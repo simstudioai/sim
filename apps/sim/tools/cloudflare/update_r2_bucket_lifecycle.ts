@@ -65,7 +65,7 @@ export const updateR2BucketLifecycleTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false
+    const success = response.ok && data.success === true
     return {
       success,
       output: { success },

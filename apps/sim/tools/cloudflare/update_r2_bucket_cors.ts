@@ -64,7 +64,7 @@ export const updateR2BucketCorsTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false
+    const success = response.ok && data.success === true
     return {
       success,
       output: { success },

@@ -125,7 +125,7 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
     transformResponse: async (response: Response) => {
       const data = await response.json()
 
-      if (!response.ok || !data.success) {
+      if (!response.ok || data.success !== true) {
         return {
           success: false,
           output: { id: '' },

@@ -108,7 +108,7 @@ export const listR2BucketsTool: ToolConfig<
     const data = await readCloudflareResponse(response)
     const raw = toRecord(data.result).buckets
     const rows = Array.isArray(raw) ? raw : []
-    const success = response.ok && data.success !== false && Array.isArray(raw)
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
       success,
       output: {
@@ -137,6 +137,6 @@ export const listR2BucketsTool: ToolConfig<
       nullable: true,
       properties: RESULT_INFO_OUTPUTS,
     },
-    cursor: { type: 'string', description: 'Cursor for the next page', optional: true },
+    cursor: { type: 'string', description: 'Cursor for the next page', nullable: true },
   },
 }

@@ -44,7 +44,7 @@ export const updateZoneSettingTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: `New value for the setting as a string, or a JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, ["ECDHE-RSA-AES128-GCM-SHA256"] for ciphers)`,
+      description: `Required except for ssl_recommender. New value as a string, or a JSON string for complex values (e.g., "full" for SSL, "medium" for security_level, "aggressive" for cache_level, ["ECDHE-RSA-AES128-GCM-SHA256"] for ciphers)`,
     },
     apiKey: {
       type: 'string',
@@ -63,22 +63,21 @@ export const updateZoneSettingTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      if (params.settingId.trim() === 'ssl_recommender') return { enabled: params.enabled }
-      // A block reference can pass an already-structured array/object straight
-      // through despite the declared string param type — send it as-is rather
-      // than stringifying it (String([...]) comma-joins, String({...}) yields
-      // "[object Object]", neither of which is the JSON shape Cloudflare expects).
+      if (params.settingId.trim() === 'ssl_recommender') {
+        if (typeof params.enabled !== 'boolean')
+          throw new Error('enabled is required for ssl_recommender')
+        return { enabled: params.enabled }
+      }
+      if (params.value === undefined || params.value === null)
+        throw new Error('value is required for this zone setting')
+      // Resolved block outputs may already be structured JSON.
       if (params.value !== null && typeof params.value === 'object') {
         return { value: params.value }
       }
 
-      // Wand-generated values can also arrive as a non-string primitive
-      // (e.g. a number, or null/undefined) at runtime despite the declared
-      // param type — coerce null/undefined to '' rather than the literal
-      // "null"/"undefined" strings String() would otherwise produce.
-      const trimmed = (params.value == null ? '' : String(params.value)).trim()
+      const trimmed = String(params.value).trim()
 
-      // Number('') is 0, not NaN, so an empty value must be rejected explicitly.
+      // Number('') is zero, so preserve empty numeric input for the provider's validation.
       if (
         [
           'browser_cache_ttl',
@@ -110,7 +109,7 @@ export const updateZoneSettingTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await readCloudflareResponse<CloudflareRawZoneSetting>(response)
 
-    if (!response.ok || !data.success || !isRecordLike(data.result)) {
+    if (!response.ok || data.success !== true || !isRecordLike(data.result)) {
       return {
         success: false,
         output: { id: '', value: '', editable: false, modified_on: '' },

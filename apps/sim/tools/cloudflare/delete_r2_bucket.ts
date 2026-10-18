@@ -57,7 +57,7 @@ export const deleteR2BucketTool: ToolConfig<
   transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
-    if (!response.ok || !data.success) {
+    if (!response.ok || data.success !== true) {
       return {
         success: false,
         output: { name: '' },

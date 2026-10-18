@@ -47,7 +47,7 @@ export const deleteAccessApplicationTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (!response.ok || !data.success || !data.result) {
+    if (!response.ok || data.success !== true) {
       return {
         success: false,
         output: { id: '' },

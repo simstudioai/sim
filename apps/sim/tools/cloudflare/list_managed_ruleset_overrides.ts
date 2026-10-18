@@ -46,7 +46,7 @@ export const listManagedRulesetOverridesTool: ToolConfig<
   transformResponse: async (response: Response) => {
     const data = await readCloudflareResponse<CloudflareRawRuleset>(response)
 
-    if (!response.ok || !data.success) {
+    if (!response.ok || data.success !== true) {
       return {
         success: false,
         output: { ruleset_id: '', deployments: [], total_count: 0 },

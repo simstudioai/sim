@@ -73,7 +73,7 @@ export const deleteRulesetRuleTool: ToolConfig<
     const data = await readCloudflareResponse(response)
     const success =
       response.ok &&
-      data.success !== false &&
+      data.success === true &&
       (isRecordLike(data.result) || (params?.dry_run === true && data.result === null))
     return {
       success,

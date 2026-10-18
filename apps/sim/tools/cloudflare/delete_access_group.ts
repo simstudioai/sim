@@ -1,4 +1,3 @@
-import { isRecordLike } from '@sim/utils/object'
 import type {
   CloudflareDeleteAccessGroupParams,
   CloudflareDeleteAccessGroupResponse,
@@ -48,7 +47,7 @@ export const deleteAccessGroupTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const data = await readCloudflareResponse(response)
-    const success = response.ok && data.success !== false && isRecordLike(data.result)
+    const success = response.ok && data.success === true
     return {
       success,
       output: mapCloudflareFields(data.result, {
