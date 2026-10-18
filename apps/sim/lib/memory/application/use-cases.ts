@@ -137,6 +137,7 @@ async function readMemoryResults(
         input.resolveBillingAttribution
       )))
     : undefined
+  input.signal?.throwIfAborted()
   const records: MemoryRecord[] = []
   const readProvenance: MemoryReadProvenance[] = []
   const tailBudget = new PlainMemoryReadBudget()
@@ -145,6 +146,7 @@ async function readMemoryResults(
       ? readBoundMemorySecretProvenance({ ...record, provenanceContentHash, status, entries })
       : undefined
     if (record.storageVersion === 2) {
+      input.signal?.throwIfAborted()
       const tail = await readPlainMemoryTail(record.id, workspaceId, tailBudget)
       record.data = [
         ...(Array.isArray(record.data) ? record.data : [record.data]),

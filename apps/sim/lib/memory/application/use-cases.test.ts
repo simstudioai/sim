@@ -157,6 +157,36 @@ describe('Memory application use cases', () => {
     )
     expect(mocks.readBoundProvenance).not.toHaveBeenCalled()
   })
+  it('stops a list cancelled during its billing lookup before reading tails or provenance', async () => {
+    queueTableRows(schemaMock.memory, [
+      {
+        id: 'memory-1',
+        key: 'conversation-1',
+        data: [],
+        storageVersion: 2,
+        secretProvenanceVersion: null,
+      },
+    ])
+    const controller = new AbortController()
+    await expect(
+      listMemoriesUseCase.execute({
+        principal: ACTORLESS_DEPLOYED_PRINCIPAL,
+        input: {
+          workspaceId: WORKSPACE_ID,
+          limit: 50,
+          includePersistedSecretProvenance: true,
+          signal: controller.signal,
+          resolveBillingAttribution: async () => {
+            controller.abort(new Error('cancelled'))
+            return BILLING_ATTRIBUTION
+          },
+        },
+      })
+    ).rejects.toThrow('cancelled')
+    expect(mocks.readPlainMemoryTail).not.toHaveBeenCalled()
+    expect(mocks.readBoundProvenance).not.toHaveBeenCalled()
+  })
+
   it('enforces one appended-history budget across the entire list response', async () => {
     queueTableRows(
       schemaMock.memory,
