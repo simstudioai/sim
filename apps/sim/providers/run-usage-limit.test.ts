@@ -38,6 +38,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { NEAR_LIMIT_USAGE_GATE_TTL_MS } from '@/lib/billing/core/usage-gate-cache'
 import { isNonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
+import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import type { ExecutionContext } from '@/executor/types'
 import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import { executeProviderRequest } from '@/providers'
@@ -158,6 +159,40 @@ describe('run usage limit', () => {
     )
 
     expect(parentCost).toEqual({ input: 0.5, output: 0.25, total: 0.75 })
+  })
+
+  it('bills a stopped attempt for the journaled steps a successful one would have billed', async () => {
+    const session = new AgentTurnStateMachine(
+      { save: vi.fn() },
+      {
+        version: 1,
+        steps: [
+          {
+            id: 'failed-attempt-step',
+            assistant: { role: 'assistant', content: 'Partial answer' },
+            calls: [],
+            results: [],
+            usage: { input: 1, output: 1 },
+            cost: { input: 1, output: 1, total: 2 },
+          },
+        ],
+      }
+    )
+    const run = startRun()
+    run.unrecordedModelCost = { total: 2 }
+    mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
+      await prepareConversationGeneration(request, 'anthropic', { messages: [] })
+      return { content: '', model: request.model }
+    })
+
+    const failure = await executeProviderRequest(
+      'anthropic',
+      { model: 'model-a', messages: [{ role: 'user', content: 'Continue' }] },
+      { executionContext: run, agentConversation: session }
+    ).catch((caught: unknown) => caught)
+
+    expect(isNonRetryableExecutionError(failure)).toBe(true)
+    expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2 })
   })
 
   it('counts every block of the run, not only the request that is running', async () => {

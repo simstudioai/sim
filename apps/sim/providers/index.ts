@@ -294,6 +294,8 @@ export async function executeProviderRequest(
   const modelSafeRequest = await prepareProviderFileAttachments(sanitizedRequest)
   const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
   const failedFunctionToolCost = { total: 0 }
+  // A conversation summary charges its parent request, so a stop after compaction bills it.
+  const settledCost = runtimeContext?.settledCost ?? { input: 0, output: 0, total: 0 }
   const requestRuntimeContext: ProviderRuntimeContext = {
     ...runtimeContext,
     ...(runtimeContext?.agentConversation
@@ -305,8 +307,7 @@ export async function executeProviderRequest(
         }
       : {}),
     failedFunctionToolCost,
-    // A conversation summary charges its parent request, so a stop after compaction bills it.
-    settledCost: runtimeContext?.settledCost ?? { input: 0, output: 0, total: 0 },
+    settledCost,
     ...(toolIdentities.toolIdByWireId.size > 0
       ? {
           toolIdByWireId: new Map([
@@ -351,6 +352,10 @@ export async function executeProviderRequest(
         .find((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       bindConversationGenerationPrompt(modelSafeRequest, currentUserMessage)
       priorConversationUsage = session.getUsage()
+      // A stop bills what success would: this journaled usage plus the request's own steps.
+      settledCost.input += priorConversationUsage.cost.input
+      settledCost.output += priorConversationUsage.cost.output
+      settledCost.total += priorConversationUsage.cost.total
       bindConversationGenerationCompactor(
         modelSafeRequest,
         createAgentConversationCompactor(
