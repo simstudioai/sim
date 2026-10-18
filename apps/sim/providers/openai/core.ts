@@ -30,7 +30,7 @@ import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
-import { ProviderError } from '@/providers/types'
+import { EmptyProviderInputError, ProviderError } from '@/providers/types'
 import {
   enforceStrictSchema,
   prepareToolExecution,
@@ -188,6 +188,7 @@ export async function executeResponsesProviderRequest(
   }
 
   const initialInput = buildResponsesInputFromMessages(allMessages, config.providerId)
+  if (initialInput.length === 0) throw new EmptyProviderInputError()
 
   /**
    * `stream` is always explicit: OpenAI defaults it to false, but Responses-compatible
