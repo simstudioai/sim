@@ -34,6 +34,20 @@ function optionalJson(value: unknown): unknown {
     : value
 }
 
+function requiredWithoutAlternatives(
+  values: Record<string, unknown> | undefined,
+  operations: string[],
+  alternatives: string[]
+) {
+  return {
+    field: 'operation',
+    value:
+      values && alternatives.every((field) => optionalJson(values[field]) === undefined)
+        ? operations
+        : [],
+  }
+}
+
 /** Coerces a 'true'/'false' dropdown value to boolean, or `undefined` when unset. */
 function optionalBoolean(value: unknown): boolean | undefined {
   const str = optionalString(value)
@@ -50,6 +64,68 @@ function optionalNumber(value: unknown): number | undefined {
   const num = Number(str)
   if (!Number.isFinite(num)) throw new Error('Expected a finite number')
   return num
+}
+
+/** Normalizes stored agent inputs when the selected operation is carried outside the parameter map. */
+function normalizeExcelAgentParams(params: Record<string, unknown>, separateSheet: boolean) {
+  const result: Record<string, unknown> = { ...params }
+  for (const field of ['index', 'top', 'skip', 'position', 'fontSize', 'sortColumn']) {
+    const value = optionalString(params[field])
+    const number = value === undefined ? undefined : Number(value)
+    result[field] = number === undefined || Number.isFinite(number) ? number : params[field]
+  }
+  for (const field of [
+    'fontBold',
+    'fontItalic',
+    'sortAscending',
+    'showHeaders',
+    'showTotals',
+    'persistChanges',
+    'rowHidden',
+    'columnHidden',
+  ])
+    result[field] = optionalBoolean(params[field])
+  for (const field of [
+    'values',
+    'formulas',
+    'formulasLocal',
+    'formulasR1C1',
+    'numberFormat',
+    'sortFields',
+  ])
+    result[field] = optionalJson(params[field])
+  for (const field of [
+    'sessionId',
+    'name',
+    'style',
+    'visibility',
+    'sortMethod',
+    'orientation',
+    'fillColor',
+    'fontColor',
+    'fontName',
+    'fontUnderline',
+  ])
+    result[field] = optionalString(params[field])
+
+  const sheetName = optionalString(params.sheetName)
+  const range = optionalString(params.cellRange) ?? optionalString(params.range)
+  result.range = range
+  result.sheetName = sheetName
+  result.tableName = optionalString(params.sortTableName) ?? optionalString(params.tableName)
+  result.worksheetName = sheetName ?? optionalString(params.worksheetName)
+  result.hasHeaders =
+    optionalBoolean(params.tableHasHeaders) ??
+    optionalBoolean(params.sortHasHeaders) ??
+    optionalBoolean(params.hasHeaders)
+  result.matchCase = optionalBoolean(params.sortMatchCase) ?? optionalBoolean(params.matchCase)
+  result.address = separateSheet
+    ? sheetName && range
+      ? `${quoteSheetName(sheetName)}!${range}`
+      : optionalString(params.address)
+    : (range ?? optionalString(params.address))
+  if (optionalJson(params.sortFields) !== undefined) result.sortColumn = undefined
+  return result
 }
 
 /** Wraps a worksheet name in single quotes when it contains characters that require escaping in an address. */
@@ -211,10 +287,16 @@ export const MicrosoftExcelBlock: BlockConfig = {
           'sort_range',
         ],
       },
-      required: {
+      required: (values) => ({
         field: 'operation',
-        value: ['clear_range', 'format_range', 'create_table'],
-      },
+        value: [
+          'write',
+          'clear_range',
+          'format_range',
+          'create_table',
+          ...(values && !optionalString(values.sortTableName) ? ['sort_range'] : []),
+        ],
+      }),
       wandConfig: {
         enabled: true,
         prompt: `Generate a valid Microsoft Excel range based on the user's description.
@@ -261,12 +343,19 @@ Return ONLY the range string - no explanations, no quotes around the entire outp
     },
     {
       id: 'values',
+      description:
+        'For Write Data, provide values or an advanced formula, number format, or visibility change. For Add Table Rows, omit values to add a blank row.',
       title: 'Values',
       type: 'long-input',
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: ['write', 'table_add'] },
-      required: false,
+      required: (values) =>
+        requiredWithoutAlternatives(
+          values,
+          ['write'],
+          ['formulas', 'formulasLocal', 'formulasR1C1', 'numberFormat', 'columnHidden', 'rowHidden']
+        ),
       wandConfig: {
         enabled: true,
         prompt: `Generate Microsoft Excel data as a two-dimensional JSON array in the column order provided by the user.
@@ -295,9 +384,16 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     {
       id: 'fillColor',
       title: 'Fill Color',
+      description: 'Provide a fill color or at least one font property.',
       type: 'short-input',
       placeholder: 'Hex color (e.g., #FFFF00)',
       condition: { field: 'operation', value: 'format_range' },
+      required: (values) =>
+        requiredWithoutAlternatives(
+          values,
+          ['format_range'],
+          ['fontBold', 'fontItalic', 'fontColor', 'fontSize', 'fontName', 'fontUnderline']
+        ),
     },
     {
       id: 'fontBold',
@@ -360,6 +456,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     },
     {
       id: 'sortTableName',
+      paramVisibility: 'user-or-llm',
       title: 'Table Name',
       type: 'short-input',
       placeholder: 'Optional: sort a table instead of the cell range',
@@ -369,10 +466,11 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     {
       id: 'sortColumn',
       title: 'Sort Key',
+      description: 'Required unless Sort Conditions are provided in advanced mode.',
       type: 'short-input',
       placeholder: 'Zero-based column or row offset (based on orientation)',
       condition: { field: 'operation', value: 'sort_range' },
-      required: false,
+      required: (values) => requiredWithoutAlternatives(values, ['sort_range'], ['sortFields']),
     },
     {
       id: 'sortAscending',
@@ -604,6 +702,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
       },
       params: (params) => {
+        if (!params.operation) return normalizeExcelAgentParams(params, false)
         const {
           oauthCredential,
           values,
@@ -635,7 +734,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         }
 
         const effectiveDriveId = driveId ? String(driveId).trim() : undefined
-        const trimmedRange = range ? String(range).trim() : undefined
+        const trimmedRange = optionalString(range)
 
         const base = {
           spreadsheetId: effectiveSpreadsheetId,
@@ -666,13 +765,15 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               fontUnderline: optionalString(params.fontUnderline),
             }
           case 'create_table': {
-            if (!trimmedRange) {
+            const address = trimmedRange ?? optionalString(params.address)
+            if (!address) {
               throw new Error('A range is required to create a table.')
             }
             return {
               ...base,
-              address: trimmedRange,
-              hasHeaders: optionalBoolean(tableHasHeaders) ?? true,
+              address,
+              hasHeaders:
+                optionalBoolean(tableHasHeaders) ?? optionalBoolean(params.hasHeaders) ?? true,
             }
           }
           case 'delete_worksheet': {
@@ -684,7 +785,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           }
           case 'sort_range': {
             const sortFields = optionalJson(params.sortFields)
-            const effectiveTableName = optionalString(sortTableName)
+            const effectiveTableName =
+              optionalString(sortTableName) ?? optionalString(params.tableName)
             if (!effectiveTableName && !trimmedRange) {
               throw new Error('A range or table name is required to sort.')
             }
@@ -697,8 +799,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               sortMethod: optionalString(params.sortMethod),
               orientation: optionalString(params.orientation),
               sortAscending: optionalBoolean(sortAscending) ?? true,
-              hasHeaders: optionalBoolean(sortHasHeaders),
-              matchCase: optionalBoolean(sortMatchCase),
+              hasHeaders: optionalBoolean(sortHasHeaders) ?? optionalBoolean(params.hasHeaders),
+              matchCase: optionalBoolean(sortMatchCase) ?? optionalBoolean(params.matchCase),
             }
           }
           case 'table_add':
@@ -877,7 +979,7 @@ export const MicrosoftExcelV2Block: BlockConfig = {
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
         ],
         sort_range: [
-          { text: 'Sort', field: ['sortTableName', 'cellRange'], core: true },
+          { text: 'Sort', field: ['tableName', 'cellRange'], core: true },
           { text: 'in', field: SPREADSHEET_FIELD, core: true },
           { text: ', by column', field: 'sortColumn' },
         ],
@@ -1035,7 +1137,7 @@ export const MicrosoftExcelV2Block: BlockConfig = {
           'update_worksheet',
         ],
       },
-      required: {
+      required: (values) => ({
         field: 'operation',
         value: [
           'read',
@@ -1046,8 +1148,11 @@ export const MicrosoftExcelV2Block: BlockConfig = {
           'delete_worksheet',
           'get_worksheet',
           'update_worksheet',
+          ...(values && !optionalString(values.tableName) && !optionalString(values.sortTableName)
+            ? ['sort_range']
+            : []),
         ],
-      },
+      }),
       dependsOn: {
         all: ['credential'],
         any: ['spreadsheetId', 'manualSpreadsheetId', 'driveSelector'],
@@ -1074,7 +1179,7 @@ export const MicrosoftExcelV2Block: BlockConfig = {
           'update_worksheet',
         ],
       },
-      required: {
+      required: (values) => ({
         field: 'operation',
         value: [
           'read',
@@ -1085,8 +1190,11 @@ export const MicrosoftExcelV2Block: BlockConfig = {
           'delete_worksheet',
           'get_worksheet',
           'update_worksheet',
+          ...(values && !optionalString(values.tableName) && !optionalString(values.sortTableName)
+            ? ['sort_range']
+            : []),
         ],
-      },
+      }),
       dependsOn: {
         all: ['credential'],
         any: ['credential', 'manualDriveId'],
@@ -1102,10 +1210,17 @@ export const MicrosoftExcelV2Block: BlockConfig = {
         field: 'operation',
         value: ['read', 'write', 'clear_range', 'format_range', 'create_table', 'sort_range'],
       },
-      required: {
+      required: (values) => ({
         field: 'operation',
-        value: ['clear_range', 'format_range', 'create_table'],
-      },
+        value: [
+          'clear_range',
+          'format_range',
+          'create_table',
+          ...(values && !optionalString(values.tableName) && !optionalString(values.sortTableName)
+            ? ['sort_range']
+            : []),
+        ],
+      }),
       wandConfig: {
         enabled: true,
         prompt: `Generate a valid cell range based on the user's description.
@@ -1135,41 +1250,42 @@ Return ONLY the range string - no sheet name, no explanations, no quotes.`,
     },
     {
       id: 'values',
+      description:
+        'For Write Data, provide values or an advanced formula, number format, or visibility change. For Add Table Rows, omit values to add a blank row. For Update Table Row, provide exactly one 2D array row in table column order, without headers or object keys; null leaves a cell unchanged.',
       title: 'Values',
       type: 'long-input',
       placeholder:
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}])',
-      condition: { field: 'operation', value: ['write', 'table_add'] },
+      condition: { field: 'operation', value: ['write', 'table_add', 'update_table_row'] },
+      required: (values) => ({
+        field: 'operation',
+        value: [
+          'update_table_row',
+          ...requiredWithoutAlternatives(
+            values,
+            ['write'],
+            [
+              'formulas',
+              'formulasLocal',
+              'formulasR1C1',
+              'numberFormat',
+              'columnHidden',
+              'rowHidden',
+            ]
+          ).value,
+        ],
+      }),
       wandConfig: {
         enabled: true,
         prompt: `Generate Microsoft Excel data as a two-dimensional JSON array in the column order provided by the user.
 
-Return data rows only. When adding rows to an existing table, never include a header row.
+Return data rows only. For Update Table Row, return exactly one row in table column order, without headers or object keys; use null for cells that should remain unchanged.
+When adding rows to an existing table, never include a header row.
 Only include headers when the user explicitly asks to write headers to a worksheet range.
 Example data rows: [["Widget A", 1500], ["Widget B", 2300]]
 
 Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         placeholder: 'Describe the data you want to write...',
-        generationType: 'json-object',
-      },
-    },
-    {
-      id: 'rowValues',
-      title: 'Row Values',
-      type: 'long-input',
-      placeholder: 'Exactly one row in table column order, e.g. [["Updated value", null, 42]]',
-      description:
-        'Use null to leave a cell unchanged. Do not include a header row or object keys.',
-      condition: { field: 'operation', value: 'update_table_row' },
-      required: true,
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate exactly one Microsoft Excel table row as a two-dimensional JSON array.
-Use the table column order provided by the user. Do not include a header row or object keys.
-Use null for cells that should remain unchanged.
-Example: [["Updated value", null, 42]]
-Return ONLY the JSON array containing one row, with no markdown or explanation.`,
-        placeholder: 'Describe the table column order and the cells to update...',
         generationType: 'json-object',
       },
     },
@@ -1188,9 +1304,16 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
     {
       id: 'fillColor',
       title: 'Fill Color',
+      description: 'Provide a fill color or at least one font property.',
       type: 'short-input',
       placeholder: 'Hex color (e.g., #FFFF00)',
       condition: { field: 'operation', value: 'format_range' },
+      required: (values) =>
+        requiredWithoutAlternatives(
+          values,
+          ['format_range'],
+          ['fontBold', 'fontItalic', 'fontColor', 'fontSize', 'fontName', 'fontUnderline']
+        ),
     },
     {
       id: 'fontBold',
@@ -1252,20 +1375,13 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
       condition: { field: 'operation', value: 'create_table' },
     },
     {
-      id: 'sortTableName',
-      title: 'Table Name',
-      type: 'short-input',
-      placeholder: 'Optional: sort a table instead of the cell range',
-      condition: { field: 'operation', value: 'sort_range' },
-      mode: 'advanced',
-    },
-    {
       id: 'sortColumn',
       title: 'Sort Key',
+      description: 'Required unless Sort Conditions are provided in advanced mode.',
       type: 'short-input',
       placeholder: 'Zero-based column or row offset (based on orientation)',
       condition: { field: 'operation', value: 'sort_range' },
-      required: false,
+      required: (values) => requiredWithoutAlternatives(values, ['sort_range'], ['sortFields']),
     },
     {
       id: 'sortAscending',
@@ -1409,9 +1525,11 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
       title: 'Table ID or Name',
       type: 'short-input',
       placeholder: 'Table1',
+      description: 'For Sort Range, provide a table name or a worksheet and cell range.',
       condition: {
         field: 'operation',
         value: [
+          'sort_range',
           'table_add',
           'get_table',
           'update_table',
@@ -1422,7 +1540,7 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
           'delete_table_row',
         ],
       },
-      required: true,
+      required: { field: 'operation', value: 'sort_range', not: true },
     },
     {
       id: 'worksheetName',
@@ -1434,9 +1552,18 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
     {
       id: 'name',
       title: 'New Name',
+      description: 'Provide a new name or at least one property to update in advanced mode.',
       type: 'short-input',
       placeholder: 'Enter the new name',
       condition: { field: 'operation', value: ['update_worksheet', 'update_table'] },
+      required: (values) =>
+        requiredWithoutAlternatives(
+          values,
+          ['update_worksheet', 'update_table'],
+          values?.operation === 'update_worksheet'
+            ? ['position', 'visibility']
+            : ['showHeaders', 'showTotals', 'style']
+        ),
     },
     {
       id: 'position',
@@ -1704,6 +1831,7 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
         }
       },
       params: (params) => {
+        if (!params.operation) return normalizeExcelAgentParams(params, true)
         const {
           oauthCredential,
           values,
@@ -1732,7 +1860,7 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
         const effectiveSpreadsheetId = spreadsheetId ? String(spreadsheetId).trim() : ''
         const effectiveSheetName = sheetName ? String(sheetName).trim() : ''
         const effectiveDriveId = driveId ? String(driveId).trim() : undefined
-        const trimmedRange = cellRange ? String(cellRange).trim() : undefined
+        const trimmedRange = optionalString(cellRange) ?? optionalString(params.range)
 
         if (!effectiveSpreadsheetId) {
           throw new Error('Spreadsheet ID is required.')
@@ -1799,7 +1927,7 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
               ...base,
               tableName: optionalString(params.tableName),
               index: optionalNumber(params.index),
-              values: optionalJson(params.rowValues),
+              values: optionalJson(values),
             }
           case 'create_session':
             return { ...base, persistChanges: optionalBoolean(params.persistChanges) ?? false }
@@ -1830,29 +1958,30 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
               fontUnderline: optionalString(params.fontUnderline),
             }
           case 'create_table': {
-            if (!effectiveSheetName) {
-              throw new Error('Sheet name is required to create a table.')
-            }
-            if (!trimmedRange) {
-              throw new Error('A cell range is required to create a table.')
+            const address =
+              effectiveSheetName && trimmedRange
+                ? `${quoteSheetName(effectiveSheetName)}!${trimmedRange}`
+                : optionalString(params.address)
+            if (!address) {
+              throw new Error('Provide a table address or a sheet name and cell range.')
             }
             return {
               ...base,
-              address: `${quoteSheetName(effectiveSheetName)}!${trimmedRange}`,
-              hasHeaders: optionalBoolean(tableHasHeaders) ?? true,
+              address,
+              hasHeaders:
+                optionalBoolean(tableHasHeaders) ?? optionalBoolean(params.hasHeaders) ?? true,
             }
           }
-          case 'delete_worksheet':
-            if (!effectiveSheetName) {
+          case 'delete_worksheet': {
+            const worksheetName = effectiveSheetName || optionalString(params.worksheetName)
+            if (!worksheetName) {
               throw new Error('Sheet name is required to delete a worksheet.')
             }
-            return {
-              ...base,
-              worksheetName: effectiveSheetName,
-            }
+            return { ...base, worksheetName }
+          }
           case 'sort_range': {
             const sortFields = optionalJson(params.sortFields)
-            const tableName = optionalString(sortTableName)
+            const tableName = optionalString(sortTableName) ?? optionalString(params.tableName)
             if (!tableName && !trimmedRange) {
               throw new Error('A cell range or table name is required to sort.')
             }
@@ -1866,8 +1995,8 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
               sortMethod: optionalString(params.sortMethod),
               orientation: optionalString(params.orientation),
               sortAscending: optionalBoolean(sortAscending) ?? true,
-              hasHeaders: optionalBoolean(sortHasHeaders),
-              matchCase: optionalBoolean(sortMatchCase),
+              hasHeaders: optionalBoolean(sortHasHeaders) ?? optionalBoolean(params.hasHeaders),
+              matchCase: optionalBoolean(sortMatchCase) ?? optionalBoolean(params.matchCase),
             }
           }
           case 'read':
@@ -1928,7 +2057,6 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
     sheetName: { type: 'string', description: 'Name of the sheet/tab (canonical param)' },
     cellRange: { type: 'string', description: 'Cell range (e.g., A1:D10)' },
     values: { type: 'string', description: 'Cell values data' },
-    rowValues: { type: 'json', description: 'Exactly one row in table column order' },
     applyTo: { type: 'string', description: 'What to clear (All, Contents, Formats)' },
     fillColor: { type: 'string', description: 'Background fill color' },
     fontBold: { type: 'string', description: 'Bold font toggle' },
@@ -1937,7 +2065,6 @@ Return ONLY the JSON array containing one row, with no markdown or explanation.`
     fontSize: { type: 'string', description: 'Font size in points' },
     fontName: { type: 'string', description: 'Font name' },
     tableHasHeaders: { type: 'string', description: 'Whether the table range has a header row' },
-    sortTableName: { type: 'string', description: 'Table name to sort (optional)' },
     sortColumn: { type: 'string', description: 'Zero-based column or row offset to sort on' },
     sortAscending: { type: 'string', description: 'Sort order (ascending/descending)' },
     sortHasHeaders: { type: 'string', description: 'Whether the range has a header row' },

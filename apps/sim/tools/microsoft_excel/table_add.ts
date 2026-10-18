@@ -1,6 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   assertExcelSuccess,
+  EXCEL_VALUES_INPUT,
   EXCEL_VALUES_OUTPUT,
   EXCEL_WORKBOOK_PARAMS,
   excelHeaders,
@@ -68,7 +69,10 @@ export const tableAddTool: ToolConfig<
       description: 'Zero-based insertion index. Omit to append at the end.',
     },
     values: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_VALUES_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description:

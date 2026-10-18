@@ -8,8 +8,21 @@ import type {
   ExcelWorksheet,
 } from '@/tools/microsoft_excel/types'
 import { getItemBasePath, parseGraphErrorFromData } from '@/tools/microsoft_excel/utils'
-import type { OutputProperty, ToolConfig } from '@/tools/types'
+import type { OutputProperty, ToolConfig, ToolParameterItemSchema } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+
+export const EXCEL_ROW_INPUT = {
+  type: 'array',
+  minItems: 1,
+  maxItems: 100000,
+  items: {
+    anyOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }, { type: 'null' }],
+  },
+} as const satisfies ToolParameterItemSchema
+
+export const EXCEL_VALUES_INPUT = {
+  anyOf: [EXCEL_ROW_INPUT, { type: 'object', additionalProperties: true }],
+} as const satisfies ToolParameterItemSchema
 
 export const EXCEL_WORKBOOK_PARAMS = {
   accessToken: {

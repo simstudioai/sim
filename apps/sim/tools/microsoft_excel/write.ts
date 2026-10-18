@@ -2,6 +2,8 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   assertExcelSuccess,
   EXCEL_RANGE_OUTPUTS,
+  EXCEL_ROW_INPUT,
+  EXCEL_VALUES_INPUT,
   EXCEL_WORKBOOK_PARAMS,
   excelHeaders,
   mapExcelRange,
@@ -47,26 +49,38 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
 
   params: {
     formulas: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description: 'A1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
     },
     formulasLocal: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description:
         'A1-style formulas in the user locale as a two-dimensional array. Null leaves a cell unchanged.',
     },
     formulasR1C1: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description: 'R1C1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
     },
     numberFormat: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -111,11 +125,14 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       description: 'The range of cells to write to (e.g., "Sheet1!A1:B2")',
     },
     values: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_VALUES_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The data to write as a 2D array (e.g., [["Name", "Age"], ["Alice", 30]]) or array of objects',
+        'The data to write as a 2D array (used exactly as provided) or array of objects. For object rows, their keys become a header row. Use a 2D array to write data without added headers.',
     },
   },
 
@@ -211,26 +228,38 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
 
   params: {
     formulas: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description: 'A1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
     },
     formulasLocal: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description:
         'A1-style formulas in the user locale as a two-dimensional array. Null leaves a cell unchanged.',
     },
     formulasR1C1: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description: 'R1C1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
     },
     numberFormat: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description:
@@ -282,11 +311,14 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
         'The cell range to write to (e.g., "A1:D10", "A1"). Defaults to "A1" if not specified.',
     },
     values: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_VALUES_INPUT,
+      minItems: 1,
+      maxItems: 10000,
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The data to write as a 2D array (e.g. [["Name", "Age"], ["Alice", 30], ["Bob", 25]]) or array of objects.',
+        'The data to write as a 2D array (used exactly as provided) or array of objects. For object rows, their keys become a header row. Use a 2D array to write data without added headers.',
     },
   },
 

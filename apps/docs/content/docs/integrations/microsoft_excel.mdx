@@ -57,7 +57,7 @@ Add new rows to a Microsoft Excel table
 | `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `tableName` | string | Yes | The name of the table to add rows to \(e.g., "Table1", "SalesTable"\) |
 | `index` | number | No | Zero-based insertion index. Omit to append at the end. |
-| `values` | json | No | Data rows in table column order, without headers \(e.g., \[\["Value", 30\]\]\). Object rows are also accepted in key order for compatibility. Omit to add a blank row. |
+| `values` | array | No | Data rows in table column order, without headers \(e.g., \[\["Value", 30\]\]\). Object rows are also accepted in key order for compatibility. Omit to add a blank row. |
 
 #### Output
 
@@ -345,7 +345,7 @@ Update Table Row in a Microsoft Excel workbook.
 | `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
 | `tableName` | string | Yes | Table ID or name within the workbook. |
 | `index` | number | Yes | Zero-based table row index. Indexes can change when rows are inserted or deleted. |
-| `values` | json | Yes | Exactly one row as a two-dimensional array, in table column order. Use null to leave a cell unchanged. |
+| `values` | array | Yes | Exactly one row as a two-dimensional array, in table column order. Use null to leave a cell unchanged. |
 
 #### Output
 
@@ -496,10 +496,10 @@ Write data to a specific sheet in a Microsoft Excel spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `formulas` | json | No | A1-style formulas as a two-dimensional array. Null leaves a cell unchanged. |
-| `formulasLocal` | json | No | A1-style formulas in the user locale as a two-dimensional array. Null leaves a cell unchanged. |
-| `formulasR1C1` | json | No | R1C1-style formulas as a two-dimensional array. Null leaves a cell unchanged. |
-| `numberFormat` | json | No | Excel number format codes as a two-dimensional array. Null leaves a cell unchanged. |
+| `formulas` | array | No | A1-style formulas as a two-dimensional array. Null leaves a cell unchanged. |
+| `formulasLocal` | array | No | A1-style formulas in the user locale as a two-dimensional array. Null leaves a cell unchanged. |
+| `formulasR1C1` | array | No | R1C1-style formulas as a two-dimensional array. Null leaves a cell unchanged. |
+| `numberFormat` | array | No | Excel number format codes as a two-dimensional array. Null leaves a cell unchanged. |
 | `columnHidden` | boolean | No | Hide all columns in the target range. |
 | `rowHidden` | boolean | No | Hide all rows in the target range. |
 | `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
@@ -507,7 +507,7 @@ Write data to a specific sheet in a Microsoft Excel spreadsheet
 | `driveId` | string | No | The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account. |
 | `sheetName` | string | Yes | The name of the sheet/tab to write to \(e.g., "Sheet1", "Sales Data"\) |
 | `cellRange` | string | No | The cell range to write to \(e.g., "A1:D10", "A1"\). Defaults to "A1" if not specified. |
-| `values` | json | No | The data to write as a 2D array \(e.g. \[\["Name", "Age"\], \["Alice", 30\], \["Bob", 25\]\]\) or array of objects. |
+| `values` | array | No | The data to write as a 2D array \(used exactly as provided\) or array of objects. For object rows, their keys become a header row. Use a 2D array to write data without added headers. |
 
 #### Output
 
@@ -668,7 +668,7 @@ Sort a range or table by one or more fields in a Microsoft Excel worksheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `sortFields` | json | No | Sort conditions \[\{key, ascending, sortOn, color, dataOption, icon\}\]. Overrides sortColumn/sortAscending; ascending defaults to true for each condition; key is a zero-based offset, sortOn is Value, CellColor, FontColor, or Icon; dataOption is Normal or TextAsNumber; icon contains set and index. |
+| `sortFields` | array | No | Sort conditions \[\{key, ascending, sortOn, color, dataOption, icon\}\]. Overrides sortColumn/sortAscending; ascending defaults to true for each condition; key is a zero-based offset, sortOn is Value, CellColor, FontColor, or Icon; dataOption is Normal or TextAsNumber; icon contains set and index. |
 | `sortMethod` | string | No | Chinese character ordering: PinYin or StrokeCount. |
 | `orientation` | string | No | Rows \(default\) or Columns. Applies only to range sorts. |
 | `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |

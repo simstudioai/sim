@@ -75,7 +75,34 @@ export const sortRangeTool: ToolConfig<
 
   params: {
     sortFields: {
-      type: 'json',
+      type: 'array',
+      minItems: 1,
+      maxItems: 64,
+      items: {
+        type: 'object',
+        required: ['key'],
+        additionalProperties: false,
+        properties: {
+          key: { type: 'integer', minimum: 0 },
+          ascending: { type: 'boolean' },
+          sortOn: {
+            anyOf: [
+              { const: 'Value' },
+              { const: 'CellColor' },
+              { const: 'FontColor' },
+              { const: 'Icon' },
+            ],
+          },
+          color: { type: 'string' },
+          dataOption: { anyOf: [{ const: 'Normal' }, { const: 'TextAsNumber' }] },
+          icon: {
+            type: 'object',
+            required: ['set', 'index'],
+            additionalProperties: false,
+            properties: { set: { type: 'string' }, index: { type: 'integer', minimum: 0 } },
+          },
+        },
+      },
       required: false,
       visibility: 'user-or-llm',
       description:

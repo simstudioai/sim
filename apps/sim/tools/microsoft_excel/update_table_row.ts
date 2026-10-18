@@ -1,6 +1,7 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   EXCEL_INDEX_PARAM,
+  EXCEL_ROW_INPUT,
   EXCEL_TABLE_PARAM,
   EXCEL_VALUES_OUTPUT,
   EXCEL_WORKBOOK_PARAMS,
@@ -25,7 +26,10 @@ export const updateTableRowTool: ToolConfig<ExcelUpdateRowParams, ExcelRowRespon
     tableName: EXCEL_TABLE_PARAM,
     index: EXCEL_INDEX_PARAM,
     values: {
-      type: 'json',
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 1,
       required: true,
       visibility: 'user-or-llm',
       description:

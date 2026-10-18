@@ -113,7 +113,10 @@ function isFieldProjection(value: unknown): boolean {
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
   microsoft_excel: [{ from: 'valueInputOption', to: '_removed_valueInputOption' }],
-  microsoft_excel_v2: [{ from: 'valueInputOption', to: '_removed_valueInputOption' }],
+  microsoft_excel_v2: [
+    { from: 'valueInputOption', to: '_removed_valueInputOption' },
+    { from: 'sortTableName', to: 'tableName', whenOperation: ['sort_range'] },
+  ],
   /** MCP normalization selects the active replacement before this rename pass. */
   mcp: [
     { from: 'server', to: 'serverSelector' },
