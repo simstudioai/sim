@@ -126,6 +126,56 @@ describe('migration targets', () => {
 })
 
 describe('migrateSubblockIds', () => {
+  it.each(['42', ''])(
+    'preserves the active Greenhouse alias %j over an unrelated stored target',
+    (value) => {
+      const block = makeBlock({
+        type: 'greenhouse_v2',
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' },
+          id: { id: 'id', type: 'short-input', value: 'stale-candidate' },
+          update_application_id: { id: 'update_application_id', type: 'short-input', value },
+          job_id: { id: 'job_id', type: 'short-input', value: '123' },
+          convert_prospect_job_id: {
+            id: 'convert_prospect_job_id',
+            type: 'short-input',
+            value: '<lookup.job.id>',
+          },
+          created_at_filter: {
+            id: 'created_at_filter',
+            type: 'code',
+            value: '{"gte":"2026-01-01"}',
+          },
+        },
+      })
+      const result = migrateSubblockIds({ 'block-1': block })
+      const saved = result.blocks['block-1'].subBlocks
+      expect(saved.id.value).toBe(value)
+      expect(saved.job_id.value).toBe('<lookup.job.id>')
+      expect(saved).not.toHaveProperty('update_application_id')
+      expect(saved).not.toHaveProperty('convert_prospect_job_id')
+      expect(saved.created_at_filter).toEqual(block.subBlocks.created_at_filter)
+      expect(block.subBlocks.id.value).toBe('stale-candidate')
+      expect(migrateSubblockIds(result.blocks).migrated).toBe(false)
+    }
+  )
+
+  it('leaves canonical Greenhouse fields and legacy blocks unchanged without an active retired alias', () => {
+    for (const type of ['greenhouse_v2', 'greenhouse']) {
+      const block = makeBlock({
+        type,
+        subBlocks: {
+          operation: { id: 'operation', type: 'dropdown', value: 'get_candidate' },
+          id: { id: 'id', type: 'short-input', value: '42' },
+          update_application_id: { id: 'update_application_id', type: 'short-input', value: '99' },
+        },
+      })
+      const result = migrateSubblockIds({ 'block-1': block })
+      expect(result.migrated).toBe(false)
+      expect(result.blocks['block-1']).toBe(block)
+    }
+  })
+
   it('preserves MCP canonical modes through the full normalization pipeline', () => {
     const block = makeBlock({
       type: 'mcp',
