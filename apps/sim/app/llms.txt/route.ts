@@ -10,6 +10,8 @@ import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
 import { ALL_COMPETITORS } from '@/app/(landing)/comparisons/utils'
 import { PLATFORM_MENU } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
+import { MODEL_COMPARISONS } from '@/app/(landing)/models/comparisons'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
 import { MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 import {
   DOCS_LINE,
@@ -91,10 +93,28 @@ export async function GET() {
           '/models',
           'Every supported model with pricing, context window, and capabilities'
         ),
+        ...Object.values(MODEL_TOOLS).map((tool) =>
+          linkLine(tool.name, tool.href, tool.description)
+        ),
+        linkLine(
+          'LLM context window comparison',
+          '/models/context-windows',
+          'Context windows, max output tokens, and API prices for every tracked model'
+        ),
         ...MODEL_PROVIDERS_WITH_CATALOGS.map((provider) =>
           linkLine(`${provider.name} models`, provider.href, provider.description)
         ),
       ]),
+      section(
+        'Model comparisons',
+        MODEL_COMPARISONS.map((comparison) =>
+          linkLine(
+            comparison.title,
+            comparison.href,
+            'API pricing, context window, max output, and capabilities side by side'
+          )
+        )
+      ),
       section('Docs', [
         linkLine('Docs index', `${DOCS_URL}/llms.txt`, 'llms.txt index of the Sim documentation'),
         linkLine(

@@ -12,8 +12,12 @@ import {
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
+import { getComparisonUpdatedAt, MODEL_COMPARISONS } from '@/app/(landing)/models/comparisons'
+import { CONTEXT_WINDOW_MODELS } from '@/app/(landing)/models/context-windows'
+import { MODEL_TOOLS } from '@/app/(landing)/models/tools'
 import {
-  MODEL_PROVIDERS_WITH_CATALOGS,
+  ALL_CATALOG_MODELS,
+  getLatestModelUpdate,
   MODEL_PROVIDERS_WITH_MODELS,
 } from '@/app/(landing)/models/utils'
 
@@ -38,7 +42,7 @@ function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute
 /**
  * Generate the public sitemap by composing static landing pages with the
  * dynamic catalogs (blog posts, library posts, published customer stories,
- * authors, integrations, model providers, and individual models).
+ * authors, integrations, model providers, individual models, and curated model comparisons).
  * Per-integration entries are emitted
  * under `/integrations/{slug}` to match the landing route at
  * `app/(landing)/integrations/[slug]`; slugs are guaranteed unique
@@ -56,10 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const latestPostDateValue = latestModified(posts)
   const latestLibraryPostDate = latestModified(libraryPosts)
 
-  const modelTimes = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
-    provider.models.map((model) => new Date(model.pricing.updatedAt).getTime())
-  )
-  const latestModelDate = modelTimes.length > 0 ? new Date(Math.max(...modelTimes)) : undefined
+  const latestModelDate = getLatestModelUpdate(ALL_CATALOG_MODELS)
 
   const integrationsUpdatedAt = new Date(`${INTEGRATIONS_UPDATED_AT}T00:00:00Z`)
 
@@ -150,6 +151,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/models`,
       lastModified: latestModelDate,
     },
+    ...Object.values(MODEL_TOOLS).map((tool) => ({
+      url: `${baseUrl}${tool.href}`,
+      lastModified: latestModelDate,
+    })),
+    {
+      url: `${baseUrl}/models/context-windows`,
+      lastModified: getLatestModelUpdate(CONTEXT_WINDOW_MODELS),
+    },
     {
       url: `${baseUrl}/terms`,
       lastModified: new Date('2024-10-14'),
@@ -202,9 +211,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [
       {
         url: `${baseUrl}${provider.href}`,
-        lastModified: new Date(
-          Math.max(...provider.models.map((model) => new Date(model.pricing.updatedAt).getTime()))
-        ),
+        lastModified: getLatestModelUpdate(provider.models),
       },
     ]
   })
@@ -214,6 +221,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ).map((model) => ({
     url: `${baseUrl}${model.href}`,
     lastModified: new Date(model.pricing.updatedAt),
+  }))
+
+  const modelComparisonPages: MetadataRoute.Sitemap = MODEL_COMPARISONS.map((comparison) => ({
+    url: `${baseUrl}${comparison.href}`,
+    lastModified: getComparisonUpdatedAt(comparison),
   }))
 
   // Matches the max(Sim, competitor) verified-date logic each detail page's own
@@ -248,6 +260,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...integrationPages,
     ...providerPages,
     ...modelEntries,
+    ...modelComparisonPages,
     ...comparisonPages,
   ]
 

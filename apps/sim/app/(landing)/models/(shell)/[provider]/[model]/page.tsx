@@ -8,6 +8,8 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { ShareButton } from '@/app/(landing)/components/share-button'
+import { getModelComparisonsFor } from '@/app/(landing)/models/comparisons'
+import { ComparisonLinks } from '@/app/(landing)/models/components/comparison-links'
 import { FeaturedModelCard, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
   buildModelCapabilityFacts,
@@ -109,6 +111,7 @@ export default async function ModelPage({
   const capabilityFacts = buildModelCapabilityFacts(model)
   const pricingBounds = getPricingBounds(model.pricing)
   const relatedModels = getRelatedModels(model, 6)
+  const comparisons = getModelComparisonsFor(model)
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -195,7 +198,7 @@ export default async function ModelPage({
             <ChipLink variant='primary' href='/'>
               Build with this model
             </ChipLink>
-            <ChipLink href={provider.href} className='border border-[var(--border-1)]'>
+            <ChipLink href={provider.href} variant='outline'>
               All {provider.name} models
             </ChipLink>
             <ShareButton url={`${baseUrl}${model.href}`} title={model.displayName} />
@@ -269,6 +272,21 @@ export default async function ModelPage({
                   {relatedModels.slice(0, 3).map((entry) => (
                     <FeaturedModelCard key={entry.id} provider={provider} model={entry} />
                   ))}
+                </nav>
+              </>
+            )}
+
+            {comparisons.length > 0 && (
+              <>
+                <div className='h-px w-full bg-[var(--border)]' />
+                <nav aria-labelledby='model-comparisons-heading' className='px-6 py-10'>
+                  <h2
+                    id='model-comparisons-heading'
+                    className='mb-6 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
+                  >
+                    Compare {model.displayName}
+                  </h2>
+                  <ComparisonLinks comparisons={comparisons} />
                 </nav>
               </>
             )}
