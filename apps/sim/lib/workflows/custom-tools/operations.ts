@@ -23,6 +23,13 @@ const logger = createLogger('CustomToolsOperations')
 export type CustomToolSortBy = 'title' | 'createdAt' | 'updatedAt'
 
 /**
+ * What `upsertCustomTools` does with a tool it would insert under a title the
+ * workspace already holds: `'error'` throws and rolls back the whole batch,
+ * `'skip'` leaves the existing row untouched and persists the rest.
+ */
+type CustomToolTitleConflictPolicy = 'error' | 'skip'
+
+/**
  * Internal function to create/update custom tools
  * Can be called from API routes or internal services
  */
@@ -36,8 +43,15 @@ export async function upsertCustomTools(params: {
   workspaceId: string
   userId: string
   requestId?: string
+  onTitleConflict?: CustomToolTitleConflictPolicy
 }) {
-  const { tools, workspaceId, userId, requestId = generateRequestId() } = params
+  const {
+    tools,
+    workspaceId,
+    userId,
+    requestId = generateRequestId(),
+    onTitleConflict = 'error',
+  } = params
 
   /**
    * Ahead of the transaction so a batch is rejected whole rather than landing
@@ -106,6 +120,10 @@ export async function upsertCustomTools(params: {
         .limit(1)
 
       if (duplicateTitle.length > 0) {
+        if (onTitleConflict === 'skip') {
+          logger.info(`[${requestId}] Skipped custom tool "${tool.title}": title already exists`)
+          continue
+        }
         throw new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
       }
 

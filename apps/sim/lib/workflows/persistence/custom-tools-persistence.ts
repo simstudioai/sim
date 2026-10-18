@@ -116,6 +116,12 @@ export function extractCustomToolsFromWorkflowState(workflowState: any): CustomT
 /**
  * Persist custom tools to the database using the upsert function
  * Creates new tools or updates existing ones
+ *
+ * @remarks
+ * An inline tool carries no `toolId` until the block is re-saved with one, so
+ * every save of the same graph re-offers it under a title its first save
+ * already inserted. A title conflict therefore skips that tool, leaving the
+ * existing row untouched, instead of rolling back the rest of the batch.
  */
 export async function persistCustomToolsToDatabase(
   customToolsList: CustomTool[],
@@ -167,6 +173,7 @@ export async function persistCustomToolsToDatabase(
       })),
       workspaceId,
       userId,
+      onTitleConflict: 'skip',
     })
 
     saved = validTools.length
