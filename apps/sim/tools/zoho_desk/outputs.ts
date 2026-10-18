@@ -508,6 +508,7 @@ export const ZOHO_DESK_THREAD_ADDITIONAL_PROPERTIES = {
 } satisfies Record<string, ToolOutputProperty>
 
 export const ZOHO_DESK_ACCOUNT_PROPERTIES = {
+  photoURL: { type: 'string', description: 'Account photo URL', optional: true, nullable: true },
   owner: {
     type: 'object',
     description: 'Owner',

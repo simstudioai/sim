@@ -6,6 +6,7 @@ import { ZOHO_DESK_COMMENT_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
+  normalizeZohoDeskCommaList,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
 
@@ -74,7 +75,8 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       const query = new URLSearchParams()
       if (params.from != null) query.set('from', String(params.from))
       query.set('limit', String(params.limit ?? 50))
-      if (params.include) query.set('include', params.include)
+      const include = normalizeZohoDeskCommaList(params.include)
+      if (include) query.set('include', include)
       if (params.sortBy) query.set('sortBy', params.sortBy)
       const qs = query.toString()
       return `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'Ticket ID')}/comments${qs ? `?${qs}` : ''}`

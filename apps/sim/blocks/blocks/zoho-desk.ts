@@ -89,7 +89,7 @@ function parseCustomFields(value: unknown): Record<string, unknown> | undefined 
 
 const ADDITIONAL_OPERATION_FIELDS: Record<
   string,
-  Record<string, { field: string; type: string }>
+  Record<string, { field: string; type: string; omitEmpty?: boolean }>
 > = {
   create_ticket: {
     productId: { field: 'createTicketProductId', type: 'string' },
@@ -167,9 +167,9 @@ const ADDITIONAL_OPERATION_FIELDS: Record<
     sendImmediately: { field: 'sendReplySendImmediately', type: 'boolean' },
     ticketId: { field: 'sendReplyTicketId', type: 'string' },
     content: { field: 'sendReplyContent', type: 'string' },
-    contentType: { field: 'sendReplyContentType', type: 'string' },
+    contentType: { field: 'sendReplyContentType', type: 'string', omitEmpty: true },
     inReplyToThreadId: { field: 'sendReplyInReplyToThreadId', type: 'string' },
-    direction: { field: 'sendReplyDirection', type: 'string' },
+    direction: { field: 'sendReplyDirection', type: 'string', omitEmpty: true },
     cc: { field: 'sendReplyCc', type: 'string' },
     bcc: { field: 'sendReplyBcc', type: 'string' },
     hasAttach: { field: 'sendReplyHasAttach', type: 'boolean' },
@@ -365,7 +365,7 @@ const ADDITIONAL_OPERATION_FIELDS: Record<
     ticketId: { field: 'updateCommentTicketId', type: 'string' },
     content: { field: 'updateCommentContent', type: 'string' },
     attachmentIds: { field: 'updateCommentAttachmentIds', type: 'json' },
-    contentType: { field: 'updateCommentContentType', type: 'string' },
+    contentType: { field: 'updateCommentContentType', type: 'string', omitEmpty: true },
   },
   delete_comment: {
     commentId: { field: 'deleteCommentCommentId', type: 'string' },
@@ -1103,7 +1103,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the uploads',
         prompt:
           'File attachments in the ticket. For more information, refer to the Uploads section JSON array. Return ONLY the JSON array.',
@@ -1135,7 +1135,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the shared departments',
         prompt:
           'List of departments to which the ticket could be shared, along with the access privileges for each department JSON array. Return ONLY the JSON array.',
@@ -1159,7 +1159,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the secondary contacts',
         prompt: 'List of Secondary contacts JSON array. Return ONLY the JSON array.',
       },
@@ -1174,10 +1174,10 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the entity skills',
         prompt:
-          'List of skillIds to associate with the ticket Note:The order of skillIds (first = highest priority) determines the skill-based assignment of ticketsA maximum of 10 IDs can be provided as comma separated values JSON array. Return ONLY the JSON array.',
+          'JSON array of up to 10 skill IDs, ordered from highest to lowest assignment priority. Return ONLY the JSON array.',
       },
     },
     {
@@ -1287,7 +1287,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -1344,7 +1343,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -1403,7 +1401,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -1520,7 +1517,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -1713,7 +1709,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the attachment ids',
         prompt:
           'List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array. Return ONLY the JSON array.',
@@ -2212,7 +2208,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -2243,7 +2238,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -2560,7 +2554,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the associated slaids',
         prompt:
           'IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. Return ONLY the JSON array.',
@@ -2710,7 +2704,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the associated slaids',
         prompt:
           'IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. Return ONLY the JSON array.',
@@ -2735,7 +2729,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -2766,7 +2759,6 @@ export const ZohoDeskBlock: BlockConfig = {
         placeholder: 'Describe the date or time range',
         prompt:
           'Generate two comma-separated ISO 8601 timestamps. Return ONLY the comma-separated timestamps.',
-        generationType: 'timestamp',
       },
     },
     {
@@ -3227,7 +3219,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the attachment ids',
         prompt:
           'List of file attachments included in the comment.Note: For more details on attachments, refer to the Uploads section. JSON array. Return ONLY the JSON array.',
@@ -3328,7 +3320,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the requested values',
         prompt: 'JSON array of previously uploaded attachment IDs. Return ONLY the JSON array.',
       },
@@ -3383,7 +3375,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the requested values',
         prompt:
           'JSON array of shared departments and access privileges. Return ONLY the JSON array.',
@@ -3407,7 +3399,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the requested values',
         prompt: 'JSON array of secondary contact IDs. Return ONLY the JSON array.',
       },
@@ -3422,7 +3414,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the requested values',
         prompt:
           'JSON array of skill IDs in priority order; at most 10. Return ONLY the JSON array.',
@@ -3451,7 +3443,7 @@ export const ZohoDeskBlock: BlockConfig = {
       language: 'json',
       wandConfig: {
         enabled: true,
-        generationType: 'json-object',
+        generationType: 'json-array',
         placeholder: 'Describe the requested values',
         prompt: 'JSON array of previously uploaded attachment IDs. Return ONLY the JSON array.',
       },
@@ -3510,7 +3502,7 @@ export const ZohoDeskBlock: BlockConfig = {
           const result: Record<string, unknown> = { orgId: params.orgId }
           for (const [name, config] of Object.entries(fields)) {
             const value = params[config.field]
-            if (value === undefined || value === null) {
+            if (value === undefined || value === null || (config.omitEmpty && value === '')) {
               result[name] = undefined
               continue
             }

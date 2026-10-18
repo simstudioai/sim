@@ -105,7 +105,9 @@ export const zohoDeskListContactsTool: ToolConfig<
     return {
       success: true,
       output: {
-        contacts: items.map((item) => projectZohoDeskResource(item, ZOHO_DESK_CONTACT_PROPERTIES)),
+        contacts: items.map((item) =>
+          projectZohoDeskResource(item, ZOHO_DESK_CONTACT_PROPERTIES, params?.fields)
+        ),
         count: items.length,
         nextFrom: items.length ? Number(params?.from ?? 1) + items.length : null,
       },
@@ -114,7 +116,7 @@ export const zohoDeskListContactsTool: ToolConfig<
   outputs: {
     contacts: {
       type: 'array',
-      description: 'List Contacts results',
+      description: 'Contacts records, including explicitly requested portal fields',
       items: { type: 'object', properties: ZOHO_DESK_CONTACT_PROPERTIES },
     },
     count: { type: 'number', description: 'Number of results in this page' },

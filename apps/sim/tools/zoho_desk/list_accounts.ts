@@ -94,7 +94,9 @@ export const zohoDeskListAccountsTool: ToolConfig<
     return {
       success: true,
       output: {
-        accounts: items.map((item) => projectZohoDeskResource(item, ZOHO_DESK_ACCOUNT_PROPERTIES)),
+        accounts: items.map((item) =>
+          projectZohoDeskResource(item, ZOHO_DESK_ACCOUNT_PROPERTIES, params?.fields)
+        ),
         count: items.length,
         nextFrom: items.length ? Number(params?.from ?? 1) + items.length : null,
       },
@@ -103,7 +105,7 @@ export const zohoDeskListAccountsTool: ToolConfig<
   outputs: {
     accounts: {
       type: 'array',
-      description: 'List Accounts results',
+      description: 'Accounts records, including explicitly requested portal fields',
       items: { type: 'object', properties: ZOHO_DESK_ACCOUNT_PROPERTIES },
     },
     count: { type: 'number', description: 'Number of results in this page' },

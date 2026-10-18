@@ -1,6 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { ToolConfig, ToolOutputProperty } from '@/tools/types'
-import { getZohoDeskErrorMessage, withDerivedContentText } from '@/tools/zoho_desk/utils'
+import {
+  getZohoDeskErrorMessage,
+  normalizeZohoDeskCommaList,
+  withDerivedContentText,
+} from '@/tools/zoho_desk/utils'
 
 export const ZOHO_DESK_AUTH_PARAMS = {
   accessToken: {
@@ -87,14 +91,18 @@ export async function readZohoDeskList(
   return { items: data.data, totalCount: count !== null && Number.isFinite(count) ? count : null }
 }
 
-/** Project only documented fields on new operation outputs, preserving dynamic custom fields. */
+/** Project documented fields and explicitly selected portal fields, preserving custom-field maps. */
 export function projectZohoDeskResource(
   data: Record<string, unknown>,
-  properties: Record<string, ToolOutputProperty>
+  properties: Record<string, ToolOutputProperty>,
+  selectedFields?: string
 ): Record<string, unknown> {
   const derived = withDerivedContentText(data)
   if (!isRecordLike(derived)) throw new Error('Zoho Desk returned an invalid resource')
-  const result: Record<string, unknown> = {}
+  const requestedFields = normalizeZohoDeskCommaList(selectedFields)?.split(',') ?? []
+  const result: Record<string, unknown> = Object.fromEntries(
+    requestedFields.filter((key) => Object.hasOwn(data, key)).map((key) => [key, data[key]])
+  )
   for (const [key, property] of Object.entries(properties)) {
     const value = derived[key]
     if (value === undefined) continue
