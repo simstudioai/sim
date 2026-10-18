@@ -17,23 +17,13 @@ import {
 } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { assertValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
+import type { DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('CustomToolsOperations')
 
 export type CustomToolSortBy = 'title' | 'createdAt' | 'updatedAt'
 
-/**
- * What `upsertCustomTools` does with a tool it would insert under a title the
- * workspace already holds: `'error'` throws and rolls back the whole batch,
- * `'skip'` leaves the existing row untouched and persists the rest.
- */
-type CustomToolTitleConflictPolicy = 'error' | 'skip'
-
-/**
- * Internal function to create/update custom tools
- * Can be called from API routes or internal services
- */
-export async function upsertCustomTools(params: {
+interface CustomToolWriteParams {
   tools: Array<{
     id?: string
     title: string
@@ -43,110 +33,160 @@ export async function upsertCustomTools(params: {
   workspaceId: string
   userId: string
   requestId?: string
-  onTitleConflict?: CustomToolTitleConflictPolicy
-}) {
-  const {
-    tools,
-    workspaceId,
-    userId,
-    requestId = generateRequestId(),
-    onTitleConflict = 'error',
-  } = params
+}
 
-  /**
-   * Ahead of the transaction so a batch is rejected whole rather than landing
-   * the tools that preceded the unstorable one.
-   */
+/**
+ * What a batch write does with a tool it would insert under a title the
+ * workspace already holds: `'error'` throws and rolls back the whole batch,
+ * `'skip'` leaves the existing row untouched and writes the rest.
+ */
+type CustomToolTitleConflictPolicy = 'error' | 'skip'
+
+/**
+ * Ahead of the transaction so a batch is rejected whole rather than landing
+ * the tools that preceded the unstorable one.
+ */
+function assertStorableBatch(tools: CustomToolWriteParams['tools']) {
   for (const tool of tools) {
     assertValidCustomToolDeclaration(tool.schema)
   }
+}
 
-  return await db.transaction(async (tx) => {
-    for (const tool of tools) {
-      const nowTime = new Date()
+/** Writes the batch inside `tx`, returning the titles skipped under the `'skip'` policy. */
+async function writeCustomTools(
+  tx: DbTransaction,
+  params: CustomToolWriteParams,
+  onTitleConflict: CustomToolTitleConflictPolicy
+): Promise<string[]> {
+  const { tools, workspaceId, userId, requestId = generateRequestId() } = params
+  const skippedTitles: string[] = []
 
-      if (tool.id) {
-        const existingWorkspaceTool = await tx
-          .select()
-          .from(customTools)
-          .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
-          .limit(1)
+  for (const tool of tools) {
+    const nowTime = new Date()
 
-        if (existingWorkspaceTool.length > 0) {
-          await tx
-            .update(customTools)
-            .set({
-              title: tool.title,
-              schema: tool.schema,
-              code: tool.code,
-              updatedAt: nowTime,
-            })
-            .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
-          continue
-        }
-
-        const existingLegacyTool = await tx
-          .select()
-          .from(customTools)
-          .where(
-            and(
-              eq(customTools.id, tool.id),
-              isNull(customTools.workspaceId),
-              eq(customTools.userId, userId)
-            )
-          )
-          .limit(1)
-
-        if (existingLegacyTool.length > 0) {
-          await tx
-            .update(customTools)
-            .set({
-              title: tool.title,
-              schema: tool.schema,
-              code: tool.code,
-              updatedAt: nowTime,
-            })
-            .where(eq(customTools.id, tool.id))
-
-          logger.info(`[${requestId}] Updated legacy tool ${tool.id}`)
-          continue
-        }
-      }
-
-      const duplicateTitle = await tx
+    if (tool.id) {
+      const existingWorkspaceTool = await tx
         .select()
         .from(customTools)
-        .where(and(eq(customTools.workspaceId, workspaceId), eq(customTools.title, tool.title)))
+        .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
         .limit(1)
 
-      if (duplicateTitle.length > 0) {
-        if (onTitleConflict === 'skip') {
-          logger.info(`[${requestId}] Skipped custom tool "${tool.title}": title already exists`)
-          continue
-        }
-        throw new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
+      if (existingWorkspaceTool.length > 0) {
+        await tx
+          .update(customTools)
+          .set({
+            title: tool.title,
+            schema: tool.schema,
+            code: tool.code,
+            updatedAt: nowTime,
+          })
+          .where(and(eq(customTools.id, tool.id), eq(customTools.workspaceId, workspaceId)))
+        continue
       }
 
-      await tx.insert(customTools).values({
-        id: generateShortId(),
-        workspaceId,
-        userId,
-        title: tool.title,
-        schema: tool.schema,
-        code: tool.code,
-        createdAt: nowTime,
-        updatedAt: nowTime,
-      })
+      const existingLegacyTool = await tx
+        .select()
+        .from(customTools)
+        .where(
+          and(
+            eq(customTools.id, tool.id),
+            isNull(customTools.workspaceId),
+            eq(customTools.userId, userId)
+          )
+        )
+        .limit(1)
+
+      if (existingLegacyTool.length > 0) {
+        await tx
+          .update(customTools)
+          .set({
+            title: tool.title,
+            schema: tool.schema,
+            code: tool.code,
+            updatedAt: nowTime,
+          })
+          .where(eq(customTools.id, tool.id))
+
+        logger.info(`[${requestId}] Updated legacy tool ${tool.id}`)
+        continue
+      }
     }
+
+    const row = {
+      id: generateShortId(),
+      workspaceId,
+      userId,
+      title: tool.title,
+      schema: tool.schema,
+      code: tool.code,
+      createdAt: nowTime,
+      updatedAt: nowTime,
+    }
+
+    if (onTitleConflict === 'skip') {
+      /** A conflict-target insert, so a title a concurrent save just committed is skipped too. */
+      const inserted = await tx
+        .insert(customTools)
+        .values(row)
+        .onConflictDoNothing({ target: [customTools.workspaceId, customTools.title] })
+        .returning({ id: customTools.id })
+      if (inserted.length === 0) {
+        logger.info(`[${requestId}] Skipped custom tool "${tool.title}": title already exists`)
+        skippedTitles.push(tool.title)
+      }
+      continue
+    }
+
+    const duplicateTitle = await tx
+      .select()
+      .from(customTools)
+      .where(and(eq(customTools.workspaceId, workspaceId), eq(customTools.title, tool.title)))
+      .limit(1)
+
+    if (duplicateTitle.length > 0) {
+      throw new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
+    }
+
+    await tx.insert(customTools).values(row)
+  }
+
+  return skippedTitles
+}
+
+/**
+ * Internal function to create/update custom tools
+ * Can be called from API routes or internal services
+ */
+export async function upsertCustomTools(params: CustomToolWriteParams) {
+  assertStorableBatch(params.tools)
+
+  return await db.transaction(async (tx) => {
+    await writeCustomTools(tx, params, 'error')
 
     const resultTools = await tx
       .select()
       .from(customTools)
-      .where(eq(customTools.workspaceId, workspaceId))
+      .where(eq(customTools.workspaceId, params.workspaceId))
       .orderBy(desc(customTools.createdAt))
 
     return resultTools
   })
+}
+
+/**
+ * `upsertCustomTools` for writes that re-offer tools they may already have
+ * stored (workflow saves and imports): a tool whose title the workspace already
+ * holds is skipped, leaving that row untouched, instead of failing the batch.
+ *
+ * @returns The titles that were skipped.
+ */
+export async function upsertCustomToolsSkippingTakenTitles(
+  params: CustomToolWriteParams
+): Promise<{ skippedTitles: string[] }> {
+  assertStorableBatch(params.tools)
+
+  const skippedTitles = await db.transaction((tx) => writeCustomTools(tx, params, 'skip'))
+  return { skippedTitles }
 }
 
 export async function listCustomTools(params: { userId: string; workspaceId?: string }) {

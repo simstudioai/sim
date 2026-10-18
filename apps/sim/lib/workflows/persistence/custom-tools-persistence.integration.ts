@@ -94,7 +94,7 @@ describe('extractAndPersistCustomTools', () => {
       owner
     )
 
-    expect(second.errors).toEqual([])
+    expect(second).toEqual({ saved: 1, errors: [] })
     expect(await workspaceTools()).toEqual([
       { title: 'Lookup order', code: 'return 1' },
       { title: 'Refund order', code: 'return 2' },
@@ -114,8 +114,21 @@ describe('extractAndPersistCustomTools', () => {
       owner
     )
 
-    expect(result.errors).toEqual([])
+    expect(result).toEqual({ saved: 0, errors: [] })
     expect(await workspaceTools()).toEqual([{ title: 'Lookup order', code: 'return "library"' }])
+  })
+
+  it('lets concurrent saves of the same new inline tool both succeed with one row', async () => {
+    const state = workflowStateWithInlineTools([{ title: 'Lookup order', code: 'return 1' }])
+
+    const results = await Promise.all([
+      extractAndPersistCustomTools(state, workspaceId, owner),
+      extractAndPersistCustomTools(state, workspaceId, owner),
+    ])
+
+    expect(results.map((result) => result.errors)).toEqual([[], []])
+    expect(results.map((result) => result.saved).sort()).toEqual([0, 1])
+    expect(await workspaceTools()).toEqual([{ title: 'Lookup order', code: 'return 1' }])
   })
 })
 

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isValidCustomToolDeclaration } from '@/lib/custom-tools/schema'
-import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { upsertCustomToolsSkippingTakenTitles } from '@/lib/workflows/custom-tools/operations'
 
 const logger = createLogger('CustomToolsPersistence')
 
@@ -164,7 +164,7 @@ export async function persistCustomToolsToDatabase(
   }
 
   try {
-    await upsertCustomTools({
+    const { skippedTitles } = await upsertCustomToolsSkippingTakenTitles({
       tools: validTools.map((tool) => ({
         id: tool.toolId,
         title: tool.title,
@@ -173,11 +173,10 @@ export async function persistCustomToolsToDatabase(
       })),
       workspaceId,
       userId,
-      onTitleConflict: 'skip',
     })
 
-    saved = validTools.length
-    logger.info(`Persisted ${saved} custom tool(s)`, { workspaceId })
+    saved = validTools.length - skippedTitles.length
+    logger.info(`Persisted ${saved} custom tool(s)`, { workspaceId, skippedTitles })
   } catch (error) {
     const errorMsg = `Failed to persist custom tools: ${toError(error).message}`
     logger.error(errorMsg, { error })
