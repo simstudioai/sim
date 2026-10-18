@@ -394,6 +394,7 @@ interface CloudflareZoneSetting {
 
 /** Raw zone setting payload, as returned by the per-setting endpoint. */
 export interface CloudflareRawZoneSetting {
+  enabled?: boolean
   id?: string
   value?: unknown
   editable?: boolean

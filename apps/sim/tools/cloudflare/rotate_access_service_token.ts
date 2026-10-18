@@ -54,7 +54,10 @@ export const rotateAccessServiceTokenTool: ToolConfig<
     method: 'POST',
     headers: (params) => ({ ...cloudflareHeaders(params.apiKey) }),
     body: (params) => ({
-      previous_client_secret_expires_at: params.previous_client_secret_expires_at,
+      previous_client_secret_expires_at:
+        params.previous_client_secret_expires_at === ''
+          ? undefined
+          : params.previous_client_secret_expires_at,
     }),
   },
   transformResponse: async (response) => {

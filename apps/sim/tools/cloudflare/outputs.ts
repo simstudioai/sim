@@ -1,34 +1,5 @@
 import type { ToolOutputProperty } from '@/tools/types'
 
-const ACCESS_APPLICATION_OUTPUTS_MFA_CONFIG_FIELDS = {
-  type: 'json',
-  description: 'Configures multi-factor authentication (MFA) settings.',
-  properties: {
-    allowed_authenticators: {
-      type: 'array',
-      description: 'Lists the MFA methods that users can authenticate with.',
-      items: {
-        type: 'string',
-        description: 'allowed authenticators item Values: totp, biometrics, security_key.',
-      },
-      optional: true,
-    },
-    mfa_disabled: {
-      type: 'boolean',
-      description:
-        'Indicates whether to disable MFA for this resource. This option is available at the application and policy level.',
-      optional: true,
-    },
-    session_duration: {
-      type: 'string',
-      description:
-        'Defines the duration of an MFA session. Must be in minutes (m) or hours (h). Minimum: 0m. Maximum: 720h (30 days). Examples:`5m` or `24h`.',
-      optional: true,
-    },
-  },
-  optional: true,
-} as const
-
 const ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_PROPERTIES_FIELDS = {
   group: {
     type: 'json',
@@ -402,28 +373,11 @@ const ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS 
   properties: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_PROPERTIES_FIELDS,
 } as const
 
-const ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_FIELDS = {
-  type: 'array',
-  description:
-    'Rules evaluated with a NOT logical operator. To match the policy, a user cannot meet any of the Exclude rules.',
-  items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
-  optional: true,
-} as const
-
-const ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_INCLUDE_FIELDS = {
+const ACCESS_GROUP_OUTPUTS_INCLUDE_FIELDS = {
   type: 'array',
   description:
     'Rules evaluated with an OR logical operator. A user needs to meet only one of the Include rules.',
   items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
-  optional: true,
-} as const
-
-const ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_REQUIRE_FIELDS = {
-  type: 'array',
-  description:
-    'Rules evaluated with an AND logical operator. To match the policy, a user must meet all of the Require rules.',
-  items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
-  optional: true,
 } as const
 
 const ACCESS_GROUP_OUTPUTS_IS_DEFAULT_FIELDS = {
@@ -431,7 +385,6 @@ const ACCESS_GROUP_OUTPUTS_IS_DEFAULT_FIELDS = {
   description:
     'Rules evaluated with an AND logical operator. To match a policy, a user must meet all of the Require rules.',
   items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
-  optional: true,
 } as const
 
 const CERTIFICATE_OUTPUTS_DCV_DELEGATION_RECORDS_ITEMS_PROPERTIES_FIELDS = {
@@ -728,29 +681,29 @@ const WORKER_SCRIPT_OUTPUTS_OBSERVABILITY_FIELDS = {
   type: 'json',
   description: 'Observability settings for the Worker.',
   properties: WORKER_SCRIPT_OUTPUTS_OBSERVABILITY_PROPERTIES_FIELDS,
-  optional: true,
+  nullable: true,
 } as const
 
 export const ACCESS_APPLICATION_OUTPUTS = {
   aud: {
     type: 'string',
     description: 'Audience tag.',
-    optional: true,
+    nullable: true,
   },
   created_at: {
     type: 'string',
     description: 'created at',
-    optional: true,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'UUID.',
-    optional: true,
+    nullable: true,
   },
   updated_at: {
     type: 'string',
     description: 'updated at',
-    optional: true,
+    nullable: true,
   },
   allowed_idps: {
     type: 'array',
@@ -760,7 +713,6 @@ export const ACCESS_APPLICATION_OUTPUTS = {
       type: 'string',
       description: 'The identity providers selected for application.',
     },
-    optional: true,
   },
   destinations: {
     type: 'array',
@@ -847,18 +799,17 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   domain: {
     type: 'string',
     description:
       'The primary hostname and path secured by Access. This domain will be displayed if the app is visible in the App Launcher.',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'The name of the application.',
-    optional: true,
+    nullable: true,
   },
   oauth_configuration: {
     type: 'json',
@@ -923,7 +874,7 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   self_hosted_domains: {
     type: 'array',
@@ -933,13 +884,12 @@ export const ACCESS_APPLICATION_OUTPUTS = {
       type: 'string',
       description: 'A domain that Access will secure.',
     },
-    optional: true,
   },
   type: {
     type: 'string',
     description:
       'The application type. Values: end_user, self_hosted, saas, ssh, vnc, app_launcher, warp, biso, bookmark, dash_sso, infrastructure, rdp, mcp, mcp_portal, proxy_endpoint.',
-    optional: true,
+    nullable: true,
   },
   user_populations: {
     type: 'array',
@@ -948,29 +898,28 @@ export const ACCESS_APPLICATION_OUTPUTS = {
       type: 'string',
       description: 'UUID.',
     },
-    optional: true,
   },
   allow_authenticate_via_warp: {
     type: 'boolean',
     description:
       'When set to true, users can authenticate to this application using their WARP session. When set to false this application will always require direct IdP authentication. This setting always overrides the organization setting for WARP authentication.',
-    optional: true,
+    nullable: true,
   },
   allow_iframe: {
     type: 'boolean',
     description: 'Enables loading application content in an iFrame.',
-    optional: true,
+    nullable: true,
   },
   app_launcher_visible: {
     type: 'boolean',
     description: 'Displays the application in the App Launcher.',
-    optional: true,
+    nullable: true,
   },
   auto_redirect_to_identity: {
     type: 'boolean',
     description:
       'When set to `true`, users skip the identity provider selection step during login. You must specify only one identity provider in allowed_idps.',
-    optional: true,
+    nullable: true,
   },
   cors_headers: {
     type: 'json',
@@ -1032,25 +981,25 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   custom_deny_message: {
     type: 'string',
     description:
       'The custom error message shown to a user when they are denied access to the application.',
-    optional: true,
+    nullable: true,
   },
   custom_deny_url: {
     type: 'string',
     description:
       'The custom URL a user is redirected to when they are denied access to the application when failing identity-based rules.',
-    optional: true,
+    nullable: true,
   },
   custom_non_identity_deny_url: {
     type: 'string',
     description:
       'The custom URL a user is redirected to when they are denied access to the application when failing non-identity rules.',
-    optional: true,
+    nullable: true,
   },
   custom_pages: {
     type: 'array',
@@ -1059,55 +1008,81 @@ export const ACCESS_APPLICATION_OUTPUTS = {
       type: 'string',
       description: 'The custom pages selected for application.',
     },
-    optional: true,
   },
   eager_redirect_cookie_setting: {
     type: 'boolean',
     description:
       'Preemptively sets the Access session cookie on every hostname in a multi-hostname self-hosted application during the initial redirect chain, rather than setting it lazily on first visit. Defaults to true. Set to false to disable the eager redirect cookie behavior.',
-    optional: true,
+    nullable: true,
   },
   enable_binding_cookie: {
     type: 'boolean',
     description:
       'Enables the binding cookie, which increases security against compromised authorization tokens and CSRF attacks.',
-    optional: true,
+    nullable: true,
   },
   http_only_cookie_attribute: {
     type: 'boolean',
     description:
       'Enables the HttpOnly cookie attribute, which increases security against XSS attacks.',
-    optional: true,
+    nullable: true,
   },
   logo_url: {
     type: 'string',
     description: 'The image URL for the logo shown in the App Launcher dashboard.',
-    optional: true,
+    nullable: true,
   },
-  mfa_config: ACCESS_APPLICATION_OUTPUTS_MFA_CONFIG_FIELDS,
+  mfa_config: {
+    type: 'json',
+    description: 'Configures multi-factor authentication (MFA) settings.',
+    properties: {
+      allowed_authenticators: {
+        type: 'array',
+        description: 'Lists the MFA methods that users can authenticate with.',
+        items: {
+          type: 'string',
+          description: 'allowed authenticators item Values: totp, biometrics, security_key.',
+        },
+        optional: true,
+      },
+      mfa_disabled: {
+        type: 'boolean',
+        description:
+          'Indicates whether to disable MFA for this resource. This option is available at the application and policy level.',
+        optional: true,
+      },
+      session_duration: {
+        type: 'string',
+        description:
+          'Defines the duration of an MFA session. Must be in minutes (m) or hours (h). Minimum: 0m. Maximum: 720h (30 days). Examples:`5m` or `24h`.',
+        optional: true,
+      },
+    },
+    nullable: true,
+  },
   options_preflight_bypass: {
     type: 'boolean',
     description:
       'Allows options preflight requests to bypass Access authentication and go directly to the origin. Cannot turn on if cors_headers is set.',
-    optional: true,
+    nullable: true,
   },
   path_cookie_attribute: {
     type: 'boolean',
     description:
       "Enables cookie paths to scope an application's JWT to the application path. If disabled, the JWT will scope to the hostname by default",
-    optional: true,
+    nullable: true,
   },
   read_service_tokens_from_header: {
     type: 'string',
     description:
       'Allows matching Access Service Tokens passed HTTP in a single header with this name.',
-    optional: true,
+    nullable: true,
   },
   same_site_cookie_attribute: {
     type: 'string',
     description:
       'Sets the SameSite cookie setting, which provides increased security against CSRF attacks.',
-    optional: true,
+    nullable: true,
   },
   scim_config: {
     type: 'json',
@@ -1262,23 +1237,23 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         optional: false,
       },
     },
-    optional: true,
+    nullable: true,
   },
   service_auth_401_redirect: {
     type: 'boolean',
     description: 'Returns a 401 status code when the request is blocked by a Service Auth policy.',
-    optional: true,
+    nullable: true,
   },
   session_duration: {
     type: 'string',
     description:
       'The amount of time that tokens issued for this application will be valid. Must be in the format `300ms` or `2h45m`. Valid time units are: ns, us (or \u00b5s), ms, s, m, h.',
-    optional: true,
+    nullable: true,
   },
   skip_interstitial: {
     type: 'boolean',
     description: 'Enables automatic authentication through cloudflared.',
-    optional: true,
+    nullable: true,
   },
   tags: {
     type: 'array',
@@ -1288,13 +1263,12 @@ export const ACCESS_APPLICATION_OUTPUTS = {
       type: 'string',
       description: 'The tag associated with an application.',
     },
-    optional: true,
   },
   use_clientless_isolation_app_launcher_url: {
     type: 'boolean',
     description:
       'Determines if users can access this application via a clientless browser isolation URL. This allows users to access private domains without connecting to Gateway. The option requires Clientless Browser Isolation to be set up with policies that allow users of this application.',
-    optional: true,
+    nullable: true,
   },
   policies: {
     type: 'array',
@@ -1382,7 +1356,34 @@ export const ACCESS_APPLICATION_OUTPUTS = {
             "Require this application to be served in an isolated browser for users matching this policy. 'Client Web Isolation' must be on for the account in order to use this feature.",
           optional: true,
         },
-        mfa_config: ACCESS_APPLICATION_OUTPUTS_MFA_CONFIG_FIELDS,
+        mfa_config: {
+          type: 'json',
+          description: 'Configures multi-factor authentication (MFA) settings.',
+          properties: {
+            allowed_authenticators: {
+              type: 'array',
+              description: 'Lists the MFA methods that users can authenticate with.',
+              items: {
+                type: 'string',
+                description: 'allowed authenticators item Values: totp, biometrics, security_key.',
+              },
+              optional: true,
+            },
+            mfa_disabled: {
+              type: 'boolean',
+              description:
+                'Indicates whether to disable MFA for this resource. This option is available at the application and policy level.',
+              optional: true,
+            },
+            session_duration: {
+              type: 'string',
+              description:
+                'Defines the duration of an MFA session. Must be in minutes (m) or hours (h). Minimum: 0m. Maximum: 720h (30 days). Examples:`5m` or `24h`.',
+              optional: true,
+            },
+          },
+          optional: true,
+        },
         purpose_justification_prompt: {
           type: 'string',
           description: 'A custom message that will appear on the purpose justification screen.',
@@ -1411,19 +1412,37 @@ export const ACCESS_APPLICATION_OUTPUTS = {
             'The action Access will take if a user matches this policy. Infrastructure application policies can only use the Allow action. Values: allow, deny, non_identity, bypass.',
           optional: true,
         },
-        exclude: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_FIELDS,
+        exclude: {
+          type: 'array',
+          description:
+            'Rules evaluated with a NOT logical operator. To match the policy, a user cannot meet any of the Exclude rules.',
+          items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
+          optional: true,
+        },
         id: {
           type: 'string',
           description: 'The UUID of the policy',
           optional: true,
         },
-        include: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_INCLUDE_FIELDS,
+        include: {
+          type: 'array',
+          description:
+            'Rules evaluated with an OR logical operator. A user needs to meet only one of the Include rules.',
+          items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
+          optional: true,
+        },
         name: {
           type: 'string',
           description: 'The name of the Access policy.',
           optional: true,
         },
-        require: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_REQUIRE_FIELDS,
+        require: {
+          type: 'array',
+          description:
+            'Rules evaluated with an AND logical operator. To match the policy, a user must meet all of the Require rules.',
+          items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
+          optional: true,
+        },
         updated_at: {
           type: 'string',
           description: 'updated at',
@@ -1442,7 +1461,6 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   saas_app: {
     type: 'json',
@@ -1717,17 +1735,17 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   app_launcher_logo_url: {
     type: 'string',
     description: 'The image URL of the logo shown in the App Launcher header.',
-    optional: true,
+    nullable: true,
   },
   bg_color: {
     type: 'string',
     description: 'The background color of the App Launcher page.',
-    optional: true,
+    nullable: true,
   },
   footer_links: {
     type: 'array',
@@ -1748,12 +1766,11 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   header_bg_color: {
     type: 'string',
     description: 'The background color of the App Launcher header.',
-    optional: true,
+    nullable: true,
   },
   landing_page_design: {
     type: 'json',
@@ -1785,12 +1802,12 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   skip_app_launcher_login_page: {
     type: 'boolean',
     description: 'Determines when to skip the App Launcher landing page.',
-    optional: true,
+    nullable: true,
   },
   target_criteria: {
     type: 'array',
@@ -1908,7 +1925,6 @@ export const ACCESS_APPLICATION_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -1916,32 +1932,31 @@ export const ACCESS_GROUP_OUTPUTS = {
   created_at: {
     type: 'string',
     description: 'created at',
-    optional: true,
+    nullable: true,
   },
   exclude: {
     type: 'array',
     description:
       'Rules evaluated with a NOT logical operator. To match a policy, a user cannot meet any of the Exclude rules.',
     items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
-    optional: true,
   },
   id: {
     type: 'string',
     description: 'UUID.',
-    optional: true,
+    nullable: true,
   },
-  include: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_INCLUDE_FIELDS,
+  include: ACCESS_GROUP_OUTPUTS_INCLUDE_FIELDS,
   is_default: ACCESS_GROUP_OUTPUTS_IS_DEFAULT_FIELDS,
   name: {
     type: 'string',
     description: 'The name of the Access group.',
-    optional: true,
+    nullable: true,
   },
   require: ACCESS_GROUP_OUTPUTS_IS_DEFAULT_FIELDS,
   updated_at: {
     type: 'string',
     description: 'updated at',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -1975,13 +1990,12 @@ export const ACCESS_POLICY_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   approval_required: {
     type: 'boolean',
     description:
       'Requires the user to request access from an administrator at the start of each session.',
-    optional: true,
+    nullable: true,
   },
   connection_rules: {
     type: 'json',
@@ -2038,13 +2052,13 @@ export const ACCESS_POLICY_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   isolation_required: {
     type: 'boolean',
     description:
       "Require this application to be served in an isolated browser for users matching this policy. 'Client Web Isolation' must be on for the account in order to use this feature.",
-    optional: true,
+    nullable: true,
   },
   mfa_config: {
     type: 'json',
@@ -2074,63 +2088,73 @@ export const ACCESS_POLICY_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   purpose_justification_prompt: {
     type: 'string',
     description: 'A custom message that will appear on the purpose justification screen.',
-    optional: true,
+    nullable: true,
   },
   purpose_justification_required: {
     type: 'boolean',
     description: 'Require users to enter a justification when they log in to the application.',
-    optional: true,
+    nullable: true,
   },
   session_duration: {
     type: 'string',
     description:
       'The amount of time that tokens issued for the application will be valid. Must be in the format `300ms` or `2h45m`. Valid time units are: ns, us (or \u00b5s), ms, s, m, h.',
-    optional: true,
+    nullable: true,
   },
   created_at: {
     type: 'string',
     description: 'created at',
-    optional: true,
+    nullable: true,
   },
   decision: {
     type: 'string',
     description:
       'The action Access will take if a user matches this policy. Infrastructure application policies can only use the Allow action. Values: allow, deny, non_identity, bypass.',
-    optional: true,
+    nullable: true,
   },
-  exclude: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_FIELDS,
+  exclude: {
+    type: 'array',
+    description:
+      'Rules evaluated with a NOT logical operator. To match the policy, a user cannot meet any of the Exclude rules.',
+    items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
+  },
   id: {
     type: 'string',
     description: 'The UUID of the policy',
-    optional: true,
+    nullable: true,
   },
-  include: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_INCLUDE_FIELDS,
+  include: ACCESS_GROUP_OUTPUTS_INCLUDE_FIELDS,
   name: {
     type: 'string',
     description: 'The name of the Access policy.',
-    optional: true,
+    nullable: true,
   },
-  require: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_REQUIRE_FIELDS,
+  require: {
+    type: 'array',
+    description:
+      'Rules evaluated with an AND logical operator. To match the policy, a user must meet all of the Require rules.',
+    items: ACCESS_APPLICATION_OUTPUTS_POLICIES_ITEMS_PROPERTIES_EXCLUDE_ITEMS_FIELDS,
+  },
   updated_at: {
     type: 'string',
     description: 'updated at',
-    optional: true,
+    nullable: true,
   },
   account_id: {
     type: 'string',
     description: 'Identifier.',
-    optional: true,
+    nullable: true,
   },
   precedence: {
     type: 'number',
     description:
       'The order of execution for this policy. Must be unique for each policy within an app.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -2139,7 +2163,7 @@ export const CERTIFICATE_OUTPUTS = {
     type: 'string',
     description:
       'Certificate Authority selected for the order. For information on any certificate authority specific details or restrictions [see this page for more details](https://developers.cloudflare.com/ssl/reference/certificate-authorities). Values: google, lets_encrypt, ssl_com.',
-    optional: true,
+    nullable: true,
   },
   certificates: {
     type: 'array',
@@ -2221,19 +2245,17 @@ export const CERTIFICATE_OUTPUTS = {
         },
       },
     },
-    optional: false,
   },
   cloudflare_branding: {
     type: 'boolean',
     description:
       'Whether or not to add Cloudflare Branding for the order. This will add a subdomain of sni.cloudflaressl.com as the Common Name if set to true.',
-    optional: true,
+    nullable: true,
   },
   dcv_delegation_records: {
     type: 'array',
     description: 'DCV Delegation records for domain validation.',
     items: CERTIFICATE_OUTPUTS_DCV_DELEGATION_RECORDS_ITEMS_FIELDS,
-    optional: true,
   },
   hosts: {
     type: 'array',
@@ -2243,28 +2265,27 @@ export const CERTIFICATE_OUTPUTS = {
       type: 'string',
       description: 'hosts item',
     },
-    optional: false,
   },
   id: {
     type: 'string',
     description: 'The unique identifier for a certificate_pack.',
-    optional: false,
+    nullable: true,
   },
   primary_certificate: {
     type: 'string',
     description: 'Identifier of the primary certificate in a pack.',
-    optional: true,
+    nullable: true,
   },
   status: {
     type: 'string',
     description: 'Status of certificate pack.',
-    optional: false,
+    nullable: true,
   },
   type: {
     type: 'string',
     description:
       'Type of certificate pack. Values: mh_custom, managed_hostname, sni_custom, universal, advanced, total_tls, keyless, legacy_custom.',
-    optional: false,
+    nullable: true,
   },
   validation_errors: {
     type: 'array',
@@ -2281,23 +2302,21 @@ export const CERTIFICATE_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   validation_method: {
     type: 'string',
     description: 'Validation Method selected for the order. Values: txt, http, email.',
-    optional: true,
+    nullable: true,
   },
   validation_records: {
     type: 'array',
     description: "Certificates' validation records.",
     items: CERTIFICATE_OUTPUTS_DCV_DELEGATION_RECORDS_ITEMS_FIELDS,
-    optional: true,
   },
   validity_days: {
     type: 'number',
     description: 'Validity Days selected for the order. Values: 14, 30, 90, 365.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -2306,18 +2325,18 @@ export const DNS_RECORD_OUTPUTS = {
     type: 'string',
     description:
       'Comments or notes about the DNS record. This field has no effect on DNS responses.',
-    optional: false,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'Complete DNS record name, including the zone name, in Punycode.',
-    optional: false,
+    nullable: true,
   },
   proxied: {
     type: 'boolean',
     description:
       'Whether the record is receiving the performance and security benefits of Cloudflare.',
-    optional: false,
+    nullable: true,
   },
   settings: {
     type: 'json',
@@ -2342,7 +2361,7 @@ export const DNS_RECORD_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   tags: {
     type: 'array',
@@ -2352,35 +2371,34 @@ export const DNS_RECORD_OUTPUTS = {
       description:
         'Individual tag of the form name:value (the name must consist of only letters, numbers, underscores and hyphens)',
     },
-    optional: false,
   },
   ttl: {
     type: 'number',
     description:
       "Time To Live (TTL) of the DNS record in seconds. Setting to 1 means 'automatic'. Value must be between 60 and 86400, with the minimum reduced to 30 for Enterprise zones. Values: 1.",
-    optional: false,
+    nullable: true,
   },
   content: {
     type: 'string',
     description: "Formatted URI content. See 'data' to set URI properties.",
-    optional: false,
+    nullable: true,
   },
   private_routing: {
     type: 'boolean',
     description: 'Enables private network routing to the origin.',
-    optional: true,
+    nullable: true,
   },
   type: {
     type: 'string',
     description:
       'Record type. Values: A, AAAA, CNAME, MX, NS, OPENPGPKEY, PTR, TXT, CAA, CERT, DNSKEY, DS, HTTPS, LOC, NAPTR, SMIMEA, SRV, SSHFP, SVCB, TLSA, URI.',
-    optional: false,
+    nullable: true,
   },
   priority: {
     type: 'number',
     description:
       'Required for MX and URI records; ignored for other record types (but may still be returned by the API). Records with lower priorities are preferred. This field is to be deprecated in favor of the priority field within the data map.',
-    optional: true,
+    nullable: true,
   },
   data: {
     type: 'json',
@@ -2568,22 +2586,22 @@ export const DNS_RECORD_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   comment_modified_on: {
     type: 'string',
     description: 'When the record comment was last modified. Omitted if there is no comment.',
-    optional: true,
+    nullable: true,
   },
   created_on: {
     type: 'string',
     description: 'When the record was created.',
-    optional: false,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'Identifier.',
-    optional: false,
+    nullable: true,
   },
   meta: {
     type: 'json',
@@ -2618,22 +2636,37 @@ export const DNS_RECORD_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   modified_on: {
     type: 'string',
     description: 'When the record was last modified.',
-    optional: false,
+    nullable: true,
   },
   proxiable: {
     type: 'boolean',
     description: 'Whether the record can be proxied by Cloudflare or not.',
-    optional: false,
+    nullable: true,
   },
   tags_modified_on: {
     type: 'string',
     description: 'When the record tags were last modified. Omitted if there are no tags.',
-    optional: true,
+    nullable: true,
+  },
+  zone_id: {
+    type: 'string',
+    description: 'Legacy DNS response zone ID when returned by Cloudflare',
+    nullable: true,
+  },
+  zone_name: {
+    type: 'string',
+    description: 'Legacy DNS response zone name when returned by Cloudflare',
+    nullable: true,
+  },
+  locked: {
+    type: 'boolean',
+    description: 'Legacy DNS response lock flag when returned by Cloudflare',
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -2855,23 +2888,23 @@ export const IDENTITY_PROVIDER_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'UUID.',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'The name of the identity provider, shown to users on the login page.',
-    optional: false,
+    nullable: true,
   },
   read_only: {
     type: 'boolean',
     description:
       'Indicates that the identity provider is immutable and cannot be updated or deleted via the API.',
-    optional: true,
+    nullable: true,
   },
   saml_certificate_set: {
     type: 'json',
@@ -2929,13 +2962,13 @@ export const IDENTITY_PROVIDER_OUTPUTS = {
         optional: false,
       },
     },
-    optional: true,
+    nullable: true,
   },
   saml_certificate_set_id: {
     type: 'string',
     description:
       'The UID of the SAML encryption certificate set assigned to this Identity Provider. Only present for SAML identity providers with encryption configured. Create a certificate set via POST to `/identity_providers/{id}/saml_certificate`.',
-    optional: true,
+    nullable: true,
   },
   scim_config: {
     type: 'json',
@@ -2977,12 +3010,12 @@ export const IDENTITY_PROVIDER_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   type: {
     type: 'string',
     description: 'The type of identity provider.',
-    optional: false,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -2990,37 +3023,37 @@ export const LIST_RULESETS_OUTPUTS = {
   description: {
     type: 'string',
     description: 'An informative description of the ruleset.',
-    optional: true,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'The unique ID of the ruleset.',
-    optional: false,
+    nullable: true,
   },
   last_updated: {
     type: 'string',
     description: 'The timestamp of when the ruleset was last modified.',
-    optional: false,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'The human-readable name of the ruleset.',
-    optional: false,
+    nullable: true,
   },
   version: {
     type: 'string',
     description: 'The version of the ruleset.',
-    optional: false,
+    nullable: true,
   },
   kind: {
     type: 'string',
     description: 'The kind of the ruleset. Values: managed, custom, root, zone.',
-    optional: false,
+    nullable: true,
   },
   phase: {
     type: 'string',
     description: 'The phase of the ruleset.',
-    optional: false,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -3028,29 +3061,29 @@ export const R2_BUCKET_OUTPUTS = {
   creation_date: {
     type: 'string',
     description: 'Creation timestamp.',
-    optional: true,
+    nullable: true,
   },
   jurisdiction: {
     type: 'string',
     description:
       'Jurisdiction where objects in this bucket are guaranteed to be stored. Values: default, eu, us, fedramp, fedramp-high.',
-    optional: true,
+    nullable: true,
   },
   location: {
     type: 'string',
     description: 'Location of the bucket. Values: apac, eeur, enam, weur, wnam, oc.',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'Name of the bucket.',
-    optional: true,
+    nullable: true,
   },
   storage_class: {
     type: 'string',
     description:
       'Storage class for newly uploaded objects, unless specified otherwise. Values: Standard, InfrequentAccess.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -3122,7 +3155,6 @@ export const R2_CORS_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -3251,7 +3283,6 @@ export const R2_LIFECYCLE_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -3307,37 +3338,37 @@ export const RULESET_OUTPUTS = {
   description: {
     type: 'string',
     description: 'An informative description of the ruleset.',
-    optional: true,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'The unique ID of the ruleset.',
-    optional: false,
+    nullable: true,
   },
   last_updated: {
     type: 'string',
     description: 'The timestamp of when the ruleset was last modified.',
-    optional: false,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'The human-readable name of the ruleset.',
-    optional: false,
+    nullable: true,
   },
   version: {
     type: 'string',
     description: 'The version of the ruleset.',
-    optional: false,
+    nullable: true,
   },
   kind: {
     type: 'string',
     description: 'The kind of the ruleset. Values: managed, custom, root, zone.',
-    optional: false,
+    nullable: true,
   },
   phase: {
     type: 'string',
     description: 'The phase of the ruleset.',
-    optional: false,
+    nullable: true,
   },
   rules: {
     type: 'array',
@@ -3349,7 +3380,6 @@ export const RULESET_OUTPUTS = {
         action: {
           type: 'string',
           description: 'The action to perform when the rule matches.',
-          optional: false,
         },
         action_parameters: {
           type: 'json',
@@ -4680,7 +4710,7 @@ export const RULESET_OUTPUTS = {
               optional: true,
             },
           },
-          optional: true,
+          nullable: true,
         },
         categories: {
           type: 'array',
@@ -4689,17 +4719,14 @@ export const RULESET_OUTPUTS = {
             type: 'string',
             description: 'The category of a rule.',
           },
-          optional: true,
         },
         description: {
           type: 'string',
           description: 'An informative description of the rule.',
-          optional: true,
         },
         enabled: {
           type: 'boolean',
           description: 'Whether the rule should be executed.',
-          optional: false,
         },
         exposed_credential_check: {
           type: 'json',
@@ -4716,22 +4743,20 @@ export const RULESET_OUTPUTS = {
               optional: false,
             },
           },
-          optional: true,
+          nullable: true,
         },
         expression: {
           type: 'string',
           description: 'The expression defining which traffic will match the rule.',
-          optional: false,
         },
         id: {
           type: 'string',
           description: 'The unique ID of the rule.',
-          optional: false,
         },
         last_updated: {
           type: 'string',
           description: 'The timestamp of when the rule was last modified.',
-          optional: false,
+          nullable: true,
         },
         logging: {
           type: 'json',
@@ -4743,7 +4768,7 @@ export const RULESET_OUTPUTS = {
               optional: false,
             },
           },
-          optional: true,
+          nullable: true,
         },
         ratelimit: {
           type: 'json',
@@ -4800,21 +4825,20 @@ export const RULESET_OUTPUTS = {
               optional: true,
             },
           },
-          optional: true,
+          nullable: true,
         },
         ref: {
           type: 'string',
           description: "The reference of the rule (the rule's ID by default).",
-          optional: false,
+          nullable: true,
         },
         version: {
           type: 'string',
           description: 'The version of the rule.',
-          optional: false,
+          nullable: true,
         },
       },
     },
-    optional: false,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -4823,66 +4847,66 @@ export const SERVICE_TOKEN_OUTPUTS = {
     type: 'string',
     description:
       'The Client ID for the service token. Access will check for this value in the `CF-Access-Client-ID` request header.',
-    optional: true,
+    nullable: true,
   },
   created_at: {
     type: 'string',
     description: 'created at',
-    optional: true,
+    nullable: true,
   },
   duration: {
     type: 'string',
     description:
       'The duration for how long the service token will be valid. Must be in the format `300ms` or `2h45m`, or the special value `forever` for non-expiring tokens. Valid time units are: ns, us (or \u00b5s), ms, s, m, h. The default is 1 year in hours (8760h).',
-    optional: true,
+    nullable: true,
   },
   enabled: {
     type: 'boolean',
     description: 'Whether the service token is enabled.',
-    optional: true,
+    nullable: true,
   },
   expires_at: {
     type: 'string',
     description: 'expires at',
-    optional: true,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'UUID.',
-    optional: true,
+    nullable: true,
   },
   last_seen_at: {
     type: 'string',
     description: 'last seen at',
-    optional: true,
+    nullable: true,
   },
   leak_report_url: {
     type: 'string',
     description:
       'Where the leaked `client_secret` was found, if provided by the reporter. Omitted if the token has not been reported as leaked.',
-    optional: true,
+    nullable: true,
   },
   leak_reported_at: {
     type: 'string',
     description:
       "When a secret scanning partner reported this service token's `client_secret` as leaked. A leaked service token is disabled and must be rotated before it can be re-enabled. Cleared once the secret is rotated. Omitted if the token has not been reported as leaked.",
-    optional: true,
+    nullable: true,
   },
   leak_reporter: {
     type: 'string',
     description:
       'The secret scanning partner that reported the leak. Omitted if the token has not been reported as leaked.',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'The name of the service token.',
-    optional: true,
+    nullable: true,
   },
   updated_at: {
     type: 'string',
     description: 'updated at',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -4891,44 +4915,56 @@ export const SERVICE_TOKEN_SECRET_OUTPUTS = {
     type: 'string',
     description:
       'The Client ID for the service token. Access will check for this value in the `CF-Access-Client-ID` request header.',
-    optional: true,
+    nullable: true,
   },
   client_secret: {
     type: 'string',
     description:
       'The Client Secret for the service token. Access will check for this value in the `CF-Access-Client-Secret` request header.',
-    optional: true,
+    nullable: true,
   },
   created_at: {
     type: 'string',
     description: 'created at',
-    optional: true,
+    nullable: true,
   },
   duration: {
     type: 'string',
     description:
       'The duration for how long the service token will be valid. Must be in the format `300ms` or `2h45m`, or the special value `forever` for non-expiring tokens. Valid time units are: ns, us (or \u00b5s), ms, s, m, h. The default is 1 year in hours (8760h).',
-    optional: true,
+    nullable: true,
   },
   enabled: {
     type: 'boolean',
     description: 'Whether the service token is enabled.',
-    optional: true,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'The ID of the service token.',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'The name of the service token.',
-    optional: true,
+    nullable: true,
   },
   updated_at: {
     type: 'string',
     description: 'updated at',
-    optional: true,
+    nullable: true,
+  },
+  expires_at: {
+    type: 'string',
+    description:
+      'Service token expires at when returned by Cloudflare; retained for existing workflows',
+    nullable: true,
+  },
+  last_seen_at: {
+    type: 'string',
+    description:
+      'Service token last seen at when returned by Cloudflare; retained for existing workflows',
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -4936,7 +4972,7 @@ export const TUNNEL_CONFIGURATION_OUTPUTS = {
   account_id: {
     type: 'string',
     description: 'Identifier.',
-    optional: true,
+    nullable: true,
   },
   config: {
     type: 'json',
@@ -4988,28 +5024,28 @@ export const TUNNEL_CONFIGURATION_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   created_at: {
     type: 'string',
     description: 'created at',
-    optional: true,
+    nullable: true,
   },
   source: {
     type: 'string',
     description:
       "Indicates if this is a locally or remotely configured tunnel. If `local`, manage the tunnel using a YAML file on the origin machine. If `cloudflare`, manage the tunnel's configuration on the Zero Trust dashboard. Values: local, cloudflare.",
-    optional: true,
+    nullable: true,
   },
   tunnel_id: {
     type: 'string',
     description: 'UUID of the tunnel.',
-    optional: true,
+    nullable: true,
   },
   version: {
     type: 'number',
     description: 'The version of the Tunnel Configuration.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -5017,13 +5053,13 @@ export const TUNNEL_OUTPUTS = {
   account_tag: {
     type: 'string',
     description: 'Cloudflare account ID',
-    optional: true,
+    nullable: true,
   },
   config_src: {
     type: 'string',
     description:
       'Indicates if this is a locally or remotely configured tunnel. If `local`, manage the tunnel using a YAML file on the origin machine. If `cloudflare`, manage the tunnel on the Zero Trust dashboard. Values: local, cloudflare.',
-    optional: true,
+    nullable: true,
   },
   connections: {
     type: 'array',
@@ -5075,62 +5111,61 @@ export const TUNNEL_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   conns_active_at: {
     type: 'string',
     description:
       "Timestamp of when the tunnel established at least one connection to Cloudflare's edge. If `null`, the tunnel is inactive.",
-    optional: true,
+    nullable: true,
   },
   conns_inactive_at: {
     type: 'string',
     description:
       "Timestamp of when the tunnel became inactive (no connections to Cloudflare's edge). If `null`, the tunnel is active.",
-    optional: true,
+    nullable: true,
   },
   created_at: {
     type: 'string',
     description: 'Timestamp of when the resource was created.',
-    optional: true,
+    nullable: true,
   },
   deleted_at: {
     type: 'string',
     description:
       'Timestamp of when the resource was deleted. If `null`, the resource has not been deleted.',
-    optional: true,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'UUID of the tunnel.',
-    optional: true,
+    nullable: true,
   },
   metadata: {
     type: 'json',
     description: 'Metadata associated with the tunnel.',
-    optional: true,
+    nullable: true,
   },
   name: {
     type: 'string',
     description: 'A user-friendly name for a tunnel.',
-    optional: true,
+    nullable: true,
   },
   remote_config: {
     type: 'boolean',
     description:
       'If `true`, the tunnel can be configured remotely from the Zero Trust dashboard. If `false`, the tunnel must be configured locally on the origin machine.',
-    optional: true,
+    nullable: true,
   },
   status: {
     type: 'string',
     description: 'The status of the tunnel.',
-    optional: true,
+    nullable: true,
   },
   tun_type: {
     type: 'string',
     description:
       'The type of tunnel. Values: cfd_tunnel, warp_connector, warp, magic, ip_sec, gre, cni.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -5138,18 +5173,18 @@ export const WORKER_ROUTE_OUTPUTS = {
   id: {
     type: 'string',
     description: 'Identifier.',
-    optional: false,
+    nullable: true,
   },
   pattern: {
     type: 'string',
     description:
       'Pattern to match incoming requests against. [Learn more](https://developers.cloudflare.com/workers/configuration/routing/routes/#matching-behavior).',
-    optional: false,
+    nullable: true,
   },
   script: {
     type: 'string',
     description: 'Name of the script to run if the route matches.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -5171,13 +5206,13 @@ export const WORKER_SCRIPT_OUTPUTS = {
         optional: false,
       },
     },
-    optional: true,
+    nullable: true,
   },
   compatibility_date: {
     type: 'string',
     description:
       'Date indicating targeted support in the Workers runtime. Backwards incompatible fixes to the runtime following this date will not affect this Worker.',
-    optional: true,
+    nullable: true,
   },
   compatibility_flags: {
     type: 'array',
@@ -5187,23 +5222,22 @@ export const WORKER_SCRIPT_OUTPUTS = {
       type: 'string',
       description: 'Flag that enables or disables a specific feature in the Workers runtime.',
     },
-    optional: true,
   },
   created_on: {
     type: 'string',
     description: 'When the script was created.',
-    optional: true,
+    nullable: true,
   },
   etag: {
     type: 'string',
     description: 'Hashed script content, can be used in a If-None-Match header when updating.',
-    optional: true,
+    nullable: true,
   },
   exports: {
     type: 'json',
     description:
       'Declarative exports for the Worker, keyed by export name. Worker entrypoint entries (`type: worker`) carry cache configuration for that entrypoint. Durable Object entries (`type: durable-object`) are also configured here and drive namespace reconciliation. At most 100 entries; class names are at most 128 characters.',
-    optional: true,
+    nullable: true,
   },
   handlers: {
     type: 'array',
@@ -5212,43 +5246,42 @@ export const WORKER_SCRIPT_OUTPUTS = {
       type: 'string',
       description: 'handlers item',
     },
-    optional: true,
   },
   has_assets: {
     type: 'boolean',
     description: 'Whether a Worker contains assets.',
-    optional: true,
+    nullable: true,
   },
   has_modules: {
     type: 'boolean',
     description: 'Whether a Worker contains modules.',
-    optional: true,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'The name used to identify the script.',
-    optional: true,
+    nullable: true,
   },
   last_deployed_from: {
     type: 'string',
     description: 'The client most recently used to deploy this Worker.',
-    optional: true,
+    nullable: true,
   },
   logpush: {
     type: 'boolean',
     description: 'Whether Logpush is turned on for the Worker.',
-    optional: true,
+    nullable: true,
   },
   migration_tag: {
     type: 'string',
     description:
       'The tag of the Durable Object migration that was most recently applied for this Worker.',
-    optional: true,
+    nullable: true,
   },
   modified_on: {
     type: 'string',
     description: 'When the script was last modified.',
-    optional: true,
+    nullable: true,
   },
   named_handlers: {
     type: 'array',
@@ -5274,7 +5307,6 @@ export const WORKER_SCRIPT_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   observability: WORKER_SCRIPT_OUTPUTS_OBSERVABILITY_FIELDS,
   placement: {
@@ -5341,24 +5373,24 @@ export const WORKER_SCRIPT_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   placement_mode: {
     type: 'string',
     description:
       "Configuration for [Smart Placement](https://developers.cloudflare.com/workers/configuration/smart-placement). Specify mode='smart' for Smart Placement, or one of region/hostname/host. Values: smart, targeted.",
-    optional: true,
+    nullable: true,
   },
   placement_status: {
     type: 'string',
     description:
       'Status of [Smart Placement](https://developers.cloudflare.com/workers/configuration/smart-placement). Values: SUCCESS, UNSUPPORTED_APPLICATION, INSUFFICIENT_INVOCATIONS.',
-    optional: true,
+    nullable: true,
   },
   tag: {
     type: 'string',
     description: 'The immutable ID of the script.',
-    optional: true,
+    nullable: true,
   },
   tags: {
     type: 'array',
@@ -5367,7 +5399,6 @@ export const WORKER_SCRIPT_OUTPUTS = {
       type: 'string',
       description: 'tags item',
     },
-    optional: true,
   },
   tail_consumers: {
     type: 'array',
@@ -5393,12 +5424,11 @@ export const WORKER_SCRIPT_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   usage_model: {
     type: 'string',
     description: 'Usage model for the Worker invocations. Values: standard, bundled, unbound.',
-    optional: true,
+    nullable: true,
   },
   routes: {
     type: 'array',
@@ -5425,7 +5455,6 @@ export const WORKER_SCRIPT_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -5452,7 +5481,7 @@ export const WORKER_SETTINGS_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   bindings: {
     type: 'array',
@@ -5770,7 +5799,6 @@ export const WORKER_SETTINGS_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   cache_options: {
     type: 'json',
@@ -5789,13 +5817,13 @@ export const WORKER_SETTINGS_OUTPUTS = {
         optional: false,
       },
     },
-    optional: true,
+    nullable: true,
   },
   compatibility_date: {
     type: 'string',
     description:
       'Date indicating targeted support in the Workers runtime. Backwards incompatible fixes to the runtime following this date will not affect this Worker.',
-    optional: true,
+    nullable: true,
   },
   compatibility_flags: {
     type: 'array',
@@ -5805,13 +5833,12 @@ export const WORKER_SETTINGS_OUTPUTS = {
       type: 'string',
       description: 'compatibility flags item',
     },
-    optional: true,
   },
   exports: {
     type: 'json',
     description:
       'Declarative exports for the Worker, keyed by export name. Worker entrypoint entries (`type: worker`) carry cache configuration for that entrypoint. Durable Object entries (`type: durable-object`) are also configured here and drive namespace reconciliation. At most 100 entries; class names are at most 128 characters.',
-    optional: true,
+    nullable: true,
   },
   exports_reconciliation: {
     type: 'json',
@@ -6001,7 +6028,7 @@ export const WORKER_SETTINGS_OUTPUTS = {
         optional: false,
       },
     },
-    optional: true,
+    nullable: true,
   },
   limits: {
     type: 'json',
@@ -6018,12 +6045,12 @@ export const WORKER_SETTINGS_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   logpush: {
     type: 'boolean',
     description: 'Whether Logpush is turned on for the Worker.',
-    optional: true,
+    nullable: true,
   },
   migrations: {
     type: 'json',
@@ -6203,7 +6230,7 @@ export const WORKER_SETTINGS_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   observability: WORKER_SCRIPT_OUTPUTS_OBSERVABILITY_FIELDS,
   placement: {
@@ -6258,7 +6285,7 @@ export const WORKER_SETTINGS_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   tags: {
     type: 'array',
@@ -6267,7 +6294,6 @@ export const WORKER_SETTINGS_OUTPUTS = {
       type: 'string',
       description: 'tags item',
     },
-    optional: true,
   },
   tail_consumers: {
     type: 'array',
@@ -6293,12 +6319,11 @@ export const WORKER_SETTINGS_OUTPUTS = {
         },
       },
     },
-    optional: true,
   },
   usage_model: {
     type: 'string',
     description: 'Usage model for the Worker invocations. Values: standard, bundled, unbound.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>
 
@@ -6318,33 +6343,33 @@ export const ZONE_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   activated_on: {
     type: 'string',
     description: 'The last time proof of ownership was detected and the zone was made active.',
-    optional: false,
+    nullable: true,
   },
   cname_suffix: {
     type: 'string',
     description: 'Allows the customer to use a custom apex. *Tenants Only Configuration*.',
-    optional: true,
+    nullable: true,
   },
   created_on: {
     type: 'string',
     description: 'When the zone was created.',
-    optional: false,
+    nullable: true,
   },
   development_mode: {
     type: 'number',
     description:
       'The interval (in seconds) from when development mode expires (positive integer) or last expired (negative integer) for the domain. If development mode has never been enabled, this value is 0.',
-    optional: false,
+    nullable: true,
   },
   id: {
     type: 'string',
     description: 'Identifier',
-    optional: false,
+    nullable: true,
   },
   meta: {
     type: 'json',
@@ -6386,18 +6411,18 @@ export const ZONE_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   modified_on: {
     type: 'string',
     description: 'When the zone was last modified.',
-    optional: false,
+    nullable: true,
   },
   name: {
     type: 'string',
     description:
       'The domain name. Per [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.4) the overall zone name can be up to 253 characters, with each segment ("label") not exceeding 63 characters.',
-    optional: false,
+    nullable: true,
   },
   name_servers: {
     type: 'array',
@@ -6406,12 +6431,11 @@ export const ZONE_OUTPUTS = {
       type: 'string',
       description: 'name servers item',
     },
-    optional: false,
   },
   original_dnshost: {
     type: 'string',
     description: 'DNS host at the time of switching to Cloudflare.',
-    optional: false,
+    nullable: true,
   },
   original_name_servers: {
     type: 'array',
@@ -6420,12 +6444,11 @@ export const ZONE_OUTPUTS = {
       type: 'string',
       description: 'original name servers item',
     },
-    optional: false,
   },
   original_registrar: {
     type: 'string',
     description: 'Registrar for the domain at the time of switching to Cloudflare.',
-    optional: false,
+    nullable: true,
   },
   owner: {
     type: 'json',
@@ -6447,13 +6470,13 @@ export const ZONE_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   paused: {
     type: 'boolean',
     description:
       'Indicates whether the zone is only using Cloudflare DNS services. A true value means the zone will not receive security or performance benefits.',
-    optional: true,
+    nullable: true,
   },
   permissions: {
     type: 'array',
@@ -6462,7 +6485,6 @@ export const ZONE_OUTPUTS = {
       type: 'string',
       description: 'permissions item',
     },
-    optional: true,
   },
   plan: {
     type: 'json',
@@ -6519,12 +6541,12 @@ export const ZONE_OUTPUTS = {
         optional: true,
       },
     },
-    optional: false,
+    nullable: true,
   },
   status: {
     type: 'string',
     description: 'The zone status on Cloudflare. Values: initializing, pending, active, moved.',
-    optional: true,
+    nullable: true,
   },
   tenant: {
     type: 'json',
@@ -6542,7 +6564,7 @@ export const ZONE_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   tenant_unit: {
     type: 'json',
@@ -6555,13 +6577,13 @@ export const ZONE_OUTPUTS = {
         optional: true,
       },
     },
-    optional: true,
+    nullable: true,
   },
   type: {
     type: 'string',
     description:
       'A full zone implies that DNS is hosted with Cloudflare. A partial zone is typically a partner-hosted zone or a CNAME setup. Values: full, partial, secondary, internal.',
-    optional: true,
+    nullable: true,
   },
   vanity_name_servers: {
     type: 'array',
@@ -6571,11 +6593,10 @@ export const ZONE_OUTPUTS = {
       type: 'string',
       description: 'vanity name servers item',
     },
-    optional: true,
   },
   verification_key: {
     type: 'string',
     description: 'Verification key for partial zone setup.',
-    optional: true,
+    nullable: true,
   },
 } as const satisfies Record<string, ToolOutputProperty>

@@ -29,7 +29,7 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
       required: false,
       visibility: 'user-or-llm',
       description:
-        'An account Name. Optional filter operators can be provided to extend refine the search: * `equal` (default) * `not_equal` * `starts_with` * `ends_with` * `contains` * `starts_with_case_sensitive` * `ends_with_case_sensitive` * `contains_case_sensitive`',
+        'Account name; prefix the value with an operator, e.g. contains:Test. Supported operators: * `equal` (default) * `not_equal` * `starts_with` * `ends_with` * `contains` * `starts_with_case_sensitive` * `ends_with_case_sensitive` * `contains_case_sensitive`',
     },
     name: {
       type: 'string',
@@ -132,12 +132,13 @@ export const listZonesTool: ToolConfig<CloudflareListZonesParams, CloudflareList
     },
     total_count: {
       type: 'number',
-      description: 'Total matching resources, or page count when the API does not supply a total',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
     },
     result_info: {
       type: 'json',
       description: 'Pagination metadata returned by Cloudflare',
-      optional: true,
+      nullable: true,
       properties: RESULT_INFO_OUTPUTS,
     },
   },

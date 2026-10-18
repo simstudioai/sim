@@ -8,7 +8,7 @@ import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
-  mapCloudflareFields,
+  mapCloudflareRuleset,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -77,7 +77,7 @@ export const deleteRulesetRuleTool: ToolConfig<
       (isRecordLike(data.result) || (params?.dry_run === true && data.result === null))
     return {
       success,
-      output: mapCloudflareFields(data.result, RULESET_OUTPUTS),
+      output: mapCloudflareRuleset(data.result),
       ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to delete ruleset rule') } : {}),
     }
   },

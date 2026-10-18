@@ -214,7 +214,7 @@ export const listDnsRecordsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by an exact tag name',
+      description: 'Filter by tag name, or an exact name:value pair (e.g., team:DNS)',
     },
     tag_match: {
       type: 'string',
@@ -306,12 +306,13 @@ export const listDnsRecordsTool: ToolConfig<
     },
     total_count: {
       type: 'number',
-      description: 'Total matching resources, or page count when the API does not supply a total',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
     },
     result_info: {
       type: 'json',
       description: 'Pagination metadata returned by Cloudflare',
-      optional: true,
+      nullable: true,
       properties: RESULT_INFO_OUTPUTS,
     },
   },

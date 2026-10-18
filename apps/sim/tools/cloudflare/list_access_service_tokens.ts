@@ -102,12 +102,13 @@ export const listAccessServiceTokensTool: ToolConfig<
     },
     total_count: {
       type: 'number',
-      description: 'Total matching resources, or page count when the API does not supply a total',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
     },
     result_info: {
       type: 'json',
       description: 'Pagination metadata returned by Cloudflare',
-      optional: true,
+      nullable: true,
       properties: RESULT_INFO_OUTPUTS,
     },
   },

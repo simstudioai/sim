@@ -55,6 +55,10 @@ export const getTunnelTokenTool: ToolConfig<
     }
   },
   outputs: {
-    token: { type: 'string', description: 'Token for connecting cloudflared to the tunnel' },
+    token: {
+      type: 'string',
+      nullable: true,
+      description: 'Token for connecting cloudflared to the tunnel',
+    },
   },
 }

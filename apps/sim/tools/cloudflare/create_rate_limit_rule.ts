@@ -8,7 +8,7 @@ import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
-  mapCloudflareFields,
+  mapCloudflareRuleset,
   parseCsvParam,
   parseJsonObjectParam,
   readCloudflareResponse,
@@ -240,7 +240,7 @@ export const createRateLimitRuleTool: ToolConfig<
       (isRecordLike(data.result) || (params?.dry_run === true && data.result === null))
     return {
       success,
-      output: mapCloudflareFields(data.result, RULESET_OUTPUTS),
+      output: mapCloudflareRuleset(data.result),
       ...(!success
         ? { error: cloudflareErrorMessage(data, 'Failed to create rate limit rule') }
         : {}),

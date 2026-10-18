@@ -1073,3 +1073,47 @@ describe('list transforms survive a non-array result', () => {
     expect(out.output[key]).toEqual([])
   })
 })
+
+describe('Cloudflare review regressions', () => {
+  it.each(['create_access_application', 'update_access_application'])(
+    'preserves existing SaaS and target inputs through %s request mapping',
+    (operation) => {
+      const tool =
+        operation === 'create_access_application'
+          ? cloudflareTools.cloudflareCreateAccessApplicationTool
+          : cloudflareTools.cloudflareUpdateAccessApplicationTool
+      const saasApp = { auth_type: 'saml', consumer_service_url: 'https://example.com/acs' }
+      const targetCriteria = [
+        { port: 22, protocol: 'SSH', target_attributes: { hostname: ['example'] } },
+      ]
+      const mapped = mapFor(operation, {
+        saasApp: JSON.stringify(saasApp),
+        targetCriteria: JSON.stringify(targetCriteria),
+      })
+      expect(tool.request.body?.(mapped as never)).toMatchObject({
+        saas_app: saasApp,
+        target_criteria: targetCriteria,
+      })
+    }
+  )
+
+  it('keeps a pause-only zone update limited to that setting', () => {
+    const mapped = mapFor('update_zone', { zoneId: 'zone', zonePaused: 'true' })
+    const body = cloudflareTools.cloudflareUpdateZoneTool.request.body?.(mapped as never)
+    expect(body).toEqual({ paused: true })
+  })
+
+  it.each([true, false])('returns the ssl_recommender enabled value %s', async (enabled) => {
+    const transform = cloudflareTools.cloudflareUpdateZoneSettingTool.transformResponse
+    if (!transform) throw new Error('Expected response transform')
+    const result = await transform(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: { id: 'ssl_recommender', enabled },
+        })
+      )
+    )
+    expect(result.output.value).toBe(String(enabled))
+  })
+})

@@ -1,7 +1,11 @@
+import { isRecordLike } from '@sim/utils/object'
+import { mapZoneSetting } from '@/tools/cloudflare/get_zone_settings'
 import type {
+  CloudflareRawZoneSetting,
   CloudflareUpdateZoneSettingParams,
   CloudflareUpdateZoneSettingResponse,
 } from '@/tools/cloudflare/types'
+import { readCloudflareResponse } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -104,9 +108,9 @@ export const updateZoneSettingTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await readCloudflareResponse<CloudflareRawZoneSetting>(response)
 
-    if (!response.ok || !data.success) {
+    if (!response.ok || !data.success || !isRecordLike(data.result)) {
       return {
         success: false,
         output: { id: '', value: '', editable: false, modified_on: '' },
@@ -117,18 +121,7 @@ export const updateZoneSettingTool: ToolConfig<
     const setting = data.result
     return {
       success: true,
-      output: {
-        id: setting?.id ?? '',
-        value:
-          typeof setting?.value === 'object' && setting?.value !== null
-            ? JSON.stringify(setting.value)
-            : String(setting?.value ?? ''),
-        editable: setting?.editable ?? false,
-        modified_on: setting?.modified_on ?? '',
-        ...(setting?.time_remaining != null
-          ? { time_remaining: setting.time_remaining as number }
-          : {}),
-      },
+      output: mapZoneSetting(typeof setting.id === 'string' ? setting.id : '', setting),
     }
   },
 
@@ -140,7 +133,7 @@ export const updateZoneSettingTool: ToolConfig<
     value: {
       type: 'string',
       description:
-        'Updated setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified.',
+        'Updated setting value as a string. Simple values returned as-is (e.g., "full", "on"). SSL Recommender returns its enabled flag. Complex values are JSON-stringified.',
     },
     editable: {
       type: 'boolean',

@@ -19,12 +19,11 @@ export function zoneSettingUrl(zoneId: string, settingId: string): string {
  * keep every entry in the list a string.
  */
 export function mapZoneSetting(settingId: string, setting: CloudflareRawZoneSetting | undefined) {
+  const value = settingId === 'ssl_recommender' ? setting?.enabled : setting?.value
   return {
     id: setting?.id ?? settingId,
     value:
-      typeof setting?.value === 'object' && setting.value !== null
-        ? JSON.stringify(setting.value)
-        : String(setting?.value ?? ''),
+      typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value ?? ''),
     editable: setting?.editable ?? false,
     modified_on: setting?.modified_on ?? '',
     ...(setting?.time_remaining != null ? { time_remaining: setting.time_remaining } : {}),
@@ -79,7 +78,7 @@ export const getZoneSettingsTool: InternalToolConfig<
           },
           value: {
             type: 'string',
-            description: `Setting value as a string. Simple values returned as-is (e.g., "full", "on"). Complex values are JSON-stringified (e.g., {"css":"on","html":"on","js":"on"}).`,
+            description: `Setting value as a string. Simple values returned as-is (e.g., "full", "on"). SSL Recommender returns its enabled flag. Complex values are JSON-stringified (e.g., {"css":"on","html":"on","js":"on"}).`,
           },
           editable: {
             type: 'boolean',

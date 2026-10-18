@@ -108,8 +108,6 @@ const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
     header_bg_color: 'accessApplicationHeaderBgColor',
     landing_page_design: 'accessApplicationLandingPageDesign',
     skip_app_launcher_login_page: 'accessApplicationSkipAppLauncherLoginPage',
-    saasApp: 'accessApplicationSaasapp',
-    targetCriteria: 'accessApplicationTargetcriteria',
   },
   update_access_application: {
     type: 'updateAppType',
@@ -142,8 +140,6 @@ const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
     header_bg_color: 'accessApplicationHeaderBgColor',
     landing_page_design: 'accessApplicationLandingPageDesign',
     skip_app_launcher_login_page: 'accessApplicationSkipAppLauncherLoginPage',
-    saasApp: 'accessApplicationSaasapp',
-    targetCriteria: 'accessApplicationTargetcriteria',
   },
   update_access_policy: {
     decision: 'updatePolicyDecision',
@@ -236,7 +232,7 @@ const SUBBLOCK_ALIASES: Record<string, Record<string, string>> = {
   update_zone: {
     paused: 'zonePaused',
     plan: 'zonePlan',
-    type: 'zoneType',
+    type: 'updateZoneType',
     vanity_name_servers: 'zoneVanityNameServers',
   },
 }
@@ -821,7 +817,22 @@ export const CloudflareBlock: BlockConfig = {
         { label: 'Internal DNS', id: 'internal' },
       ],
       value: () => 'full',
-      condition: { field: 'operation', value: ['create_zone', 'update_zone'] },
+      condition: { field: 'operation', value: 'create_zone' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateZoneType',
+      title: 'Zone Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'Full (Cloudflare DNS)', id: 'full' },
+        { label: 'Partial (CNAME Setup)', id: 'partial' },
+        { label: 'Secondary (Secondary DNS)', id: 'secondary' },
+        { label: 'Internal DNS', id: 'internal' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'update_zone' },
       mode: 'advanced',
     },
     {
@@ -3193,42 +3204,6 @@ export const CloudflareBlock: BlockConfig = {
       value: () => '',
     },
     {
-      id: 'accessApplicationSaasapp',
-      title: 'Saas App',
-      type: 'short-input',
-      placeholder: 'Enter saas app',
-      condition: {
-        field: 'operation',
-        value: ['create_access_application', 'update_access_application'],
-      },
-      required: false,
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate the Cloudflare saas app value. JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. { "auth_type": "saml", "consumer_service_url": "https://example.com/acs", "sp_entity_id": "https://example.com" }; OIDC, e.g. { "auth_type": "oidc", "client_id": "...", "redirect_uris": [ "https://example.com/callback" ] } Return ONLY the value.',
-        placeholder: 'Describe the saas app',
-      },
-    },
-    {
-      id: 'accessApplicationTargetcriteria',
-      title: 'Target Criteria',
-      type: 'short-input',
-      placeholder: 'Enter target criteria',
-      condition: {
-        field: 'operation',
-        value: ['create_access_application', 'update_access_application'],
-      },
-      required: false,
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate the Cloudflare target criteria value. JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. [{"port":22,"protocol":"SSH","target_attributes":{"hostname":["production"]}}] Return ONLY the value.',
-        placeholder: 'Describe the target criteria',
-      },
-    },
-    {
       id: 'accessGroupExclude',
       title: 'Exclude',
       type: 'long-input',
@@ -4734,6 +4709,10 @@ export const CloudflareBlock: BlockConfig = {
     apiKey: { type: 'string', description: 'Cloudflare API token' },
     zoneId: { type: 'string', description: 'Zone ID' },
     accountId: { type: 'string', description: 'Cloudflare account ID' },
+    updateZoneType: {
+      type: 'string',
+      description: 'New zone type; leave unchanged to update another property',
+    },
     zoneType: {
       type: 'string',
       description:
@@ -5088,16 +5067,6 @@ export const CloudflareBlock: BlockConfig = {
       type: 'boolean',
       description: 'Determines when to skip the App Launcher landing page.',
     },
-    accessApplicationSaasapp: {
-      type: 'string',
-      description:
-        'JSON SaaS configuration, required for the saas type and rejected on every other type. SAML, e.g. { "auth_type": "saml", "consumer_service_url": "https://example.com/acs", "sp_entity_id": "https://example.com" }; OIDC, e.g. { "auth_type": "oidc", "client_id": "...", "redirect_uris": [ "https://example.com/callback" ] }',
-    },
-    accessApplicationTargetcriteria: {
-      type: 'string',
-      description:
-        'JSON array of infrastructure target criteria, required for the infrastructure and rdp types and rejected on every other type, e.g. [{"port":22,"protocol":"SSH","target_attributes":{"hostname":["production"]}}]',
-    },
     accessGroupExclude: {
       type: 'json',
       description:
@@ -5438,6 +5407,18 @@ export const CloudflareBlock: BlockConfig = {
     },
   },
   outputs: {
+    zone_id: {
+      type: 'string',
+      description: 'Legacy DNS response zone ID when returned by Cloudflare',
+    },
+    zone_name: {
+      type: 'string',
+      description: 'Legacy DNS response zone name when returned by Cloudflare',
+    },
+    locked: {
+      type: 'boolean',
+      description: 'Legacy DNS response lock flag when returned by Cloudflare',
+    },
     zones: { type: 'json', description: 'List of zones/domains' },
     records: { type: 'json', description: 'List of DNS records' },
     certificates: { type: 'json', description: 'List of SSL/TLS certificate packs' },

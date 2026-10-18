@@ -86,7 +86,10 @@ export const updateAccessServiceTokenTool: ToolConfig<
       duration: params.duration,
       enabled: params.enabled,
       name: params.name,
-      previous_client_secret_expires_at: params.previous_client_secret_expires_at,
+      previous_client_secret_expires_at:
+        params.previous_client_secret_expires_at === ''
+          ? undefined
+          : params.previous_client_secret_expires_at,
     }),
   },
   transformResponse: async (response) => {

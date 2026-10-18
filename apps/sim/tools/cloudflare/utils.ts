@@ -1,4 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { RULESET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type { CloudflareEnvelope } from '@/tools/cloudflare/types'
 import type { ToolOutputProperty } from '@/tools/types'
 
@@ -10,7 +11,14 @@ export async function readCloudflareResponse<TResult>(
   let data: unknown
   if (options?.allowEmptySuccess) {
     const body = await response.text()
-    if (response.ok && body.trim() === '') return { success: true }
+    if (body.trim() === '') {
+      return response.ok
+        ? { success: true }
+        : {
+            success: false,
+            errors: [{ message: `Cloudflare returned HTTP ${response.status} with an empty body` }],
+          }
+    }
     data = JSON.parse(body)
   } else {
     data = await response.json()
@@ -152,4 +160,24 @@ export function requestedZoneSettingIds(settingIds: unknown): string[] {
 export function appendParam(url: URL, key: string, value: unknown): void {
   if (value === undefined || value === null || value === '') return
   url.searchParams.append(key, String(value))
+}
+
+/** Preserves the existing per-rule defaults while exposing the documented ruleset fields. */
+export function mapCloudflareRuleset(value: unknown) {
+  const output = mapCloudflareFields(value, RULESET_OUTPUTS)
+  return {
+    ...output,
+    rules: output.rules.map((rule) => {
+      const fields = mapCloudflareFields(rule, RULESET_OUTPUTS.rules.items.properties)
+      return {
+        ...fields,
+        id: fields.id ?? '',
+        action: fields.action ?? '',
+        expression: fields.expression ?? '',
+        description: fields.description ?? '',
+        enabled: fields.enabled ?? false,
+        categories: fields.categories ?? [],
+      }
+    }),
+  }
 }

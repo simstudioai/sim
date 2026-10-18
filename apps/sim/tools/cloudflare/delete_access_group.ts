@@ -52,10 +52,10 @@ export const deleteAccessGroupTool: ToolConfig<
     return {
       success,
       output: mapCloudflareFields(data.result, {
-        id: { type: 'string', description: 'UUID.' },
+        id: { type: 'string', nullable: true, description: 'UUID.' },
       } as const),
       ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to delete access group') } : {}),
     }
   },
-  outputs: { id: { type: 'string', description: 'UUID.' } },
+  outputs: { id: { type: 'string', nullable: true, description: 'UUID.' } },
 }

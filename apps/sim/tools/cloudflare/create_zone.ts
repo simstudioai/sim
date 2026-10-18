@@ -36,7 +36,7 @@ export const createZoneTool: ToolConfig<CloudflareCreateZoneParams, CloudflareCr
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Zone type: "full" (Cloudflare manages DNS), "partial" (CNAME setup), or "secondary" (secondary DNS). or "internal" for an internal DNS zone',
+          'Zone type: "full" (Cloudflare manages DNS), "partial" (CNAME setup), "secondary" (secondary DNS), or "internal" (internal DNS zone)',
       },
       apiKey: {
         type: 'string',

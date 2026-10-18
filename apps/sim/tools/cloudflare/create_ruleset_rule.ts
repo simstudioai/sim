@@ -8,7 +8,7 @@ import {
   appendParam,
   cloudflareErrorMessage,
   cloudflareHeaders,
-  mapCloudflareFields,
+  mapCloudflareRuleset,
   parseJsonObjectParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
@@ -172,7 +172,7 @@ export const createRulesetRuleTool: ToolConfig<
       (isRecordLike(data.result) || (params?.dry_run === true && data.result === null))
     return {
       success,
-      output: mapCloudflareFields(data.result, RULESET_OUTPUTS),
+      output: mapCloudflareRuleset(data.result),
       ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to create ruleset rule') } : {}),
     }
   },

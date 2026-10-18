@@ -52,10 +52,10 @@ export const deleteWorkerRouteTool: ToolConfig<
     return {
       success,
       output: mapCloudflareFields(data.result, {
-        id: { type: 'string', description: 'Identifier.' },
+        id: { type: 'string', nullable: true, description: 'Identifier.' },
       } as const),
       ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to delete worker route') } : {}),
     }
   },
-  outputs: { id: { type: 'string', description: 'Identifier.' } },
+  outputs: { id: { type: 'string', nullable: true, description: 'Identifier.' } },
 }

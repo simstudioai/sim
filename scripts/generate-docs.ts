@@ -4384,6 +4384,7 @@ export async function getToolInfo(
       outputs:
         isFactoryToolDeclaration(toolName, toolFileContent) ||
         toolPrefix === 'buffer' ||
+        toolPrefix === 'cloudflare' ||
         toolPrefix === 'sailpoint' ||
         toolPrefix === 'otter' ||
         toolPrefix === 'plane' ||

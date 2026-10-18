@@ -7,7 +7,7 @@ import type {
 import {
   cloudflareErrorMessage,
   cloudflareHeaders,
-  mapCloudflareFields,
+  mapCloudflareRuleset,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -50,7 +50,7 @@ export const listRateLimitRulesTool: ToolConfig<
     const success = response.ok && data.success !== false && isRecordLike(data.result)
     return {
       success,
-      output: mapCloudflareFields(data.result, RULESET_OUTPUTS),
+      output: mapCloudflareRuleset(data.result),
       ...(!success
         ? { error: cloudflareErrorMessage(data, 'Failed to list rate limit rules') }
         : {}),
