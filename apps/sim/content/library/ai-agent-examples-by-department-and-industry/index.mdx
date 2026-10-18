@@ -527,9 +527,13 @@ A [Sim workflow](https://www.sim.ai/) could use a scheduled trigger to poll a tr
 
 A manufacturing quality agent can assemble production evidence, identify related events, and prepare an investigation package for engineering and quality teams. A defect report or threshold breach starts retrieval of authorized batch, equipment, supplier, inspection, and maintenance records. The agent identifies correlated changes and missing evidence without presenting correlation as causation. Quality and engineering owners approve containment and corrective actions, and the final investigation links evidence, decisions, tasks, and verification results.
 
+You can build this pattern in [Sim](https://www.sim.ai/) with the defect report or threshold breach triggering an Agent block that gathers authorized records through connected tools and returns structured findings. A Human in the Loop block can collect the quality owner's decision, and a downstream Condition can route approved containment or corrective actions while sending rejected or incomplete cases back for review.
+
 ### Insurance: claims-intake agents
 
 An insurance claims-intake agent can organize submitted evidence, identify missing information, and route a claim without independently making a coverage decision. It verifies the policy and claimant, extracts incident details, checks completeness and consistency, and identifies missing documents or possible duplicates. Approved operational rules determine routing, while an authorized adjuster makes coverage, reserve, and settlement decisions. The workflow records evidence, routing rationale, reviewer, and status changes.
+
+You can build this pattern in [Sim](https://www.sim.ai/) with a claim submission triggering an Agent block that extracts the claim details and uses connected tools to retrieve authorized policy and claimant records. Workflow branches can route missing or inconsistent evidence to a review queue, while a Human in the Loop block can collect the adjuster's decision before a downstream Condition permits the approved next step.
 
 ### SaaS: onboarding and usage-signal agents
 
