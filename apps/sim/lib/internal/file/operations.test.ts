@@ -1086,7 +1086,9 @@ describe('file manage operations', () => {
   })
 
   it('pins resolved file-input provenance to the captured content revision', async () => {
-    mockResolveWorkspaceFileReference.mockResolvedValue(workspaceFile('file-1'))
+    const file = workspaceFile('file-1')
+    mockGetFileMetadataByKey.mockResolvedValue({ ...file, context: 'workspace' })
+    mockResolveWorkspaceFileReference.mockResolvedValue(file)
     mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
       status: 'exact',
       entries: [],
