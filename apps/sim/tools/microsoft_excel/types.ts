@@ -1,4 +1,5 @@
 interface ExcelRangeFields {
+  values: ExcelCellValue[][]
   addressLocal: string | null
   cellCount: number | null
   columnCount: number | null
@@ -22,7 +23,6 @@ export type ExcelCellValue = string | number | boolean | null
 
 interface MicrosoftExcelRange extends ExcelRangeFields {
   range: string
-  values: ExcelCellValue[][]
 }
 
 interface MicrosoftExcelMetadata {
@@ -237,7 +237,6 @@ export interface MicrosoftExcelV2ReadResponse extends ToolResponse {
   output: ExcelRangeFields & {
     sheetName: string
     range: string
-    values: ExcelCellValue[][]
     metadata: {
       spreadsheetId: string
       spreadsheetUrl: string

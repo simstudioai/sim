@@ -284,7 +284,7 @@ export function normalizeExcelValues(
     const keys = [...keySet]
     rows = parsed.map((row) =>
       keys.map((key) => {
-        const cell = toRecord(row)[key]
+        const cell = Object.hasOwn(row, key) ? toRecord(row)[key] : undefined
         return isRecordLike(cell) || Array.isArray(cell)
           ? JSON.stringify(cell)
           : cell === undefined
@@ -316,6 +316,7 @@ export function normalizeExcelValues(
 }
 
 export const EXCEL_RANGE_OUTPUTS = {
+  values: { ...EXCEL_VALUES_OUTPUT },
   addressLocal: { type: 'string', nullable: true, description: 'Localized range address.' },
   cellCount: { type: 'number', nullable: true, description: 'Cell count in the returned range.' },
   columnCount: {
@@ -364,6 +365,7 @@ export const EXCEL_RANGE_OUTPUTS = {
 /** Project range metadata, with nullable scalars and empty matrices for missing fields. */
 export function mapExcelRange(data: Record<string, unknown>) {
   return {
+    values: Array.isArray(data.values) ? (data.values as ExcelCellValue[][]) : [],
     addressLocal: toStringOrNull(data.addressLocal),
     cellCount: toNumberOrNull(data.cellCount),
     columnCount: toNumberOrNull(data.columnCount),

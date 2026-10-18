@@ -466,6 +466,7 @@ Read data from a specific sheet in a Microsoft Excel spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
 | `addressLocal` | string | Localized range address. |
 | `cellCount` | number | Cell count in the returned range. |
 | `columnCount` | number | Column count in the returned range. |
@@ -483,7 +484,6 @@ Read data from a specific sheet in a Microsoft Excel spreadsheet
 | `valueTypes` | array | Cell value types for the full returned range. |
 | `sheetName` | string | Name of the sheet that was read |
 | `range` | string | The range that was read |
-| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
 | `metadata` | json | Spreadsheet metadata including ID and URL |
 |   ↳ `spreadsheetId` | string | Microsoft Excel spreadsheet ID |
 |   ↳ `spreadsheetUrl` | string | Spreadsheet URL |
@@ -513,6 +513,7 @@ Write data to a specific sheet in a Microsoft Excel spreadsheet
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `values` | array | Two-dimensional cell values; cells contain strings, numbers, booleans, or null. |
 | `addressLocal` | string | Localized range address. |
 | `cellCount` | number | Cell count in the returned range. |
 | `columnCount` | number | Column count in the returned range. |
@@ -667,7 +668,7 @@ Sort a range or table by one or more fields in a Microsoft Excel worksheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `sortFields` | json | No | Sort conditions \[\{key, ascending, sortOn, color, dataOption, icon\}\]. Overrides sortColumn/sortAscending; key is a zero-based offset, sortOn is Value, CellColor, FontColor, or Icon; dataOption is Normal or TextAsNumber; icon contains set and index. |
+| `sortFields` | json | No | Sort conditions \[\{key, ascending, sortOn, color, dataOption, icon\}\]. Overrides sortColumn/sortAscending; ascending defaults to true for each condition; key is a zero-based offset, sortOn is Value, CellColor, FontColor, or Icon; dataOption is Normal or TextAsNumber; icon contains set and index. |
 | `sortMethod` | string | No | Chinese character ordering: PinYin or StrokeCount. |
 | `orientation` | string | No | Rows \(default\) or Columns. Applies only to range sorts. |
 | `sessionId` | string | No | Workbook session ID from Create Session. Omit for a sessionless request that saves changes. |
@@ -676,7 +677,7 @@ Sort a range or table by one or more fields in a Microsoft Excel worksheet
 | `tableName` | string | No | The name of the table to sort. When provided, the table is sorted and range/sheetName are ignored. |
 | `sheetName` | string | No | The name of the worksheet \(e.g., "Sheet1"\). Used for range sorts when the range does not include a sheet name. |
 | `range` | string | No | The cell range to sort \(e.g., "A1:D10" or "Sheet1!A1:D10"\). Required when no table name is provided. |
-| `sortColumn` | number | No | The zero-based column index within the range or table to sort on \(0 = first column\). |
+| `sortColumn` | number | No | Zero-based sort key: column offset for Rows orientation, row offset for Columns orientation. |
 | `sortAscending` | boolean | No | Whether to sort in ascending order. Defaults to true. |
 | `hasHeaders` | boolean | No | Whether the range has a header row that should be excluded from sorting. Only applies to range sorts. Defaults to false. |
 | `matchCase` | boolean | No | Whether casing affects string ordering. Defaults to false. |
@@ -687,7 +688,7 @@ Sort a range or table by one or more fields in a Microsoft Excel worksheet
 | --------- | ---- | ----------- |
 | `sorted` | boolean | Whether the sort was applied |
 | `target` | string | The range or table name that was sorted |
-| `sortColumn` | number | The zero-based column index that was sorted on |
+| `sortColumn` | number | The zero-based key of the first sort condition |
 | `ascending` | boolean | Whether the sort was ascending |
 | `metadata` | object | Spreadsheet metadata |
 |   ↳ `spreadsheetId` | string | The ID of the spreadsheet |

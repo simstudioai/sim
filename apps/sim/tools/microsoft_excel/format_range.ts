@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
@@ -194,24 +195,29 @@ export const formatRangeTool: ToolConfig<
       if (hasFill) {
         const basePath = getItemBasePath(spreadsheetId, driveId)
         const fillUrl = `${buildWorksheetRangeUrl(basePath, params.range, params.sheetName)}/format/fill`
-        const fillResp = await fetch(fillUrl, {
-          method: 'PATCH',
-          headers: excelHeaders(params),
-          signal: context?.signal,
-          body: JSON.stringify({ color: params.fillColor }),
-        })
-        if (!fillResp.ok) {
-          const errorText = await readResponseTextWithLimit(fillResp, {
-            maxBytes: 65536,
-            label: 'Excel error',
+        try {
+          const fillResp = await fetch(fillUrl, {
+            method: 'PATCH',
+            headers: excelHeaders(params),
             signal: context?.signal,
+            body: JSON.stringify({ color: params.fillColor }),
           })
-          const detail = parseGraphErrorMessage(fillResp.status, fillResp.statusText, errorText)
+          if (!fillResp.ok) {
+            const errorText = await readResponseTextWithLimit(fillResp, {
+              maxBytes: 65536,
+              label: 'Excel error',
+              signal: context?.signal,
+            })
+            throw new Error(parseGraphErrorMessage(fillResp.status, fillResp.statusText, errorText))
+          }
+          await fillResp.body?.cancel()
+        } catch (error) {
+          context?.signal?.throwIfAborted()
           throw new Error(
-            `Font formatting was applied, but the fill color update failed: ${detail}. Re-run with only the fill color to finish.`
+            `Font formatting was applied, but the fill color update failed: ${getErrorMessage(error)}. Re-run with only the fill color to finish.`,
+            { cause: error }
           )
         }
-        await fillResp.body?.cancel()
         fillApplied = true
       }
     } else if (hasFill) {

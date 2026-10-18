@@ -278,7 +278,7 @@ export async function getSpreadsheetWebUrl(
         })
       )
     )
-    return typeof data.webUrl === 'string' ? data.webUrl : basePath
+    return typeof data.webUrl === 'string' && data.webUrl.trim() ? data.webUrl : basePath
   } catch (error) {
     signal?.throwIfAborted()
     logger.warn('Error fetching spreadsheet webUrl, using Graph API URL as fallback', {

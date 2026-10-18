@@ -17,6 +17,41 @@ import {
 } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
+function resolveSortFields(
+  params: Pick<MicrosoftExcelSortRangeParams, 'sortFields' | 'sortColumn' | 'sortAscending'>
+): Array<Record<string, unknown> & { key: number; ascending: boolean }> {
+  const fields: unknown =
+    typeof params.sortFields === 'string' ? JSON.parse(params.sortFields) : params.sortFields
+  if (fields === undefined || fields === null) {
+    const key = params.sortColumn
+    if (key === undefined || !Number.isSafeInteger(key) || key < 0)
+      throw new Error('Provide a non-negative sortColumn or sortFields')
+    return [{ key, ascending: params.sortAscending ?? true, sortOn: 'Value' }]
+  }
+  if (!Array.isArray(fields) || fields.length === 0 || fields.length > 64)
+    throw new Error('sortFields must contain 1 to 64 conditions')
+  return fields.map((field) => {
+    if (
+      !isRecordLike(field) ||
+      typeof field.key !== 'number' ||
+      !Number.isSafeInteger(field.key) ||
+      field.key < 0
+    )
+      throw new Error('Each sort field must have a non-negative integer key')
+    if (
+      field.ascending !== undefined &&
+      field.ascending !== null &&
+      typeof field.ascending !== 'boolean'
+    )
+      throw new Error('A sort field ascending value must be boolean')
+    return {
+      ...field,
+      key: field.key,
+      ascending: typeof field.ascending === 'boolean' ? field.ascending : true,
+    }
+  })
+}
+
 /**
  * Sorts a worksheet range or a table by one or more fields.
  * Uses Microsoft Graph:
@@ -44,7 +79,7 @@ export const sortRangeTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Sort conditions [{key, ascending, sortOn, color, dataOption, icon}]. Overrides sortColumn/sortAscending; key is a zero-based offset, sortOn is Value, CellColor, FontColor, or Icon; dataOption is Normal or TextAsNumber; icon contains set and index.',
+        'Sort conditions [{key, ascending, sortOn, color, dataOption, icon}]. Overrides sortColumn/sortAscending; ascending defaults to true for each condition; key is a zero-based offset, sortOn is Value, CellColor, FontColor, or Icon; dataOption is Normal or TextAsNumber; icon contains set and index.',
     },
     sortMethod: {
       type: 'string',
@@ -105,7 +140,7 @@ export const sortRangeTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The zero-based column index within the range or table to sort on (0 = first column).',
+        'Zero-based sort key: column offset for Rows orientation, row offset for Columns orientation.',
     },
     sortAscending: {
       type: 'boolean',
@@ -146,34 +181,14 @@ export const sortRangeTool: ToolConfig<
     method: 'POST',
     headers: excelHeaders,
     body: (params) => {
-      const fields: unknown =
-        typeof params.sortFields === 'string' ? JSON.parse(params.sortFields) : params.sortFields
-      const key = params.sortColumn
-      if (fields === undefined && (!Number.isInteger(key) || key === undefined || key < 0))
-        throw new Error('Provide a non-negative sortColumn or sortFields')
-      if (
-        fields !== undefined &&
-        (!Array.isArray(fields) ||
-          fields.length === 0 ||
-          fields.length > 64 ||
-          fields.some(
-            (field) => !isRecordLike(field) || !Number.isInteger(field.key) || Number(field.key) < 0
-          ))
-      )
-        throw new Error('sortFields must contain 1 to 64 conditions with non-negative integer keys')
+      const fields = resolveSortFields(params)
       if (params.sortMethod && !['PinYin', 'StrokeCount'].includes(params.sortMethod))
         throw new Error('Invalid sort method')
       if (params.orientation && !['Rows', 'Columns'].includes(params.orientation))
         throw new Error('Invalid sort orientation')
 
       const body: Record<string, unknown> = {
-        fields: fields ?? [
-          {
-            key,
-            ascending: params.sortAscending ?? true,
-            sortOn: 'Value',
-          },
-        ],
+        fields,
         matchCase: params.matchCase ?? false,
         ...(params.sortMethod ? { method: params.sortMethod } : {}),
       }
@@ -203,18 +218,15 @@ export const sortRangeTool: ToolConfig<
     const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     const target = params?.tableName?.trim() || params?.range || ''
-    const fields: unknown =
-      typeof params?.sortFields === 'string' ? JSON.parse(params.sortFields) : params?.sortFields
-    const first = Array.isArray(fields) && isRecordLike(fields[0]) ? fields[0] : undefined
+    const first = resolveSortFields(params ?? {})[0]
 
     return {
       success: true,
       output: {
         sorted: true,
         target,
-        sortColumn: typeof first?.key === 'number' ? first.key : (params?.sortColumn ?? 0),
-        ascending:
-          typeof first?.ascending === 'boolean' ? first.ascending : (params?.sortAscending ?? true),
+        sortColumn: first.key,
+        ascending: first.ascending,
         metadata: {
           spreadsheetId,
           spreadsheetUrl: webUrl,
@@ -226,7 +238,7 @@ export const sortRangeTool: ToolConfig<
   outputs: {
     sorted: { type: 'boolean', description: 'Whether the sort was applied' },
     target: { type: 'string', description: 'The range or table name that was sorted' },
-    sortColumn: { type: 'number', description: 'The zero-based column index that was sorted on' },
+    sortColumn: { type: 'number', description: 'The zero-based key of the first sort condition' },
     ascending: { type: 'boolean', description: 'Whether the sort was ascending' },
     metadata: {
       type: 'object',
