@@ -547,48 +547,6 @@ export const GreenhouseBlockMeta = {
   ],
 } as const satisfies BlockMeta
 
-const GREENHOUSE_V2_PARAM_REMAPS: Record<string, Record<string, string>> = {
-  list_application_stages: { created_at: 'created_at_filter' },
-  list_applications: { created_at: 'created_at_filter', status: 'applications_status' },
-  list_applied_candidate_tags: { created_at: 'created_at_filter' },
-  list_attachments: { created_at: 'created_at_filter', type: 'attachments_type' },
-  list_candidate_educations: { created_at: 'created_at_filter' },
-  list_candidate_employments: { created_at: 'created_at_filter' },
-  list_candidate_tags: { created_at: 'created_at_filter' },
-  list_candidates: { created_at: 'created_at_filter' },
-  list_close_reasons: { created_at: 'created_at_filter' },
-  list_custom_field_options: { created_at: 'created_at_filter' },
-  list_custom_fields: { created_at: 'created_at_filter' },
-  list_departments: { created_at: 'created_at_filter' },
-  list_email_templates: { created_at: 'created_at_filter' },
-  list_interviews: { created_at: 'created_at_filter', status: 'interviews_status' },
-  list_job_hiring_managers: { created_at: 'created_at_filter' },
-  list_job_interview_stages: { created_at: 'created_at_filter' },
-  list_job_owners: { created_at: 'created_at_filter', type: 'job_owners_type' },
-  list_jobs: { created_at: 'created_at_filter', status: 'jobs_status' },
-  list_notes: { created_at: 'created_at_filter', visibility: 'notes_visibility' },
-  list_offers: { created_at: 'created_at_filter', status: 'offers_status' },
-  list_offices: { created_at: 'created_at_filter' },
-  list_openings: { created_at: 'created_at_filter' },
-  list_prospect_pool_stages: { created_at: 'created_at_filter' },
-  list_prospect_pools: { created_at: 'created_at_filter' },
-  list_referrers: { created_at: 'created_at_filter' },
-  list_rejection_reasons: { created_at: 'created_at_filter' },
-  list_scorecards: { created_at: 'created_at_filter', status: 'scorecards_status' },
-  list_sources: { created_at: 'created_at_filter' },
-  list_users: { created_at: 'created_at_filter' },
-  create_attachment: { type: 'attachments_type', visibility: 'attachment_visibility' },
-  update_application: { id: 'update_application_id', created_at: 'application_created_on' },
-  update_candidate: { id: 'update_application_id' },
-  convert_prospect: { id: 'update_application_id', job_id: 'convert_prospect_job_id' },
-  hire_application: { id: 'update_application_id', opening_id: 'hire_application_opening_id' },
-  move_application: { id: 'update_application_id' },
-  reject_application: { id: 'update_application_id' },
-  unreject_application: { id: 'update_application_id' },
-  create_application: { job_ids: 'create_application_job_ids' },
-  create_note: { visibility: 'attachment_visibility' },
-}
-
 export const GreenhouseV2Block: BlockConfig = {
   type: 'greenhouse_v2',
   name: 'Greenhouse',
@@ -656,28 +614,14 @@ export const GreenhouseV2Block: BlockConfig = {
         list_sources: ['List sources'],
         list_users: ['List users'],
         get_user: [{ text: 'Get user', field: 'id', core: true }],
-        update_application: [
-          { text: 'Update application', field: 'update_application_id', core: true },
-        ],
-        update_candidate: [
-          { text: 'Update candidate', field: 'update_application_id', core: true },
-        ],
+        update_application: [{ text: 'Update application', field: 'id', core: true }],
+        update_candidate: [{ text: 'Update candidate', field: 'id', core: true }],
         create_application: ['Create application'],
-        convert_prospect: [
-          { text: 'Convert prospect', field: 'update_application_id', core: true },
-        ],
-        hire_application: [
-          { text: 'Hire application', field: 'update_application_id', core: true },
-        ],
-        move_application: [
-          { text: 'Move application', field: 'update_application_id', core: true },
-        ],
-        reject_application: [
-          { text: 'Reject application', field: 'update_application_id', core: true },
-        ],
-        unreject_application: [
-          { text: 'Unreject application', field: 'update_application_id', core: true },
-        ],
+        convert_prospect: [{ text: 'Convert prospect', field: 'id', core: true }],
+        hire_application: [{ text: 'Hire application', field: 'id', core: true }],
+        move_application: [{ text: 'Move application', field: 'id', core: true }],
+        reject_application: [{ text: 'Reject application', field: 'id', core: true }],
+        unreject_application: [{ text: 'Unreject application', field: 'id', core: true }],
         apply_candidate_tag: ['Apply candidate tag'],
         create_attachment: ['Create attachment'],
         create_candidate_tag: ['Create candidate tag'],
@@ -771,6 +715,13 @@ export const GreenhouseV2Block: BlockConfig = {
           'get_candidate',
           'get_job',
           'get_user',
+          'update_application',
+          'update_candidate',
+          'convert_prospect',
+          'hire_application',
+          'move_application',
+          'reject_application',
+          'unreject_application',
         ],
       },
       required: {
@@ -784,6 +735,13 @@ export const GreenhouseV2Block: BlockConfig = {
           'get_candidate',
           'get_job',
           'get_user',
+          'update_application',
+          'update_candidate',
+          'convert_prospect',
+          'hire_application',
+          'move_application',
+          'reject_application',
+          'unreject_application',
         ],
       },
     },
@@ -919,13 +877,14 @@ export const GreenhouseV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'created_at_filter',
-      title: 'Created At Filter',
-      type: 'code',
-      placeholder: '{"gte":"2026-01-01T00:00:00Z"}',
+      id: 'created_at',
+      title: 'Created At',
+      type: 'long-input',
+      placeholder: 'Date, timestamp, or JSON range for the selected operation',
       condition: {
         field: 'operation',
         value: [
+          'create_application',
           'list_application_stages',
           'list_applications',
           'list_applied_candidate_tags',
@@ -955,17 +914,20 @@ export const GreenhouseV2Block: BlockConfig = {
           'list_scorecards',
           'list_sources',
           'list_users',
+          'update_application',
         ],
       },
       required: false,
-      language: 'json',
       wandConfig: {
         enabled: true,
+        generationType: 'timestamp',
         prompt:
-          'Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values; cannot combine with updated_at, for example {"gte":"2026-01-01T00:00:00Z"}. Return ONLY the JSON.',
-        placeholder: 'Describe the created at',
+          'For list operations, return ONLY a JSON object with gte/lte/gt/lt keys and ISO 8601 timestamps. For Create Application, return ONLY an ISO 8601 timestamp. For Update Application, return ONLY a YYYY-MM-DD date. Use the requested operation.',
+        placeholder: 'Describe the date range or date and operation',
       },
       mode: 'advanced',
+      description:
+        'Lists: JSON range using gte, lte, gt, lt with ISO 8601 timestamps; cannot combine with Updated At. Create Application: ISO 8601 timestamp. Update Application: YYYY-MM-DD date.',
     },
     {
       id: 'updated_at',
@@ -1147,8 +1109,8 @@ export const GreenhouseV2Block: BlockConfig = {
     {
       id: 'job_ids',
       title: 'Job IDs',
-      type: 'short-input',
-      placeholder: '123,456',
+      type: 'long-input',
+      placeholder: 'List filter: 123,456; prospect creation: [123,456]',
       condition: {
         field: 'operation',
         value: [
@@ -1160,16 +1122,19 @@ export const GreenhouseV2Block: BlockConfig = {
           'list_offers',
           'list_openings',
           'list_prospect_pools',
+          'create_application',
         ],
       },
       required: false,
       wandConfig: {
         enabled: true,
         prompt:
-          'Job IDs Comma-separated values (maximum 50). Return ONLY the comma-separated list.',
-        placeholder: 'Describe the values to include',
+          'For list operations, return ONLY comma-separated job IDs (maximum 50). For Create Application with Prospect enabled, return ONLY a JSON array of integer job IDs.',
+        placeholder: 'Describe the job IDs and operation',
       },
       mode: 'advanced',
+      description:
+        'For list operations, comma-separated IDs (maximum 50). For prospect application creation, a JSON array of integer job IDs.',
     },
     {
       id: 'prospective_job_ids',
@@ -1247,19 +1212,88 @@ export const GreenhouseV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'applications_status',
+      id: 'status',
       title: 'Status',
       type: 'dropdown',
-      condition: { field: 'operation', value: ['list_applications'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'list_applications',
+          'list_interviews',
+          'list_jobs',
+          'list_offers',
+          'list_scorecards',
+        ],
+      },
       required: false,
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'Rejected', id: 'rejected' },
-        { label: 'Hired', id: 'hired' },
-        { label: 'Converted', id: 'converted' },
-        { label: 'Active', id: 'active' },
-      ],
+      options: (params) => {
+        const options: Record<string, { label: string; id: string }[]> = {
+          list_applications: [
+            { label: 'Not set', id: '' },
+            { label: 'Rejected', id: 'rejected' },
+            { label: 'Hired', id: 'hired' },
+            { label: 'Converted', id: 'converted' },
+            { label: 'Active', id: 'active' },
+          ],
+          list_interviews: [
+            { label: 'Not set', id: '' },
+            { label: 'To Be Scheduled', id: 'to_be_scheduled' },
+            { label: 'Scheduled', id: 'scheduled' },
+            { label: 'Awaiting Feedback', id: 'awaiting_feedback' },
+            { label: 'Complete', id: 'complete' },
+            { label: 'Skipped', id: 'skipped' },
+            { label: 'Collect Feedback', id: 'collect_feedback' },
+            { label: 'To Be Sent', id: 'to_be_sent' },
+            { label: 'Sent', id: 'sent' },
+            { label: 'Received', id: 'received' },
+          ],
+          list_jobs: [
+            { label: 'Not set', id: '' },
+            { label: 'Open', id: 'open' },
+            { label: 'Draft', id: 'draft' },
+            { label: 'Closed', id: 'closed' },
+          ],
+          list_offers: [
+            { label: 'Not set', id: '' },
+            { label: 'Created', id: 'Created' },
+            { label: 'Accepted', id: 'Accepted' },
+            { label: 'Rejected', id: 'Rejected' },
+            { label: 'Deprecated', id: 'Deprecated' },
+          ],
+          list_scorecards: [
+            { label: 'Not set', id: '' },
+            { label: 'Draft', id: 'draft' },
+            { label: 'Complete', id: 'complete' },
+          ],
+        }
+        return (
+          options[String(params?.values.operation)] ?? [
+            { label: 'Not set', id: '' },
+            { label: 'Rejected', id: 'rejected' },
+            { label: 'Hired', id: 'hired' },
+            { label: 'Converted', id: 'converted' },
+            { label: 'Active', id: 'active' },
+            { label: 'To Be Scheduled', id: 'to_be_scheduled' },
+            { label: 'Scheduled', id: 'scheduled' },
+            { label: 'Awaiting Feedback', id: 'awaiting_feedback' },
+            { label: 'Complete', id: 'complete' },
+            { label: 'Skipped', id: 'skipped' },
+            { label: 'Collect Feedback', id: 'collect_feedback' },
+            { label: 'To Be Sent', id: 'to_be_sent' },
+            { label: 'Sent', id: 'sent' },
+            { label: 'Received', id: 'received' },
+            { label: 'Open', id: 'open' },
+            { label: 'Draft', id: 'draft' },
+            { label: 'Closed', id: 'closed' },
+            { label: 'Created', id: 'Created' },
+            { label: 'Accepted', id: 'Accepted' },
+            { label: 'Rejected', id: 'Rejected' },
+            { label: 'Deprecated', id: 'Deprecated' },
+          ]
+        )
+      },
       mode: 'advanced',
+      emptyIsValid: true,
     },
     {
       id: 'stage_name',
@@ -1333,23 +1367,90 @@ export const GreenhouseV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'attachments_type',
+      id: 'type',
       title: 'Type',
-      type: 'dropdown',
-      condition: { field: 'operation', value: ['list_attachments', 'create_attachment'] },
-      required: { field: 'operation', value: ['create_attachment'] },
-      options: [
-        { label: 'Resume', id: 'resume' },
-        { label: 'Cover Letter', id: 'cover_letter' },
-        { label: 'Take Home Test', id: 'take_home_test' },
-        { label: 'Offer Packet', id: 'offer_packet' },
-        { label: 'Offer Letter', id: 'offer_letter' },
-        { label: 'Signed Offer Letter', id: 'signed_offer_letter' },
-        { label: 'Other', id: 'other' },
-        { label: 'Form Attachment', id: 'form_attachment' },
-        { label: 'Midfunnel Agreement', id: 'midfunnel_agreement' },
-        { label: 'Automated Agreement', id: 'automated_agreement' },
-      ],
+      type: 'combobox',
+      placeholder: 'Select a type, or enter comma-separated note types',
+      condition: {
+        field: 'operation',
+        value: ['list_notes', 'list_attachments', 'create_attachment', 'list_job_owners'],
+      },
+      required: {
+        field: 'operation',
+        value: 'create_attachment',
+      },
+      options: (params) => {
+        const options: Record<string, { label: string; id: string }[]> = {
+          list_notes: [
+            { label: 'Not set', id: '' },
+            { label: 'Note', id: 'NOTE' },
+            { label: 'Activity', id: 'ACTIVITY' },
+            { label: 'Interview', id: 'INTERVIEW' },
+            { label: 'Email', id: 'EMAIL' },
+            { label: 'Follow Up', id: 'FOLLOW_UP' },
+            { label: 'Take Home Test', id: 'TAKE_HOME_TEST' },
+            { label: 'Linkedin Note', id: 'LINKEDIN_NOTE' },
+            { label: 'Linkedin Inmail', id: 'LINKEDIN_INMAIL' },
+            { label: 'Availability Request', id: 'AVAILABILITY_REQUEST' },
+            { label: 'Migration Error', id: 'MIGRATION_ERROR' },
+            { label: 'Touchpoint', id: 'TOUCHPOINT' },
+            { label: 'Form', id: 'FORM' },
+            { label: 'Feedback', id: 'FEEDBACK' },
+          ],
+          list_attachments: [
+            { label: 'Resume', id: 'resume' },
+            { label: 'Cover Letter', id: 'cover_letter' },
+            { label: 'Take Home Test', id: 'take_home_test' },
+            { label: 'Offer Packet', id: 'offer_packet' },
+            { label: 'Offer Letter', id: 'offer_letter' },
+            { label: 'Signed Offer Letter', id: 'signed_offer_letter' },
+            { label: 'Other', id: 'other' },
+            { label: 'Form Attachment', id: 'form_attachment' },
+            { label: 'Midfunnel Agreement', id: 'midfunnel_agreement' },
+            { label: 'Automated Agreement', id: 'automated_agreement' },
+          ],
+          create_attachment: [
+            { label: 'Resume', id: 'resume' },
+            { label: 'Cover Letter', id: 'cover_letter' },
+            { label: 'Take Home Test', id: 'take_home_test' },
+            { label: 'Offer Packet', id: 'offer_packet' },
+            { label: 'Offer Letter', id: 'offer_letter' },
+            { label: 'Signed Offer Letter', id: 'signed_offer_letter' },
+            { label: 'Other', id: 'other' },
+            { label: 'Form Attachment', id: 'form_attachment' },
+            { label: 'Midfunnel Agreement', id: 'midfunnel_agreement' },
+            { label: 'Automated Agreement', id: 'automated_agreement' },
+          ],
+          list_job_owners: [
+            { label: 'Not set', id: '' },
+            { label: 'Sourcer', id: 'sourcer' },
+            { label: 'Recruiter', id: 'recruiter' },
+            { label: 'Coordinator', id: 'coordinator' },
+          ],
+        }
+        return (
+          options[String(params?.values.operation)] ?? [
+            ...options.list_notes,
+            { label: 'Resume', id: 'resume' },
+            { label: 'Cover Letter', id: 'cover_letter' },
+            { label: 'Take Home Test', id: 'take_home_test' },
+            { label: 'Offer Packet', id: 'offer_packet' },
+            { label: 'Offer Letter', id: 'offer_letter' },
+            { label: 'Signed Offer Letter', id: 'signed_offer_letter' },
+            { label: 'Other', id: 'other' },
+            { label: 'Form Attachment', id: 'form_attachment' },
+            { label: 'Midfunnel Agreement', id: 'midfunnel_agreement' },
+            { label: 'Automated Agreement', id: 'automated_agreement' },
+            { label: 'Not set', id: '' },
+            { label: 'Sourcer', id: 'sourcer' },
+            { label: 'Recruiter', id: 'recruiter' },
+            { label: 'Coordinator', id: 'coordinator' },
+          ]
+        )
+      },
+      emptyIsValid: true,
+      description:
+        'Attachment type for attachment operations; recruiter, sourcer, or coordinator for job owners; comma-separated note types for List Notes.',
     },
     {
       id: 'start_at',
@@ -1720,26 +1821,6 @@ export const GreenhouseV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'interviews_status',
-      title: 'Status',
-      type: 'dropdown',
-      condition: { field: 'operation', value: ['list_interviews'] },
-      required: false,
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'To Be Scheduled', id: 'to_be_scheduled' },
-        { label: 'Scheduled', id: 'scheduled' },
-        { label: 'Awaiting Feedback', id: 'awaiting_feedback' },
-        { label: 'Complete', id: 'complete' },
-        { label: 'Skipped', id: 'skipped' },
-        { label: 'Collect Feedback', id: 'collect_feedback' },
-        { label: 'To Be Sent', id: 'to_be_sent' },
-        { label: 'Sent', id: 'sent' },
-        { label: 'Received', id: 'received' },
-      ],
-      mode: 'advanced',
-    },
-    {
       id: 'user_ids',
       title: 'User IDs',
       type: 'short-input',
@@ -1755,20 +1836,6 @@ export const GreenhouseV2Block: BlockConfig = {
           'User IDs Comma-separated values (maximum 50). Return ONLY the comma-separated list.',
         placeholder: 'Describe the values to include',
       },
-      mode: 'advanced',
-    },
-    {
-      id: 'job_owners_type',
-      title: 'Type',
-      type: 'dropdown',
-      condition: { field: 'operation', value: ['list_job_owners'] },
-      required: false,
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'Sourcer', id: 'sourcer' },
-        { label: 'Recruiter', id: 'recruiter' },
-        { label: 'Coordinator', id: 'coordinator' },
-      ],
       mode: 'advanced',
     },
     {
@@ -1844,46 +1911,51 @@ export const GreenhouseV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'jobs_status',
-      title: 'Status',
-      type: 'dropdown',
-      condition: { field: 'operation', value: ['list_jobs'] },
-      required: false,
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'Open', id: 'open' },
-        { label: 'Draft', id: 'draft' },
-        { label: 'Closed', id: 'closed' },
-      ],
-      mode: 'advanced',
-    },
-    {
-      id: 'type',
-      title: 'Type',
-      type: 'short-input',
-      placeholder: '123,456',
-      condition: { field: 'operation', value: ['list_notes'] },
-      required: false,
-      wandConfig: {
-        enabled: true,
-        prompt: 'Type Comma-separated values (maximum 50). Return ONLY the comma-separated list.',
-        placeholder: 'Describe the values to include',
-      },
-      mode: 'advanced',
-    },
-    {
-      id: 'notes_visibility',
+      id: 'visibility',
       title: 'Visibility',
       type: 'dropdown',
-      condition: { field: 'operation', value: ['list_notes'] },
-      required: false,
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'Admin Only Visible', id: 'admin_only_visible' },
-        { label: 'Privately Visible', id: 'privately_visible' },
-        { label: 'Publicly Visible', id: 'publicly_visible' },
-      ],
-      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['list_notes', 'create_attachment', 'create_note'],
+      },
+      required: {
+        field: 'operation',
+        value: 'create_note',
+      },
+      options: (params) => {
+        const options: Record<string, { label: string; id: string }[]> = {
+          list_notes: [
+            { label: 'Not set', id: '' },
+            { label: 'Admin Only Visible', id: 'admin_only_visible' },
+            { label: 'Privately Visible', id: 'privately_visible' },
+            { label: 'Publicly Visible', id: 'publicly_visible' },
+          ],
+          create_attachment: [
+            { label: 'Admin Only', id: 'admin_only' },
+            { label: 'Private', id: 'private' },
+            { label: 'Public', id: 'public' },
+          ],
+          create_note: [
+            { label: 'Admin Only', id: 'admin_only' },
+            { label: 'Private', id: 'private' },
+            { label: 'Public', id: 'public' },
+          ],
+        }
+        return (
+          options[String(params?.values.operation)] ?? [
+            { label: 'Not set', id: '' },
+            { label: 'Admin Only Visible', id: 'admin_only_visible' },
+            { label: 'Privately Visible', id: 'privately_visible' },
+            { label: 'Publicly Visible', id: 'publicly_visible' },
+            { label: 'Admin Only', id: 'admin_only' },
+            { label: 'Private', id: 'private' },
+            { label: 'Public', id: 'public' },
+          ]
+        )
+      },
+      emptyIsValid: false,
+      description:
+        'List Notes uses admin_only_visible, privately_visible, or publicly_visible. Create Note and Create Attachment use admin_only, private, or public.',
     },
     {
       id: 'opening_ids',
@@ -1910,21 +1982,6 @@ export const GreenhouseV2Block: BlockConfig = {
         { label: 'Not set', id: '' },
         { label: 'Yes', id: 'true' },
         { label: 'No', id: 'false' },
-      ],
-      mode: 'advanced',
-    },
-    {
-      id: 'offers_status',
-      title: 'Status',
-      type: 'dropdown',
-      condition: { field: 'operation', value: ['list_offers'] },
-      required: false,
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'Created', id: 'Created' },
-        { label: 'Accepted', id: 'Accepted' },
-        { label: 'Rejected', id: 'Rejected' },
-        { label: 'Deprecated', id: 'Deprecated' },
       ],
       mode: 'advanced',
     },
@@ -2009,9 +2066,14 @@ export const GreenhouseV2Block: BlockConfig = {
       title: 'Opening ID',
       type: 'short-input',
       placeholder: 'Enter opening id',
-      condition: { field: 'operation', value: ['list_openings'] },
+      condition: {
+        field: 'operation',
+        value: ['list_openings', 'hire_application'],
+      },
       required: false,
       mode: 'advanced',
+      description:
+        'List Openings: external opening ID. Hire Application: numeric internal opening ID returned by List Openings.',
     },
     {
       id: 'prospect_pool_ids',
@@ -2149,19 +2211,6 @@ export const GreenhouseV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'scorecards_status',
-      title: 'Status',
-      type: 'dropdown',
-      condition: { field: 'operation', value: ['list_scorecards'] },
-      required: false,
-      options: [
-        { label: 'Not set', id: '' },
-        { label: 'Draft', id: 'draft' },
-        { label: 'Complete', id: 'complete' },
-      ],
-      mode: 'advanced',
-    },
-    {
       id: 'agency_ids',
       title: 'Agency IDs',
       type: 'short-input',
@@ -2275,36 +2324,6 @@ export const GreenhouseV2Block: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'update_application_id',
-      title: 'Resource ID',
-      type: 'short-input',
-      placeholder: 'Enter numeric id',
-      condition: {
-        field: 'operation',
-        value: [
-          'update_application',
-          'update_candidate',
-          'convert_prospect',
-          'hire_application',
-          'move_application',
-          'reject_application',
-          'unreject_application',
-        ],
-      },
-      required: {
-        field: 'operation',
-        value: [
-          'update_application',
-          'update_candidate',
-          'convert_prospect',
-          'hire_application',
-          'move_application',
-          'reject_application',
-          'unreject_application',
-        ],
-      },
-    },
-    {
       id: 'source_id',
       title: 'Source ID',
       type: 'short-input',
@@ -2369,36 +2388,6 @@ export const GreenhouseV2Block: BlockConfig = {
         enabled: true,
         generationType: 'timestamp',
         prompt: 'Generate an ISO 8601 date (YYYY-MM-DD). Return ONLY the formatted date.',
-        placeholder: 'Describe the date',
-      },
-      mode: 'advanced',
-    },
-    {
-      id: 'application_created_on',
-      title: 'Application Creation Date',
-      type: 'short-input',
-      placeholder: '2026-01-01',
-      condition: { field: 'operation', value: ['update_application'] },
-      required: false,
-      wandConfig: {
-        enabled: true,
-        generationType: 'timestamp',
-        prompt: 'Generate an ISO 8601 date (YYYY-MM-DD). Return ONLY the formatted date.',
-        placeholder: 'Describe the date',
-      },
-      mode: 'advanced',
-    },
-    {
-      id: 'created_at',
-      title: 'Created At',
-      type: 'short-input',
-      placeholder: '2026-01-01T00:00:00Z',
-      condition: { field: 'operation', value: ['create_application'] },
-      required: false,
-      wandConfig: {
-        enabled: true,
-        generationType: 'timestamp',
-        prompt: 'Generate an ISO 8601 timestamp. Return ONLY the formatted timestamp.',
         placeholder: 'Describe the date',
       },
       mode: 'advanced',
@@ -2791,20 +2780,20 @@ export const GreenhouseV2Block: BlockConfig = {
       title: 'Job ID',
       type: 'short-input',
       placeholder: 'Enter numeric job ID',
-      condition: { field: 'operation', value: 'create_application' },
-      required: {
+      condition: {
         field: 'operation',
-        value: 'create_application',
-        and: { field: 'prospect', value: ['true', true], not: true },
+        value: ['create_application', 'convert_prospect'],
       },
-    },
-    {
-      id: 'convert_prospect_job_id',
-      title: 'Job ID',
-      type: 'short-input',
-      placeholder: 'Enter numeric job ID',
-      condition: { field: 'operation', value: 'convert_prospect' },
-      required: true,
+      required: (values) => ({
+        field: 'operation',
+        value:
+          values?.operation === 'convert_prospect' ||
+          (values !== undefined && values.prospect !== true && values.prospect !== 'true')
+            ? ['create_application', 'convert_prospect']
+            : ['convert_prospect'],
+      }),
+      description:
+        'For application creation, required unless Prospect is true. For conversion, select a job already associated with the prospect or its pool.',
     },
     {
       id: 'initial_stage_id',
@@ -2813,21 +2802,6 @@ export const GreenhouseV2Block: BlockConfig = {
       placeholder: 'Enter numeric initial stage id',
       condition: { field: 'operation', value: ['create_application'] },
       required: false,
-      mode: 'advanced',
-    },
-    {
-      id: 'create_application_job_ids',
-      title: 'Job IDs',
-      type: 'code',
-      placeholder: '[]',
-      condition: { field: 'operation', value: ['create_application'] },
-      required: false,
-      language: 'json',
-      wandConfig: {
-        enabled: true,
-        prompt: 'Prospect job IDs as a JSON array of integers. Return ONLY the JSON.',
-        placeholder: 'Describe the job ids',
-      },
       mode: 'advanced',
     },
     {
@@ -2888,15 +2862,6 @@ export const GreenhouseV2Block: BlockConfig = {
         prompt: 'Generate an ISO 8601 timestamp. Return ONLY the formatted date.',
         placeholder: 'Describe the date',
       },
-      mode: 'advanced',
-    },
-    {
-      id: 'hire_application_opening_id',
-      title: 'Opening ID',
-      type: 'short-input',
-      placeholder: 'Enter numeric opening id',
-      condition: { field: 'operation', value: ['hire_application'] },
-      required: false,
       mode: 'advanced',
     },
     {
@@ -3017,18 +2982,6 @@ export const GreenhouseV2Block: BlockConfig = {
       condition: { field: 'operation', value: ['create_attachment'] },
       required: false,
       mode: 'advanced',
-    },
-    {
-      id: 'attachment_visibility',
-      title: 'Visibility',
-      type: 'dropdown',
-      condition: { field: 'operation', value: ['create_attachment', 'create_note'] },
-      required: { field: 'operation', value: ['create_note'] },
-      options: [
-        { label: 'Admin Only', id: 'admin_only' },
-        { label: 'Private', id: 'private' },
-        { label: 'Public', id: 'public' },
-      ],
     },
     {
       id: 'application',
@@ -3215,7 +3168,6 @@ export const GreenhouseV2Block: BlockConfig = {
           'parent_id',
           'department_id',
           'office_id',
-          'update_application_id',
           'source_id',
           'referrer_id',
           'recruiter_id',
@@ -3224,14 +3176,12 @@ export const GreenhouseV2Block: BlockConfig = {
           'prospect_stage_id',
           'candidate_id',
           'job_id',
-          'convert_prospect_job_id',
           'initial_stage_id',
           'prospect_pool_stage_id',
           'prospect_owner_id',
           'prospective_department_id',
           'prospective_office_id',
           'to_job_interview_stage_id',
-          'hire_application_opening_id',
           'close_reason_id',
           'from_stage_id',
           'to_stage_id',
@@ -3264,9 +3214,6 @@ export const GreenhouseV2Block: BlockConfig = {
           else if (params[key] === 'false' || params[key] === false) result[key] = false
           else result[key] = undefined
         }
-        const remaps = GREENHOUSE_V2_PARAM_REMAPS[String(params.operation)] ?? {}
-        for (const [target, source] of Object.entries(remaps))
-          result[target] = params[source] === '' ? undefined : (result[source] ?? params[source])
         return result
       },
     },
@@ -3274,7 +3221,10 @@ export const GreenhouseV2Block: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Harvest v3 operation' },
     oauthCredential: { type: 'string', description: 'Connected Greenhouse OAuth credential' },
-    id: { type: 'string', description: 'Greenhouse resource ID' },
+    id: {
+      type: 'string',
+      description: 'Greenhouse resource ID',
+    },
     cursor: {
       type: 'string',
       description:
@@ -3285,10 +3235,10 @@ export const GreenhouseV2Block: BlockConfig = {
       description: 'Page size from 1 to 500 (default 100). Each call retrieves one page.',
     },
     ids: { type: 'string', description: 'Ids Comma-separated values (maximum 50).' },
-    created_at_filter: {
+    created_at: {
       type: 'json',
       description:
-        'Created at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values; cannot combine with updated_at, for example {"gte":"2026-01-01T00:00:00Z"}.',
+        'Lists: JSON range using gte, lte, gt, lt with ISO 8601 timestamps; cannot combine with Updated At. Create Application: ISO 8601 timestamp. Update Application: YYYY-MM-DD date.',
     },
     updated_at: {
       type: 'json',
@@ -3313,7 +3263,11 @@ export const GreenhouseV2Block: BlockConfig = {
       type: 'string',
       description: 'Candidate IDs Comma-separated values (maximum 50).',
     },
-    job_ids: { type: 'string', description: 'Job IDs Comma-separated values (maximum 50).' },
+    job_ids: {
+      type: 'string',
+      description:
+        'For list operations, comma-separated IDs (maximum 50). For prospect application creation, a JSON array of integer job IDs.',
+    },
     prospective_job_ids: {
       type: 'string',
       description: 'Prospective job IDs Comma-separated values (maximum 50).',
@@ -3328,9 +3282,10 @@ export const GreenhouseV2Block: BlockConfig = {
       description: 'Referrer IDs Comma-separated values (maximum 50).',
     },
     stage_ids: { type: 'string', description: 'Stage IDs Comma-separated values (maximum 50).' },
-    applications_status: {
+    status: {
       type: 'string',
-      description: 'Status Allowed: rejected, hired, converted, active.',
+      description:
+        'Status filter for applications, interviews, jobs, offers, or scorecards. Use the values documented for the selected operation; offer statuses are case-sensitive.',
     },
     stage_name: { type: 'string', description: 'Stage name' },
     custom_field_option_id: { type: 'number', description: 'Custom field option ID' },
@@ -3348,10 +3303,10 @@ export const GreenhouseV2Block: BlockConfig = {
       type: 'string',
       description: 'Candidate tag IDs Comma-separated values (maximum 50).',
     },
-    attachments_type: {
+    type: {
       type: 'string',
       description:
-        'Type Allowed: resume, cover_letter, take_home_test, offer_packet, offer_letter, signed_offer_letter, other, form_attachment, midfunnel_agreement, automated_agreement.',
+        'Attachment type for attachment operations; recruiter, sourcer, or coordinator for job owners; comma-separated note types for List Notes.',
     },
     start_at: {
       type: 'json',
@@ -3421,16 +3376,7 @@ export const GreenhouseV2Block: BlockConfig = {
         'All day end on filter as JSON with gte, lte, gt, lt keys and YYYY-MM-DD dates, for example {"gte":"2026-01-01"}.',
     },
     external_event_id: { type: 'string', description: 'External event ID' },
-    interviews_status: {
-      type: 'string',
-      description:
-        'Status Allowed: to_be_scheduled, scheduled, awaiting_feedback, complete, skipped, collect_feedback, to_be_sent, sent, received.',
-    },
     user_ids: { type: 'string', description: 'User IDs Comma-separated values (maximum 50).' },
-    job_owners_type: {
-      type: 'string',
-      description: 'Type Allowed: sourcer, recruiter, coordinator.',
-    },
     opened_at: {
       type: 'json',
       description:
@@ -3445,21 +3391,16 @@ export const GreenhouseV2Block: BlockConfig = {
     department_id: { type: 'number', description: 'Department ID' },
     office_id: { type: 'number', description: 'Office ID' },
     confidential: { type: 'boolean', description: 'Confidential' },
-    jobs_status: { type: 'string', description: 'Status Allowed: open, draft, closed.' },
-    type: { type: 'string', description: 'Type Comma-separated values (maximum 50).' },
-    notes_visibility: {
+    visibility: {
       type: 'string',
-      description: 'Visibility Allowed: admin_only_visible, privately_visible, publicly_visible.',
+      description:
+        'List Notes uses admin_only_visible, privately_visible, or publicly_visible. Create Note and Create Attachment use admin_only, private, or public.',
     },
     opening_ids: {
       type: 'string',
       description: 'Opening IDs Comma-separated values (maximum 50).',
     },
     current_only: { type: 'boolean', description: 'Current only' },
-    offers_status: {
-      type: 'string',
-      description: 'Status Allowed: Created, Accepted, Rejected, Deprecated.',
-    },
     resolved_at: {
       type: 'json',
       description:
@@ -3482,7 +3423,8 @@ export const GreenhouseV2Block: BlockConfig = {
     open: { type: 'boolean', description: 'Open' },
     opening_id: {
       type: 'string',
-      description: 'External opening ID to filter openings.',
+      description:
+        'List Openings: external opening ID. Hire Application: numeric internal opening ID returned by List Openings.',
     },
     prospect_pool_ids: {
       type: 'string',
@@ -3516,7 +3458,6 @@ export const GreenhouseV2Block: BlockConfig = {
       description:
         'Submitted at filter as JSON with gte, lte, gt, lt keys and ISO 8601 values, for example {"gte":"2026-01-01T00:00:00Z"}.',
     },
-    scorecards_status: { type: 'string', description: 'Status Allowed: draft, complete.' },
     agency_ids: { type: 'string', description: 'Agency IDs Comma-separated values (maximum 50).' },
     linked_candidate_ids: {
       type: 'string',
@@ -3535,7 +3476,6 @@ export const GreenhouseV2Block: BlockConfig = {
     external_office_id: { type: 'string', description: 'External office ID' },
     external_department_id: { type: 'string', description: 'External department ID' },
     show_service_accounts: { type: 'boolean', description: 'Show service accounts' },
-    update_application_id: { type: 'number', description: 'Greenhouse resource ID' },
     source_id: { type: 'number', description: 'Source ID' },
     referrer_id: { type: 'number', description: 'Referrer ID' },
     recruiter_id: { type: 'number', description: 'Recruiter ID' },
@@ -3543,14 +3483,6 @@ export const GreenhouseV2Block: BlockConfig = {
     prospect_pool_id: { type: 'number', description: 'Prospect pool ID' },
     prospect_stage_id: { type: 'number', description: 'Prospect stage ID' },
     rejected_at: { type: 'string', description: 'Rejected at (YYYY-MM-DD)' },
-    created_at: {
-      type: 'string',
-      description: 'Application creation timestamp in ISO 8601 format',
-    },
-    application_created_on: {
-      type: 'string',
-      description: 'Application creation date (YYYY-MM-DD)',
-    },
     custom_fields: {
       type: 'array',
       description:
@@ -3612,26 +3544,18 @@ export const GreenhouseV2Block: BlockConfig = {
       type: 'number',
       description: 'Candidate ID. Required for every note and application creation.',
     },
-    job_id: { type: 'number', description: 'Job ID' },
-    convert_prospect_job_id: {
+    job_id: {
       type: 'number',
-      description: 'Destination job ID for converting the prospect application',
+      description:
+        'For application creation, required unless Prospect is true. For conversion, select a job already associated with the prospect or its pool.',
     },
     initial_stage_id: { type: 'number', description: 'Initial stage ID' },
-    create_application_job_ids: {
-      type: 'array',
-      description: 'Prospect job IDs as a JSON array of integers.',
-    },
     prospect_pool_stage_id: { type: 'number', description: 'Prospect pool stage ID' },
     prospect_owner_id: { type: 'number', description: 'Prospect owner ID' },
     prospective_department_id: { type: 'number', description: 'Prospective department ID' },
     prospective_office_id: { type: 'number', description: 'Prospective office ID' },
     to_job_interview_stage_id: { type: 'number', description: 'To job interview stage ID' },
     start_date: { type: 'string', description: 'Start date (ISO 8601)' },
-    hire_application_opening_id: {
-      type: 'number',
-      description: 'Opening ID; required when hiring into a job with multiple open openings.',
-    },
     close_reason_id: { type: 'number', description: 'Close reason ID' },
     from_stage_id: {
       type: 'number',
@@ -3666,10 +3590,6 @@ export const GreenhouseV2Block: BlockConfig = {
       type: 'string',
       description:
         'Public attachment URL for Greenhouse to fetch. Supply exactly one of url or content.',
-    },
-    attachment_visibility: {
-      type: 'string',
-      description: 'Visibility Allowed: admin_only, private, public.',
     },
     application: {
       type: 'json',
