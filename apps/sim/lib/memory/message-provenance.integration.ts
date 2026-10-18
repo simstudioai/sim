@@ -52,8 +52,13 @@ vi.mock('@/lib/workspaces/application/context', () => ({
   }),
 }))
 
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
-import { appendMemoryUseCase } from '@/lib/memory/application/use-cases'
+import {
+  appendMemoryUseCase,
+  listMemoriesUseCase,
+  readMemoryUseCase,
+} from '@/lib/memory/application/use-cases'
 import { Memory } from '@/executor/handlers/agent/memory'
 import type { AgentInputs } from '@/executor/handlers/agent/types'
 import type { ExecutionContext } from '@/executor/types'
@@ -243,6 +248,79 @@ describe('memory provenance in PostgreSQL', () => {
       ])
       expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
     })
+
+    it.each(['list', 'read', 'append'] as const)(
+      'binds a %s to the revision it read while another writer appends',
+      async (mode) => {
+        const key = `concurrent-${mode}-read`
+        await toolAppend(key, 'A')
+        // An append's readback includes its own message; every other read sees only the first.
+        const expected = mode === 'append' ? ['TOKEN_A', 'TOKEN_C'] : ['TOKEN_A']
+        let appended = false
+        const now = Date.now()
+        const input = {
+          workspaceId: SCOPE.workspaceId,
+          includePersistedSecretProvenance: true,
+          // Lands after the read is taken, where a separate sidecar read once paired the old
+          // record with this append's provenance.
+          resolveBillingAttribution: async (): Promise<BillingAttributionSnapshot> => {
+            await toolAppend(key, 'B')
+            appended = true
+            return {
+              actorUserId: SCOPE.userId,
+              workspaceId: SCOPE.workspaceId,
+              billedAccountUserId: SCOPE.userId,
+              organizationId: null,
+              billingEntity: { type: 'user', id: SCOPE.userId },
+              payerSubscription: null,
+              billingPeriod: {
+                start: new Date(now - 86_400_000).toISOString(),
+                end: new Date(now + 86_400_000).toISOString(),
+              },
+            }
+          },
+        }
+        const result =
+          mode === 'list'
+            ? await listMemoriesUseCase.execute({
+                principal: principal(),
+                input: { ...input, query: key, limit: 10 },
+              })
+            : mode === 'read'
+              ? await readMemoryUseCase.execute({
+                  principal: principal(),
+                  input: { ...input, key },
+                })
+              : await appendMemoryUseCase.execute({
+                  principal: principal(),
+                  input: {
+                    ...input,
+                    key,
+                    data: { role: 'user', content: 'secret-C' },
+                    writeProvenance: {
+                      status: 'exact',
+                      entries: [
+                        {
+                          encryptedValue: 'cipher-C',
+                          name: 'TOKEN_C',
+                          sourceUserId: SCOPE.userId,
+                          sourceWorkspaceId: SCOPE.workspaceId,
+                        },
+                      ],
+                    },
+                  },
+                })
+        expect(appended).toBe(true)
+        expect(result.readProvenance).toHaveLength(1)
+        const [read] = result.readProvenance ?? []
+        expect(read.data).toHaveLength(expected.length)
+        expect(read.provenance.status).toBe('exact')
+        expect(
+          read.provenance.status === 'exact' &&
+            read.provenance.entries.map(({ name }) => name).sort()
+        ).toEqual(expected)
+      }
+    )
 
     it.each(['tool-tool', 'tool-native', 'native-native'] as const)(
       'preserves both first appends and secret bindings for %s',

@@ -40,6 +40,7 @@ import { AGENT_MEMORY_RETRIEVAL_TOOL_ID } from '@/lib/memory/retrieval-tool-type
 import {
   bindMemorySecretProvenanceToMessages,
   createMemorySecretProvenanceSelector,
+  MEMORY_SECRET_PROVENANCE_COLUMNS,
   readBoundMemorySecretProvenance,
 } from '@/lib/memory/secret-provenance'
 import type { AgentInputs, FileNameProjection, Message } from '@/executor/handlers/agent/types'
@@ -674,9 +675,7 @@ export class Memory {
             storageVersion: memory.storageVersion,
             data: memory.data,
             secretProvenanceVersion: memory.secretProvenanceVersion,
-            provenanceContentHash: memorySecretProvenance.contentHash,
-            provenanceStatus: memorySecretProvenance.status,
-            provenanceEntries: memorySecretProvenance.entries,
+            ...MEMORY_SECRET_PROVENANCE_COLUMNS,
           })
           .from(memory)
           .leftJoin(memorySecretProvenance, eq(memorySecretProvenance.memoryId, memory.id))
@@ -689,13 +688,7 @@ export class Memory {
     }
 
     let data = row.data
-    let provenance = readBoundMemorySecretProvenance({
-      secretProvenanceVersion: row.secretProvenanceVersion,
-      data,
-      provenanceContentHash: row.provenanceContentHash,
-      status: row.provenanceStatus,
-      entries: row.provenanceEntries,
-    })
+    let provenance = readBoundMemorySecretProvenance(row)
     if (row.storageVersion === 2 && !options.richHistory) {
       const tail = await readPlainMemoryTail(row.id, workspaceId)
       data = [...(Array.isArray(data) ? data : []), ...tail.messages]
