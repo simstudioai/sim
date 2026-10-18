@@ -1667,38 +1667,20 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         serviceAccountProviderId: 'zoho-desk-service-account',
         icon: ZohoDeskIcon,
         baseProviderIcon: ZohoDeskIcon,
-        // Kept to what the tools and the webhook trigger exercise. NOTE: Zoho
-        // lists `Desk.organization.READ , Desk.basic.READ` for GET /organizations
-        // and `Desk.departments.READ , Desk.basic.READ` for GET /departments, and
-        // does not document whether that comma means AND or OR. Both bootstrap
-        // endpoints are assumed covered by Desk.basic.READ alone - verify against
-        // a live Desk org and widen here if either returns SCOPE_MISMATCH.
-        // tickets (incl. threads/comments), contacts (get_contact), basic
-        // (list_organizations), agents (the `assigneeId` picker lists agents),
-        // webhook create/delete (the trigger provisions and tears down its own
-        // subscription), and profile (OAuth getUserInfo).
-        // Desk.search.READ, Desk.webhooks.READ and Desk.webhooks.UPDATE were
-        // requested but unused - no tool searches, and the provider never lists
-        // or edits a subscription.
         scopes: [
-          // READ + UPDATE rather than tickets.ALL: no tool creates or deletes a
-          // ticket, and ALL additionally grants ticket DELETE. Threads, comments
-          // and attachments live under the tickets module and are covered by
-          // these two. NOTE: Zoho publishes no scope line for the attachment
-          // content sub-path - verify attachment download against a live account
-          // before merge and widen here if it returns SCOPE_MISMATCH.
           'Desk.tickets.READ',
+          'Desk.tickets.CREATE',
           'Desk.tickets.UPDATE',
           'Desk.contacts.READ',
-          // READ only: the knowledge base connector syncs Help Center articles
-          // via GET /articles and GET /articles/{id}; nothing authors one.
+          'Desk.contacts.CREATE',
+          'Desk.contacts.UPDATE',
+          'Desk.accounts.READ',
+          'Desk.accounts.CREATE',
+          'Desk.accounts.UPDATE',
+          'Desk.search.READ',
+          'Desk.departments.READ',
           'Desk.articles.READ',
-          // GET /organizations documents `Desk.organization.READ , Desk.basic.READ`.
-          // Sibling endpoints spell the same construction "requires X and Y"
-          // (dependencyMappings, roles), so the comma is AND, not OR.
           'Desk.organization.READ',
-          // READ only: the agent picker for `assigneeId` lists agents, and no
-          // tool creates, edits or deletes one.
           'Desk.agents.READ',
           'Desk.basic.READ',
           'Desk.webhooks.CREATE',

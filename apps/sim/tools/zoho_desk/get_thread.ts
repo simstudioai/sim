@@ -1,11 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+import { readZohoDeskResponse } from '@/tools/zoho_desk/request'
 import type { ZohoDeskGetThreadParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_THREAD_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
-  getZohoDeskErrorMessage,
   normalizeZohoDeskCommaList,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
@@ -71,12 +71,7 @@ export const zohoDeskGetThreadTool: ToolConfig<ZohoDeskGetThreadParams, ZohoDesk
   },
 
   transformResponse: async (response) => {
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(
-        getZohoDeskErrorMessage(data, `Failed to get thread (HTTP ${response.status})`)
-      )
-    }
+    const data = await readZohoDeskResponse(response)
     return {
       success: true,
       output: { thread: withDerivedContentText(data) },
