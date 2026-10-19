@@ -24,7 +24,7 @@ faq:
 
 ## TL;DR
 
-- **Sim** is the open-source AI workspace where teams build, deploy, and manage AI agents. It is the top pick if you want a [workflow builder with AI agent blocks](https://docs.sim.ai/introduction) and the option to build with Chat or code.
+- **Sim** is an open-source AI workspace for teams to build, deploy, and manage AI agents. Choose it if you want a [workflow builder with AI agent blocks](https://docs.sim.ai/introduction) and the option to build in Chat or with code.
 - **Zapier** suits you if you want straightforward trigger-and-action automations.
 - **Make** suits you if you want visual branching with routers and filters in an interface that also hosts AI agents.
 - **n8n** suits you if you can manage a more technical builder and want a [free self-hosted Community Edition](https://docs.n8n.io/deploy/host-n8n/community-edition-features) with a dedicated [AI Agent node](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/).
@@ -34,7 +34,7 @@ Pipedream's [Workflows product shuts down on March 31, 2027](https://pipedream.c
 
 ## Why teams are leaving Pipedream for a visual builder
 
-Pipedream's Workflows product is [in maintenance mode, no longer accepts signups or subscriptions, and shuts down on March 31, 2027](https://pipedream.com/docs/workflows). Existing workflows keep running until then, and all Workflows data, including the credentials and OAuth tokens for connected accounts, will be permanently deleted by April 30, 2027. Workday [agreed to acquire Pipedream](https://newsroom.workday.com/2025-11-19-Workday-Signs-Definitive-Agreement-to-Acquire-Pipedream), which now focuses on [Connect](https://pipedream.com/docs/connect), a developer toolkit that adds integrations to your own app or AI agent through SDKs, APIs, and an MCP server. Connect does not replace the visual builder for people who need to create automations without writing code.
+Pipedream's Workflows product is [in maintenance mode, no longer accepts signups or subscriptions, and shuts down on March 31, 2027](https://pipedream.com/docs/workflows). Existing workflows keep running until then, and all Workflows data, including the credentials and OAuth tokens for connected accounts, will be permanently deleted by April 30, 2027. Workday [announced a deal to acquire Pipedream](https://newsroom.workday.com/2025-11-19-Workday-Signs-Definitive-Agreement-to-Acquire-Pipedream) in November 2025 and [has since closed it](https://newsroom.workday.com/2026-02-24-Workday-Announces-Fiscal-2026-Fourth-Quarter-and-Full-Year-Financial-Results). Pipedream now focuses on [Connect](https://pipedream.com/docs/connect), a developer toolkit that adds integrations to your own app or AI agent through SDKs, APIs, and an MCP server. MCP (Model Context Protocol) is a standard that lets AI apps call outside tools. Connect does not replace the visual builder for people who need to create automations without writing code.
 
 Workflows was built around code. Any step could run [Node.js, Python, Go, or Bash](https://pipedream.com/docs/workflows/building-workflows/code), and Pipedream offers [Data Stores as key-value storage](https://pipedream.com/docs/workflows/building-workflows/code/python/using-data-stores) rather than spreadsheet-like tables.
 
@@ -46,25 +46,25 @@ As of October 2026, these are the main differences among the five alternatives:
 
 | Rank | Tool | Starting price | Visual vs code | Runs on your infrastructure | Integrations | AI agent support |
 |---|---|---|---|---|---|---|
-| 1 | Sim | [Free](https://www.sim.ai/pricing), 1,000 one-time credits | Visual, chat, and code | Yes, with the Apache 2.0 core; [enterprise features are separately licensed](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) | [270+](https://www.sim.ai/pricing) | Agent blocks and MCP server |
-| 2 | Zapier | [Free](https://zapier.com/pricing), 100 tasks/month | Visual, with optional JavaScript or Python code steps | No self-hosted edition listed | [9,000+ apps](https://zapier.com/pricing) | [AI-assisted automation tools](https://zapier.com/pricing) |
+| 1 | Sim | [Free](https://www.sim.ai/pricing), 1,000 one-time credits | Visual builder, Chat, and code | Yes, with the Apache 2.0 core; [enterprise features are separately licensed](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) | [270+](https://www.sim.ai/pricing) | Agent blocks and an MCP server |
+| 2 | Zapier | [Free](https://zapier.com/pricing), 100 tasks/month | Visual, with optional JavaScript or Python code steps | No self-hosted edition listed | [9,000+ apps](https://zapier.com/pricing) | [Zapier Agents, Chatbots, and MCP](https://zapier.com/pricing) |
 | 3 | Make | [Free](https://www.make.com/en/pricing), 1,000 credits/month | Visual, with an HTTP app for any API | Cloud scenarios; an Enterprise [on-prem agent](https://help.make.com/on-premise-agent?v=2) reaches local systems | [3,500+ apps](https://www.make.com/en/pricing) | [Make AI Agents](https://www.make.com/en/ai-agents) in the same visual platform |
-| 4 | n8n | [Free self-hosted Community Edition](https://docs.n8n.io/deploy/host-n8n/community-edition-features) | Visual, with JavaScript and Python code steps | Yes | [Every integration](https://n8n.io/pricing/) | [Dedicated AI Agent node](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) |
-| 5 | Workato | [Free](https://www.workato.com/free), with paid self-service and enterprise plans | [Workflow orchestration](https://www.workato.com/free) | Cloud platform; an [on-prem agent](https://docs.workato.com/on-prem) connects private systems to Workato cloud | [Thousands of SaaS apps, databases, and ERPs](https://www.workato.com/integrations) | [Agent Studio and Genies](https://www.workato.com/free) |
+| 4 | n8n | [Free self-hosted Community Edition](https://docs.n8n.io/deploy/host-n8n/community-edition-features) | Visual, with JavaScript and Python code steps | Yes | [Over 500](https://n8n.io/) | [Dedicated AI Agent node](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) |
+| 5 | Workato | [Free](https://www.workato.com/free), 50K one-time credits | [Workflow orchestration](https://www.workato.com/free) | Cloud platform; an [on-prem agent](https://docs.workato.com/on-prem) connects private systems to Workato cloud | [Thousands of SaaS apps, databases, and ERPs](https://www.workato.com/integrations) | [Agent Studio and Genies](https://www.workato.com/free) |
 
 ### Sim
 
-**Best for** Sim is the top [Pipedream alternative](https://www.sim.ai/comparisons/pipedream) on this list if you want non-developers to build AI agents without making code steps the default.
+**Best for** Teams that want a [Pipedream alternative](https://www.sim.ai/comparisons/pipedream) where non-developers can build AI agents without making code steps the default.
 
-**What it is** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. You can build an agent by describing it in Chat, connecting blocks in the workflow builder, or using the API and SDKs. In the workflow builder, you connect blocks into agent logic, configure their inputs, and inspect execution step by step. The [three build methods](https://docs.sim.ai/introduction) let a non-technical colleague start in Chat or the workflow builder while a developer adds programmatic control when needed. For more context on this category, see our comparison of the [best AI workflow builders](https://www.sim.ai/library/best-ai-workflow-builders).
+**What it is** Sim is an open-source AI workspace for teams, where you build, deploy, and manage AI agents. Chat, the workflow builder, Tables, Files, and a Knowledge Base for your agents' documents sit in one workspace. You can build an agent by describing it in Chat, connecting blocks in the workflow builder, or using the API and SDKs. In the workflow builder, you connect blocks into agent logic, configure their inputs, and inspect execution step by step. The [three build methods](https://docs.sim.ai/introduction) let a non-technical colleague start in Chat or the workflow builder while a developer adds programmatic control when needed. For more context on this category, see our comparison of the [best AI workflow builders](https://www.sim.ai/library/best-ai-workflow-builders).
 
 **Pros** Sim's [MCP server](https://docs.sim.ai/mcp/overview) lets an external AI app, such as Claude, manage workspaces, run and deploy workflows, and work with tables, files, knowledge bases, and logs. A colleague can use an agent to operate workflows without editing the workflow builder or writing a Pipedream-style code step.
 
-Anyone can self-host Sim's Apache 2.0 core for free; [enterprise features have a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). The [`bunx sim-setup` wizard](https://docs.sim.ai/platform/self-hosting/docker) creates a deployment directory, generates secrets, and starts the published Sim images with Docker Compose. Self-hosted Sim supports local models through Ollama, vLLM, LM Studio, or LiteLLM. That gives you a way to run core workflows on infrastructure you manage rather than sending every agent request to a hosted model. [Sim's repository](https://github.com/simstudioai/sim) documents the setup and core license.
+Anyone can self-host Sim's Apache 2.0 core for free with Docker Compose or Kubernetes; [enterprise features have a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). The [`bunx sim-setup` wizard](https://docs.sim.ai/platform/self-hosting/docker) creates a deployment directory, generates secrets, and starts the published Sim images with Docker Compose. Self-hosted Sim [supports local models](https://docs.sim.ai/platform/self-hosting/docker) through Ollama, vLLM, LM Studio, or LiteLLM. That gives you a way to run core workflows on infrastructure you manage rather than sending every agent request to a hosted model. [Sim's repository](https://github.com/simstudioai/sim) documents the setup and core license.
 
 **Cons** Self-hosting Sim still requires someone to maintain Docker and the deployment. The Apache 2.0 license covers Sim's core, but enterprise features are under the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), and production use of them requires an active Sim Enterprise subscription.
 
-**Pricing** Sim's [plans](https://www.sim.ai/pricing) are Free with 1,000 one-time credits, Pro at $25 per user per month with 6,000 monthly credits, Max at $100 per user per month with 25,000 monthly credits, and Enterprise at custom pricing. The pricing table also lists enterprise capabilities separately from the Apache 2.0 core that anyone can self-host.
+**Pricing** Sim's [plans](https://www.sim.ai/pricing) are Free with 1,000 one-time credits (worth $5), Pro at $25 per user per month with 6,000 monthly credits plus a 2,000-credit weekly refresh, Max at $100 per user per month with 25,000 monthly credits plus a 4,000-credit weekly refresh, and Enterprise at custom pricing. The pricing table lists supported Self Hosting as an Enterprise feature, alongside SSO (single sign-on, one company login for every app) and SOC 2 compliance. That support plan is separate from the Apache 2.0 core, which anyone can self-host for free.
 
 ### Zapier
 
@@ -80,15 +80,15 @@ Anyone can self-host Sim's Apache 2.0 core for free; [enterprise features have a
 
 ### Make
 
-**Best for.** Choose Make if you want more visual control than Zapier offers without taking on n8n's more technical builder.
+**Best for** Choose Make if you want more visual control than Zapier offers without taking on n8n's more technical builder.
 
-**What it is.** Make lets you build automations, called scenarios, in a visual interface. A [router](https://help.make.com/router) branches a scenario into several chains of modules, with filters that set the conditions for each route. [Subscenarios](https://help.make.com/subscenarios) let you split a large scenario into smaller parts and reuse logic across parent scenarios.
+**What it is** Make lets you build automations, called scenarios, in a visual interface. A [router](https://help.make.com/router) branches a scenario into several chains of modules, with filters that set the conditions for each route. [Subscenarios](https://help.make.com/subscenarios) let you split a large scenario into smaller parts and reuse logic across parent scenarios.
 
-**Pros.** Make's branching tools help you inspect and change multi-step workflows without writing code. The [HTTP app](https://apps.make.com/http) connects to API services that have no Make integration. [Make AI Agents](https://www.make.com/en/ai-agents) run in the same visual platform and expose how agents reason and use tools.
+**Pros** Make's branching tools help you inspect and change multi-step workflows without writing code. The [HTTP app](https://apps.make.com/http) connects to API services that have no Make integration. [Make AI Agents](https://www.make.com/en/ai-agents) run in the same visual platform and expose how agents reason and use tools.
 
-**Cons.** For scenarios to reach applications and databases on your local network, Make requires its [on-prem agent](https://help.make.com/on-premise-agent?v=2), which is available only to Enterprise customers. AI modules that use Make's AI Provider consume credits based on tokens as well as operations, which makes AI-heavy scenarios harder to estimate.
+**Cons** For scenarios to reach applications and databases on your local network, Make requires its [on-prem agent](https://help.make.com/on-premise-agent?v=2), which is available only to Enterprise customers. AI modules that use Make's AI Provider consume credits based on tokens as well as operations, which makes AI-heavy scenarios harder to estimate.
 
-**Pricing.** Make [consumes credits](https://help.make.com/credits?fromSubscription=true) when modules perform actions, and non-AI app operations generally use one credit. Make's AI Provider accounts for tokens and operations. The [free plan](https://www.make.com/en/pricing) includes 1,000 credits per month, and paid plans are named Core, Pro, Teams, and Enterprise.
+**Pricing** Make [consumes credits](https://help.make.com/credits?fromSubscription=true) when modules perform actions, and non-AI app operations generally use one credit. Make's AI Provider accounts for tokens and operations. The [free plan](https://www.make.com/en/pricing) includes 1,000 credits per month, and paid plans are named Core, Pro, Teams, and Enterprise.
 
 ### n8n
 
@@ -110,11 +110,11 @@ Anyone can self-host Sim's Apache 2.0 core for free; [enterprise features have a
 
 **Pros** The on-prem agent lets your IT staff connect internal systems while the integration platform stays cloud-managed. Workato offers [pre-built connectors](https://www.workato.com/integrations) for SaaS apps, databases, and ERPs, both on-prem and in the cloud.
 
-**Cons** The on-prem agent connects your network to Workato cloud rather than hosting the platform on your infrastructure. [Enterprise costs](https://www.workato.com/pricing) still require a tailored quote.
+**Cons** The on-prem agent connects your network to Workato cloud rather than hosting the platform on your infrastructure. The [Enterprise plan](https://www.workato.com/free) has no published price, so you need to ask Workato for a quote.
 
-**Pricing** Workato offers a [Free plan and a paid self-service Pro plan](https://www.workato.com/free), while larger deployments use sales-led plans. Its current pricing model uses Workato credits, so compare the included allowance and expected usage with a sales quote for enterprise requirements.
+**Pricing** Workato's [plans](https://www.workato.com/free) are Free with 50K one-time credits, Pro at $100 per month with 3.5K credits per month and up to 3 users per workspace, and Enterprise at custom pricing. Its pricing model uses Workato credits, so compare the included allowance and expected usage with a sales quote for enterprise requirements.
 
-## Why Sim leads for non-developers who need AI agents
+## Why Sim fits non-developers who need AI agents
 
 Sim gives non-developers a visual way to build AI agents without closing off more technical work. You can describe a workflow in Chat, refine it in the workflow builder, and use the API or SDKs when you need code. Those [build methods](https://docs.sim.ai/introduction) let a non-technical colleague work on the same workflow that a developer can extend.
 
