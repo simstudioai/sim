@@ -15,13 +15,16 @@ describe('Cloudflare provider request boundaries', () => {
     }
   )
 
-  it.each([[], '[]'])('preserves an explicit R2 lifecycle clear (%j)', (rules) => {
-    const body = updateR2BucketLifecycleTool.request.body
-    if (!body) throw new Error('Expected a request body')
-    expect(body({ apiKey: 'token', accountId: 'account', bucketName: 'bucket', rules })).toEqual({
-      rules: [],
-    })
-  })
+  it.each([{ rules: [] }, { rules: '[]' }])(
+    'preserves an explicit R2 lifecycle clear (%j)',
+    ({ rules }) => {
+      const body = updateR2BucketLifecycleTool.request.body
+      if (!body) throw new Error('Expected a request body')
+      expect(body({ apiKey: 'token', accountId: 'account', bucketName: 'bucket', rules })).toEqual({
+        rules: [],
+      })
+    }
+  )
 
   it('preserves every explicitly supplied R2 lifecycle rule', () => {
     const body = updateR2BucketLifecycleTool.request.body
