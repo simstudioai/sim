@@ -40,7 +40,7 @@ export const retoolProfile: CompetitorProfile = {
     {
       question: 'Is Retool open source, and can it be self-hosted?',
       answer:
-        "Retool is proprietary and closed-source, while Sim's core is licensed under Apache 2.0. Retool can be self-hosted on its Free, Team, and Business plans at the same pricing as cloud, but it still requires a Retool-issued license key, and its Docker Compose setup is for non-production testing only, so production self-hosting runs on Kubernetes with Helm. Sim can be self-hosted with Docker Compose or Kubernetes (Helm), and its enterprise features, such as SSO and audit logs, require a Sim Enterprise license.",
+        "Retool is proprietary and closed-source, while Sim's core is licensed under Apache 2.0. Retool's pricing page lists self-hosting on its Enterprise plan, where a deployment still requires a Retool-issued license key, and its Docker Compose setup is for non-production testing only, so production self-hosting runs on Kubernetes with Helm. Sim can be self-hosted with Docker Compose or Kubernetes (Helm), and its enterprise features, such as SSO and audit logs, require a Sim Enterprise license.",
     },
     {
       question: 'How do Sim and Retool compare for knowledge bases and RAG?',
@@ -163,16 +163,21 @@ export const retoolProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          'Yes: self-hosted deployment is available on Free, Team, and Business plans at the same pricing as cloud; Enterprise is required for unlimited users and advanced capabilities. A Retool-issued license key is required even when self-hosted.',
+          'Yes, on Enterprise: the pricing page lists Retool Cloud, self-hosted, or air-gapped deployment only on the Enterprise plan, while Free, Team, and Business include Retool Cloud. A Retool-issued license key is required even when self-hosted.',
         detail:
           'Self-hosted Retool is deployable via Docker (non-production/testing only) or Kubernetes/Helm (production).',
-        shortValue: 'Yes, on Free/Team/Business; license key required',
+        shortValue: 'Yes, on Enterprise; license key required',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://retool.com/self-hosted',
+            url: 'https://retool.com/pricing',
+            label: 'Retool Pricing',
+            asOf: '2026-10-19',
+          },
+          {
+            url: 'https://retool.com/govern-enterprise-apps/self-hosted',
             label: 'Retool Self Hosted',
-            asOf: '2026-07-02',
+            asOf: '2026-10-19',
           },
           {
             url: 'https://docs.retool.com/self-hosted/tutorials/docker',
