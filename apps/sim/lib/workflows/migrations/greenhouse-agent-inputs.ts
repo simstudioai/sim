@@ -56,16 +56,26 @@ const RETIRED_IDS = [...new Set(GREENHOUSE_SUBBLOCK_ID_MIGRATIONS.map(({ from })
  * Moves the active Harvest v3 UI aliases onto their tool parameter IDs. Canonical targets
  * may already hold values from unrelated operations, so the old operation's alias wins,
  * including an intentional blank. Retired aliases are all removed so changing operations
- * later cannot restore a stale alias over a newly configured canonical value.
+ * later cannot restore a stale alias over a newly configured canonical value. Incomplete
+ * imports retain their fields until a recognized operation determines which values apply.
  */
 export function migrateGreenhouseAgentInputs(block: BlockState): BlockState {
   if (block.type !== 'greenhouse_v2') return block
-  const aliases = GREENHOUSE_RETIRED_INPUTS[String(block.subBlocks.operation?.value)] ?? {}
+  const config = getBlock(block.type)
+  const operation = block.subBlocks.operation?.value
+  const operations = config?.subBlocks.find((field) => field.id === 'operation')?.options
+  if (
+    typeof operation !== 'string' ||
+    !Array.isArray(operations) ||
+    !operations.some((option) => option.id === operation)
+  )
+    return block
+  const aliases = GREENHOUSE_RETIRED_INPUTS[operation] ?? {}
   let subBlocks = block.subBlocks
   for (const [target, source] of Object.entries(aliases)) {
     const saved = subBlocks[source]
     if (!saved) continue
-    const targetConfig = getBlock(block.type)?.subBlocks.find((field) => field.id === target)
+    const targetConfig = config?.subBlocks.find((field) => field.id === target)
     if (!targetConfig) continue
     subBlocks = omit(subBlocks, [source])
     subBlocks[target] = { ...saved, id: target, type: targetConfig.type }
