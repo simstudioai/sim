@@ -15,11 +15,13 @@ Use [Greenhouse](https://www.greenhouse.com/) to manage recruiting through Harve
 
 ### Connect a Greenhouse account
 
-The current block uses [Greenhouse partner OAuth](https://harvestdocs.greenhouse.io/docs/harvest-partner-oauth). Deployment administrators must obtain partner-issued OAuth credentials, register the deployment's Greenhouse OAuth callback URL, and have Greenhouse enable the scopes requested by Sim. This requires Greenhouse partner onboarding; a legacy Harvest API key cannot authenticate the new block. Select a Greenhouse account in the block and complete consent with a Site Admin, which Greenhouse requires for list endpoints. A connection that has not refreshed within the provider's 14-day refresh-token lifetime must reconnect.
+Save your own Greenhouse API credential, then select it in the block. In Greenhouse, open **Dev Center > API Credentials**, create a **Harvest V3 (OAuth)** credential, and copy its client ID and client secret. On the credential's settings, enable the Harvest scopes for the operations your workflows use; the scopes listed below cover every operation. Sim obtains access tokens with the [client credentials grant](https://harvestdocs.greenhouse.io/docs/authentication) and gets a new one when it expires. Requests act as the integration service user Greenhouse creates with the credential. You do not need a redirect URI or a Sim-owned OAuth application, and a legacy Harvest API key cannot authenticate the new block.
+
+Deployments that have [Greenhouse partner OAuth](https://harvestdocs.greenhouse.io/docs/harvest-partner-oauth) credentials can also connect an account through consent. Complete consent with a Site Admin, which Greenhouse requires for list endpoints. A partner connection that has not refreshed within the provider's 14-day refresh-token lifetime must reconnect.
 
 ### Upgrade existing workflows
 
-The original API-key block remains as **Greenhouse (Legacy)** so existing workflows keep their saved configuration. New blocks use Harvest v3. Upgrade an existing block explicitly, connect an OAuth account, choose its operation again, and update input and output references before running it. The legacy integration is subject to Greenhouse's v1 availability; preserving a saved block does not extend provider support.
+The original API-key block remains as **Greenhouse (Legacy)** so existing workflows keep their saved configuration. New blocks use Harvest v3. Upgrade an existing block explicitly, select a Greenhouse credential, choose its operation again, and update input and output references before running it. The legacy integration is subject to Greenhouse's v1 availability; preserving a saved block does not extend provider support.
 
 Harvest v3 returns applications, attachments, education, and employment through separate resources. Use their list operations and candidate or application filters to assemble a complete record. Single-record reads use the provider's `ids` filter. Do not assume the old embedded response structure survives the upgrade.
 

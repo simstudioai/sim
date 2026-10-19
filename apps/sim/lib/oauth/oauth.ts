@@ -134,6 +134,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'Greenhouse',
         description: 'Manage recruiting candidates, applications, jobs, and hiring activity.',
         providerId: 'greenhouse',
+        serviceAccountProviderId: 'greenhouse-service-account',
         icon: GreenhouseIcon,
         baseProviderIcon: GreenhouseIcon,
         scopes: [
