@@ -27,6 +27,8 @@ Harvest v3 returns applications, attachments, education, and employment through 
 
 List operations return one page, its `count`, `nextCursor`, and `hasMore`. Set a page size from 1 to 500 and pass `nextCursor` into the next call until `hasMore` is false. A cursor carries the initial query, so other filters and page size are ignored while it is set. Date filters accept a JSON object such as `{"gte":"2026-01-01T00:00:00Z"}`; use either `created_at` or `updated_at`, not both.
 
+For list operations, Job IDs uses comma-separated IDs. For prospect application creation, Job IDs uses a JSON array of integers. Created At takes a JSON date range on list operations, an ISO 8601 timestamp when creating an application, and a `YYYY-MM-DD` date when updating an application.
+
 Partial reads leave unrequested fields as `null`, including collections. An explicit empty array means the collection is empty. Date-only filters, such as offer `sent_on` and `starts_on`, use `YYYY-MM-DD` bounds.
 
 When updating candidate contact arrays, tags, or linked users, read the current candidate first and submit the complete desired array: supplied arrays replace their existing values. Unset inputs are omitted; custom-field entries may use `null` to clear a value. Creating an email note records an email in Greenhouse and does not send one. Application movement may trigger Greenhouse stage automation, and rejection can optionally send a rejection email. Move, hire, reject, and unreject operations return no provider fields on success.
