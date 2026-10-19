@@ -48,7 +48,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@clack/prompts": "1.8.1",
+    "@clack/prompts": "1.7.0",
     "@next/env": "16.4.0",
     "@sim/deployment-config": "workspace:*",
     "@sim/security": "workspace:*",

@@ -46,15 +46,15 @@
     "pdf-lib": "1.17.1"
   },
   "devDependencies": {
-    "@electron/fuses": "2.1.3",
-    "@playwright/test": "1.64.0",
+    "@electron/fuses": "1.8.0",
+    "@playwright/test": "1.61.1",
     "@sim/emcn": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@types/micromatch": "4.0.10",
     "@types/node": "24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "electron": "43.7.9",
+    "electron": "43.5.0",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.2",
     "jsdom": "^26.0.0",
