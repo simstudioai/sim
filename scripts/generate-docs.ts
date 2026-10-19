@@ -4,7 +4,6 @@ import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { isVersionedType, stripVersionSuffix } from '@sim/utils/string'
 import ts from '@typescript/typescript6'
-import { glob } from 'glob'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
@@ -134,7 +133,9 @@ function readSourceFile(filePath: string): string {
 async function sourceGlob(pattern: string): Promise<string[]> {
   let pending = sourceGlobCache.get(pattern)
   if (!pending) {
-    pending = glob(pattern)
+    pending = Array.fromAsync(new Bun.Glob(pattern).scan({ cwd: '/', absolute: true })).then(
+      (files) => files.sort()
+    )
     sourceGlobCache.set(pattern, pending)
   }
   return [...(await pending)]

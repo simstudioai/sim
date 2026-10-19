@@ -1,4 +1,5 @@
-import { isEqual, omit } from 'es-toolkit'
+import { omit } from '@sim/utils/object'
+import { isEqual } from 'es-toolkit'
 import type { McpToolSchema, StoredMcpToolReference } from '@/lib/mcp/types'
 
 export type McpToolIssueType =

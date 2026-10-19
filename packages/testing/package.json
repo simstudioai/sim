@@ -63,7 +63,7 @@
   "peerDependencies": {
     "next": ">=15 <17",
     "stripe": ">=18 <19",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   },
   "peerDependenciesMeta": {
     "stripe": {
@@ -75,7 +75,7 @@
     "next": "16.4.0",
     "stripe": "18.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   },
   "dependencies": {
     "@sim/auth": "workspace:*",
