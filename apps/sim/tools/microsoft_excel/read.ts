@@ -1,4 +1,13 @@
+import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  assertExcelSuccess,
+  EXCEL_RANGE_OUTPUTS,
+  EXCEL_VALUES_OUTPUT,
+  EXCEL_WORKBOOK_PARAMS,
+  excelHeaders,
+  mapExcelRange,
+} from '@/tools/microsoft_excel/shared'
 import type {
   ExcelCellValue,
   MicrosoftExcelReadResponse,
@@ -7,13 +16,14 @@ import type {
   MicrosoftExcelV2ToolParams,
 } from '@/tools/microsoft_excel/types'
 import {
+  buildWorksheetRangeUrl,
   escapeODataString,
   getItemBasePath,
   getSpreadsheetWebUrl,
   parseGraphErrorMessage,
   trimTrailingEmptyRowsAndColumns,
 } from '@/tools/microsoft_excel/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 const EXCEL_RETRY_CONFIG = {
   enabled: true,
@@ -36,6 +46,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
 
   params: {
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -53,7 +64,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     range: {
       type: 'string',
@@ -84,38 +95,23 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         return `${basePath}/workbook/worksheets('${sheetOnly}')/usedRange(valuesOnly=true)`
       }
 
-      const match = rangeInput.match(/^([^!]+)!(.+)$/)
-
-      if (!match) {
-        throw new Error(
-          `Invalid range format: "${params.range}". Use "Sheet1!A1:B2" or just "Sheet1" to read the whole sheet`
-        )
-      }
-
-      const sheetName = encodeURIComponent(escapeODataString(match[1]))
-      const address = encodeURIComponent(match[2])
-
-      return `${basePath}/workbook/worksheets('${sheetName}')/range(address='${address}')`
+      return buildWorksheetRangeUrl(basePath, rangeInput)
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
+    headers: excelHeaders,
     retry: EXCEL_RETRY_CONFIG,
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelToolParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     const spreadsheetId = params?.spreadsheetId?.trim() || ''
     const driveId = params?.driveId
 
-    // If we came from the worksheets listing (no range provided), resolve first sheet name then fetch range
-    if (response.url.includes('/workbook/worksheets?')) {
+    if (!params?.range?.trim()) {
       const listData = await response.json()
       const firstSheetName: string | undefined = listData?.value?.[0]?.name
 
@@ -132,30 +128,47 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       const rangeUrl = `${basePath}/workbook/worksheets('${encodeURIComponent(escapeODataString(firstSheetName))}')/usedRange(valuesOnly=true)`
 
       const rangeResp = await fetch(rangeUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: excelHeaders({ accessToken, sessionId: params?.sessionId }),
+        signal: context?.signal,
       })
 
       if (!rangeResp.ok) {
-        const errorText = await rangeResp.text().catch(() => '')
+        const errorText = await readResponseTextWithLimit(rangeResp, {
+          maxBytes: 65536,
+          label: 'Excel error',
+          signal: context?.signal,
+        })
         const detail = parseGraphErrorMessage(rangeResp.status, rangeResp.statusText, errorText)
         throw new Error(
           `Failed to read worksheet "${firstSheetName}": ${detail}. Provide a range like "Sheet1!A1:B2" or just the sheet name to read the whole sheet.`
         )
       }
 
-      const data = await rangeResp.json()
+      const data = JSON.parse(
+        await readResponseTextWithLimit(rangeResp, {
+          maxBytes: 10 * 1024 * 1024,
+          label: 'Excel range',
+          signal: context?.signal,
+        })
+      )
 
       const address: string = data.address || data.addressLocal || `${firstSheetName}!A1`
       const rawValues: ExcelCellValue[][] = data.values || []
 
       const values = trimTrailingEmptyRowsAndColumns(rawValues)
 
-      const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+      const webUrl = await getSpreadsheetWebUrl(
+        spreadsheetId,
+        accessToken,
+        driveId,
+        context?.signal
+      )
 
       const result: MicrosoftExcelReadResponse = {
         success: true,
         output: {
           data: {
+            ...mapExcelRange(data),
             range: address,
             values,
           },
@@ -169,14 +182,13 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       return result
     }
 
-    // Normal path: caller supplied a range; just return the parsed result
     const data = await response.json()
 
     const accessToken = params?.accessToken
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     const address: string = data.address || data.addressLocal || data.range || ''
     const rawValues: ExcelCellValue[][] = data.values || []
@@ -186,6 +198,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       success: true,
       output: {
         data: {
+          ...mapExcelRange(data),
           range: address,
           values,
         },
@@ -204,8 +217,9 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       type: 'object',
       description: 'Range data from the spreadsheet',
       properties: {
+        ...EXCEL_RANGE_OUTPUTS,
         range: { type: 'string', description: 'The range that was read' },
-        values: { type: 'array', description: 'Array of rows containing cell values' },
+        values: { ...EXCEL_VALUES_OUTPUT },
       },
     },
     metadata: {
@@ -232,6 +246,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
   },
 
   params: {
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -249,7 +264,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     sheetName: {
       type: 'string',
@@ -285,25 +300,19 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
         return `${basePath}/workbook/worksheets('${encodedSheetName}')/usedRange(valuesOnly=true)`
       }
 
-      const cellRange = params.cellRange.trim()
-      const encodedAddress = encodeURIComponent(cellRange)
-
-      return `${basePath}/workbook/worksheets('${encodedSheetName}')/range(address='${encodedAddress}')`
+      return buildWorksheetRangeUrl(basePath, params.cellRange, sheetName)
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.accessToken) {
-        throw new Error('Access token is required')
-      }
-
-      return {
-        Authorization: `Bearer ${params.accessToken}`,
-      }
-    },
+    headers: excelHeaders,
     retry: EXCEL_RETRY_CONFIG,
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftExcelV2ToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelV2ToolParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     const data = await response.json()
 
     const spreadsheetId = params?.spreadsheetId?.trim() || ''
@@ -313,7 +322,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     const address: string = data.address || data.addressLocal || ''
     const rawValues: ExcelCellValue[][] = data.values || []
@@ -324,6 +333,7 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
     return {
       success: true,
       output: {
+        ...mapExcelRange(data),
         sheetName,
         range: address,
         values,
@@ -336,9 +346,10 @@ export const readV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV2
   },
 
   outputs: {
+    ...EXCEL_RANGE_OUTPUTS,
     sheetName: { type: 'string', description: 'Name of the sheet that was read' },
     range: { type: 'string', description: 'The range that was read' },
-    values: { type: 'array', description: 'Array of rows containing cell values' },
+    values: { ...EXCEL_VALUES_OUTPUT },
     metadata: {
       type: 'json',
       description: 'Spreadsheet metadata including ID and URL',

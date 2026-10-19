@@ -503,7 +503,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-excel',
         icon: MicrosoftExcelIcon,
         baseProviderIcon: MicrosoftIcon,
-        scopes: ['openid', 'profile', 'email', 'Files.Read', 'Files.ReadWrite', 'offline_access'],
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Files.Read',
+          'Files.ReadWrite',
+          'Sites.Read.All',
+          'offline_access',
+        ],
       },
       'microsoft-intune': {
         name: 'Microsoft Intune',

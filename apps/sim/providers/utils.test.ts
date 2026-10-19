@@ -12,6 +12,7 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
 }))
 
 import { IntuneBlock } from '@/blocks/blocks/intune'
+import { MicrosoftExcelV2Block } from '@/blocks/blocks/microsoft_excel'
 import { RampBlock } from '@/blocks/blocks/ramp'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
@@ -44,6 +45,9 @@ import {
 import { useProvidersStore } from '@/stores/providers/store'
 import { intuneListDetectedAppsTool } from '@/tools/intune/list-detected-apps'
 import { intuneListDevicesTool } from '@/tools/intune/list-devices'
+import { clearRangeTool } from '@/tools/microsoft_excel/clear_range'
+import { createTableTool } from '@/tools/microsoft_excel/create_table'
+import { sortRangeTool } from '@/tools/microsoft_excel/sort_range'
 import { rampListReimbursementsTool } from '@/tools/ramp/list-reimbursements'
 import { rampListTransactionsTool } from '@/tools/ramp/list-transactions'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
@@ -175,6 +179,116 @@ describe('integration filters through agent execution', () => {
         : intuneListDetectedAppsTool.request.url
 
     expect(new URL(url).searchParams.has('$filter')).toBe(false)
+  })
+})
+
+describe('Excel targets through agent execution', () => {
+  it.each(['model', 'configured'] as const)(
+    'clears the %s range after canonical argument mapping',
+    async (source) => {
+      const providerTool = await transformBlockTool(
+        {
+          type: 'microsoft_excel_v2',
+          params: {
+            manualSpreadsheetId: 'workbook1',
+            manualSheetName: 'Sheet1',
+            ...(source === 'configured' ? { cellRange: 'B2:D5' } : {}),
+          },
+        },
+        {
+          selectedOperation: 'clear_range',
+          canonicalModes: { '0:spreadsheetId': 'advanced', '0:sheetName': 'advanced' },
+          toolIndex: 0,
+          getAllBlocks: () => [MicrosoftExcelV2Block],
+          getTool: () => clearRangeTool,
+        }
+      )
+      if (!providerTool) throw new Error('Excel agent tool was not created')
+      const { executionParams } = prepareToolExecution(
+        providerTool,
+        { range: 'A1:C4' },
+        {},
+        undefined
+      )
+      const params = {
+        ...executionParams,
+        accessToken: 'fixture-token',
+        spreadsheetId: executionParams.spreadsheetId,
+        range: executionParams.range,
+      }
+      const url =
+        typeof clearRangeTool.request.url === 'function'
+          ? clearRangeTool.request.url(params)
+          : clearRangeTool.request.url
+      expect(decodeURIComponent(url)).toContain(
+        `range(address='${source === 'configured' ? 'B2:D5' : 'A1:C4'}')/clear`
+      )
+    }
+  )
+
+  it('sorts the model-supplied table instead of an unused range', async () => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'microsoft_excel_v2',
+        params: { manualSpreadsheetId: 'workbook1', manualSheetName: 'Sheet1', cellRange: 'A1:C4' },
+      },
+      {
+        selectedOperation: 'sort_range',
+        canonicalModes: { '0:spreadsheetId': 'advanced', '0:sheetName': 'advanced' },
+        toolIndex: 0,
+        getAllBlocks: () => [MicrosoftExcelV2Block],
+        getTool: () => sortRangeTool,
+      }
+    )
+    if (!providerTool) throw new Error('Excel agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { tableName: 'Inventory', sortColumn: 0, matchCase: true },
+      {},
+      undefined
+    )
+    const params = {
+      ...executionParams,
+      accessToken: 'fixture-token',
+      spreadsheetId: executionParams.spreadsheetId,
+    }
+    const url =
+      typeof sortRangeTool.request.url === 'function'
+        ? sortRangeTool.request.url(params)
+        : sortRangeTool.request.url
+    expect(decodeURIComponent(url)).toContain("tables('Inventory')/sort/apply")
+    expect(sortRangeTool.request.body?.(params)).toMatchObject({ matchCase: true })
+  })
+
+  it('creates a table without converting an explicit false header flag to true', async () => {
+    const providerTool = await transformBlockTool(
+      {
+        type: 'microsoft_excel_v2',
+        params: { manualSpreadsheetId: 'workbook1', manualSheetName: 'Sheet1', cellRange: 'A1:C4' },
+      },
+      {
+        selectedOperation: 'create_table',
+        canonicalModes: { '0:spreadsheetId': 'advanced', '0:sheetName': 'advanced' },
+        toolIndex: 0,
+        getAllBlocks: () => [MicrosoftExcelV2Block],
+        getTool: () => createTableTool,
+      }
+    )
+    if (!providerTool) throw new Error('Excel agent tool was not created')
+    const { executionParams } = prepareToolExecution(
+      providerTool,
+      { hasHeaders: false },
+      {},
+      undefined
+    )
+    expect(
+      createTableTool.request.body?.({
+        ...executionParams,
+        accessToken: 'fixture-token',
+        spreadsheetId: executionParams.spreadsheetId,
+        address: executionParams.address,
+      })
+    ).toMatchObject({ hasHeaders: false })
   })
 })
 
