@@ -798,7 +798,7 @@ export const simProfile: CompetitorProfile = {
       },
       freeTier: {
         value:
-          'Yes: Free plan with 1,000 one-time credits (worth $5, env-configurable), granted once at signup and never refreshed — no monthly reset and no weekly refresh (weekly refresh is a paid-plan feature)',
+          'Yes: Free plan with 1,000 one-time credits (worth $5), granted once at signup and never refreshed — no monthly reset and no weekly refresh (weekly refresh is a paid-plan feature)',
         shortValue: 'Free plan, 1,000 one-time credits',
         confidence: 'verified',
         sources: [

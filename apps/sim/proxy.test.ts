@@ -1,7 +1,8 @@
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
 
 setEnv({
@@ -158,6 +159,30 @@ describe('proxy on the dedicated MCP host', () => {
       expect(proxy(mcpRequest('/.well-known/openai-apps-challenge/other', 'GET')).status).toBe(404)
     }
   )
+})
+
+describe('proxy indexing policy', () => {
+  afterEach(resetEnvFlagsMock)
+
+  const robotsTag = (pathname: string) =>
+    proxy(new NextRequest(`https://self-hosted.example${pathname}`)).headers.get('X-Robots-Tag')
+
+  it('keeps the marketing pages of a self-hosted deployment out of search results', () => {
+    setEnvFlags({ isHosted: false })
+    expect(robotsTag('/comparisons/n8n')).toBe('noindex, nofollow')
+    expect(robotsTag('/pricing')).toBe('noindex, nofollow')
+  })
+
+  it('leaves the marketing pages of the hosted deployment indexable', () => {
+    setEnvFlags({ isHosted: true })
+    expect(robotsTag('/comparisons/n8n')).toBeNull()
+    expect(robotsTag('/pricing')).toBeNull()
+  })
+
+  it('leaves a self-hosted non-landing public page indexable', () => {
+    setEnvFlags({ isHosted: false })
+    expect(robotsTag('/login')).toBeNull()
+  })
 })
 
 describe('proxy matcher', () => {

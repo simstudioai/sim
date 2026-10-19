@@ -15,6 +15,9 @@
  *   landing footer's toggle, instead of the app's account-synced `system`
  *   default. Leave one out and a visitor on a dark OS lands on a dark
  *   marketing page.
+ * - The proxy marks these paths `noindex` on self-hosted deployments, so a
+ *   third-party copy of the marketing site never competes with sim.ai in search
+ *   or answer engines. Leave one out and that page stays indexable there.
  *
  * Imported by `next.config.ts` before the `@/` alias resolves, so this module
  * must stay dependency-free.
@@ -45,3 +48,11 @@ export const LANDING_ROUTES = [
   'terms',
   'workflows',
 ] as const
+
+const LANDING_SEGMENTS: ReadonlySet<string> = new Set(LANDING_ROUTES)
+
+/** Whether a pathname is the root or sits under an `app/(landing)` segment. */
+export function isLandingPath(pathname: string): boolean {
+  const firstSegment = pathname.split('/')[1]
+  return firstSegment === '' || LANDING_SEGMENTS.has(firstSegment)
+}

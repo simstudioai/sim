@@ -7,6 +7,7 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
 import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
+import { isLandingPath } from '@/lib/landing/routes'
 import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
@@ -433,9 +434,12 @@ export function proxy(request: NextRequest) {
 }
 
 /**
- * Keeps non-production sim.ai deployments, and app and utility surfaces on every
- * deployment, out of search results. Applies to redirects too, so a signed-out
- * crawler bounced from `/workspace/*` to `/login` sees the directive.
+ * Keeps non-production sim.ai deployments, the marketing pages of self-hosted
+ * deployments, and app and utility surfaces on every deployment, out of search
+ * results. A self-hosted copy of the marketing site carries whatever facts its
+ * build shipped with, so only sim.ai may be indexed for them. Applies to
+ * redirects too, so a signed-out crawler bounced from `/workspace/*` to `/login`
+ * sees the directive.
  *
  * `noindex` rather than a robots.txt `Disallow` is deliberate: a disallowed URL
  * can still be indexed when linked externally, and blocking the crawl stops
@@ -449,7 +453,12 @@ function applyIndexingPolicy(request: NextRequest, response: NextResponse): Next
     request.headers.get('host') ||
     request.nextUrl.host
 
-  if (isNonCanonicalSimHost(host) || isNoindexPath(request.nextUrl.pathname)) {
+  const { pathname } = request.nextUrl
+  if (
+    isNonCanonicalSimHost(host) ||
+    isNoindexPath(pathname) ||
+    (!isHosted && isLandingPath(pathname))
+  ) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   }
 

@@ -15,6 +15,31 @@ export const flowiseProfile: CompetitorProfile = {
   },
   oneLiner:
     'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, available self-hosted or as a managed cloud service, and owned by Workday since August 2025.',
+  leadAnswer: [
+    'Flowise is an open-source, Apache 2.0-licensed, low-code visual builder for LLM chains, RAG pipelines, and multi-agent workflows, owned by Workday since August 2025 and available self-hosted or on Flowise Cloud. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Flowise when you want fine control over RAG ingestion, with a choice of vector-store backends and the broadest native text-splitter menu, or dataset-based batch evaluations on its Cloud and Enterprise plans. Choose Sim when you need production operations built in: schedule and app-event triggers, failure alerts, error-handling branches, native parallel execution, and published execution limits.',
+  ],
+  faqs: [
+    {
+      question: 'How does Sim compare to Flowise for building AI agents?',
+      answer:
+        "Both are visual canvas builders with agent nodes and a human approval step, but Sim adds natural-language building and live multiplayer editing. Flowise's Agentflow V2 provides Agent nodes with Condition, Iteration, and Human Input primitives, custom code runs in JavaScript only, and its canvas supports one editor per session with no natural-language flow generator. Sim builds and edits workflows from plain-language requests through Chat and Copilot, runs custom code in JavaScript or Python, lets several people edit the same canvas at once, and works as both an MCP client and an MCP server, where Flowise documents MCP client support only.",
+    },
+    {
+      question: 'What is a Flowise alternative with stronger production deployment options?',
+      answer:
+        "Sim documents more production controls than Flowise: webhook, schedule, chat, REST API, and app-event triggers; async runs that return an execution ID to poll; failure alerts to Slack, email, or a webhook; error branches so a failing block does not halt the run; and published timeouts (50-minute sync runs on paid plans, 90-minute async by default). Flowise flows start from its chat widget, public URL, REST prediction API, or an MCP tool call, and it has no built-in schedule trigger, so time-based runs need an external scheduler. Flowise's prediction endpoint is synchronous, and its documentation does not describe failure alerting, automatic retries or replay, or execution limits.",
+    },
+    {
+      question: 'Are Sim and Flowise both open source?',
+      answer:
+        "Yes. Both Sim and Flowise license their core under Apache 2.0 and can be self-hosted, so the license itself is not a differentiator. Each keeps some features under a separate license: Flowise's RBAC, login-activity logs, and organization workspaces ship under a Commercial License on its Cloud and Enterprise plans, with SSO on Enterprise only, while Sim's enterprise features require an Enterprise subscription for production use. Flowise has the larger existing community, with roughly 54,000 GitHub stars, and its Enterprise tier supports on-premise or air-gapped deployment.",
+    },
+    {
+      question: 'How do Sim and Flowise compare for RAG and knowledge bases?',
+      answer:
+        "Flowise gives more control over the ingestion pipeline, while Sim builds a synced, hybrid-search knowledge base into the workspace. Flowise's Document Store upserts into a choice of vector stores such as Pinecone, Weaviate, Milvus, and FAISS, offers the broadest native set of text splitters, and lets you preview and edit chunks. Sim combines vector and full-text search, supports 15 file types with configurable chunking, uses connectors to continuously sync sources such as Google Drive, Confluence, and Slack, and exposes chunk-level detail with a dedicated chunk editor.",
+    },
+  ],
   standoutFeatures: [
     {
       title: 'Choice of vector-store backend, with the broadest native text-splitter menu',
