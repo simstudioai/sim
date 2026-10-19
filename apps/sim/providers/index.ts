@@ -37,7 +37,7 @@ import {
 } from '@/providers/file-attachments.server'
 import { isEvaluationModel, isKnownModelId, supportsTemperature } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
-import { addSettledCost } from '@/providers/run-usage-limit'
+import { addSettledCost, recordJournaledModelCost } from '@/providers/run-usage-limit'
 import {
   type ProviderRuntimeContext,
   runWithProviderRuntimeContext,
@@ -358,6 +358,7 @@ export async function executeProviderRequest(
       priorConversationUsage = session.getUsage()
       // A stop bills what success would: this journaled usage plus the request's own steps.
       addSettledCost(settledCost, priorConversationUsage.cost)
+      recordJournaledModelCost(requestRuntimeContext, session.turnId, priorConversationUsage)
       bindConversationGenerationCompactor(
         modelSafeRequest,
         createAgentConversationCompactor(

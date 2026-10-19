@@ -4,6 +4,7 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { resolveUsageUpgradePayload } from '@/lib/billing/usage-upgrade'
 import { markFailureKind } from '@/lib/core/errors/failure-log'
 import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
+import type { ConversationUsageTotal } from '@/lib/memory/conversation-types'
 import { attachTrustedExecutionCost } from '@/executor/utils/errors'
 import type { ModelCost } from '@/providers/cost-policy'
 import type { TokenUsageCost } from '@/providers/pricing'
@@ -24,6 +25,25 @@ export function addSettledCost(settledCost: TokenUsageCost, cost: TokenUsageCost
   settledCost.input += cost.input
   settledCost.output += cost.output
   settledCost.total += cost.total
+}
+
+/**
+ * Adds a resumed Agent turn's journaled model spend to its run's unrecorded total, once per turn.
+ * Steps an earlier attempt journaled in another process were never counted by this run, while a
+ * turn this run already opened (a fallback model, a block retry) holds steps it counted as they
+ * settled. Journaled tool costs are left out, as settled ones are.
+ */
+export function recordJournaledModelCost(
+  runtime: ProviderRuntimeContext,
+  turnId: string | undefined,
+  usage: ConversationUsageTotal
+): void {
+  const unrecorded = runtime.executionContext?.unrecordedModelCost
+  if (!unrecorded || !turnId) return
+  unrecorded.countedTurnIds ??= new Set()
+  if (unrecorded.countedTurnIds.has(turnId)) return
+  unrecorded.countedTurnIds.add(turnId)
+  unrecorded.total += usage.cost.total - usage.cost.toolCost
 }
 
 /**

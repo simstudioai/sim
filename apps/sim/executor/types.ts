@@ -680,6 +680,8 @@ export interface ExecutionContext {
 export interface UnrecordedModelCost {
   total: number
   readDeferredUntil?: number
+  /** Agent turns whose journaled spend `total` already holds. */
+  countedTurnIds?: Set<string>
 }
 
 /**

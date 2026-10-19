@@ -39,6 +39,7 @@ import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { NEAR_LIMIT_USAGE_GATE_TTL_MS } from '@/lib/billing/core/usage-gate-cache'
 import { markFailureKind } from '@/lib/core/errors/failure-log'
 import { isNonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
+import { AgentTurnSession } from '@/lib/memory/agent-turn-session'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import type { ExecutionContext } from '@/executor/types'
 import { readTrustedExecutionCost } from '@/executor/utils/errors'
@@ -55,7 +56,7 @@ import {
 } from '@/providers/conversation-history'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
-import { ProviderError, type ProviderRequest } from '@/providers/types'
+import { ProviderError, type ProviderRequest, type ProviderToolConfig } from '@/providers/types'
 
 const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
 const { mockExecuteTool } = toolsMockFns
@@ -203,8 +204,54 @@ describe('run usage limit', () => {
     expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2 })
   })
 
+  it("counts a resumed turn's journaled spend toward the limit once, however often the run reopens it", async () => {
+    mockCheckExecutionUsageLimits.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 1, limit: 5 },
+    })
+    const reopenTurn = () =>
+      new AgentTurnSession(
+        'turn-1',
+        { save: vi.fn() },
+        {
+          version: 1,
+          steps: [
+            {
+              id: 'earlier-process-step',
+              assistant: { role: 'assistant', content: 'Partial answer' },
+              calls: [],
+              results: [],
+              usage: { input: 1, output: 1 },
+              cost: { input: 1, output: 1, total: 2 },
+            },
+          ],
+        }
+      )
+    const run = startRun()
+    mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
+      await prepareConversationGeneration(request, 'anthropic', { messages: request.messages })
+      throw new Error('Model call sent')
+    })
+    const request = { model: 'model-a', messages: [{ role: 'user' as const, content: 'Continue' }] }
+
+    const attempt = () =>
+      executeProviderRequest('anthropic', request, {
+        executionContext: run,
+        agentConversation: reopenTurn(),
+      })
+
+    await expect(attempt()).rejects.toThrow('Model call sent')
+    await expect(attempt()).rejects.toThrow('Model call sent')
+    expect(run.unrecordedModelCost?.total).toBe(2)
+  })
+
   it('bills a retried pending tool call once, through the journal that records it', async () => {
-    const tool = { id: 'search', name: 'search', description: 'search', params: {} }
+    const tool: ProviderToolConfig = {
+      id: 'search',
+      description: 'search',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
     const session = new AgentTurnStateMachine(
       { save: vi.fn() },
       {
