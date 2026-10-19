@@ -61,7 +61,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "ipaddr.js": "2.5.0"
+    "ipaddr.js": "2.3.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

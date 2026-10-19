@@ -83,7 +83,7 @@
     "@radix-ui/react-switch": "1.4.1",
     "@radix-ui/react-tabs": "1.2.1",
     "@sim/tsconfig": "workspace:*",
-    "@tanstack/react-virtual": "3.14.17",
+    "@tanstack/react-virtual": "3.13.24",
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",

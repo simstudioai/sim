@@ -1118,7 +1118,6 @@
     "TS2353": 1
   },
   "apps/sim/lib/core/network/gateway.server.test.ts": {
-    "TS2724": 1,
     "TS2740": 2
   },
   "apps/sim/lib/core/network/resource-scope.server.test.ts": {

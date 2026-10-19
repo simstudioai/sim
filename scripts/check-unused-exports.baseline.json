@@ -4054,7 +4054,6 @@
   "apps/sim/lib/billing/core/usage-analytics.ts#UsageBreakdownEntry",
   "apps/sim/lib/billing/core/usage.ts#checkUsageStatus",
   "apps/sim/lib/billing/core/usage.ts#getOrgLastPeriodCost",
-  "apps/sim/lib/billing/core/usage.ts#updateUserUsageLimit",
   "apps/sim/lib/billing/credits/balance.ts#CreditBalanceInfo",
   "apps/sim/lib/billing/credits/balance.ts#getCreditBalance",
   "apps/sim/lib/billing/cycle-close.ts#CycleCloseStatus",
