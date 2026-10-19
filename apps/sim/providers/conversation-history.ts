@@ -90,6 +90,14 @@ export function getConversationBinding(providerId: ProviderId, request: Provider
     .digest('hex')
 }
 
+function priceRequestUsage(request: ProviderRequest, usage: ConversationUsage) {
+  return priceModelUsage(
+    request.model,
+    usage,
+    resolveModelCostPolicy(request.model, request.isBYOK)
+  )
+}
+
 /**
  * Called with a complete provider message, including streaming terminal responses. Its billed
  * cost counts toward the run's usage limit whether or not the Agent keeps a conversation.
@@ -106,16 +114,7 @@ export async function captureProviderConversationStep(
   }
 ): Promise<void> {
   const runtime = getConversationRequestContext(request)
-  const priced = usage
-    ? {
-        usage,
-        cost: priceModelUsage(
-          request.model,
-          usage,
-          resolveModelCostPolicy(request.model, request.isBYOK)
-        ),
-      }
-    : undefined
+  const priced = usage ? { usage, cost: priceRequestUsage(request, usage) } : undefined
   if (priced) recordModelStepCost(runtime, priced.cost)
   if (!runtime?.agentConversation || !runtime.conversationProvider) return
   try {
@@ -164,11 +163,7 @@ export async function recordProviderConversationUsage(
 ): Promise<void> {
   if (!usage) return
   const runtime = getConversationRequestContext(request)
-  const cost = priceModelUsage(
-    request.model,
-    usage,
-    resolveModelCostPolicy(request.model, request.isBYOK)
-  )
+  const cost = priceRequestUsage(request, usage)
   recordModelStepCost(runtime, cost)
   const session = runtime?.agentConversation
   if (!session?.recordContextUsage) return

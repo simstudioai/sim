@@ -683,8 +683,8 @@ export function createGeminiStreamingToolLoopStream(
             aborted: loopAbortController.signal.aborted,
             consumerCancelled,
             error,
-            onUnexpectedError: (cause) =>
-              logger.error('Gemini streaming tool loop failed', {
+            onUnexpectedError: (cause, level) =>
+              logger[level]('Gemini streaming tool loop failed', {
                 error: toError(cause).message,
               }),
           })

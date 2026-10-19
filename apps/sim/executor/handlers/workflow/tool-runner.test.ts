@@ -71,19 +71,16 @@ describe('runWorkflowTool execution context', () => {
     expect(ctxArg.metadata.principal).toEqual(trustedPrincipal)
   })
 
-  it("spends the child against the invoking run's unrecorded model total", async () => {
+  it("hands the child the invoking run's unrecorded model total itself, not a copy", async () => {
     const unrecordedModelCost = { total: 1 }
-    mockExecute.mockImplementation(async (ctx: ExecutionContext) => {
-      if (ctx.unrecordedModelCost) ctx.unrecordedModelCost.total += 2
-      return { success: true }
-    })
 
     await runWorkflowTool(
       { workflowId: 'wf-child', _context: { workspaceId: 'ws-1' } },
       { environmentVariables: {}, unrecordedModelCost }
     )
 
-    expect(unrecordedModelCost.total).toBe(3)
+    const [ctxArg] = mockExecute.mock.calls[0]
+    expect(ctxArg.unrecordedModelCost).toBe(unrecordedModelCost)
   })
 })
 

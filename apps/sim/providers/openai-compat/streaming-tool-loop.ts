@@ -632,8 +632,8 @@ export function createOpenAICompatStreamingToolLoopStream(
           aborted: loopAbortController.signal.aborted,
           consumerCancelled,
           error,
-          onUnexpectedError: (cause) =>
-            logger.error(`${providerName} streaming tool loop failed`, {
+          onUnexpectedError: (cause, level) =>
+            logger[level](`${providerName} streaming tool loop failed`, {
               error: toError(cause).message,
             }),
         })

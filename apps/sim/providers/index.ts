@@ -37,6 +37,7 @@ import {
 } from '@/providers/file-attachments.server'
 import { isEvaluationModel, isKnownModelId, supportsTemperature } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
+import { addSettledCost } from '@/providers/run-usage-limit'
 import {
   type ProviderRuntimeContext,
   runWithProviderRuntimeContext,
@@ -346,16 +347,17 @@ export async function executeProviderRequest(
       for (const registry of replayRegistries) {
         if (registry) await session.restoreProvenance?.(registry)
       }
+      // A continued call's cost is journaled, so the usage read below already counts it.
+      const settledBeforeContinuation = settledCost.total
       await continuePendingConversationCalls(modelSafeRequest, session)
+      settledCost.total = settledBeforeContinuation
       const currentUserMessage = [...(modelSafeRequest.messages ?? [])]
         .reverse()
         .find((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       bindConversationGenerationPrompt(modelSafeRequest, currentUserMessage)
       priorConversationUsage = session.getUsage()
       // A stop bills what success would: this journaled usage plus the request's own steps.
-      settledCost.input += priorConversationUsage.cost.input
-      settledCost.output += priorConversationUsage.cost.output
-      settledCost.total += priorConversationUsage.cost.total
+      addSettledCost(settledCost, priorConversationUsage.cost)
       bindConversationGenerationCompactor(
         modelSafeRequest,
         createAgentConversationCompactor(
@@ -366,7 +368,7 @@ export async function executeProviderRequest(
             const summary = await executeProviderRequest(providerId, summaryRequest, {
               resolvedSecretTraceRegistry: requestRuntimeContext.resolvedSecretTraceRegistry,
               executionContext: requestRuntimeContext.executionContext,
-              settledCost: requestRuntimeContext.settledCost,
+              settledCost,
             })
             if (isStreamingExecution(summary) || isReadableStream(summary))
               throw new Error('Conversation summary did not return a settled response')
@@ -415,9 +417,6 @@ export async function executeProviderRequest(
       return cachedFinalResponse
     }
     return provider.executeRequest(modelSafeRequest)
-  }).catch((error: unknown) => {
-    // Providers rewrap their failures; the usage-limit stop must keep its class and billed cost.
-    throw requestRuntimeContext.usageLimitStop ?? error
   })
 
   if (cachedFinalResponse) return cachedFinalResponse

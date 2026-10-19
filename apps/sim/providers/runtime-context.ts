@@ -6,7 +6,6 @@ import {
   durableSecretProvenanceFromRegistry,
   importDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
-import type { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import type { AgentConversationSession } from '@/lib/memory/conversation-types'
 import {
   AGENT_MEMORY_RETRIEVAL_TOOL_ID,
@@ -45,8 +44,6 @@ export interface ProviderRuntimeContext {
   failedFunctionToolCost?: { total: number }
   /** Billed cost of this request's settled model steps and tool calls, charged if the run stops it. */
   settledCost?: TokenUsageCost
-  /** The usage-limit stop this request threw, rethrown as is past a provider's error wrapping. */
-  usageLimitStop?: NonRetryableExecutionError
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -134,8 +131,10 @@ function accumulateToolCost(
 ): void {
   const total = toolCostTotal(result)
   if (total === 0 || !runtime) return
-  if (runtime.settledCost) runtime.settledCost.total += total
-  if (toolId === 'function_execute' && !result.success && runtime.failedFunctionToolCost) {
+  const failedFunction = toolId === 'function_execute' && !result.success
+  // A stop bills what success would: successful tool results plus failed Function runs.
+  if (runtime.settledCost && (result.success || failedFunction)) runtime.settledCost.total += total
+  if (failedFunction && runtime.failedFunctionToolCost) {
     runtime.failedFunctionToolCost.total += total
   }
 }

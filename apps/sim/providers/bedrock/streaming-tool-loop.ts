@@ -698,8 +698,8 @@ export function createBedrockStreamingToolLoopStream(
           aborted: loopAbortController.signal.aborted,
           consumerCancelled,
           error,
-          onUnexpectedError: (cause) =>
-            logger.error('Bedrock streaming tool loop failed', {
+          onUnexpectedError: (cause, level) =>
+            logger[level]('Bedrock streaming tool loop failed', {
               error: toError(cause).message,
             }),
         })

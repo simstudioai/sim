@@ -37,18 +37,24 @@ vi.mock('@/providers/cost-policy', () => ({
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/attribution'
 import { resetMidRunUsageCaches } from '@/lib/billing/core/mid-run-usage'
 import { NEAR_LIMIT_USAGE_GATE_TTL_MS } from '@/lib/billing/core/usage-gate-cache'
+import { markFailureKind } from '@/lib/core/errors/failure-log'
 import { isNonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
 import type { ExecutionContext } from '@/executor/types'
 import { readTrustedExecutionCost } from '@/executor/utils/errors'
 import { executeProviderRequest } from '@/providers'
-import { prepareConversationGeneration } from '@/providers/conversation-generation'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
 import {
   bindConversationRequestContext,
   captureProviderConversationStep,
+  getConfiguredConversationToolBinding,
   recordProviderConversationUsage,
 } from '@/providers/conversation-history'
 import { executeProviderTool } from '@/providers/runtime-context'
+import { providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
 import { ProviderError, type ProviderRequest } from '@/providers/types'
 
 const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
@@ -118,15 +124,17 @@ describe('run usage limit', () => {
     const error = await stop.catch((caught: unknown) => caught)
     expect(isNonRetryableExecutionError(error)).toBe(true)
     expect(readTrustedExecutionCost(error)).toEqual({ input: 1, output: 1, total: 2 })
+    expect(providerFailureLogLevel(error, undefined)).toBe('info')
   })
 
-  it('keeps the stop, unretried and billed, through a provider that rewraps its failures', async () => {
+  it('keeps the stop, unretried and billed, through the passthrough every provider wraps failures with', async () => {
     mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
       try {
         await modelStep(request, 1, 1)
         await modelStep(request, 1, 1)
         return { content: '', model: request.model }
       } catch (error) {
+        if (isConversationContextError(error)) throw error
         throw new ProviderError(getErrorMessage(error), {
           startTime: '',
           endTime: '',
@@ -145,7 +153,7 @@ describe('run usage limit', () => {
     expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2 })
   })
 
-  it("charges a conversation summary's steps to the request that compacted", async () => {
+  it("adds a nested request's steps to the settled cost its caller passes in", async () => {
     const parentCost = { input: 0, output: 0, total: 0 }
     mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
       await modelStep(request, 0.5, 0.25)
@@ -193,6 +201,54 @@ describe('run usage limit', () => {
 
     expect(isNonRetryableExecutionError(failure)).toBe(true)
     expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2 })
+  })
+
+  it('bills a retried pending tool call once, through the journal that records it', async () => {
+    const tool = { id: 'search', name: 'search', description: 'search', params: {} }
+    const session = new AgentTurnStateMachine(
+      { save: vi.fn() },
+      {
+        version: 1,
+        steps: [
+          {
+            id: 'interrupted-step',
+            assistant: { role: 'assistant', content: '' },
+            calls: [
+              {
+                invocationId: 'call-1',
+                toolId: 'search',
+                arguments: '{}',
+                configuredToolBinding: getConfiguredConversationToolBinding(tool),
+              },
+            ],
+            results: [],
+            usage: { input: 1, output: 1 },
+            cost: { input: 1, output: 1, total: 2 },
+          },
+        ],
+      }
+    )
+    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { cost: { total: 0.25 } } })
+    const run = startRun()
+    run.unrecordedModelCost = { total: 2 }
+    mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
+      await prepareConversationGeneration(request, 'anthropic', { messages: [] })
+      return { content: '', model: request.model }
+    })
+
+    const failure = await executeProviderRequest(
+      'anthropic',
+      {
+        model: 'model-a',
+        workflowId: 'workflow-1',
+        messages: [{ role: 'user', content: 'Continue' }],
+        tools: [tool],
+      },
+      { executionContext: run, agentConversation: session }
+    ).catch((caught: unknown) => caught)
+
+    expect(isNonRetryableExecutionError(failure)).toBe(true)
+    expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2.25 })
   })
 
   it('counts every block of the run, not only the request that is running', async () => {
@@ -363,10 +419,14 @@ describe('run usage limit', () => {
   })
 
   it('bills the stopped block for the tool calls it already settled', async () => {
-    mockExecuteTool.mockResolvedValueOnce({ success: true, output: { cost: { total: 0.25 } } })
+    mockExecuteTool
+      .mockResolvedValueOnce({ success: true, output: { cost: { total: 0.25 } } })
+      .mockResolvedValueOnce({ success: false, output: { cost: { total: 0.5 } } })
     mockExecuteRequest.mockImplementation(async (request: ProviderRequest) => {
       await modelStep(request, 1, 1)
       await executeProviderTool('search', {})
+      // A successful block never bills a failed workflow tool's cost, so neither does the stop.
+      await executeProviderTool('workflow_executor', {})
       await prepareConversationGeneration(request, 'anthropic', { messages: [] })
       return { content: '', model: request.model }
     })
@@ -378,6 +438,14 @@ describe('run usage limit', () => {
     ).catch((caught: unknown) => caught)
 
     expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2.25 })
+  })
+
+  it("logs a run timeout at warn even when another block's failure attributed the reason to the user", () => {
+    const controller = new AbortController()
+    controller.abort(new DOMException('timeout', 'AbortError'))
+    markFailureKind(controller.signal.reason, 'user')
+
+    expect(providerFailureLogLevel(controller.signal.reason, controller.signal)).toBe('warn')
   })
 
   it('reads no usage on a self-hosted deployment', async () => {
