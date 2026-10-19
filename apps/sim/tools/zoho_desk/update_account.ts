@@ -147,7 +147,7 @@ export const zohoDeskUpdateAccountTool: ToolConfig<
         cf: parseZohoDeskJson(params.accountCustomFields, 'accountCustomFields', 'object'),
         city: params.accountCity,
         street: params.accountStreet,
-        annualrevenue: params.accountAnnualrevenue,
+        annualrevenue: params.accountAnnualrevenue?.toString(),
         description: params.accountDescription,
         industry: params.accountIndustry,
         state: params.accountState,
