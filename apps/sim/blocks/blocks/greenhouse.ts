@@ -695,6 +695,7 @@ export const GreenhouseV2Block: BlockConfig = {
       type: 'oauth-input',
       canonicalParamId: 'oauthCredential',
       serviceId: 'greenhouse',
+      credentialKind: 'any',
       requiredScopes: getScopesForService('greenhouse'),
       placeholder: 'Select Greenhouse account',
       required: true,

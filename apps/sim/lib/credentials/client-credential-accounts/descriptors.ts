@@ -119,6 +119,7 @@ export const FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID = 'fivetran-service-account' a
 export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
 export const ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-epm-service-account' as const
 export const ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID = 'oracle-fusion-service-account' as const
+export const GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID = 'greenhouse-service-account' as const
 
 /** Permissions requested when connecting a Manage Vanta application. */
 export const VANTA_PERMISSION_OPTIONS = [
@@ -141,6 +142,7 @@ export type ClientCredentialAccountProviderId =
   | typeof FIVETRAN_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID
 
 /**
  * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
@@ -399,6 +401,26 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/ramp',
+  },
+  [GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GREENHOUSE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Greenhouse',
+    connectNoun: 'API credential',
+    fields: [
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the client ID',
+        secret: false,
+      },
+      {
+        id: 'clientSecret',
+        label: 'Client secret',
+        placeholder: 'Paste the client secret',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/greenhouse',
   },
   [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
