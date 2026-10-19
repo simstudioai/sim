@@ -1,7 +1,8 @@
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
 
 setEnv({
@@ -160,6 +161,40 @@ describe('proxy on the dedicated MCP host', () => {
   )
 })
 
+describe('proxy indexing policy', () => {
+  afterEach(resetEnvFlagsMock)
+
+  const robotsTag = (pathname: string) =>
+    proxy(new NextRequest(`https://self-hosted.example${pathname}`)).headers.get('X-Robots-Tag')
+
+  it('keeps the marketing pages of a self-hosted deployment out of search results', () => {
+    setEnvFlags({ isHosted: false })
+    expect(robotsTag('/comparisons/n8n')).toBe('noindex, nofollow')
+    expect(robotsTag('/pricing')).toBe('noindex, nofollow')
+  })
+
+  it('keeps the marketing documents of a self-hosted deployment out of search results', () => {
+    setEnvFlags({ isHosted: false })
+    expect(robotsTag('/llms.txt')).toBe('noindex, nofollow')
+    expect(robotsTag('/llms-full.txt')).toBe('noindex, nofollow')
+    expect(robotsTag('/changelog.xml')).toBe('noindex, nofollow')
+  })
+
+  it('leaves the marketing pages and documents of the hosted deployment indexable', () => {
+    setEnvFlags({ isHosted: true })
+    expect(robotsTag('/comparisons/n8n')).toBeNull()
+    expect(robotsTag('/pricing')).toBeNull()
+    expect(robotsTag('/llms.txt')).toBeNull()
+    expect(robotsTag('/llms-full.txt')).toBeNull()
+    expect(robotsTag('/changelog.xml')).toBeNull()
+  })
+
+  it('leaves a self-hosted non-landing public page indexable', () => {
+    setEnvFlags({ isHosted: false })
+    expect(robotsTag('/login')).toBeNull()
+  })
+})
+
 describe('proxy matcher', () => {
   const matches = (path: string) =>
     unstable_doesMiddlewareMatch({ config, url: `https://sim.test${path}` })
@@ -172,6 +207,12 @@ describe('proxy matcher', () => {
   it('leaves the document snapshot persists unbuffered, so a whole snapshot reaches the route', () => {
     expect(matches('/api/internal/file-doc/persist')).toBe(false)
     expect(matches('/api/internal/project-file-doc/project-1/file-1/persist')).toBe(false)
+  })
+
+  it('runs for the marketing documents, so the indexing policy reaches them', () => {
+    expect(matches('/llms.txt')).toBe(true)
+    expect(matches('/llms-full.txt')).toBe(true)
+    expect(matches('/changelog.xml')).toBe(true)
   })
 
   it('still runs for every other API route', () => {
