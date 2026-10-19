@@ -4,7 +4,7 @@ import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/
  * `In-Reply-To` header — a value every recipient of the agent's reply holds. Against
  * real PostgreSQL, a reply delivered to one workspace's inbox must never reach a chat,
  * task, or transcript owned by another workspace, while a reply inside the workspace
- * still continues its thread. The webhook is signed with the real Svix scheme.
+ * still continues its thread. The webhook is signed per the Standard Webhooks spec.
  */
 import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
 import {
@@ -40,6 +40,7 @@ vi.mock('@/lib/mothership/inbox/executor', () => ({
   executeInboxTask: mockExecuteInboxTask,
 }))
 
+import { createHmac } from 'node:crypto'
 import { db } from '@sim/db'
 import {
   copilotChats,
@@ -53,7 +54,6 @@ import {
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
-import { Webhook } from 'svix'
 import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
 import { buildPersistedUserMessage } from '@/lib/mothership/chat/persisted-message'
 import { POST } from '@/app/api/webhooks/agentmail/route'
@@ -142,15 +142,19 @@ async function deliver(
     },
   })
   const svixId = `msg_${generateId()}`
-  const timestamp = new Date()
+  const timestamp = String(Math.floor(Date.now() / 1000))
+  const key = Buffer.from(ws.secret.slice('whsec_'.length), 'base64')
+  const signature = createHmac('sha256', key)
+    .update(`${svixId}.${timestamp}.${body}`)
+    .digest('base64')
   return POST(
     new NextRequest('http://localhost:3000/api/webhooks/agentmail', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'svix-id': svixId,
-        'svix-timestamp': String(Math.floor(timestamp.getTime() / 1000)),
-        'svix-signature': new Webhook(ws.secret).sign(svixId, timestamp, body),
+        'svix-timestamp': timestamp,
+        'svix-signature': `v1,${signature}`,
       },
       body,
     }),

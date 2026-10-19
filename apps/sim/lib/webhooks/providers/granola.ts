@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { hmacSha256Base64 } from '@sim/security/hmac'
+import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -20,50 +19,8 @@ const logger = createLogger('WebhookProvider:Granola')
 
 const GRANOLA_WEBHOOK_ENDPOINTS_URL = 'https://public-api.granola.ai/v1/webhook-endpoints'
 
-/** Granola advises rejecting deliveries whose timestamp is more than a few minutes old. */
-const GRANOLA_WEBHOOK_TIMESTAMP_SKEW_SECONDS = 5 * 60
-
 /** Scopes used when the trigger leaves the field blank. */
 const DEFAULT_GRANOLA_SCOPES = ['personal', 'public']
-
-/**
- * Verify a Granola webhook signature using the Standard Webhooks scheme:
- * HMAC-SHA256 of `${webhook-id}.${webhook-timestamp}.${body}` keyed with the
- * base64-decoded signing secret (after the `whsec_` prefix), compared against
- * the `webhook-signature` header which may carry one or more space-separated
- * `v1,<base64sig>` entries.
- * @see https://docs.granola.ai/webhooks
- */
-function verifyGranolaSignature(
-  secret: string,
-  msgId: string,
-  timestamp: string,
-  signatures: string,
-  rawBody: string
-): boolean {
-  try {
-    const ts = Number.parseInt(timestamp, 10)
-    const now = Math.floor(Date.now() / 1000)
-    if (Number.isNaN(ts) || Math.abs(now - ts) > GRANOLA_WEBHOOK_TIMESTAMP_SKEW_SECONDS) {
-      return false
-    }
-
-    const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
-    const expectedSignature = hmacSha256Base64(`${msgId}.${timestamp}.${rawBody}`, secretBytes)
-
-    for (const versionedSig of signatures.split(' ')) {
-      const parts = versionedSig.split(',')
-      if (parts.length !== 2) continue
-      if (parts[0] === 'v1' && safeCompare(parts[1], expectedSignature)) {
-        return true
-      }
-    }
-    return false
-  } catch (error) {
-    logger.error('Error verifying Granola webhook signature:', error)
-    return false
-  }
-}
 
 /**
  * Parse a comma-separated or JSON-array trigger field into a string list.
@@ -187,19 +144,19 @@ export const granolaHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Granola signing secret is required', { status: 401 })
     }
 
-    const webhookId = request.headers.get('webhook-id')
-    const webhookTimestamp = request.headers.get('webhook-timestamp')
-    const webhookSignature = request.headers.get('webhook-signature')
-
-    if (!webhookId || !webhookTimestamp || !webhookSignature) {
-      logger.warn(`[${requestId}] Granola webhook missing Standard Webhooks signature headers`)
-      return new NextResponse('Unauthorized - Missing Granola signature headers', { status: 401 })
-    }
-
-    if (
-      !verifyGranolaSignature(signingSecret, webhookId, webhookTimestamp, webhookSignature, rawBody)
-    ) {
-      logger.warn(`[${requestId}] Granola signature verification failed`)
+    const verification = verifyStandardWebhook({
+      secret: signingSecret,
+      rawBody,
+      headers: request.headers,
+    })
+    if (!verification.valid) {
+      if (verification.reason === 'missing_headers') {
+        logger.warn(`[${requestId}] Granola webhook missing Standard Webhooks signature headers`)
+        return new NextResponse('Unauthorized - Missing Granola signature headers', { status: 401 })
+      }
+      logger.warn(`[${requestId}] Granola signature verification failed`, {
+        reason: verification.reason,
+      })
       return new NextResponse('Unauthorized - Invalid Granola signature', { status: 401 })
     }
 
