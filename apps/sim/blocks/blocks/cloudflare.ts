@@ -5299,7 +5299,7 @@ export const CloudflareBlock: BlockConfig = {
       description: 'JSON array. rules Fields: allowed, exposeHeaders, id, maxAgeSeconds.',
     },
     r2BucketLifecycleRules: {
-      type: 'json',
+      type: 'string',
       description:
         'Complete JSON array of lifecycle rules. Read the current rules first and include every rule to retain. Use [] only to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions.',
     },

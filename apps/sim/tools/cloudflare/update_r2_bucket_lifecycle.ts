@@ -40,7 +40,7 @@ export const updateR2BucketLifecycleTool: ToolConfig<
       description: 'Cloudflare API token',
     },
     rules: {
-      type: 'json',
+      type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
