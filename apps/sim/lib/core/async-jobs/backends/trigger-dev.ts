@@ -9,6 +9,7 @@ import { ApiError, runs, type TriggerOptions, tasks } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import { getRecordedJobFailureError } from '@/lib/core/async-jobs/recorded-failure'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { measureTriggerAcceptance } from '@/lib/core/async-jobs/trigger-acceptance'
 import {
   AsyncJobEnqueueError,
   type EnqueueOptions,
@@ -412,7 +413,9 @@ export class TriggerDevJobQueue implements JobQueueBackend {
 
     let handle: Awaited<ReturnType<typeof tasks.trigger>>
     try {
-      handle = await tasks.trigger(taskId, enrichedPayload, triggerOptions)
+      handle = await measureTriggerAcceptance(taskId, () =>
+        tasks.trigger(taskId, enrichedPayload, triggerOptions)
+      )
     } catch (error) {
       throw classifyTriggerEnqueueError(error)
     }
