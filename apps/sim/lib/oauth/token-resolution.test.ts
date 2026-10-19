@@ -502,6 +502,7 @@ describe('ordinary tool credential binding', () => {
     ['oracle-fusion', 'oracle-fusion-service-account'],
     ['vanta', 'vanta-service-account'],
     ['ramp', 'ramp-service-account'],
+    ['greenhouse', 'greenhouse-service-account'],
     ['google-email', 'google-service-account'],
     ['jira', 'atlassian-service-account'],
     ['confluence', 'atlassian-service-account'],

@@ -8,6 +8,8 @@ import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { ShareButton } from '@/app/(landing)/components/share-button'
+import { getModelComparisonsFor } from '@/app/(landing)/models/comparisons'
+import { ComparisonLinks } from '@/app/(landing)/models/components/comparison-links'
 import { FeaturedModelCard, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
   buildModelCapabilityFacts,
@@ -17,6 +19,9 @@ import {
   formatUpdatedAt,
   getEffectiveMaxOutputTokens,
   getModelBySlug,
+  getModelPageDescription,
+  getModelPageName,
+  getModelPageTitle,
   getPricingBounds,
   getProviderBySlug,
   getRelatedModels,
@@ -38,14 +43,6 @@ export async function generateStaticParams() {
   )
 }
 
-/**
- * Model name qualified by its reseller ("Claude Opus 4.7 on AWS Bedrock"), so a reseller's page is
- * distinguishable from the first-party page for the same model in titles and the H1.
- */
-function hostedModelName(provider: { name: string; isReseller: boolean }, displayName: string) {
-  return provider.isReseller ? `${displayName} on ${provider.name}` : displayName
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -59,11 +56,12 @@ export async function generateMetadata({
     return {}
   }
 
-  const pageName = hostedModelName(provider, model.displayName)
+  const title = getModelPageTitle(provider, model)
+  const description = getModelPageDescription(provider, model)
 
   return {
-    title: `${pageName} Pricing, Context Window, and Features`,
-    description: `${model.displayName} by ${provider.name}: pricing, cached input cost, output cost, context window, and capability support. Explore the full generated model page on Sim.`,
+    title,
+    description,
     keywords: [
       model.displayName,
       `${model.displayName} pricing`,
@@ -76,14 +74,14 @@ export async function generateMetadata({
     // og:image/twitter:image come from the sibling opengraph-image.tsx -
     // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
-      title: `${pageName} Pricing, Context Window, and Features | Sim`,
-      description: `${model.displayName} by ${provider.name}: pricing, context window, and model capability details.`,
+      title: `${title} | Sim`,
+      description,
       url: `${baseUrl}${model.href}`,
       type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${pageName} | Sim`,
+      title: `${title} | Sim`,
       description: model.summary,
     },
     alternates: {
@@ -109,6 +107,7 @@ export default async function ModelPage({
   const capabilityFacts = buildModelCapabilityFacts(model)
   const pricingBounds = getPricingBounds(model.pricing)
   const relatedModels = getRelatedModels(model, 6)
+  const comparisons = getModelComparisonsFor(model)
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -181,7 +180,7 @@ export default async function ModelPage({
                 id='model-heading'
                 className='text-[28px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
               >
-                {hostedModelName(provider, model.displayName)}
+                {getModelPageName(provider, model)}
               </h1>
             </div>
           </div>
@@ -195,7 +194,7 @@ export default async function ModelPage({
             <ChipLink variant='primary' href='/'>
               Build with this model
             </ChipLink>
-            <ChipLink href={provider.href} className='border border-[var(--border-1)]'>
+            <ChipLink href={provider.href} variant='outline'>
               All {provider.name} models
             </ChipLink>
             <ShareButton url={`${baseUrl}${model.href}`} title={model.displayName} />
@@ -269,6 +268,21 @@ export default async function ModelPage({
                   {relatedModels.slice(0, 3).map((entry) => (
                     <FeaturedModelCard key={entry.id} provider={provider} model={entry} />
                   ))}
+                </nav>
+              </>
+            )}
+
+            {comparisons.length > 0 && (
+              <>
+                <div className='h-px w-full bg-[var(--border)]' />
+                <nav aria-labelledby='model-comparisons-heading' className='px-6 py-10'>
+                  <h2
+                    id='model-comparisons-heading'
+                    className='mb-6 text-[24px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] max-lg:text-[20px]'
+                  >
+                    Compare {model.displayName}
+                  </h2>
+                  <ComparisonLinks comparisons={comparisons} />
                 </nav>
               </>
             )}

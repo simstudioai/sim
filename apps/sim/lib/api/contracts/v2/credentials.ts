@@ -233,6 +233,7 @@ export const v2ListCredentialProvidersContract = defineRouteContract({
 })
 
 export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
+  'greenhouse',
   'github-repositories',
   'google-email',
   'google-drive',

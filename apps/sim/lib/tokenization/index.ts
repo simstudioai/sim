@@ -16,7 +16,6 @@ export { processStreamingBlockLog, processStreamingBlockLogs } from '@/lib/token
 export {
   extractTextContent,
   formatTokenCount,
-  getProviderConfig,
   getProviderForTokenization,
   hasRealCostData,
   hasRealTokenData,

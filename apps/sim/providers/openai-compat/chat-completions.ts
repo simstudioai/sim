@@ -30,7 +30,11 @@ import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compa
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
@@ -703,7 +707,10 @@ export async function executeChatCompletionRequest(
       }
     }
 
-    logger.error(`Error in ${providerName} request:`, errorDetails)
+    logger[providerFailureLogLevel(error, request.abortSignal)](
+      `Error in ${providerName} request:`,
+      errorDetails
+    )
     if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }

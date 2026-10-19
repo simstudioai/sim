@@ -23,6 +23,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   'google-sheets': 'google-service-account',
   'google-tasks': 'google-service-account',
   'google-vault': 'google-service-account',
+  greenhouse: 'greenhouse-service-account',
   hubspot: 'hubspot-service-account',
   jira: 'atlassian-service-account',
   linear: 'linear-service-account',

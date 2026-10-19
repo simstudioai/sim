@@ -9,7 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
 import { toAnthropicModelUsage } from '@/providers/anthropic/usage'
 import { GEO_PROFILE_PREFIX_PATTERN, getBedrockBaseModelId } from '@/providers/bedrock/model-id'
-import type { ModelUsage } from '@/providers/cost-policy'
+import type { ModelUsage } from '@/providers/pricing'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
 

@@ -407,6 +407,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   grain_v2: GrainIcon,
   granola: GranolaIcon,
   greenhouse: GreenhouseIcon,
+  greenhouse_v2: GreenhouseIcon,
   greptile: GreptileIcon,
   harmonic: HarmonicIcon,
   hex: HexIcon,

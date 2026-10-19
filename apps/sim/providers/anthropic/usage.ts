@@ -1,5 +1,6 @@
 import type { BlockTokens } from '@/executor/types'
-import { LIST_PRICE_POLICY, type ModelUsage, priceModelUsage } from '@/providers/cost-policy'
+import { LIST_PRICE_POLICY, priceModelUsage } from '@/providers/cost-policy'
+import type { ModelUsage } from '@/providers/pricing'
 import type { ModelPricing } from '@/providers/types'
 
 export interface AnthropicUsageLike {

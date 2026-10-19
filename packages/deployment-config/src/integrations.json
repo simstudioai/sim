@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-17",
+  "updatedAt": "2026-10-18",
   "integrations": [
     {
       "type": "onepassword",
@@ -5497,14 +5497,14 @@
       "slug": "cloudflare",
       "name": "Cloudflare",
       "description": "Manage DNS, WAF, Zero Trust access, and edge infrastructure",
-      "longDescription": "Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging. Configure WAF rulesets, managed rule overrides, and rate limiting rules through the current Rulesets engine. Administer Cloudflare Access (Zero Trust) applications, policies, groups, identity providers, and service tokens, and inspect R2 buckets, Workers scripts and routes, and Cloudflare Tunnels.",
+      "longDescription": "Manage Cloudflare DNS, zones, SSL, cache, and analytics. Configure WAF rulesets and rate limiting; administer Access applications, policies, groups, and service tokens; manage Worker routes and tunnels; and configure R2 buckets, CORS, and lifecycle rules.",
       "bgColor": "#F5F6FA",
       "iconName": "CloudflareIcon",
       "docsUrl": "https://docs.sim.ai/integrations/cloudflare",
       "operations": [
         {
           "name": "List Zones",
-          "description": "Lists all zones (domains) in the Cloudflare account."
+          "description": "Lists one page of zones (domains) in the Cloudflare account."
         },
         {
           "name": "Get Zone Details",
@@ -5535,6 +5535,10 @@
           "description": "Deletes a DNS record from a zone."
         },
         {
+          "name": "Get DNS Record",
+          "description": "Retrieves details for a specific DNS record in the zone."
+        },
+        {
           "name": "List Certificates",
           "description": "Lists SSL/TLS certificate packs for a zone."
         },
@@ -5545,6 +5549,10 @@
         {
           "name": "Update Zone Setting",
           "description": "Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration."
+        },
+        {
+          "name": "Update Zone",
+          "description": "Edits a zone. Only one zone property can be changed at a time."
         },
         {
           "name": "DNS Analytics",
@@ -5585,6 +5593,14 @@
         {
           "name": "List Managed Ruleset Overrides",
           "description": "Lists the WAF managed rulesets deployed on a zone together with the overrides applied to each one. Cloudflare has no dedicated overrides endpoint — overrides live on the \"execute\" rules of the http_request_firewall_managed phase entry point ruleset, which this reads. Requires an API token with Zone WAF Read."
+        },
+        {
+          "name": "Delete Ruleset",
+          "description": "Deletes all versions of an existing zone ruleset."
+        },
+        {
+          "name": "Update Ruleset",
+          "description": "Updates the description and rules of a zone ruleset, creating a new version. Read the current rules with \"Get Ruleset\" before replacing the list. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use \"Create Ruleset Rule\" to add a single rule without replacing the list."
         },
         {
           "name": "List Rate Limiting Rules",
@@ -5628,15 +5644,35 @@
         },
         {
           "name": "Update Access Policy",
-          "description": "Updates a Cloudflare Access (Zero Trust) policy on an application. Cloudflare does not document merge behavior for this PUT, so treat it as a replace: send every rule the policy should keep, because an omitted exclude or require rule may be dropped and widen who gets in. The change applies to live traffic immediately. Read the current policy with \"List Access Policies\" first. Requires an API token with Account Access: Apps and Policies Edit."
+          "description": ""
         },
         {
           "name": "Delete Access Policy",
           "description": "Permanently deletes a Cloudflare Access (Zero Trust) policy from an application. This changes who can reach the application the moment it runs: removing an allow policy locks out everyone it covered, and removing a deny or require policy drops that restriction. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit."
         },
         {
+          "name": "Get Access Policy",
+          "description": "Fetches a single Access policy configured for an application. Returns both exclusively owned and reusable policies used by the application."
+        },
+        {
           "name": "List Access Groups",
           "description": "Lists the reusable Cloudflare Access (Zero Trust) groups in an account. Groups bundle identity rules that policies can reference by ID. Requires an API token with Account Access: Organizations, Identity Providers, and Groups Read."
+        },
+        {
+          "name": "Create Access Group",
+          "description": "Creates a new Access group."
+        },
+        {
+          "name": "Delete Access Group",
+          "description": "Deletes an Access group."
+        },
+        {
+          "name": "Get Access Group",
+          "description": "Fetches a single Access group."
+        },
+        {
+          "name": "Update Access Group",
+          "description": "Updates a configured Access group. Replaces the configuration; resend all values to retain."
         },
         {
           "name": "List Access Identity Providers",
@@ -5653,6 +5689,22 @@
         {
           "name": "Revoke Access Service Token",
           "description": "Permanently deletes a Cloudflare Access (Zero Trust) service token, revoking it. Every machine or integration still presenting that client ID and secret is locked out of the Access-protected applications immediately, and the secret cannot be recovered. This cannot be undone. Requires an API token with Account Access: Service Tokens Edit."
+        },
+        {
+          "name": "Get Access Service Token",
+          "description": "Fetches a single service token."
+        },
+        {
+          "name": "Refresh Access Service Token",
+          "description": "Refreshes the expiration of a service token."
+        },
+        {
+          "name": "Rotate Access Service Token",
+          "description": "Generates a new Client Secret. The previous secret expires immediately unless previous_client_secret_expires_at schedules a later expiration."
+        },
+        {
+          "name": "Update Access Service Token",
+          "description": "Updates a configured service token. Replaces the configuration; resend all values to retain."
         },
         {
           "name": "List R2 Buckets",
@@ -5679,8 +5731,28 @@
           "description": "Reads the deployment settings of a single Workers script — bindings, compatibility date and flags, limits, observability, placement, and tail consumers. The plain \"get script\" endpoint in the Cloudflare API returns raw JavaScript source rather than JSON, so this settings endpoint is the structured way to inspect one script. Requires an API token with Account Workers Scripts Read."
         },
         {
+          "name": "Delete Worker Script",
+          "description": "Delete your worker. This call has no response body on a successful delete."
+        },
+        {
           "name": "List Worker Routes",
           "description": "Lists the Workers routes on a zone, showing which URL patterns are handled by which Worker script. Unlike the Workers script endpoints, routes are zone-scoped. Requires an API token with Zone Workers Routes Read."
+        },
+        {
+          "name": "Create Worker Route",
+          "description": "Creates a route that maps a URL pattern to a Worker."
+        },
+        {
+          "name": "Delete Worker Route",
+          "description": "Deletes a Worker route."
+        },
+        {
+          "name": "Get Worker Route",
+          "description": "Returns information about a Worker route, including URL pattern and Worker."
+        },
+        {
+          "name": "Update Worker Route",
+          "description": "Replaces the URL pattern or Worker associated with a Worker route. Replaces the configuration; resend all values to retain."
         },
         {
           "name": "List Tunnels",
@@ -5693,16 +5765,56 @@
         {
           "name": "Get Tunnel Configuration",
           "description": "Reads the configuration of a remotely-managed Cloudflare Tunnel — its ingress rules, origin request settings, and WARP routing. Only tunnels whose configuration source is \"cloudflare\" have a remote configuration; locally-managed tunnels keep it in their own config file. Requires an API token with Account Cloudflare Tunnel Read."
+        },
+        {
+          "name": "Update Tunnel Configuration",
+          "description": "Replaces the configuration for a remotely managed Cloudflare Tunnel, including its ingress rules and origin request settings. Replaces the configuration; resend all values to retain."
+        },
+        {
+          "name": "Create Tunnel",
+          "description": "Creates a remotely or locally managed Cloudflare Tunnel in an account. After creation, retrieve its token and run cloudflared to establish the connector connection."
+        },
+        {
+          "name": "Delete Tunnel",
+          "description": "Permanently deletes a Cloudflare Tunnel from an account. The tunnel must have no active connections."
+        },
+        {
+          "name": "Delete R2 Bucket CORS",
+          "description": "Delete the CORS policy for a bucket."
+        },
+        {
+          "name": "Get R2 Bucket CORS",
+          "description": "Get the CORS policy for a bucket."
+        },
+        {
+          "name": "Update R2 Bucket CORS",
+          "description": "Replaces the Cross-Origin Resource Sharing (CORS) rules for an R2 bucket. Rules specify which origins, methods, and headers are allowed for browser requests to objects in the bucket. Replaces the configuration; resend all values to retain."
+        },
+        {
+          "name": "Get R2 Bucket Lifecycle",
+          "description": "Get object lifecycle rules for a bucket."
+        },
+        {
+          "name": "Update R2 Bucket Lifecycle",
+          "description": "Replaces the object lifecycle rules for an R2 bucket. Rules match object-key prefixes and can expire objects, abort incomplete multipart uploads, or transition objects to Infrequent Access storage. Replaces the configuration; resend all values to retain."
+        },
+        {
+          "name": "Get Tunnel Token",
+          "description": "Gets the connector token used to run a remotely managed Cloudflare Tunnel with cloudflared."
+        },
+        {
+          "name": "Update Tunnel",
+          "description": "Updates the name or secret of an existing Cloudflare Tunnel."
         }
       ],
-      "operationCount": 48,
+      "operationCount": 76,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "cloudformation",
@@ -12200,11 +12312,11 @@
       "updatedAt": "2026-08-20"
     },
     {
-      "type": "greenhouse",
+      "type": "greenhouse_v2",
       "slug": "greenhouse",
       "name": "Greenhouse",
-      "description": "Manage candidates, jobs, and applications in Greenhouse",
-      "longDescription": "List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.",
+      "description": "Manage recruiting with Greenhouse Harvest v3",
+      "longDescription": "Read and manage candidates, applications, notes, attachments, and tags with Harvest v3 OAuth. Retrieve jobs, hiring teams, interviews, scorecards, offers, and configuration resources with cursor pagination. Existing Greenhouse webhooks remain available.",
       "bgColor": "#469776",
       "iconName": "GreenhouseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/greenhouse",
@@ -12218,12 +12330,16 @@
           "description": "Retrieves a specific candidate by ID with full details including contact info, education, and employment history"
         },
         {
-          "name": "List Jobs",
-          "description": "Lists jobs from Greenhouse with optional filtering by status, department, or office"
+          "name": "Create Candidate",
+          "description": "Creates a candidate profile and optionally its first application."
         },
         {
-          "name": "Get Job",
-          "description": "Retrieves a specific job by ID with full details including hiring team, openings, and custom fields"
+          "name": "Update Candidate",
+          "description": "Updates selected candidate fields. Read the current candidate first: supplied arrays replace the entire existing collection. Send the complete desired array, or [] to remove all entries."
+        },
+        {
+          "name": "Delete Candidate",
+          "description": "Delete candidate using Greenhouse Harvest v3."
         },
         {
           "name": "List Applications",
@@ -12232,6 +12348,126 @@
         {
           "name": "Get Application",
           "description": "Retrieves a specific application by ID with full details including source, stage, answers, and attachments"
+        },
+        {
+          "name": "Create Application",
+          "description": "Creates a job application or prospect application for an existing candidate."
+        },
+        {
+          "name": "Update Application",
+          "description": "Update application using Greenhouse Harvest v3."
+        },
+        {
+          "name": "Move Application",
+          "description": "Moves or advances an application using its current stage as a guard; configured stage rules may send emails."
+        },
+        {
+          "name": "Convert Prospect",
+          "description": "Converts a prospect application into a new candidate application on a job already associated with the prospect."
+        },
+        {
+          "name": "Reject Application",
+          "description": "Rejects an application; optionally sends or schedules the configured rejection email."
+        },
+        {
+          "name": "Unreject Application",
+          "description": "Restores a rejected application to its previous stage and clears its rejection reason and notes."
+        },
+        {
+          "name": "Hire Application",
+          "description": "Marks an application hired and closes its opening; provide opening_id when the job has multiple open openings."
+        },
+        {
+          "name": "Delete Application",
+          "description": "Delete application using Greenhouse Harvest v3."
+        },
+        {
+          "name": "List Jobs",
+          "description": "Lists jobs from Greenhouse with optional filtering by status, department, or office"
+        },
+        {
+          "name": "Get Job",
+          "description": "Retrieves a specific job by ID with full details including hiring team, openings, and custom fields"
+        },
+        {
+          "name": "List Job Interview Stages",
+          "description": "Lists one page of job interview stages with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Application Stages",
+          "description": "Lists one page of application stages with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Job Hiring Managers",
+          "description": "Lists one page of job hiring managers with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Job Owners",
+          "description": "Lists one page of job owners with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Openings",
+          "description": "Lists one page of openings with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Interviews",
+          "description": "Lists one page of interviews with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Scorecards",
+          "description": "Lists one page of scorecards with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Offers",
+          "description": "Lists one page of offers with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Notes",
+          "description": "Lists one page of notes with cursor pagination and documented filters."
+        },
+        {
+          "name": "Create Note",
+          "description": "Creates a candidate note or activity entry, or logs an email without sending it."
+        },
+        {
+          "name": "List Attachments",
+          "description": "Lists one page of attachments with cursor pagination and documented filters."
+        },
+        {
+          "name": "Create Attachment",
+          "description": "Attaches a file to an application. A new resume or cover letter reclassifies the previous attachment of that type as other."
+        },
+        {
+          "name": "Delete Attachment",
+          "description": "Delete attachment using Greenhouse Harvest v3."
+        },
+        {
+          "name": "List Candidate Tags",
+          "description": "Lists one page of candidate tags with cursor pagination and documented filters."
+        },
+        {
+          "name": "Create Candidate Tag",
+          "description": "Create candidate tag using Greenhouse Harvest v3."
+        },
+        {
+          "name": "List Applied Candidate Tags",
+          "description": "Lists one page of applied candidate tags with cursor pagination and documented filters."
+        },
+        {
+          "name": "Apply Candidate Tag",
+          "description": "Apply candidate tag using Greenhouse Harvest v3."
+        },
+        {
+          "name": "Remove Candidate Tag",
+          "description": "Removes an applied tag by its applied_candidate_tags row ID, leaving the tag dictionary intact."
+        },
+        {
+          "name": "List Candidate Educations",
+          "description": "Lists one page of candidate educations with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Candidate Employments",
+          "description": "Lists one page of candidate employments with cursor pagination and documented filters."
         },
         {
           "name": "List Users",
@@ -12250,11 +12486,43 @@
           "description": "Lists all offices configured in Greenhouse"
         },
         {
-          "name": "List Job Stages",
-          "description": "Lists all interview stages for a specific job in Greenhouse"
+          "name": "List Sources",
+          "description": "Lists one page of sources with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Referrers",
+          "description": "Lists one page of referrers with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Rejection Reasons",
+          "description": "Lists one page of rejection reasons with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Close Reasons",
+          "description": "Lists one page of close reasons with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Prospect Pools",
+          "description": "Lists one page of prospect pools with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Prospect Pool Stages",
+          "description": "Lists one page of prospect pool stages with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Custom Fields",
+          "description": "Lists one page of custom fields with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Custom Field Options",
+          "description": "Lists one page of custom field options with cursor pagination and documented filters."
+        },
+        {
+          "name": "List Email Templates",
+          "description": "Lists one page of email templates with cursor pagination and documented filters."
         }
       ],
-      "operationCount": 11,
+      "operationCount": 50,
       "triggers": [
         {
           "id": "greenhouse_candidate_hired",
@@ -12298,11 +12566,12 @@
         }
       ],
       "triggerCount": 8,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "greenhouse",
       "category": "tools",
       "integrationType": "hr",
       "tags": ["hiring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "greptile",
@@ -16533,8 +16802,8 @@
       "type": "microsoft_excel_v2",
       "slug": "microsoft-excel",
       "name": "Microsoft Excel",
-      "description": "Read and write data with sheet selection",
-      "longDescription": "Read and write data in selected worksheets.",
+      "description": "Manage worksheets, tables, rows, and workbook sessions",
+      "longDescription": "Read and write values and formulas, manage worksheets and table rows, format ranges, and calculate workbooks with persistent or temporary sessions.",
       "bgColor": "#FFFFFF",
       "iconName": "MicrosoftExcelIcon",
       "docsUrl": "https://docs.sim.ai/integrations/microsoft_excel",
@@ -16561,14 +16830,82 @@
         },
         {
           "name": "Sort Range",
-          "description": "Sort a range or table by a column in a Microsoft Excel worksheet"
+          "description": "Sort a range or table by one or more fields in a Microsoft Excel worksheet"
         },
         {
           "name": "Delete Worksheet",
           "description": "Delete a worksheet (sheet) from a Microsoft Excel workbook"
+        },
+        {
+          "name": "Add Table Rows",
+          "description": "Add new rows to a Microsoft Excel table"
+        },
+        {
+          "name": "Add Worksheet",
+          "description": "Create a new worksheet (sheet) in a Microsoft Excel workbook"
+        },
+        {
+          "name": "List Worksheets",
+          "description": "List Worksheets in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Get Worksheet",
+          "description": "Get Worksheet in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Update Worksheet",
+          "description": "Update Worksheet in a Microsoft Excel workbook."
+        },
+        {
+          "name": "List Tables",
+          "description": "List Tables in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Get Table",
+          "description": "Get Table in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Update Table",
+          "description": "Update Table in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Delete Table",
+          "description": "Delete Table in a Microsoft Excel workbook."
+        },
+        {
+          "name": "List Table Rows",
+          "description": "List Table Rows in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Get Table Row",
+          "description": "Get Table Row in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Update Table Row",
+          "description": "Update Table Row in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Delete Table Row",
+          "description": "Delete Table Row in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Create Session",
+          "description": "Create Session in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Refresh Session",
+          "description": "Refresh Session in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Close Session",
+          "description": "Close Session in a Microsoft Excel workbook."
+        },
+        {
+          "name": "Calculate Workbook",
+          "description": "Calculate in a Microsoft Excel workbook."
         }
       ],
-      "operationCount": 7,
+      "operationCount": 24,
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
@@ -16576,7 +16913,7 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["spreadsheet", "microsoft-365"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "intune",
@@ -29980,8 +30317,8 @@
       "type": "zoho_desk",
       "slug": "zoho-desk",
       "name": "Zoho Desk",
-      "description": "Manage Zoho Desk tickets, comments, threads, and contacts",
-      "longDescription": "Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Trigger workflows from Zoho Desk webhook events.",
+      "description": "Manage Zoho Desk tickets, replies, contacts, and accounts",
+      "longDescription": "Create, search, and update Zoho Desk tickets, contacts, and accounts; send email replies, manage comments, inspect departments and agents, and download attachments. Trigger workflows from Zoho Desk webhook events.",
       "bgColor": "#FFFFFF",
       "iconName": "ZohoDeskIcon",
       "docsUrl": "https://docs.sim.ai/integrations/zoho_desk",
@@ -30025,9 +30362,89 @@
         {
           "name": "List Organizations",
           "description": "List the Zoho Desk organizations (portals) the connected account can access."
+        },
+        {
+          "name": "Create Ticket",
+          "description": "Create Ticket in Zoho Desk."
+        },
+        {
+          "name": "Search Tickets",
+          "description": "Search Tickets in Zoho Desk."
+        },
+        {
+          "name": "Move Ticket",
+          "description": "Move a ticket to another department."
+        },
+        {
+          "name": "Send Reply",
+          "description": "Send an email reply from a configured Zoho Desk sender address."
+        },
+        {
+          "name": "List Contacts",
+          "description": "List Contacts in Zoho Desk."
+        },
+        {
+          "name": "Create Contact",
+          "description": "Create Contact in Zoho Desk."
+        },
+        {
+          "name": "Update Contact",
+          "description": "Update Contact in Zoho Desk."
+        },
+        {
+          "name": "Search Contacts",
+          "description": "Search Contacts in Zoho Desk."
+        },
+        {
+          "name": "List Accounts",
+          "description": "List Accounts in Zoho Desk."
+        },
+        {
+          "name": "Create Account",
+          "description": "Create Account in Zoho Desk."
+        },
+        {
+          "name": "Update Account",
+          "description": "Update Account in Zoho Desk."
+        },
+        {
+          "name": "Search Accounts",
+          "description": "Search Accounts in Zoho Desk."
+        },
+        {
+          "name": "Get Account",
+          "description": "Get Account in Zoho Desk."
+        },
+        {
+          "name": "List Departments",
+          "description": "List Departments in Zoho Desk."
+        },
+        {
+          "name": "Get Department",
+          "description": "Get Department in Zoho Desk."
+        },
+        {
+          "name": "List Agents",
+          "description": "List Agents in Zoho Desk."
+        },
+        {
+          "name": "Get Agent",
+          "description": "Get Agent in Zoho Desk."
+        },
+        {
+          "name": "Get Comment",
+          "description": "Get Comment in Zoho Desk."
+        },
+        {
+          "name": "Update Comment",
+          "description": "Update comment content or attachments; visibility can only be set when creating a comment."
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete Comment in Zoho Desk."
         }
       ],
-      "operationCount": 10,
+      "operationCount": 30,
       "triggers": [
         {
           "id": "zoho_desk",
@@ -30041,7 +30458,7 @@
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "zoom",

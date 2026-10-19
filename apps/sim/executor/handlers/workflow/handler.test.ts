@@ -398,6 +398,7 @@ describe('WorkflowBlockHandler', () => {
         workspaceId: 'workspace-parent',
         environmentVariables: { MY_API_KEY: 'parent-secret' },
         piiBlockOutputRedaction,
+        unrecordedModelCost: { total: 1 },
       } as unknown as ExecutionContext
 
       mockFetch.mockResolvedValueOnce({
@@ -425,6 +426,7 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.piiBlockOutputRedaction).toBe(
         piiBlockOutputRedaction
       )
+      expect(executorOptions[0].contextExtensions.unrecordedModelCost).toBe(ctx.unrecordedModelCost)
       expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
     })
 
@@ -439,6 +441,7 @@ describe('WorkflowBlockHandler', () => {
         ...mockContext,
         workspaceId: 'workspace-consumer',
         metadata: { ...mockContext.metadata, billingAttribution: consumerAttribution },
+        unrecordedModelCost: { total: 1 },
       } as unknown as ExecutionContext
 
       mockGetCustomBlockAuthority.mockResolvedValue({
@@ -506,6 +509,7 @@ describe('WorkflowBlockHandler', () => {
       })
       expect(executorOptions).toHaveLength(1)
       expect(executorOptions[0].contextExtensions.billingAttribution).toBe(sourceAttribution)
+      expect(executorOptions[0].contextExtensions.unrecordedModelCost).toBeUndefined()
       expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
       expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
       expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({

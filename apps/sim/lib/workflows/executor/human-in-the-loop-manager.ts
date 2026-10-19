@@ -8,6 +8,7 @@ import type { Edge } from '@xyflow/react'
 import { and, asc, desc, eq, inArray, lt, type SQL, sql } from 'drizzle-orm'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/attribution'
+import { logFailureOnce, markFailureKind } from '@/lib/core/errors/failure-log'
 import {
   createTimeoutAbortController,
   getAsyncExecutionTimeoutForBillingAttribution,
@@ -1063,14 +1064,16 @@ export class PauseResumeManager {
           )
         })
       }
-      logger.error(
-        'Resume execution failed',
-        projectResolvedSecretDiagnosticError(error, undefined, {
-          parentExecutionId: pausedExecution.executionId,
-          resumeExecutionId,
-          contextId,
-        })
-      )
+      /** Keyed by the durable run id the resumed engine and execution core log under. */
+      logFailureOnce(logger, 'Resume execution failed', error, {
+        executionId: pausedExecution.executionId,
+        metadata: () =>
+          projectResolvedSecretDiagnosticError(error, undefined, {
+            parentExecutionId: pausedExecution.executionId,
+            resumeExecutionId,
+            contextId,
+          }),
+      })
       if (!(error instanceof ResumeAdmissionError)) {
         await PauseResumeManager.processQueuedResumes(
           pausedExecution.executionId,
@@ -1108,8 +1111,12 @@ export class PauseResumeManager {
         deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
       })
 
+    /** Another attempt or a cancel settled the run first: a lost race, not a Sim fault. */
     if (!claimedExecution) {
-      throw new ResumeAdmissionError('Execution can no longer be resumed', 409, false)
+      throw markFailureKind(
+        new ResumeAdmissionError('Execution can no longer be resumed', 409, false),
+        'user'
+      )
     }
     return { deploymentVersionId: claimedExecution.deploymentVersionId }
   }
@@ -1547,18 +1554,25 @@ export class PauseResumeManager {
     if (!preprocessingResult.success) {
       const errorMessage =
         preprocessingResult.error?.message || 'Preprocessing check failed for resume execution'
-      logger.error('Resume preprocessing failed', {
+      const refusal = new ResumeAdmissionError(
+        errorMessage,
+        preprocessingResult.error?.statusCode ?? 500,
+        preprocessingResult.error?.retryable ?? false
+      )
+      /**
+       * A final 4xx is a verdict on the run (usage limit, rate limit, archived workflow). A
+       * retryable one, such as an unreadable usage ledger, is no verdict on the caller and stays
+       * a Sim failure.
+       */
+      const refusedByRunState =
+        refusal.statusCode >= 400 && refusal.statusCode < 500 && !refusal.retryable
+      logger[refusedByRunState ? 'info' : 'error']('Resume preprocessing failed', {
         resumeExecutionId,
         workflowId: pausedExecution.workflowId,
         userId: effectiveUserId,
         error: errorMessage,
       })
-
-      throw new ResumeAdmissionError(
-        errorMessage,
-        preprocessingResult.error?.statusCode ?? 500,
-        preprocessingResult.error?.retryable ?? false
-      )
+      throw refusedByRunState ? markFailureKind(refusal, 'user') : refusal
     }
 
     logger.info('Preprocessing checks passed for resume', {

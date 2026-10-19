@@ -6,7 +6,10 @@ import {
   isDefaultVisualMediaType,
   observePrivateFile,
 } from '@/lib/mothership/agent-cli/engines/observe-private-file'
-import { readScratchFile } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
+import {
+  isScratchReference,
+  readScratchFile,
+} from '@/lib/mothership/agent-cli/engines/scratch-file-read'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
 import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
@@ -86,7 +89,7 @@ export const fileReadCommand: AgentCliEngine = {
           runtime.signal
         )
       }
-      if (reference.startsWith('/tmp/') || reference.startsWith('/home/user/'))
+      if (isScratchReference(reference))
         return await readScratchFile(reference, runtime, flags, query.data)
       if (
         runtime.chatOrganizationId &&

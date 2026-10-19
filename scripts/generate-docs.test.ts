@@ -51,6 +51,21 @@ describe('documentation editor icon metadata', () => {
 })
 
 describe('documentation tool metadata', () => {
+  it('does not publish unrelated block fields for operations with no response body', () => {
+    const page = fs.readFileSync(
+      path.resolve(import.meta.dirname, '../apps/docs/content/docs/integrations/greenhouse.mdx'),
+      'utf8'
+    )
+    for (const operation of ['Hire', 'Move', 'Reject', 'Unreject']) {
+      const action = page.split(`### Greenhouse ${operation} Application\n`)[1]?.split('\n### ')[0]
+      expect(action).toBeDefined()
+      const output = action?.split('#### Output\n')[1]
+      expect(output).toContain('No output fields')
+      expect(output).not.toContain('| `candidate_id` |')
+      expect(output).not.toContain('| `nextCursor` |')
+    }
+  })
+
   it('preserves nested fields referenced by private constants in the same module', () => {
     const source = `
       const MONEY_FIELDS = {

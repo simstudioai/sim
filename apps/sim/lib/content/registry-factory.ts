@@ -189,6 +189,8 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
           slug: fm.slug,
           title: fm.title,
           description: fm.description,
+          seoTitle: fm.seoTitle,
+          seoDescription: fm.seoDescription,
           date: toIsoDate(fm.date),
           updated: fm.updated ? toIsoDate(fm.updated) : undefined,
           author: authors[0],

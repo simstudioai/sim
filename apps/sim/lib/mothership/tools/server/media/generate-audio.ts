@@ -13,7 +13,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
+import {
+  validateCopilotWorkspaceFileWriteTarget,
+  writeCopilotWorkspaceFileByPath,
+} from '@/lib/mothership/vfs/resource-writer'
 import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -86,6 +89,14 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
     }
 
     try {
+      const outputFile = params.outputs?.files?.[0]
+      if (outputFile?.path) {
+        await validateCopilotWorkspaceFileWriteTarget(context, {
+          workspaceId,
+          target: { path: outputFile.path, mode: outputFile.mode ?? 'create' },
+        })
+      }
+
       // Voice cloning: a reference sample clones that voice into the generated speech.
       let voiceSampleDataUri: string | undefined
       const samplePath = params.inputs?.files?.[0]?.path
@@ -134,7 +145,6 @@ export const generateAudioServerTool: BaseServerTool<GenerateAudioArgs, Generate
         onCost: (cost) => recordServiceCost('falai_audio', cost.costDollars),
       })
 
-      const outputFile = params.outputs?.files?.[0]
       const ext = audioExtFromContentType(result.contentType)
       const outputPath = outputFile?.path || `files/generated-audio.${ext}`
       const mode = outputFile?.mode ?? 'create'

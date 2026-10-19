@@ -10,6 +10,7 @@ import {
   type WorkspaceFileLookupOptions,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/file-manager'
+import { getFileMetadataByKey } from '@/lib/uploads/server/metadata'
 import { VfsPathError } from '@/lib/vfs/path'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { assertOwnedFileAccess } from '@/lib/workspace-files/application/file-context'
@@ -168,4 +169,31 @@ export async function resolveWorkspaceFileReference({
     },
   })
   return result.file
+}
+
+/**
+ * Resolve the workspace file whose current content lives at a storage key, under the same policy
+ * as a reference to its id. A key that is not that file's current revision in this workspace (a
+ * superseded version, another workspace's object, an unregistered upload) is not found.
+ */
+export async function resolveWorkspaceFileStorageKey({
+  principal,
+  operation,
+  workspaceId,
+  key,
+}: Pick<ResolveWorkspaceFileReferenceInput, 'principal' | 'operation' | 'workspaceId'> & {
+  key: string
+}): Promise<WorkspaceFileRecord> {
+  const metadata = await getFileMetadataByKey(key, 'workspace')
+  if (!metadata || metadata.workspaceId !== workspaceId) {
+    throw new OrchestrationError('not_found', 'File not found')
+  }
+  const file = await resolveWorkspaceFileReference({
+    principal,
+    operation,
+    workspaceId,
+    reference: metadata.id,
+  })
+  if (file.key !== key) throw new OrchestrationError('not_found', 'File not found')
+  return file
 }

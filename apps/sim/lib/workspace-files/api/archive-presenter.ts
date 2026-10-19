@@ -78,7 +78,8 @@ export function presentWorkspaceFileArchive({
     await archive.finalize()
   }
   appendEntries().catch((error: unknown) => {
-    if (toError(error).name === 'AbortError') return
+    /** A closed archive means the client went away; the entry's own error then says nothing. */
+    if (closed.signal.aborted || toError(error).name === 'AbortError') return
     logger.error('Failed to build file archive', { error })
     archive.destroy(toError(error))
   })

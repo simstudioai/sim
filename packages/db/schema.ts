@@ -2158,6 +2158,10 @@ export const workspace = pgTable(
     }),
     ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
     organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    /** Workspaces a user pays for (upgrade target, account deletion) and the user FK's delete check. */
+    billedAccountUserIdIdx: index('workspace_billed_account_user_id_idx')
+      .on(table.billedAccountUserId)
+      .concurrently(),
     projectIdIdx: index('workspace_project_id_id_idx').on(table.projectId, table.id).concurrently(),
     nonNegativeStorage: check(
       'workspace_storage_used_bytes_non_negative',

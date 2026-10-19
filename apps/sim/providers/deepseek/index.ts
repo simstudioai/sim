@@ -19,7 +19,11 @@ import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compa
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -642,7 +646,9 @@ export const deepseekProvider: ProviderConfig = {
           )
         }
       } catch (error) {
-        logger.error('Error in Deepseek request:', { error })
+        logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Deepseek request:', {
+          error,
+        })
         throw error
       }
 
@@ -672,7 +678,7 @@ export const deepseekProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Deepseek request:', {
+      logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Deepseek request:', {
         error,
         duration: totalDuration,
       })

@@ -399,3 +399,67 @@ describe('billing a fal generation', () => {
     expect(onCost).not.toHaveBeenCalled()
   })
 })
+
+describe('the speech request fal receives', () => {
+  beforeEach(() => {
+    vi.stubEnv('FALAI_API_KEY', 'key')
+  })
+
+  /** fal validates the submit body and rejects it; the stub records what was submitted. */
+  function stubRejectingFalSubmit() {
+    const submitted: Array<{ url: string; body: unknown }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit = {}) => {
+        submitted.push({ url, body: JSON.parse(String(init.body)) })
+        return jsonResponse({ detail: 'rejected by stub' }, 422)
+      })
+    )
+    return submitted
+  }
+
+  it.each([
+    ['fal-ai/elevenlabs/tts/eleven-v3', { text: 'Hello there', voice: 'Aria' }],
+    ['fal-ai/elevenlabs/tts/multilingual-v2', { text: 'Hello there', voice: 'Aria' }],
+    [undefined, { prompt: 'Hello there', voice: 'Kore' }],
+  ])('submits the text %s requires', async (model, expectedBody) => {
+    const submitted = stubRejectingFalSubmit()
+
+    await expect(
+      generateFalAudio({
+        prompt: 'Hello there',
+        voice: expectedBody.voice,
+        model,
+        onCost: vi.fn(),
+      })
+    ).rejects.toThrow()
+
+    expect(submitted).toEqual([
+      {
+        url: `https://queue.fal.run/${model ?? 'fal-ai/gemini-3.1-flash-tts'}`,
+        body: expectedBody,
+      },
+    ])
+  })
+
+  it.each([
+    ['an explicit Gemini TTS', 'fal-ai/gemini-3.1-flash-tts'],
+    ['the default speech', undefined],
+  ])(
+    'refuses a voice %s model does not offer without submitting, naming the voices it does',
+    async (_label, model) => {
+      const submitted = stubRejectingFalSubmit()
+
+      const failure = generateFalAudio({
+        prompt: 'Hello there',
+        voice: 'Brian',
+        model,
+        onCost: vi.fn(),
+      })
+
+      await expect(failure).rejects.toThrow('Voice "Brian" is not available')
+      await expect(failure).rejects.toThrow('Kore')
+      expect(submitted).toEqual([])
+    }
+  )
+})

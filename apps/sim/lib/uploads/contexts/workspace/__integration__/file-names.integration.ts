@@ -671,4 +671,137 @@ describe('workspace file names in PostgreSQL', () => {
       )?.name
     ).toBe('back\\slash.png')
   })
+
+  /**
+   * Counts every display-name write into the chat, including ones a unique violation rolls
+   * back: `nextval` is not transactional.
+   */
+  async function countChatNameWrites<T>(chatId: string, run: () => Promise<T>) {
+    const suffix = generateId().replaceAll('-', '')
+    const counterName = `chat_name_writes_${suffix}`
+    const counter = sql.identifier(counterName)
+    const fn = sql.identifier(`count_chat_name_write_${suffix}`)
+    await db.execute(sql`CREATE SEQUENCE ${counter}`)
+    await db.execute(sql`
+      CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW.chat_id::text = TG_ARGV[0] THEN
+          PERFORM nextval(TG_ARGV[1]);
+        END IF;
+        RETURN NEW;
+      END $$
+    `)
+    await db.execute(sql`
+      CREATE TRIGGER ${fn} BEFORE INSERT OR UPDATE OF display_name ON ${workspaceFiles}
+      FOR EACH ROW EXECUTE FUNCTION ${fn}(${sql.raw(`'${chatId}'`)}, ${sql.raw(`'${counterName}'`)})
+    `)
+    try {
+      const result = await run()
+      const [{ writes }] = await db.execute<{ writes: number }>(
+        sql`SELECT CASE WHEN is_called THEN last_value ELSE 0 END::int AS writes FROM ${counter}`
+      )
+      return { result, writes }
+    } finally {
+      await db.execute(sql`DROP TRIGGER ${fn} ON ${workspaceFiles}`)
+      await db.execute(sql`DROP FUNCTION ${fn}()`)
+      await db.execute(sql`DROP SEQUENCE ${counter}`)
+    }
+  }
+
+  /** A chat upload the storage service registered before the chat message linked it. */
+  async function seedUnlinkedChatUpload(workspaceId: string, userId: string, name: string) {
+    const key = generateWorkspaceFileKey(workspaceId, name)
+    await db.insert(workspaceFiles).values({
+      id: `wf_${generateId()}`,
+      key,
+      userId,
+      workspaceId,
+      context: 'mothership',
+      originalName: name,
+      contentType: 'image/png',
+      sizeBytes: 10,
+    })
+    return key
+  }
+
+  function linkUpload(workspaceId: string, userId: string, chatId: string, key: string) {
+    return trackChatUpload(workspaceId, userId, chatId, key, 'image.png', 'image/png', 10)
+  }
+
+  it('names many same-named attachments with one write each', async () => {
+    const fixture = await seedWorkspace()
+    const chatId = await seedChat(fixture.workspaceId, fixture.aliceId)
+    const unlinked: string[] = []
+    for (let n = 0; n < 10; n++) {
+      unlinked.push(await seedUnlinkedChatUpload(fixture.workspaceId, fixture.aliceId, 'image.png'))
+    }
+
+    const { result, writes } = await countChatNameWrites(chatId, async () => {
+      const names = []
+      for (const key of unlinked) {
+        names.push(
+          (await linkUpload(fixture.workspaceId, fixture.aliceId, chatId, key)).displayName
+        )
+      }
+      for (let n = 0; n < 10; n++) {
+        names.push(
+          (await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'image.png')).displayName
+        )
+      }
+      return names
+    })
+
+    expect(result).toEqual([
+      'image.png',
+      ...Array.from({ length: 19 }, (_, n) => `image (${n + 2}).png`),
+    ])
+    expect(writes).toBe(20)
+  })
+
+  it('keeps a re-linked upload on its name and treats soft-deleted siblings as taken', async () => {
+    const fixture = await seedWorkspace()
+    const chatId = await seedChat(fixture.workspaceId, fixture.aliceId)
+    const first = await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'image.png')
+    const key = await seedUnlinkedChatUpload(fixture.workspaceId, fixture.aliceId, 'image.png')
+
+    expect((await linkUpload(fixture.workspaceId, fixture.aliceId, chatId, key)).displayName).toBe(
+      'image (2).png'
+    )
+    await db
+      .update(workspaceFiles)
+      .set({ deletedAt: new Date() })
+      .where(eq(workspaceFiles.id, first.id))
+    const { result, writes } = await countChatNameWrites(chatId, () =>
+      linkUpload(fixture.workspaceId, fixture.aliceId, chatId, key)
+    )
+    expect(result.displayName).toBe('image (2).png')
+    expect(writes).toBe(1)
+    expect(
+      (await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, 'image.png')).displayName
+    ).toBe('image (3).png')
+  })
+
+  it.each([
+    ['notes 100%.png', 'notes 100% (2).png', 'notes 100% (3).png'],
+    ['a_b.png', 'a_b (2).png', 'a_b (3).png'],
+    ['report (2).pdf', 'report (2) (2).pdf', 'report (2) (3).pdf'],
+    ['README', 'README (2)', 'README (3)'],
+    ['archive.tar.gz', 'archive.tar (2).gz', 'archive.tar (3).gz'],
+    ['back\\slash.png', 'back\\slash (2).png', 'back\\slash (3).png'],
+    ['.env', '.env (2)', '.env (3)'],
+  ])('suffixes %s literally with one write per upload', async (...expected) => {
+    const fixture = await seedWorkspace()
+    const chatId = await seedChat(fixture.workspaceId, fixture.aliceId)
+    const { result, writes } = await countChatNameWrites(chatId, async () => {
+      const names = []
+      for (let n = 0; n < 3; n++) {
+        names.push(
+          (await trackUpload(fixture.workspaceId, fixture.aliceId, chatId, expected[0])).displayName
+        )
+      }
+      return names
+    })
+    expect(result).toEqual(expected)
+    expect(writes).toBe(3)
+  })
 })

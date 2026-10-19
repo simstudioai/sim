@@ -12,7 +12,7 @@ import {
   type CustomBlockExecutorContext,
 } from '@/executor/handlers/workflow/custom-block-tool-runner'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/handler'
-import type { ExecutorDelegationOrigin } from '@/executor/types'
+import type { ExecutorDelegationOrigin, UnrecordedModelCost } from '@/executor/types'
 import { classifyExecutionError } from '@/executor/utils/errors'
 import { parseJSON } from '@/executor/utils/json'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -99,6 +99,7 @@ export async function runWorkflowTool(
     executorDelegationOrigin?: ExecutorDelegationOrigin
     principal?: WorkflowExecutionPrincipal
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
+    unrecordedModelCost?: UnrecordedModelCost
   }
 ): Promise<ToolResponse> {
   if (!params.workflowId) {

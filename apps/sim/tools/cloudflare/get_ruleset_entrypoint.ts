@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+import { RULESET_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareGetRulesetEntrypointParams,
   CloudflareRulesetResponse,
@@ -5,10 +7,11 @@ import type {
 import {
   cloudflareErrorMessage,
   cloudflareHeaders,
-  emptyRuleset,
-  mapRuleset,
+  mapCloudflareRuleset,
+  readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const getRulesetEntrypointTool: ToolConfig<
   CloudflareGetRulesetEntrypointParams,
@@ -44,85 +47,21 @@ export const getRulesetEntrypointTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/rulesets/phases/${params.phase.trim()}/entrypoint`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/rulesets/phases/${safeUrlPathSegment(params.phase, 'phase')}/entrypoint`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: emptyRuleset(),
-        error: cloudflareErrorMessage(data, 'Failed to get phase entry point ruleset'),
-      }
+    const data = await readCloudflareResponse(response)
+    const success = response.ok && data.success === true && isRecordLike(data.result)
+    return {
+      success,
+      output: mapCloudflareRuleset(data.result),
+      ...(!success
+        ? { error: cloudflareErrorMessage(data, 'Failed to get ruleset entrypoint') }
+        : {}),
     }
-
-    return { success: true, output: mapRuleset(data.result) }
   },
-
-  outputs: {
-    id: { type: 'string', description: 'Entry point ruleset identifier' },
-    name: { type: 'string', description: 'Ruleset name' },
-    description: { type: 'string', description: 'Ruleset description' },
-    kind: { type: 'string', description: 'Ruleset kind (managed, custom, root, or zone)' },
-    phase: { type: 'string', description: 'Phase the ruleset runs in' },
-    version: { type: 'string', description: 'Ruleset version', optional: true },
-    last_updated: {
-      type: 'string',
-      description: 'RFC 3339 timestamp of the last change',
-      optional: true,
-    },
-    rules: {
-      type: 'array',
-      description: 'Rules contained in the ruleset, in evaluation order',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Rule identifier' },
-          version: { type: 'string', description: 'Rule version', optional: true },
-          action: {
-            type: 'string',
-            description: 'Action the rule performs (e.g., block, challenge, log, skip, execute)',
-          },
-          action_parameters: {
-            type: 'json',
-            description:
-              'Action-specific parameters, including managed-ruleset overrides on execute rules',
-            optional: true,
-          },
-          expression: {
-            type: 'string',
-            description:
-              'Filter expression selecting matching requests. Empty on managed-ruleset rules',
-          },
-          description: { type: 'string', description: 'Rule description' },
-          enabled: { type: 'boolean', description: 'Whether the rule is enabled' },
-          ref: {
-            type: 'string',
-            description: 'Rule reference tag that survives rule updates',
-            optional: true,
-          },
-          last_updated: {
-            type: 'string',
-            description: 'RFC 3339 timestamp of the last change',
-            optional: true,
-          },
-          categories: {
-            type: 'array',
-            description: 'Managed-rule categories',
-            items: { type: 'string', description: 'Category tag' },
-          },
-          logging: { type: 'json', description: 'Logging configuration', optional: true },
-          ratelimit: {
-            type: 'json',
-            description: 'Rate limiting configuration for rules in the http_ratelimit phase',
-            optional: true,
-          },
-        },
-      },
-    },
-  },
+  outputs: RULESET_OUTPUTS,
 }

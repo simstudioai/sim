@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import {
   LANDING_INTEGRATION_SLUGS,
@@ -8,6 +8,7 @@ import {
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import matter from 'gray-matter'
 import {
   dustProfile,
   gumloopProfile,
@@ -17,6 +18,8 @@ import {
   pipedreamProfile,
   vellumProfile,
 } from '@/lib/compare/data'
+import { ContentFrontmatterSchema } from '@/lib/content/schema'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { INTEGRATION_SEO } from '@/app/(landing)/integrations/data/seo-content'
 
 /**
@@ -93,6 +96,15 @@ async function get(
   return { status: response.status, location, body, headers: response.headers }
 }
 
+function pageTitle(html: string): string {
+  return decodeHtml(/<title>([^<]*)<\/title>/.exec(html)?.[1] ?? '')
+}
+
+function canonicalPath(html: string): string | null {
+  const href = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1]
+  return href ? new URL(href).pathname : null
+}
+
 function robotsDirectives(html: string): string[] {
   return [...html.matchAll(/<meta name="robots" content="([^"]*)"/g)].map((match) => match[1])
 }
@@ -164,6 +176,7 @@ async function run() {
       '/library/authors/not-a-real-author',
       '/models/not-a-real-provider',
       '/models/anthropic/not-a-real-model',
+      '/models/compare/not-a-real-pair',
     ]
     const failures: string[] = []
     for (const path of unknown) {
@@ -186,6 +199,10 @@ async function run() {
       firstPath(/^\/library\/(?!authors\/|tags)[^/]+$/),
       firstPath(/^\/integrations\/[^/]+$/),
       firstPath(/^\/models\/anthropic\/[^/]+$/),
+      '/models/context-windows',
+      '/models/pricing-calculator',
+      '/models/token-counter',
+      firstPath(/^\/models\/compare\/[^/]+$/),
     ]
     const failures: string[] = []
     for (const path of known) {
@@ -196,6 +213,103 @@ async function run() {
       }
     }
     assert.deepEqual(failures, [])
+  })
+
+  await check(
+    'a library seoTitle and seoDescription are the search and social copy; title stays the H1',
+    async () => {
+      const slug = 'openai-vs-n8n-vs-sim'
+      const source = await readFile(
+        new URL(`../content/library/${slug}/index.mdx`, import.meta.url)
+      )
+      const { title, seoTitle, description, seoDescription } = ContentFrontmatterSchema.parse(
+        matter(source.toString()).data
+      )
+      assert(seoTitle && seoTitle !== title, `${slug} has no distinct seoTitle`)
+      assert(
+        seoDescription && seoDescription !== description,
+        `${slug} has no distinct seoDescription`
+      )
+      const { status, body } = await get(`/library/${slug}`)
+      assert.equal(status, 200)
+      const capture = (pattern: RegExp) => {
+        const value = pattern.exec(body)?.[1]
+        return value === undefined ? undefined : decodeHtml(value)
+      }
+      assert.equal(capture(/<title>([^<]*)<\/title>/), `${seoTitle} | Sim`)
+      assert.equal(capture(/<meta property="og:title" content="([^"]*)"/), seoTitle)
+      assert.equal(capture(/<meta name="description" content="([^"]*)"/), seoDescription)
+      assert.equal(capture(/<h1[^>]*>([^<]*)<\/h1>/), title)
+    }
+  )
+
+  await check(
+    'every model page carries a distinct search title within 60 characters and self-canonicalizes',
+    async () => {
+      const paths = sitemapPaths.filter((path) => path === '/models' || path.startsWith('/models/'))
+      const comparePaths = paths.filter((path) => path.startsWith('/models/compare/'))
+      assert(
+        comparePaths.length >= 5,
+        `The sitemap lists only ${comparePaths.length} compare pages`
+      )
+      for (const required of [
+        '/models',
+        '/models/anthropic',
+        '/models/context-windows',
+        '/models/pricing-calculator',
+        '/models/token-counter',
+      ]) {
+        assert(paths.includes(required), `The sitemap omits ${required}`)
+      }
+      const pages = await mapWithConcurrency(paths, 8, async (path) => ({
+        path,
+        ...(await get(path)),
+      }))
+      const pathByTitle = new Map<string, string>()
+      let anthropicTitle = ''
+      const failures: string[] = []
+      for (const { path, status, body } of pages) {
+        const title = pageTitle(body)
+        const canonical = canonicalPath(body)
+        const duplicateOf = pathByTitle.get(title)
+        pathByTitle.set(title, duplicateOf ?? path)
+        if (path === '/models/anthropic') anthropicTitle = title
+        if (
+          status !== 200 ||
+          !title.endsWith(' | Sim') ||
+          title.endsWith(' | Sim | Sim') ||
+          title.length > 60 ||
+          duplicateOf ||
+          canonical !== path ||
+          !sitemap.has(path)
+        ) {
+          failures.push(
+            `${path} → ${status}, title "${title}" (${title.length})${duplicateOf ? ` duplicates ${duplicateOf}` : ''}, canonical ${canonical}, in sitemap ${sitemap.has(path)}`
+          )
+        }
+      }
+      assert.deepEqual(failures, [])
+      assert.match(anthropicTitle, /Claude/, '/models/anthropic does not name Claude in its title')
+    }
+  )
+
+  await check('token counter ships no js-tiktoken code in its initial load', async () => {
+    const { status, body } = await get('/models/token-counter')
+    assert.equal(status, 200)
+    // Every js-tiktoken rank table is keyed `bpe_ranks` and its encoder reads that property, so the
+    // name appears in any chunk that bundles the tokenizer, which must load only on interaction.
+    const marker = /bpe_ranks/
+    assert(!marker.test(body), 'The initial HTML embeds js-tiktoken code')
+    const scripts = [...body.matchAll(/<script[^>]+src="([^"]+)"/g)]
+      .map((match) => new URL(decodeHtml(match[1]), baseUrl))
+      .filter((url) => url.origin === baseUrl.origin)
+    assert(scripts.length > 0, 'The initial HTML references no scripts')
+    const offenders: string[] = []
+    for (const url of scripts) {
+      const script = await get(`${url.pathname}${url.search}`)
+      if (marker.test(script.body)) offenders.push(url.pathname)
+    }
+    assert.deepEqual(offenders, [], 'An initial script chunk bundles js-tiktoken')
   })
 
   await check('docs integration slugs redirect to their landing page', async () => {

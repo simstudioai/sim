@@ -1,7 +1,9 @@
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
+import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { McpError as McpSdkError } from '@modelcontextprotocol/sdk/types.js'
 import { generateShortId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { DEFAULT_EXECUTION_TIMEOUT_MS, isTimeoutError } from '@/lib/core/execution-limits'
 import {
   type McpApiResponse,
   McpConnectionError,
@@ -134,6 +136,23 @@ export function mcpOrchestrationStatus(errorCode: string | undefined): number {
   if (errorCode === 'conflict') return 409
   if (errorCode === 'bad_gateway') return 502
   return 500
+}
+
+/**
+ * Reports whether a registered MCP server failed to answer usefully: it could not be
+ * reached, timed out, is cooling down after a recent failure, or answered `tools/list`
+ * with a protocol or HTTP error. Typed only, never matched on message text, because
+ * `McpConnectionError` interpolates the server's display name into its message. Check
+ * authorization errors first: `UnauthorizedError` is not one of these, but a caller that
+ * wants to answer reauthorization separately must do so before asking.
+ */
+export function isMcpServerUnavailableError(error: unknown): boolean {
+  return (
+    isTimeoutError(error) ||
+    error instanceof McpConnectionError ||
+    error instanceof McpSdkError ||
+    error instanceof StreamableHTTPError
+  )
 }
 
 /**

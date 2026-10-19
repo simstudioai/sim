@@ -4,6 +4,10 @@ import { SimApiError } from 'sim/embed'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { observePrivateFile } from '@/lib/mothership/agent-cli/engines/observe-private-file'
 import {
+  isScratchReference,
+  readScratchFile,
+} from '@/lib/mothership/agent-cli/engines/scratch-file-read'
+import {
   type AgentCliEngine,
   type AgentCliFlags,
   type AgentCliRuntime,
@@ -106,6 +110,8 @@ export const fileViewCommand: AgentCliEngine = {
     const reference = positionals[0]
     if (!reference) return agentCliFail('files view requires a workspace file reference.')
     try {
+      if (isScratchReference(reference))
+        return await readScratchFile(reference, runtime, { ...flags, render: true }, {})
       if (
         runtime.chatOrganizationId &&
         runtime.chatId &&

@@ -1,4 +1,14 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import {
+  assertExcelSuccess,
+  EXCEL_RANGE_OUTPUTS,
+  EXCEL_ROW_INPUT,
+  EXCEL_VALUES_INPUT,
+  EXCEL_WORKBOOK_PARAMS,
+  excelHeaders,
+  mapExcelRange,
+  normalizeExcelValues,
+} from '@/tools/microsoft_excel/shared'
 import type {
   MicrosoftExcelToolParams,
   MicrosoftExcelV2ToolParams,
@@ -6,11 +16,11 @@ import type {
   MicrosoftExcelWriteResponse,
 } from '@/tools/microsoft_excel/types'
 import {
-  escapeODataString,
+  buildWorksheetRangeUrl,
   getItemBasePath,
   getSpreadsheetWebUrl,
 } from '@/tools/microsoft_excel/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolResponseContext } from '@/tools/types'
 
 /**
  * Range writes (PATCH /workbook/.../range) are semantically idempotent —
@@ -38,6 +48,57 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
   },
 
   params: {
+    formulas: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'A1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    formulasLocal: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'A1-style formulas in the user locale as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    formulasR1C1: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'R1C1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    numberFormat: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Excel number format codes as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    columnHidden: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Hide all columns in the target range.',
+    },
+    rowHidden: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Hide all rows in the target range.',
+    },
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -55,7 +116,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     range: {
       type: 'string',
@@ -65,22 +126,13 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     },
     values: {
       type: 'array',
-      required: true,
+      items: EXCEL_VALUES_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'The data to write as a 2D array (e.g., [["Name", "Age"], ["Alice", 30]]) or array of objects',
-    },
-    valueInputOption: {
-      type: 'string',
-      required: false,
-      visibility: 'user-only',
-      description: 'The format of the data to write',
-    },
-    includeValuesInResponse: {
-      type: 'boolean',
-      required: false,
-      visibility: 'hidden',
-      description: 'Whether to include the written values in the response',
+        'The data to write as a 2D array (used exactly as provided) or array of objects. For object rows, their keys become a header row. Use a 2D array to write data without added headers.',
     },
   },
 
@@ -91,83 +143,33 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
         throw new Error('Spreadsheet ID is required')
       }
 
-      const rangeInput = params.range?.trim()
-      const match = rangeInput?.match(/^([^!]+)!(.+)$/)
-
-      if (!match) {
-        throw new Error(`Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`)
-      }
-
-      const sheetName = encodeURIComponent(escapeODataString(match[1]))
-      const address = encodeURIComponent(match[2])
-
-      const basePath = getItemBasePath(spreadsheetId, params.driveId)
-      const url = new URL(
-        `${basePath}/workbook/worksheets('${sheetName}')/range(address='${address}')`
-      )
-
-      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
-      url.searchParams.append('valueInputOption', valueInputOption)
-
-      if (params.includeValuesInResponse) {
-        url.searchParams.append('includeValuesInResponse', 'true')
-      }
-
-      return url.toString()
+      return buildWorksheetRangeUrl(getItemBasePath(spreadsheetId, params.driveId), params.range)
     },
     method: 'PATCH',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: excelHeaders,
     body: (params) => {
-      let processedValues: any = params.values || []
-
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        processedValues = [headers, ...rows]
+      const body: Record<string, unknown> = {}
+      if (params.values !== undefined && params.values !== null)
+        body.values = normalizeExcelValues(params.values, { includeHeaders: true })
+      for (const key of ['formulas', 'formulasLocal', 'formulasR1C1', 'numberFormat'] as const) {
+        if (params[key] !== undefined && params[key] !== null)
+          body[key] = normalizeExcelValues(params[key], { matrixOnly: true })
       }
-
-      const body: Record<string, any> = {
-        majorDimension: 'ROWS',
-        values: processedValues,
-      }
-
-      if (params.range) {
-        body.range = params.range
-      }
-
+      if (params.columnHidden !== undefined) body.columnHidden = params.columnHidden
+      if (params.rowHidden !== undefined) body.rowHidden = params.rowHidden
+      if (Object.keys(body).length === 0)
+        throw new Error('Provide values, formulas, number formatting, or row/column visibility')
       return body
     },
     retry: EXCEL_RETRY_CONFIG,
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftExcelToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelToolParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     const data = await response.json()
 
     const spreadsheetId = params?.spreadsheetId?.trim() || ''
@@ -177,11 +179,12 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     return {
       success: true,
       output: {
+        ...mapExcelRange(data),
         updatedRange: data.address ?? '',
         updatedRows: data.rowCount ?? 0,
         updatedColumns: data.columnCount ?? 0,
@@ -195,6 +198,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
   },
 
   outputs: {
+    ...EXCEL_RANGE_OUTPUTS,
     updatedRange: { type: 'string', description: 'The range that was updated' },
     updatedRows: { type: 'number', description: 'Number of rows that were updated' },
     updatedColumns: { type: 'number', description: 'Number of columns that were updated' },
@@ -223,6 +227,57 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
   },
 
   params: {
+    formulas: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'A1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    formulasLocal: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'A1-style formulas in the user locale as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    formulasR1C1: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'R1C1-style formulas as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    numberFormat: {
+      type: 'array',
+      items: EXCEL_ROW_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Excel number format codes as a two-dimensional array. Null leaves a cell unchanged.',
+    },
+    columnHidden: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Hide all columns in the target range.',
+    },
+    rowHidden: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Hide all rows in the target range.',
+    },
+    sessionId: EXCEL_WORKBOOK_PARAMS.sessionId,
     accessToken: {
       type: 'string',
       required: true,
@@ -240,7 +295,7 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
       required: false,
       visibility: 'user-or-llm',
       description:
-        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses the signed-in user’s default OneDrive. Excel workbook APIs require a business account.',
     },
     sheetName: {
       type: 'string',
@@ -257,22 +312,13 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
     },
     values: {
       type: 'array',
-      required: true,
+      items: EXCEL_VALUES_INPUT,
+      minItems: 1,
+      maxItems: 10000,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'The data to write as a 2D array (e.g. [["Name", "Age"], ["Alice", 30], ["Bob", 25]]) or array of objects.',
-    },
-    valueInputOption: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'The format of the data to write',
-    },
-    includeValuesInResponse: {
-      type: 'boolean',
-      required: false,
-      visibility: 'hidden',
-      description: 'Whether to include the written values in the response',
+        'The data to write as a 2D array (used exactly as provided) or array of objects. For object rows, their keys become a header row. Use a 2D array to write data without added headers.',
     },
   },
 
@@ -288,74 +334,37 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
         throw new Error('Sheet name is required')
       }
 
-      const cellRange = params.cellRange?.trim() || 'A1'
-      const encodedSheetName = encodeURIComponent(escapeODataString(sheetName))
-      const encodedAddress = encodeURIComponent(cellRange)
-
-      const basePath = getItemBasePath(spreadsheetId, params.driveId)
-      const url = new URL(
-        `${basePath}/workbook/worksheets('${encodedSheetName}')/range(address='${encodedAddress}')`
+      return buildWorksheetRangeUrl(
+        getItemBasePath(spreadsheetId, params.driveId),
+        params.cellRange?.trim() || 'A1',
+        sheetName
       )
-
-      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
-      url.searchParams.append('valueInputOption', valueInputOption)
-
-      if (params.includeValuesInResponse) {
-        url.searchParams.append('includeValuesInResponse', 'true')
-      }
-
-      return url.toString()
     },
     method: 'PATCH',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: excelHeaders,
     body: (params) => {
-      let processedValues: any = params.values || []
-
-      // Handle array of objects
-      if (
-        Array.isArray(processedValues) &&
-        processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
-        !Array.isArray(processedValues[0])
-      ) {
-        const allKeys = new Set<string>()
-        processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach((key) => allKeys.add(key))
-          }
-        })
-        const headers = Array.from(allKeys)
-
-        const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
-            return Array(headers.length).fill('')
-          }
-          return headers.map((key) => {
-            const value = obj[key]
-            if (value !== null && typeof value === 'object') {
-              return JSON.stringify(value)
-            }
-            return value === undefined ? '' : value
-          })
-        })
-
-        processedValues = [headers, ...rows]
+      const body: Record<string, unknown> = {}
+      if (params.values !== undefined && params.values !== null)
+        body.values = normalizeExcelValues(params.values, { includeHeaders: true })
+      for (const key of ['formulas', 'formulasLocal', 'formulasR1C1', 'numberFormat'] as const) {
+        if (params[key] !== undefined && params[key] !== null)
+          body[key] = normalizeExcelValues(params[key], { matrixOnly: true })
       }
-
-      const body: Record<string, any> = {
-        majorDimension: 'ROWS',
-        values: processedValues,
-      }
-
+      if (params.columnHidden !== undefined) body.columnHidden = params.columnHidden
+      if (params.rowHidden !== undefined) body.rowHidden = params.rowHidden
+      if (Object.keys(body).length === 0)
+        throw new Error('Provide values, formulas, number formatting, or row/column visibility')
       return body
     },
     retry: EXCEL_RETRY_CONFIG,
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftExcelV2ToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftExcelV2ToolParams,
+    context?: ToolResponseContext
+  ) => {
+    await assertExcelSuccess(response)
     const data = await response.json()
 
     const spreadsheetId = params?.spreadsheetId?.trim() || ''
@@ -365,11 +374,12 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId, context?.signal)
 
     return {
       success: true,
       output: {
+        ...mapExcelRange(data),
         updatedRange: data.address ?? null,
         updatedRows: data.rowCount ?? 0,
         updatedColumns: data.columnCount ?? 0,
@@ -383,7 +393,12 @@ export const writeV2Tool: ToolConfig<MicrosoftExcelV2ToolParams, MicrosoftExcelV
   },
 
   outputs: {
-    updatedRange: { type: 'string', description: 'Range of cells that were updated' },
+    ...EXCEL_RANGE_OUTPUTS,
+    updatedRange: {
+      type: 'string',
+      nullable: true,
+      description: 'Range of cells that were updated',
+    },
     updatedRows: { type: 'number', description: 'Number of rows updated' },
     updatedColumns: { type: 'number', description: 'Number of columns updated' },
     updatedCells: { type: 'number', description: 'Number of cells updated' },

@@ -3,7 +3,12 @@ import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
-import { logFailureOnce, markFailureKind, markFailureLogged } from '@/lib/core/errors/failure-log'
+import {
+  classifyFailure,
+  logFailureOnce,
+  markFailureKind,
+  markFailureLogged,
+} from '@/lib/core/errors/failure-log'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -83,6 +88,7 @@ import {
   type VariableResolver,
 } from '@/executor/variables/resolver'
 import { createAgentStreamPump } from '@/providers/stream-pump'
+import { isRunAbortError } from '@/providers/streaming-tool-loop-shared'
 import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
@@ -673,12 +679,10 @@ export class BlockExecutor {
     // (workflow is already cancelled). Timeouts abort with reason `'timeout'`.
     // Non-agent blocks (HTTP, Function, etc.) still fail normally on AbortError
     // so logs don't show a green empty success.
-    const isAbort =
-      (error instanceof DOMException && error.name === 'AbortError') ||
-      (error instanceof Error && error.name === 'AbortError')
+    const isRunAbort = isRunAbortError(error, ctx.abortSignal)
     const isTimeout = isTimeoutAbortReason(ctx.abortSignal?.reason)
     const isAgentBlock = block.metadata?.id === BlockType.AGENT
-    if (isAbort && !isTimeout && ctx.abortSignal?.aborted && isAgentBlock) {
+    if (isRunAbort && !isTimeout && isAgentBlock) {
       const softOutput: NormalizedBlockOutput = {
         content: '',
       }
@@ -817,7 +821,7 @@ export class BlockExecutor {
     }
 
     /** A user Stop or the run's own time limit aborted this block; neither is a Sim fault. */
-    if (isAbort && ctx.abortSignal?.aborted) markFailureKind(error, 'user')
+    if (isRunAbort) markFailureKind(error, 'user')
     logFailureOnce(
       this.execLogger,
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
@@ -1328,10 +1332,13 @@ export class BlockExecutor {
     try {
       pumpResult = await pump.run()
     } catch (error) {
-      this.execLogger.error('Error reading stream for block', {
-        blockId,
-        ...projectStreamDiagnosticError(error),
-      })
+      this.execLogger[classifyFailure(error) === 'user' ? 'info' : 'error'](
+        'Error reading stream for block',
+        {
+          blockId,
+          ...projectStreamDiagnosticError(error),
+        }
+      )
       if (onStreamPromise) {
         await onStreamPromise.catch(() => {})
       }

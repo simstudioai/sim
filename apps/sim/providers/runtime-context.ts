@@ -22,6 +22,8 @@ import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
+import type { TokenUsageCost } from '@/providers/pricing'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { ProviderId } from '@/providers/types'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
@@ -40,6 +42,8 @@ export interface ProviderRuntimeContext {
   toolIdByWireId?: ReadonlyMap<string, string>
   /** Failed canonical Function cost omitted from provider tool-result collections. */
   failedFunctionToolCost?: { total: number }
+  /** Billed cost of this request's settled model steps and tool calls, charged if the run stops it. */
+  settledCost?: TokenUsageCost
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -114,17 +118,24 @@ function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
   }
 }
 
-function accumulateFailedFunctionToolCost(
+function toolCostTotal(result: ToolResponse): number {
+  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return 0
+  const total = result.output.cost.total
+  return typeof total === 'number' && Number.isFinite(total) && total > 0 ? total : 0
+}
+
+function accumulateToolCost(
   toolId: string,
   result: ToolResponse,
-  accumulator: ProviderRuntimeContext['failedFunctionToolCost']
+  runtime: ProviderRuntimeContext | undefined
 ): void {
-  if (toolId !== 'function_execute' || result.success || !accumulator) return
-  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return
-
-  const total = result.output.cost.total
-  if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
-    accumulator.total += total
+  const total = toolCostTotal(result)
+  if (total === 0 || !runtime) return
+  const failedFunction = toolId === 'function_execute' && !result.success
+  // A stop bills what success would: successful tool results plus failed Function runs.
+  if (runtime.settledCost && (result.success || failedFunction)) runtime.settledCost.total += total
+  if (failedFunction && runtime.failedFunctionToolCost) {
+    runtime.failedFunctionToolCost.total += total
   }
 }
 
@@ -302,11 +313,7 @@ export async function executeProviderTool(
           ...(executionContext ? { executionContext } : {}),
           resolvedSecretTraceRegistry: toolCallRegistry,
         })
-    accumulateFailedFunctionToolCost(
-      executionToolId,
-      result,
-      runtimeContext?.failedFunctionToolCost
-    )
+    accumulateToolCost(executionToolId, result, runtimeContext)
     if (!registry || !toolCallRegistry) {
       return recordResult({ rawResponse: result, modelResponse: withoutChildTraceHandle(result) })
     }
@@ -318,12 +325,8 @@ export async function executeProviderTool(
     return recordResult({ rawResponse: result, modelResponse })
   } catch (error) {
     if (!registry || !toolCallRegistry) throw error
-    const errorName =
-      error && typeof error === 'object' && 'name' in error ? String(error.name) : undefined
     registry.mergeToolCallRegistry(toolCallRegistry)
-    if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
-      throw error
-    }
+    if (isAbortError(error)) throw error
     const rawResponse: ToolResponse = {
       success: false,
       output: {},

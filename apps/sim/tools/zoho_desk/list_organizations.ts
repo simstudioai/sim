@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
+import { readZohoDeskList } from '@/tools/zoho_desk/request'
 import type { ZohoDeskListOrganizationsParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
-import { getZohoDeskApiBase, getZohoDeskErrorMessage } from '@/tools/zoho_desk/utils'
+import { getZohoDeskApiBase } from '@/tools/zoho_desk/utils'
 
 export const zohoDeskListOrganizationsTool: ToolConfig<
   ZohoDeskListOrganizationsParams,
@@ -46,13 +47,8 @@ export const zohoDeskListOrganizationsTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(
-        getZohoDeskErrorMessage(data, `Failed to list organizations (HTTP ${response.status})`)
-      )
-    }
-    const organizations = Array.isArray(data.data) ? data.data : []
+    const { items } = await readZohoDeskList(response)
+    const organizations = items
     return {
       success: true,
       output: { organizations, count: organizations.length },

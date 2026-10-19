@@ -24,7 +24,11 @@ import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compa
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import { openAICompatTransport } from '@/providers/transport'
@@ -721,12 +725,15 @@ export const xAIProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('XAI Provider - Request failed:', {
-        error: toError(error).message,
-        duration: totalDuration,
-        hasTools: !!tools?.length,
-        hasResponseFormat: !!request.responseFormat,
-      })
+      logger[providerFailureLogLevel(error, request.abortSignal)](
+        'XAI Provider - Request failed:',
+        {
+          error: toError(error).message,
+          duration: totalDuration,
+          hasTools: !!tools?.length,
+          hasResponseFormat: !!request.responseFormat,
+        }
+      )
 
       if (
         isAbortError(error) ||

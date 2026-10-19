@@ -170,16 +170,21 @@ export async function validateWorkspaceFileWriteTarget(args: {
   target: WorkspaceFileWriteTarget
 }): Promise<WorkspaceFileWriteValidation> {
   if (args.target.mode === 'overwrite') {
-    const existing = await resolveWorkspaceFileReference({
-      principal: args.principal,
-      operation: fileOperations.updateContent,
-      workspaceId: args.workspaceId,
-      reference: args.target.path,
-    })
-    return {
-      mode: 'overwrite',
-      vfsPath: vfsPathForRecord(existing),
-      existingFileId: existing.id,
+    try {
+      const existing = await resolveWorkspaceFileReference({
+        principal: args.principal,
+        operation: fileOperations.updateContent,
+        workspaceId: args.workspaceId,
+        reference: args.target.path,
+      })
+      return {
+        mode: 'overwrite',
+        vfsPath: vfsPathForRecord(existing),
+        existingFileId: existing.id,
+      }
+    } catch (error) {
+      // Mirrors writeWorkspaceFileByPath: a missing overwrite target is written as a create.
+      if (asOrchestrationError(error)?.code !== 'not_found') throw error
     }
   }
 
@@ -285,6 +290,21 @@ export function writeCopilotWorkspaceFileByPath(
   args: CopilotWorkspaceFileWriteArgs
 ) {
   return writeWorkspaceFileByPath({
+    ...args,
+    principal: resolveCopilotFilePrincipal(context),
+  })
+}
+
+/**
+ * Validates a Copilot write target before the tool produces its bytes, so a stale or taken path
+ * fails before a paid generation rather than after it. The write re-validates; this only moves
+ * the refusal earlier.
+ */
+export function validateCopilotWorkspaceFileWriteTarget(
+  context: CopilotFileDelegationContext | undefined,
+  args: Omit<Parameters<typeof validateWorkspaceFileWriteTarget>[0], 'principal'>
+) {
+  return validateWorkspaceFileWriteTarget({
     ...args,
     principal: resolveCopilotFilePrincipal(context),
   })

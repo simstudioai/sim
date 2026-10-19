@@ -1,14 +1,16 @@
+import { RESULT_INFO_OUTPUTS, WORKER_ROUTE_OUTPUTS } from '@/tools/cloudflare/outputs'
 import type {
   CloudflareListWorkerRoutesParams,
   CloudflareListWorkerRoutesResponse,
-  CloudflareRawWorkerRoute,
 } from '@/tools/cloudflare/types'
 import {
   cloudflareErrorMessage,
   cloudflareHeaders,
+  mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 
 export const listWorkerRoutesTool: ToolConfig<
   CloudflareListWorkerRoutesParams,
@@ -38,57 +40,42 @@ export const listWorkerRoutesTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}/workers/routes`,
+      `https://api.cloudflare.com/client/v4/zones/${safeUrlPathSegment(params.zoneId, 'zoneId')}/workers/routes`,
     method: 'GET',
     headers: (params) => cloudflareHeaders(params.apiKey),
   },
 
   transformResponse: async (response: Response) => {
-    const data = await readCloudflareResponse<CloudflareRawWorkerRoute[]>(response)
-
-    if (!data.success) {
-      return {
-        success: false,
-        output: { routes: [], total_count: 0 },
-        error: cloudflareErrorMessage(data, 'Failed to list Worker routes'),
-      }
-    }
-
-    const routes = Array.isArray(data.result) ? data.result : []
-
+    const data = await readCloudflareResponse(response)
+    const raw = data.result
+    const rows = Array.isArray(raw) ? raw : []
+    const success = response.ok && data.success === true && Array.isArray(raw)
     return {
-      success: true,
+      success,
       output: {
-        routes: routes.map((route) => ({
-          id: route.id ?? '',
-          pattern: route.pattern ?? '',
-          script: route.script ?? null,
-        })),
-        total_count: routes.length,
+        routes: rows.map((row) => mapCloudflareFields(row, WORKER_ROUTE_OUTPUTS)),
+        total_count: data.result_info?.total_count ?? rows.length,
+        result_info: data.result_info ?? null,
       },
+      ...(!success ? { error: cloudflareErrorMessage(data, 'Failed to list worker routes') } : {}),
     }
   },
-
   outputs: {
     routes: {
       type: 'array',
-      description: 'Workers routes on the zone',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: 'Route identifier' },
-          pattern: {
-            type: 'string',
-            description: 'URL pattern the route matches, e.g. example.com/*',
-          },
-          script: {
-            type: 'string',
-            description: 'Name of the Workers script handling the route',
-            optional: true,
-          },
-        },
-      },
+      description: 'Routes',
+      items: { type: 'object', properties: WORKER_ROUTE_OUTPUTS },
     },
-    total_count: { type: 'number', description: 'Number of routes returned' },
+    total_count: {
+      type: 'number',
+      description:
+        'Total matching resources, or the number of resources returned on this page when the API omits a total',
+    },
+    result_info: {
+      type: 'json',
+      description: 'Pagination metadata returned by Cloudflare',
+      nullable: true,
+      properties: RESULT_INFO_OUTPUTS,
+    },
   },
 }
