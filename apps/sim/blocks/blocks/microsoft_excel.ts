@@ -80,7 +80,6 @@ function normalizeExcelAgentParams(params: Record<string, unknown>, separateShee
     'sortAscending',
     'showHeaders',
     'showTotals',
-    'persistChanges',
     'rowHidden',
     'columnHidden',
   ])
@@ -119,6 +118,7 @@ function normalizeExcelAgentParams(params: Record<string, unknown>, separateShee
     optionalBoolean(params.sortHasHeaders) ??
     optionalBoolean(params.hasHeaders)
   result.matchCase = optionalBoolean(params.sortMatchCase) ?? optionalBoolean(params.matchCase)
+  result.persistChanges = optionalBoolean(params.persistChanges) ?? false
   result.address = separateSheet
     ? sheetName && range
       ? `${quoteSheetName(sheetName)}!${range}`
@@ -1672,6 +1672,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       type: 'switch',
       condition: { field: 'operation', value: ['create_session'] },
       required: true,
+      defaultValue: false,
     },
     {
       id: 'calculationType',
