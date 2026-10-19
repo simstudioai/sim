@@ -1,4 +1,4 @@
-import { omit } from '@sim/utils/object'
+import { isPlainRecord, omit } from '@sim/utils/object'
 import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -62,7 +62,8 @@ const RETIRED_IDS = [...new Set(GREENHOUSE_SUBBLOCK_ID_MIGRATIONS.map(({ from })
 export function migrateGreenhouseAgentInputs(block: BlockState): BlockState {
   if (block.type !== 'greenhouse_v2') return block
   const config = getBlock(block.type)
-  const operation = block.subBlocks.operation?.value
+  const storedOperation: unknown = block.subBlocks.operation
+  const operation = isPlainRecord(storedOperation) ? storedOperation.value : storedOperation
   const operations = config?.subBlocks.find((field) => field.id === 'operation')?.options
   if (
     typeof operation !== 'string' ||
@@ -73,12 +74,27 @@ export function migrateGreenhouseAgentInputs(block: BlockState): BlockState {
   const aliases = GREENHOUSE_RETIRED_INPUTS[operation] ?? {}
   let subBlocks = block.subBlocks
   for (const [target, source] of Object.entries(aliases)) {
-    const saved = subBlocks[source]
-    if (!saved) continue
+    if (!Object.hasOwn(subBlocks, source)) continue
+    const saved: unknown = subBlocks[source]
     const targetConfig = config?.subBlocks.find((field) => field.id === target)
     if (!targetConfig) continue
     subBlocks = omit(subBlocks, [source])
-    subBlocks[target] = { ...saved, id: target, type: targetConfig.type }
+    if (isPlainRecord(saved)) {
+      subBlocks[target] = {
+        ...saved,
+        id: target,
+        type: targetConfig.type,
+        value: (Object.hasOwn(saved, 'value')
+          ? saved.value
+          : null) as BlockState['subBlocks'][string]['value'],
+      }
+    } else {
+      subBlocks[target] = {
+        id: target,
+        type: targetConfig.type,
+        value: saved as BlockState['subBlocks'][string]['value'],
+      }
+    }
   }
   if (RETIRED_IDS.some((id) => id in subBlocks)) subBlocks = omit(subBlocks, RETIRED_IDS)
   return subBlocks === block.subBlocks ? block : { ...block, subBlocks }

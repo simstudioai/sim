@@ -900,7 +900,11 @@ export function getSubBlocksForToolInput(
 
     return {
       toolConfig,
-      subBlocks: filtered,
+      subBlocks: filtered.map((subBlock) =>
+        typeof subBlock.options === 'function'
+          ? { ...subBlock, options: subBlock.options({ values: valuesWithOperation }) }
+          : subBlock
+      ),
       oauthConfig: toolConfig.oauth,
     }
   } catch (error) {
