@@ -6,6 +6,10 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
+import {
+  RECALL_CHATS_AUDIENCE,
+  readRecallChats,
+} from '@/lib/mothership/chat/application/read-recall-chats'
 import { readWorkspaceContext } from '@/lib/mothership/chat/application/workspace-context'
 import { WORKSPACE_TARGET_AUDIENCE } from '@/lib/mothership/chat/application/workspace-target'
 import type { SimControlRequest, SimControlResult } from '@/lib/mothership/generated/sim-transport'
@@ -52,15 +56,17 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
           audience:
             operation.kind === 'memory_notes_access'
               ? MEMORY_NOTES_ACCESS_AUDIENCE
-              : operation.kind === 'memory_scope'
-                ? MEMORY_SCOPE_AUDIENCE
-                : operation.kind === 'integration_catalog'
-                  ? INTEGRATION_CATALOG_AUDIENCE
-                  : operation.kind === 'workspace_context'
-                    ? WORKSPACE_TARGET_AUDIENCE
-                    : operation.kind === 'run_control'
-                      ? RUN_CONTROL_AUDIENCE
-                      : TASK_DELEGATION_AUDIENCE,
+              : operation.kind === 'recall_chats'
+                ? RECALL_CHATS_AUDIENCE
+                : operation.kind === 'memory_scope'
+                  ? MEMORY_SCOPE_AUDIENCE
+                  : operation.kind === 'integration_catalog'
+                    ? INTEGRATION_CATALOG_AUDIENCE
+                    : operation.kind === 'workspace_context'
+                      ? WORKSPACE_TARGET_AUDIENCE
+                      : operation.kind === 'run_control'
+                        ? RUN_CONTROL_AUDIENCE
+                        : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
@@ -70,15 +76,17 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
           audience:
             operation.kind === 'memory_notes_access'
               ? MEMORY_NOTES_ACCESS_AUDIENCE
-              : operation.kind === 'memory_scope'
-                ? MEMORY_SCOPE_AUDIENCE
-                : operation.kind === 'integration_catalog'
-                  ? INTEGRATION_CATALOG_AUDIENCE
-                  : operation.kind === 'workspace_context'
-                    ? WORKSPACE_TARGET_AUDIENCE
-                    : operation.kind === 'run_control'
-                      ? RUN_CONTROL_AUDIENCE
-                      : TASK_DELEGATION_AUDIENCE,
+              : operation.kind === 'recall_chats'
+                ? RECALL_CHATS_AUDIENCE
+                : operation.kind === 'memory_scope'
+                  ? MEMORY_SCOPE_AUDIENCE
+                  : operation.kind === 'integration_catalog'
+                    ? INTEGRATION_CATALOG_AUDIENCE
+                    : operation.kind === 'workspace_context'
+                      ? WORKSPACE_TARGET_AUDIENCE
+                      : operation.kind === 'run_control'
+                        ? RUN_CONTROL_AUDIENCE
+                        : TASK_DELEGATION_AUDIENCE,
           ttlMs: 60_000,
         }
       )
@@ -89,6 +97,13 @@ export async function executeSimControl(request: SimControlRequest): Promise<Sim
           status: 200,
           body: JSON.stringify(
             await resolveMemoryNotesAccess.execute({ principal, input: operation.input })
+          ),
+        }
+      case 'recall_chats':
+        return {
+          status: 200,
+          body: JSON.stringify(
+            await readRecallChats.execute({ principal, input: operation.input })
           ),
         }
       case 'memory_scope':

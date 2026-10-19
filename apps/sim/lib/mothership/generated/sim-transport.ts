@@ -2,6 +2,7 @@
 // Regenerate with `bun run contracts:sync` in the worker.
 
 import { z } from "zod";
+import { RecallChatsRequest } from "./chat-recall";
 import { IntegrationCatalogRequest } from "./integration-catalog";
 import { MemoryNotesAccessInput } from "./memory-notes-access";
 import { MemoryScopeRequest } from "./memory-scope";
@@ -37,6 +38,7 @@ export const SimControlOperation = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("wake"), input: TaskWakeRequest }),
   z.object({ kind: z.literal("workspace_context"), input: z.object({ workspaceId: z.uuid() }) }),
   z.object({ kind: z.literal("integration_catalog"), input: IntegrationCatalogRequest }),
+  z.object({ kind: z.literal("recall_chats"), input: RecallChatsRequest }),
 ]);
 export type SimControlOperation = z.infer<typeof SimControlOperation>;
 
