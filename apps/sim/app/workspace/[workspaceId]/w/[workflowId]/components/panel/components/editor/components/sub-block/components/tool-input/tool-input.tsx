@@ -59,7 +59,10 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { ToolSubBlockRenderer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/sub-block-renderer'
 import { ToolUsageControl } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/tools/usage-control'
-import { clearDependentToolParams } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
+import {
+  clearDependentToolParams,
+  getParamsForToolOperation,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import type { StoredTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/types'
 import {
   isAgentToolBlock,
@@ -111,7 +114,6 @@ import {
   formatParameterLabel,
   getSubBlocksForToolInput,
   getToolIdForOperation,
-  isUserFacingToolParam,
   type SubBlocksForToolInput,
 } from '@/tools/params'
 
@@ -979,18 +981,7 @@ export const ToolInput = memo(function ToolInput({
         return
       }
 
-      const newParamIds = new Set(
-        Object.entries(newToolConfig.params ?? {})
-          .filter(([, param]) => isUserFacingToolParam(param))
-          .map(([paramId]) => paramId)
-      )
-
-      const preservedParams: Record<string, string> = {}
-      Object.entries(tool.params || {}).forEach(([paramId, value]) => {
-        if (newParamIds.has(paramId) && value) {
-          preservedParams[paramId] = value
-        }
-      })
+      const preservedParams = getParamsForToolOperation(tool, newToolConfig)
 
       if (tool.type === 'jira') {
         const subBlockStore = useSubBlockStore.getState()
