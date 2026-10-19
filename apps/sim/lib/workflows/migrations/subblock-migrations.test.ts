@@ -126,6 +126,71 @@ describe('migration targets', () => {
 })
 
 describe('migrateSubblockIds', () => {
+  it.each([
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: '42' },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: '' },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: null },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: false },
+    { operation: { id: 'operation', type: 'dropdown', value: 'convert_prospect' }, value: 0 },
+    { operation: 'convert_prospect', value: '42' },
+  ])(
+    'preserves bare Greenhouse input $value during import normalization',
+    ({ operation, value }) => {
+      const block = makeBlock({
+        type: 'greenhouse_v2',
+        subBlocks: {
+          operation,
+          id: { id: 'id', type: 'short-input', value: 'unrelated-candidate' },
+          update_application_id: value,
+          convert_prospect_job_id: '<lookup.job.id>',
+        } as BlockState['subBlocks'],
+      })
+      const result = migrateSubblockIds({ 'block-1': block })
+      const saved = result.blocks['block-1'].subBlocks
+      expect(saved.id.value).toBe(value)
+      expect(saved.job_id.value).toBe('<lookup.job.id>')
+      expect(saved).not.toHaveProperty('update_application_id')
+      expect(migrateSubblockIds(result.blocks).migrated).toBe(false)
+    }
+  )
+
+  it('retains wrapped Greenhouse source metadata while replacing the canonical target', () => {
+    const source = {
+      id: 'update_application_id',
+      type: 'short-input' as const,
+      value: '42',
+      metadata: { source: { reference: 'candidate-lookup' } },
+    }
+    const block = makeBlock({
+      type: 'greenhouse_v2',
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'update_application' },
+        id: { id: 'id', type: 'short-input', value: 'unrelated-candidate' },
+        update_application_id: source,
+      },
+    })
+    const result = migrateSubblockIds({ 'block-1': block })
+    expect(result.blocks['block-1'].subBlocks.id).toMatchObject({
+      value: '42',
+      metadata: source.metadata,
+    })
+    expect(block.subBlocks.update_application_id).toBe(source)
+  })
+
+  it('preserves a bare Greenhouse array over a stale list filter during import', () => {
+    const block = makeBlock({
+      type: 'greenhouse_v2',
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'create_application' },
+        job_ids: { id: 'job_ids', type: 'short-input', value: '99' },
+        create_application_job_ids: [42, 81],
+      } as BlockState['subBlocks'],
+    })
+    const result = migrateSubblockIds({ 'block-1': block })
+    expect(result.blocks['block-1'].subBlocks.job_ids.value).toEqual([42, 81])
+    expect(result.blocks['block-1'].subBlocks).not.toHaveProperty('create_application_job_ids')
+  })
+
   it.each(['42', ''])(
     'preserves the active Greenhouse alias %j over an unrelated stored target',
     (value) => {
