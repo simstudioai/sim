@@ -2273,6 +2273,31 @@ describe('repeated human review pauses', () => {
     })
   }
 
+  it.each([
+    { statusCode: 402, retryable: false, kind: 'user' },
+    { statusCode: 404, retryable: false, kind: 'user' },
+    { statusCode: 429, retryable: false, kind: 'user' },
+    /** An unreadable usage ledger fails closed with a retryable 402: no verdict on the payer. */
+    { statusCode: 402, retryable: true, kind: 'internal' },
+    { statusCode: 500, retryable: false, kind: 'internal' },
+  ])(
+    'attributes a $statusCode (retryable: $retryable) preprocessing refusal as $kind',
+    async ({ statusCode, retryable, kind }) => {
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1', deploymentVersionId: null }])
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: false,
+        error: { message: 'refused', statusCode, retryable },
+      })
+
+      const error = await runResumeExecution(createRepeatedReviewResumeArgs()).catch(
+        (thrown: unknown) => thrown
+      )
+
+      expect(error).toMatchObject({ name: 'ResumeAdmissionError', statusCode })
+      expect(classifyFailure(error)).toBe(kind)
+    }
+  )
+
   it('keeps the next pause snapshot attached to the log that admission claimed', async () => {
     mockCompletedResumeRun()
 

@@ -68,12 +68,12 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
 
     try {
       const outputFile = params.outputs?.files?.[0]
-      if (outputFile?.path) {
-        await validateCopilotWorkspaceFileWriteTarget(context, {
-          workspaceId,
-          target: { path: outputFile.path, mode: outputFile.mode ?? 'create' },
-        })
-      }
+      const outputPath = outputFile?.path || 'files/generated-video.mp4'
+      const mode = outputFile?.mode ?? 'create'
+      await validateCopilotWorkspaceFileWriteTarget(context, {
+        workspaceId,
+        target: { path: outputPath, mode },
+      })
 
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
@@ -121,9 +121,6 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         signal: context.abortSignal,
         onCost: (cost) => recordServiceCost('falai_video', cost.costDollars),
       })
-
-      const outputPath = outputFile?.path || 'files/generated-video.mp4'
-      const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
       // The prompt is the only secret-bearing input; recording its provenance

@@ -32,9 +32,9 @@ export const dynamic = 'force-dynamic'
  * reached, times out on connect or on `tools/list`, answers with a protocol or HTTP
  * error, or is cooling down after a recent failure is a fault of that server rather
  * than of Sim: it answers 422 (the request was valid; the dependency it names cannot
- * serve it), the status this API family already uses for an upstream that cannot
- * complete the operation, and logs at warn. Anything else keeps {@link categorizeError}'s
- * status and logs at error only when that status is a 5xx.
+ * serve it), the status `oauth/start` answers when a server's authorization server
+ * refuses it, and logs at warn. The v2 surface keeps its documented 503. Anything else
+ * keeps {@link categorizeError}'s status and logs at error only when that status is a 5xx.
  */
 function discoveryFailureResponse(requestId: string, error: unknown) {
   if (isMcpServerUnavailableError(error)) {

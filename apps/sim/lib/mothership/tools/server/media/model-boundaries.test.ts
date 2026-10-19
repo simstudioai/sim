@@ -21,6 +21,7 @@ vi.mock('@google/genai', () => ({
 }))
 vi.mock('@/lib/core/config/api-keys', () => ({ getRotatingApiKey: vi.fn(() => 'api-key') }))
 vi.mock('@/lib/mothership/vfs/resource-writer', () => ({
+  validateCopilotWorkspaceFileWriteTarget: vi.fn(),
   writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 vi.mock('@/lib/media/falai-audio', () => ({ generateFalAudio: mockGenerateFalAudio }))
@@ -118,6 +119,7 @@ describe('Mothership media model boundaries', () => {
       generator().mockImplementationOnce(
         ({ signal }: { signal?: AbortSignal }) =>
           new Promise((_resolve, reject) => {
+            if (signal?.aborted) return reject(signal.reason)
             signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
           })
       )

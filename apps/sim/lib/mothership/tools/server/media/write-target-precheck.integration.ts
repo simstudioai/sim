@@ -181,4 +181,20 @@ describe('media generation output target precheck', () => {
       expect(written).toEqual([{ name: file }])
     }
   )
+
+  it('refuses a taken default video target before generating or billing', async () => {
+    const { context } = await seedMovedFolder()
+    const first = await generateVideoServerTool.execute({ prompt: 'p' }, context)
+    expect(first.success, first.message).toBe(true)
+    mockGenerateFalVideo.mockClear()
+    const charges = vi.fn().mockResolvedValue(undefined)
+
+    const second = await observeServiceCosts(charges, () =>
+      generateVideoServerTool.execute({ prompt: 'p' }, context)
+    )
+
+    expect(second.success).toBe(false)
+    expect(mockGenerateFalVideo).not.toHaveBeenCalled()
+    expect(charges).not.toHaveBeenCalled()
+  })
 })

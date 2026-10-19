@@ -1554,18 +1554,25 @@ export class PauseResumeManager {
     if (!preprocessingResult.success) {
       const errorMessage =
         preprocessingResult.error?.message || 'Preprocessing check failed for resume execution'
-      logger.error('Resume preprocessing failed', {
+      const refusal = new ResumeAdmissionError(
+        errorMessage,
+        preprocessingResult.error?.statusCode ?? 500,
+        preprocessingResult.error?.retryable ?? false
+      )
+      /**
+       * A final 4xx is a verdict on the run (usage limit, rate limit, archived workflow). A
+       * retryable one, such as an unreadable usage ledger, is no verdict on the caller and stays
+       * a Sim failure.
+       */
+      const refusedByRunState =
+        refusal.statusCode >= 400 && refusal.statusCode < 500 && !refusal.retryable
+      logger[refusedByRunState ? 'info' : 'error']('Resume preprocessing failed', {
         resumeExecutionId,
         workflowId: pausedExecution.workflowId,
         userId: effectiveUserId,
         error: errorMessage,
       })
-
-      throw new ResumeAdmissionError(
-        errorMessage,
-        preprocessingResult.error?.statusCode ?? 500,
-        preprocessingResult.error?.retryable ?? false
-      )
+      throw refusedByRunState ? markFailureKind(refusal, 'user') : refusal
     }
 
     logger.info('Preprocessing checks passed for resume', {
