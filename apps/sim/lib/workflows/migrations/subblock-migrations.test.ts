@@ -136,14 +136,15 @@ describe('migrateSubblockIds', () => {
   ])(
     'preserves bare Greenhouse input $value during import normalization',
     ({ operation, value }) => {
+      const legacySubBlocks: Record<string, unknown> = {
+        operation,
+        id: { id: 'id', type: 'short-input', value: 'unrelated-candidate' },
+        update_application_id: value,
+        convert_prospect_job_id: '<lookup.job.id>',
+      }
       const block = makeBlock({
         type: 'greenhouse_v2',
-        subBlocks: {
-          operation,
-          id: { id: 'id', type: 'short-input', value: 'unrelated-candidate' },
-          update_application_id: value,
-          convert_prospect_job_id: '<lookup.job.id>',
-        } as BlockState['subBlocks'],
+        subBlocks: legacySubBlocks as BlockState['subBlocks'],
       })
       const result = migrateSubblockIds({ 'block-1': block })
       const saved = result.blocks['block-1'].subBlocks
@@ -178,13 +179,14 @@ describe('migrateSubblockIds', () => {
   })
 
   it('preserves a bare Greenhouse array over a stale list filter during import', () => {
+    const legacySubBlocks: Record<string, unknown> = {
+      operation: { id: 'operation', type: 'dropdown', value: 'create_application' },
+      job_ids: { id: 'job_ids', type: 'short-input', value: '99' },
+      create_application_job_ids: [42, 81],
+    }
     const block = makeBlock({
       type: 'greenhouse_v2',
-      subBlocks: {
-        operation: { id: 'operation', type: 'dropdown', value: 'create_application' },
-        job_ids: { id: 'job_ids', type: 'short-input', value: '99' },
-        create_application_job_ids: [42, 81],
-      } as BlockState['subBlocks'],
+      subBlocks: legacySubBlocks as BlockState['subBlocks'],
     })
     const result = migrateSubblockIds({ 'block-1': block })
     expect(result.blocks['block-1'].subBlocks.job_ids.value).toEqual([42, 81])
