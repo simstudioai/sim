@@ -1,11 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { ZohoDeskBlock } from '@/blocks/blocks/zoho-desk'
+import * as blockRegistry from '@/blocks/registry'
 import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
+import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
 import * as toolMetadata from '@/tools/metadata'
 import { getSubBlocksForToolInput } from '@/tools/params'
 import { zohoDeskCreateTicketTool } from '@/tools/zoho_desk/create_ticket'
 import { zohoDeskListTicketsTool } from '@/tools/zoho_desk/list_tickets'
+import { zohoDeskSearchAccountsTool } from '@/tools/zoho_desk/search_accounts'
+import { zohoDeskSearchContactsTool } from '@/tools/zoho_desk/search_contacts'
+import { zohoDeskSearchTicketsTool } from '@/tools/zoho_desk/search_tickets'
 import { zohoDeskSendReplyTool } from '@/tools/zoho_desk/send_reply'
+import { zohoDeskUpdateAccountTool } from '@/tools/zoho_desk/update_account'
+import { zohoDeskUpdateContactTool } from '@/tools/zoho_desk/update_contact'
+import { zohoDeskUpdateTicketTool } from '@/tools/zoho_desk/update_ticket'
 
 let metadataSpy: MockInstance<typeof toolMetadata.getToolMetadata>
 
@@ -13,9 +21,14 @@ beforeEach(() => {
   metadataSpy = vi
     .spyOn(toolMetadata, 'getToolMetadata')
     .mockImplementation((id) =>
-      [zohoDeskCreateTicketTool, zohoDeskListTicketsTool, zohoDeskSendReplyTool].find(
-        (tool) => tool.id === id
-      )
+      [
+        zohoDeskCreateTicketTool,
+        zohoDeskListTicketsTool,
+        zohoDeskSendReplyTool,
+        zohoDeskSearchTicketsTool,
+        zohoDeskSearchContactsTool,
+        zohoDeskSearchAccountsTool,
+      ].find((tool) => tool.id === id)
     )
 })
 
@@ -154,5 +167,111 @@ describe('Zoho Desk configured agent requests', () => {
       .searchParams
     expect(query.get('status')).toBe('Open')
     expect(query.get('priority')).toBe('High')
+  })
+})
+
+describe('Zoho Desk operation transitions', () => {
+  it.each([
+    {
+      operation: 'search_tickets',
+      target: 'update_ticket',
+      title: 'Subject',
+      filter: 'billing*',
+      replacement: { priority: 'High' },
+      buildBody: (params: Record<string, unknown>) => {
+        const body = zohoDeskUpdateTicketTool.request.body
+        if (typeof body !== 'function') throw new Error('Update body missing')
+        return body({
+          accessToken: 'fixture',
+          orgId: 'org-fixture',
+          ticketId: 'ticket-fixture',
+          ...params,
+        })
+      },
+    },
+    {
+      operation: 'search_contacts',
+      target: 'update_contact',
+      title: 'Email',
+      filter: 'person*',
+      replacement: { firstName: 'Updated' },
+      buildBody: (params: Record<string, unknown>) => {
+        const body = zohoDeskUpdateContactTool.request.body
+        if (typeof body !== 'function') throw new Error('Update body missing')
+        return body({
+          accessToken: 'fixture',
+          orgId: 'org-fixture',
+          contactId: 'contact-fixture',
+          ...params,
+        })
+      },
+    },
+    {
+      operation: 'search_accounts',
+      target: 'update_account',
+      title: 'Account Name',
+      filter: 'Example*',
+      replacement: { website: 'https://example.com' },
+      buildBody: (params: Record<string, unknown>) => {
+        const body = zohoDeskUpdateAccountTool.request.body
+        if (typeof body !== 'function') throw new Error('Update body missing')
+        return body({
+          accessToken: 'fixture',
+          orgId: 'org-fixture',
+          accountId: 'account-fixture',
+          ...params,
+        })
+      },
+    },
+  ])(
+    'does not send retained $operation filters in a later update',
+    ({ operation, target, title, filter, replacement, buildBody }) => {
+      const editor = getSubBlocksForToolInput(
+        `zoho_desk_${operation}`,
+        'zoho_desk',
+        { operation },
+        undefined,
+        ZohoDeskBlock
+      )
+      const input = editor?.subBlocks.find((field) => field.title === title)
+      if (!input) throw new Error(`Search input missing: ${title}`)
+      const mapper = ZohoDeskBlock.tools.config?.params
+      if (!mapper) throw new Error('Request mapping missing')
+      const stored = { operation: target, [input.id]: filter, ...replacement }
+      const mapped = mapper(stored)
+      expect(buildBody(mapped)).toEqual(replacement)
+    }
+  )
+
+  it('does not send a webhook direction default in a newly created reply action', () => {
+    vi.spyOn(blockRegistry, 'getBlock').mockReturnValue(ZohoDeskBlock)
+    const state = prepareBlockState({
+      id: 'block-fixture',
+      type: 'zoho_desk',
+      name: 'Zoho Desk',
+      position: { x: 0, y: 0 },
+    })
+    const mapper = ZohoDeskBlock.tools.config?.params
+    const body = zohoDeskSendReplyTool.request.body
+    if (!mapper || typeof body !== 'function') throw new Error('Reply mapping missing')
+    const values = Object.fromEntries(
+      Object.entries(state.subBlocks).map(([key, field]) => [key, field.value])
+    )
+    const mapped = mapper({
+      ...values,
+      operation: 'send_reply',
+      content: 'Reply',
+      fromEmailAddress: 'support@example.com',
+    })
+    expect(
+      body({
+        accessToken: 'fixture',
+        orgId: 'org-fixture',
+        ticketId: 'ticket-fixture',
+        content: '',
+        fromEmailAddress: '',
+        ...mapped,
+      })
+    ).not.toHaveProperty('direction')
   })
 })
