@@ -15,7 +15,8 @@
  *   landing footer's toggle, instead of the app's account-synced `system`
  *   default. Leave one out and a visitor on a dark OS lands on a dark
  *   marketing page.
- * - The proxy marks these paths `noindex` on self-hosted deployments, so a
+ * - The proxy marks these paths, and the marketing documents in
+ *   {@link isMarketingPath}, `noindex` on self-hosted deployments, so a
  *   third-party copy of the marketing site never competes with sim.ai in search
  *   or answer engines. Leave one out and that page stays indexable there.
  *
@@ -55,4 +56,20 @@ const LANDING_SEGMENTS: ReadonlySet<string> = new Set(LANDING_ROUTES)
 export function isLandingPath(pathname: string): boolean {
   const firstSegment = pathname.split('/')[1]
   return firstSegment === '' || LANDING_SEGMENTS.has(firstSegment)
+}
+
+/**
+ * Root-level documents that republish the marketing site's content for crawlers
+ * and answer engines. They are served outside `app/(landing)`, so
+ * {@link isLandingPath} does not cover them.
+ */
+const MARKETING_DOCUMENT_PATHS: ReadonlySet<string> = new Set([
+  '/llms.txt',
+  '/llms-full.txt',
+  '/changelog.xml',
+])
+
+/** Whether a pathname serves marketing content: a landing page or a marketing document. */
+export function isMarketingPath(pathname: string): boolean {
+  return isLandingPath(pathname) || MARKETING_DOCUMENT_PATHS.has(pathname)
 }

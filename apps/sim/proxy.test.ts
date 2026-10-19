@@ -173,10 +173,20 @@ describe('proxy indexing policy', () => {
     expect(robotsTag('/pricing')).toBe('noindex, nofollow')
   })
 
-  it('leaves the marketing pages of the hosted deployment indexable', () => {
+  it('keeps the marketing documents of a self-hosted deployment out of search results', () => {
+    setEnvFlags({ isHosted: false })
+    expect(robotsTag('/llms.txt')).toBe('noindex, nofollow')
+    expect(robotsTag('/llms-full.txt')).toBe('noindex, nofollow')
+    expect(robotsTag('/changelog.xml')).toBe('noindex, nofollow')
+  })
+
+  it('leaves the marketing pages and documents of the hosted deployment indexable', () => {
     setEnvFlags({ isHosted: true })
     expect(robotsTag('/comparisons/n8n')).toBeNull()
     expect(robotsTag('/pricing')).toBeNull()
+    expect(robotsTag('/llms.txt')).toBeNull()
+    expect(robotsTag('/llms-full.txt')).toBeNull()
+    expect(robotsTag('/changelog.xml')).toBeNull()
   })
 
   it('leaves a self-hosted non-landing public page indexable', () => {
@@ -197,6 +207,12 @@ describe('proxy matcher', () => {
   it('leaves the document snapshot persists unbuffered, so a whole snapshot reaches the route', () => {
     expect(matches('/api/internal/file-doc/persist')).toBe(false)
     expect(matches('/api/internal/project-file-doc/project-1/file-1/persist')).toBe(false)
+  })
+
+  it('runs for the marketing documents, so the indexing policy reaches them', () => {
+    expect(matches('/llms.txt')).toBe(true)
+    expect(matches('/llms-full.txt')).toBe(true)
+    expect(matches('/changelog.xml')).toBe(true)
   })
 
   it('still runs for every other API route', () => {

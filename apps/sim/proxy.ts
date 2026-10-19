@@ -7,7 +7,7 @@ import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
 import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
 import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
-import { isLandingPath } from '@/lib/landing/routes'
+import { isMarketingPath } from '@/lib/landing/routes'
 import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
@@ -457,7 +457,7 @@ function applyIndexingPolicy(request: NextRequest, response: NextResponse): Next
   if (
     isNonCanonicalSimHost(host) ||
     isNoindexPath(pathname) ||
-    (!isHosted && isLandingPath(pathname))
+    (!isHosted && isMarketingPath(pathname))
   ) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   }
