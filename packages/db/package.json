@@ -56,15 +56,15 @@
   "dependencies": {
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*",
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.4",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@types/bun": "1.4.1",
-    "@types/node": "24.2.1",
+    "@types/bun": "1.4.3",
+    "@types/node": "24.19.2",
     "drizzle-kit": "0.31.10",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

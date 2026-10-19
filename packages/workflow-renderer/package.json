@@ -65,11 +65,11 @@
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
     "@sim/workflow-types": "workspace:*",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@types/hast": "^3.0.4",
+    "@testing-library/jest-dom": "^6.10.0",
+    "@types/hast": "3.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@xyflow/react": "12.11.3",
+    "@xyflow/react": "12.12.0",
     "jsdom": "^26.0.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -77,6 +77,6 @@
     "remark-gfm": "^4.0.1",
     "streamdown": "2.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }

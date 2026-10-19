@@ -50,6 +50,6 @@
     "@sim/tsconfig": "workspace:*",
     "@types/micromatch": "4.0.10",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }
