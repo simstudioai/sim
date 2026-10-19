@@ -37,9 +37,32 @@ export function getParamsForToolOperation(
       .filter(([, param]) => isUserFacingToolParam(param))
       .map(([paramId]) => paramId)
   )
+  const subBlocks = getBlock(tool.type)?.subBlocks ?? []
+  if (nextTool.oauth) {
+    const credentialControls = subBlocks.filter(
+      (subBlock) =>
+        subBlock.type === 'oauth-input' && subBlock.serviceId === nextTool.oauth?.provider
+    )
+    const credentialCanonicalIds = new Set(
+      credentialControls.flatMap((subBlock) =>
+        subBlock.canonicalParamId ? [subBlock.canonicalParamId] : []
+      )
+    )
+    for (const subBlock of subBlocks) {
+      if (
+        credentialControls.includes(subBlock) ||
+        (subBlock.canonicalParamId &&
+          credentialCanonicalIds.has(subBlock.canonicalParamId) &&
+          (!subBlock.serviceId || subBlock.serviceId === nextTool.oauth.provider))
+      ) {
+        newParamIds.add(subBlock.id)
+        if (subBlock.canonicalParamId) newParamIds.add(subBlock.canonicalParamId)
+      }
+    }
+  }
   const preservedParams: Record<string, string> = {}
   Object.entries(tool.params || {}).forEach(([paramId, value]) => {
     if (newParamIds.has(paramId) && value) preservedParams[paramId] = value
   })
-  return preservedParams
+  return clearDependentToolParams(tool.type, preservedParams, 'operation')
 }

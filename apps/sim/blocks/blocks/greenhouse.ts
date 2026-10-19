@@ -701,6 +701,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'id',
+      dependsOn: ['operation'],
       title: 'Resource ID',
       type: 'short-input',
       placeholder: 'Enter resource ID',
@@ -747,6 +748,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'cursor',
+      dependsOn: ['operation'],
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Enter cursor',
@@ -831,6 +833,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'ids',
+      dependsOn: ['operation'],
       title: 'Ids',
       type: 'short-input',
       placeholder: '123,456',
@@ -878,6 +881,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'created_at',
+      dependsOn: ['operation'],
       title: 'Created At',
       type: 'long-input',
       placeholder: 'Date, timestamp, or JSON range for the selected operation',
@@ -1021,6 +1025,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'fields',
+      dependsOn: ['operation'],
       title: 'Fields',
       type: 'short-input',
       placeholder: 'id,name',
@@ -1108,6 +1113,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'job_ids',
+      dependsOn: ['operation'],
       title: 'Job IDs',
       type: 'long-input',
       placeholder: 'List filter: 123,456; prospect creation: [123,456]',
@@ -1213,6 +1219,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'status',
+      dependsOn: ['operation'],
       title: 'Status',
       type: 'dropdown',
       condition: {
@@ -1368,6 +1375,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'type',
+      dependsOn: ['operation'],
       title: 'Type',
       type: 'combobox',
       placeholder: 'Select a type, or enter comma-separated note types',
@@ -1599,6 +1607,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'name',
+      dependsOn: ['operation'],
       title: 'Name',
       type: 'short-input',
       placeholder: 'Enter name',
@@ -1616,6 +1625,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'parent_id',
+      dependsOn: ['operation'],
       title: 'Parent ID',
       type: 'short-input',
       placeholder: 'Enter numeric parent id',
@@ -1625,6 +1635,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'external_id',
+      dependsOn: ['operation'],
       title: 'External ID',
       type: 'short-input',
       placeholder: 'Enter external id',
@@ -1912,6 +1923,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'visibility',
+      dependsOn: ['operation'],
       title: 'Visibility',
       type: 'dropdown',
       condition: {
@@ -2063,6 +2075,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'opening_id',
+      dependsOn: ['operation'],
       title: 'Opening ID',
       type: 'short-input',
       placeholder: 'Enter opening id',
@@ -2394,6 +2407,7 @@ export const GreenhouseV2Block: BlockConfig = {
     },
     {
       id: 'custom_fields',
+      dependsOn: ['operation'],
       title: 'Custom Fields',
       type: 'code',
       placeholder: '[]',
