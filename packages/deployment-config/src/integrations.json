@@ -30317,8 +30317,8 @@
       "type": "zoho_desk",
       "slug": "zoho-desk",
       "name": "Zoho Desk",
-      "description": "Manage Zoho Desk tickets, comments, threads, and contacts",
-      "longDescription": "Read and update Zoho Desk tickets, manage comments and threads, look up contacts, and download attachments. Trigger workflows from Zoho Desk webhook events.",
+      "description": "Manage Zoho Desk tickets, replies, contacts, and accounts",
+      "longDescription": "Create, search, and update Zoho Desk tickets, contacts, and accounts; send email replies, manage comments, inspect departments and agents, and download attachments. Trigger workflows from Zoho Desk webhook events.",
       "bgColor": "#FFFFFF",
       "iconName": "ZohoDeskIcon",
       "docsUrl": "https://docs.sim.ai/integrations/zoho_desk",
@@ -30362,9 +30362,89 @@
         {
           "name": "List Organizations",
           "description": "List the Zoho Desk organizations (portals) the connected account can access."
+        },
+        {
+          "name": "Create Ticket",
+          "description": "Create Ticket in Zoho Desk."
+        },
+        {
+          "name": "Search Tickets",
+          "description": "Search Tickets in Zoho Desk."
+        },
+        {
+          "name": "Move Ticket",
+          "description": "Move a ticket to another department."
+        },
+        {
+          "name": "Send Reply",
+          "description": "Send an email reply from a configured Zoho Desk sender address."
+        },
+        {
+          "name": "List Contacts",
+          "description": "List Contacts in Zoho Desk."
+        },
+        {
+          "name": "Create Contact",
+          "description": "Create Contact in Zoho Desk."
+        },
+        {
+          "name": "Update Contact",
+          "description": "Update Contact in Zoho Desk."
+        },
+        {
+          "name": "Search Contacts",
+          "description": "Search Contacts in Zoho Desk."
+        },
+        {
+          "name": "List Accounts",
+          "description": "List Accounts in Zoho Desk."
+        },
+        {
+          "name": "Create Account",
+          "description": "Create Account in Zoho Desk."
+        },
+        {
+          "name": "Update Account",
+          "description": "Update Account in Zoho Desk."
+        },
+        {
+          "name": "Search Accounts",
+          "description": "Search Accounts in Zoho Desk."
+        },
+        {
+          "name": "Get Account",
+          "description": "Get Account in Zoho Desk."
+        },
+        {
+          "name": "List Departments",
+          "description": "List Departments in Zoho Desk."
+        },
+        {
+          "name": "Get Department",
+          "description": "Get Department in Zoho Desk."
+        },
+        {
+          "name": "List Agents",
+          "description": "List Agents in Zoho Desk."
+        },
+        {
+          "name": "Get Agent",
+          "description": "Get Agent in Zoho Desk."
+        },
+        {
+          "name": "Get Comment",
+          "description": "Get Comment in Zoho Desk."
+        },
+        {
+          "name": "Update Comment",
+          "description": "Update comment content or attachments; visibility can only be set when creating a comment."
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete Comment in Zoho Desk."
         }
       ],
-      "operationCount": 10,
+      "operationCount": 30,
       "triggers": [
         {
           "id": "zoho_desk",
@@ -30378,7 +30458,7 @@
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-10-18"
     },
     {
       "type": "zoom",

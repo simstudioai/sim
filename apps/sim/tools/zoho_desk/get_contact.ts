@@ -1,11 +1,11 @@
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+import { readZohoDeskResponse } from '@/tools/zoho_desk/request'
 import type { ZohoDeskGetContactParams, ZohoDeskResponse } from '@/tools/zoho_desk/types'
 import { ZOHO_DESK_CONTACT_PROPERTIES } from '@/tools/zoho_desk/types'
 import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
-  getZohoDeskErrorMessage,
   normalizeZohoDeskCommaList,
 } from '@/tools/zoho_desk/utils'
 
@@ -63,12 +63,7 @@ export const zohoDeskGetContactTool: ToolConfig<ZohoDeskGetContactParams, ZohoDe
   },
 
   transformResponse: async (response) => {
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(
-        getZohoDeskErrorMessage(data, `Failed to get contact (HTTP ${response.status})`)
-      )
-    }
+    const data = await readZohoDeskResponse(response)
     return {
       success: true,
       output: { contact: data },
