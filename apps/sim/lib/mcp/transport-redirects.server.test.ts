@@ -4,13 +4,13 @@
  * ports are two origins, and loopback is reachable under the self-hosted profile.
  */
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http'
-import type { AddressInfo, Socket } from 'node:net'
-import { exchangeAuthorization } from '@modelcontextprotocol/sdk/client/auth.js'
-import { ServerError } from '@modelcontextprotocol/sdk/server/auth/errors.js'
+import type { AddressInfo } from 'node:net'
+import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { McpClient } from '@/lib/mcp/client'
-import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
+import { mcpAuthGuarded } from '@/lib/mcp/oauth/auth'
+import { createGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 
 interface RecordedRequest {
   method: string
@@ -21,7 +21,6 @@ interface RecordedRequest {
 interface LocalServer {
   origin: string
   requests: RecordedRequest[]
-  openSockets: Set<Socket>
   close: () => Promise<void>
 }
 
@@ -35,7 +34,6 @@ const servers: LocalServer[] = []
 
 async function startServer(handler: Handler): Promise<LocalServer> {
   const requests: RecordedRequest[] = []
-  const openSockets = new Set<Socket>()
   const server: Server = createServer((req, res) => {
     const chunks: Buffer[] = []
     req.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -49,16 +47,11 @@ async function startServer(handler: Handler): Promise<LocalServer> {
       })
     })
   })
-  server.on('connection', (socket) => {
-    openSockets.add(socket)
-    socket.on('close', () => openSockets.delete(socket))
-  })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo
   const local: LocalServer = {
     origin: `http://127.0.0.1:${port}`,
     requests,
-    openSockets,
     close: () =>
       new Promise<void>((resolve) => {
         server.closeAllConnections()
@@ -134,37 +127,116 @@ describe('MCP transport redirects', () => {
   })
 })
 
-describe('guarded MCP OAuth fetch', () => {
-  it('hands an unfollowed cross-origin token redirect back to the SDK, naming its target, and releases the socket', async () => {
-    const elsewhere = await startServer((_request, _body, respond) => respond(200, {}, '{}'))
-    const authServer = await startServer((_request, _body, respond) => {
-      respond(302, { location: `${elsewhere.origin}/token` }, 'moved')
-    })
+const OAUTH_FETCHES = [
+  { name: 'the default OAuth fetch', fetchFn: () => undefined },
+  {
+    name: 'the transport fetch reused by coordinated refresh',
+    fetchFn: (serverUrl: string) => createGuardedMcpFetch(serverUrl).fetch,
+  },
+] as const
 
-    const exchange = exchangeAuthorization(authServer.origin, {
-      metadata: {
-        issuer: authServer.origin,
-        authorization_endpoint: `${authServer.origin}/authorize`,
-        token_endpoint: `${authServer.origin}/token`,
-        response_types_supported: ['code'],
-      },
-      clientInformation: { client_id: 'client-1' },
-      authorizationCode: 'code-1',
-      codeVerifier: 'verifier-1',
-      redirectUri: 'http://127.0.0.1/callback',
-      fetchFn: createSsrfGuardedMcpFetch({
-        serverUrl: `${authServer.origin}/mcp`,
-        timeoutMs: 5_000,
-      }),
-    })
+function recordingProvider() {
+  const authorizationUrls: URL[] = []
+  const provider: OAuthClientProvider = {
+    get redirectUrl() {
+      return 'http://127.0.0.1/callback'
+    },
+    get clientMetadata() {
+      return { redirect_uris: ['http://127.0.0.1/callback'] }
+    },
+    clientInformation: () => ({ client_id: 'client-1' }),
+    tokens: () => undefined,
+    saveTokens: () => {},
+    redirectToAuthorization: (url) => {
+      authorizationUrls.push(url)
+    },
+    saveCodeVerifier: () => {},
+    codeVerifier: () => 'verifier-1',
+  }
+  return { provider, authorizationUrls }
+}
 
-    const error = await exchange.catch((caught: unknown) => caught)
-    expect(error).toBeInstanceOf(ServerError)
-    expect((error as Error).message).toBe(
-      `HTTP 302: Redirect to ${elsewhere.origin}/token not followed`
-    )
-    expect(authServer.requests.map((request) => request.method)).toEqual(['POST'])
-    expect(elsewhere.requests).toHaveLength(0)
-    await vi.waitFor(() => expect(authServer.openSockets.size).toBe(0), { timeout: 2_000 })
+function authorizationServerMetadata(origin: string) {
+  return JSON.stringify({
+    issuer: origin,
+    authorization_endpoint: `${origin}/authorize`,
+    token_endpoint: `${origin}/token`,
+    response_types_supported: ['code'],
+    code_challenge_methods_supported: ['S256'],
   })
+}
+
+describe('MCP OAuth redirects', () => {
+  it.each(OAUTH_FETCHES)(
+    'follows a cross-origin redirect of protected-resource discovery through $name, without its headers',
+    async ({ fetchFn }) => {
+      const json = { 'content-type': 'application/json' }
+      let apexOrigin = ''
+      const www = await startServer((_request, _body, respond) => {
+        respond(
+          200,
+          json,
+          JSON.stringify({ resource: `${apexOrigin}/mcp`, authorization_servers: [apexOrigin] })
+        )
+      })
+      const apex = await startServer((request, _body, respond) => {
+        if (request.url === '/.well-known/oauth-protected-resource/mcp') {
+          respond(302, { location: `${www.origin}${request.url}` }, '')
+        } else if (request.url === '/.well-known/oauth-authorization-server') {
+          respond(200, json, authorizationServerMetadata(apexOrigin))
+        } else {
+          respond(404, {}, '')
+        }
+      })
+      apexOrigin = apex.origin
+      const serverUrl = `${apex.origin}/mcp`
+      const { provider, authorizationUrls } = recordingProvider()
+
+      await expect(
+        mcpAuthGuarded(provider, { serverUrl, fetchFn: fetchFn(serverUrl) })
+      ).resolves.toBe('REDIRECT')
+
+      expect(apex.requests[0].headers['mcp-protocol-version']).toBeDefined()
+      expect(www.requests).toHaveLength(1)
+      expect(www.requests[0].headers['mcp-protocol-version']).toBeUndefined()
+      expect(www.requests[0].headers.authorization).toBeUndefined()
+      expect(authorizationUrls).toHaveLength(1)
+      expect(authorizationUrls[0].searchParams.get('resource')).toBe(serverUrl)
+    }
+  )
+
+  it.each(OAUTH_FETCHES)(
+    'refuses a cross-origin 307 of the token request through $name, as it would forward the body',
+    async ({ fetchFn }) => {
+      const elsewhere = await startServer((_request, _body, respond) => respond(200, {}, '{}'))
+      const apex = await startServer((request, _body, respond) => {
+        if (request.url === '/.well-known/oauth-authorization-server') {
+          respond(
+            200,
+            { 'content-type': 'application/json' },
+            authorizationServerMetadata(apex.origin)
+          )
+        } else if (request.url === '/token') {
+          respond(307, { location: `${elsewhere.origin}/token` }, '')
+        } else {
+          respond(404, {}, '')
+        }
+      })
+      const serverUrl = `${apex.origin}/mcp`
+      const { provider } = recordingProvider()
+
+      await expect(
+        mcpAuthGuarded(provider, {
+          serverUrl,
+          authorizationCode: 'code-1',
+          fetchFn: fetchFn(serverUrl),
+        })
+      ).rejects.toThrow(
+        'Blocked by SSRF policy: cross-origin redirect would forward a request body'
+      )
+
+      expect(apex.requests.filter((request) => request.url === '/token')).toHaveLength(1)
+      expect(elsewhere.requests).toHaveLength(0)
+    }
+  )
 })
