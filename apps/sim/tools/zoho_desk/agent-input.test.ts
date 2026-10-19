@@ -228,8 +228,8 @@ describe('Zoho Desk operation transitions', () => {
         return body({
           accessToken: 'fixture',
           orgId: 'org-fixture',
-          accountId: 'account-fixture',
           ...params,
+          accountId: 'account-fixture',
         })
       },
     },
@@ -338,8 +338,8 @@ describe('Zoho Desk lookup and read-option transitions', () => {
         return url({
           accessToken: 'fixture',
           orgId: 'org-fixture',
-          accountId: 'account-fixture',
           ...params,
+          accountId: 'account-fixture',
         })
       },
     },
