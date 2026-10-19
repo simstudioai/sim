@@ -24,7 +24,7 @@ faq:
 
 ## TL;DR
 
-- **Sim** fits teams that want a visual agent builder they can run on their own infrastructure, with per-block run traces. Anyone can self-host [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) for free; [enterprise features use a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). SSO, audit logs, and supported self-hosting are part of the Enterprise plan.
+- **Sim**, the open-source AI workspace, fits teams that want a visual builder they can run on their own infrastructure, with per-block run traces. Anyone can self-host [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) for free; [enterprise features use a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). SSO, audit logs, and supported self-hosting are part of the Enterprise plan.
 - **Langflow** fits teams building visual prototypes, especially if they already use IBM watsonx Orchestrate, which [IBM positions](https://www.ibm.com/new/announcements/prototype-to-production-langflow-and-ibm-watsonx-orchestrate-si) as the enterprise runtime for Langflow-built agents.
 - **Dify** fits teams willing to operate a larger self-hosted stack under a modified Apache 2.0 license.
 - **n8n** fits teams whose AI agents need to work inside broader automation workflows.
@@ -51,7 +51,7 @@ For each alternative, the comparison examines license terms, the self-hosting pa
 
 ## Sim
 
-**Best for** You want a visual agent builder that can move into production with self-hosting, several ways to deploy a workflow, and controls for enterprise access.
+**Best for** You want the open-source AI workspace, including a visual builder that can move into production with self-hosting, several ways to deploy a workflow, and controls for enterprise access.
 
 **Pros** Sim's core uses the [Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE), with [enterprise features covered by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). You can [deploy a workflow](https://docs.sim.ai/workflows/deployment) as an API, a chat interface, or an MCP tool that lets other AI applications call it. Those options let you use the same workflow in an application, a user-facing conversation, or another agent without rebuilding its logic. Sim's pricing page lists [hundreds of integrations and major model providers](https://www.sim.ai/pricing).
 
@@ -107,7 +107,7 @@ Flowise was a common Langflow alternative, but it is no longer viable for new pr
 
 ## Choosing the right Langflow alternative
 
-**Best overall: Sim.** If you want a visual builder you can self-host under an OSI-approved core license, choose Sim. [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) runs on your infrastructure for free, while [production use of enterprise features such as SSO and audit logs requires an Enterprise subscription](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Check which features you need before deciding which plan fits.
+**Best overall: Sim.** If you want the open-source AI workspace with a visual builder you can self-host under an OSI-approved core license, choose Sim. [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) runs on your infrastructure for free, while [production use of enterprise features such as SSO and audit logs requires an Enterprise subscription](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Check which features you need before deciding which plan fits.
 
 If your main need is connecting business apps, choose n8n for workflow automation. Review its license before using it to offer workflows to customers. Choose LangGraph if you want to write and operate orchestration code yourself, while accounting for the [LangSmith license key](https://docs.langchain.com/langsmith/deploy-standalone-server) its standalone Agent Server requires.
 
