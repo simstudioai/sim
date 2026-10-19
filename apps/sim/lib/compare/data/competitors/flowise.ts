@@ -1,7 +1,11 @@
 import { FlowiseIcon } from '@/components/icons'
 import type { CompetitorProfile } from '@/lib/compare/data/types'
 
-/** Researched and cross-verified against live vendor sources on 2026-07-02. */
+/**
+ * Researched and cross-verified against live vendor sources on 2026-07-02. The
+ * end-of-life status in `oneLiner`, `leadAnswer`, and `faqs` was verified against
+ * flowiseai.com/sunset and the archived GitHub repository on 2026-10-19.
+ */
 export const flowiseProfile: CompetitorProfile = {
   id: 'flowise',
   name: 'Flowise',
@@ -14,11 +18,18 @@ export const flowiseProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, available self-hosted or as a managed cloud service, and owned by Workday since August 2025.',
+    'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, owned by Workday since August 2025, which reached end of life on August 31, 2026 after its team announced it was winding the project down.',
   leadAnswer: [
-    'Flowise is an open-source, Apache 2.0-licensed, low-code visual builder for LLM chains, RAG pipelines, and multi-agent workflows, owned by Workday since August 2025 and available self-hosted or on Flowise Cloud. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Flowise when you want fine control over RAG ingestion, with a choice of vector-store backends and the broadest native text-splitter menu, or dataset-based batch evaluations on its Cloud and Enterprise plans. Choose Sim when you need production operations built in: schedule and app-event triggers, failure alerts, error-handling branches, native parallel execution, and published execution limits.',
+    'Flowise was an open-source, Apache 2.0-licensed, low-code visual builder for LLM chains, RAG pipelines, and multi-agent workflows, owned by Workday since August 2025. Its team ',
+    { text: 'announced the sunset of Flowise', href: 'https://flowiseai.com/sunset' },
+    ' on July 29, 2026: feature development stopped that day, the GitHub repository was archived in August, and the project reached end of life on August 31, 2026, with the Apache 2.0 code left available to fork. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose a Flowise fork only if you already run Flowise and are prepared to maintain the code yourself. Choose Sim when you need an actively developed platform with production operations built in: schedule and app-event triggers, failure alerts, error-handling branches, native parallel execution, and published execution limits.',
   ],
   faqs: [
+    {
+      question: 'Is Flowise still maintained?',
+      answer:
+        'No. The Flowise team announced on July 29, 2026 that it was winding the project down: feature development and pull request review stopped that day, the GitHub repository was archived in August 2026 with its npm packages and Docker images marked deprecated, and the project reached end of life on August 31, 2026, when the core team stopped supporting it on Discord and GitHub. The Apache 2.0 source code stays on GitHub for teams to fork. Sim is an actively developed open-source alternative with an Apache 2.0-licensed core that can be self-hosted or used on Sim Cloud.',
+    },
     {
       question: 'How does Sim compare to Flowise for building AI agents?',
       answer:
@@ -32,7 +43,7 @@ export const flowiseProfile: CompetitorProfile = {
     {
       question: 'Are Sim and Flowise both open source?',
       answer:
-        "Yes. Both Sim and Flowise license their core under Apache 2.0 and can be self-hosted, so the license itself is not a differentiator. Each keeps some features under a separate license: Flowise's RBAC, login-activity logs, and organization workspaces ship under a Commercial License on its Cloud and Enterprise plans, with SSO on Enterprise only, while Sim's enterprise features require an Enterprise subscription for production use. Flowise has the larger existing community, with roughly 54,000 GitHub stars, and its Enterprise tier supports on-premise or air-gapped deployment.",
+        "Yes. Both Sim and Flowise license their core under Apache 2.0 and can be self-hosted, so the license itself is not a differentiator. Each keeps some features under a separate license: Flowise's RBAC, login-activity logs, and organization workspaces ship under a Commercial License on its Cloud and Enterprise plans, with SSO on Enterprise only, while Sim's enterprise features require an Enterprise subscription for production use. Flowise's archived repository keeps its community of roughly 55,000 GitHub stars, but the project no longer accepts contributions after reaching end of life on August 31, 2026.",
     },
     {
       question: 'How do Sim and Flowise compare for RAG and knowledge bases?',

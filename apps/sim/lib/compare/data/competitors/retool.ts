@@ -45,7 +45,7 @@ export const retoolProfile: CompetitorProfile = {
     {
       question: 'How do Sim and Retool compare for knowledge bases and RAG?',
       answer:
-        "Sim's knowledge base combines vector and full-text search and keeps sources in sync, while Retool Vectors is a managed vector store for uploaded content. Retool Vectors indexes text, PDFs, and web pages, and its embedding calls always go through OpenAI's API regardless of which chat model an app or agent uses. Sim stores embeddings in pgvector alongside a full-text index, supports 15 file types with configurable chunking, uses connectors to continuously sync sources such as Google Drive, Confluence, and Slack, and shows chunk-level detail with a dedicated chunk editor.",
+        "Sim's knowledge base combines vector and full-text search and keeps sources in sync, while Retool Vectors is a managed vector store for uploaded content. Retool Vectors indexes text, PDFs, and web pages, and it generates embeddings with an OpenAI embedding model (text-embedding-ada-002 by default) that cannot be changed after a vector is created. Sim stores embeddings in pgvector alongside a full-text index, supports 15 file types with configurable chunking, uses connectors to continuously sync sources such as Google Drive, Confluence, and Slack, and shows chunk-level detail with a dedicated chunk editor.",
     },
   ],
   standoutFeatures: [
