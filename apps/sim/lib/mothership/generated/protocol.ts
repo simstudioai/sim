@@ -496,13 +496,6 @@ export const TitleRequest = z.strictObject({
 });
 export type TitleRequest = z.infer<typeof TitleRequest>;
 
-/** The 409 body for a duplicate send while a sibling instance streams (S32). */
-export interface ActiveStreamConflict {
-  error: "active_stream";
-  streamId: string;
-  status: string;
-}
-
 /** The 426 body for protocol version skew (S43). */
 export interface ProtocolMismatch {
   error: "protocol_version_mismatch";
