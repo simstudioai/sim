@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -8,6 +7,7 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Clerk')
 
@@ -24,22 +24,15 @@ export const clerkHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Clerk signing secret is required', { status: 401 })
     }
 
-    const verification = verifyStandardWebhook({
-      secret: signingSecret,
+    const failure = verifyStandardWebhookRequest({
+      request,
       rawBody,
-      headers: request.headers,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'Clerk',
       headerPrefix: 'svix',
     })
-    if (!verification.valid) {
-      if (verification.reason === 'missing_headers') {
-        logger.warn(`[${requestId}] Clerk webhook missing Svix signature headers`)
-        return new NextResponse('Unauthorized - Missing Clerk signature headers', { status: 401 })
-      }
-      logger.warn(`[${requestId}] Clerk Svix signature verification failed`, {
-        reason: verification.reason,
-      })
-      return new NextResponse('Unauthorized - Invalid Clerk signature', { status: 401 })
-    }
+    if (failure) return failure
 
     return null
   },

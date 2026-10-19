@@ -15,7 +15,8 @@ function listItemMarker(context: RenderContext): string {
  *
  * Nested blocks keep the two-space indent under every marker. Upstream aligns ordered-item
  * children to the marker width, but its ordered-list tokenizer strips one column less, so a
- * fenced code block inside a numbered item would gain a leading space on every save.
+ * fenced code block inside a numbered item would gain a leading space on every save. Drop
+ * this override once the upstream ordered-list tokenizer strips the full marker width.
  */
 export const MarkdownListItem = ListItem.extend({
   parseMarkdown(token, helpers) {

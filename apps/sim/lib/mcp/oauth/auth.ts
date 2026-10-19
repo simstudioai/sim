@@ -23,8 +23,6 @@ export function mcpAuthGuarded(
     provider.authorizationScope
       ? { scope: provider.authorizationScope }
       : {}),
-    fetchFn:
-      options.fetchFn ??
-      createSsrfGuardedMcpFetch({ serverUrl: String(options.serverUrl), followRedirects: 'guard' }),
+    fetchFn: options.fetchFn ?? createSsrfGuardedMcpFetch({ serverUrl: String(options.serverUrl) }),
   })
 }

@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
@@ -10,6 +9,7 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Incidentio')
 
@@ -52,23 +52,14 @@ export const incidentioHandler: WebhookProviderHandler = {
       })
     }
 
-    const verification = verifyStandardWebhook({
-      secret: signingSecret,
+    const failure = verifyStandardWebhookRequest({
+      request,
       rawBody,
-      headers: request.headers,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'incident.io',
     })
-    if (!verification.valid) {
-      if (verification.reason === 'missing_headers') {
-        logger.warn(`[${requestId}] incident.io webhook missing Svix signature headers`)
-        return new NextResponse('Unauthorized - Missing incident.io signature headers', {
-          status: 401,
-        })
-      }
-      logger.warn(`[${requestId}] incident.io Svix signature verification failed`, {
-        reason: verification.reason,
-      })
-      return new NextResponse('Unauthorized - Invalid incident.io signature', { status: 401 })
-    }
+    if (failure) return failure
 
     return null
   },

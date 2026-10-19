@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -13,6 +12,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 import { GRANOLA_TRIGGER_TO_EVENT_TYPES } from '@/triggers/granola/utils'
 
 const logger = createLogger('WebhookProvider:Granola')
@@ -144,21 +144,14 @@ export const granolaHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Granola signing secret is required', { status: 401 })
     }
 
-    const verification = verifyStandardWebhook({
-      secret: signingSecret,
+    const failure = verifyStandardWebhookRequest({
+      request,
       rawBody,
-      headers: request.headers,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'Granola',
     })
-    if (!verification.valid) {
-      if (verification.reason === 'missing_headers') {
-        logger.warn(`[${requestId}] Granola webhook missing Standard Webhooks signature headers`)
-        return new NextResponse('Unauthorized - Missing Granola signature headers', { status: 401 })
-      }
-      logger.warn(`[${requestId}] Granola signature verification failed`, {
-        reason: verification.reason,
-      })
-      return new NextResponse('Unauthorized - Invalid Granola signature', { status: 401 })
-    }
+    if (failure) return failure
 
     return null
   },

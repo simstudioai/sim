@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { NextResponse } from 'next/server'
 import type {
   AuthContext,
@@ -8,6 +7,7 @@ import type {
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Loops')
 
@@ -24,26 +24,18 @@ export const loopsHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Loops signing secret is required', { status: 401 })
     }
 
-    /* Loops secrets are `<prefix>_<base64>`; the prefix is not always `whsec`. */
-    const base64Secret = signingSecret.includes('_')
-      ? signingSecret.slice(signingSecret.indexOf('_') + 1)
-      : signingSecret
+    // Loops secrets are `<prefix>_<base64>` and the prefix is not always `whsec`;
+    // with no `_`, indexOf is -1 and the whole secret is kept.
+    const base64Secret = signingSecret.slice(signingSecret.indexOf('_') + 1)
 
-    const verification = verifyStandardWebhook({
-      secret: base64Secret,
+    const failure = verifyStandardWebhookRequest({
+      request,
       rawBody,
-      headers: request.headers,
+      requestId,
+      secret: base64Secret,
+      providerLabel: 'Loops',
     })
-    if (!verification.valid) {
-      if (verification.reason === 'missing_headers') {
-        logger.warn(`[${requestId}] Loops webhook missing signature headers`)
-        return new NextResponse('Unauthorized - Missing Loops signature headers', { status: 401 })
-      }
-      logger.warn(`[${requestId}] Loops signature verification failed`, {
-        reason: verification.reason,
-      })
-      return new NextResponse('Unauthorized - Invalid Loops signature', { status: 401 })
-    }
+    if (failure) return failure
 
     return null
   },

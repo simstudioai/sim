@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { verifyStandardWebhook } from '@sim/security/standard-webhooks'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -12,6 +11,7 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 import { LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_ALL_WEBHOOK_EVENT_TYPES, LINQ_TRIGGER_TO_EVENT_TYPE } from '@/triggers/linq/utils'
 
@@ -39,21 +39,14 @@ export const linqHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Linq signing secret is required', { status: 401 })
     }
 
-    const verification = verifyStandardWebhook({
-      secret: signingSecret,
+    const failure = verifyStandardWebhookRequest({
+      request,
       rawBody,
-      headers: request.headers,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'Linq',
     })
-    if (!verification.valid) {
-      if (verification.reason === 'missing_headers') {
-        logger.warn(`[${requestId}] Linq webhook missing Standard Webhooks signature headers`)
-        return new NextResponse('Unauthorized - Missing Linq signature headers', { status: 401 })
-      }
-      logger.warn(`[${requestId}] Linq webhook signature verification failed`, {
-        reason: verification.reason,
-      })
-      return new NextResponse('Unauthorized - Invalid Linq signature', { status: 401 })
-    }
+    if (failure) return failure
 
     return null
   },

@@ -38,7 +38,7 @@ function decodeSecret(secret: string): Buffer | null {
   const encoded = trimmed.startsWith(SECRET_PREFIX) ? trimmed.slice(SECRET_PREFIX.length) : trimmed
   if (!BASE64_SECRET.test(encoded)) return null
   const key = Buffer.from(encoded, 'base64')
-  /* An empty HMAC key is public: anyone could sign with it. */
+  // An empty HMAC key is public: anyone could sign with it.
   return key.length > 0 ? key : null
 }
 
@@ -68,14 +68,14 @@ export function verifyStandardWebhook({
     return { valid: false, reason: 'missing_headers' }
   }
 
-  const key = decodeSecret(secret)
-  if (!key) return { valid: false, reason: 'invalid_secret' }
-
   if (!UNIX_SECONDS.test(timestamp)) return { valid: false, reason: 'invalid_timestamp' }
   const nowSeconds = Math.floor(Date.now() / 1000)
   if (Math.abs(nowSeconds - Number(timestamp)) > toleranceSeconds) {
     return { valid: false, reason: 'timestamp_out_of_tolerance' }
   }
+
+  const key = decodeSecret(secret)
+  if (!key) return { valid: false, reason: 'invalid_secret' }
 
   const expected = hmacSha256Base64(`${id}.${timestamp}.${rawBody}`, key)
   for (const entry of signatureHeader.split(' ')) {

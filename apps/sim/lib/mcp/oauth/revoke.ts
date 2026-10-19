@@ -37,10 +37,7 @@ export async function revokeMcpOauthTokens(
     const row = await loadOauthRow({ mcpServerId })
     if (!row?.tokens) return
 
-    const ssrfGuardedFetch = createSsrfGuardedMcpFetch({
-      serverUrl: server.url,
-      followRedirects: 'guard',
-    })
+    const ssrfGuardedFetch = createSsrfGuardedMcpFetch({ serverUrl: server.url })
     const info = await discoverOAuthServerInfo(server.url, { fetchFn: ssrfGuardedFetch }).catch(
       () => undefined
     )
