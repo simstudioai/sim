@@ -13,7 +13,7 @@ ogImage: /library/best-retool-alternatives-ai-agents-2026/cover.jpg
 draft: false
 faq:
   - q: "Can Retool build AI agents at all?"
-    a: "Yes. Retool Agents automate work with AI, but Retool bills agent use by the hour, separately from its AI credits for app building. See the Retool and Sim comparison if your main deliverable is an agent workflow rather than an internal app."
+    a: "Yes. Retool Agents automate work with AI, but Retool bills agent use by the hour, separately from its AI credits for app building. Each billing month includes $50 of free agent usage, which Retool says covers up to 20 hours depending on the model. See the Retool and Sim comparison if your main deliverable is an agent workflow rather than an internal app."
   - q: "Is Sim really free to self-host?"
     a: "Yes. Anyone can run Sim's Apache 2.0 core with Docker Compose or Kubernetes without paying a license fee. You still pay for infrastructure and model usage. Supported self-hosting is an Enterprise plan feature, and production use of Enterprise features, including SSO and audit logs, requires an Enterprise subscription."
   - q: "What's the cheapest way to run production agents?"
@@ -24,46 +24,48 @@ faq:
 
 ## TL;DR
 
-- **Best overall: Sim.** Sim is the agent-native Retool alternative for building workflows across multiple models. Retool describes itself as a way to [build internal software](https://retool.com/llms.txt), while [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) lets anyone self-host agent workflows, subject to the [enterprise-feature exception](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+- **Sim** is an open-source AI workspace where teams build, deploy, and manage AI agents across 28 LLM providers. Retool describes itself as a [development platform for building internal software](https://retool.com/llms.txt), while [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) lets anyone self-host agent workflows, subject to the [enterprise-feature exception](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 - **n8n** fits automations where an [AI Agent node](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) sits inside a larger, mostly fixed workflow.
 - **Dify** fits retrieval-heavy chatbots and prompt-based LLM apps.
 - **Gumloop** fits teams that want a hosted agent builder with company-wide admin controls.
-- **Relevance AI** fits buyers evaluating multi-agent “AI workforce” products with built-in agent evaluations.
+- **Relevance AI** fits buyers evaluating multi-agent "AI workforce" products with built-in agent evaluations.
 
 ## Why Retool falls short for building AI agents
 
 Retool fits internal apps better than agent workflows. Its core product builds apps that connect to production data, while Retool Agents is a separately metered product for automating work with AI. If your deliverable is an agent rather than an app for employees to use, evaluate the agent product and its costs apart from Retool's app builder.
 
-[Retool bills Agents by the hour](https://docs.retool.com/support/billing-usage/agents). Billable time runs from when an agent is triggered until it returns an answer, excluding time spent waiting for subagents, authentication, or human approval. Failed runs still count. Retool's [pricing page](https://retool.com/pricing) separates included Agent hours from AI credits used for app building.
+[Retool bills Agents by the hour](https://docs.retool.com/support/billing-usage/agents). Each billing month includes $50 of free agent usage, which Retool says covers up to 20 hours depending on the model you choose. Billable time runs from when an agent is triggered until it returns an answer, excluding time spent waiting for subagents, authentication, or human approval. Failed runs still count. [Hourly rates vary by model](https://docs.retool.com/data-sources/reference/ai-models), and with your own model provider key, Retool charges a flat hourly fee. Retool's [pricing page](https://retool.com/pricing) says Agents do not draw from the AI credit pool that covers app building and AI Actions.
 
 For an agent-first project, compare what each alternative lets the agent do, which models and external tools it can use, and where you can deploy the finished workflow. Self-hosting terms and pricing matter too, especially if agents will run regularly rather than serve as occasional additions to an internal app. The [AI workflow automation buyer's checklist](https://www.sim.ai/library/ai-workflow-automation-platform-buyers-checklist) provides a broader set of evaluation criteria.
 
 ## Comparison table
 
-As of October 2026, Retool appears last as the baseline. The other tools are ranked for building agent workflows. Vendor descriptions are not directly comparable because each vendor defines integrations, executions, and credits differently.
+As of October 2026, Retool appears last as the baseline. The other tools are ranked for building agent workflows. Integration figures are each vendor's own description, and vendors define integrations, executions, and credits differently. MCP (Model Context Protocol) is a protocol that lets AI apps call external tools, and a VPC (virtual private cloud) is a private network in your own cloud account.
 
 | Rank | Tool | Agent capabilities | Integrations | Self-hosting | Pricing |
 |---|---|---|---|---|---|
-| 1 | Sim | Agent, Evaluator, Guardrails, and Human in the Loop blocks | App and model integrations | Apache 2.0 core; separate enterprise-feature license | Free cloud plan; Pro from $25 per seat/month |
-| 2 | n8n | [AI Agent node with tool sub-nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) | App integrations on every plan | [Free Community edition](https://docs.n8n.io/deploy/host-n8n/community-edition-features) under the Sustainable Use License | [Cloud from €20/month billed annually](https://n8n.io/pricing/) |
-| 3 | Dify | Workflows, knowledge retrieval, and agents | Marketplace tools, MCP servers, and APIs | [Free Community edition](https://dify.ai/pricing/dify-enterprise), single workspace, modified Apache 2.0 | [Free Sandbox; Professional $590/workspace/year](https://dify.ai/pricing) |
-| 4 | Gumloop | Agents with triggers and skills | [100+ MCP integrations](https://www.gumloop.com/llms.txt) | Hosted, with VPC deployments described for enterprise teams | [Hosted subscription plans](https://www.gumloop.com/pricing) |
-| 5 | Relevance AI | Agents and multi-agent workforces with evaluations | [2,000+ integrations](https://relevanceai.com/pricing) | Hosted, with enterprise data-residency controls | [Enterprise plan](https://relevanceai.com/pricing) |
-| 6 | Retool | Agents, Workflows, and internal apps | [Native connectors, REST APIs, and GraphQL](https://retool.com/integrations) | [Self-managed deployment requires a Retool license key](https://docs.retool.com/self-hosted/self-managed/tutorials/kubernetes/kubernetes-helm) | [Team from $10/builder/month billed annually](https://retool.com/pricing) plus Agent usage |
+| 1 | Sim | Agent, Evaluator, Guardrails, and Human in the Loop blocks | [270+](https://www.sim.ai/integrations) | Apache 2.0 core, free for anyone; supported self-hosting on Enterprise | Free with 1,000 one-time credits; Pro $25/seat/month |
+| 2 | n8n | [AI Agent node with tool sub-nodes](https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.agent/) | [Over 500](https://n8n.io/) | [Free Community edition](https://docs.n8n.io/deploy/host-n8n/community-edition-features) under the Sustainable Use License | [Cloud from €20/month billed annually](https://n8n.io/pricing/) |
+| 3 | Dify | Workflows, knowledge retrieval, and agents | Marketplace tools, MCP servers, and APIs | [Free Community edition](https://dify.ai/pricing/dify-enterprise), single workspace, modified Apache 2.0 | [Free Sandbox; Professional $590/workspace/year; Team $1,590/workspace/year](https://dify.ai/pricing) |
+| 4 | Gumloop | Agents with triggers and skills | [100+ MCP integrations](https://www.gumloop.com/llms.txt) | No self-hosted plan listed; optional VPC on Enterprise | [Pro from $37/month after a 14-day free trial](https://www.gumloop.com/pricing) |
+| 5 | Relevance AI | Agents and multi-agent workforces with evaluations | [2,000+ integrations](https://relevanceai.com/pricing) | No self-hosted plan listed; data residency on Enterprise | [Enterprise, custom](https://relevanceai.com/pricing); [pricing docs](https://relevanceai.com/docs/get-started/pricing) list Pro from $19/month and Team from $234/month billed annually |
+| 6 | Retool | Agents, Workflows, and internal apps | [Native connectors, REST APIs, and GraphQL](https://retool.com/integrations) | [Self-hosted or air-gapped on Enterprise](https://retool.com/pricing); [Retool license key required](https://docs.retool.com/self-hosted/self-managed/tutorials/kubernetes/kubernetes-helm) | [Team $10/builder/month billed annually](https://retool.com/pricing); Agents $50 free usage/month, then hourly |
 
 ### Sim
 
 **Best for:** You want to build and deploy AI agent workflows, with the option to self-host the core software without a license fee.
 
-**What it is:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. You can assemble workflows in the visual builder, ask Sim in Chat to build and edit them in plain language, and add JavaScript or Python functions when you need code.
+**What it is:** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. You can assemble Workflows on a visual canvas, ask Sim in Chat to build and edit them in plain language, and add JavaScript or Python functions when you need code. For agents that need source material, Sim's Knowledge Base combines vector and full-text search and can sync connected sources such as Google Drive and Slack on a schedule.
 
-**Pros:** Sim's Agent blocks work with major hosted model providers. Local models through Ollama and OpenAI-compatible servers such as vLLM, LM Studio, or LiteLLM work on any self-hosted Sim deployment. Workspace bring-your-own-key credentials work on every Sim Cloud plan.
+**Pros:** Sim's Agent blocks support 28 LLM providers, and the workspace connects to [270+ integrations](https://www.sim.ai/integrations). A self-hosted Sim deployment can also point Agent blocks at local or self-hosted endpoints such as Ollama, vLLM, LM Studio, or LiteLLM. Workspace bring-your-own-key (BYOK) credentials, meaning your own model provider API keys, work on every Sim Cloud plan.
 
-You can deploy a workflow as an API, a chat interface, or a tool on a Model Context Protocol (MCP) server. [MCP deployment](https://docs.sim.ai/workflows/deployment/mcp) makes a workflow available to external clients with API-key-protected or public access. [Sim's self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers Docker Compose and Kubernetes. The core is available under Apache 2.0 without a license fee; code in `apps/sim/ee`, including SSO and audit logs, is covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use.
+You can deploy a workflow as an API, a chat interface, or a tool on an MCP server. [MCP deployment](https://docs.sim.ai/workflows/deployment/mcp) makes a workflow available to external clients with API-key-protected or public access. [Sim's self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers Docker Compose and Kubernetes. The core is available under Apache 2.0 without a license fee, whatever plan you use, and Sim's pricing table lists supported self-hosting as an Enterprise feature. Code in `apps/sim/ee`, including single sign-on (SSO) and audit logs, is covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use.
+
+Retool can also be self-hosted, but its [pricing page](https://retool.com/pricing) lists self-hosted and air-gapped deployment on the Enterprise plan, and every self-hosted instance needs a Retool license key. Retool's [Docker setup](https://docs.retool.com/self-hosted/tutorials/docker) is for non-production use only, and its [production deployments](https://docs.retool.com/self-hosted/self-managed/) run on Kubernetes with Helm. See the [full Sim and Retool comparison](https://www.sim.ai/comparisons/retool).
 
 **Cons:** Self-hosting leaves you responsible for operating the deployment. Sim's free cloud plan grants its credits once rather than refreshing them. Production use of enterprise features such as SSO and audit logs requires an Enterprise subscription.
 
-**Pricing:** [Sim Cloud pricing and limits](https://docs.sim.ai/platform/costs) list Free at $0 with 1,000 one-time credits, Pro at $25 per seat per month with 6,000 monthly credits and a weekly refresh, and Max at $100 per seat per month with 25,000 monthly credits. Enterprise pricing is custom. BYOK calls are paid directly to the model provider, while the workflow base charge and unrelated hosted services can still apply.
+**Pricing:** [Sim Cloud pricing and limits](https://docs.sim.ai/platform/costs) list Free at $0 with 1,000 one-time credits, Pro at $25 per seat per month with 6,000 credits per month and a 2,000-credit weekly refresh, and Max at $100 per seat per month with 25,000 credits per month and a 4,000-credit weekly refresh. Enterprise pricing is custom. BYOK calls are paid directly to the model provider, while the workflow base charge and unrelated hosted services can still apply.
 
 For a wider market view, compare the criteria in [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
@@ -75,9 +77,9 @@ For a wider market view, compare the criteria in [Best AI Agent Platforms and Bu
 
 **Pros:** n8n combines app integrations, optional code, and a choice between n8n Cloud and self-hosting. A self-hosted installation without a paid license key can use the [free Community edition](https://docs.n8n.io/deploy/host-n8n/community-edition-features).
 
-**Cons:** n8n uses the [Sustainable Use License](https://docs.n8n.io/n8n-community-license/community-license/license-faq), which allows internal business uses but restricts some commercial uses. n8n describes this model as fair-code rather than open source. Sim's core uses Apache 2.0 and centers its workspace on building and managing agents, making it the clearer fit when agents are the main deliverable.
+**Cons:** n8n uses the [Sustainable Use License](https://docs.n8n.io/n8n-community-license/community-license/license-faq), which allows internal business uses but restricts some commercial uses. n8n [does not call itself open source](https://docs.n8n.io/choose-n8n/faircode-license/) and describes the license as fair-code. Sim's core uses Apache 2.0 and centers its workspace on building and managing agents, making it the clearer fit when agents are the main deliverable.
 
-**Pricing:** [n8n Cloud](https://n8n.io/pricing/) starts at €20 per month billed annually for Starter, while Pro starts at €50 per month billed annually. Paid plans meter monthly workflow executions, while the Community edition is free to license and leaves infrastructure costs to the operator.
+**Pricing:** [n8n Cloud](https://n8n.io/pricing/) Starter costs €20 per month billed annually with 2,500 workflow executions, and Pro costs €50 per month billed annually with 10,000. The self-hosted Business plan costs €667 per month billed annually with 40,000 executions. The Community edition is free to license and leaves infrastructure costs to the operator.
 
 ### Dify
 
@@ -89,31 +91,31 @@ For a wider market view, compare the criteria in [Best AI Agent Platforms and Bu
 
 **Cons:** The license requires a commercial license to operate a multi-tenant environment, and it prevents removing or modifying Dify's logo or copyright information in its frontend. Check those conditions before building a product on a self-hosted Dify instance.
 
-**Pricing:** [Dify Cloud](https://dify.ai/pricing) offers a free Sandbox with 200 message credits and five apps. Professional costs $590 per workspace per year with 5,000 message credits per month and 50 apps. Enterprise pricing is custom.
+**Pricing:** [Dify Cloud](https://dify.ai/pricing) offers a free Sandbox with 200 message credits and five apps. Professional costs $590 per workspace per year with 5,000 message credits per month and 50 apps. Team costs $1,590 per workspace per year with 10,000 message credits per month and 200 apps. Enterprise pricing is custom.
 
 ### Gumloop
 
 **Best for:** You want a hosted agent builder that people across a company can use, with IT controlling access.
 
-**What it is:** [Gumloop](https://www.gumloop.com/llms.txt) describes itself as a multiplayer AI agent builder. Agents connect to company apps, run on triggers, use reusable skills, and produce artifacts such as dashboards and documents.
+**What it is:** [Gumloop](https://www.gumloop.com/llms.txt) describes itself as a multiplayer AI agent builder. Agents connect to company apps, run on triggers, use reusable skills, and produce artifacts such as dashboards and documents. Its earlier workflow builder is now listed as Workflows (Legacy) on the pricing page.
 
-**Pros:** Gumloop describes a model-agnostic builder with more than 100 MCP integrations and enterprise controls including SSO, audit logging, usage monitoring, and VPC deployments.
+**Pros:** Gumloop describes a model-agnostic builder with more than 100 MCP integrations and enterprise controls including SSO, audit logging, usage monitoring, and VPC deployments. Its [pricing page](https://www.gumloop.com/pricing) lists 35+ models, bring-your-own API keys, unlimited agents, and unlimited seats.
 
-**Cons:** Gumloop presents itself as a hosted product. Teams that require a conventional self-hosted deployment should confirm whether its available deployment controls satisfy their infrastructure policy.
+**Cons:** The pricing page lists no self-hosted plan; VPC deployment is an optional Enterprise control. Pro limits concurrency to 5 workflow runs and 25 agent chats.
 
-**Pricing:** Gumloop publishes current plan details on its [pricing page](https://www.gumloop.com/pricing). Compare its credit and concurrency allowances against the number and duration of agent runs you expect.
+**Pricing:** Pro starts at $37 per month after a 14-day free trial and includes 20,000 credits per month. Enterprise pricing is custom.
 
 ### Relevance AI
 
-**Best for:** You want to evaluate a product built around multi-agent “AI workforces” rather than internal CRUD apps.
+**Best for:** You want to evaluate a product built around multi-agent "AI workforces" rather than internal CRUD apps.
 
 **What it is:** Relevance AI is a product for building and managing AI agents and multi-agent systems.
 
-**Pros:** Its [enterprise page](https://relevanceai.com/enterprise) lists human-in-the-loop controls, version control, SSO and SAML, audit logs, data residency, and SOC 2 Type II. Its [pricing page](https://relevanceai.com/pricing) lists agent evaluations and more than 2,000 integrations.
+**Pros:** Its [enterprise page](https://relevanceai.com/enterprise) lists human-in-the-loop controls, version control, SSO and SAML, audit logs, data residency, and SOC 2 Type II. Its [pricing page](https://relevanceai.com/pricing) lists agent evaluations, more than 2,000 integrations, and SSO, role-based access control (RBAC), and audit logs on Enterprise.
 
-**Cons:** The pricing page presents an Enterprise plan rather than a self-service entry price, so buyers need to engage the vendor to compare costs and deployment requirements.
+**Cons:** Neither official pricing source lists a self-hosted option, and the two disagree on which plans are available, so confirm current plans with the vendor before comparing costs.
 
-**Pricing:** Relevance AI lists its current Enterprise package on the [vendor pricing page](https://relevanceai.com/pricing).
+**Pricing:** Relevance AI's two official pricing sources disagree. The [pricing page](https://relevanceai.com/pricing) lists only an Enterprise plan with custom pricing. Its [pricing documentation](https://relevanceai.com/docs/get-started/pricing) lists Pro from $19 per month billed annually ($29 monthly) and Team from $234 per month billed annually ($349 monthly), and says the Free plan is retired.
 
 ## How to choose
 
