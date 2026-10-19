@@ -1,6 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { safeCompare } from '@sim/security/compare'
-import { hmacSha256Base64 } from '@sim/security/hmac'
 import { NextResponse } from 'next/server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -13,51 +11,11 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { verifyStandardWebhookRequest } from '@/lib/webhooks/providers/utils'
 import { LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
 import { LINQ_ALL_WEBHOOK_EVENT_TYPES, LINQ_TRIGGER_TO_EVENT_TYPE } from '@/triggers/linq/utils'
 
 const logger = createLogger('WebhookProvider:Linq')
-
-/** Max clock skew tolerated between the webhook timestamp and now (seconds). */
-const MAX_TIMESTAMP_SKEW_SECONDS = 5 * 60
-
-/**
- * Verify a Linq webhook signature using the Standard Webhooks scheme.
- * Linq signs `${webhook-id}.${webhook-timestamp}.${rawBody}` with HMAC-SHA256 using
- * the base64-decoded `whsec_...` signing secret, and delivers the result as one or
- * more space-separated `v1,<base64>` signatures in the `webhook-signature` header.
- */
-function verifyLinqSignature(
-  secret: string,
-  msgId: string,
-  timestamp: string,
-  signatures: string,
-  rawBody: string
-): boolean {
-  try {
-    const ts = Number.parseInt(timestamp, 10)
-    const now = Math.floor(Date.now() / 1000)
-    if (Number.isNaN(ts) || Math.abs(now - ts) > MAX_TIMESTAMP_SKEW_SECONDS) {
-      return false
-    }
-
-    const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
-    const toSign = `${msgId}.${timestamp}.${rawBody}`
-    const expectedSignature = hmacSha256Base64(toSign, secretBytes)
-
-    for (const versionedSig of signatures.split(' ')) {
-      const parts = versionedSig.split(',')
-      if (parts.length !== 2) continue
-      if (safeCompare(parts[1], expectedSignature)) {
-        return true
-      }
-    }
-    return false
-  } catch (error) {
-    logger.error('Error verifying Linq webhook signature:', error)
-    return false
-  }
-}
 
 /** Parse a comma/whitespace-separated list of phone numbers into a clean array. */
 function parsePhoneNumbers(value: unknown): string[] {
@@ -81,21 +39,14 @@ export const linqHandler: WebhookProviderHandler = {
       return new NextResponse('Unauthorized - Linq signing secret is required', { status: 401 })
     }
 
-    const webhookId = request.headers.get('webhook-id')
-    const webhookTimestamp = request.headers.get('webhook-timestamp')
-    const webhookSignature = request.headers.get('webhook-signature')
-
-    if (!webhookId || !webhookTimestamp || !webhookSignature) {
-      logger.warn(`[${requestId}] Linq webhook missing Standard Webhooks signature headers`)
-      return new NextResponse('Unauthorized - Missing Linq signature headers', { status: 401 })
-    }
-
-    if (
-      !verifyLinqSignature(signingSecret, webhookId, webhookTimestamp, webhookSignature, rawBody)
-    ) {
-      logger.warn(`[${requestId}] Linq webhook signature verification failed`)
-      return new NextResponse('Unauthorized - Invalid Linq signature', { status: 401 })
-    }
+    const failure = verifyStandardWebhookRequest({
+      request,
+      rawBody,
+      requestId,
+      secret: signingSecret,
+      providerLabel: 'Linq',
+    })
+    if (failure) return failure
 
     return null
   },

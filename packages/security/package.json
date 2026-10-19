@@ -46,6 +46,10 @@
       "types": "./src/ssrf.ts",
       "default": "./src/ssrf.ts"
     },
+    "./standard-webhooks": {
+      "types": "./src/standard-webhooks.ts",
+      "default": "./src/standard-webhooks.ts"
+    },
     "./tokens": {
       "types": "./src/tokens.ts",
       "default": "./src/tokens.ts"
