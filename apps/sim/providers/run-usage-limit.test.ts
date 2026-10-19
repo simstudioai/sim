@@ -19,7 +19,8 @@ vi.mock('@/providers/registry', () => ({
 vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 vi.mock('@/tools', () => toolsMock)
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
-vi.mock('@/providers/cost-policy', () => ({
+vi.mock('@/providers/cost-policy', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/providers/cost-policy')>()),
   resolveModelCostPolicy: (_model: string, isBYOK = false) => ({
     billable: !isBYOK,
     multiplier: 1,
@@ -296,6 +297,63 @@ describe('run usage limit', () => {
 
     expect(isNonRetryableExecutionError(failure)).toBe(true)
     expect(readTrustedExecutionCost(failure)).toEqual({ input: 1, output: 1, total: 2.25 })
+  })
+
+  it("charges a continued Function call's failure once, through the journal that records it", async () => {
+    mockCheckExecutionUsageLimits.mockResolvedValue({
+      isExceeded: false,
+      payerUsage: { currentUsage: 0, limit: 5 },
+    })
+    const tool: ProviderToolConfig = {
+      id: 'function_execute',
+      description: 'run code',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    const session = new AgentTurnStateMachine(
+      { save: vi.fn() },
+      {
+        version: 1,
+        steps: [
+          {
+            id: 'interrupted-step',
+            assistant: { role: 'assistant', content: '' },
+            calls: [
+              {
+                invocationId: 'call-1',
+                toolId: 'function_execute',
+                arguments: '{}',
+                configuredToolBinding: getConfiguredConversationToolBinding(tool),
+              },
+            ],
+            results: [],
+          },
+        ],
+      }
+    )
+    mockExecuteTool.mockResolvedValueOnce({
+      success: false,
+      output: { cost: { total: 0.5 } },
+      error: 'Function failed',
+    })
+    mockExecuteRequest.mockResolvedValue({
+      content: 'Done',
+      model: 'model-a',
+      cost: { input: 0, output: 0, total: 0 },
+    })
+
+    const response = await executeProviderRequest(
+      'anthropic',
+      {
+        model: 'model-a',
+        workflowId: 'workflow-1',
+        messages: [{ role: 'user', content: 'Continue' }],
+        tools: [tool],
+      },
+      { executionContext: startRun(), agentConversation: session }
+    )
+
+    expect(response).toMatchObject({ cost: { total: 0.5 } })
   })
 
   it('counts every block of the run, not only the request that is running', async () => {

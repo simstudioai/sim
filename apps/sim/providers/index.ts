@@ -351,6 +351,7 @@ export async function executeProviderRequest(
       const settledBeforeContinuation = settledCost.total
       await continuePendingConversationCalls(modelSafeRequest, session)
       settledCost.total = settledBeforeContinuation
+      failedFunctionToolCost.total = 0
       const currentUserMessage = [...(modelSafeRequest.messages ?? [])]
         .reverse()
         .find((message) => message.role === 'user' && !isConversationHistoryNotice(message))
