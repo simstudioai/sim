@@ -1,4 +1,5 @@
 import type { TriggerOptions } from '@trigger.dev/sdk'
+import { measureTriggerAcceptance } from '@/lib/core/async-jobs/trigger-acceptance'
 
 /**
  * What one cron tick did with a scheduled pass: started none, handed one to Trigger.dev, or
@@ -45,12 +46,15 @@ export async function triggerScheduledPass(trigger: ScheduledPassTrigger): Promi
     import('@/lib/core/async-jobs/region'),
   ])
   const window = Math.floor((trigger.at?.getTime() ?? Date.now()) / trigger.intervalMs)
-  const handle = await tasks.trigger(trigger.taskId, undefined, {
-    idempotencyKey: `${trigger.keyPrefix ?? trigger.taskId}:${window}`,
-    idempotencyKeyTTL: '5m',
-    ...trigger.options,
-    region: await resolveTriggerRegion(),
-  })
+  const region = await resolveTriggerRegion()
+  const handle = await measureTriggerAcceptance(trigger.taskId, () =>
+    tasks.trigger(trigger.taskId, undefined, {
+      idempotencyKey: `${trigger.keyPrefix ?? trigger.taskId}:${window}`,
+      idempotencyKeyTTL: '5m',
+      ...trigger.options,
+      region,
+    })
+  )
   return handle.id
 }
 
