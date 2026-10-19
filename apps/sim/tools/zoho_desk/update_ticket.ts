@@ -145,7 +145,7 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
       visibility: 'user-or-llm',
       description: 'Custom field values as a JSON object, keyed by custom field API name',
     },
-    contactId: {
+    ticketContactId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -249,7 +249,7 @@ export const zohoDeskUpdateTicketTool: ToolConfig<ZohoDeskUpdateTicketParams, Zo
     headers: (params) => buildZohoDeskHeaders(params),
     body: (params) => {
       const body = omitUnset({
-        contactId: params.contactId,
+        contactId: params.ticketContactId,
         contact: parseZohoDeskJson(params.contact, 'contact', 'object'),
         productId: params.productId,
         uploads: parseZohoDeskJson(params.uploads, 'uploads', 'array'),

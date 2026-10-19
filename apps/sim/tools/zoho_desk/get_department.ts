@@ -23,7 +23,7 @@ export const zohoDeskGetDepartmentTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    departmentId: {
+    lookupDepartmentId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
@@ -32,7 +32,7 @@ export const zohoDeskGetDepartmentTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      return `${getZohoDeskApiBase(params)}/departments/${safeUrlPathSegment(params.departmentId, 'departmentId')}`
+      return `${getZohoDeskApiBase(params)}/departments/${safeUrlPathSegment(params.lookupDepartmentId, 'lookupDepartmentId')}`
     },
     method: 'GET',
     headers: buildZohoDeskHeaders,

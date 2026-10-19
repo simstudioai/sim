@@ -104,11 +104,11 @@ describe('Zoho Desk configured agent requests', () => {
   it('preserves configured false flags and attachment arrays through dropdown decoding', async () => {
     const stored = editorParams(zohoDeskSendReplyTool.id, 'send_reply', {
       ticketId: 'ticket-fixture',
-      content: 'Reply',
+      replyContent: 'Reply',
       fromEmailAddress: 'support@example.com',
       isPrivate: false,
       isForward: false,
-      attachmentIds: ['attachment-fixture'],
+      replyAttachmentIds: ['attachment-fixture'],
     })
     const provider = await transformBlockTool(
       { type: 'zoho_desk', params: stored },
@@ -121,7 +121,7 @@ describe('Zoho Desk configured agent requests', () => {
     if (!provider) throw new Error('Zoho Desk agent tool was not created')
     const { executionParams } = prepareToolExecution(
       provider,
-      { isPrivate: true, isForward: true, attachmentIds: ['model-attachment'] },
+      { isPrivate: true, isForward: true, replyAttachmentIds: ['model-attachment'] },
       {},
       undefined
     )
@@ -132,7 +132,7 @@ describe('Zoho Desk configured agent requests', () => {
         accessToken: 'fixture',
         orgId: 'org-fixture',
         ticketId: '',
-        content: '',
+        replyContent: '',
         fromEmailAddress: '',
         ...executionParams,
       })
@@ -144,7 +144,7 @@ describe('Zoho Desk configured agent requests', () => {
         accessToken: 'fixture',
         orgId: 'org-fixture',
         ticketId: '',
-        content: '',
+        replyContent: '',
         fromEmailAddress: '',
         ...executionParams,
       })
@@ -188,6 +188,7 @@ describe('Zoho Desk operation transitions', () => {
       title: 'Subject',
       filter: 'billing*',
       replacement: { priority: 'High' },
+      expected: { priority: 'High' },
       buildBody: (params: Record<string, unknown>) => {
         const body = zohoDeskUpdateTicketTool.request.body
         if (typeof body !== 'function') throw new Error('Update body missing')
@@ -204,7 +205,8 @@ describe('Zoho Desk operation transitions', () => {
       target: 'update_contact',
       title: 'Email',
       filter: 'person*',
-      replacement: { firstName: 'Updated' },
+      replacement: { contactFirstName: 'Updated' },
+      expected: { firstName: 'Updated' },
       buildBody: (params: Record<string, unknown>) => {
         const body = zohoDeskUpdateContactTool.request.body
         if (typeof body !== 'function') throw new Error('Update body missing')
@@ -221,7 +223,8 @@ describe('Zoho Desk operation transitions', () => {
       target: 'update_account',
       title: 'Account Name',
       filter: 'Example*',
-      replacement: { website: 'https://example.com' },
+      replacement: { accountWebsite: 'https://example.com' },
+      expected: { website: 'https://example.com' },
       buildBody: (params: Record<string, unknown>) => {
         const body = zohoDeskUpdateAccountTool.request.body
         if (typeof body !== 'function') throw new Error('Update body missing')
@@ -235,7 +238,7 @@ describe('Zoho Desk operation transitions', () => {
     },
   ])(
     'does not send retained $operation filters in a later update',
-    ({ operation, target, title, filter, replacement, buildBody }) => {
+    ({ operation, target, title, filter, replacement, expected, buildBody }) => {
       const editor = getSubBlocksForToolInput(
         `zoho_desk_${operation}`,
         'zoho_desk',
@@ -249,7 +252,7 @@ describe('Zoho Desk operation transitions', () => {
       if (!mapper) throw new Error('Request mapping missing')
       const stored = { operation: target, [input.id]: filter, ...replacement }
       const mapped = mapper(stored)
-      expect(buildBody(mapped)).toEqual(replacement)
+      expect(buildBody(mapped)).toEqual(expected)
     }
   )
 
@@ -270,7 +273,7 @@ describe('Zoho Desk operation transitions', () => {
     const mapped = mapper({
       ...values,
       operation: 'send_reply',
-      content: 'Reply',
+      replyContent: 'Reply',
       fromEmailAddress: 'support@example.com',
     })
     expect(
@@ -278,7 +281,7 @@ describe('Zoho Desk operation transitions', () => {
         accessToken: 'fixture',
         orgId: 'org-fixture',
         ticketId: 'ticket-fixture',
-        content: '',
+        replyContent: '',
         fromEmailAddress: '',
         ...mapped,
       })

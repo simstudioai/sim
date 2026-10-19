@@ -53,7 +53,7 @@ export interface ZohoDeskUpdateTicketParams extends ZohoDeskBaseParams {
   resolution?: string
   classification?: string
   customFields?: Record<string, unknown>
-  contactId?: string
+  ticketContactId?: string
   contact?: Record<string, unknown> | string
   productId?: string
   uploads?: unknown[] | string
@@ -74,7 +74,7 @@ export interface ZohoDeskListCommentsParams extends ZohoDeskBaseParams {
   from?: number
   limit?: number
   sortBy?: string
-  include?: string
+  commentInclude?: string
 }
 
 export interface ZohoDeskAddCommentParams extends ZohoDeskBaseParams {
@@ -386,7 +386,7 @@ export interface ZohoDeskCreateTicketParams extends ZohoDeskBaseParams {
   classification?: string
   category?: string
   status?: string
-  contactId?: string
+  ticketContactId?: string
   departmentId: string
   contact?: Record<string, unknown> | string
   uploads?: unknown[] | string
@@ -414,7 +414,7 @@ export interface ZohoDeskSearchTicketsParams extends ZohoDeskBaseParams {
   limit?: number
   from?: number
   dueDateRange?: string
-  id?: string
+  ticketSearchIds?: string
   searchProductId?: string
   searchContactId?: string
   createdTimeRange?: string
@@ -423,20 +423,20 @@ export interface ZohoDeskSearchTicketsParams extends ZohoDeskBaseParams {
   searchAccountId?: string
   modifiedTimeRange?: string
   searchStatus?: string
-  customField1?: string
-  customField2?: string
-  customField3?: string
-  customField4?: string
-  customField5?: string
-  customField6?: string
-  customField7?: string
-  customField8?: string
-  customField9?: string
-  customField10?: string
+  ticketSearchCustomField1?: string
+  ticketSearchCustomField2?: string
+  ticketSearchCustomField3?: string
+  ticketSearchCustomField4?: string
+  ticketSearchCustomField5?: string
+  ticketSearchCustomField6?: string
+  ticketSearchCustomField7?: string
+  ticketSearchCustomField8?: string
+  ticketSearchCustomField9?: string
+  ticketSearchCustomField10?: string
   searchChannel?: string
   customerResponseTimeRange?: string
   searchDescription?: string
-  sortBy?: string
+  ticketSearchSortBy?: string
   tag?: string
   contactName?: string
   searchCategory?: string
@@ -465,15 +465,15 @@ export interface ZohoDeskSendReplyParams extends ZohoDeskBaseParams {
   isPrivate?: boolean
   sendImmediately?: boolean
   ticketId: string
-  content: string
-  contentType?: string
+  replyContent: string
+  replyContentType?: string
   inReplyToThreadId?: string
   replyDirection?: string
   cc?: string
   bcc?: string
   hasAttach?: boolean
   ticketStatus?: string
-  attachmentIds?: unknown[] | string
+  replyAttachmentIds?: unknown[] | string
   to?: string
   fromEmailAddress: string
   isForward?: boolean
@@ -484,12 +484,12 @@ export interface ZohoDeskSendReplyResponse extends ToolResponse {
 }
 
 export interface ZohoDeskListContactsParams extends ZohoDeskBaseParams {
-  selectedFields?: string
-  viewId?: string
+  contactSelectedFields?: string
+  contactViewId?: string
   limit?: number
   from?: number
-  include?: string
-  sortBy?: string
+  contactListInclude?: string
+  contactListSortBy?: string
 }
 
 export interface ZohoDeskListContactsResponse extends ToolResponse {
@@ -497,26 +497,26 @@ export interface ZohoDeskListContactsResponse extends ToolResponse {
 }
 
 export interface ZohoDeskCreateContactParams extends ZohoDeskBaseParams {
-  lastName: string
-  accountId?: string
-  firstName?: string
-  secondaryEmail?: string
-  phone?: string
-  mobile?: string
-  ownerId?: string
-  type?: string
-  email?: string
-  zip?: string
-  country?: string
-  twitter?: string
-  customFields?: Record<string, unknown> | string
-  city?: string
-  street?: string
-  facebook?: string
-  description?: string
-  state?: string
-  title?: string
-  language?: string
+  contactLastName: string
+  contactAccountId?: string
+  contactFirstName?: string
+  contactSecondaryEmail?: string
+  contactPhone?: string
+  contactMobile?: string
+  contactOwnerId?: string
+  contactType?: string
+  contactEmail?: string
+  contactZip?: string
+  contactCountry?: string
+  contactTwitter?: string
+  contactCustomFields?: Record<string, unknown> | string
+  contactCity?: string
+  contactStreet?: string
+  contactFacebook?: string
+  contactDescription?: string
+  contactState?: string
+  contactTitle?: string
+  contactLanguage?: string
 }
 
 export interface ZohoDeskCreateContactResponse extends ToolResponse {
@@ -525,26 +525,26 @@ export interface ZohoDeskCreateContactResponse extends ToolResponse {
 
 export interface ZohoDeskUpdateContactParams extends ZohoDeskBaseParams {
   contactId: string
-  lastName?: string
-  accountId?: string
-  firstName?: string
-  secondaryEmail?: string
-  phone?: string
-  mobile?: string
-  ownerId?: string
-  type?: string
-  email?: string
-  zip?: string
-  country?: string
-  twitter?: string
-  customFields?: Record<string, unknown> | string
-  city?: string
-  street?: string
-  facebook?: string
-  description?: string
-  state?: string
-  title?: string
-  language?: string
+  contactLastName?: string
+  contactAccountId?: string
+  contactFirstName?: string
+  contactSecondaryEmail?: string
+  contactPhone?: string
+  contactMobile?: string
+  contactOwnerId?: string
+  contactType?: string
+  contactEmail?: string
+  contactZip?: string
+  contactCountry?: string
+  contactTwitter?: string
+  contactCustomFields?: Record<string, unknown> | string
+  contactCity?: string
+  contactStreet?: string
+  contactFacebook?: string
+  contactDescription?: string
+  contactState?: string
+  contactTitle?: string
+  contactLanguage?: string
 }
 
 export interface ZohoDeskUpdateContactResponse extends ToolResponse {
@@ -560,22 +560,22 @@ export interface ZohoDeskSearchContactsParams extends ZohoDeskBaseParams {
   limit?: number
   from?: number
   modifiedTimeRange?: string
-  id?: string
+  contactSearchIds?: string
   _all?: string
-  customField1?: string
-  customField2?: string
-  customField3?: string
-  customField4?: string
-  customField5?: string
-  customField6?: string
-  customField7?: string
-  customField8?: string
-  customField9?: string
-  customField10?: string
+  contactSearchCustomField1?: string
+  contactSearchCustomField2?: string
+  contactSearchCustomField3?: string
+  contactSearchCustomField4?: string
+  contactSearchCustomField5?: string
+  contactSearchCustomField6?: string
+  contactSearchCustomField7?: string
+  contactSearchCustomField8?: string
+  contactSearchCustomField9?: string
+  contactSearchCustomField10?: string
   searchLastName?: string
   searchFirstName?: string
   fullName?: string
-  sortBy?: string
+  contactSearchSortBy?: string
 }
 
 export interface ZohoDeskSearchContactsResponse extends ToolResponse {
@@ -588,11 +588,11 @@ export interface ZohoDeskSearchContactsResponse extends ToolResponse {
 }
 
 export interface ZohoDeskListAccountsParams extends ZohoDeskBaseParams {
-  viewId?: string
+  accountViewId?: string
   limit?: number
   from?: number
-  sortBy?: string
-  selectedFields?: string
+  accountListSortBy?: string
+  accountSelectedFields?: string
 }
 
 export interface ZohoDeskListAccountsResponse extends ToolResponse {
@@ -600,22 +600,22 @@ export interface ZohoDeskListAccountsResponse extends ToolResponse {
 }
 
 export interface ZohoDeskCreateAccountParams extends ZohoDeskBaseParams {
-  website?: string
+  accountWebsite?: string
   accountName: string
-  phone?: string
-  email?: string
-  country?: string
-  code?: string
-  customFields?: Record<string, unknown> | string
-  city?: string
-  street?: string
-  annualrevenue?: number
-  description?: string
-  industry?: string
-  state?: string
-  ownerId?: string
-  fax?: string
-  associatedSLAIds?: unknown[] | string
+  accountPhone?: string
+  accountEmail?: string
+  accountCountry?: string
+  accountCode?: string
+  accountCustomFields?: Record<string, unknown> | string
+  accountCity?: string
+  accountStreet?: string
+  accountAnnualrevenue?: number
+  accountDescription?: string
+  accountIndustry?: string
+  accountState?: string
+  accountOwnerId?: string
+  accountFax?: string
+  accountAssociatedSLAIds?: unknown[] | string
 }
 
 export interface ZohoDeskCreateAccountResponse extends ToolResponse {
@@ -624,22 +624,22 @@ export interface ZohoDeskCreateAccountResponse extends ToolResponse {
 
 export interface ZohoDeskUpdateAccountParams extends ZohoDeskBaseParams {
   accountId: string
-  website?: string
+  accountWebsite?: string
   accountName?: string
-  phone?: string
-  email?: string
-  country?: string
-  code?: string
-  customFields?: Record<string, unknown> | string
-  city?: string
-  street?: string
-  annualrevenue?: number
-  description?: string
-  industry?: string
-  state?: string
-  ownerId?: string
-  fax?: string
-  associatedSLAIds?: unknown[] | string
+  accountPhone?: string
+  accountEmail?: string
+  accountCountry?: string
+  accountCode?: string
+  accountCustomFields?: Record<string, unknown> | string
+  accountCity?: string
+  accountStreet?: string
+  accountAnnualrevenue?: number
+  accountDescription?: string
+  accountIndustry?: string
+  accountState?: string
+  accountOwnerId?: string
+  accountFax?: string
+  accountAssociatedSLAIds?: unknown[] | string
 }
 
 export interface ZohoDeskUpdateAccountResponse extends ToolResponse {
@@ -652,19 +652,19 @@ export interface ZohoDeskSearchAccountsParams extends ZohoDeskBaseParams {
   limit?: number
   from?: number
   modifiedTimeRange?: string
-  id?: string
+  accountSearchIds?: string
   _all?: string
-  customField1?: string
-  customField2?: string
-  customField3?: string
-  customField4?: string
-  customField5?: string
-  customField6?: string
-  customField7?: string
-  customField8?: string
-  customField9?: string
-  customField10?: string
-  sortBy?: string
+  accountSearchCustomField1?: string
+  accountSearchCustomField2?: string
+  accountSearchCustomField3?: string
+  accountSearchCustomField4?: string
+  accountSearchCustomField5?: string
+  accountSearchCustomField6?: string
+  accountSearchCustomField7?: string
+  accountSearchCustomField8?: string
+  accountSearchCustomField9?: string
+  accountSearchCustomField10?: string
+  accountSearchSortBy?: string
 }
 
 export interface ZohoDeskSearchAccountsResponse extends ToolResponse {
@@ -677,7 +677,7 @@ export interface ZohoDeskSearchAccountsResponse extends ToolResponse {
 }
 
 export interface ZohoDeskGetAccountParams extends ZohoDeskBaseParams {
-  include?: string
+  accountInclude?: string
   accountId: string
 }
 
@@ -698,7 +698,7 @@ export interface ZohoDeskListDepartmentsResponse extends ToolResponse {
 }
 
 export interface ZohoDeskGetDepartmentParams extends ZohoDeskBaseParams {
-  departmentId: string
+  lookupDepartmentId: string
 }
 
 export interface ZohoDeskGetDepartmentResponse extends ToolResponse {
@@ -706,7 +706,7 @@ export interface ZohoDeskGetDepartmentResponse extends ToolResponse {
 }
 
 export interface ZohoDeskListAgentsParams extends ZohoDeskBaseParams {
-  include?: string
+  agentListInclude?: string
   roleIds?: string
   searchStr?: string
   cfSearchStr?: string
@@ -728,7 +728,7 @@ export interface ZohoDeskListAgentsResponse extends ToolResponse {
 }
 
 export interface ZohoDeskGetAgentParams extends ZohoDeskBaseParams {
-  include?: string
+  agentInclude?: string
   agentId: string
 }
 
@@ -737,7 +737,7 @@ export interface ZohoDeskGetAgentResponse extends ToolResponse {
 }
 
 export interface ZohoDeskGetCommentParams extends ZohoDeskBaseParams {
-  include?: string
+  commentInclude?: string
   commentId: string
   ticketId: string
 }

@@ -20,7 +20,7 @@ export const zohoDeskGetAccountTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    include: {
+    accountInclude: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -36,8 +36,8 @@ export const zohoDeskGetAccountTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.include != null && params.include !== '') {
-        query.set('include', String(params.include))
+      if (params.accountInclude != null && params.accountInclude !== '') {
+        query.set('include', String(params.accountInclude))
       }
       return `${getZohoDeskApiBase(params)}/accounts/${safeUrlPathSegment(params.accountId, 'accountId')}${query.size ? `?${query}` : ''}`
     },

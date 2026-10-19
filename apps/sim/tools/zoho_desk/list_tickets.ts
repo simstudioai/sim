@@ -165,7 +165,8 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
         }
         query.set('receivedInDays', String(receivedInDays))
       }
-      if (params.viewId) query.set('viewId', params.viewId.trim())
+      const viewId = String(params.viewId ?? '').trim()
+      if (viewId) query.set('viewId', viewId)
       const teamIds = normalizeZohoDeskCommaList(params.teamIds)
       if (teamIds) query.set('teamIds', teamIds)
       const fields = normalizeZohoDeskCommaList(params.selectedFields)

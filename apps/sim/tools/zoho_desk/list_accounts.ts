@@ -26,7 +26,7 @@ export const zohoDeskListAccountsTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    viewId: {
+    accountViewId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -44,14 +44,14 @@ export const zohoDeskListAccountsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination start index; use the provider index for this endpoint (default 1).',
     },
-    sortBy: {
+    accountListSortBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Sort field: website, email, phone, accountName, createdTime, modifiedTime. Prefix with - for descending.',
     },
-    selectedFields: {
+    accountSelectedFields: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -62,9 +62,8 @@ export const zohoDeskListAccountsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams({ from: String(params.from ?? 1) })
-      if (params.viewId != null && params.viewId !== '') {
-        query.set('viewId', String(params.viewId))
-      }
+      const viewId = String(params.accountViewId ?? '').trim()
+      if (viewId) query.set('viewId', viewId)
       if (params.limit != null) {
         const value = Number(params.limit)
         if (!Number.isInteger(value) || value < 1 || value > 100)
@@ -77,11 +76,11 @@ export const zohoDeskListAccountsTool: ToolConfig<
           throw new Error('from is outside the documented range')
         query.set('from', String(value))
       }
-      if (params.sortBy != null && params.sortBy !== '') {
-        query.set('sortBy', String(params.sortBy))
+      if (params.accountListSortBy != null && params.accountListSortBy !== '') {
+        query.set('sortBy', String(params.accountListSortBy))
       }
-      if (params.selectedFields != null && params.selectedFields !== '') {
-        const value = normalizeZohoDeskCommaList(params.selectedFields)
+      if (params.accountSelectedFields != null && params.accountSelectedFields !== '') {
+        const value = normalizeZohoDeskCommaList(params.accountSelectedFields)
         if (value !== undefined) query.set('fields', String(value))
       }
       return `${getZohoDeskApiBase(params)}/accounts${query.size ? `?${query}` : ''}`
@@ -95,7 +94,7 @@ export const zohoDeskListAccountsTool: ToolConfig<
       success: true,
       output: {
         accounts: items.map((item) =>
-          projectZohoDeskResource(item, ZOHO_DESK_ACCOUNT_PROPERTIES, params?.selectedFields)
+          projectZohoDeskResource(item, ZOHO_DESK_ACCOUNT_PROPERTIES, params?.accountSelectedFields)
         ),
         count: items.length,
         nextFrom: items.length ? Number(params?.from ?? 1) + items.length : null,

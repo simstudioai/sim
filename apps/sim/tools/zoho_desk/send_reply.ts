@@ -39,13 +39,13 @@ export const zohoDeskSendReplyTool: ToolConfig<ZohoDeskSendReplyParams, ZohoDesk
         visibility: 'user-or-llm',
         description: 'Ticket ID',
       },
-      content: {
+      replyContent: {
         type: 'string',
         required: true,
         visibility: 'user-or-llm',
         description: 'Content of the thread',
       },
-      contentType: {
+      replyContentType: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
@@ -90,7 +90,7 @@ export const zohoDeskSendReplyTool: ToolConfig<ZohoDeskSendReplyParams, ZohoDesk
         description:
           'Status of the ticket. Includes the custom statuses configured in your help desk portal.',
       },
-      attachmentIds: {
+      replyAttachmentIds: {
         type: 'array',
         items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
         required: false,
@@ -131,15 +131,19 @@ export const zohoDeskSendReplyTool: ToolConfig<ZohoDeskSendReplyParams, ZohoDesk
       body: (params) => {
         const body = buildZohoDeskBody({
           channel: 'EMAIL',
-          content: params.content,
-          contentType: params.contentType,
+          content: params.replyContent,
+          contentType: params.replyContentType,
           inReplyToThreadId: params.inReplyToThreadId,
           direction: params.replyDirection,
           cc: params.cc,
           bcc: params.bcc,
           hasAttach: params.hasAttach,
           ticketStatus: params.ticketStatus,
-          attachmentIds: parseZohoDeskJson(params.attachmentIds, 'attachmentIds', 'array'),
+          attachmentIds: parseZohoDeskJson(
+            params.replyAttachmentIds,
+            'replyAttachmentIds',
+            'array'
+          ),
           to: params.to,
           fromEmailAddress: params.fromEmailAddress,
           isForward: params.isForward,

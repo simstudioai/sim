@@ -58,7 +58,7 @@ export const zohoDeskSearchAccountsTool: ToolConfig<
       description:
         'Key that filters accounts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z',
     },
-    id: {
+    accountSearchIds: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -70,75 +70,75 @@ export const zohoDeskSearchAccountsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
     },
-    customField1: {
+    accountSearchCustomField1: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
     },
-    customField2: {
+    accountSearchCustomField2: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
     },
-    customField3: {
+    accountSearchCustomField3: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField4: {
+    accountSearchCustomField4: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField5: {
+    accountSearchCustomField5: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField6: {
+    accountSearchCustomField6: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField7: {
+    accountSearchCustomField7: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField8: {
+    accountSearchCustomField8: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField9: {
+    accountSearchCustomField9: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField10: {
+    accountSearchCustomField10: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    sortBy: {
+    accountSearchSortBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -170,45 +170,45 @@ export const zohoDeskSearchAccountsTool: ToolConfig<
       if (params.modifiedTimeRange != null && params.modifiedTimeRange !== '') {
         query.set('modifiedTimeRange', String(params.modifiedTimeRange))
       }
-      if (params.id != null && params.id !== '') {
-        const value = normalizeZohoDeskCommaList(params.id)
+      if (params.accountSearchIds != null && params.accountSearchIds !== '') {
+        const value = normalizeZohoDeskCommaList(params.accountSearchIds)
         if (value !== undefined) query.set('id', String(value))
       }
       if (params._all != null && params._all !== '') {
         query.set('_all', String(params._all))
       }
-      if (params.customField1 != null && params.customField1 !== '') {
-        query.set('customField1', String(params.customField1))
+      if (params.accountSearchCustomField1 != null && params.accountSearchCustomField1 !== '') {
+        query.set('customField1', String(params.accountSearchCustomField1))
       }
-      if (params.customField2 != null && params.customField2 !== '') {
-        query.set('customField2', String(params.customField2))
+      if (params.accountSearchCustomField2 != null && params.accountSearchCustomField2 !== '') {
+        query.set('customField2', String(params.accountSearchCustomField2))
       }
-      if (params.customField3 != null && params.customField3 !== '') {
-        query.set('customField3', String(params.customField3))
+      if (params.accountSearchCustomField3 != null && params.accountSearchCustomField3 !== '') {
+        query.set('customField3', String(params.accountSearchCustomField3))
       }
-      if (params.customField4 != null && params.customField4 !== '') {
-        query.set('customField4', String(params.customField4))
+      if (params.accountSearchCustomField4 != null && params.accountSearchCustomField4 !== '') {
+        query.set('customField4', String(params.accountSearchCustomField4))
       }
-      if (params.customField5 != null && params.customField5 !== '') {
-        query.set('customField5', String(params.customField5))
+      if (params.accountSearchCustomField5 != null && params.accountSearchCustomField5 !== '') {
+        query.set('customField5', String(params.accountSearchCustomField5))
       }
-      if (params.customField6 != null && params.customField6 !== '') {
-        query.set('customField6', String(params.customField6))
+      if (params.accountSearchCustomField6 != null && params.accountSearchCustomField6 !== '') {
+        query.set('customField6', String(params.accountSearchCustomField6))
       }
-      if (params.customField7 != null && params.customField7 !== '') {
-        query.set('customField7', String(params.customField7))
+      if (params.accountSearchCustomField7 != null && params.accountSearchCustomField7 !== '') {
+        query.set('customField7', String(params.accountSearchCustomField7))
       }
-      if (params.customField8 != null && params.customField8 !== '') {
-        query.set('customField8', String(params.customField8))
+      if (params.accountSearchCustomField8 != null && params.accountSearchCustomField8 !== '') {
+        query.set('customField8', String(params.accountSearchCustomField8))
       }
-      if (params.customField9 != null && params.customField9 !== '') {
-        query.set('customField9', String(params.customField9))
+      if (params.accountSearchCustomField9 != null && params.accountSearchCustomField9 !== '') {
+        query.set('customField9', String(params.accountSearchCustomField9))
       }
-      if (params.customField10 != null && params.customField10 !== '') {
-        query.set('customField10', String(params.customField10))
+      if (params.accountSearchCustomField10 != null && params.accountSearchCustomField10 !== '') {
+        query.set('customField10', String(params.accountSearchCustomField10))
       }
-      if (params.sortBy != null && params.sortBy !== '') {
-        query.set('sortBy', String(params.sortBy))
+      if (params.accountSearchSortBy != null && params.accountSearchSortBy !== '') {
+        query.set('sortBy', String(params.accountSearchSortBy))
       }
       return `${getZohoDeskApiBase(params)}/accounts/search${query.size ? `?${query}` : ''}`
     },

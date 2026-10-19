@@ -24,116 +24,121 @@ export const zohoDeskCreateContactTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    lastName: {
+    contactLastName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description: 'Last name of the contact',
     },
-    accountId: {
+    contactAccountId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Account to which the contact is mapped',
     },
-    firstName: {
+    contactFirstName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'First name of the contact',
     },
-    secondaryEmail: {
+    contactSecondaryEmail: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Secondary email ID of the contact',
     },
-    phone: {
+    contactPhone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Phone number of the contact',
     },
-    mobile: {
+    contactMobile: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Mobile number of the contact',
     },
-    ownerId: {
+    contactOwnerId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'ID of the user who creates the contact',
     },
-    type: {
+    contactType: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Contact type',
     },
-    email: {
+    contactEmail: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Email ID of the contact',
     },
-    zip: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Zip code' },
-    country: {
+    contactZip: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Zip code',
+    },
+    contactCountry: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: "Contact's country of residence",
     },
-    twitter: {
+    contactTwitter: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Twitter ID of the contact',
     },
-    customFields: {
+    contactCustomFields: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'User-defined fields related to the contact JSON object.',
     },
-    city: {
+    contactCity: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: "Contact's city of residence",
     },
-    street: {
+    contactStreet: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: "Contact's address",
     },
-    facebook: {
+    contactFacebook: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Facebook ID of the contact',
     },
-    description: {
+    contactDescription: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Contact description',
     },
-    state: {
+    contactState: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: "Contact's state of residence",
     },
-    title: {
+    contactTitle: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Contact title',
     },
-    language: {
+    contactLanguage: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -148,26 +153,26 @@ export const zohoDeskCreateContactTool: ToolConfig<
     headers: buildZohoDeskHeaders,
     body: (params) => {
       const body = buildZohoDeskBody({
-        lastName: params.lastName,
-        accountId: params.accountId,
-        firstName: params.firstName,
-        secondaryEmail: params.secondaryEmail,
-        phone: params.phone,
-        mobile: params.mobile,
-        ownerId: params.ownerId,
-        type: params.type,
-        email: params.email,
-        zip: params.zip,
-        country: params.country,
-        twitter: params.twitter,
-        cf: parseZohoDeskJson(params.customFields, 'customFields', 'object'),
-        city: params.city,
-        street: params.street,
-        facebook: params.facebook,
-        description: params.description,
-        state: params.state,
-        title: params.title,
-        language: params.language,
+        lastName: params.contactLastName,
+        accountId: params.contactAccountId,
+        firstName: params.contactFirstName,
+        secondaryEmail: params.contactSecondaryEmail,
+        phone: params.contactPhone,
+        mobile: params.contactMobile,
+        ownerId: params.contactOwnerId,
+        type: params.contactType,
+        email: params.contactEmail,
+        zip: params.contactZip,
+        country: params.contactCountry,
+        twitter: params.contactTwitter,
+        cf: parseZohoDeskJson(params.contactCustomFields, 'contactCustomFields', 'object'),
+        city: params.contactCity,
+        street: params.contactStreet,
+        facebook: params.contactFacebook,
+        description: params.contactDescription,
+        state: params.contactState,
+        title: params.contactTitle,
+        language: params.contactLanguage,
       })
       return body
     },

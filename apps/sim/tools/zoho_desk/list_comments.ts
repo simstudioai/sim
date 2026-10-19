@@ -62,7 +62,7 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       description:
         'Sort by commentedTime. Ascending by default; prefix with - for descending (-commentedTime).',
     },
-    include: {
+    commentInclude: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -75,7 +75,7 @@ export const zohoDeskListCommentsTool: ToolConfig<ZohoDeskListCommentsParams, Zo
       const query = new URLSearchParams()
       if (params.from != null) query.set('from', String(params.from))
       query.set('limit', String(params.limit ?? 50))
-      const include = normalizeZohoDeskCommaList(params.include)
+      const include = normalizeZohoDeskCommaList(params.commentInclude)
       if (include) query.set('include', include)
       if (params.sortBy) query.set('sortBy', params.sortBy)
       const qs = query.toString()

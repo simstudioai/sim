@@ -24,7 +24,7 @@ export const zohoDeskGetCommentTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    include: {
+    commentInclude: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -47,8 +47,8 @@ export const zohoDeskGetCommentTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.include != null && params.include !== '') {
-        const value = normalizeZohoDeskCommaList(params.include)
+      if (params.commentInclude != null && params.commentInclude !== '') {
+        const value = normalizeZohoDeskCommaList(params.commentInclude)
         if (value !== undefined) query.set('include', String(value))
       }
       return `${getZohoDeskApiBase(params)}/tickets/${safeUrlPathSegment(params.ticketId, 'ticketId')}/comments/${safeUrlPathSegment(params.commentId, 'commentId')}${query.size ? `?${query}` : ''}`

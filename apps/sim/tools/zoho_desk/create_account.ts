@@ -24,7 +24,7 @@ export const zohoDeskCreateAccountTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    website: {
+    accountWebsite: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -36,80 +36,85 @@ export const zohoDeskCreateAccountTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Name of the account',
     },
-    phone: {
+    accountPhone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Phone number of the account',
     },
-    email: {
+    accountEmail: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Email ID of the account',
     },
-    country: {
+    accountCountry: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Country in which the account is based',
     },
-    code: { type: 'string', required: false, visibility: 'user-or-llm', description: 'Zip code' },
-    customFields: {
+    accountCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Zip code',
+    },
+    accountCustomFields: {
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'User-defined fields associated with the account JSON object.',
     },
-    city: {
+    accountCity: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'City in which the account is based',
     },
-    street: {
+    accountStreet: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Address of the account',
     },
-    annualrevenue: {
+    accountAnnualrevenue: {
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
       description: 'Annual revenue of the account',
     },
-    description: {
+    accountDescription: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'A short description of the account',
     },
-    industry: {
+    accountIndustry: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Industry in which the account operates',
     },
-    state: {
+    accountState: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'State in which the account is based',
     },
-    ownerId: {
+    accountOwnerId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'ID of account owner',
     },
-    fax: {
+    accountFax: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Fax number of the account',
     },
-    associatedSLAIds: {
+    accountAssociatedSLAIds: {
       type: 'array',
       items: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
       required: false,
@@ -126,22 +131,26 @@ export const zohoDeskCreateAccountTool: ToolConfig<
     headers: buildZohoDeskHeaders,
     body: (params) => {
       const body = buildZohoDeskBody({
-        website: params.website,
+        website: params.accountWebsite,
         accountName: params.accountName,
-        phone: params.phone,
-        email: params.email,
-        country: params.country,
-        code: params.code,
-        cf: parseZohoDeskJson(params.customFields, 'customFields', 'object'),
-        city: params.city,
-        street: params.street,
-        annualrevenue: params.annualrevenue,
-        description: params.description,
-        industry: params.industry,
-        state: params.state,
-        ownerId: params.ownerId,
-        fax: params.fax,
-        associatedSLAIds: parseZohoDeskJson(params.associatedSLAIds, 'associatedSLAIds', 'array'),
+        phone: params.accountPhone,
+        email: params.accountEmail,
+        country: params.accountCountry,
+        code: params.accountCode,
+        cf: parseZohoDeskJson(params.accountCustomFields, 'accountCustomFields', 'object'),
+        city: params.accountCity,
+        street: params.accountStreet,
+        annualrevenue: params.accountAnnualrevenue,
+        description: params.accountDescription,
+        industry: params.accountIndustry,
+        state: params.accountState,
+        ownerId: params.accountOwnerId,
+        fax: params.accountFax,
+        associatedSLAIds: parseZohoDeskJson(
+          params.accountAssociatedSLAIds,
+          'accountAssociatedSLAIds',
+          'array'
+        ),
       })
       return body
     },

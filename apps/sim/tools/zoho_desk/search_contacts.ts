@@ -80,7 +80,7 @@ export const zohoDeskSearchContactsTool: ToolConfig<
       description:
         'Key that filters contacts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z',
     },
-    id: {
+    contactSearchIds: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -92,68 +92,68 @@ export const zohoDeskSearchContactsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Search text across all fields. Supports * wildcards; at least 3 characters.',
     },
-    customField1: {
+    contactSearchCustomField1: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
     },
-    customField2: {
+    contactSearchCustomField2: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: `Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.`,
     },
-    customField3: {
+    contactSearchCustomField3: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField4: {
+    contactSearchCustomField4: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField5: {
+    contactSearchCustomField5: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField6: {
+    contactSearchCustomField6: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField7: {
+    contactSearchCustomField7: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField8: {
+    contactSearchCustomField8: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField9: {
+    contactSearchCustomField9: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField10: {
+    contactSearchCustomField10: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -179,7 +179,7 @@ export const zohoDeskSearchContactsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Full name of the contact. Supports * wildcards.',
     },
-    sortBy: {
+    contactSearchSortBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -223,42 +223,42 @@ export const zohoDeskSearchContactsTool: ToolConfig<
       if (params.modifiedTimeRange != null && params.modifiedTimeRange !== '') {
         query.set('modifiedTimeRange', String(params.modifiedTimeRange))
       }
-      if (params.id != null && params.id !== '') {
-        const value = normalizeZohoDeskCommaList(params.id)
+      if (params.contactSearchIds != null && params.contactSearchIds !== '') {
+        const value = normalizeZohoDeskCommaList(params.contactSearchIds)
         if (value !== undefined) query.set('id', String(value))
       }
       if (params._all != null && params._all !== '') {
         query.set('_all', String(params._all))
       }
-      if (params.customField1 != null && params.customField1 !== '') {
-        query.set('customField1', String(params.customField1))
+      if (params.contactSearchCustomField1 != null && params.contactSearchCustomField1 !== '') {
+        query.set('customField1', String(params.contactSearchCustomField1))
       }
-      if (params.customField2 != null && params.customField2 !== '') {
-        query.set('customField2', String(params.customField2))
+      if (params.contactSearchCustomField2 != null && params.contactSearchCustomField2 !== '') {
+        query.set('customField2', String(params.contactSearchCustomField2))
       }
-      if (params.customField3 != null && params.customField3 !== '') {
-        query.set('customField3', String(params.customField3))
+      if (params.contactSearchCustomField3 != null && params.contactSearchCustomField3 !== '') {
+        query.set('customField3', String(params.contactSearchCustomField3))
       }
-      if (params.customField4 != null && params.customField4 !== '') {
-        query.set('customField4', String(params.customField4))
+      if (params.contactSearchCustomField4 != null && params.contactSearchCustomField4 !== '') {
+        query.set('customField4', String(params.contactSearchCustomField4))
       }
-      if (params.customField5 != null && params.customField5 !== '') {
-        query.set('customField5', String(params.customField5))
+      if (params.contactSearchCustomField5 != null && params.contactSearchCustomField5 !== '') {
+        query.set('customField5', String(params.contactSearchCustomField5))
       }
-      if (params.customField6 != null && params.customField6 !== '') {
-        query.set('customField6', String(params.customField6))
+      if (params.contactSearchCustomField6 != null && params.contactSearchCustomField6 !== '') {
+        query.set('customField6', String(params.contactSearchCustomField6))
       }
-      if (params.customField7 != null && params.customField7 !== '') {
-        query.set('customField7', String(params.customField7))
+      if (params.contactSearchCustomField7 != null && params.contactSearchCustomField7 !== '') {
+        query.set('customField7', String(params.contactSearchCustomField7))
       }
-      if (params.customField8 != null && params.customField8 !== '') {
-        query.set('customField8', String(params.customField8))
+      if (params.contactSearchCustomField8 != null && params.contactSearchCustomField8 !== '') {
+        query.set('customField8', String(params.contactSearchCustomField8))
       }
-      if (params.customField9 != null && params.customField9 !== '') {
-        query.set('customField9', String(params.customField9))
+      if (params.contactSearchCustomField9 != null && params.contactSearchCustomField9 !== '') {
+        query.set('customField9', String(params.contactSearchCustomField9))
       }
-      if (params.customField10 != null && params.customField10 !== '') {
-        query.set('customField10', String(params.customField10))
+      if (params.contactSearchCustomField10 != null && params.contactSearchCustomField10 !== '') {
+        query.set('customField10', String(params.contactSearchCustomField10))
       }
       if (params.searchLastName != null && params.searchLastName !== '') {
         query.set('lastName', String(params.searchLastName))
@@ -269,8 +269,8 @@ export const zohoDeskSearchContactsTool: ToolConfig<
       if (params.fullName != null && params.fullName !== '') {
         query.set('fullName', String(params.fullName))
       }
-      if (params.sortBy != null && params.sortBy !== '') {
-        query.set('sortBy', String(params.sortBy))
+      if (params.contactSearchSortBy != null && params.contactSearchSortBy !== '') {
+        query.set('sortBy', String(params.contactSearchSortBy))
       }
       return `${getZohoDeskApiBase(params)}/contacts/search${query.size ? `?${query}` : ''}`
     },

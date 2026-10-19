@@ -26,14 +26,14 @@ export const zohoDeskListContactsTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    selectedFields: {
+    contactSelectedFields: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Key that returns the values of mentioned fields (both pre-defined and custom) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values.',
     },
-    viewId: {
+    contactViewId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -51,14 +51,14 @@ export const zohoDeskListContactsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination start index; use the provider index for this endpoint (default 1).',
     },
-    include: {
+    contactListInclude: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Secondary information related to the contact.Value supported is accounts. Comma-separated values.',
     },
-    sortBy: {
+    contactListSortBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -69,13 +69,12 @@ export const zohoDeskListContactsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams({ from: String(params.from ?? 1) })
-      if (params.selectedFields != null && params.selectedFields !== '') {
-        const value = normalizeZohoDeskCommaList(params.selectedFields)
+      if (params.contactSelectedFields != null && params.contactSelectedFields !== '') {
+        const value = normalizeZohoDeskCommaList(params.contactSelectedFields)
         if (value !== undefined) query.set('fields', String(value))
       }
-      if (params.viewId != null && params.viewId !== '') {
-        query.set('viewId', String(params.viewId))
-      }
+      const viewId = String(params.contactViewId ?? '').trim()
+      if (viewId) query.set('viewId', viewId)
       if (params.limit != null) {
         const value = Number(params.limit)
         if (!Number.isInteger(value) || value < 1 || value > 100)
@@ -88,12 +87,12 @@ export const zohoDeskListContactsTool: ToolConfig<
           throw new Error('from is outside the documented range')
         query.set('from', String(value))
       }
-      if (params.include != null && params.include !== '') {
-        const value = normalizeZohoDeskCommaList(params.include)
+      if (params.contactListInclude != null && params.contactListInclude !== '') {
+        const value = normalizeZohoDeskCommaList(params.contactListInclude)
         if (value !== undefined) query.set('include', String(value))
       }
-      if (params.sortBy != null && params.sortBy !== '') {
-        query.set('sortBy', String(params.sortBy))
+      if (params.contactListSortBy != null && params.contactListSortBy !== '') {
+        query.set('sortBy', String(params.contactListSortBy))
       }
       return `${getZohoDeskApiBase(params)}/contacts${query.size ? `?${query}` : ''}`
     },
@@ -106,7 +105,7 @@ export const zohoDeskListContactsTool: ToolConfig<
       success: true,
       output: {
         contacts: items.map((item) =>
-          projectZohoDeskResource(item, ZOHO_DESK_CONTACT_PROPERTIES, params?.selectedFields)
+          projectZohoDeskResource(item, ZOHO_DESK_CONTACT_PROPERTIES, params?.contactSelectedFields)
         ),
         count: items.length,
         nextFrom: items.length ? Number(params?.from ?? 1) + items.length : null,

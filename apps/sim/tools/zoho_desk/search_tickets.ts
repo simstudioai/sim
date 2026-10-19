@@ -96,7 +96,7 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Due date range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    id: {
+    ticketSearchIds: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -153,70 +153,70 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: `Status of the ticket inclusive of custom status. example: 1. status=open,in progress 2. status=\${open}. Exact match. Comma-separated values.`,
     },
-    customField1: {
+    ticketSearchCustomField1: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField2: {
+    ticketSearchCustomField2: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField3: {
+    ticketSearchCustomField3: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField4: {
+    ticketSearchCustomField4: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField5: {
+    ticketSearchCustomField5: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField6: {
+    ticketSearchCustomField6: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField7: {
+    ticketSearchCustomField7: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField8: {
+    ticketSearchCustomField8: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField9: {
+    ticketSearchCustomField9: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    customField10: {
+    ticketSearchCustomField10: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -243,7 +243,7 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Description of the ticket. Supports * wildcards.',
     },
-    sortBy: {
+    ticketSearchSortBy: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -316,8 +316,8 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       if (params.dueDateRange != null && params.dueDateRange !== '') {
         query.set('dueDateRange', String(params.dueDateRange))
       }
-      if (params.id != null && params.id !== '') {
-        const value = normalizeZohoDeskCommaList(params.id)
+      if (params.ticketSearchIds != null && params.ticketSearchIds !== '') {
+        const value = normalizeZohoDeskCommaList(params.ticketSearchIds)
         if (value !== undefined) query.set('id', String(value))
       }
       if (params.searchProductId != null && params.searchProductId !== '') {
@@ -350,35 +350,35 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
         const value = normalizeZohoDeskCommaList(params.searchStatus)
         if (value !== undefined) query.set('status', String(value))
       }
-      if (params.customField1 != null && params.customField1 !== '') {
-        query.set('customField1', String(params.customField1))
+      if (params.ticketSearchCustomField1 != null && params.ticketSearchCustomField1 !== '') {
+        query.set('customField1', String(params.ticketSearchCustomField1))
       }
-      if (params.customField2 != null && params.customField2 !== '') {
-        query.set('customField2', String(params.customField2))
+      if (params.ticketSearchCustomField2 != null && params.ticketSearchCustomField2 !== '') {
+        query.set('customField2', String(params.ticketSearchCustomField2))
       }
-      if (params.customField3 != null && params.customField3 !== '') {
-        query.set('customField3', String(params.customField3))
+      if (params.ticketSearchCustomField3 != null && params.ticketSearchCustomField3 !== '') {
+        query.set('customField3', String(params.ticketSearchCustomField3))
       }
-      if (params.customField4 != null && params.customField4 !== '') {
-        query.set('customField4', String(params.customField4))
+      if (params.ticketSearchCustomField4 != null && params.ticketSearchCustomField4 !== '') {
+        query.set('customField4', String(params.ticketSearchCustomField4))
       }
-      if (params.customField5 != null && params.customField5 !== '') {
-        query.set('customField5', String(params.customField5))
+      if (params.ticketSearchCustomField5 != null && params.ticketSearchCustomField5 !== '') {
+        query.set('customField5', String(params.ticketSearchCustomField5))
       }
-      if (params.customField6 != null && params.customField6 !== '') {
-        query.set('customField6', String(params.customField6))
+      if (params.ticketSearchCustomField6 != null && params.ticketSearchCustomField6 !== '') {
+        query.set('customField6', String(params.ticketSearchCustomField6))
       }
-      if (params.customField7 != null && params.customField7 !== '') {
-        query.set('customField7', String(params.customField7))
+      if (params.ticketSearchCustomField7 != null && params.ticketSearchCustomField7 !== '') {
+        query.set('customField7', String(params.ticketSearchCustomField7))
       }
-      if (params.customField8 != null && params.customField8 !== '') {
-        query.set('customField8', String(params.customField8))
+      if (params.ticketSearchCustomField8 != null && params.ticketSearchCustomField8 !== '') {
+        query.set('customField8', String(params.ticketSearchCustomField8))
       }
-      if (params.customField9 != null && params.customField9 !== '') {
-        query.set('customField9', String(params.customField9))
+      if (params.ticketSearchCustomField9 != null && params.ticketSearchCustomField9 !== '') {
+        query.set('customField9', String(params.ticketSearchCustomField9))
       }
-      if (params.customField10 != null && params.customField10 !== '') {
-        query.set('customField10', String(params.customField10))
+      if (params.ticketSearchCustomField10 != null && params.ticketSearchCustomField10 !== '') {
+        query.set('customField10', String(params.ticketSearchCustomField10))
       }
       if (params.searchChannel != null && params.searchChannel !== '') {
         query.set('channel', String(params.searchChannel))
@@ -389,8 +389,8 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       if (params.searchDescription != null && params.searchDescription !== '') {
         query.set('description', String(params.searchDescription))
       }
-      if (params.sortBy != null && params.sortBy !== '') {
-        query.set('sortBy', String(params.sortBy))
+      if (params.ticketSearchSortBy != null && params.ticketSearchSortBy !== '') {
+        query.set('sortBy', String(params.ticketSearchSortBy))
       }
       if (params.tag != null && params.tag !== '') {
         query.set('tag', String(params.tag))

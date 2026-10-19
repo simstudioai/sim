@@ -21,7 +21,7 @@ export const zohoDeskGetAgentTool: ToolConfig<ZohoDeskGetAgentParams, ZohoDeskGe
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    include: {
+    agentInclude: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -33,8 +33,8 @@ export const zohoDeskGetAgentTool: ToolConfig<ZohoDeskGetAgentParams, ZohoDeskGe
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.include != null && params.include !== '') {
-        const value = normalizeZohoDeskCommaList(params.include)
+      if (params.agentInclude != null && params.agentInclude !== '') {
+        const value = normalizeZohoDeskCommaList(params.agentInclude)
         if (value !== undefined) query.set('include', String(value))
       }
       return `${getZohoDeskApiBase(params)}/agents/${safeUrlPathSegment(params.agentId, 'agentId')}${query.size ? `?${query}` : ''}`

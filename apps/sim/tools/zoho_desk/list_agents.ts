@@ -23,7 +23,7 @@ export const zohoDeskListAgentsTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    include: {
+    agentListInclude: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -127,8 +127,8 @@ export const zohoDeskListAgentsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams({ from: String(params.from ?? 0) })
-      if (params.include != null && params.include !== '') {
-        const value = normalizeZohoDeskCommaList(params.include)
+      if (params.agentListInclude != null && params.agentListInclude !== '') {
+        const value = normalizeZohoDeskCommaList(params.agentListInclude)
         if (value !== undefined) query.set('include', String(value))
       }
       if (params.roleIds != null && params.roleIds !== '') {

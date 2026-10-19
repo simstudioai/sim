@@ -117,12 +117,12 @@ export const zohoDeskCreateTicketTool: ToolConfig<
       description:
         'Status of the ticket. Note: This can be a system-defined or custom value that falls under one of the status types: OPEN, ON HOLD, or CLOSED.',
     },
-    contactId: {
+    ticketContactId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'ID of the contact Note: The contactId is mandatory for creating a ticket. If the contact does not already exist, include the contact JSON object to create the contact during ticket creation.',
+        'Existing contact ID for the ticket. Provide ticketContactId or a contact object to create a new contact.',
     },
     departmentId: {
       type: 'string',
@@ -135,7 +135,7 @@ export const zohoDeskCreateTicketTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'New contact JSON: email or lastName is required; firstName is optional. Provide either this or contactId.',
+        'New contact JSON: email or lastName is required; firstName is optional. Provide either this or ticketContactId.',
     },
     uploads: {
       type: 'array',
@@ -213,7 +213,7 @@ export const zohoDeskCreateTicketTool: ToolConfig<
         classification: params.classification,
         category: params.category,
         status: params.status,
-        contactId: params.contactId?.trim() || undefined,
+        contactId: params.ticketContactId?.trim() || undefined,
         departmentId: params.departmentId,
         contact: parseZohoDeskJson(params.contact, 'contact', 'object'),
         uploads: parseZohoDeskJson(params.uploads, 'uploads', 'array'),
@@ -233,9 +233,9 @@ export const zohoDeskCreateTicketTool: ToolConfig<
         entitySkills: parseZohoDeskJson(params.entitySkills, 'entitySkills', 'array'),
       })
       if (!body.contactId && !body.contact)
-        throw new Error('Provide contactId or a contact object.')
+        throw new Error('Provide ticketContactId or a contact object.')
       if (body.contactId && body.contact)
-        throw new Error('Provide either contactId or contact, not both.')
+        throw new Error('Provide either ticketContactId or contact, not both.')
       if (body.contact && typeof body.contact === 'object' && !Array.isArray(body.contact)) {
         const contact = body.contact as Record<string, unknown>
         if (!contact.email && !contact.lastName)

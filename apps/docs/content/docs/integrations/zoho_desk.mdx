@@ -193,7 +193,7 @@ Update fields on an existing Zoho Desk ticket.
 | `resolution` | string | No | Resolution notes recorded on the ticket |
 | `classification` | string | No | Ticket classification. Zoho's system-defined values are Problem, Request, and Question; portals can define custom values. Pass "" to clear it. |
 | `customFields` | json | No | Custom field values as a JSON object, keyed by custom field API name |
-| `contactId` | string | No | Existing contact ID |
+| `ticketContactId` | string | No | Existing contact ID |
 | `contact` | json | No | Contact JSON with email or lastName; use instead of contactId |
 | `productId` | string | No | Product ID |
 | `uploads` | array | No | JSON array of previously uploaded attachment IDs |
@@ -259,7 +259,7 @@ List comments on a Zoho Desk ticket.
 | `from` | number | No | Pagination start index \(0-based\) |
 | `limit` | number | No | Number of comments to return \(1-100, default 50\) |
 | `sortBy` | string | No | Sort by commentedTime. Ascending by default; prefix with - for descending \(-commentedTime\). |
-| `include` | string | No | Related data to include: mentions and plainText, comma-separated |
+| `commentInclude` | string | No | Related data to include: mentions and plainText, comma-separated |
 
 #### Output
 
@@ -540,9 +540,9 @@ Create Ticket in Zoho Desk.
 | `classification` | string | No | Classification type of the ticket Allowed values: Problem, Request, Question, or a custom classification. |
 | `category` | string | No | Category of the ticket |
 | `status` | string | No | Status of the ticket. Note: This can be a system-defined or custom value that falls under one of the status types: OPEN, ON HOLD, or CLOSED. |
-| `contactId` | string | No | ID of the contact Note: The contactId is mandatory for creating a ticket. If the contact does not already exist, include the contact JSON object to create the contact during ticket creation. |
+| `ticketContactId` | string | No | Existing contact ID for the ticket. Provide ticketContactId or a contact object to create a new contact. |
 | `departmentId` | string | Yes | ID of the department to associate the ticket |
-| `contact` | json | No | New contact JSON: email or lastName is required; firstName is optional. Provide either this or contactId. |
+| `contact` | json | No | New contact JSON: email or lastName is required; firstName is optional. Provide either this or ticketContactId. |
 | `uploads` | array | No | File attachments in the ticket. For more information, refer to the Uploads section JSON array. |
 | `resolution` | string | No | Resolution notes of the ticket |
 | `webUrl` | string | No | URL to access the resource |
@@ -609,7 +609,7 @@ Search Tickets in Zoho Desk.
 | `limit` | number | No | Page size \(1-100; default 10\). |
 | `from` | number | No | Pagination start index \(0-999; search returns at most the first 1000 matches\). |
 | `dueDateRange` | string | No | Due date range as two comma-separated ISO 8601 timestamps: start,end. |
-| `id` | string | No | ID of the ticket. Exact match. Comma-separated values. |
+| `ticketSearchIds` | string | No | ID of the ticket. Exact match. Comma-separated values. |
 | `searchProductId` | string | No | ID of the product associated with the ticket. Exact match. Comma-separated values. |
 | `searchContactId` | string | No | ID of the contact who raised the ticket. Exact match. Comma-separated values. |
 | `createdTimeRange` | string | No | Created time range as two comma-separated ISO 8601 timestamps: start,end. |
@@ -618,20 +618,20 @@ Search Tickets in Zoho Desk.
 | `searchAccountId` | string | No | ID of the account associated with the ticket. Exact match. Comma-separated values. |
 | `modifiedTimeRange` | string | No | Modified time range as two comma-separated ISO 8601 timestamps: start,end. |
 | `searchStatus` | string | No | Status of the ticket inclusive of custom status. example: 1. status=open,in progress 2. status=$\{open\}. Exact match. Comma-separated values. |
-| `customField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `ticketSearchCustomField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
 | `searchChannel` | string | No | The channel through which the ticket was received. Exact match. Supports empty/not-empty search operators. |
 | `customerResponseTimeRange` | string | No | Customer response time range as two comma-separated ISO 8601 timestamps: start,end. |
 | `searchDescription` | string | No | Description of the ticket. Supports * wildcards. |
-| `sortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, customerResponseTime. Prefix with - for descending. |
+| `ticketSearchSortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, customerResponseTime. Prefix with - for descending. |
 | `tag` | string | No | The tag associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators. |
 | `contactName` | string | No | The name of the contact who raised the ticket. Supports * wildcards. |
 | `searchCategory` | string | No | The category of the ticket. Supports * wildcards. Supports empty/not-empty search operators. |
@@ -708,15 +708,15 @@ Send an email reply from a configured Zoho Desk sender address.
 | `isPrivate` | boolean | No | Specifies whether the thread is Private or Public. Forwarded threads are always private. |
 | `sendImmediately` | boolean | No | Specify whether the reply has to sent immediately |
 | `ticketId` | string | Yes | Ticket ID |
-| `content` | string | Yes | Content of the thread |
-| `contentType` | string | No | Formatting type of the content. Applicable only for the EMAIL channel. Values supported are html and plainText \(default\). |
+| `replyContent` | string | Yes | Content of the thread |
+| `replyContentType` | string | No | Formatting type of the content. Applicable only for the EMAIL channel. Values supported are html and plainText \(default\). |
 | `inReplyToThreadId` | string | No | ID of the thread to which current thread is a reply, applicable only for EMAIL channel |
 | `replyDirection` | string | No | Key that returns whether the thread is incoming or outgoing |
 | `cc` | string | No | Email ID to be CC-ed. Applicable only for EMAIL channel |
 | `bcc` | string | No | Email ID to be BCC-ed., if any exist. Applicable only for EMAIL channel |
 | `hasAttach` | boolean | No | States whether the thread has attachments |
 | `ticketStatus` | string | No | Status of the ticket. Includes the custom statuses configured in your help desk portal. |
-| `attachmentIds` | array | No | List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array. |
+| `replyAttachmentIds` | array | No | List of attachment IDs, applicable only for EMAIL channel. For information on how to retrieve attachment IDs, refer to the Uploads section. JSON array. |
 | `to` | string | No | To email ID in the thread, applicable only for EMAIL channel |
 | `fromEmailAddress` | string | Yes | Sender email address configured in your Zoho Desk portal. |
 | `isForward` | boolean | No | Key that returns if the thread was sent as a forward. Applicable only for the EMAIL channel. |
@@ -772,12 +772,12 @@ List Contacts in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `selectedFields` | string | No | Key that returns the values of mentioned fields \(both pre-defined and custom\) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values. |
-| `viewId` | string | No | ID of the view to apply while fetching the resources |
+| `contactSelectedFields` | string | No | Key that returns the values of mentioned fields \(both pre-defined and custom\) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values. |
+| `contactViewId` | string | No | ID of the view to apply while fetching the resources |
 | `limit` | number | No | Page size \(1-100\). |
 | `from` | number | No | Pagination start index; use the provider index for this endpoint \(default 1\). |
-| `include` | string | No | Secondary information related to the contact.Value supported is accounts. Comma-separated values. |
-| `sortBy` | string | No | Sort field: firstName, lastName, phone, email, account, createdTime, modifiedTime. Prefix with - for descending. |
+| `contactListInclude` | string | No | Secondary information related to the contact.Value supported is accounts. Comma-separated values. |
+| `contactListSortBy` | string | No | Sort field: firstName, lastName, phone, email, account, createdTime, modifiedTime. Prefix with - for descending. |
 
 #### Output
 
@@ -814,26 +814,26 @@ Create Contact in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `lastName` | string | Yes | Last name of the contact |
-| `accountId` | string | No | Account to which the contact is mapped |
-| `firstName` | string | No | First name of the contact |
-| `secondaryEmail` | string | No | Secondary email ID of the contact |
-| `phone` | string | No | Phone number of the contact |
-| `mobile` | string | No | Mobile number of the contact |
-| `ownerId` | string | No | ID of the user who creates the contact |
-| `type` | string | No | Contact type |
-| `email` | string | No | Email ID of the contact |
-| `zip` | string | No | Zip code |
-| `country` | string | No | Contact's country of residence |
-| `twitter` | string | No | Twitter ID of the contact |
-| `customFields` | json | No | User-defined fields related to the contact JSON object. |
-| `city` | string | No | Contact's city of residence |
-| `street` | string | No | Contact's address |
-| `facebook` | string | No | Facebook ID of the contact |
-| `description` | string | No | Contact description |
-| `state` | string | No | Contact's state of residence |
-| `title` | string | No | Contact title |
-| `language` | string | No | Language preference to set for the Contact |
+| `contactLastName` | string | Yes | Last name of the contact |
+| `contactAccountId` | string | No | Account to which the contact is mapped |
+| `contactFirstName` | string | No | First name of the contact |
+| `contactSecondaryEmail` | string | No | Secondary email ID of the contact |
+| `contactPhone` | string | No | Phone number of the contact |
+| `contactMobile` | string | No | Mobile number of the contact |
+| `contactOwnerId` | string | No | ID of the user who creates the contact |
+| `contactType` | string | No | Contact type |
+| `contactEmail` | string | No | Email ID of the contact |
+| `contactZip` | string | No | Zip code |
+| `contactCountry` | string | No | Contact's country of residence |
+| `contactTwitter` | string | No | Twitter ID of the contact |
+| `contactCustomFields` | json | No | User-defined fields related to the contact JSON object. |
+| `contactCity` | string | No | Contact's city of residence |
+| `contactStreet` | string | No | Contact's address |
+| `contactFacebook` | string | No | Facebook ID of the contact |
+| `contactDescription` | string | No | Contact description |
+| `contactState` | string | No | Contact's state of residence |
+| `contactTitle` | string | No | Contact title |
+| `contactLanguage` | string | No | Language preference to set for the Contact |
 
 #### Output
 
@@ -869,26 +869,26 @@ Update Contact in Zoho Desk.
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `contactId` | string | Yes | Contact ID |
-| `lastName` | string | No | Last name of the contact |
-| `accountId` | string | No | Account to which the contact is mapped |
-| `firstName` | string | No | First name of the contact |
-| `secondaryEmail` | string | No | Secondary email ID of the contact |
-| `phone` | string | No | Phone number of the contact |
-| `mobile` | string | No | Mobile number of the contact |
-| `ownerId` | string | No | ID of the user who creates the contact |
-| `type` | string | No | Contact type |
-| `email` | string | No | Email ID of the contact |
-| `zip` | string | No | Zip code |
-| `country` | string | No | Contact's country of residence |
-| `twitter` | string | No | Twitter ID of the contact |
-| `customFields` | json | No | User-defined fields related to the contact JSON object. |
-| `city` | string | No | Contact's city of residence |
-| `street` | string | No | Contact's address |
-| `facebook` | string | No | Facebook ID of the contact |
-| `description` | string | No | Contact description |
-| `state` | string | No | Contact's state of residence |
-| `title` | string | No | Contact title |
-| `language` | string | No | Language preference to set for the Contact |
+| `contactLastName` | string | No | Last name of the contact |
+| `contactAccountId` | string | No | Account to which the contact is mapped |
+| `contactFirstName` | string | No | First name of the contact |
+| `contactSecondaryEmail` | string | No | Secondary email ID of the contact |
+| `contactPhone` | string | No | Phone number of the contact |
+| `contactMobile` | string | No | Mobile number of the contact |
+| `contactOwnerId` | string | No | ID of the user who creates the contact |
+| `contactType` | string | No | Contact type |
+| `contactEmail` | string | No | Email ID of the contact |
+| `contactZip` | string | No | Zip code |
+| `contactCountry` | string | No | Contact's country of residence |
+| `contactTwitter` | string | No | Twitter ID of the contact |
+| `contactCustomFields` | json | No | User-defined fields related to the contact JSON object. |
+| `contactCity` | string | No | Contact's city of residence |
+| `contactStreet` | string | No | Contact's address |
+| `contactFacebook` | string | No | Facebook ID of the contact |
+| `contactDescription` | string | No | Contact description |
+| `contactState` | string | No | Contact's state of residence |
+| `contactTitle` | string | No | Contact title |
+| `contactLanguage` | string | No | Language preference to set for the Contact |
 
 #### Output
 
@@ -931,22 +931,22 @@ Search Contacts in Zoho Desk.
 | `limit` | number | No | Page size \(1-100; default 10\). |
 | `from` | number | No | Pagination start index \(0-999; search returns at most the first 1000 matches\). |
 | `modifiedTimeRange` | string | No | Key that filters contacts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z |
-| `id` | string | No | ID of the contact. Exact match. Comma-separated values. |
+| `contactSearchIds` | string | No | ID of the contact. Exact match. Comma-separated values. |
 | `_all` | string | No | Search text across all fields. Supports * wildcards; at least 3 characters. |
-| `customField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `contactSearchCustomField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
 | `searchLastName` | string | No | Last name of the contact. Supports * wildcards. |
 | `searchFirstName` | string | No | First name of the contact. Supports * wildcards. Supports empty/not-empty search operators. |
 | `fullName` | string | No | Full name of the contact. Supports * wildcards. |
-| `sortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, lastName, firstName. Prefix with - for descending. |
+| `contactSearchSortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, lastName, firstName. Prefix with - for descending. |
 
 #### Output
 
@@ -984,11 +984,11 @@ List Accounts in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `viewId` | string | No | ID of the view to apply while fetching the resources |
+| `accountViewId` | string | No | ID of the view to apply while fetching the resources |
 | `limit` | number | No | Page size \(1-100\). |
 | `from` | number | No | Pagination start index; use the provider index for this endpoint \(default 1\). |
-| `sortBy` | string | No | Sort field: website, email, phone, accountName, createdTime, modifiedTime. Prefix with - for descending. |
-| `selectedFields` | string | No | Key that returns the values of mentioned fields \(both pre-defined and custom\) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values. |
+| `accountListSortBy` | string | No | Sort field: website, email, phone, accountName, createdTime, modifiedTime. Prefix with - for descending. |
+| `accountSelectedFields` | string | No | Key that returns the values of mentioned fields \(both pre-defined and custom\) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: photoURL, webUrl. Maximum of 30 fields is supported as comma separated values. Comma-separated values. |
 
 #### Output
 
@@ -1007,22 +1007,22 @@ Create Account in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `website` | string | No | Website of the account |
+| `accountWebsite` | string | No | Website of the account |
 | `accountName` | string | Yes | Name of the account |
-| `phone` | string | No | Phone number of the account |
-| `email` | string | No | Email ID of the account |
-| `country` | string | No | Country in which the account is based |
-| `code` | string | No | Zip code |
-| `customFields` | json | No | User-defined fields associated with the account JSON object. |
-| `city` | string | No | City in which the account is based |
-| `street` | string | No | Address of the account |
-| `annualrevenue` | number | No | Annual revenue of the account |
-| `description` | string | No | A short description of the account |
-| `industry` | string | No | Industry in which the account operates |
-| `state` | string | No | State in which the account is based |
-| `ownerId` | string | No | ID of account owner |
-| `fax` | string | No | Fax number of the account |
-| `associatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
+| `accountPhone` | string | No | Phone number of the account |
+| `accountEmail` | string | No | Email ID of the account |
+| `accountCountry` | string | No | Country in which the account is based |
+| `accountCode` | string | No | Zip code |
+| `accountCustomFields` | json | No | User-defined fields associated with the account JSON object. |
+| `accountCity` | string | No | City in which the account is based |
+| `accountStreet` | string | No | Address of the account |
+| `accountAnnualrevenue` | number | No | Annual revenue of the account |
+| `accountDescription` | string | No | A short description of the account |
+| `accountIndustry` | string | No | Industry in which the account operates |
+| `accountState` | string | No | State in which the account is based |
+| `accountOwnerId` | string | No | ID of account owner |
+| `accountFax` | string | No | Fax number of the account |
+| `accountAssociatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
 
 #### Output
 
@@ -1040,22 +1040,22 @@ Update Account in Zoho Desk.
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
 | `accountId` | string | Yes | Unique ID of the account |
-| `website` | string | No | Website of the account |
+| `accountWebsite` | string | No | Website of the account |
 | `accountName` | string | No | Name of the account |
-| `phone` | string | No | Phone number of the account |
-| `email` | string | No | Email ID of the account |
-| `country` | string | No | Country in which the account is based |
-| `code` | string | No | Zip code |
-| `customFields` | json | No | User-defined fields associated with the account JSON object. |
-| `city` | string | No | City in which the account is based |
-| `street` | string | No | Address of the account |
-| `annualrevenue` | number | No | Annual revenue of the account |
-| `description` | string | No | A short description of the account |
-| `industry` | string | No | Industry in which the account operates |
-| `state` | string | No | State in which the account is based |
-| `ownerId` | string | No | ID of account owner |
-| `fax` | string | No | Fax number of the account |
-| `associatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
+| `accountPhone` | string | No | Phone number of the account |
+| `accountEmail` | string | No | Email ID of the account |
+| `accountCountry` | string | No | Country in which the account is based |
+| `accountCode` | string | No | Zip code |
+| `accountCustomFields` | json | No | User-defined fields associated with the account JSON object. |
+| `accountCity` | string | No | City in which the account is based |
+| `accountStreet` | string | No | Address of the account |
+| `accountAnnualrevenue` | number | No | Annual revenue of the account |
+| `accountDescription` | string | No | A short description of the account |
+| `accountIndustry` | string | No | Industry in which the account operates |
+| `accountState` | string | No | State in which the account is based |
+| `accountOwnerId` | string | No | ID of account owner |
+| `accountFax` | string | No | Fax number of the account |
+| `accountAssociatedSLAIds` | array | No | IDs of the SLAs associated with the account. An account can have multiple SLAs, but only one SLA per department can be mapped to it. JSON array. |
 
 #### Output
 
@@ -1077,19 +1077,19 @@ Search Accounts in Zoho Desk.
 | `limit` | number | No | Page size \(1-100; default 10\). |
 | `from` | number | No | Pagination start index \(0-999; search returns at most the first 1000 matches\). |
 | `modifiedTimeRange` | string | No | Key that filters accounts modified in a particular period of time. Enter the from and to dates in the ISO date format of yyyy-MM-ddThh:mm:ss.SSSZ; For example, modifiedTimeRange=2017-11-05T00:00:00.000Z,2018-09-05T23:59:00.000Z |
-| `id` | string | No | ID of the account. Exact match. Comma-separated values. |
+| `accountSearchIds` | string | No | ID of the account. Exact match. Comma-separated values. |
 | `_all` | string | No | Search text across all fields. Supports * wildcards; at least 3 characters. |
-| `customField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `customField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
-| `sortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, accountName. Prefix with - for descending. |
+| `accountSearchCustomField1` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField2` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField3` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField4` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField5` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField6` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField7` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField8` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField9` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchCustomField10` | string | No | Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators. |
+| `accountSearchSortBy` | string | No | Sort field: relevance, modifiedTime, createdTime, accountName. Prefix with - for descending. |
 
 #### Output
 
@@ -1109,7 +1109,7 @@ Get Account in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `include` | string | No | Allowed values are : owner |
+| `accountInclude` | string | No | Allowed values are : owner |
 | `accountId` | string | Yes | Unique ID of the account |
 
 #### Output
@@ -1150,7 +1150,7 @@ Get Department in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `departmentId` | string | Yes | Unique ID of the department |
+| `lookupDepartmentId` | string | Yes | Unique ID of the department |
 
 #### Output
 
@@ -1167,7 +1167,7 @@ List Agents in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `include` | string | No | Secondary information related to agents, The allowed values are profile, role. You can include all two values by separating them with commas in the API request. |
+| `agentListInclude` | string | No | Secondary information related to agents, The allowed values are profile, role. You can include all two values by separating them with commas in the API request. |
 | `roleIds` | string | No | Comma-separated array of role IDs. Maximum number of IDs allowed is 50. Comma-separated values. |
 | `searchStr` | string | No | String to search for agents by first name, last name, or email ID. The string must contain at least one character. The supported search methods: 1\) string* - Searches for agents whose first name, last name, or email ID start with the string, 2\) *string* - Searches for agents whose first name, last name, or email ID contain the string, 3\) string - Searches for agents whose first name, last name, or email ID is an. Exact match. for the string |
 | `cfSearchStr` | string | No | String to search for agents by custom field. The string must contain at least one character |
@@ -1200,7 +1200,7 @@ Get Agent in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `include` | string | No | Secondary information related to the agent. Values allowed are profile, role, associatedDepartments, associatedChatDepartments and verifiedEmails. Separate multiple values with commas. |
+| `agentInclude` | string | No | Secondary information related to the agent. Values allowed are profile, role, associatedDepartments, associatedChatDepartments and verifiedEmails. Separate multiple values with commas. |
 | `agentId` | string | Yes | Agent ID |
 
 #### Output
@@ -1218,7 +1218,7 @@ Get Comment in Zoho Desk.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `orgId` | string | Yes | Zoho Desk organization ID |
-| `include` | string | No | Related comment data to include: mentions, plainText, or both separated by commas. |
+| `commentInclude` | string | No | Related comment data to include: mentions, plainText, or both separated by commas. |
 | `commentId` | string | Yes | Comment ID |
 | `ticketId` | string | Yes | Ticket ID |
 
