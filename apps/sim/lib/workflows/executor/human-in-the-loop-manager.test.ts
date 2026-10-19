@@ -2273,6 +2273,26 @@ describe('repeated human review pauses', () => {
     })
   }
 
+  it.each([
+    { statusCode: 402, kind: 'user' },
+    { statusCode: 404, kind: 'user' },
+    { statusCode: 429, kind: 'user' },
+    { statusCode: 500, kind: 'internal' },
+  ])('attributes a $statusCode preprocessing refusal as $kind', async ({ statusCode, kind }) => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'log-1', deploymentVersionId: null }])
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: false,
+      error: { message: 'refused', statusCode },
+    })
+
+    const error = await runResumeExecution(createRepeatedReviewResumeArgs()).catch(
+      (thrown: unknown) => thrown
+    )
+
+    expect(error).toMatchObject({ name: 'ResumeAdmissionError', statusCode })
+    expect(classifyFailure(error)).toBe(kind)
+  })
+
   it('keeps the next pause snapshot attached to the log that admission claimed', async () => {
     mockCompletedResumeRun()
 

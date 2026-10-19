@@ -1561,11 +1561,15 @@ export class PauseResumeManager {
         error: errorMessage,
       })
 
-      throw new ResumeAdmissionError(
+      const refusal = new ResumeAdmissionError(
         errorMessage,
         preprocessingResult.error?.statusCode ?? 500,
         preprocessingResult.error?.retryable ?? false
       )
+      /** A 4xx is the run's own state (usage limit, rate limit, archived workflow), not a Sim fault. */
+      throw refusal.statusCode >= 400 && refusal.statusCode < 500
+        ? markFailureKind(refusal, 'user')
+        : refusal
     }
 
     logger.info('Preprocessing checks passed for resume', {
