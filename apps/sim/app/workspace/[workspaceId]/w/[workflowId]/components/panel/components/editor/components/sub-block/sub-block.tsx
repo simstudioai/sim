@@ -620,7 +620,11 @@ function SubBlockComponent({
     | undefined
 
   const requiredValues =
-    dependencyContext ?? (subBlockValues ? buildSubBlockValues(subBlockValues) : undefined)
+    !isPreview && dependencyContext
+      ? dependencyContext
+      : subBlockValues
+        ? buildSubBlockValues(subBlockValues)
+        : undefined
   const contextValues = dependencyContext ?? (isPreview ? subBlockValues : undefined)
 
   const { finalDisabled: gatedDisabled } = useDependsOnGate(blockId, config, {
