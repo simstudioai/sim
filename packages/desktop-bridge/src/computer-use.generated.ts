@@ -167,7 +167,6 @@ export const ComputerUseStatusSchema = z.strictObject({
   accessibility: z.boolean(),
   screenRecording: z.boolean(),
 });
-export type ComputerUseStatus = z.infer<typeof ComputerUseStatusSchema>;
 
 export const ComputerUseAppSchema = z.strictObject({
   bundleId: BundleId,
@@ -175,7 +174,6 @@ export const ComputerUseAppSchema = z.strictObject({
   pid: z.number().int().positive().optional(),
   isActive: z.boolean(),
 });
-export type ComputerUseApp = z.infer<typeof ComputerUseAppSchema>;
 
 export const ComputerUseWindowSchema = z.strictObject({
   windowId: WindowId,
@@ -185,7 +183,6 @@ export const ComputerUseWindowSchema = z.strictObject({
   width: z.number().nonnegative(),
   height: z.number().nonnegative(),
 });
-export type ComputerUseWindow = z.infer<typeof ComputerUseWindowSchema>;
 
 const ComputerUseNodeSchema = z.strictObject({
   elementId: ElementId,
