@@ -67,8 +67,8 @@ import {
   Resource,
   type ResourceTableHandle,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceListHeader } from '@/app/workspace/[workspaceId]/components/resource/resource-list-header'
 import {
-  ResourceListHeader,
   useResourceListOpen,
   useResourceWorkspaceId,
 } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
@@ -575,10 +575,18 @@ export default function Logs() {
 
   const handleOpenWorkflow = useCallback(() => {
     const wfId = contextMenuLog ? resolveLogWorkflowId(contextMenuLog) : null
-    if (wfId) {
-      window.open(workflowEditorPath(workspaceId, wfId), '_blank')
+    if (!wfId) return
+    if (openResource) {
+      openResource({
+        type: 'workflow',
+        id: wfId,
+        title: contextMenuLog?.workflow?.name ?? 'Workflow',
+        workspaceId,
+      })
+      return
     }
-  }, [contextMenuLog, workspaceId])
+    window.open(workflowEditorPath(workspaceId, wfId), '_blank')
+  }, [contextMenuLog, openResource, workspaceId])
 
   const handleToggleWorkflowFilter = useCallback(() => {
     const wfId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -746,6 +754,7 @@ export default function Logs() {
   const writeExecutionIdEvent = useEffectEvent((value: string | null) => {
     writeExecutionId(value)
   })
+  const handleLogClickEvent = useEffectEvent(handleLogClick)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -780,6 +789,10 @@ export default function Logs() {
 
       if (e.key === 'Enter' && selectedLogIdRef.current) {
         e.preventDefault()
+        if (openResource) {
+          handleLogClickEvent(selectedLogIdRef.current)
+          return
+        }
         const willOpen = !isSidebarOpenRef.current
         dispatch({ type: 'TOGGLE_SIDEBAR' })
         if (willOpen) {
@@ -793,7 +806,7 @@ export default function Logs() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [openResource])
 
   const handleCloseContextMenu = useCallback(() => setContextMenuOpen(false), [])
   function handleClosePreview() {

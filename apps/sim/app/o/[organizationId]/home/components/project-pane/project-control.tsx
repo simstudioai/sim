@@ -30,28 +30,59 @@ import {
 } from '@/app/o/[organizationId]/home/components/project-pane/search-params'
 import { useProjects } from '@/app/o/[organizationId]/p/hooks/use-projects'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { swellSlotRun } from '@/app/workspace/[workspaceId]/home/components/chat-panel-swell'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+
+const SLOT_HEIGHT = 24
+const TOP_RADIUS = 8
+const BOTTOM_RADIUS = 2.5
+
+/**
+ * A slot diagonal rising `run` across the slot's height, with its corners' tangent points: `top`
+ * along the top edge and the diagonal, `bottom` along the bottom edge and the diagonal.
+ */
+function slotDiagonal(run: number) {
+  const length = Math.hypot(run, SLOT_HEIGHT)
+  const ux = run / length
+  const uy = SLOT_HEIGHT / length
+  const top = (TOP_RADIUS * (1 - ux)) / uy
+  const bottom = (BOTTOM_RADIUS * (1 + ux)) / uy
+  return { ux, uy, top, bottom }
+}
 
 /**
  * The name slot's silhouette at its rendered width: a leading diagonal parallel to the swell's
- * taper, and, alone in the swell, the mirrored trailing edge.
+ * side, and, alone in the swell, the mirrored trailing edge.
  */
-function nameSlotClip(width: number, solo: boolean) {
-  const leading = 'M23.75 0A8 8 0 0 0 17.6 2.88L3.41 19.9A2.5 2.5 0 0 0 5.34 24'
+function nameSlotClip(width: number, run: number, solo: boolean) {
+  const { ux, uy, top, bottom } = slotDiagonal(run)
+  const h = SLOT_HEIGHT
+  const leading = `M${run + top} 0A${TOP_RADIUS} ${TOP_RADIUS} 0 0 0 ${run - ux * top} ${uy * top}L${ux * bottom} ${h - uy * bottom}A${BOTTOM_RADIUS} ${BOTTOM_RADIUS} 0 0 0 ${bottom} ${h}`
   const trailing = solo
-    ? `L${width - 5.34} 24A2.5 2.5 0 0 0 ${width - 3.41} 19.9L${width - 17.6} 2.88A8 8 0 0 0 ${width - 23.75} 0Z`
-    : `L${width - 4} 24A4 4 0 0 0 ${width} 20L${width} 4A4 4 0 0 0 ${width - 4} 0Z`
+    ? `L${width - bottom} ${h}A${BOTTOM_RADIUS} ${BOTTOM_RADIUS} 0 0 0 ${width - ux * bottom} ${h - uy * bottom}L${width - run + ux * top} ${uy * top}A${TOP_RADIUS} ${TOP_RADIUS} 0 0 0 ${width - run - top} 0Z`
+    : `L${width - 4} ${h}A4 4 0 0 0 ${width} ${h - 4}L${width} 4A4 4 0 0 0 ${width - 4} 0Z`
   return `path('${leading}${trailing}')`
 }
 
-/** Re-clips on every width change, so the shape follows the slot while it animates. */
-function clipNameSlot(slot: HTMLButtonElement | null) {
-  if (!slot) return
+/** The switcher's silhouette: square on the name's side, the swell's trailing diagonal on its own. */
+function switchSlotClip(width: number, run: number) {
+  const { ux, uy, top, bottom } = slotDiagonal(run)
+  const h = SLOT_HEIGHT
+  return `path('M${width - run - top} 0A${TOP_RADIUS} ${TOP_RADIUS} 0 0 1 ${width - run + ux * top} ${uy * top}L${width - ux * bottom} ${h - uy * bottom}A${BOTTOM_RADIUS} ${BOTTOM_RADIUS} 0 0 1 ${width - bottom} ${h}L4 ${h}A4 4 0 0 1 0 ${h - 4}L0 4A4 4 0 0 1 4 0Z')`
+}
+
+/** Re-clips both slots on every width change, so their diagonals follow the swell as it animates. */
+function clipSlots(control: HTMLDivElement | null) {
+  if (!control) return
+  const name = control.querySelector<HTMLElement>('[data-project-name]')
+  const switcher = control.querySelector<HTMLElement>('[data-project-switch]')
+  if (!name || !switcher) throw new Error('Project control is missing a slot')
   const observer = new ResizeObserver(() => {
-    const switcher = slot.parentElement?.querySelector<HTMLElement>('[data-project-switch]')
-    slot.style.clipPath = nameSlotClip(slot.offsetWidth, !switcher || switcher.offsetWidth < 1)
+    const run = swellSlotRun(control.getBoundingClientRect().width)
+    name.style.clipPath = nameSlotClip(name.offsetWidth, run, switcher.offsetWidth < 1)
+    switcher.style.clipPath = switchSlotClip(switcher.offsetWidth, run)
   })
-  observer.observe(slot)
+  for (const el of [control, name, switcher]) observer.observe(el)
   return () => observer.disconnect()
 }
 
@@ -92,6 +123,7 @@ export function ProjectControl({ active, onShow }: ProjectControlProps) {
     })
   return (
     <div
+      ref={clipSlots}
       data-swell-control=''
       data-active={active}
       className={cn(
@@ -102,16 +134,16 @@ export function ProjectControl({ active, onShow }: ProjectControlProps) {
       )}
     >
       <button
-        ref={clipNameSlot}
         type='button'
+        data-project-name=''
         aria-pressed={active}
         aria-label={`Show ${name}`}
         onClick={onShow}
         className={cn(
-          'flex h-full items-center text-small transition-[padding,background-color,color] duration-200 hover-hover:bg-[var(--surface-2)] hover-hover:text-[var(--text-primary)] focus-visible:bg-[var(--surface-2)] focus-visible:text-[var(--text-primary)] focus-visible:outline-none',
+          'flex h-full items-center text-small transition-[padding,background-color,color] duration-200 focus-visible:outline-none',
           active
             ? 'pr-2 pl-[22px]'
-            : 'px-4 group-focus-within/control:pr-2 group-focus-within/control:pl-[22px] group-hover/control:pr-2 group-hover/control:pl-[22px] group-has-[[data-state=open]]/control:pr-2 group-has-[[data-state=open]]/control:pl-[22px]'
+            : 'px-4 hover-hover:bg-[var(--surface-2)] hover-hover:text-[var(--text-primary)] focus-visible:bg-[var(--surface-2)] focus-visible:text-[var(--text-primary)] group-focus-within/control:pr-2 group-focus-within/control:pl-[22px] group-hover/control:pr-2 group-hover/control:pl-[22px] group-has-[[data-state=open]]/control:pr-2 group-has-[[data-state=open]]/control:pl-[22px]'
         )}
       >
         <Box className='size-[14px] shrink-0' />
@@ -139,10 +171,10 @@ export function ProjectControl({ active, onShow }: ProjectControlProps) {
             aria-label='Switch project'
             data-project-switch=''
             className={cn(
-              'flex h-full items-center justify-center overflow-hidden transition-[width,margin,opacity,background-color,color] duration-200 [clip-path:path("M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z")] hover-hover:bg-[var(--surface-2)] hover-hover:text-[var(--text-primary)] focus-visible:bg-[var(--surface-2)] focus-visible:text-[var(--text-primary)] focus-visible:outline-none data-[state=open]:bg-[var(--surface-2)] data-[state=open]:text-[var(--text-primary)]',
+              'flex h-full items-center justify-center overflow-hidden transition-[width,margin,opacity,background-color,color] duration-200 focus-visible:outline-none',
               active
                 ? 'w-10 text-[var(--surface-7)]'
-                : '-ml-0.5 w-0 text-[var(--text-icon)] opacity-0 group-focus-within/control:ml-0 group-focus-within/control:w-10 group-focus-within/control:opacity-100 group-hover/control:ml-0 group-hover/control:w-10 group-hover/control:opacity-100 group-has-[[data-state=open]]/control:ml-0 group-has-[[data-state=open]]/control:w-10 group-has-[[data-state=open]]/control:opacity-100'
+                : '-ml-0.5 w-0 text-[var(--text-icon)] opacity-0 hover-hover:bg-[var(--surface-2)] hover-hover:text-[var(--text-primary)] focus-visible:bg-[var(--surface-2)] focus-visible:text-[var(--text-primary)] group-focus-within/control:ml-0 group-focus-within/control:w-10 group-focus-within/control:opacity-100 group-hover/control:ml-0 group-hover/control:w-10 group-hover/control:opacity-100 group-has-[[data-state=open]]/control:ml-0 group-has-[[data-state=open]]/control:w-10 group-has-[[data-state=open]]/control:opacity-100 data-[state=open]:bg-[var(--surface-2)] data-[state=open]:text-[var(--text-primary)]'
             )}
           >
             <ChevronDown className='-translate-x-1.5 size-[12px] translate-y-px' />

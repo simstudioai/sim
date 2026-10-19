@@ -20,7 +20,10 @@ import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { ResourceNavigationProvider } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
+import {
+  ResourceNavigationProvider,
+  runResourceFromHref,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
@@ -31,6 +34,7 @@ import {
 import { ChatPanelContent } from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
 import { ChatPanelSwell } from '@/app/workspace/[workspaceId]/home/components/chat-panel-swell'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import { PaneFileHeader } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/pane-file-header/pane-file-header'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
@@ -400,6 +404,12 @@ export const MothershipView = memo(
   })
 )
 
+/** Resources whose own page header (crumbs, rename, delete) serves the pane tab. */
+const OWNS_PAGE_HEADER: ReadonlySet<MothershipResource['type']> = new Set([
+  'table',
+  'knowledgebase',
+])
+
 interface PaneResourceNavigationProps {
   navigation: ResourcePanelNavigation
   resource: MothershipResource
@@ -408,7 +418,7 @@ interface PaneResourceNavigationProps {
 
 /**
  * Keeps a resource's own navigation inside the pane. A replace means this tab's view is gone
- * (its workflow was deleted or never existed), so the tab closes; a workflow the editor pushes
+ * (its resource was deleted or never existed), so the tab closes; a workflow the editor pushes
  * (a duplicate) opens as a tab; lists and other destinations go to the pane's navigation.
  */
 function PaneResourceNavigation({ navigation, resource, children }: PaneResourceNavigationProps) {
@@ -423,7 +433,16 @@ function PaneResourceNavigation({ navigation, resource, children }: PaneResource
         scope === 'workspace' &&
         Boolean(workspaceId) &&
         (!section || section === 'w')
+      const run =
+        url.origin === window.location.origin && scope === 'workspace' && section === 'logs'
+          ? runResourceFromHref(url, workspaceId)
+          : null
+      if (run) {
+        addResource(run)
+        return
+      }
       if (!workflowArea) {
+        if (replace) removeResource(resource.type, resource.id, resource.workspaceId)
         navigation.navigate(href)
         return
       }
@@ -524,6 +543,21 @@ function ScopedResourceContent({
     )
   }
   if (!organizationId) return <ResourceContent workspaceId={workspaceId} {...props} />
+  const headerAside = (
+    <>
+      {props.resource.type !== 'workflow' && (
+        <ResourceActions
+          workspaceId={workspaceId}
+          resource={props.resource}
+          downloadSourceRef={props.downloadSourceRef}
+          allowWorkspaceNavigation={false}
+        />
+      )}
+      {onCyclePreviewMode && props.previewMode && (
+        <PreviewModeToggle mode={props.previewMode} onCycle={onCyclePreviewMode} />
+      )}
+    </>
+  )
   if (showHeader && props.resource.type === 'workflow') {
     return (
       <ResourceWorkspaceHost
@@ -543,30 +577,29 @@ function ScopedResourceContent({
       workflowId={props.resource.type === 'workflow' ? props.resource.id : undefined}
       isFileViewer={props.resource.type === 'file'}
     >
-      {showHeader ? (
+      {showHeader && OWNS_PAGE_HEADER.has(props.resource.type) ? (
+        <div className='h-full min-h-0 overflow-hidden'>
+          <ResourceContent workspaceId={workspaceId} {...props} pageHeader />
+        </div>
+      ) : showHeader ? (
         <div className='flex h-full min-h-0 flex-col'>
-          <Resource.Header
-            icon={getResourceConfig(props.resource.type).icon}
-            breadcrumbs={[
-              { label: getResourceConfig(props.resource.type).label, onClick: onBrowse },
-              { label: props.resource.title },
-            ]}
-            aside={
-              <>
-                {props.resource.type !== 'workflow' && (
-                  <ResourceActions
-                    workspaceId={workspaceId}
-                    resource={props.resource}
-                    downloadSourceRef={props.downloadSourceRef}
-                    allowWorkspaceNavigation={false}
-                  />
-                )}
-                {onCyclePreviewMode && props.previewMode && (
-                  <PreviewModeToggle mode={props.previewMode} onCycle={onCyclePreviewMode} />
-                )}
-              </>
-            }
-          />
+          {props.resource.type === 'file' ? (
+            <PaneFileHeader
+              workspaceId={workspaceId}
+              resource={props.resource}
+              onBrowse={onBrowse}
+              aside={headerAside}
+            />
+          ) : (
+            <Resource.Header
+              icon={getResourceConfig(props.resource.type).icon}
+              breadcrumbs={[
+                { label: getResourceConfig(props.resource.type).label, onClick: onBrowse },
+                { label: props.resource.title },
+              ]}
+              aside={headerAside}
+            />
+          )}
           <div className='min-h-0 flex-1 overflow-hidden'>
             <ResourceContent workspaceId={workspaceId} {...props} />
           </div>

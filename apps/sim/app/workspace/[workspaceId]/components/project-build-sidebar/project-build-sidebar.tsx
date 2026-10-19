@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronLeft,
   PanelLeft,
+  Pin,
   Plus,
   Search,
   SquarePen,
@@ -42,6 +43,7 @@ import {
   PROJECT_NAV_SECTIONS,
   projectHomeHref,
 } from '@/app/workspace/[workspaceId]/components/project-build-sidebar/constants'
+import { useProjectChatMenu } from '@/app/workspace/[workspaceId]/components/project-build-sidebar/use-project-chat-menu'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
@@ -132,6 +134,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
 
   const services = useWorkspaceSidebarServices({ workspaceId, workflowId })
   const { chats, chatsLoading, chatsEnabled } = services
+  const chatMenu = useProjectChatMenu({ workspaceId, chats })
 
   const { handlePointerDown } = useSidebarResize()
   const [visibleChatCount, setVisibleChatCount] = useState(CHAT_PREVIEW_COUNT)
@@ -511,6 +514,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
                                 <ProjectChatItem
                                   key={chat.id}
                                   chat={chat}
+                                  onContextMenu={chatMenu.openMenu}
                                   isCurrentRoute={pathname === chat.href}
                                   showCollapsedTooltips={showCollapsedTooltips}
                                 />
@@ -579,6 +583,7 @@ export const ProjectBuildSidebar = memo(function ProjectBuildSidebar({
       </div>
 
       <WorkspaceSidebarModals services={services} />
+      {chatMenu.menu}
     </>
   )
 })
@@ -587,6 +592,7 @@ interface ProjectChatItemProps {
   chat: SidebarChat
   isCurrentRoute: boolean
   showCollapsedTooltips: boolean
+  onContextMenu: (event: React.MouseEvent, chatId: string) => void
 }
 
 /** One chat row: the same link and prefetch behavior as the workspace sidebar's chats. */
@@ -594,6 +600,7 @@ const ProjectChatItem = memo(function ProjectChatItem({
   chat,
   isCurrentRoute,
   showCollapsedTooltips,
+  onContextMenu,
 }: ProjectChatItemProps) {
   const showStatusDot = chat.isActive || (!isCurrentRoute && chat.isUnread)
   return (
@@ -606,6 +613,7 @@ const ProjectChatItem = memo(function ProjectChatItem({
           chipVariants({ active: isCurrentRoute, fullWidth: true }),
           SIDEBAR_RAIL_CHIP_CLASS
         )}
+        onContextMenu={(event) => onContextMenu(event, chat.id)}
       >
         <OverflowText
           label={chat.name}
@@ -616,6 +624,12 @@ const ProjectChatItem = memo(function ProjectChatItem({
             aria-hidden='true'
             className='sidebar-collapse-hide size-[6px] shrink-0 rounded-full'
             style={{ backgroundColor: chat.isActive ? '#EAB308' : 'var(--brand-accent)' }}
+          />
+        )}
+        {!showStatusDot && chat.isPinned && (
+          <Pin
+            aria-hidden='true'
+            className='sidebar-collapse-hide size-[12px] shrink-0 text-[var(--text-icon)]'
           />
         )}
       </ChatNavigationLink>

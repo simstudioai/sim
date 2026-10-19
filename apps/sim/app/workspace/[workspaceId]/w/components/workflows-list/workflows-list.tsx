@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Chip, toast } from '@sim/emcn'
+import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
 import { FolderPlus, Pencil, Plus, Trash, Upload, Workflow } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -24,8 +24,10 @@ import {
   parseFolderedRowId,
   parseMoveOptionValue,
   scopeFolderedItems,
+  splitFolderedRowIds,
   useFolderNavigation,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import { ResourceNoResults } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import type {
   DropdownOption,
@@ -42,11 +44,13 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceListHeader } from '@/app/workspace/[workspaceId]/components/resource/resource-list-header'
 import {
-  ResourceListHeader,
   useResourceRouter,
   useResourceWorkspaceId,
 } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
+import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -55,20 +59,28 @@ import { compareByOrder } from '@/app/workspace/[workspaceId]/w/components/sideb
 import {
   useCanDelete,
   useDeleteFolder,
+  useDeleteSelection,
   useDeleteWorkflow,
   useDuplicateFolder,
   useDuplicateWorkflow,
   useExportFolder,
+  useExportSelection,
   useExportWorkflow,
   useImportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
 import { workflowsParsers, workflowsUrlKeys } from '@/app/workspace/[workspaceId]/w/search-params'
-import { useCreateFolder, useFolderMap, useUpdateFolder } from '@/hooks/queries/folders'
+import {
+  useCreateFolder,
+  useFolderMap,
+  useReorderFolders,
+  useUpdateFolder,
+} from '@/hooks/queries/folders'
 import {
   isFolderEffectivelyLocked,
+  isFolderOrAncestorLocked,
   isWorkflowEffectivelyLocked,
 } from '@/hooks/queries/utils/folder-tree'
-import { useUpdateWorkflow, useWorkflows } from '@/hooks/queries/workflows'
+import { useReorderWorkflows, useUpdateWorkflow, useWorkflows } from '@/hooks/queries/workflows'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
@@ -113,7 +125,7 @@ export function WorkflowsList() {
   const workspaceId = useResourceWorkspaceId()
   const importInputRef = useRef<HTMLInputElement>(null)
 
-  const { canEdit } = useUserPermissionsContext()
+  const { canEdit, canAdmin } = useUserPermissionsContext()
 
   const {
     data: workflows = EMPTY_WORKFLOWS,
@@ -164,6 +176,7 @@ export function WorkflowsList() {
 
   const [activeItem, setActiveItem] = useState<WorkflowResourceItem | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
 
   const {
     isOpen: isRowContextMenuOpen,
@@ -339,7 +352,7 @@ export function WorkflowsList() {
         return {
           id: workflow.id,
           cells: {
-            name: { icon: WORKFLOW_ICON, label: workflow.name },
+            name: { icon: WORKFLOW_ICON, label: workflow.name, locked: workflow.locked },
             status: { label: workflow.isDeployed ? 'Deployed' : 'Draft' },
             updated: timeCell(workflow.lastModified),
             location: isSearching
@@ -382,6 +395,170 @@ export function WorkflowsList() {
     listRename.submitRename,
     listRename.cancelRename,
   ])
+
+  const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
+
+  const {
+    selectedRowIds,
+    selectable: selectableConfig,
+    replaceSelection,
+    clearSelection,
+  } = useResourceRowSelection({
+    visibleRowIds,
+    /** A dialog owns the keyboard; otherwise Escape empties the selection a confirm acts on. */
+    isKeyboardBlocked: () =>
+      !canEdit || listRename.editingId !== null || isDeleteModalOpen || isBulkDeleteOpen,
+    onDeleteSelected: () => handleBulkDelete(),
+  })
+
+  const { folderIds: selectedFolderIds, resourceIds: selectedWorkflowIds } = useMemo(
+    () => splitFolderedRowIds(selectedRowIds),
+    [selectedRowIds]
+  )
+
+  const selectionLocked =
+    selectedWorkflowIds.some((id) => {
+      const workflow = workflowById.get(id)
+      return Boolean(workflow && isWorkflowEffectivelyLocked(workflow, folderMap))
+    }) ||
+    selectedFolderIds.some((id) => {
+      const folder = folderById.get(id)
+      return Boolean(folder && isFolderEffectivelyLocked(folder, folderMap))
+    })
+
+  const selectionCanDelete =
+    !selectionLocked &&
+    (selectedWorkflowIds.length === 0 || canDeleteWorkflows(selectedWorkflowIds)) &&
+    selectedFolderIds.every((id) => canDeleteFolder(id))
+
+  const bulkDeleteLabel = useMemo(() => {
+    const count = selectedWorkflowIds.length + selectedFolderIds.length
+    const firstName =
+      selectedWorkflowIds.length > 0
+        ? workflowById.get(selectedWorkflowIds[0])?.name
+        : folderById.get(selectedFolderIds[0])?.name
+    return selectionLabel(count, firstName)
+  }, [selectedWorkflowIds, selectedFolderIds, workflowById, folderById])
+
+  const { isDeleting: isDeletingSelection, handleDeleteSelection } = useDeleteSelection({
+    workspaceId,
+    workflowIds: selectedWorkflowIds,
+    folderIds: selectedFolderIds,
+    onSuccess: () => {
+      setIsBulkDeleteOpen(false)
+      clearSelection()
+    },
+  })
+  const { isExporting: isExportingSelection, handleExportSelection } = useExportSelection({
+    workspaceId,
+  })
+  const { mutateAsync: reorderWorkflows, isPending: isReorderingWorkflows } = useReorderWorkflows()
+  const { mutateAsync: reorderFolders, isPending: isReorderingFolders } = useReorderFolders()
+
+  const handleBulkDelete = useCallback(() => {
+    if (selectedWorkflowIds.length === 0 && selectedFolderIds.length === 0) return
+    if (!selectionCanDelete) {
+      toast.error('Some selected items are locked or cannot be deleted')
+      return
+    }
+    setIsBulkDeleteOpen(true)
+  }, [selectedWorkflowIds, selectedFolderIds, selectionCanDelete])
+
+  const handleBulkExport = useCallback(() => {
+    void handleExportSelection(selectedWorkflowIds, selectedFolderIds).catch((err: unknown) =>
+      toast.error(getErrorMessage(err, 'Failed to export selection'))
+    )
+  }, [handleExportSelection, selectedWorkflowIds, selectedFolderIds])
+
+  /** Every selected folder's subtree is excluded: a folder cannot be filed into itself. */
+  const bulkMoveOptions: MoveOptionNode[] = useMemo(
+    () =>
+      buildMoveOptionsExcludingSubtrees({
+        folders,
+        rootLabel: ROOT_LABEL,
+        excludeFolderIds: selectedFolderIds,
+        descendantsByFolderId: descendantFolderIds,
+      }),
+    [folders, selectedFolderIds, descendantFolderIds]
+  )
+
+  /**
+   * Moves the selection the way the sidebar's drop does: one reorder per kind, appended after
+   * the destination's existing children.
+   */
+  const handleBulkMove = useCallback(
+    (optionValue: string) => {
+      if (selectionLocked) {
+        toast.error('Some selected items are locked')
+        return
+      }
+      const targetFolderId = parseMoveOptionValue(optionValue)
+      const movedWorkflowIds = selectedWorkflowIds.filter(
+        (id) => (workflowById.get(id)?.folderId ?? null) !== targetFolderId
+      )
+      const movedFolderIds = selectedFolderIds.filter(
+        (id) => (folderById.get(id)?.parentId ?? null) !== targetFolderId
+      )
+      if (movedWorkflowIds.length === 0 && movedFolderIds.length === 0) return
+      const siblingOrders = [
+        ...folders
+          .filter((folder) => (folder.parentId ?? null) === targetFolderId)
+          .map((folder) => folder.sortOrder),
+        ...workspaceWorkflows
+          .filter((workflow) => (workflow.folderId ?? null) === targetFolderId)
+          .map((workflow) => workflow.sortOrder),
+      ]
+      const base = siblingOrders.length > 0 ? Math.max(...siblingOrders) + 1 : 0
+      const pending: Promise<unknown>[] = []
+      if (movedFolderIds.length > 0) {
+        pending.push(
+          reorderFolders({
+            workspaceId,
+            updates: movedFolderIds.map((id, index) => ({
+              id,
+              sortOrder: base + index,
+              parentId: targetFolderId,
+            })),
+          })
+        )
+      }
+      if (movedWorkflowIds.length > 0) {
+        pending.push(
+          reorderWorkflows({
+            workspaceId,
+            updates: movedWorkflowIds.map((id, index) => ({
+              id,
+              sortOrder: base + movedFolderIds.length + index,
+              folderId: targetFolderId,
+            })),
+          })
+        )
+      }
+      void Promise.allSettled(pending).then((results) => {
+        if (results.some((result) => result.status === 'rejected')) {
+          toast.error('Failed to move some items')
+          return
+        }
+        clearSelection()
+      })
+    },
+    [
+      selectionLocked,
+      selectedWorkflowIds,
+      selectedFolderIds,
+      workflowById,
+      folderById,
+      folders,
+      workspaceWorkflows,
+      workspaceId,
+      reorderFolders,
+      reorderWorkflows,
+      clearSelection,
+    ]
+  )
+
+  /** A menu opened inside a multi-row selection acts on the whole selection. */
+  const hasMultiSelection = selectedRowIds.size > 1
 
   const startFolderRename = useCallback(
     (folder: WorkflowFolder) => listRename.startRename(folderRowId(folder.id), folder.name),
@@ -491,9 +668,11 @@ export function WorkflowsList() {
         if (!workflow) return
         setActiveItem({ kind: 'workflow', workflow })
       }
+      /** Right-clicking outside the selection retargets it, so the menu acts on what is lit. */
+      if (canEdit && !selectedRowIds.has(rowId)) replaceSelection([rowId])
       handleRowCtxMenu(e)
     },
-    [folderById, workflowById, handleRowCtxMenu]
+    [folderById, workflowById, handleRowCtxMenu, canEdit, selectedRowIds, replaceSelection]
   )
 
   const handleCreateWorkflow = useCallback(
@@ -617,6 +796,39 @@ export function WorkflowsList() {
         ? isFolderEffectivelyLocked(activeItem.folder, folderMap)
         : false
 
+  /** A lock inherited from a parent folder can only be lifted on that folder. */
+  const activeInheritedLock =
+    activeItem?.kind === 'workflow'
+      ? isFolderOrAncestorLocked(activeItem.workflow.folderId, folderMap)
+      : activeItem?.kind === 'folder'
+        ? isFolderOrAncestorLocked(activeItem.folder.parentId, folderMap)
+        : false
+
+  const handleToggleLockActive = useCallback(() => {
+    if (!activeItem || activeInheritedLock) return
+    if (activeItem.kind === 'workflow') {
+      updateWorkflow.mutate({
+        workspaceId,
+        workflowId: activeItem.workflow.id,
+        metadata: { locked: !activeItem.workflow.locked },
+      })
+      return
+    }
+    updateFolder.mutate(
+      {
+        workspaceId,
+        resourceType: 'workflow',
+        id: activeItem.folder.id,
+        updates: { locked: !activeItem.folder.locked },
+      },
+      {
+        onError: (err) =>
+          toast.error(getErrorMessage(err, 'Failed to update folder'), { duration: 5000 }),
+      }
+    )
+    // Mutation objects are unstable; their mutate functions are stable in v5.
+  }, [activeItem, activeInheritedLock, workspaceId])
+
   const activeCanDelete =
     activeItem?.kind === 'workflow'
       ? canDeleteWorkflows([activeItem.workflow.id])
@@ -695,8 +907,24 @@ export function WorkflowsList() {
               />
             ) : undefined
           }
+          selectable={canEdit ? selectableConfig : undefined}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
+          overlay={
+            <ResourceActionBar
+              selectedCount={selectedRowIds.size}
+              onDownload={handleBulkExport}
+              onMove={canEdit && !selectionLocked ? handleBulkMove : undefined}
+              moveOptions={canEdit && !selectionLocked ? bulkMoveOptions : undefined}
+              onDelete={canEdit && selectionCanDelete ? handleBulkDelete : undefined}
+              isLoading={
+                isDeletingSelection ||
+                isExportingSelection ||
+                isReorderingWorkflows ||
+                isReorderingFolders
+              }
+            />
+          }
         />
       </Resource>
 
@@ -716,35 +944,79 @@ export function WorkflowsList() {
         onClose={closeRowContextMenu}
         onOpenInNewTab={handleOpenActive}
         openInNewTabLabel={activeItem?.kind === 'folder' ? 'Open' : 'Open in new tab'}
-        showOpenInNewTab
+        showOpenInNewTab={!hasMultiSelection}
         onRename={handleRenameActive}
-        showRename
+        showRename={!hasMultiSelection}
         disableRename={!canEdit || activeLocked}
         onCreate={
           activeItem?.kind === 'folder'
             ? () => void handleCreateWorkflowInFolder(activeItem.folder.id)
             : undefined
         }
-        showCreate={activeItem?.kind === 'folder'}
+        showCreate={!hasMultiSelection && activeItem?.kind === 'folder'}
         disableCreate={!canEdit || activeLocked || isCreatingWorkflow}
         onCreateFolder={
           activeItem?.kind === 'folder'
             ? () => void createFolderIn(activeItem.folder.id)
             : undefined
         }
-        showCreateFolder={activeItem?.kind === 'folder'}
+        showCreateFolder={!hasMultiSelection && activeItem?.kind === 'folder'}
         disableCreateFolder={!canEdit || activeLocked || createFolder.isPending}
+        onToggleLock={handleToggleLockActive}
+        showLock={!hasMultiSelection}
+        disableLock={!canAdmin || activeInheritedLock}
+        isLocked={activeLocked}
         onDuplicate={handleDuplicateActive}
-        showDuplicate
+        showDuplicate={!hasMultiSelection}
         disableDuplicate={!canEdit || isDuplicatingWorkflow || isDuplicatingFolder}
-        onMove={canEdit && !activeLocked ? handleMove : undefined}
-        moveOptions={moveOptions}
-        onExport={handleExportActive}
+        onMove={
+          !canEdit
+            ? undefined
+            : hasMultiSelection
+              ? selectionLocked
+                ? undefined
+                : handleBulkMove
+              : activeLocked
+                ? undefined
+                : handleMove
+        }
+        moveOptions={hasMultiSelection ? bulkMoveOptions : moveOptions}
+        onExport={hasMultiSelection ? handleBulkExport : handleExportActive}
         showExport
-        disableExport={!canEdit}
-        onDelete={() => setIsDeleteModalOpen(true)}
+        disableExport={!canEdit || isExportingSelection}
+        onDelete={hasMultiSelection ? handleBulkDelete : () => setIsDeleteModalOpen(true)}
         showDelete={canEdit}
-        disableDelete={!activeCanDelete || activeLocked}
+        disableDelete={hasMultiSelection ? !selectionCanDelete : !activeCanDelete || activeLocked}
+        selectedCount={hasMultiSelection ? selectedRowIds.size : 1}
+      />
+
+      <ChipConfirmModal
+        open={isBulkDeleteOpen}
+        onOpenChange={setIsBulkDeleteOpen}
+        srTitle='Delete Selected'
+        title='Delete Selected'
+        defaultAction='dismiss'
+        text={[
+          'Are you sure you want to delete ',
+          { text: bulkDeleteLabel, bold: true },
+          '? ',
+          ...(selectedFolderIds.length > 0
+            ? [
+                {
+                  text: 'Every workflow and subfolder inside the selected folders will be deleted too.',
+                  error: true,
+                },
+                ' ',
+              ]
+            : []),
+          'You can restore them from Recently Deleted in Settings.',
+        ]}
+        confirm={{
+          label: 'Delete',
+          onClick: () => void handleDeleteSelection(),
+          pending: isDeletingSelection,
+          pendingLabel: 'Deleting...',
+        }}
       />
 
       <DeleteModal

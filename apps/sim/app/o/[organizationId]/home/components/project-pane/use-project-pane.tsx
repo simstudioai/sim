@@ -3,7 +3,7 @@ import type { TabStripItem } from '@sim/emcn'
 import { ArrowLeftRight } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { parseAsString, useQueryStates } from 'nuqs'
+import { parseAsString, useQueryState, useQueryStates } from 'nuqs'
 import { createLoader } from 'nuqs/server'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { ProjectControl } from '@/app/o/[organizationId]/home/components/project-pane/project-control'
@@ -16,6 +16,7 @@ import {
 import { EnvironmentSync } from '@/app/o/[organizationId]/p/components/environments/environment-sync'
 import type { ResourcePanelNavigation } from '@/app/workspace/[workspaceId]/home/components/resource-panel-navigation'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
 import {
   logFilterParsers,
   logFilterUrlKeys,
@@ -28,6 +29,7 @@ const RESOURCE_SECTIONS: Partial<Record<MothershipResource['type'], string>> = {
   knowledgebase: 'knowledge',
   file: 'files',
   log: 'logs',
+  test: 'tests',
 }
 
 const loadLogFilters = createLoader(logFilterParsers)
@@ -39,6 +41,7 @@ const PATH_SECTIONS: Record<string, string> = {
   knowledge: 'knowledge',
   files: 'files',
   logs: 'logs',
+  tests: 'tests',
   integrations: 'integrations',
 }
 
@@ -47,27 +50,29 @@ export function useProjectPane(
   resources: MothershipResource[],
   activeResourceId: string | null,
   desktopScopeId: string,
-  onReveal: () => void
+  onReveal: () => void,
+  enabled: boolean
 ) {
   const router = useRouter()
   const [params, setParams] = useQueryStates(projectPaneParsers, projectPaneOptions)
   const [, setLogFilters] = useQueryStates(logFilterParsers, logFilterUrlKeys)
   const [, setListLocation] = useQueryStates({ folderId: parseAsString, search: parseAsString })
-  const { data: workspaces } = useWorkspacesQuery()
+  const [, setConnect] = useQueryState(connectParam.key, connectParam.parser)
+  const { data: workspaces } = useWorkspacesQuery(enabled)
   const activeTab = params.tabs.find((tab) => tab.id === params.pane)
   const dashboard = resources.find(
     (resource) =>
       resource.type === 'dashboard' && getChatResourceSelectionId(resource) === activeResourceId
   )
   useEffect(() => {
-    if (dashboard?.workspaceId && !params.pane) {
+    if (enabled && dashboard?.workspaceId && !params.pane) {
       void setParams(
         { project: dashboard.workspaceId, section: 'dashboard', pane: 'project' },
         { history: 'replace' }
       )
       onReveal()
     }
-  }, [dashboard?.workspaceId, params.pane, setParams, onReveal])
+  }, [enabled, dashboard?.workspaceId, params.pane, setParams, onReveal])
   const hasActiveResource = resources.some(
     (resource) => getChatResourceSelectionId(resource) === activeResourceId
   )
@@ -120,6 +125,11 @@ export function useProjectPane(
     onClose: close,
     onNew: () => browse(),
     onBrowseResource: (resource) => {
+      if (resource.type === 'dashboard' && resource.workspaceId) {
+        void setParams({ project: resource.workspaceId, section: 'dashboard', pane: 'project' })
+        onReveal()
+        return
+      }
       const kind = RESOURCE_SECTIONS[resource.type]
       if (!kind || !resource.workspaceId) return
       void setParams({
@@ -148,6 +158,7 @@ export function useProjectPane(
       })
       if (kind === 'logs') void setLogFilters(loadLogFilters(url.searchParams))
       else void setListLocation({ folderId: url.searchParams.get('folderId'), search: null })
+      if (kind === 'integrations') void setConnect(url.searchParams.get(connectParam.key))
       onReveal()
     },
     content:

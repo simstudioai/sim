@@ -101,8 +101,8 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceListHeader } from '@/app/workspace/[workspaceId]/components/resource/resource-list-header'
 import {
-  ResourceListHeader,
   useResourceRouter,
   useResourceWorkspaceId,
 } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
@@ -122,6 +122,7 @@ import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/f
 import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useDeriveTitleFromHeading } from '@/app/workspace/[workspaceId]/files/hooks/use-derive-title-from-heading'
 import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
 import {
@@ -134,8 +135,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/search-params'
 import {
   DEFAULT_UNTITLED_NAME,
-  deriveMarkdownFileName,
-  isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -553,35 +552,7 @@ function FilesContent() {
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
 
-  /**
-   * While a file is still untitled, name it after the leading heading the user types in its editor. The
-   * editor reports the heading once the user finishes it — possibly on unmount, after the route has
-   * already moved to another file, so the file is looked up by the id it reports rather than read from
-   * the current selection. Re-checks the file is still untitled, derives a unique `.md` name among its
-   * folder siblings, and renames. A no-op once the file has a real name.
-   */
-  const handleDeriveTitleFromHeading = useCallback(
-    (fileId: string, headingText: string) => {
-      const currentFile = filesRef.current.find((f) => f.id === fileId)
-      if (!currentFile || !isUntitledName(currentFile.name)) return
-      const derived = deriveMarkdownFileName(headingText)
-      if (!derived) return
-      const siblingNames = new Set(
-        filesRef.current
-          .filter(
-            (f) =>
-              (f.folderId ?? null) === (currentFile.folderId ?? null) && f.id !== currentFile.id
-          )
-          .map((f) => f.name)
-      )
-      const name = uniqueMarkdownName(derived, siblingNames)
-      if (name === currentFile.name) return
-      renameFile
-        .mutateAsync({ workspaceId, fileId: currentFile.id, name })
-        .catch((err) => logger.error('Failed to auto-name file from heading:', err))
-    },
-    [workspaceId]
-  )
+  const handleDeriveTitleFromHeading = useDeriveTitleFromHeading(workspaceId, files)
 
   const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
   const shareModal = shareFile ? (

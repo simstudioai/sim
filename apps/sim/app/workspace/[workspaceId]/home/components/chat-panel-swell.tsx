@@ -16,11 +16,24 @@ const SHOULDER_COLLAPSED = 14
 /** How far below the card's top the collapsed swell rests on its left edge. */
 const COLLAPSED_DROP = 56
 const CORNER_SMOOTHING = 0.25
-/** The control's slot diagonals run 20px across 24px, so they sit this far inside the taper. */
+/** The control's slot diagonals span its 24px height, 20px across at the full shoulder. */
+const SLOT_RUN = 20
+/** So the slot diagonals sit this far inside the taper. */
 const SLOT_GAP = 2.6
-const PLATEAU_INSET = (20 * (PEAK - 2)) / 24 - SLOT_GAP
+const PLATEAU_INSET = (SLOT_RUN * (PEAK - 2)) / 24 - SLOT_GAP
 /** The icon's centre from the collapsed label's leading edge: its padding plus half the glyph. */
 const LABEL_ICON_CENTER = 18
+/** The open swell's shoulder for a control this wide: steeper as the control narrows. */
+function openShoulder(controlWidth: number) {
+  const slotPlateau = controlWidth - 2 * PLATEAU_INSET
+  return Math.min(SHOULDER, Math.max(SHOULDER_STEEP, slotPlateau * SHOULDER_PER_PLATEAU))
+}
+
+/** How far across its height a slot's diagonal runs, parallel to the swell's sides. */
+export function swellSlotRun(controlWidth: number) {
+  return (SLOT_RUN * openShoulder(controlWidth)) / SHOULDER
+}
+
 /** Samples sit on a fixed grid along the perimeter, so a moving swell never reshuffles its vertices. */
 const SAMPLE_STEP = 1
 const SETTLED_FRAMES = 3
@@ -167,13 +180,10 @@ function drawSwell(
   const leftLength = y1 - y0 - 2 * r
   // The base stays as wide as the slots' own taper; steeper sides widen the plateau instead.
   const slotPlateau = controlRect.width - 2 * PLATEAU_INSET
-  const openShoulder = Math.min(
-    SHOULDER,
-    Math.max(SHOULDER_STEEP, slotPlateau * SHOULDER_PER_PLATEAU)
-  )
-  const plateau = lerp(label.offsetWidth + 4, slotPlateau + 2 * (SHOULDER - openShoulder), t)
+  const sideShoulder = openShoulder(controlRect.width)
+  const plateau = lerp(label.offsetWidth + 4, slotPlateau + 2 * (SHOULDER - sideShoulder), t)
   const peak = lerp(PEAK_COLLAPSED, PEAK, t)
-  const shoulder = lerp(SHOULDER_COLLAPSED, openShoulder, t)
+  const shoulder = lerp(SHOULDER_COLLAPSED, sideShoulder, t)
   const restingCenter = Math.max(0, leftLength - COLLAPSED_DROP)
   const topStart = leftLength + (Math.PI * r) / 2
   // Kept on the top edge while the swell lingers on a card that is shrinking out from under it.

@@ -49,6 +49,7 @@ export function folderRow(folder: WorkflowFolder, options: FolderRowOptions = {}
         icon: FOLDER_ICON,
         label: folder.name,
         pinned,
+        locked: folder.locked,
       },
     },
   }

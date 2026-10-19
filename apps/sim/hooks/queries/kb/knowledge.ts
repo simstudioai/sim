@@ -234,6 +234,16 @@ async function fetchKnowledgeChunks(
   return { chunks, pagination }
 }
 
+/** Shared list options, for callers that read several workspaces' lists at once. */
+export function getKnowledgeBasesQueryOptions(workspaceId: string) {
+  return {
+    queryKey: knowledgeKeys.list(workspaceId, 'active'),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchKnowledgeBases(workspaceId, 'active', signal, false),
+    staleTime: KNOWLEDGE_BASE_LIST_STALE_TIME,
+  }
+}
+
 export function useKnowledgeBasesQuery(
   workspaceId?: string,
   options?: {

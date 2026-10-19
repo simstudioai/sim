@@ -1,21 +1,13 @@
 'use client'
 
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Button,
-  OverflowText,
-  PlayOutline,
-  Skeleton,
-  TabStripAction,
-  Tooltip,
-  toast,
-} from '@sim/emcn'
+import { Button, PlayOutline, Skeleton, TabStripAction, Tooltip, toast } from '@sim/emcn'
 import {
   Download,
   FileX,
-  Folder as FolderIcon,
   Library,
   Loader,
+  Redo,
   Send,
   Square,
   SquareArrowUpRight,
@@ -36,12 +28,14 @@ import { stopRunToolForExecution } from '@/lib/mothership/tools/client/run-tool-
 import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { useResourceListOpen } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import {
   FileViewer,
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
+import { useDeriveTitleFromHeading } from '@/app/workspace/[workspaceId]/files/hooks/use-derive-title-from-heading'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import type { BrowserPanelOverlayController } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
@@ -67,8 +61,7 @@ import {
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import type { WorkflowPaneHost } from '@/app/workspace/[workspaceId]/w/[workflowId]/pane-host'
-import { useFolders } from '@/hooks/queries/folders'
-import { useLogByExecutionId, useLogDetail } from '@/hooks/queries/logs'
+import { useLogByExecutionId, useLogDetail, useRetryExecution } from '@/hooks/queries/logs'
 import { exportTable } from '@/hooks/queries/tables'
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
@@ -141,6 +134,8 @@ interface ResourceContentProps {
   onBrowserOverlayControllerChange?: (controller: BrowserPanelOverlayController | null) => void
   /** Set when a pane hosts the full editor in place of the reduced canvas. */
   workflowHost?: WorkflowPaneHost
+  /** Set when the resource renders its own page header in a pane. */
+  pageHeader?: boolean
 }
 
 /**
@@ -208,6 +203,7 @@ export const ResourceContent = memo(function ResourceContent({
   visible = true,
   onBrowserOverlayControllerChange,
   workflowHost,
+  pageHeader,
 }: ResourceContentProps) {
   const observedTableViewRef = useRef<{ tableId: string; viewId?: string } | null>(null)
 
@@ -312,6 +308,7 @@ export const ResourceContent = memo(function ResourceContent({
           embedded
           initialViewId={resource.viewId}
           onViewContextChange={reportTableView}
+          pageHeader={pageHeader}
         />
       )
 
@@ -369,9 +366,6 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
         />
       )
-
-    case 'folder':
-      return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
 
     case 'log':
       return (
@@ -449,9 +443,16 @@ export function ResourceActions({
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
     case 'dashboard':
+      if (!allowWorkspaceNavigation) return null
       return <EmbeddedDashboardActions workspaceId={workspaceId} />
     case 'test':
-      return <EmbeddedTestActions workspaceId={workspaceId} name={resource.id} />
+      return (
+        <EmbeddedTestActions
+          workspaceId={workspaceId}
+          name={resource.id}
+          allowWorkspaceNavigation={allowWorkspaceNavigation}
+        />
+      )
     case 'table':
       return (
         <EmbeddedTableActions
@@ -461,12 +462,12 @@ export function ResourceActions({
         />
       )
     case 'log':
-      if (!allowWorkspaceNavigation) return null
       return (
         <EmbeddedLogActions
           workspaceId={workspaceId}
           logId={resource.id}
           executionId={resource.executionId}
+          allowWorkspaceNavigation={allowWorkspaceNavigation}
         />
       )
     case 'folder':
@@ -616,10 +617,15 @@ function EmbeddedDashboardActions({ workspaceId }: EmbeddedDashboardActionsProps
 interface EmbeddedTestActionsProps {
   workspaceId: string
   name: string
+  allowWorkspaceNavigation?: boolean
 }
 
 /** Runs the test the tab shows, and opens its page. */
-function EmbeddedTestActions({ workspaceId, name }: EmbeddedTestActionsProps) {
+function EmbeddedTestActions({
+  workspaceId,
+  name,
+  allowWorkspaceNavigation = true,
+}: EmbeddedTestActionsProps) {
   const openInternalLink = useOpenInternalLink()
   const testsEnabled = useFeatureFlag('workflow-tests')
   const detail = useWorkflowTest(workspaceId, name)
@@ -646,20 +652,22 @@ function EmbeddedTestActions({ workspaceId, name }: EmbeddedTestActionsProps) {
           <p>{run.text}</p>
         </Tooltip.Content>
       </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <TabStripAction
-            variant='subtle'
-            onClick={() => openInternalLink(`/workspace/${workspaceId}/tests/${name}`)}
-            aria-label='Open test'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </TabStripAction>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open test</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+      {allowWorkspaceNavigation && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <TabStripAction
+              variant='subtle'
+              onClick={() => openInternalLink(`/workspace/${workspaceId}/tests/${name}`)}
+              aria-label='Open test'
+            >
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </TabStripAction>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open test</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
     </>
   )
 }
@@ -894,7 +902,9 @@ function EmbeddedWorkflow({
  */
 function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   const queryClient = useQueryClient()
-  const { addResource } = useMothershipResources()
+  const openInternalLink = useOpenInternalLink()
+  const { removeResource } = useMothershipResources()
+  const openInPane = useResourceListOpen()
   const { data: canonical, isPending: isCanonicalPending } = useQuery({
     queryKey: workflowKeys.state(workflowId),
     queryFn: ({ signal }) => fetchWorkflowEnvelope(workflowId, signal),
@@ -921,19 +931,30 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowIcon className='size-[32px] text-[var(--text-icon)]' />
         <p className='text-[var(--text-primary)]'>{canonical.name}</p>
-        <Button
-          variant='secondary'
-          onClick={() =>
-            addResource({
-              type: 'workflow',
-              id: workflowId,
-              title: canonical.name,
-              workspaceId: canonical.workspaceId ?? undefined,
-            })
-          }
-        >
-          Open workflow
-        </Button>
+        {openInPane ? (
+          <Button
+            variant='secondary'
+            onClick={() => {
+              /** Same selection id in another workspace: replace this tab rather than add one. */
+              removeResource('workflow', workflowId, workspaceId)
+              openInPane({
+                type: 'workflow',
+                id: workflowId,
+                title: canonical.name,
+                workspaceId: canonical.workspaceId ?? undefined,
+              })
+            }}
+          >
+            Open workflow
+          </Button>
+        ) : (
+          <Button
+            variant='secondary'
+            onClick={() => openInternalLink(`/workspace/${canonical.workspaceId}/w/${workflowId}`)}
+          >
+            Open in its workspace
+          </Button>
+        )}
       </div>
     )
   }
@@ -993,6 +1014,7 @@ function EmbeddedFile({
   })
   const file = listedFile ?? detail.data
   const isUpload = file?.vfsNamespace === 'uploads'
+  const deriveTitleFromHeading = useDeriveTitleFromHeading(workspaceId, files)
   const contentSource = useMemo(
     () =>
       isUpload
@@ -1035,63 +1057,9 @@ function EmbeddedFile({
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
         collaborative={!isUpload}
+        onDeriveTitleFromHeading={deriveTitleFromHeading}
         enableFind
       />
-    </div>
-  )
-}
-
-interface EmbeddedFolderProps {
-  workspaceId: string
-  folderId: string
-}
-
-function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
-  const { addResource } = useMothershipResources()
-  const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
-  const { data: workflowList = [] } = useWorkflows(workspaceId)
-
-  const folder = (folderList ?? []).find((f) => f.id === folderId)
-  const folderWorkflows = workflowList.filter((w) => w.folderId === folderId)
-
-  if (isFoldersPending) return LOADING_SKELETON
-
-  if (!folder) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This folder may have been deleted or moved
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className='flex h-full flex-col overflow-y-auto p-6'>
-      <h2 className='mb-4 text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
-      {folderWorkflows.length === 0 ? (
-        <p className='text-[var(--text-muted)] text-small'>No workflows in this folder</p>
-      ) : (
-        <div className='flex flex-col gap-1'>
-          {folderWorkflows.map((w) => (
-            <button
-              key={w.id}
-              type='button'
-              onClick={() =>
-                addResource({ type: 'workflow', id: w.id, title: w.name, workspaceId })
-              }
-              className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
-            >
-              <WorkflowIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-              <OverflowText label={w.name} className='text-[var(--text-primary)] text-small' />
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -1149,11 +1117,34 @@ interface EmbeddedLogActionsProps {
   workspaceId: string
   logId: string
   executionId?: string
+  allowWorkspaceNavigation?: boolean
 }
 
-export function EmbeddedLogActions({ workspaceId, logId, executionId }: EmbeddedLogActionsProps) {
+export function EmbeddedLogActions({
+  workspaceId,
+  logId,
+  executionId,
+  allowWorkspaceNavigation = true,
+}: EmbeddedLogActionsProps) {
   const router = useRouter()
   const { data: log } = useEmbeddedLog(workspaceId, logId, executionId)
+  const retryExecution = useRetryExecution()
+  const retryWorkflowId = log?.workflow?.id || log?.workflowId
+  const canRetry =
+    log?.status === 'failed' && Boolean(retryWorkflowId) && log.trigger !== 'mothership'
+
+  const handleRetry = async () => {
+    if (!retryWorkflowId || !log?.executionId) return
+    try {
+      await retryExecution.mutateAsync({
+        workflowId: retryWorkflowId,
+        executionId: log.executionId,
+      })
+      toast.success('Retry started')
+    } catch {
+      toast.error('Failed to retry execution')
+    }
+  }
 
   const handleOpenInLogs = () => {
     const param = log?.executionId ? `?executionId=${log.executionId}` : ''
@@ -1161,15 +1152,36 @@ export function EmbeddedLogActions({ workspaceId, logId, executionId }: Embedded
   }
 
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <TabStripAction variant='subtle' onClick={handleOpenInLogs} aria-label='Open in logs'>
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </TabStripAction>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open in logs</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
+    <>
+      {canRetry && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <TabStripAction
+              variant='subtle'
+              onClick={() => void handleRetry()}
+              disabled={retryExecution.isPending}
+              aria-label='Retry execution'
+            >
+              <Redo className={RESOURCE_TAB_ICON_CLASS} />
+            </TabStripAction>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Retry</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
+      {allowWorkspaceNavigation && (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <TabStripAction variant='subtle' onClick={handleOpenInLogs} aria-label='Open in logs'>
+              <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+            </TabStripAction>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open in logs</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      )}
+    </>
   )
 }

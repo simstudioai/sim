@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { DashboardFeatureGate } from '@/components/dashboards/dashboard-feature-gate'
 import { DashboardLoading } from '@/components/dashboards/dashboard-loading'
 import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
@@ -10,6 +11,8 @@ import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'
 
 interface DashboardResourceProps {
   workspaceId: string
+  /** Replaces the default empty state, e.g. with a surface's own create action. */
+  emptyState?: ReactNode
 }
 
 /** The workspace's single dashboard, or an empty state until Sim saves the first one. */
@@ -21,7 +24,7 @@ export function DashboardResource(props: DashboardResourceProps) {
   )
 }
 
-function EnabledDashboardResource({ workspaceId }: DashboardResourceProps) {
+function EnabledDashboardResource({ workspaceId, emptyState }: DashboardResourceProps) {
   useWorkspaceFilesRoom(workspaceId)
   const query = useWorkspaceDashboard(workspaceId)
   const dashboard = query.data?.dashboard ?? null
@@ -42,7 +45,7 @@ function EnabledDashboardResource({ workspaceId }: DashboardResourceProps) {
           />
         </div>
       ) : (
-        <DashboardEmptyState />
+        (emptyState ?? <DashboardEmptyState />)
       )}
     </Resource>
   )

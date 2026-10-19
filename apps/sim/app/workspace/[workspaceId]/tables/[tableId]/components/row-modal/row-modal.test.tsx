@@ -128,6 +128,7 @@ describe('RowModal add mode', () => {
     document.body.appendChild(container)
     const root = createRoot(container)
     const props = {
+      workspaceId: 'workspace-1',
       mode: 'add' as const,
       isOpen: true,
       onClose: vi.fn(),
@@ -168,6 +169,7 @@ describe('RowModal expiration editing', () => {
     document.body.appendChild(container)
     const root = createRoot(container)
     const props = {
+      workspaceId: 'workspace-1',
       mode: 'edit' as const,
       isOpen: true,
       onClose: vi.fn(),
@@ -243,6 +245,7 @@ describe('RowModal expiration editing', () => {
       },
     }
     const props = {
+      workspaceId: 'workspace-1',
       mode: 'edit' as const,
       isOpen: true,
       onClose: vi.fn(),

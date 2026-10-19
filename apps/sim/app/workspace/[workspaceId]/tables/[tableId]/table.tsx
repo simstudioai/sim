@@ -6,7 +6,7 @@ import { Download, Lock, Pencil, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isEqual } from 'es-toolkit'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
@@ -39,6 +39,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -103,6 +104,7 @@ import {
 import {
   ALL_VIEW_PARAM,
   DEFAULT_TABLE_DETAIL_SORT_DIRECTION,
+  embeddedTableUrlKeys,
   tableDetailParsers,
   tableDetailUrlKeys,
 } from './search-params'
@@ -130,6 +132,8 @@ interface TableProps {
   initialViewId?: string
   /** Reports the embedded panel query to its chat owner. */
   onViewContextChange?: (context: MothershipTableViewContext) => void
+  /** An embedded table that still owns the page header, as in a project pane tab. */
+  pageHeader?: boolean
 }
 
 /**
@@ -200,9 +204,11 @@ export function Table({
   onViewContextChange,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  pageHeader = false,
 }: TableProps = {}) {
   const params = useParams()
-  const router = useRouter()
+  const router = useResourceRouter()
+  const showHeader = !embedded || pageHeader
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const tableId = propTableId || (params.tableId as string)
 
@@ -262,7 +268,7 @@ export function Table({
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
 
   const [{ sort: sortColumn, dir: sortDirection, view: activeViewId }, setTableParams] =
-    useQueryStates(tableDetailParsers, tableDetailUrlKeys)
+    useQueryStates(tableDetailParsers, embedded ? embeddedTableUrlKeys : tableDetailUrlKeys)
 
   // Read-only mirrors for the resolve effect and replaceFilter's echo check:
   // both must read the current values without re-running when they change.
@@ -1150,7 +1156,7 @@ export function Table({
     resourceType: 'table',
     workspaceId,
     folderId: tableData?.folderId,
-    enabled: !embedded,
+    enabled: showHeader,
   })
 
   const handleNavigateToFolder = useCallback(
@@ -1477,7 +1483,7 @@ export function Table({
     try {
       await deleteTableMutation.mutateAsync(tableId)
       setShowDeleteTableConfirm(false)
-      router.push(`/workspace/${workspaceId}/tables`)
+      router.replace(`/workspace/${workspaceId}/tables`)
     } catch {
       setShowDeleteTableConfirm(false)
     }
@@ -1518,7 +1524,7 @@ export function Table({
   )
 
   const runStatus =
-    embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
+    !showHeader && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
       <RunStatusControl
         running={selection.totalRunning}
         queueing={!selection.hasRunningCell}
@@ -1551,7 +1557,7 @@ export function Table({
 
   return (
     <Resource>
-      {!embedded && (
+      {showHeader && (
         <Resource.Header
           icon={FOLDERED_RESOURCE_HEADERS.table.rootIcon}
           breadcrumbs={breadcrumbs}
@@ -1636,7 +1642,7 @@ export function Table({
       <TableGrid
         workspaceId={workspaceId}
         tableId={tableId}
-        embedded={embedded}
+        embedded={!showHeader}
         locks={tableData?.locks}
         onBlockedAction={showBlockedToast}
         sidebarReservedPx={sidebarReservedPx}
@@ -1801,6 +1807,7 @@ export function Table({
       )}
       {addRowTarget && tableData && (
         <RowModal
+          workspaceId={workspaceId}
           mode='add'
           isOpen={true}
           onClose={() => setAddRowTarget(null)}
@@ -1811,6 +1818,7 @@ export function Table({
       )}
       {editingRow && tableData && (
         <RowModal
+          workspaceId={workspaceId}
           mode='edit'
           isOpen={true}
           onClose={() => setEditingRow(null)}
@@ -1821,6 +1829,7 @@ export function Table({
       )}
       {deletingRows.length > 0 && tableData && (
         <RowModal
+          workspaceId={workspaceId}
           mode='delete'
           isOpen={true}
           onClose={() => setDeletingRows([])}
@@ -1904,7 +1913,7 @@ export function Table({
           onClick: handleConfirmDeleteColumns,
         }}
       />
-      {!embedded && (
+      {showHeader && (
         <ChipConfirmModal
           open={showDeleteTableConfirm}
           onOpenChange={setShowDeleteTableConfirm}

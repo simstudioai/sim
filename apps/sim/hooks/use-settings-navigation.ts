@@ -8,6 +8,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
+import { useOptionalFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
@@ -67,6 +68,7 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { data: session } = useSession()
+  const projectViewEnabled = useOptionalFeatureFlag('org-project-view')
 
   const settingsPrefix = `/workspace/${workspaceId}/settings/`
 
@@ -74,6 +76,7 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
     (options?: SettingsNavigationOptions): string => {
       const section = options?.section ?? 'general'
       if (
+        projectViewEnabled &&
         pathname.startsWith('/o/') &&
         workspaceId &&
         (section === 'general' ||
@@ -100,7 +103,7 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
         viewerUserId: session?.user?.id,
       })
     },
-    [hostContext, session?.user?.id, workspaceId, pathname, searchParams]
+    [hostContext, session?.user?.id, workspaceId, pathname, searchParams, projectViewEnabled]
   )
 
   const navigateToSettings = useCallback(

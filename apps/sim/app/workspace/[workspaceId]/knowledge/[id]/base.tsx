@@ -38,7 +38,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
-import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import {
@@ -80,6 +79,11 @@ import type {
   SelectableConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  useResourceListOpen,
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { ResourceNotFound } from '@/app/workspace/[workspaceId]/components/resource/resource-not-found'
 import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
 /**
@@ -309,9 +313,10 @@ export function KnowledgeBase({
   knowledgeBaseName: passedKnowledgeBaseName,
   workspaceId: propWorkspaceId,
 }: KnowledgeBaseProps) {
-  const params = useParams()
-  const workspaceId = propWorkspaceId || (params.workspaceId as string)
-  const router = useRouter()
+  const resourceWorkspaceId = useResourceWorkspaceId()
+  const workspaceId = propWorkspaceId || resourceWorkspaceId
+  const inResourcePane = Boolean(useResourceListOpen())
+  const router = useResourceRouter()
   const [addConnectorType, setAddConnectorType] = useQueryState(
     addConnectorParam.key,
     addConnectorParam.parser
@@ -379,7 +384,13 @@ export function KnowledgeBase({
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showConnectorsModal, setShowConnectorsModal] = useState(false)
   const [{ q: searchQuery, enabled: enabledFilter, page: currentPage }, setDocumentFilters] =
-    useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
+    useQueryStates(
+      documentFiltersParsers,
+      // Org home owns `q` for its own search, so the pane's document search takes its own key.
+      inResourcePane
+        ? { ...documentFiltersUrlKeys, urlKeys: { q: 'kb-q' } }
+        : documentFiltersUrlKeys
+    )
 
   /** Page 1 is the group's default, so it strips from the URL rather than lingering as `?page=1`. */
   const setCurrentPage = useCallback(
@@ -751,7 +762,7 @@ export function KnowledgeBase({
       { knowledgeBaseId: id },
       {
         onSuccess: () => {
-          router.push(`/workspace/${workspaceId}/knowledge`)
+          router.replace(`/workspace/${workspaceId}/knowledge`)
         },
       }
     )

@@ -7,10 +7,11 @@ import {
   Files as FilesIcon,
   Integration,
   Library,
+  ShieldCheck,
   Table,
   Workflow,
 } from '@sim/emcn/icons'
-import { parseAsString, useQueryStates } from 'nuqs'
+import { parseAsString, useQueryState, useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { INTEGRATIONS } from '@/lib/integrations'
@@ -24,14 +25,23 @@ import {
   Resource,
   type ResourceRow,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { ResourceNavigationProvider } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
+import {
+  ResourceNavigationProvider,
+  runResourceFromHref,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
 import { resourceFromItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-from-item'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
-import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import {
+  PermissionAccessBoundary,
+  useWorkspaceAccessRequestFeatures,
+} from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const Workflows = lazy(() =>
   import('@/app/workspace/[workspaceId]/w/components/workflows-list/workflows-list').then((m) => ({
@@ -50,6 +60,14 @@ const Knowledge = lazy(() =>
   }))
 )
 const Logs = lazy(() => import('@/app/workspace/[workspaceId]/logs/logs'))
+const KnowledgeDocument = lazy(() =>
+  import('@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document').then((m) => ({
+    default: m.Document,
+  }))
+)
+const Tests = lazy(() =>
+  import('@/app/workspace/[workspaceId]/tests/tests').then((m) => ({ default: m.Tests }))
+)
 const Integrations = lazy(() =>
   import('@/app/workspace/[workspaceId]/integrations/integrations').then((m) => ({
     default: m.Integrations,
@@ -59,6 +77,19 @@ const IntegrationDetail = lazy(() =>
   import('@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail').then(
     (m) => ({ default: m.IntegrationBlockDetail })
   )
+)
+const Skills = lazy(() =>
+  import('@/app/workspace/[workspaceId]/skills/skills').then((m) => ({ default: m.Skills }))
+)
+const SkillCreate = lazy(() =>
+  import('@/app/workspace/[workspaceId]/skills/new/skill-create').then((m) => ({
+    default: m.SkillCreate,
+  }))
+)
+const SkillDetail = lazy(() =>
+  import('@/app/workspace/[workspaceId]/skills/[skillId]/skill-detail').then((m) => ({
+    default: m.SkillDetail,
+  }))
 )
 const CredentialDetail = lazy(() =>
   import(
@@ -103,6 +134,7 @@ const KINDS = [
     permission: 'hideKnowledgeBaseTab',
   },
   { id: 'logs', path: 'logs', type: 'log', label: 'Logs', icon: Library, component: Logs },
+  { id: 'tests', path: 'tests', type: 'test', label: 'Tests', icon: ShieldCheck, component: Tests },
   {
     id: 'integrations',
     path: 'integrations',
@@ -142,12 +174,21 @@ interface ProjectResourcesProps {
 export function ProjectResources({ project }: ProjectResourcesProps) {
   const [params, setParams] = useQueryStates(projectPaneParsers, projectPaneOptions)
   const [, setListLocation] = useQueryStates({ folderId: parseAsString, search: parseAsString })
+  const [, setConnect] = useQueryState(connectParam.key, connectParam.parser)
   const { addResource } = useMothershipResources()
   const { config } = usePermissionConfig()
   const [search, setSearch] = useState('')
   const { data: credentials } = useWorkspaceCredentials({ workspaceId: project.id })
   const inventory = useAvailableResources(project.id, { excludeTypes: EXCLUDED })
-  const kinds = KINDS.filter((kind) => !('permission' in kind) || !config[kind.permission])
+  const testsEnabled = useFeatureFlag('workflow-tests')
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+  const accessRequestsEnabled = accessRequests.data?.enabled === true
+  /** A hidden kind stays listed where its page offers an access request, as in the rail. */
+  const kinds = KINDS.filter(
+    (kind) =>
+      (!('permission' in kind) || !config[kind.permission] || accessRequestsEnabled) &&
+      (kind.id !== 'tests' || testsEnabled)
+  )
   const selected = kinds.find((kind) => kind.id === params.resourceKind)
   const select = useCallback(
     (kind: string) => {
@@ -173,12 +214,26 @@ export function ProjectResources({ project }: ProjectResourcesProps) {
         if (prompt) sendMothershipMessage(prompt, undefined, undefined, undefined, 'agent')
         return
       }
+      if (path === 'skills') {
+        /** Skills sit under Integrations, as its second tab. */
+        void setParams(
+          { resourceKind: 'integrations', resourceDetail: ['skills', ...rest].join('/') },
+          { history: replace ? 'replace' : 'push' }
+        )
+        return
+      }
       const kind = KINDS.find((candidate) => candidate.path === path)
+      const run = kind?.id === 'logs' ? runResourceFromHref(url, project.id) : null
+      if (run) {
+        addResource(run)
+        void setParams({ pane: null })
+        return
+      }
       if (!kind) {
         void setParams({ resourceKind: '', resourceDetail: '' })
         return
       }
-      if (rest[0] && kind.type !== 'integration') {
+      if (rest[0] && kind.type !== 'integration' && !(kind.id === 'knowledge' && rest[1])) {
         const item = inventory.groups
           .find((group) => group.type === kind.type)
           ?.items.find((item) => item.id === rest[0])
@@ -190,14 +245,17 @@ export function ProjectResources({ project }: ProjectResourcesProps) {
             workspaceId: project.id,
           })
         )
+        /** Reveal the tab even when it is already the active resource behind the project view. */
+        void setParams({ pane: null, ...(kind.id === 'knowledge' ? { resourceDetail: '' } : {}) })
         return
       }
       void setParams(
         { resourceKind: kind.id, resourceDetail: rest.join('/') },
         { history: replace ? 'replace' : 'push' }
       )
+      if (kind.id === 'integrations') void setConnect(url.searchParams.get(connectParam.key))
     },
-    [project.id, inventory.groups, addResource, setParams]
+    [project.id, inventory.groups, addResource, setParams, setConnect]
   )
   const needle = search.trim().toLowerCase()
   const matches = inventory.groups.flatMap((group) => {
@@ -267,13 +325,17 @@ export function ProjectResources({ project }: ProjectResourcesProps) {
     )
   const Component = selected.component
   const integration = INTEGRATIONS.find((item) => item.slug === params.resourceDetail)
+  const [knowledgeBaseId, documentId] =
+    selected.id === 'knowledge' ? params.resourceDetail.split('/') : []
   return (
     <ResourceNavigationProvider
       navigate={navigate}
       openResource={addResource}
       onDirectory={() => select('')}
     >
+      {/* Managed: links stay in the pane, behind the same unsaved-changes prompt as elsewhere. */}
       <div
+        data-settings-navigation='managed'
         className='flex h-full min-h-0 flex-col'
         onClickCapture={(event) => {
           const anchor = (event.target as HTMLElement).closest('a')
@@ -281,7 +343,7 @@ export function ProjectResources({ project }: ProjectResourcesProps) {
           if (href?.startsWith(`/workspace/${project.id}/`)) {
             event.preventDefault()
             event.stopPropagation()
-            navigate(href)
+            useSettingsDirtyStore.getState().requestLeave(() => navigate(href))
           }
         }}
       >
@@ -297,7 +359,16 @@ export function ProjectResources({ project }: ProjectResourcesProps) {
           <Suspense fallback={<Skeleton className='m-6 h-32' />}>
             {selected.id === 'integrations' && params.resourceDetail ? (
               <PermissionAccessBoundary configKey='hideIntegrationsTab'>
-                {params.resourceDetail.startsWith('connected/') ? (
+                {params.resourceDetail === 'skills' ? (
+                  <Skills />
+                ) : params.resourceDetail === 'skills/new' ? (
+                  <SkillCreate workspaceId={project.id} />
+                ) : params.resourceDetail.startsWith('skills/') ? (
+                  <SkillDetail
+                    workspaceId={project.id}
+                    skillId={params.resourceDetail.slice('skills/'.length)}
+                  />
+                ) : params.resourceDetail.startsWith('connected/') ? (
                   <CredentialDetail
                     workspaceId={project.id}
                     credentialId={params.resourceDetail.slice('connected/'.length)}
@@ -307,6 +378,14 @@ export function ProjectResources({ project }: ProjectResourcesProps) {
                 ) : (
                   <p className='p-6'>Integration unavailable.</p>
                 )}
+              </PermissionAccessBoundary>
+            ) : knowledgeBaseId && documentId ? (
+              <PermissionAccessBoundary configKey='hideKnowledgeBaseTab'>
+                <KnowledgeDocument knowledgeBaseId={knowledgeBaseId} documentId={documentId} />
+              </PermissionAccessBoundary>
+            ) : 'permission' in selected ? (
+              <PermissionAccessBoundary configKey={selected.permission}>
+                <Component />
               </PermissionAccessBoundary>
             ) : (
               <Component />

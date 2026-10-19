@@ -1,16 +1,8 @@
 'use client'
 
-import {
-  type ComponentProps,
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useMemo,
-} from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
-import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 
 /** The selected environment supplies identity when a list is embedded. */
@@ -18,6 +10,13 @@ export function useResourceWorkspaceId() {
   const host = useOptionalWorkspaceHostContext()
   const params = useParams<{ workspaceId?: string }>()
   return host?.workspace.id ?? params?.workspaceId ?? ''
+}
+
+/** A Logs link addressed to one run opens that run, as the Logs page opens its details. */
+export function runResourceFromHref(url: URL, workspaceId: string): MothershipResource | null {
+  const executionId = url.searchParams.get('executionId')
+  if (!executionId) return null
+  return { type: 'log', id: executionId, executionId, title: 'Run', workspaceId }
 }
 
 interface ResourceNavigation {
@@ -71,31 +70,9 @@ export function useResourceRouter() {
   return useMemo(() => ({ ...router, push, replace }), [router, push, replace])
 }
 
-/** Adds the project's directory crumb without replacing the list's folder navigation. */
-export function ResourceListHeader(props: ComponentProps<typeof Resource.Header>) {
-  const navigation = useContext(ResourceNavigationContext)
-  if (!navigation) return <Resource.Header {...props} />
-  const drop = props.breadcrumbDrop
-  return (
-    <Resource.Header
-      {...props}
-      title={undefined}
-      breadcrumbs={[
-        { label: 'Resources', onClick: navigation.onDirectory },
-        ...(props.breadcrumbs ?? [{ label: props.title ?? '', icon: props.icon }]),
-      ]}
-      breadcrumbDrop={
-        drop
-          ? {
-              ...drop,
-              activeIndex: drop.activeIndex === null ? null : drop.activeIndex + 1,
-              onDragOver: (event, folderId, index) => drop.onDragOver(event, folderId, index - 1),
-              onDragLeave: (event, index) => drop.onDragLeave(event, index - 1),
-            }
-          : undefined
-      }
-    />
-  )
+/** The containing pane's directory, when a list is embedded in one. */
+export function useResourceDirectory() {
+  return useContext(ResourceNavigationContext)?.onDirectory
 }
 
 /** Returns the containing pane’s resource opener when a list is embedded. */

@@ -545,7 +545,6 @@
     "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/raw-markdown-snippet.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/home/components/message-content/message-content.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat.tsx": 1,
-    "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/resource-content.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-filter/table-filter.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/w/components/sidebar/sidebar.tsx": 1
   },

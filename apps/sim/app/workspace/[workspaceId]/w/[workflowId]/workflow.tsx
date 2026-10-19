@@ -57,6 +57,7 @@ import { requestNoteImage, requestNoteRename } from '@/lib/workflows/notes/canva
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
+import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { WorkflowScopeProvider } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -1562,9 +1563,12 @@ const WorkflowContent = React.memo(
       return { canRun: true, reason: undefined }
     }, [contextMenuBlocks, edges, lastExecutionSnapshot, isExecuting])
 
+    const invokeGlobalCommand = useInvokeGlobalCommand()
+    /** A hosting pane has no command palette; its panel's block search takes the request. */
     const handleContextAddBlock = useCallback(() => {
-      useSearchModalStore.getState().open()
-    }, [])
+      if (host) invokeGlobalCommand('focus-toolbar-search')
+      else useSearchModalStore.getState().open()
+    }, [host, invokeGlobalCommand])
 
     const handleContextOpenLogs = useCallback(() => {
       router.push(`/workspace/${workspaceId}/logs?workflowIds=${workflowIdParam}`)

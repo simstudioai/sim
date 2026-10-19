@@ -5,8 +5,8 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
-import { useRouter } from 'next/navigation'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
@@ -132,7 +132,7 @@ export function useCredentialDetailForm({
 
   const isSectionDirty = section?.isDirty ?? false
   const isDirty = isMetadataDirty || isSectionDirty
-  const router = useRouter()
+  const router = useResourceRouter()
   const discard = useCallback(() => {
     if (isSaving) return
     setDraft(null)

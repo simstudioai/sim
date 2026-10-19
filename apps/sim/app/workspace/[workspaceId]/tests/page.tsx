@@ -5,15 +5,10 @@ import { Tests } from '@/app/workspace/[workspaceId]/tests/tests'
 
 export const metadata: Metadata = { title: 'Tests', robots: { index: false } }
 
-interface TestsPageProps {
-  params: Promise<{ workspaceId: string }>
-}
-
-export default async function TestsPage({ params }: TestsPageProps) {
-  const { workspaceId } = await params
+export default function TestsPage() {
   return (
     <Suspense fallback={<TestsLoading />}>
-      <Tests workspaceId={workspaceId} />
+      <Tests />
     </Suspense>
   )
 }

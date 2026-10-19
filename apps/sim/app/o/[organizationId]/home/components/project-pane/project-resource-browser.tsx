@@ -18,6 +18,10 @@ import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { RESOURCE_SEARCH_TYPES, type ResourceSearchItem } from '@/lib/api/contracts/resource-search'
 import { openBrowserTab } from '@/lib/browser-agent/transport'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
+import {
+  DEFAULT_PERMISSION_GROUP_CONFIG,
+  type PermissionGroupConfig,
+} from '@/lib/permission-groups/fields'
 import { terminalResourceId } from '@/lib/terminal/resource-id'
 import { openTerminal } from '@/lib/terminal/transport'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -36,6 +40,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useOrganizationResourceSearch } from '@/hooks/queries/resource-search'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useLoadMoreSentinel } from '@/hooks/use-load-more-sentinel'
@@ -50,6 +55,12 @@ const EXCLUDED: readonly MothershipResourceType[] = [
   'generic',
   'dashboard',
 ]
+/** Kinds a permission group hides along with their sidebar tab. */
+const HIDDEN_BY: Partial<Record<MothershipResourceType, keyof PermissionGroupConfig>> = {
+  file: 'hideFilesTab',
+  table: 'hideTablesTab',
+  knowledgebase: 'hideKnowledgeBaseTab',
+}
 interface ProjectResourceBrowserProps {
   tab: Extract<PaneTab, { kind: 'browse' }>
   resources: MothershipResource[]
@@ -111,6 +122,12 @@ export function ProjectResourceBrowser({
     enabled: Boolean(project),
     excludeTypes: EXCLUDED,
   })
+  const { data: permissions } = useUserPermissionConfig(project?.id)
+  const permissionConfig = permissions?.config ?? DEFAULT_PERMISSION_GROUP_CONFIG
+  const isHidden = (type: MothershipResourceType) => {
+    const key = HIDDEN_BY[type]
+    return Boolean(key && permissionConfig[key])
+  }
   const needle = query.trim().toLowerCase()
   const debouncedNeedle = useDebounce(query.trim(), SEARCH_DEBOUNCE_MS)
   const browse = (workspace = '', type = '') => {
@@ -161,8 +178,12 @@ export function ProjectResourceBrowser({
     detail,
     onSelect: () => open(resource),
   })
-  const mentioned = resources.filter((resource) => !EXCLUDED.includes(resource.type))
-  const groups = inventory.groups.filter((group) => !EXCLUDED.includes(group.type))
+  const mentioned = resources.filter(
+    (resource) => !EXCLUDED.includes(resource.type) && !isHidden(resource.type)
+  )
+  const groups = inventory.groups.filter(
+    (group) => !EXCLUDED.includes(group.type) && !isHidden(group.type)
+  )
   const searchableKind = RESOURCE_SEARCH_TYPES.find((type) => type === kind)
   const environmentOptions = (project?.environments ?? []).map((environment) => ({
     value: environment.workspaceId,
@@ -219,6 +240,7 @@ export function ProjectResourceBrowser({
         }))
     : scopedMatches
   const isLoading = isPending || Boolean(project && inventory.isHydrating)
+  const IntegrationIcon = getResourceConfig('integration').icon
   const primary: BrowseEntry[] = isLoading
     ? []
     : !project
@@ -230,24 +252,45 @@ export function ProjectResourceBrowser({
         }))
       : needle || kind
         ? matches.map(({ resource, detail }) => resourceEntry(resource, detail))
-        : groups.map((group) => {
-            const config = getResourceConfig(group.type)
-            const Icon =
-              group.type === 'browser'
-                ? Globe
-                : group.type === 'terminal'
-                  ? TerminalWindow
-                  : config.icon
-            return {
-              key: group.type,
-              icon: <Icon className='size-[14px] text-[var(--text-icon)]' />,
-              label: config.label,
-              onSelect: () =>
-                group.type === 'browser' || group.type === 'terminal'
-                  ? open({ type: group.type, id: group.type, title: config.label })
-                  : browse(project.id, group.type),
-            }
-          })
+        : [
+            ...(permissionConfig.hideIntegrationsTab
+              ? []
+              : [
+                  {
+                    key: 'integration',
+                    icon: <IntegrationIcon className='size-[14px] text-[var(--text-icon)]' />,
+                    label: getResourceConfig('integration').label,
+                    onSelect: () =>
+                      replaceWith(() =>
+                        setParams({
+                          project: project.id,
+                          section: 'resources',
+                          resourceKind: 'integrations',
+                          resourceDetail: '',
+                          pane: 'project',
+                        })
+                      ),
+                  },
+                ]),
+            ...groups.map((group) => {
+              const config = getResourceConfig(group.type)
+              const Icon =
+                group.type === 'browser'
+                  ? Globe
+                  : group.type === 'terminal'
+                    ? TerminalWindow
+                    : config.icon
+              return {
+                key: group.type,
+                icon: <Icon className='size-[14px] text-[var(--text-icon)]' />,
+                label: config.label,
+                onSelect: () =>
+                  group.type === 'browser' || group.type === 'terminal'
+                    ? open({ type: group.type, id: group.type, title: config.label })
+                    : browse(project.id, group.type),
+              }
+            }),
+          ]
   const secondary = kind ? [] : mentioned.map((resource) => resourceEntry(resource))
   const entries = [...primary, ...secondary]
   const active = highlight < entries.length ? highlight : -1

@@ -185,8 +185,9 @@ export const PlusMenuDropdown = React.memo(
       includeFolderMentions: true,
       excludeTypes: COMPOSER_EXCLUDED_TYPES,
     })
+    /** Every workspace's lists is a burst no focus should trigger, so org scope loads on open. */
     const { data: allWorkspaces, isPending: workspacesPending } = useOrderedWorkspacesQuery(
-      Boolean(organizationId) && inventoryEnabled
+      Boolean(organizationId) && open
     )
     const workspaces = useMemo(
       () =>
@@ -445,7 +446,7 @@ export const PlusMenuDropdown = React.memo(
     return (
       <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         {organizationId &&
-          inventoryEnabled &&
+          open &&
           workspaces.map((workspace) => (
             <OrganizationResourceInventory
               key={workspace.id}

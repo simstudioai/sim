@@ -9,7 +9,6 @@ export interface WorkspaceFeatureFlags {
   'org-project-view': boolean
   'mothership-model-selector': boolean
   'mothership-plan-mode': boolean
-  'org-project-view': boolean
   'mothership-computer-use'?: boolean
   'mothership-memory-spaces'?: boolean
 }
@@ -24,6 +23,11 @@ interface FeatureFlagsProviderProps {
 /** Makes server-resolved runtime flags available to workspace client surfaces. */
 export function FeatureFlagsProvider({ children, flags }: FeatureFlagsProviderProps) {
   return <FeatureFlagsContext.Provider value={flags}>{children}</FeatureFlagsContext.Provider>
+}
+
+/** Off outside the providers, for shared hooks that also run on unflagged surfaces. */
+export function useOptionalFeatureFlag(name: keyof WorkspaceFeatureFlags): boolean {
+  return useContext(FeatureFlagsContext)?.[name] ?? false
 }
 
 /** Reads one server-resolved runtime flag without exposing AppConfig to the browser. */

@@ -63,3 +63,12 @@ export const tableDetailUrlKeys = {
   clearOnDefault: true,
   urlKeys: { view: 'table-view' },
 } as const
+
+/**
+ * An embedded table shares its host's URL with list pages that own `sort`/`dir`, so its
+ * sort takes prefixed keys too.
+ */
+export const embeddedTableUrlKeys = {
+  ...tableDetailUrlKeys,
+  urlKeys: { view: 'table-view', sort: 'table-sort', dir: 'table-dir' },
+} as const

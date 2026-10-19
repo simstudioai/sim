@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChipCombobox, type ChipModalFieldAria, type ComboboxOption } from '@sim/emcn'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
-import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import { projectSelectorContext } from '@/lib/selectors/context'
 import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
 import type { SelectorContext } from '@/lib/selectors/types'
@@ -15,6 +15,8 @@ import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
+import { connectorOwnerScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
+import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import type { ConnectorConfigField } from '@/connectors/types'
 import {
   useSelectorOptionDetail,
@@ -53,7 +55,8 @@ export function ConnectorSelectorField({
   disabled,
 }: ConnectorSelectorFieldProps) {
   const params = useParams<{ workspaceId?: string; organizationId?: string }>()
-  const scope = explicitScope ?? resourceScopeFromOwner(params)
+  const hostWorkspace = useOptionalWorkspaceHostContext()
+  const scope = explicitScope ?? connectorOwnerScope(hostWorkspace?.workspace.id, params)
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
   const [bulkError, setBulkError] = useState<{ context: SelectorContext; message: string } | null>(

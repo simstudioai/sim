@@ -47,12 +47,10 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useFolders } from '@/hooks/queries/folders'
-import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useTablesList } from '@/hooks/queries/tables'
+import { getKnowledgeBasesQueryOptions } from '@/hooks/queries/kb/knowledge'
+import { getTablesListQueryOptions } from '@/hooks/queries/tables'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
-import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -137,63 +135,64 @@ function buildMultiDragImage(
  */
 const NO_RESOURCE_NAMES = new Map<string, string>()
 
+/** The workspaces whose lists hold this type's open tabs. */
+function ownersOf(
+  resources: MothershipResource[],
+  type: MothershipResource['type'],
+  workspaceId: string | undefined
+): string[] {
+  const owners = new Set<string>()
+  for (const resource of resources) {
+    const owner = resource.workspaceId ?? workspaceId
+    if (resource.type === type && owner) owners.add(owner)
+  }
+  return [...owners]
+}
+
 /**
  * Builds a `type:id` -> current name lookup from live query data so resource
- * tabs always reflect the latest name even after a rename. Skipped entirely
- * when there are no tabs to label — a chat with no open resources must not
- * fetch five workspace-wide lists.
+ * tabs always reflect the latest name even after a rename. Each tab is looked
+ * up in its own workspace's list, so a pane holding several environments'
+ * resources stays current too. Only types with an open tab are fetched.
  */
 function useResourceNameLookup(
   workspaceId: string | undefined,
   resources: MothershipResource[]
 ): Map<string, string> {
-  const enabled = resources.length > 0
-  const owners = [
-    ...new Set(
-      resources
-        .filter(
-          (resource) =>
-            resource.type === 'workflow' &&
-            resource.workspaceId &&
-            resource.workspaceId !== workspaceId
-        )
-        .map((resource) => resource.workspaceId!)
+  const workflows = useQueries({
+    queries: ownersOf(resources, 'workflow', workspaceId).map((owner) =>
+      getWorkflowListQueryOptions(owner)
     ),
-  ]
-  const ownedWorkflows = useQueries({
-    queries: owners.map((owner) => getWorkflowListQueryOptions(owner)),
   })
-  const { data: workflows } = useWorkflows(workspaceId ?? '', {
-    enabled: enabled && Boolean(workspaceId),
+  const tables = useQueries({
+    queries: ownersOf(resources, 'table', workspaceId).map((owner) =>
+      getTablesListQueryOptions(owner)
+    ),
   })
-  const { data: tables } = useTablesList(workspaceId ?? '', 'active', {
-    enabled: enabled && Boolean(workspaceId),
+  const files = useQueries({
+    queries: ownersOf(resources, 'file', workspaceId).map((owner) =>
+      getWorkspaceFilesQueryOptions(owner)
+    ),
   })
-  const { data: files } = useWorkspaceFiles(workspaceId ?? '', 'active', {
-    enabled: enabled && Boolean(workspaceId),
-  })
-  const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId ?? '', {
-    enabled: enabled && Boolean(workspaceId),
-  })
-  const { data: folders } = useFolders(workspaceId ?? '', {
-    enabled: enabled && Boolean(workspaceId),
+  const knowledgeBases = useQueries({
+    queries: ownersOf(resources, 'knowledgebase', workspaceId).map((owner) =>
+      getKnowledgeBasesQueryOptions(owner)
+    ),
   })
 
   return useMemo(() => {
-    if (!enabled) return NO_RESOURCE_NAMES
+    if (resources.length === 0) return NO_RESOURCE_NAMES
     const map = new Map<string, string>()
-    for (const w of workflows ?? []) if (w.name.trim()) map.set(`workflow:${w.id}`, w.name)
-    for (const [index, result] of ownedWorkflows.entries()) {
-      for (const workflow of result.data ?? [])
-        if (workflow.name.trim() && workflow.workspaceId === owners[index])
-          map.set(`workflow:${workflow.id}`, workflow.name)
-    }
-    for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
-    for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
-    for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
+    for (const { data } of workflows)
+      for (const workflow of data ?? [])
+        if (workflow.name.trim()) map.set(`workflow:${workflow.id}`, workflow.name)
+    for (const { data } of tables) for (const t of data ?? []) map.set(`table:${t.id}`, t.name)
+    for (const { data } of files)
+      for (const file of data ?? []) map.set(`file:${file.id}`, file.name)
+    for (const { data } of knowledgeBases)
+      for (const kb of data ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     return map
-  }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
+  }, [resources.length, workflows, tables, files, knowledgeBases])
 }
 
 interface ResourceTabsProps {

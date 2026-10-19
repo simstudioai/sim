@@ -12,6 +12,8 @@ import { PROJECT_SECTIONS, type ProjectSection } from '@/app/o/[organizationId]/
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { ChangelogEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
 interface ProjectViewProps {
   project: Project
@@ -31,6 +33,15 @@ export function ProjectView({
 }: ProjectViewProps) {
   const { organization } = useOrganizationContext()
   const routes = organizationRoutes(organization.id)
+  const dashboardsEnabled = useFeatureFlag('dashboards')
+  const changelogEnabled = useFeatureFlag('changelog')
+  const sections = PROJECT_SECTIONS.filter(
+    (item) =>
+      (item.id !== 'dashboard' || dashboardsEnabled) &&
+      (item.id !== 'changelog' || changelogEnabled)
+  )
+  /** A section whose flag is off, such as the default Dashboard, shows the first one available. */
+  const activeSection = sections.some((item) => item.id === section) ? section : sections[0].id
   return (
     <div className='flex h-full min-h-0 flex-col'>
       <header className='flex shrink-0 flex-col gap-3 px-6 pt-5'>
@@ -41,7 +52,7 @@ export function ProjectView({
           <div className='flex shrink-0 items-center gap-1'>
             <EnvironmentSwitcher
               project={project}
-              section={section}
+              section={activeSection}
               onChange={onEnvironmentChange}
             />
           </div>
@@ -50,16 +61,16 @@ export function ProjectView({
           aria-label='Project sections'
           className='scrollbar-none flex items-center gap-5 overflow-x-auto border-[var(--border)] border-b'
         >
-          {PROJECT_SECTIONS.map((item) =>
+          {sections.map((item) =>
             onSectionChange ? (
               <button
                 key={item.id}
                 type='button'
                 onClick={() => onSectionChange(item.id)}
-                aria-current={section === item.id ? 'page' : undefined}
+                aria-current={activeSection === item.id ? 'page' : undefined}
                 className={cn(
                   '-mb-px shrink-0 border-b-2 pb-2.5 text-small transition-colors',
-                  section === item.id
+                  activeSection === item.id
                     ? 'border-[var(--text-primary)] text-[var(--text-primary)]'
                     : 'border-transparent text-[var(--text-muted)] hover-hover:text-[var(--text-body)]'
                 )}
@@ -70,7 +81,7 @@ export function ProjectView({
               <ChipLink
                 key={item.id}
                 href={routes.project(project.id, item.id)}
-                active={section === item.id}
+                active={activeSection === item.id}
               >
                 {item.label}
               </ChipLink>
@@ -80,7 +91,7 @@ export function ProjectView({
       </header>
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <ResourceWorkspaceHost workspaceId={project.id} organizationId={organization.id}>
-          <SectionBody project={project} section={section} onBrowse={onBrowse} />
+          <SectionBody project={project} section={activeSection} onBrowse={onBrowse} />
         </ResourceWorkspaceHost>
       </div>
     </div>
@@ -102,7 +113,9 @@ function SectionBody({ project, section, onBrowse }: SectionBodyProps) {
     case 'dashboard':
       return (
         <div className='flex h-full min-h-0 flex-col'>
-          <ProjectDashboard project={project} />
+          <PermissionAccessBoundary configKey='hideFilesTab'>
+            <ProjectDashboard project={project} />
+          </PermissionAccessBoundary>
         </div>
       )
     case 'changelog':

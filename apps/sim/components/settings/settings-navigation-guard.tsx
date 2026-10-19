@@ -27,7 +27,7 @@ export function SettingsNavigationGuard() {
       if (
         !(anchor instanceof HTMLAnchorElement) ||
         anchor.hasAttribute('download') ||
-        anchor.dataset.settingsNavigation === 'managed' ||
+        anchor.closest('[data-settings-navigation="managed"]') ||
         (anchor.target && anchor.target !== '_self') ||
         anchor.getAttribute('aria-disabled') === 'true'
       )

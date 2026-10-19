@@ -17,7 +17,6 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams } from 'next/navigation'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeOf } from '@/lib/table/column-types'
@@ -47,6 +46,8 @@ const logger = createLogger('RowModal')
 
 export interface RowModalProps {
   mode: 'add' | 'edit' | 'delete'
+  /** The table's workspace, passed in so the modal works off its own route (the org pane). */
+  workspaceId: string
   isOpen: boolean
   onClose: () => void
   table: TableInfo
@@ -121,6 +122,7 @@ function cleanRowData(
  */
 export function RowModal({
   mode,
+  workspaceId,
   isOpen,
   onClose,
   table,
@@ -129,8 +131,6 @@ export function RowModal({
   insertAt,
   onSuccess,
 }: RowModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
   const tableId = table.id
 
   const schema = table?.schema

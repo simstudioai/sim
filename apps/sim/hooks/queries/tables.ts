@@ -277,6 +277,21 @@ function invalidateTableSchemaOnly(
 /**
  * Fetch all tables for a workspace.
  */
+/** Shared list options, for callers that read several workspaces' lists at once. */
+export function getTablesListQueryOptions(workspaceId: string, scope: TableQueryScope = 'active') {
+  return {
+    queryKey: tableKeys.list(workspaceId, scope),
+    queryFn: async ({ signal }: { signal?: AbortSignal }) => {
+      const response = await requestJson(listTablesContract, {
+        query: { workspaceId, scope },
+        signal,
+      })
+      return response.data.tables
+    },
+    staleTime: TABLE_LIST_STALE_TIME,
+  }
+}
+
 export function useTablesList(
   workspaceId?: string,
   scope: TableQueryScope = 'active',

@@ -203,7 +203,8 @@ function OrganizationHomeContent({
     chat.resources,
     chat.activeResourceId,
     chat.desktopScopeId,
-    panel.expandResource
+    panel.expandResource,
+    projectViewEnabled
   )
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
@@ -293,6 +294,8 @@ function OrganizationHomeContent({
   const { sendMessage } = chat
   const router = useRouter()
   useEffect(() => {
+    // Off the project view, sends from other surfaces keep the workspace home handoff.
+    if (!projectViewEnabled) return
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<MothershipSendMessageDetail>).detail
       if (event.defaultPrevented || !detail?.message) return
@@ -330,6 +333,7 @@ function OrganizationHomeContent({
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
   }, [
+    projectViewEnabled,
     requestMode,
     hasChat,
     canBuild,
@@ -390,7 +394,10 @@ function OrganizationHomeContent({
   const changeMode = (mode: ChatRequestMode) => {
     if (!canSelectMode || (mode === requestMode && !lookupMode)) return
     setSelectedMode(mode)
-    void setSearchParams({ searchLevel: null, mode, q: null })
+    // Only the project view puts the mode in the URL; leaving lookup drops its query with it.
+    void setSearchParams(
+      projectViewEnabled ? { searchLevel: null, mode, q: null } : { searchLevel: null }
+    )
     if (userId) rememberMode(userId, organization.id, mode)
   }
 

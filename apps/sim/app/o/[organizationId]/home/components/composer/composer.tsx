@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Chip, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
 import { escapeRegExp } from '@sim/utils/string'
@@ -88,15 +88,20 @@ export function Composer({
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
     (workspace) => workspace.organizationId === organization.id
   )
+  /** Every workspace's skills feed only the `/` menu, so they load once a `/` is typed. */
+  const [skillsWanted, setSkillsWanted] = useState(false)
+  if (!skillsWanted && value.includes('/')) setSkillsWanted(true)
   const skillQueries = useQueries({
-    queries: workspaces.map((workspace) => getSkillsQueryOptions(workspace.id)),
+    queries: (skillsWanted ? workspaces : []).map((workspace) =>
+      getSkillsQueryOptions(workspace.id)
+    ),
   })
   const skills = imagesOnly
     ? []
     : organizationSkillOptions(
         workspaces.map((workspace, index) => ({
           ...workspace,
-          skills: skillQueries[index].isPlaceholderData ? [] : (skillQueries[index].data ?? []),
+          skills: skillQueries[index]?.isPlaceholderData ? [] : (skillQueries[index]?.data ?? []),
         }))
       )
   const editor = usePromptEditor({

@@ -13,13 +13,13 @@ import {
 } from '@sim/emcn'
 import { Loader, RefreshCw, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import {
   assertMultiFileUploadAdmission,
   MultiFileUploadAdmissionError,
 } from '@/lib/uploads/client/admission'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { useResourceWorkspaceId } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('AddDocumentsModal')
@@ -31,8 +31,7 @@ interface AddDocumentsModalProps {
 }
 
 export function AddDocumentsModal({ open, onOpenChange, knowledgeBaseId }: AddDocumentsModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const workspaceId = useResourceWorkspaceId()
   const [files, setFiles] = useState<File[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())

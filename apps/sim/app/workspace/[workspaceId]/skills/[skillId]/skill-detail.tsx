@@ -5,7 +5,6 @@ import { Chip, ChipConfirmModal, ChipLink, Send, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import { AddPeopleModal } from '@/components/permissions'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import {
@@ -14,6 +13,7 @@ import {
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SkillEditorsCard } from '@/app/workspace/[workspaceId]/skills/[skillId]/components/skill-editors-card'
@@ -43,7 +43,7 @@ interface SkillDetailProps {
  * and built-in template skills render read-only.
  */
 export function SkillDetail({ workspaceId, skillId }: SkillDetailProps) {
-  const router = useRouter()
+  const router = useResourceRouter()
   const skillsHref = `/workspace/${workspaceId}/skills`
 
   const { data: skills = [], isPending, isPlaceholderData } = useSkills(workspaceId)

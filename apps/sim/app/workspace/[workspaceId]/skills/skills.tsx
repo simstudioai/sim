@@ -4,9 +4,12 @@ import { useEffect, useRef } from 'react'
 import { Chip, ChipInput, Search } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
+import {
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -27,9 +30,8 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 const SKILLS_LABEL = 'Skills'
 
 export function Skills() {
-  const params = useParams()
-  const router = useRouter()
-  const workspaceId = (params?.workspaceId as string) || ''
+  const router = useResourceRouter()
+  const workspaceId = useResourceWorkspaceId()
   const skillsHref = `/workspace/${workspaceId}/skills`
 
   const { data: skills = [], isLoading, error } = useSkills(workspaceId)

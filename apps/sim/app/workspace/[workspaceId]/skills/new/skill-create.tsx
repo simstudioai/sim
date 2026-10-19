@@ -5,7 +5,6 @@ import { ChipLink, toast } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import {
   CredentialDetailHeading,
@@ -13,6 +12,7 @@ import {
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import {
   type SkillFieldErrors,
@@ -39,7 +39,7 @@ interface SkillCreateProps {
  * Content sections. Importing a SKILL.md prefills all three fields in place.
  */
 export function SkillCreate({ workspaceId }: SkillCreateProps) {
-  const router = useRouter()
+  const router = useResourceRouter()
   const skillsHref = `/workspace/${workspaceId}/skills`
 
   const createSkill = useCreateSkill()

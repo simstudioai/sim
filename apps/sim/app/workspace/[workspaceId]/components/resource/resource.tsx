@@ -25,7 +25,7 @@ import {
   cn,
   Loader,
 } from '@sim/emcn'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Pin } from '@sim/emcn/icons'
+import { ChevronLeft, ChevronRight, Lock, MoreHorizontal, Pin } from '@sim/emcn/icons'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
@@ -75,6 +75,8 @@ export interface ResourceCell {
    * layout, and the rename field replaces the label entirely while it is open.
    */
   pinned?: boolean
+  /** Marks the row as locked with a glyph after the label; honoured where `pinned` is. */
+  locked?: boolean
   /**
    * Find term to tint inside the label (Cmd/Ctrl+F match). Honoured only on the
    * plain label cell, like `pinned` — a `content` cell owns its own rendering
@@ -568,6 +570,7 @@ interface CellContentProps {
   content?: ReactNode
   editing?: ResourceCellEditing
   pinned?: boolean
+  locked?: boolean
   highlight?: string
 }
 
@@ -577,6 +580,7 @@ const CellContent = memo(function CellContent({
   content,
   editing,
   pinned,
+  locked,
   highlight,
 }: CellContentProps) {
   if (editing) {
@@ -605,6 +609,13 @@ const CellContent = memo(function CellContent({
           className='size-[12px] shrink-0 text-[var(--text-icon)]'
           role='img'
           aria-label='Pinned'
+        />
+      )}
+      {locked && (
+        <Lock
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
+          role='img'
+          aria-label='Locked'
         />
       )}
     </span>
@@ -785,6 +796,7 @@ const DataRow = memo(function DataRow({
               content={cell?.content}
               editing={cell?.editing}
               pinned={cell?.pinned}
+              locked={cell?.locked}
               highlight={cell?.highlight}
             />
             {index === 0 && onRowContextMenu && (

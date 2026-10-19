@@ -17,7 +17,6 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
-import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -53,6 +52,10 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { ResourceNotFound } from '@/app/workspace/[workspaceId]/components/resource/resource-not-found'
 import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
 import {
@@ -197,8 +200,8 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const workspaceId = useParams().workspaceId as string
-  const router = useRouter()
+  const workspaceId = useResourceWorkspaceId()
+  const router = useResourceRouter()
   const [
     {
       page: currentPageFromURL,

@@ -1198,7 +1198,6 @@
     "apps/sim/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags.test.tsx": 2,
     "apps/sim/app/workspace/[workspaceId]/home/components/message-content/message-content.test.ts": 6,
     "apps/sim/app/workspace/[workspaceId]/home/components/message-content/resolve-citations.test.ts": 1,
-    "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tabs.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor.test.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/home/components/user-input/user-input.tsx": 2,
     "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/handle-session-event.ts": 1,

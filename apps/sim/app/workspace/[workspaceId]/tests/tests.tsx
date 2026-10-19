@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { Chip, toast } from '@sim/emcn'
 import { PlayOutline, ShieldCheck } from '@sim/emcn/icons'
-import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { WorkflowTestRecord } from '@/lib/api/contracts/workflow-tests'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -22,6 +21,11 @@ import {
   type ResourceColumn,
   type ResourceRow,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceListHeader } from '@/app/workspace/[workspaceId]/components/resource/resource-list-header'
+import {
+  useResourceRouter,
+  useResourceWorkspaceId,
+} from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { TestStatusBadge } from '@/app/workspace/[workspaceId]/tests/components/test-status-badge'
 import {
@@ -66,12 +70,9 @@ const SORT_KEYS: Record<
   updated: (test) => test.updatedAt,
 }
 
-interface TestsProps {
-  workspaceId: string
-}
-
-export function Tests({ workspaceId }: TestsProps) {
-  const router = useRouter()
+export function Tests() {
+  const router = useResourceRouter()
+  const workspaceId = useResourceWorkspaceId()
   const canEdit = useUserPermissionsContext().canEdit === true
   const [{ search }, setFilters] = useQueryStates(testsParsers, testsUrlKeys)
   const setSearch = useDebouncedSearchSetter((value, options) =>
@@ -129,7 +130,7 @@ export function Tests({ workspaceId }: TestsProps) {
 
   return (
     <Resource>
-      <Resource.Header
+      <ResourceListHeader
         icon={ShieldCheck}
         title='Tests'
         actions={[

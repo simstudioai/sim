@@ -28,8 +28,8 @@ import {
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import {
+  embeddedTableUrlKeys,
   tableDetailParsers,
-  tableDetailUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/search-params'
 import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
 
@@ -53,7 +53,7 @@ export function useResourcePanelController(options?: {
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
-  const [, setTableParams] = useQueryStates(tableDetailParsers, tableDetailUrlKeys)
+  const [, setTableParams] = useQueryStates(tableDetailParsers, embeddedTableUrlKeys)
   const activeResourceParamRef = useRef(activeResourceParam)
   activeResourceParamRef.current = activeResourceParam
   /**

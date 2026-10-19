@@ -2,7 +2,8 @@ import type { MouseEvent } from 'react'
 import { cn } from '@sim/emcn'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import { useResourceWorkspaceId } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 import { mentionIcon } from './mention-icon'
 import { MarkdownMention, type MentionAttrs } from './mention-node'
@@ -34,11 +35,11 @@ const CHIP_CLASS =
  */
 export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const router = useRouter()
-  const params = useParams()
+  const resourceWorkspaceId = useResourceWorkspaceId()
   const { kind, id, label } = node.attrs as MentionAttrs
   const Icon = mentionIcon(kind, id, label) as StyleableIcon | undefined
   const navigable = editor.storage.mentionMenu?.navigable === true
-  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
+  const workspaceId = resourceWorkspaceId || undefined
   const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
 
   const handleClick = (event: MouseEvent) => {

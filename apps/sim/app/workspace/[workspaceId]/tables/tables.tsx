@@ -66,8 +66,8 @@ import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceListHeader } from '@/app/workspace/[workspaceId]/components/resource/resource-list-header'
 import {
-  ResourceListHeader,
   useResourceRouter,
   useResourceWorkspaceId,
 } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
