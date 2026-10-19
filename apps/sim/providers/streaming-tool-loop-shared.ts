@@ -11,7 +11,7 @@ import { findCause, toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { APIUserAbortError as GroqUserAbortError } from 'groq-sdk/error'
 import { APIUserAbortError as OpenAIUserAbortError } from 'openai/error'
-import { UserFailure } from '@/lib/core/errors/user-failure'
+import { classifyFailure } from '@/lib/core/errors/failure-log'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import type { AgentStreamEvent, ToolCallEndStatus } from '@/providers/stream-events'
@@ -74,17 +74,18 @@ export function isRunAbortError(error: unknown, abortSignal: AbortSignal | undef
 
 /**
  * The severity a provider logs its own request failure at, on the `failure-log` scale: a run
- * the user stopped or a request the author must fix ({@link UserFailure}) is routine (info), one
- * the run's time limit cut off is expected but worth seeing (warn), and anything else is an
- * unattributed failure (error).
+ * the user stopped or a failure {@link classifyFailure} attributes to the user is routine
+ * (info), one the run's time limit cut off is expected but worth seeing (warn), and anything
+ * else is an unattributed failure (error).
  */
 export function providerFailureLogLevel(
   error: unknown,
   abortSignal: AbortSignal | undefined
 ): 'info' | 'warn' | 'error' {
-  if (error instanceof UserFailure) return 'info'
-  if (!isRunAbortError(error, abortSignal)) return 'error'
-  return isTimeoutAbortReason(abortSignal?.reason) ? 'warn' : 'info'
+  if (isRunAbortError(error, abortSignal)) {
+    return isTimeoutAbortReason(abortSignal?.reason) ? 'warn' : 'info'
+  }
+  return classifyFailure(error) === 'user' ? 'info' : 'error'
 }
 
 /** Parse provider-supplied tool arguments without accepting non-object JSON values. */
@@ -131,8 +132,8 @@ interface TerminateToolLoopOptions {
   /** The stream consumer called `cancel()`; the controller is already closed. */
   consumerCancelled: boolean
   error: unknown
-  /** Invoked only for a genuine failure, before the stream is errored. */
-  onUnexpectedError?: (error: unknown) => void
+  /** Invoked only for a genuine failure, before the stream is errored, at its log severity. */
+  onUnexpectedError?: (error: unknown, level: 'info' | 'warn' | 'error') => void
 }
 
 /**
@@ -164,6 +165,6 @@ export function terminateToolLoop({
   }
 
   settleOpenTools(controller, openTools, 'error')
-  onUnexpectedError?.(error)
+  onUnexpectedError?.(error, providerFailureLogLevel(error, undefined))
   controller.error(toError(error))
 }

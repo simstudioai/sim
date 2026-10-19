@@ -25,7 +25,8 @@ const USAGE_GATE_TTL_MS = 5 * 60 * 1000
 
 /**
  * Static mock module for `@/lib/billing/core/usage-gate-cache`. Constants carry the real
- * values (`USAGE_GATE_SETTLE_TIMEOUT_MS` = 2 x the 60 s ledger statement timeout + 15 s).
+ * values (`NEAR_LIMIT_USAGE_GATE_TTL_MS` = 10 s, `USAGE_GATE_SETTLE_TIMEOUT_MS` = 2 x the 60 s
+ * ledger statement timeout + 15 s).
  *
  * @example
  * ```ts
@@ -34,6 +35,7 @@ const USAGE_GATE_TTL_MS = 5 * 60 * 1000
  */
 export const billingUsageGateCacheMock = {
   USAGE_GATE_TTL_MS,
+  NEAR_LIMIT_USAGE_GATE_TTL_MS: 10 * 1000,
   USAGE_GATE_SETTLE_TIMEOUT_MS: 2 * 60_000 + 15_000,
   checkIngestionUsageLimits: billingUsageGateCacheMockFns.mockCheckIngestionUsageLimits,
   checkSearchUsageLimits: billingUsageGateCacheMockFns.mockCheckSearchUsageLimits,

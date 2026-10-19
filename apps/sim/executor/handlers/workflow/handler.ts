@@ -886,6 +886,9 @@ export class WorkflowBlockHandler implements BlockHandler {
           // internal tool calls (knowledge, guardrails, MCP, Mothership) can
           // attach the required billing attribution header.
           billingAttribution: childBillingAttribution,
+          // A custom block's child writes its own log and ledger rows; any other child's cost
+          // lands on this run's log, so it spends against this run's unrecorded total.
+          unrecordedModelCost: childExecutionId ? undefined : ctx.unrecordedModelCost,
           resolvedSecretTraceRegistry: childResolvedSecretTraceRegistry,
           // Fall back to the inherited metadata so a toggle-off intermediate
           // child still carries the trusted identity chain to deeper children.

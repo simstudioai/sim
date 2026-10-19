@@ -2085,6 +2085,7 @@ async function executeToolImplementation(
           resolvedSecretTraceRegistry,
           executorDelegationOrigin: executionContext?.executorDelegationOrigin,
           principal: executionContext?.principal,
+          unrecordedModelCost: executionContext?.unrecordedModelCost,
           // Trusted `executionContext`, never `_context` — that bag spreads
           // model-reachable `contextParams._context` first, so a model could otherwise
           // inject its own env map or disable redaction.

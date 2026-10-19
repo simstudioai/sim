@@ -3,7 +3,12 @@ import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
-import { logFailureOnce, markFailureKind, markFailureLogged } from '@/lib/core/errors/failure-log'
+import {
+  classifyFailure,
+  logFailureOnce,
+  markFailureKind,
+  markFailureLogged,
+} from '@/lib/core/errors/failure-log'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -1327,10 +1332,13 @@ export class BlockExecutor {
     try {
       pumpResult = await pump.run()
     } catch (error) {
-      this.execLogger.error('Error reading stream for block', {
-        blockId,
-        ...projectStreamDiagnosticError(error),
-      })
+      this.execLogger[classifyFailure(error) === 'user' ? 'info' : 'error'](
+        'Error reading stream for block',
+        {
+          blockId,
+          ...projectStreamDiagnosticError(error),
+        }
+      )
       if (onStreamPromise) {
         await onStreamPromise.catch(() => {})
       }

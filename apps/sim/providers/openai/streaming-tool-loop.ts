@@ -611,8 +611,8 @@ export function createOpenAIResponsesStreamingToolLoopStream(
             aborted: loopAbortController.signal.aborted,
             consumerCancelled,
             error,
-            onUnexpectedError: (cause) =>
-              logger.error(`Error in ${providerLabel} streaming tool loop`, {
+            onUnexpectedError: (cause, level) =>
+              logger[level](`Error in ${providerLabel} streaming tool loop`, {
                 providerId,
                 error: cause,
               }),

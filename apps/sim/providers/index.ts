@@ -37,6 +37,7 @@ import {
 } from '@/providers/file-attachments.server'
 import { isEvaluationModel, isKnownModelId, supportsTemperature } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
+import { addSettledCost, recordJournaledModelCost } from '@/providers/run-usage-limit'
 import {
   type ProviderRuntimeContext,
   runWithProviderRuntimeContext,
@@ -294,6 +295,8 @@ export async function executeProviderRequest(
   const modelSafeRequest = await prepareProviderFileAttachments(sanitizedRequest)
   const toolIdentities = assignProviderToolIdentities(modelSafeRequest.tools)
   const failedFunctionToolCost = { total: 0 }
+  // A conversation summary charges its parent request, so a stop after compaction bills it.
+  const settledCost = runtimeContext?.settledCost ?? { input: 0, output: 0, total: 0 }
   const requestRuntimeContext: ProviderRuntimeContext = {
     ...runtimeContext,
     ...(runtimeContext?.agentConversation
@@ -305,6 +308,7 @@ export async function executeProviderRequest(
         }
       : {}),
     failedFunctionToolCost,
+    settledCost,
     ...(toolIdentities.toolIdByWireId.size > 0
       ? {
           toolIdByWireId: new Map([
@@ -343,12 +347,19 @@ export async function executeProviderRequest(
       for (const registry of replayRegistries) {
         if (registry) await session.restoreProvenance?.(registry)
       }
+      // A continued call's cost is journaled, so the usage read below already counts it.
+      const settledBeforeContinuation = settledCost.total
       await continuePendingConversationCalls(modelSafeRequest, session)
+      settledCost.total = settledBeforeContinuation
+      failedFunctionToolCost.total = 0
       const currentUserMessage = [...(modelSafeRequest.messages ?? [])]
         .reverse()
         .find((message) => message.role === 'user' && !isConversationHistoryNotice(message))
       bindConversationGenerationPrompt(modelSafeRequest, currentUserMessage)
       priorConversationUsage = session.getUsage()
+      // A stop bills what success would: this journaled usage plus the request's own steps.
+      addSettledCost(settledCost, priorConversationUsage.cost)
+      recordJournaledModelCost(requestRuntimeContext, session.turnId, priorConversationUsage)
       bindConversationGenerationCompactor(
         modelSafeRequest,
         createAgentConversationCompactor(
@@ -359,6 +370,7 @@ export async function executeProviderRequest(
             const summary = await executeProviderRequest(providerId, summaryRequest, {
               resolvedSecretTraceRegistry: requestRuntimeContext.resolvedSecretTraceRegistry,
               executionContext: requestRuntimeContext.executionContext,
+              settledCost,
             })
             if (isStreamingExecution(summary) || isReadableStream(summary))
               throw new Error('Conversation summary did not return a settled response')
