@@ -45,6 +45,10 @@ import {
 import { useProvidersStore } from '@/stores/providers/store'
 import { greenhouseConvertProspectV2Tool } from '@/tools/greenhouse/convert_prospect_v2'
 import { greenhouseListCandidatesV2Tool } from '@/tools/greenhouse/list_candidates_v2'
+import { greenhouseListJobOwnersV2Tool } from '@/tools/greenhouse/list_job_owners_v2'
+import { greenhouseListJobsV2Tool } from '@/tools/greenhouse/list_jobs_v2'
+import { greenhouseListNotesV2Tool } from '@/tools/greenhouse/list_notes_v2'
+import { greenhouseListOffersV2Tool } from '@/tools/greenhouse/list_offers_v2'
 import type {
   GreenhouseConvertProspectV2Params,
   GreenhouseListCandidatesV2Params,
@@ -63,6 +67,46 @@ const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
 const originalRequire = module.require
 
 describe('integration filters through agent execution', () => {
+  it.each([
+    { operation: 'list_jobs', field: 'status', tool: greenhouseListJobsV2Tool },
+    { operation: 'list_offers', field: 'status', tool: greenhouseListOffersV2Tool },
+    { operation: 'list_job_owners', field: 'type', tool: greenhouseListJobOwnersV2Tool },
+    { operation: 'list_notes', field: 'visibility', tool: greenhouseListNotesV2Tool },
+  ])(
+    'sends every offered $operation $field choice to the API',
+    async ({ operation, field, tool }) => {
+      vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
+      const control = getSubBlocksForToolInput(
+        tool.id,
+        'greenhouse_v2',
+        { operation },
+        undefined,
+        GreenhouseV2Block
+      )?.subBlocks.find((item) => item.id === field)
+      if (!control) throw new Error('Configured filter control is unavailable')
+      const choices =
+        typeof control.options === 'function' ? control.options({ values: {} }) : control.options
+      if (!choices?.some((choice) => choice.id)) throw new Error('Filter choices are unavailable')
+
+      for (const choice of choices.filter((item) => item.id)) {
+        const providerTool = await transformBlockTool(
+          { type: 'greenhouse_v2', params: { [control.id]: choice.id } },
+          {
+            selectedOperation: operation,
+            getAllBlocks: () => [GreenhouseV2Block],
+            getTool: () => tool,
+          }
+        )
+        if (!providerTool) throw new Error('Greenhouse agent tool was not created')
+        const { executionParams } = prepareToolExecution(providerTool, {}, {}, undefined)
+        const params = { ...executionParams, accessToken: 'fixture-token' }
+        const url =
+          typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+        expect(new URL(url).searchParams.get(field)).toBe(choice.id)
+      }
+    }
+  )
+
   it('sends configured Greenhouse conversion fields from the offered controls to the API', async () => {
     const tool = greenhouseConvertProspectV2Tool
     vi.spyOn(toolMetadata, 'getToolMetadata').mockReturnValue(tool)
