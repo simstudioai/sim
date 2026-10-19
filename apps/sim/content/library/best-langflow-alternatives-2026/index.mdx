@@ -1,0 +1,114 @@
+---
+slug: best-langflow-alternatives-2026
+title: 'Best Langflow Alternatives in 2026 for Production AI Workflows'
+description: 'Compare Langflow alternatives for production AI workflows: Sim, Dify, n8n, and LangGraph on license, self-hosting, run inspection, and pricing.'
+seoTitle: 'Best Langflow Alternatives for Production in 2026'
+date: 2026-10-19
+updated: 2026-10-19
+authors:
+  - andrew
+readingTime: 8
+tags: [AI Agents, Workflow Automation, Open Source, Comparisons, Sim]
+ogImage: /library/best-langflow-alternatives-2026/cover.jpg
+draft: false
+faq:
+  - q: "Is Langflow open source, and can you use it in production?"
+    a: "Yes, Langflow is MIT-licensed, and Langflow OSS gives you full source access and a self-managed deployment option. For SSO, role-based access, and audit trails, IBM directs Langflow-built agents to watsonx Orchestrate."
+  - q: "What is the easiest self-hosted Langflow alternative?"
+    a: "Sim offers an interactive sim-setup wizard that provisions the database, generates secrets, and starts Sim with Docker Compose, making it a practical starting point if you want a visual builder you can run yourself. Its self-hosting docs suggest 2 CPU cores, 12 GiB of RAM, and 20 GiB of SSD storage for evaluation. Production use of enterprise features requires an Enterprise subscription."
+  - q: "Which alternative has the best built-in observability and versioning?"
+    a: "Sim, Langflow, and Dify all include built-in, step-by-step run traces. Sim's Logs record each block's inputs, outputs, errors, and timing, and Sim keeps a history of each workflow's deployed versions with rollback. LangGraph relies on LangSmith, a separate product, for tracing."
+  - q: "Can you migrate Langflow flows to another tool?"
+    a: "This comparison does not cover a direct import path from Langflow into any of these alternatives. Plan to recreate the flow in your chosen tool, then test its behavior and deployment before replacing the Langflow version."
+---
+
+## TL;DR
+
+- **Sim**, the open-source AI workspace where teams build, deploy, and manage AI agents, fits teams that want a visual builder they can run on their own infrastructure, with per-block run traces. Anyone can self-host [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) for free; [enterprise features use a separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). SSO (single sign-on with your company's identity provider), audit logs, and supported self-hosting are part of the Enterprise plan.
+- **Langflow** fits teams building visual prototypes, especially if they already use IBM watsonx Orchestrate, which [IBM positions](https://www.ibm.com/new/announcements/prototype-to-production-langflow-and-ibm-watsonx-orchestrate-si) as the enterprise runtime for Langflow-built agents.
+- **Dify** fits teams willing to operate a larger self-hosted stack under a modified Apache 2.0 license.
+- **n8n** fits teams whose AI agents need to work inside broader automation workflows.
+- **LangGraph** fits developers who prefer code-level control over visual building.
+- **Flowise** is no longer an option for new projects: it [reached end of life on August 31, 2026](https://flowiseai.com/sunset).
+
+## Why teams look past Langflow for production
+
+Langflow makes it easy to build and test an agent visually, but IBM describes a harder step after the prototype. In its [announcement about moving Langflow agents into production](https://www.ibm.com/new/announcements/prototype-to-production-langflow-and-ibm-watsonx-orchestrate-si), IBM says teams "build impressive demos, only to hit a wall when scaling securely, integrating workflows, and meeting enterprise requirements." IBM presents watsonx Orchestrate as its answer: an enterprise-grade runtime for Langflow-built agents, "complete with SSO, RBAC, audit trails and orchestration." RBAC is role-based access control, which limits what each person can see and change.
+
+You can deploy Langflow without Orchestrate. Langflow is MIT-licensed and its [GitHub repository](https://github.com/langflow-ai/langflow) is actively maintained. [IBM lists](https://www.ibm.com/products/langflow) options to deploy a flow as a REST service using Docker or deploy it to Langflow Cloud, and Langflow's docs cover a [production Kubernetes Helm chart](https://docs.langflow.org/deployment-kubernetes-prod). The governance features IBM highlights for enterprise use, including SSO, role-based access, and audit trails, are the ones it ties to the Orchestrate integration.
+
+For each alternative, the comparison examines license terms, the self-hosting path, and deployment options. It also covers built-in run inspection and published pricing. Pricing and product availability were checked as of October 2026. For a wider market view, see the comparisons of [AI workflow builders](https://www.sim.ai/library/best-ai-workflow-builders) and [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
+
+## Comparison table
+
+| Tool | License | Self-Hosting | Deployment Options | Built-in Run Inspection | Published Pricing |
+|---|---|---|---|---|---|
+| **1. Sim** | [Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE), with [enterprise features under the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) | Yes, via [Docker Compose or Kubernetes (Helm)](https://docs.sim.ai/platform/self-hosting) | Sim Cloud or self-hosted. Deploy workflows as an API, a chat interface, or an MCP tool | [Per-block trace](https://docs.sim.ai/logs-debugging/logging) of inputs, outputs, errors, and timing | [Free $0, Pro $25/user/month, Max $100/user/month, Enterprise custom](https://www.sim.ai/pricing) |
+| **2. Dify** | [Modified Apache 2.0](https://github.com/langgenius/dify/blob/main/LICENSE) with added conditions | Yes, [Docker Compose](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose) | [Web app, API, website embed, or MCP server](https://docs.dify.ai/en/self-host/use-dify/publish/README) | [Logs with a node-by-node trace](https://docs.dify.ai/en/self-host/use-dify/monitor/logs) | [Cloud: Sandbox free, Professional $590/workspace/year, Team $1,590/workspace/year](https://dify.ai/pricing) |
+| **3. n8n** | [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), which n8n describes as fair-code, not open source | Yes: Community, Business, and Enterprise editions | n8n Cloud or self-hosted | [Execution history](https://docs.n8n.io/build/understand-workflows/understand-executions) per workflow | [Cloud Starter €20/month, Pro €50/month, self-hosted Business €667/month (billed annually), Enterprise custom](https://n8n.io/pricing/) |
+| **4. LangGraph** | [MIT](https://github.com/langchain-ai/langgraph) | Yes for the library. A standalone Agent Server needs a [LangSmith license key](https://docs.langchain.com/langsmith/deploy-standalone-server) | Self-managed code or LangSmith Deployment | Through LangSmith, a separate product | [LangSmith Developer $0 (1 seat), Plus $39/seat/month, Enterprise custom](https://www.langchain.com/pricing) |
+| **5. Langflow** | [MIT](https://github.com/langflow-ai/langflow) | Yes, Docker or a Kubernetes Helm chart | [Docker REST service, Langflow Cloud, or watsonx Orchestrate](https://www.ibm.com/products/langflow). Flows can also be [served as MCP tools](https://docs.langflow.org/mcp-server) | [Native per-component traces](https://docs.langflow.org/traces) | No license fee for Langflow OSS. IBM's Langflow page does not list Elite Support or Orchestrate prices |
+
+## Sim
+
+**Best for** Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. It suits you if you want a visual builder that can move into production with self-hosting, several ways to deploy a workflow, and controls for enterprise access. Alongside the visual builder (Workflows), the workspace includes Chat, where you talk to Sim to build and manage agents in natural language, plus Tables, Files, and a Knowledge Base your agents can draw on.
+
+**Pros** Sim's core uses the [Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE), with [enterprise features covered by the separate Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). You can [deploy a workflow](https://docs.sim.ai/workflows/deployment) as an API, a chat interface, or an MCP tool. MCP (Model Context Protocol) is a protocol that lets AI apps call tools, so other AI applications can call your workflow. Those options let you use the same workflow in an application, a user-facing conversation, or another agent without rebuilding its logic. Sim connects to [270+ integrations](https://www.sim.ai/integrations) and [28 model providers](https://www.sim.ai/models).
+
+Sim's [Logs](https://docs.sim.ai/logs-debugging/logging) trace each run block by block, with each block's inputs, outputs, errors, and timing, plus a usage breakdown of the run's cost. When an agent fails midway, you can inspect the block that failed rather than infer the cause from its final response. Each workflow also keeps [deployed versions that can be compared or rolled back](https://docs.sim.ai/workflows/deployment). For more detail on evaluating traces, read the guide to [AI agent observability](https://www.sim.ai/library/ai-agent-observability). If Langflow's deployment and governance options leave you assembling additional infrastructure, [Sim's Langflow comparison](https://www.sim.ai/comparisons/langflow) details its deployment options and Enterprise controls.
+
+**Cons** The Apache 2.0 core does not make every feature free. Anyone can self-host [Sim's core](https://github.com/simstudioai/sim/blob/main/LICENSE) at no cost with Docker Compose or Kubernetes, while [enterprise features such as SSO, SCIM user provisioning, audit logs, and access control have separate terms](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE) and require an Enterprise subscription for production use. [Sim's pricing table](https://www.sim.ai/pricing) also lists supported self-hosting as an Enterprise feature alongside SSO and SOC 2 compliance. Check which features you need before treating the core license as your complete plan. The distinction is also covered in this guide to [Apache 2.0 and fair-code licenses](https://www.sim.ai/library/apache-2-0-vs-fair-code).
+
+**Pricing** [Sim's Free plan](https://www.sim.ai/pricing) costs $0 and includes 1,000 one-time credits and 30 days of log retention. Pro costs $25 per user per month, with 6,000 credits per month, a weekly refresh of 2,000 credits, and unlimited log retention. Max costs $100 per user per month, with 25,000 credits per month and a weekly refresh of 4,000 credits. Enterprise uses custom pricing and adds access control, SSO, SOC 2 compliance, supported self-hosting, and dedicated support. Enterprise organizations can also set log retention from 1 day to 5 years or keep logs forever.
+
+## Langflow
+
+**Best for** Langflow suits you if you want to build and test AI agents visually before choosing how to deploy them. [IBM lists more than 100 integrations](https://www.ibm.com/products/langflow) for the open-source edition.
+
+**Pros** IBM offers [four Langflow options](https://www.ibm.com/products/langflow). Langflow OSS provides the visual builder, full source access, and community support. Langflow Desktop supports local development and exports flows to a cloud-ready format. IBM Elite Support for Langflow adds professional support for OSS users and targets enterprises that need SLAs, and the watsonx Orchestrate integration provides an enterprise-grade runtime. Langflow also records [native traces](https://docs.langflow.org/traces) with each component's inputs, outputs, timing, errors, and token usage, and can act as an [MCP server](https://docs.langflow.org/mcp-server) that exposes your flows as tools.
+
+**Cons** For [enterprise deployment](https://www.ibm.com/new/announcements/prototype-to-production-langflow-and-ibm-watsonx-orchestrate-si), IBM points to Orchestrate for SSO, role-based access, and audit trails. If you need those controls and do not already use Orchestrate, adopting Langflow for production can mean adopting a second IBM product.
+
+**Pricing** Langflow OSS is [MIT-licensed](https://github.com/langflow-ai/langflow), so there is no license fee to self-manage it. [IBM's Langflow product page](https://www.ibm.com/products/langflow) does not list prices for Elite Support or the Orchestrate integration.
+
+## Dify
+
+**Best for** Dify suits you if you want to build and deploy AI applications and can operate a larger self-hosted installation.
+
+**Pros** Dify supports workflows, a [Human Input node](https://docs.dify.ai/en/self-host/use-dify/nodes/human-input) that pauses a run for a person's review, and [knowledge bases](https://docs.dify.ai/en/self-host/use-dify/knowledge/readme) built from imported data. You can [deploy applications](https://docs.dify.ai/en/self-host/use-dify/publish/README) as web apps, APIs, website embeds, or MCP servers. Its [logs](https://docs.dify.ai/en/self-host/use-dify/monitor/logs) let you inspect conversations and workflow runs, including a node-by-node trace that shows where a run failed or slowed down.
+
+**Cons** Dify uses a [modified Apache 2.0 license](https://github.com/langgenius/dify/blob/main/LICENSE). You need a commercial license to run a multi-tenant service from its source code, and you may not remove or modify the logo or copyright information in its frontend. Its [Docker Compose installation](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose) starts seven core services and eight dependent components. The stated minimum is two CPU cores and 4 GiB of RAM, before accounting for your workload.
+
+**Pricing** [Dify Cloud](https://dify.ai/pricing) offers a free Sandbox plan, Professional at $590 per workspace per year, and Team at $1,590 per workspace per year. The self-hosted Community edition is free, and the self-hosted Enterprise edition, which includes a commercial license, uses custom pricing.
+
+## n8n
+
+**Best for** You need a workflow-automation tool that connects services and can add an AI agent to an existing process. n8n places its [AI Agent node inside regular workflows](https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools), so it fits integration-heavy work better than a project centered on agent design.
+
+**Pros** n8n offers self-hosted editions and [queue mode](https://docs.n8n.io/deploy/host-n8n/configure-n8n/scaling/enable-queue-mode), which uses worker instances to distribute executions. You can also [require human approval](https://docs.n8n.io/build/integrate-ai/ai-examples/human-in-the-loop-for-tools) before an AI Agent runs a selected tool, giving you an approval point for sensitive actions.
+
+**Cons** n8n's [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) limits use to your own internal business purposes or non-commercial use, and n8n [describes the license as fair-code](https://docs.n8n.io/n8n-community-license) rather than open source. Its [license guidance](https://docs.n8n.io/n8n-community-license/community-license/license-faq) says internal use is fine as long as you are not making n8n available to your customers for them to connect their accounts and build workflows. If you are building that kind of multi-tenant product, check the licensing terms before adopting it.
+
+**Pricing** [n8n's pricing page](https://n8n.io/pricing/) lists Cloud Starter at €20 per month and Pro at €50 per month, both billed annually. The self-hosted Business plan is €667 per month billed annually, Enterprise is custom, and the self-hosted Community Edition is available from its repository.
+
+## LangGraph
+
+**Best for** LangGraph suits you if your engineers want to define agent orchestration in code rather than assemble it in a visual builder. The [Python](https://github.com/langchain-ai/langgraph) and [TypeScript](https://github.com/langchain-ai/langgraphjs) libraries can run on infrastructure you manage.
+
+**Pros** [Checkpointers](https://docs.langchain.com/oss/python/langgraph/persistence) save agent state so a run can resume after an interruption. For an approval gate, [`interrupt()`](https://docs.langchain.com/oss/python/langgraph/interrupts) pauses execution, and `Command(resume=...)` resumes it with a person's decision.
+
+**Cons** The core library uses the [MIT license](https://github.com/langchain-ai/langgraph), but running the packaged [standalone Agent Server](https://docs.langchain.com/langsmith/deploy-standalone-server) requires a LangSmith license key, and [self-hosted LangSmith](https://docs.langchain.com/langsmith/deploy-to-self-hosted-overview) requires an Enterprise plan. You also need to build and maintain more of the deployment yourself than you would with a visual platform.
+
+**Pricing** The MIT-licensed library has no license fee. [LangSmith](https://www.langchain.com/pricing), which provides tracing and managed deployment, offers a Developer plan at $0 for one seat, Plus at $39 per seat per month, and custom Enterprise pricing.
+
+## A note on Flowise
+
+Flowise was a common Langflow alternative, but it is no longer viable for new projects. The team [announced the wind-down](https://flowiseai.com/sunset) on July 29, 2026 with an immediate code freeze, archived the repository in August 2026, and reached end of life on August 31, 2026, when official core team presence on Discord and GitHub ended. The [Apache 2.0 code remains available to fork](https://flowiseai.com/sunset), but existing deployments should plan a migration.
+
+## Choosing the right Langflow alternative
+
+If you want the open-source AI workspace for teams, with a visual builder you can self-host under an OSI-approved core license, choose Sim. [Sim's Apache 2.0 core](https://github.com/simstudioai/sim/blob/main/LICENSE) runs on your infrastructure for free, while [production use of enterprise features such as SSO and audit logs requires an Enterprise subscription](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). Check which features you need before deciding which plan fits.
+
+If your main need is connecting business apps, choose n8n for workflow automation. Review its license before using it to offer workflows to customers. Choose LangGraph if you want to write and operate orchestration code yourself, while accounting for the [LangSmith license key](https://docs.langchain.com/langsmith/deploy-standalone-server) its standalone Agent Server requires.
+
+If you already use IBM watsonx Orchestrate, keeping Langflow may make sense. [IBM supplies enterprise governance through Orchestrate](https://www.ibm.com/new/announcements/prototype-to-production-langflow-and-ibm-watsonx-orchestrate-si). For a closer look at that trade-off, compare [Sim and Langflow](https://www.sim.ai/comparisons/langflow).
