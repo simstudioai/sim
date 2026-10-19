@@ -327,7 +327,7 @@ export interface CloudflareUpdateR2BucketLifecycleParams {
   accountId: string
   bucketName: string
   apiKey: string
-  rules?: string | Record<string, unknown> | unknown[]
+  rules: string | unknown[]
   jurisdiction?: string
 }
 

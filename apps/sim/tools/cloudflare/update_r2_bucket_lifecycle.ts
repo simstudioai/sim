@@ -40,11 +40,11 @@ export const updateR2BucketLifecycleTool: ToolConfig<
       description: 'Cloudflare API token',
     },
     rules: {
-      type: 'json',
-      required: false,
+      type: 'string',
+      required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array. rules Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions.',
+        'Complete JSON array of lifecycle rules. Read the current rules first and include every rule to retain. Use [] only to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions.',
     },
     jurisdiction: {
       type: 'string',
@@ -61,7 +61,15 @@ export const updateR2BucketLifecycleTool: ToolConfig<
       ...cloudflareHeaders(params.apiKey),
       ...(params.jurisdiction ? { 'cf-r2-jurisdiction': params.jurisdiction } : {}),
     }),
-    body: (params) => ({ rules: parseJsonArrayParam(params.rules, 'rules') }),
+    body: (params) => {
+      const rules = parseJsonArrayParam(params.rules, 'rules')
+      if (rules === undefined) {
+        throw new Error(
+          'rules is required; supply a JSON array or [] to remove all lifecycle rules'
+        )
+      }
+      return { rules }
+    },
   },
   transformResponse: async (response) => {
     const data = await readCloudflareResponse(response)

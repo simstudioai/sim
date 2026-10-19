@@ -4300,14 +4300,13 @@ export const CloudflareBlock: BlockConfig = {
       id: 'r2BucketLifecycleRules',
       title: 'Rules',
       type: 'long-input',
-      placeholder: 'Enter rules as JSON',
+      placeholder: 'Enter all lifecycle rules as JSON; [] removes all rules',
       condition: { field: 'operation', value: ['update_r2_bucket_lifecycle'] },
-      required: false,
-      mode: 'advanced',
+      required: true,
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate the Cloudflare rules value. JSON array. rules Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions. Return ONLY the value.',
+          'Generate the complete Cloudflare lifecycle rules JSON array. Include every existing rule the user wants to retain. Use [] only when the user wants to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions. Return ONLY the value.',
         placeholder: 'Describe the rules',
       },
     },
@@ -5300,9 +5299,9 @@ export const CloudflareBlock: BlockConfig = {
       description: 'JSON array. rules Fields: allowed, exposeHeaders, id, maxAgeSeconds.',
     },
     r2BucketLifecycleRules: {
-      type: 'json',
+      type: 'string',
       description:
-        'JSON array. rules Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions.',
+        'Complete JSON array of lifecycle rules. Read the current rules first and include every rule to retain. Use [] only to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions.',
     },
     rulesetRulePosition: {
       type: 'json',
