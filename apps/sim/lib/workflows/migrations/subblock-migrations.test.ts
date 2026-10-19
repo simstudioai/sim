@@ -160,6 +160,29 @@ describe('migrateSubblockIds', () => {
     }
   )
 
+  it.each([undefined, 'unrecognized_operation'])(
+    'preserves incomplete Greenhouse imports with operation %j',
+    (operation) => {
+      const block = makeBlock({
+        type: 'greenhouse_v2',
+        subBlocks: {
+          ...(operation
+            ? { operation: { id: 'operation', type: 'dropdown' as const, value: operation } }
+            : {}),
+          update_application_id: { id: 'update_application_id', type: 'short-input', value: '42' },
+          created_at_filter: {
+            id: 'created_at_filter',
+            type: 'code',
+            value: '{"gte":"2026-01-01"}',
+          },
+        },
+      })
+      const result = migrateSubblockIds({ 'block-1': block })
+      expect(result.migrated).toBe(false)
+      expect(result.blocks['block-1']).toBe(block)
+    }
+  )
+
   it('drops inactive Greenhouse aliases before a later operation switch can overwrite a new value', () => {
     const block = makeBlock({
       type: 'greenhouse_v2',
