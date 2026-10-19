@@ -7744,7 +7744,7 @@ Replaces the object lifecycle rules for an R2 bucket. Rules match object-key pre
 | `accountId` | string | Yes | Account id |
 | `bucketName` | string | Yes | Bucket name |
 | `apiKey` | string | Yes | Cloudflare API token |
-| `rules` | json | No | JSON array. rules Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions. |
+| `rules` | json | Yes | Complete JSON array of lifecycle rules. Read the current rules first and include every rule to retain. Use \[\] only to remove all lifecycle rules. Fields: abortMultipartUploadsTransition, conditions, deleteObjectsTransition, enabled, id, storageClassTransitions. |
 | `jurisdiction` | string | No | Jurisdiction where objects in this bucket are guaranteed to be stored. |
 
 #### Output
