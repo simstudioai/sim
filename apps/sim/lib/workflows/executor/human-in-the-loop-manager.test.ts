@@ -487,7 +487,7 @@ describe('resume failure diagnostic projection', () => {
       .mockRejectedValueOnce(rawError)
     const markResumeFailedSpy = vi
       .spyOn(managerInternals, 'markResumeFailed')
-      .mockResolvedValueOnce()
+      .mockResolvedValueOnce(undefined)
     const processQueuedResumesSpy = vi
       .spyOn(PauseResumeManager, 'processQueuedResumes')
       .mockResolvedValueOnce()
@@ -550,7 +550,7 @@ describe('resume failure diagnostic projection', () => {
       })
     const markResumeFailedSpy = vi
       .spyOn(managerInternals, 'markResumeFailed')
-      .mockResolvedValueOnce()
+      .mockResolvedValueOnce(undefined)
     const processQueuedResumesSpy = vi
       .spyOn(PauseResumeManager, 'processQueuedResumes')
       .mockResolvedValueOnce()
@@ -601,7 +601,7 @@ describe('resume failure diagnostic projection', () => {
       })
     const markResumeFailedSpy = vi
       .spyOn(managerInternals, 'markResumeFailed')
-      .mockResolvedValueOnce()
+      .mockResolvedValueOnce(undefined)
     const processQueuedResumesSpy = vi
       .spyOn(PauseResumeManager, 'processQueuedResumes')
       .mockResolvedValueOnce()
