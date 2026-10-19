@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { trackSignUpConversions } from '@/lib/analytics/sign-up'
 import { client, useSession } from '@/lib/auth/client'
+import { createEmailSignUpCallbackURL } from '@/lib/auth/social-sign-up-conversion'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { getEnv, isFalsy } from '@/lib/core/config/env'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
@@ -346,12 +347,18 @@ function SignupFormContent({
         return
       }
 
-      await trackSignUpConversions({
-        method: 'email',
-        userId: response.data.user.id,
-        measurement,
-        marketing,
-      })
+      const destination = resolvePostSignupDestination({ emailVerificationEnabled, redirectUrl })
+
+      // Verification-enabled duplicate signups return synthetic success, so those conversions
+      // wait until the OTP-created session matches the user ID returned here.
+      if (!emailVerificationEnabled) {
+        await trackSignUpConversions({
+          method: 'email',
+          userId: response.data.user.id,
+          measurement,
+          marketing,
+        })
+      }
 
       try {
         await refetchSession()
@@ -360,8 +367,6 @@ function SignupFormContent({
         logger.error('Failed to refresh session after signup:', sessionError)
       }
 
-      const destination = resolvePostSignupDestination({ emailVerificationEnabled, redirectUrl })
-
       if (typeof window !== 'undefined') {
         // Clear any leftover from an earlier signup in this tab — otherwise a
         // signup with no callbackUrl inherits the previous CLI/invite destination.
@@ -369,8 +374,12 @@ function SignupFormContent({
         sessionStorage.removeItem(POST_AUTH_REDIRECT_STORAGE_KEY)
 
         if (destination.kind === 'verify') {
+          const postVerificationDestination = redirectUrl || DEFAULT_POST_AUTH_ROUTE
           sessionStorage.setItem('verificationEmail', emailValue)
-          if (redirectUrl) sessionStorage.setItem(POST_AUTH_REDIRECT_STORAGE_KEY, redirectUrl)
+          sessionStorage.setItem(
+            POST_AUTH_REDIRECT_STORAGE_KEY,
+            createEmailSignUpCallbackURL(response.data.user.id, postVerificationDestination)
+          )
         }
       }
 

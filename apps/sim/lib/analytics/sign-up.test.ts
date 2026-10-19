@@ -6,9 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { trackSignUpConversions } from '@/lib/analytics/sign-up'
 
 afterEach(() => {
-  window.twq = undefined
-  window.freebuff = undefined
-  window.gtag = undefined
+  Reflect.deleteProperty(window, 'twq')
+  Reflect.deleteProperty(window, 'freebuff')
+  Reflect.deleteProperty(window, 'gtag')
 })
 
 describe('email signup conversions', () => {

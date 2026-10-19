@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'
 import type { SocialSignInProvider } from '@/lib/auth/social-sign-in'
-import { trackSocialSignUpConversions } from '@/lib/auth/social-sign-up-conversion'
+import { trackSignUpCompletionConversions } from '@/lib/auth/social-sign-up-conversion'
 import { useTrackingConsent } from '@/lib/consent/tracking-consent'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
@@ -13,8 +13,8 @@ interface SocialSignUpCompletionProps {
   consentRequired: boolean
 }
 
-function isSocialSignInProvider(value: string | null): value is SocialSignInProvider {
-  return value === 'github' || value === 'google' || value === 'microsoft'
+function isSignUpConversionMethod(value: string | null): value is SocialSignInProvider | 'email' {
+  return value === 'email' || value === 'github' || value === 'google' || value === 'microsoft'
 }
 
 export function SocialSignUpCompletion({ consentRequired }: SocialSignUpCompletionProps) {
@@ -33,10 +33,10 @@ export function SocialSignUpCompletion({ consentRequired }: SocialSignUpCompleti
     redirectStartedRef.current = true
 
     const finishSignUp = async () => {
-      if (session?.user && isSocialSignInProvider(provider)) {
-        await trackSocialSignUpConversions({
+      if (session?.user && isSignUpConversionMethod(provider)) {
+        await trackSignUpCompletionConversions({
           marker,
-          provider,
+          method: provider,
           userId: session.user.id,
           measurement: consentRequired && measurement,
           marketing: consentRequired && marketing,
