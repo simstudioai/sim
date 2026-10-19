@@ -41,14 +41,15 @@ import { withProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError } from '@/providers/streaming-tool-loop-shared'
+import { isAbortError, providerFailureLogLevel } from '@/providers/streaming-tool-loop-shared'
 import { ensureToolCallId } from '@/providers/tool-call-id'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
-import type {
-  FunctionCallResponse,
-  ProviderRequest,
-  ProviderResponse,
-  TimeSegment,
+import {
+  EmptyProviderInputError,
+  type FunctionCallResponse,
+  type ProviderRequest,
+  type ProviderResponse,
+  type TimeSegment,
 } from '@/providers/types'
 import {
   isDeepResearchModel,
@@ -924,7 +925,7 @@ export async function executeDeepResearchRequest(
     const providerEndTime = Date.now()
     const duration = providerEndTime - providerStartTime
 
-    logger.error('Error in deep research request:', {
+    logger[providerFailureLogLevel(error, request.abortSignal)]('Error in deep research request:', {
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
@@ -980,6 +981,12 @@ export async function executeGeminiRequest(
 
   try {
     const { contents, tools, systemInstruction } = convertToGeminiFormat(request, providerType)
+    /** The SDK refuses empty `contents` with an opaque "contents are required"; a system prompt alone is not enough. */
+    if (contents.length === 0) {
+      throw new EmptyProviderInputError(
+        'The Agent has no user message to send, and Gemini needs one alongside any system prompt. Add a user message, or check that the value it references (for example <start.input>) is not empty.'
+      )
+    }
 
     // Build configuration
     const geminiConfig: GenerateContentConfig = {}
@@ -1444,7 +1451,7 @@ export async function executeGeminiRequest(
     const providerEndTime = Date.now()
     const duration = providerEndTime - providerStartTime
 
-    logger.error('Error in Gemini request:', {
+    logger[providerFailureLogLevel(error, request.abortSignal)]('Error in Gemini request:', {
       error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })

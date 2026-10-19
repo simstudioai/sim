@@ -2759,6 +2759,38 @@ describe('AgentBlockHandler', () => {
       expect(error.message).toContain('status=200')
     })
 
+    /**
+     * A Stop rejects the provider call with the run's own abort, which is not a provider
+     * timeout; rewriting it would hide it from the block executor's Stop handling.
+     */
+    it('passes the abort of a run the user stopped through unrewritten', async () => {
+      const inputs = { model: 'gemini-2.5-flash', userPrompt: 'hi', apiKey: 'test-api-key' }
+      mockGetProviderFromModel.mockReturnValue('google')
+      const run = new AbortController()
+      run.abort(new DOMException('user', 'AbortError'))
+      mockExecuteProviderRequest.mockRejectedValueOnce(run.signal.reason)
+
+      const error = await handler
+        .execute({ ...mockContext, abortSignal: run.signal }, mockBlock, inputs)
+        .catch((e) => e)
+
+      expect(error).toBe(run.signal.reason)
+    })
+
+    it('still reports a run the time limit cut off as a provider timeout', async () => {
+      const inputs = { model: 'gemini-2.5-flash', userPrompt: 'hi', apiKey: 'test-api-key' }
+      mockGetProviderFromModel.mockReturnValue('google')
+      const run = new AbortController()
+      run.abort(new DOMException('timeout', 'AbortError'))
+      mockExecuteProviderRequest.mockRejectedValueOnce(run.signal.reason)
+
+      const error = await handler
+        .execute({ ...mockContext, abortSignal: run.signal }, mockBlock, inputs)
+        .catch((e) => e)
+
+      expect(error.message).toContain('Provider request timed out')
+    })
+
     it('should not duplicate system prompt if it exists in memories', async () => {
       const inputs = {
         model: 'gpt-4o',

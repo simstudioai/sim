@@ -15,7 +15,10 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/mothership/tools/server/base-tool'
-import { writeCopilotWorkspaceFileByPath } from '@/lib/mothership/vfs/resource-writer'
+import {
+  validateCopilotWorkspaceFileWriteTarget,
+  writeCopilotWorkspaceFileByPath,
+} from '@/lib/mothership/vfs/resource-writer'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/file-manager'
 import { createWorkspaceFileSecretProvenanceFromRegistry } from '@/lib/uploads/contexts/workspace/file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -123,6 +126,14 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     }
 
     try {
+      const outputFile = params.outputs?.files?.[0]
+      if (outputFile?.path) {
+        await validateCopilotWorkspaceFileWriteTarget(context, {
+          workspaceId,
+          target: { path: outputFile.path, mode: outputFile.mode ?? 'create' },
+        })
+      }
+
       const prompt = params.prompt
       const apiKey = getRotatingApiKey('gemini')
       const ai = new GoogleGenAI({ apiKey })
@@ -196,7 +207,6 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       await recordServiceCost('nano_banana_2', NANO_BANANA_IMAGE_COST_USD)
 
       const ext = mimeType.includes('jpeg') || mimeType.includes('jpg') ? '.jpg' : '.png'
-      const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || `files/generated-image${ext}`
       const imageBuffer = Buffer.from(imageBase64, 'base64')
       const mode = outputFile?.mode ?? 'create'

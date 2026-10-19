@@ -421,12 +421,17 @@ describe('the speech request fal receives', () => {
   it.each([
     ['fal-ai/elevenlabs/tts/eleven-v3', { text: 'Hello there', voice: 'Aria' }],
     ['fal-ai/elevenlabs/tts/multilingual-v2', { text: 'Hello there', voice: 'Aria' }],
-    [undefined, { prompt: 'Hello there', voice: 'Aria' }],
+    [undefined, { prompt: 'Hello there', voice: 'Kore' }],
   ])('submits the text %s requires', async (model, expectedBody) => {
     const submitted = stubRejectingFalSubmit()
 
     await expect(
-      generateFalAudio({ prompt: 'Hello there', voice: 'Aria', model, onCost: vi.fn() })
+      generateFalAudio({
+        prompt: 'Hello there',
+        voice: expectedBody.voice,
+        model,
+        onCost: vi.fn(),
+      })
     ).rejects.toThrow()
 
     expect(submitted).toEqual([
@@ -436,4 +441,25 @@ describe('the speech request fal receives', () => {
       },
     ])
   })
+
+  it.each([
+    ['an explicit Gemini TTS', 'fal-ai/gemini-3.1-flash-tts'],
+    ['the default speech', undefined],
+  ])(
+    'refuses a voice %s model does not offer without submitting, naming the voices it does',
+    async (_label, model) => {
+      const submitted = stubRejectingFalSubmit()
+
+      const failure = generateFalAudio({
+        prompt: 'Hello there',
+        voice: 'Brian',
+        model,
+        onCost: vi.fn(),
+      })
+
+      await expect(failure).rejects.toThrow('Voice "Brian" is not available')
+      await expect(failure).rejects.toThrow('Kore')
+      expect(submitted).toEqual([])
+    }
+  )
 })

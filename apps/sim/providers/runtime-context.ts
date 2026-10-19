@@ -22,6 +22,7 @@ import type { ExecutionContext } from '@/executor/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import type { ProviderId } from '@/providers/types'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
@@ -318,12 +319,8 @@ export async function executeProviderTool(
     return recordResult({ rawResponse: result, modelResponse })
   } catch (error) {
     if (!registry || !toolCallRegistry) throw error
-    const errorName =
-      error && typeof error === 'object' && 'name' in error ? String(error.name) : undefined
     registry.mergeToolCallRegistry(toolCallRegistry)
-    if (errorName === 'AbortError' || errorName === 'APIUserAbortError') {
-      throw error
-    }
+    if (isAbortError(error)) throw error
     const rawResponse: ToolResponse = {
       success: false,
       output: {},

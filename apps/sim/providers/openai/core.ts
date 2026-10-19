@@ -27,7 +27,11 @@ import {
 import { fetchWithProviderRetry } from '@/providers/retry'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createStreamingExecution } from '@/providers/streaming-execution'
-import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
+import {
+  isAbortError,
+  parseToolArguments,
+  providerFailureLogLevel,
+} from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { EmptyProviderInputError, ProviderError } from '@/providers/types'
@@ -356,16 +360,19 @@ export async function executeResponsesProviderRequest(
       .map(([key, value]) => `${key}=${value}`)
     const context = [`phase=${phase}`, `elapsedMs=${elapsedMs}`, ...fields].join(' ')
 
-    logger.error(`${config.providerLabel} request failed in transport`, {
-      phase,
-      elapsedMs,
-      errorName: error.name,
-      model: config.modelName,
-      workflowId: request.workflowId,
-      blockId: request.blockId,
-      executionId: request.executionId,
-      ...detail,
-    })
+    logger[providerFailureLogLevel(error, request.abortSignal)](
+      `${config.providerLabel} request failed in transport`,
+      {
+        phase,
+        elapsedMs,
+        errorName: error.name,
+        model: config.modelName,
+        workflowId: request.workflowId,
+        blockId: request.blockId,
+        executionId: request.executionId,
+        ...detail,
+      }
+    )
 
     /**
      * A new Error rather than a mutation: the runtime raises these as `DOMException`,
@@ -978,10 +985,13 @@ export async function executeResponsesProviderRequest(
     const providerEndTimeISO = new Date(providerEndTime).toISOString()
     const totalDuration = providerEndTime - providerStartTime
 
-    logger.error(`Error in ${config.providerLabel} request:`, {
-      error,
-      duration: totalDuration,
-    })
+    logger[providerFailureLogLevel(error, request.abortSignal)](
+      `Error in ${config.providerLabel} request:`,
+      {
+        error,
+        duration: totalDuration,
+      }
+    )
 
     if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
