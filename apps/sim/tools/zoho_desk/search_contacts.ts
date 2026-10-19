@@ -26,28 +26,28 @@ export const zohoDeskSearchContactsTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    email: {
+    searchEmail: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Email ID of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.',
     },
-    phone: {
+    searchPhone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Phone number of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.',
     },
-    mobile: {
+    searchMobile: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Mobile number of the contact. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.',
     },
-    accountName: {
+    searchAccountName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -160,13 +160,13 @@ export const zohoDeskSearchContactsTool: ToolConfig<
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    lastName: {
+    searchLastName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Last name of the contact. Supports * wildcards.',
     },
-    firstName: {
+    searchFirstName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -190,20 +190,20 @@ export const zohoDeskSearchContactsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams({ from: String(params.from ?? 0) })
-      if (params.email != null && params.email !== '') {
-        const value = normalizeZohoDeskCommaList(params.email)
+      if (params.searchEmail != null && params.searchEmail !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchEmail)
         if (value !== undefined) query.set('email', String(value))
       }
-      if (params.phone != null && params.phone !== '') {
-        const value = normalizeZohoDeskCommaList(params.phone)
+      if (params.searchPhone != null && params.searchPhone !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchPhone)
         if (value !== undefined) query.set('phone', String(value))
       }
-      if (params.mobile != null && params.mobile !== '') {
-        const value = normalizeZohoDeskCommaList(params.mobile)
+      if (params.searchMobile != null && params.searchMobile !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchMobile)
         if (value !== undefined) query.set('mobile', String(value))
       }
-      if (params.accountName != null && params.accountName !== '') {
-        query.set('accountName', String(params.accountName))
+      if (params.searchAccountName != null && params.searchAccountName !== '') {
+        query.set('accountName', String(params.searchAccountName))
       }
       if (params.createdTimeRange != null && params.createdTimeRange !== '') {
         query.set('createdTimeRange', String(params.createdTimeRange))
@@ -260,11 +260,11 @@ export const zohoDeskSearchContactsTool: ToolConfig<
       if (params.customField10 != null && params.customField10 !== '') {
         query.set('customField10', String(params.customField10))
       }
-      if (params.lastName != null && params.lastName !== '') {
-        query.set('lastName', String(params.lastName))
+      if (params.searchLastName != null && params.searchLastName !== '') {
+        query.set('lastName', String(params.searchLastName))
       }
-      if (params.firstName != null && params.firstName !== '') {
-        query.set('firstName', String(params.firstName))
+      if (params.searchFirstName != null && params.searchFirstName !== '') {
+        query.set('firstName', String(params.searchFirstName))
       }
       if (params.fullName != null && params.fullName !== '') {
         query.set('fullName', String(params.fullName))

@@ -51,7 +51,7 @@ export const zohoDeskListAccountsTool: ToolConfig<
       description:
         'Sort field: website, email, phone, accountName, createdTime, modifiedTime. Prefix with - for descending.',
     },
-    fields: {
+    selectedFields: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -80,8 +80,8 @@ export const zohoDeskListAccountsTool: ToolConfig<
       if (params.sortBy != null && params.sortBy !== '') {
         query.set('sortBy', String(params.sortBy))
       }
-      if (params.fields != null && params.fields !== '') {
-        const value = normalizeZohoDeskCommaList(params.fields)
+      if (params.selectedFields != null && params.selectedFields !== '') {
+        const value = normalizeZohoDeskCommaList(params.selectedFields)
         if (value !== undefined) query.set('fields', String(value))
       }
       return `${getZohoDeskApiBase(params)}/accounts${query.size ? `?${query}` : ''}`
@@ -95,7 +95,7 @@ export const zohoDeskListAccountsTool: ToolConfig<
       success: true,
       output: {
         accounts: items.map((item) =>
-          projectZohoDeskResource(item, ZOHO_DESK_ACCOUNT_PROPERTIES, params?.fields)
+          projectZohoDeskResource(item, ZOHO_DESK_ACCOUNT_PROPERTIES, params?.selectedFields)
         ),
         count: items.length,
         nextFrom: items.length ? Number(params?.from ?? 1) + items.length : null,

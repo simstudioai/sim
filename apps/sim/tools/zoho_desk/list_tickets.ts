@@ -121,7 +121,7 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
       visibility: 'user-or-llm',
       description: 'Comma-separated team IDs or Unassigned',
     },
-    fields: {
+    selectedFields: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -168,7 +168,7 @@ export const zohoDeskListTicketsTool: ToolConfig<ZohoDeskListTicketsParams, Zoho
       if (params.viewId) query.set('viewId', params.viewId.trim())
       const teamIds = normalizeZohoDeskCommaList(params.teamIds)
       if (teamIds) query.set('teamIds', teamIds)
-      const fields = normalizeZohoDeskCommaList(params.fields)
+      const fields = normalizeZohoDeskCommaList(params.selectedFields)
       if (fields) query.set('fields', fields)
       if (params.sortBy) query.set('sortBy', params.sortBy)
       const include = normalizeZohoDeskCommaList(params.include)

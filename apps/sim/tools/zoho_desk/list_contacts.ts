@@ -26,7 +26,7 @@ export const zohoDeskListContactsTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    fields: {
+    selectedFields: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -69,8 +69,8 @@ export const zohoDeskListContactsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams({ from: String(params.from ?? 1) })
-      if (params.fields != null && params.fields !== '') {
-        const value = normalizeZohoDeskCommaList(params.fields)
+      if (params.selectedFields != null && params.selectedFields !== '') {
+        const value = normalizeZohoDeskCommaList(params.selectedFields)
         if (value !== undefined) query.set('fields', String(value))
       }
       if (params.viewId != null && params.viewId !== '') {
@@ -106,7 +106,7 @@ export const zohoDeskListContactsTool: ToolConfig<
       success: true,
       output: {
         contacts: items.map((item) =>
-          projectZohoDeskResource(item, ZOHO_DESK_CONTACT_PROPERTIES, params?.fields)
+          projectZohoDeskResource(item, ZOHO_DESK_CONTACT_PROPERTIES, params?.selectedFields)
         ),
         count: items.length,
         nextFrom: items.length ? Number(params?.from ?? 1) + items.length : null,

@@ -26,13 +26,13 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    email: {
+    searchEmail: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: `The corresponding email address associated with the ticket. example: 1. email=jack* 2.email=\${notempty} 3.email=\${empty}. Supports * wildcards. Supports empty/not-empty search operators. Comma-separated values.`,
     },
-    phone: {
+    searchPhone: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -45,20 +45,20 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: "The ticket's serial number. Exact match. Comma-separated values.",
     },
-    accountName: {
+    searchAccountName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Name of the account associated with the ticket. Supports * wildcards. Supports empty/not-empty search operators.',
     },
-    subject: {
+    searchSubject: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Subject of the ticket. Supports * wildcards.',
     },
-    departmentId: {
+    searchDepartmentId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -102,14 +102,14 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'ID of the ticket. Exact match. Comma-separated values.',
     },
-    productId: {
+    searchProductId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'ID of the product associated with the ticket. Exact match. Comma-separated values.',
     },
-    contactId: {
+    searchContactId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -121,20 +121,20 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Created time range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    priority: {
+    searchPriority: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description: 'Priority of the ticket. Exact match. Comma-separated values.',
     },
-    assigneeId: {
+    searchAssigneeId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
         'ID of the agent who is assigned to resolve the ticket. Exact match. Comma-separated values.',
     },
-    accountId: {
+    searchAccountId: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -147,7 +147,7 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Modified time range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    status: {
+    searchStatus: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -223,7 +223,7 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       description:
         'Custom-field filter in APIName:search value format. Supports * wildcards and empty/not-empty search operators.',
     },
-    channel: {
+    searchChannel: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -237,7 +237,7 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       description:
         'Customer response time range as two comma-separated ISO 8601 timestamps: start,end.',
     },
-    description: {
+    searchDescription: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -263,7 +263,7 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'The name of the contact who raised the ticket. Supports * wildcards.',
     },
-    category: {
+    searchCategory: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -274,26 +274,26 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams({ from: String(params.from ?? 0) })
-      if (params.email != null && params.email !== '') {
-        const value = normalizeZohoDeskCommaList(params.email)
+      if (params.searchEmail != null && params.searchEmail !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchEmail)
         if (value !== undefined) query.set('email', String(value))
       }
-      if (params.phone != null && params.phone !== '') {
-        const value = normalizeZohoDeskCommaList(params.phone)
+      if (params.searchPhone != null && params.searchPhone !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchPhone)
         if (value !== undefined) query.set('phone', String(value))
       }
       if (params.ticketNumber != null && params.ticketNumber !== '') {
         const value = normalizeZohoDeskCommaList(params.ticketNumber)
         if (value !== undefined) query.set('ticketNumber', String(value))
       }
-      if (params.accountName != null && params.accountName !== '') {
-        query.set('accountName', String(params.accountName))
+      if (params.searchAccountName != null && params.searchAccountName !== '') {
+        query.set('accountName', String(params.searchAccountName))
       }
-      if (params.subject != null && params.subject !== '') {
-        query.set('subject', String(params.subject))
+      if (params.searchSubject != null && params.searchSubject !== '') {
+        query.set('subject', String(params.searchSubject))
       }
-      if (params.departmentId != null && params.departmentId !== '') {
-        query.set('departmentId', String(params.departmentId))
+      if (params.searchDepartmentId != null && params.searchDepartmentId !== '') {
+        query.set('departmentId', String(params.searchDepartmentId))
       }
       if (params.productName != null && params.productName !== '') {
         query.set('productName', String(params.productName))
@@ -320,34 +320,34 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
         const value = normalizeZohoDeskCommaList(params.id)
         if (value !== undefined) query.set('id', String(value))
       }
-      if (params.productId != null && params.productId !== '') {
-        const value = normalizeZohoDeskCommaList(params.productId)
+      if (params.searchProductId != null && params.searchProductId !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchProductId)
         if (value !== undefined) query.set('productId', String(value))
       }
-      if (params.contactId != null && params.contactId !== '') {
-        const value = normalizeZohoDeskCommaList(params.contactId)
+      if (params.searchContactId != null && params.searchContactId !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchContactId)
         if (value !== undefined) query.set('contactId', String(value))
       }
       if (params.createdTimeRange != null && params.createdTimeRange !== '') {
         query.set('createdTimeRange', String(params.createdTimeRange))
       }
-      if (params.priority != null && params.priority !== '') {
-        const value = normalizeZohoDeskCommaList(params.priority)
+      if (params.searchPriority != null && params.searchPriority !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchPriority)
         if (value !== undefined) query.set('priority', String(value))
       }
-      if (params.assigneeId != null && params.assigneeId !== '') {
-        const value = normalizeZohoDeskCommaList(params.assigneeId)
+      if (params.searchAssigneeId != null && params.searchAssigneeId !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchAssigneeId)
         if (value !== undefined) query.set('assigneeId', String(value))
       }
-      if (params.accountId != null && params.accountId !== '') {
-        const value = normalizeZohoDeskCommaList(params.accountId)
+      if (params.searchAccountId != null && params.searchAccountId !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchAccountId)
         if (value !== undefined) query.set('accountId', String(value))
       }
       if (params.modifiedTimeRange != null && params.modifiedTimeRange !== '') {
         query.set('modifiedTimeRange', String(params.modifiedTimeRange))
       }
-      if (params.status != null && params.status !== '') {
-        const value = normalizeZohoDeskCommaList(params.status)
+      if (params.searchStatus != null && params.searchStatus !== '') {
+        const value = normalizeZohoDeskCommaList(params.searchStatus)
         if (value !== undefined) query.set('status', String(value))
       }
       if (params.customField1 != null && params.customField1 !== '') {
@@ -380,14 +380,14 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       if (params.customField10 != null && params.customField10 !== '') {
         query.set('customField10', String(params.customField10))
       }
-      if (params.channel != null && params.channel !== '') {
-        query.set('channel', String(params.channel))
+      if (params.searchChannel != null && params.searchChannel !== '') {
+        query.set('channel', String(params.searchChannel))
       }
       if (params.customerResponseTimeRange != null && params.customerResponseTimeRange !== '') {
         query.set('customerResponseTimeRange', String(params.customerResponseTimeRange))
       }
-      if (params.description != null && params.description !== '') {
-        query.set('description', String(params.description))
+      if (params.searchDescription != null && params.searchDescription !== '') {
+        query.set('description', String(params.searchDescription))
       }
       if (params.sortBy != null && params.sortBy !== '') {
         query.set('sortBy', String(params.sortBy))
@@ -398,8 +398,8 @@ export const zohoDeskSearchTicketsTool: ToolConfig<
       if (params.contactName != null && params.contactName !== '') {
         query.set('contactName', String(params.contactName))
       }
-      if (params.category != null && params.category !== '') {
-        query.set('category', String(params.category))
+      if (params.searchCategory != null && params.searchCategory !== '') {
+        query.set('category', String(params.searchCategory))
       }
       return `${getZohoDeskApiBase(params)}/tickets/search${query.size ? `?${query}` : ''}`
     },

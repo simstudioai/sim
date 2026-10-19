@@ -59,7 +59,7 @@ export const zohoDeskSendReplyTool: ToolConfig<ZohoDeskSendReplyParams, ZohoDesk
         description:
           'ID of the thread to which current thread is a reply, applicable only for EMAIL channel',
       },
-      direction: {
+      replyDirection: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
@@ -134,7 +134,7 @@ export const zohoDeskSendReplyTool: ToolConfig<ZohoDeskSendReplyParams, ZohoDesk
           content: params.content,
           contentType: params.contentType,
           inReplyToThreadId: params.inReplyToThreadId,
-          direction: params.direction,
+          direction: params.replyDirection,
           cc: params.cc,
           bcc: params.bcc,
           hasAttach: params.hasAttach,

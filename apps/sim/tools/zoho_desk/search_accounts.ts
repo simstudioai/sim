@@ -26,7 +26,7 @@ export const zohoDeskSearchAccountsTool: ToolConfig<
   oauth: { required: true, provider: 'zoho-desk' },
   params: {
     ...ZOHO_DESK_AUTH_PARAMS,
-    accountName: {
+    searchAccountName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -149,8 +149,8 @@ export const zohoDeskSearchAccountsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams({ from: String(params.from ?? 0) })
-      if (params.accountName != null && params.accountName !== '') {
-        query.set('accountName', String(params.accountName))
+      if (params.searchAccountName != null && params.searchAccountName !== '') {
+        query.set('accountName', String(params.searchAccountName))
       }
       if (params.createdTimeRange != null && params.createdTimeRange !== '') {
         query.set('createdTimeRange', String(params.createdTimeRange))

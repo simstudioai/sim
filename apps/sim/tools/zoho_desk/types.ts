@@ -31,7 +31,7 @@ export interface ZohoDeskListTicketsParams extends ZohoDeskBaseParams {
   include?: string
   viewId?: string
   teamIds?: string
-  fields?: string
+  selectedFields?: string
 }
 
 export interface ZohoDeskGetTicketParams extends ZohoDeskBaseParams {
@@ -403,26 +403,26 @@ export interface ZohoDeskCreateTicketResponse extends ToolResponse {
 }
 
 export interface ZohoDeskSearchTicketsParams extends ZohoDeskBaseParams {
-  email?: string
-  phone?: string
+  searchEmail?: string
+  searchPhone?: string
   ticketNumber?: string
-  accountName?: string
-  subject?: string
-  departmentId?: string
+  searchAccountName?: string
+  searchSubject?: string
+  searchDepartmentId?: string
   productName?: string
   _all?: string
   limit?: number
   from?: number
   dueDateRange?: string
   id?: string
-  productId?: string
-  contactId?: string
+  searchProductId?: string
+  searchContactId?: string
   createdTimeRange?: string
-  priority?: string
-  assigneeId?: string
-  accountId?: string
+  searchPriority?: string
+  searchAssigneeId?: string
+  searchAccountId?: string
   modifiedTimeRange?: string
-  status?: string
+  searchStatus?: string
   customField1?: string
   customField2?: string
   customField3?: string
@@ -433,13 +433,13 @@ export interface ZohoDeskSearchTicketsParams extends ZohoDeskBaseParams {
   customField8?: string
   customField9?: string
   customField10?: string
-  channel?: string
+  searchChannel?: string
   customerResponseTimeRange?: string
-  description?: string
+  searchDescription?: string
   sortBy?: string
   tag?: string
   contactName?: string
-  category?: string
+  searchCategory?: string
 }
 
 export interface ZohoDeskSearchTicketsResponse extends ToolResponse {
@@ -468,7 +468,7 @@ export interface ZohoDeskSendReplyParams extends ZohoDeskBaseParams {
   content: string
   contentType?: string
   inReplyToThreadId?: string
-  direction?: string
+  replyDirection?: string
   cc?: string
   bcc?: string
   hasAttach?: boolean
@@ -484,7 +484,7 @@ export interface ZohoDeskSendReplyResponse extends ToolResponse {
 }
 
 export interface ZohoDeskListContactsParams extends ZohoDeskBaseParams {
-  fields?: string
+  selectedFields?: string
   viewId?: string
   limit?: number
   from?: number
@@ -552,10 +552,10 @@ export interface ZohoDeskUpdateContactResponse extends ToolResponse {
 }
 
 export interface ZohoDeskSearchContactsParams extends ZohoDeskBaseParams {
-  email?: string
-  phone?: string
-  mobile?: string
-  accountName?: string
+  searchEmail?: string
+  searchPhone?: string
+  searchMobile?: string
+  searchAccountName?: string
   createdTimeRange?: string
   limit?: number
   from?: number
@@ -572,8 +572,8 @@ export interface ZohoDeskSearchContactsParams extends ZohoDeskBaseParams {
   customField8?: string
   customField9?: string
   customField10?: string
-  lastName?: string
-  firstName?: string
+  searchLastName?: string
+  searchFirstName?: string
   fullName?: string
   sortBy?: string
 }
@@ -592,7 +592,7 @@ export interface ZohoDeskListAccountsParams extends ZohoDeskBaseParams {
   limit?: number
   from?: number
   sortBy?: string
-  fields?: string
+  selectedFields?: string
 }
 
 export interface ZohoDeskListAccountsResponse extends ToolResponse {
@@ -647,7 +647,7 @@ export interface ZohoDeskUpdateAccountResponse extends ToolResponse {
 }
 
 export interface ZohoDeskSearchAccountsParams extends ZohoDeskBaseParams {
-  accountName?: string
+  searchAccountName?: string
   createdTimeRange?: string
   limit?: number
   from?: number
@@ -720,7 +720,7 @@ export interface ZohoDeskListAgentsParams extends ZohoDeskBaseParams {
   from?: number
   isConfirmed?: boolean
   departmentIds?: string
-  status?: string
+  agentStatus?: string
 }
 
 export interface ZohoDeskListAgentsResponse extends ToolResponse {

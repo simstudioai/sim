@@ -116,7 +116,7 @@ export const zohoDeskListAgentsTool: ToolConfig<
       description:
         'Comma-separated array of department IDs. Maximum number of IDs allowed is 50. Comma-separated values.',
     },
-    status: {
+    agentStatus: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
@@ -175,8 +175,8 @@ export const zohoDeskListAgentsTool: ToolConfig<
         const value = normalizeZohoDeskCommaList(params.departmentIds)
         if (value !== undefined) query.set('departmentIds', String(value))
       }
-      if (params.status != null && params.status !== '') {
-        query.set('status', String(params.status))
+      if (params.agentStatus != null && params.agentStatus !== '') {
+        query.set('status', String(params.agentStatus))
       }
       return `${getZohoDeskApiBase(params)}/agents${query.size ? `?${query}` : ''}`
     },
