@@ -5,7 +5,12 @@ import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
 import { prepareBlockState } from '@/stores/workflows/prepare-block-state'
 import * as toolMetadata from '@/tools/metadata'
 import { getSubBlocksForToolInput } from '@/tools/params'
+import { zohoDeskAddCommentTool } from '@/tools/zoho_desk/add_comment'
 import { zohoDeskCreateTicketTool } from '@/tools/zoho_desk/create_ticket'
+import { zohoDeskGetAccountTool } from '@/tools/zoho_desk/get_account'
+import { zohoDeskGetContactTool } from '@/tools/zoho_desk/get_contact'
+import { zohoDeskGetDepartmentTool } from '@/tools/zoho_desk/get_department'
+import { zohoDeskListContactsTool } from '@/tools/zoho_desk/list_contacts'
 import { zohoDeskListTicketsTool } from '@/tools/zoho_desk/list_tickets'
 import { zohoDeskSearchAccountsTool } from '@/tools/zoho_desk/search_accounts'
 import { zohoDeskSearchContactsTool } from '@/tools/zoho_desk/search_contacts'
@@ -28,6 +33,11 @@ beforeEach(() => {
         zohoDeskSearchTicketsTool,
         zohoDeskSearchContactsTool,
         zohoDeskSearchAccountsTool,
+        zohoDeskGetContactTool,
+        zohoDeskGetDepartmentTool,
+        zohoDeskListContactsTool,
+        zohoDeskUpdateContactTool,
+        zohoDeskAddCommentTool,
       ].find((tool) => tool.id === id)
     )
 })
@@ -273,5 +283,137 @@ describe('Zoho Desk operation transitions', () => {
         ...mapped,
       })
     ).not.toHaveProperty('direction')
+  })
+})
+
+describe('Zoho Desk lookup and read-option transitions', () => {
+  it.each([
+    { operation: 'get_contact', title: 'Contact ID' },
+    { operation: 'get_department', title: 'Department' },
+  ])('does not reuse a $operation lookup as a ticket reassignment', ({ operation, title }) => {
+    const editor = getSubBlocksForToolInput(
+      `zoho_desk_${operation}`,
+      'zoho_desk',
+      { operation },
+      undefined,
+      ZohoDeskBlock
+    )
+    const input = editor?.subBlocks.find((field) => field.title === title)
+    if (!input) throw new Error(`Lookup input missing: ${title}`)
+    const mapper = ZohoDeskBlock.tools.config?.params
+    const body = zohoDeskUpdateTicketTool.request.body
+    if (!mapper || typeof body !== 'function') throw new Error('Ticket mapping missing')
+    const mapped = mapper({
+      operation: 'update_ticket',
+      [input.id]: 'lookup-fixture',
+      priority: 'High',
+    })
+    expect(
+      body({ accessToken: 'fixture', orgId: 'org-fixture', ticketId: 'ticket-fixture', ...mapped })
+    ).toEqual({ priority: 'High' })
+  })
+
+  it.each([
+    {
+      operation: 'list_tickets',
+      target: 'search_tickets',
+      title: 'Sort By',
+      value: 'responseDueDate',
+      queryKey: 'sortBy',
+      buildUrl: (params: Record<string, unknown>) => {
+        const url = zohoDeskSearchTicketsTool.request.url
+        if (typeof url !== 'function') throw new Error('Search URL missing')
+        return url({ accessToken: 'fixture', orgId: 'org-fixture', ...params })
+      },
+    },
+    {
+      operation: 'list_contacts',
+      target: 'get_account',
+      title: 'Include',
+      value: 'accounts',
+      queryKey: 'include',
+      buildUrl: (params: Record<string, unknown>) => {
+        const url = zohoDeskGetAccountTool.request.url
+        if (typeof url !== 'function') throw new Error('Account URL missing')
+        return url({
+          accessToken: 'fixture',
+          orgId: 'org-fixture',
+          accountId: 'account-fixture',
+          ...params,
+        })
+      },
+    },
+  ])(
+    'does not reuse $operation options in $target',
+    ({ operation, target, title, value, queryKey, buildUrl }) => {
+      const editor = getSubBlocksForToolInput(
+        `zoho_desk_${operation}`,
+        'zoho_desk',
+        { operation },
+        undefined,
+        ZohoDeskBlock
+      )
+      const input = editor?.subBlocks.find((field) => field.title === title)
+      if (!input) throw new Error(`Read option missing: ${title}`)
+      const mapper = ZohoDeskBlock.tools.config?.params
+      if (!mapper) throw new Error('Request mapper missing')
+      const mapped = mapper({ operation: target, [input.id]: value })
+      expect(new URL(buildUrl(mapped)).searchParams.has(queryKey)).toBe(false)
+    }
+  )
+})
+
+describe('Zoho Desk mutation resource transitions', () => {
+  it('does not reuse contact edits in an account update', () => {
+    const editor = getSubBlocksForToolInput(
+      zohoDeskUpdateContactTool.id,
+      'zoho_desk',
+      { operation: 'update_contact' },
+      undefined,
+      ZohoDeskBlock
+    )
+    const email = editor?.subBlocks.find((field) => field.title === 'Email')
+    if (!email) throw new Error('Contact email input missing')
+    const mapper = ZohoDeskBlock.tools.config?.params
+    const body = zohoDeskUpdateAccountTool.request.body
+    if (!mapper || typeof body !== 'function') throw new Error('Account mapping missing')
+    const mapped = mapper({
+      operation: 'update_account',
+      [email.id]: 'contact@example.com',
+      accountName: 'Updated account',
+    })
+    expect(
+      body({
+        accessToken: 'fixture',
+        orgId: 'org-fixture',
+        accountId: 'account-fixture',
+        ...mapped,
+      })
+    ).toEqual({ accountName: 'Updated account' })
+  })
+
+  it('does not reuse an internal comment as outbound reply content', () => {
+    const stored = editorParams(zohoDeskAddCommentTool.id, 'add_comment', {
+      content: 'Internal staff note',
+      isPublic: false,
+    })
+    const mapper = ZohoDeskBlock.tools.config?.params
+    const body = zohoDeskSendReplyTool.request.body
+    if (!mapper || typeof body !== 'function') throw new Error('Reply mapping missing')
+    const mapped = mapper({
+      ...stored,
+      operation: 'send_reply',
+      fromEmailAddress: 'support@example.com',
+    })
+    const params = {
+      accessToken: 'fixture',
+      orgId: 'org-fixture',
+      ticketId: 'ticket-fixture',
+      content: '',
+      replyContent: '',
+      fromEmailAddress: '',
+      ...mapped,
+    }
+    expect(body(params)).not.toHaveProperty('content')
   })
 })
