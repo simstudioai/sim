@@ -1,10 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { ZohoDeskBlock } from '@/blocks/blocks/zoho-desk'
 import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
+import * as toolMetadata from '@/tools/metadata'
 import { getSubBlocksForToolInput } from '@/tools/params'
 import { zohoDeskCreateTicketTool } from '@/tools/zoho_desk/create_ticket'
 import { zohoDeskListTicketsTool } from '@/tools/zoho_desk/list_tickets'
 import { zohoDeskSendReplyTool } from '@/tools/zoho_desk/send_reply'
+
+let metadataSpy: MockInstance<typeof toolMetadata.getToolMetadata>
+
+beforeEach(() => {
+  metadataSpy = vi
+    .spyOn(toolMetadata, 'getToolMetadata')
+    .mockImplementation((id) =>
+      [zohoDeskCreateTicketTool, zohoDeskListTicketsTool, zohoDeskSendReplyTool].find(
+        (tool) => tool.id === id
+      )
+    )
+})
+
+afterEach(() => metadataSpy.mockRestore())
 
 const editorParams = (toolId: string, operation: string, values: Record<string, unknown>) => {
   const fields = getSubBlocksForToolInput(
