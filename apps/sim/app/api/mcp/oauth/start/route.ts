@@ -49,7 +49,7 @@ const DCR_UNSUPPORTED_MESSAGE =
 /**
  * The MCP SDK throws a plain `Error` (no typed class or code) when an auth server lacks a
  * `registration_endpoint`, so this string-match is the only available signal. Pinned to
- * `@modelcontextprotocol/sdk` v1.31.0 `registerClient` (client/auth.js): "Incompatible auth
+ * `@modelcontextprotocol/sdk` v1.32.1 `registerClient` (client/auth.js): "Incompatible auth
  * server: does not support dynamic client registration". If a version bump rephrases this, the
  * 422 branch silently stops firing (users get a generic 500) — update the substring here.
  */

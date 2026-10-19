@@ -150,6 +150,9 @@ export class McpClient {
       authProvider: useOauth ? this.authProvider : undefined,
       ...(useOauth ? {} : { requestInit: { headers: this.config.headers } }),
       fetch: (input, init) => runInOutboundScope(() => transportFetch(input, init)),
+      // The SDK's default ('same-origin') refuses cross-origin redirects; the guarded
+      // fetch already follows them with per-hop SSRF checks and cross-origin header stripping.
+      redirectPolicy: 'follow',
     })
 
     this.client = new Client(

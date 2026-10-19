@@ -283,11 +283,14 @@ async function bufferUnderDeadline(response: Response, signal: AbortSignal): Pro
   headers.delete('content-encoding')
   headers.delete('content-length')
   const nullBody = response.status === 204 || response.status === 205 || response.status === 304
-  return new Response(nullBody ? null : body, {
+  const buffered = new Response(nullBody ? null : body, {
     status: response.status,
     statusText: response.statusText,
     headers,
   })
+  // The SDK names an unfollowed redirect's target by resolving `Location` against `response.url`.
+  Object.defineProperty(buffered, 'url', { value: response.url, configurable: true })
+  return buffered
 }
 
 /**
@@ -334,7 +337,9 @@ function releaseStreamOnSettle(
  * attacker-controllable authorization-server metadata, so every request is re-validated
  * against the SSRF policy up front (fail fast, friendly errors) AND at socket-connect
  * time via the guarded lookup, with redirects followed manually under per-hop
- * validation (IP-literal targets included) and cross-origin header stripping.
+ * validation (IP-literal targets included) and cross-origin header stripping. The SDK's own
+ * `auth()` legs pass `redirect: 'manual'`: the 3xx comes back buffered, and the SDK follows
+ * it only within the same origin, re-entering this guard for each hop.
  *
  * The SDK provides none of the safety itself (no timeout on OAuth legs, lazy body reads),
  * so the guard owns it: the `timeoutMs` deadline covers validation + request + the buffered
