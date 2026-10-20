@@ -1,5 +1,5 @@
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { helpScoutHandler } from '@/lib/webhooks/providers/helpscout'
 import type { AuthContext, EventMatchContext } from '@/lib/webhooks/providers/types'
 import { getTrigger } from '@/triggers'
@@ -121,5 +121,32 @@ describe('helpScoutHandler.formatInput', () => {
         webUrl: 'https://secure.helpscout.net/conversation/123/12',
       },
     })
+  })
+})
+
+describe('helpScoutHandler.deleteSubscription', () => {
+  it('finishes strict cleanup for a trigger with no Sim-managed webhook', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    await expect(
+      helpScoutHandler.deleteSubscription?.({
+        webhook: { id: 'w1', providerConfig: { webhookSecret: 'manual-secret' } },
+        workflow: {},
+        requestId: 'r1',
+        strict: true,
+      })
+    ).resolves.toBeUndefined()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
+  })
+
+  it('still fails strict cleanup when the stored webhook ID is malformed', async () => {
+    await expect(
+      helpScoutHandler.deleteSubscription?.({
+        webhook: { id: 'w1', providerConfig: { externalId: 'not-a-number' } },
+        workflow: {},
+        requestId: 'r1',
+        strict: true,
+      })
+    ).rejects.toThrow('Invalid Help Scout webhook ID')
   })
 })

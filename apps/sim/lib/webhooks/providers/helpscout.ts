@@ -170,8 +170,14 @@ export const helpScoutHandler: WebhookProviderHandler = {
   }: DeleteSubscriptionContext): Promise<void> {
     const config = getProviderConfig(webhook)
     const externalId = toStringOrNull(config.externalId)?.trim()
-    if (!externalId || !HELPSCOUT_ID_PATTERN.test(externalId)) {
-      if (strict) throw new Error('Missing Help Scout webhook ID for deletion')
+    // Creation always stores the ID, so a trigger without one (set up manually before Sim managed
+    // Help Scout webhooks) has no subscription for Sim to delete.
+    if (!externalId) {
+      logger.info(`[${requestId}] No managed Help Scout webhook to delete`)
+      return
+    }
+    if (!HELPSCOUT_ID_PATTERN.test(externalId)) {
+      if (strict) throw new Error('Invalid Help Scout webhook ID for deletion')
       return
     }
     const credentialId = toStringOrNull(config.credentialId)
