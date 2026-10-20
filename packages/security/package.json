@@ -50,6 +50,10 @@
       "types": "./src/standard-webhooks.ts",
       "default": "./src/standard-webhooks.ts"
     },
+    "./tls-trust": {
+      "types": "./src/tls-trust.ts",
+      "default": "./src/tls-trust.ts"
+    },
     "./tokens": {
       "types": "./src/tokens.ts",
       "default": "./src/tokens.ts"

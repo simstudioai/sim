@@ -54,7 +54,7 @@
     "@types/node": "24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "electron": "43.5.0",
+    "electron": "43.8.1",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.2",
     "jsdom": "^26.0.0",
