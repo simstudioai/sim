@@ -4,9 +4,11 @@ Use this contract for the Sim drafting workflow and the final editorial review. 
 
 ## Choose the right-sized story
 
-A standalone update needs a meaningful capability, a substantial improvement to an existing task, or an action-required notice. State what a team can do, the situation it helps with, and how the proposed media will demonstrate it.
+A standalone update needs a meaningful capability, a substantial improvement to an existing task, or an action-required notice. State what a team can do, the situation it helps with, and how the proposed media supports the story.
 
-Routine retry fixes, loading improvements, internal refactors, and small polish belong in a related edition's short Improvements or Fixes section. Keep unrelated maintenance in the technical release history. A batch of commits is not a story. Defer a batch with only supporting notes instead of padding it into a launch. An urgent breaking change needs a timely notice and a verified explanatory image when there is no useful product screen.
+Choose by product impact, not commit type, integration count, or ease of screenshotting. Consider Chat, Search, Files, Tables, collaboration, building and running agents, and account controls alongside integrations and models. Ask what a team can do differently, what recurring friction was removed, or what action it must take. Compare credible alternatives before choosing the lead; do not turn an implementation mechanism into a launch to create variety. Integrations can lead when their benefit is the strongest story, but operation counts alone are not a headline.
+
+A substantial product fix can join a related edition's short Improvements or Fixes section. Keep routine input validation, retry handling, cancellation cleanup, internal race fixes, refactors, and small polish in the technical release history; a clearer error alone is not an action-required notice. A batch of commits is not a story. Defer a batch with only supporting notes instead of padding it into a launch. An urgent breaking change needs a timely notice and a verified explanatory image when there is no useful product screen.
 
 Keep existing article URLs, original dates, and RSS identities when refining historical copy. Do not merge existing entries just to make a larger announcement. Preserve material version, permission, and rollout restrictions.
 
@@ -27,6 +29,8 @@ Use short active sentences and familiar words. Technical identifiers, retry timi
 ## Make the media prove one thing
 
 Choose the format before capture. A screenshot suits a state or configuration. A 20–45 second recording suits an interaction. A clearly labeled, verified diagram suits an invisible system change. Generated art can explain a concept, but cannot stand in for product evidence.
+
+An original editorial illustration can be the article's lead image when a concept is clearer than a product capture. Use Sim's restrained monochrome, painterly landscape or architectural style, with no baked-in headline, fabricated UI, or invented results. Describe it as an illustration in alt text and record its prompt, provenance, and final asset in the production brief. Independently verify the feature and rollout; artwork never establishes either. Choose the story first and the appropriate media second.
 
 Every production brief records:
 
