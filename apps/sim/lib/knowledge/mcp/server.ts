@@ -6,6 +6,7 @@ import { parseRetryAfter } from '@sim/utils/retry'
 import type { NextRequest } from 'next/server'
 import {
   chatSearchMcpSchema,
+  liveSearchMcpDefaultTopK,
   liveSearchMcpSchema,
   readLiveDocumentMcpSchema,
 } from '@/lib/api/contracts/knowledge/mcp'
@@ -133,13 +134,14 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     },
     async (input: unknown, extra: { signal: AbortSignal }) =>
       execute('search', knowledgeOperations.search, extra.signal, async (registry, signal) => {
-        const { query, topK, nativeQueries, ...filters } = liveSearchMcpSchema.parse(input)
+        const parsed = liveSearchMcpSchema.parse(input)
+        const { query, topK, nativeQueries, ...filters } = parsed
         const result = await searchLiveKnowledge.execute({
           principal,
           input: {
             organizationId,
             query,
-            topK,
+            topK: topK ?? liveSearchMcpDefaultTopK(parsed),
             nativeQueries,
             filters,
             resultSecretRegistry: registry,
