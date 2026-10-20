@@ -140,6 +140,7 @@ function projectPerson(value: unknown): HelpScoutPerson | null {
     type: toStringOrNull(data.type),
     first: toStringOrNull(data.first),
     last: toStringOrNull(data.last),
+    name: toStringOrNull(data.name),
     email: toStringOrNull(data.email),
   }
 }

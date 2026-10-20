@@ -5,6 +5,7 @@ export interface HelpScoutPerson {
   type: string | null
   first: string | null
   last: string | null
+  name: string | null
   email: string | null
 }
 
@@ -197,6 +198,7 @@ const PERSON_PROPERTIES = {
   type: { type: 'string', description: 'user, team, or customer', nullable: true },
   first: { type: 'string', description: 'First name', nullable: true },
   last: { type: 'string', description: 'Last name', nullable: true },
+  name: { type: 'string', description: 'Team name, when the person is a team', nullable: true },
   email: { type: 'string', description: 'Email address', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 

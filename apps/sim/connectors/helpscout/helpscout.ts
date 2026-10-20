@@ -26,6 +26,7 @@ const PersonSchema = z
     type: z.string().nullable().optional(),
     first: z.string().nullable().optional(),
     last: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
     email: z.string().nullable().optional(),
   })
   .passthrough()
@@ -169,7 +170,12 @@ function resolveMaxConversations(sourceConfig: Record<string, unknown>): number 
 function personName(person: z.infer<typeof PersonSchema> | null | undefined): string {
   if (!person) return 'Unknown'
   const name = [person.first, person.last].filter((part) => part?.trim()).join(' ')
-  return name || person.email || (person.type === 'customer' ? 'Customer' : 'Help Scout user')
+  return (
+    name ||
+    person.name?.trim() ||
+    person.email ||
+    (person.type === 'customer' ? 'Customer' : 'Help Scout user')
+  )
 }
 
 function conversationMetadata(conversation: HelpScoutConversation): Record<string, unknown> {
