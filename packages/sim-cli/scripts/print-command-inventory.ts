@@ -60,6 +60,17 @@ interface InventoryCommand extends CommandReference {
   mothershipUnavailable?: true
   /** In a group hidden from `--help` until launch; the worker exposes it only when Sim enables it. */
   unpublished?: true
+  /**
+   * The commander aliases of each `path` segment, aligned with `path` (`kb` for `knowledge`,
+   * `ls` for `list`), so the worker reads `sim kb folders ls` as the command it runs. Absent
+   * when no segment has one.
+   */
+  pathAliases?: string[][]
+  /**
+   * Paths this command used to have (`tables count create` for `tables rows count`). The CLI
+   * still runs each as this command, hidden from help, so the worker reads it as this one.
+   */
+  renamedFrom?: string[][]
 }
 
 function isHiddenCommand(command: Command): boolean {
@@ -75,10 +86,17 @@ function subcommands(command: Command, atRoot: boolean): Command[] {
   )
 }
 
-function collectLeaves(command: Command, prefix: string[]): { path: string[]; command: Command }[] {
-  const children = subcommands(command, prefix.length === 0)
-  if (children.length === 0) return [{ path: prefix, command }]
-  return children.flatMap((child) => collectLeaves(child, [...prefix, child.name()]))
+interface Leaf {
+  path: string[]
+  /** The commands `path` names, outermost first. */
+  chain: Command[]
+  command: Command
+}
+
+function collectLeaves(command: Command, chain: Command[]): Leaf[] {
+  const children = subcommands(command, chain.length === 0)
+  if (children.length === 0) return [{ path: chain.map((node) => node.name()), chain, command }]
+  return children.flatMap((child) => collectLeaves(child, [...chain, child]))
 }
 
 /**
@@ -135,7 +153,7 @@ function mothershipRefuses(operations: readonly V2OperationName[]): boolean {
 
 const program = buildProgram()
 const inventory: InventoryCommand[] = collectLeaves(program, []).map(
-  ({ path: cmdPath, command }) => {
+  ({ path: cmdPath, chain, command }) => {
     const args: InventoryArgument[] = command.registeredArguments.map((argument) => ({
       name: argument.name(),
       required: argument.required,
@@ -173,6 +191,13 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
       ? commandReference(OPENAPI_DOCS, op, jsonFields, cursorSlot(op) !== null)
       : {}
     const called = calledOperations(command) ?? []
+    const pathAliases = chain.map((node) => node.aliases())
+    const contract = operation ? CLI_CONTRACT[operation] : undefined
+    const renamedFrom =
+      contract?.renamedFrom &&
+      (contract.command === undefined || contract.command === cmdPath.join(' '))
+        ? contract.renamedFrom.map((from) => from.split(' '))
+        : []
     return {
       path: cmdPath,
       description: command.description(),
@@ -181,6 +206,8 @@ const inventory: InventoryCommand[] = collectLeaves(program, []).map(
       ...reference,
       ...(mothershipRefuses(called) ? { mothershipUnavailable: true as const } : {}),
       ...(UNPUBLISHED_GROUPS.has(cmdPath[0] ?? '') ? { unpublished: true as const } : {}),
+      ...(pathAliases.some((aliases) => aliases.length > 0) ? { pathAliases } : {}),
+      ...(renamedFrom.length > 0 ? { renamedFrom } : {}),
     }
   }
 )
