@@ -43,7 +43,7 @@ faq:
   - q: "Does Sim's Human in the Loop block reject unapproved actions on its own?"
     a: "No. Resuming the block doesn't approve anything, so a downstream Condition must check the reviewer's approval field and route rejections away from the write step."
   - q: "Does running the GitHub MCP Server locally keep all data local?"
-    a: "No. The model provider and MCP host still receive the prompts, repository content, and tool results the agent works with."
+    a: "Not by itself, because the model provider and MCP host still receive the prompts, repository content, and tool results. Running self-hosted Sim with a local model as well keeps that data on infrastructure the team controls."
   - q: "Can n8n connect to the GitHub MCP Server?"
     a: "n8n can use MCP client capabilities where the required server transport is supported, and it can also perform GitHub operations through native GitHub nodes."
   - q: "Is n8n open source?"
@@ -317,7 +317,7 @@ The GitHub-hosted remote option is usually simpler, while a local deployment giv
 
 A remote deployment reduces server maintenance and can simplify onboarding where the chosen client and authentication method are supported. A local deployment can be preferable when a team needs tighter process control, development-time inspection, or a client transport that fits local execution.
 
-Running the server locally also doesn't keep repository data local: the model provider and the MCP host still receive the prompts, file contents, and tool results the agent uses. Local operation does not automatically make the system secure. Credentials, logs, container configuration, updates, outbound access, and the connected AI host still need protection. Remote operation also does not remove the need for least privilege and repository-level controls.
+Running only the server locally doesn't keep repository data local, because the model provider and the MCP host still receive the prompts, file contents, and tool results the agent uses. To keep that data on infrastructure the team controls, the host and the model need to run there too, for example self-hosted Sim with a local model through Ollama, vLLM, LM Studio, or LiteLLM. Local operation does not automatically make the system secure. Credentials, logs, container configuration, updates, outbound access, and the connected AI host still need protection. Remote operation also does not remove the need for least privilege and repository-level controls.
 
 Use GitHub’s current deployment documentation in the official repository to choose between the supported options rather than assuming every MCP client supports every transport.
 
