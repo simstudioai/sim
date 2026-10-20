@@ -1,0 +1,1607 @@
+---
+title: Help Scout
+description: Manage Help Scout conversations, replies, notes, and customers
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="helpscout"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Help Scout](https://www.helpscout.com/) is a customer support platform with shared inboxes, a help center, and live chat.
+
+With the Help Scout block, you can:
+
+- **Work the queue**: List and search conversations by inbox, folder, status, tag, assignee, or search query, and read conversations with their threads.
+- **Respond to customers**: Open conversations, send replies or save them as drafts, and add internal notes.
+- **Route and organize**: Change a conversation's status, assignee, inbox, subject, and tags, delete conversations, and run manual workflows.
+- **Manage customers**: Search, read, create, and update customer profiles.
+- **Look up your account**: List inboxes, folders, users, teams, tags, and workflows.
+- **React to events**: Start workflows when conversations are created, replied to, assigned, tagged, moved, merged, or deleted, or when customers are created or updated.
+
+Connect your Help Scout account through OAuth, or save your own Help Scout app as a credential: create an app under **Your Profile > My Apps** (a placeholder redirect URL is fine) and paste its App ID and App Secret. Either way, Sim acts with the permissions of the Help Scout user behind the connection, who needs the **Access API** permission.
+
+For triggers, add the Webhooks app in Help Scout (**Settings > Workspace > Apps > Webhooks**), paste the trigger's webhook URL as the callback URL, and enter the same secret key in Help Scout and in the trigger. Sim verifies every delivery's `X-HelpScout-Signature`.
+
+In Sim, the Help Scout block lets your agents triage new conversations, draft replies from your knowledge base, keep customer records current, and report on what your support team is handling.
+{/* MANUAL-CONTENT-END */}
+
+
+## OAuth scopes [#oauth-scopes]
+
+Sim requests no OAuth scopes for Help Scout. For a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations and OAuth](/platform/self-hosting/integrations-oauth) for setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/helpscout` |
+| Environment variables | `HELPSCOUT_CLIENT_ID`, `HELPSCOUT_CLIENT_SECRET` |
+
+## Use the block [#usage-instructions]
+
+Connect Help Scout to search and read conversations and their threads, open new conversations, reply to customers, add internal notes, change status, assignee, inbox, subject, and tags, and manage customers. List inboxes, folders, users, teams, tags, and workflows, and run manual workflows. Trigger workflows from Help Scout webhooks for conversation and customer events.
+
+## Actions
+
+### Help Scout List Conversations
+
+List and search Help Scout conversations by inbox, folder, status, tag, assignee, or search query. Returns 25 conversations per page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mailboxId` | string | No | Inbox ID to filter by; comma-separate several IDs |
+| `folderId` | string | No | Folder ID to filter by |
+| `status` | string | No | active, open, pending, closed, spam, or all \(defaults to active\) |
+| `tag` | string | No | Tag to filter by; comma-separate several tags |
+| `assignedTo` | string | No | User ID of the assignee to filter by |
+| `modifiedSince` | string | No | Only conversations modified after this time \(e.g. 2024-05-04T12:00:03Z\) |
+| `number` | number | No | Conversation number to look up |
+| `sortField` | string | No | createdAt, customerEmail, customerName, mailboxid, modifiedAt, number, score, status, subject, or waitingSince |
+| `sortOrder` | string | No | asc or desc \(defaults to desc\) |
+| `query` | string | No | Advanced search query, e.g. \(email:"jane@example.com" AND tag:"vip"\) |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | array | Conversations on this page |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `type` | string | email, chat, or phone |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel \(email, beacon, api, and others\) |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `tag` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values |
+|     ↳ `id` | number | Custom field ID |
+|     ↳ `name` | string | Custom field name |
+|     ↳ `value` | string | Stored value \(the option ID for dropdowns\) |
+|     ↳ `text` | string | Display text |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout Get Conversation
+
+Get a Help Scout conversation by ID, optionally with its threads.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `includeThreads` | boolean | No | Include the conversation threads \(chat threads may be truncated\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversation` | json | Conversation details |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `type` | string | email, chat, or phone |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel \(email, beacon, api, and others\) |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `tag` | string | Tag name |
+|     ↳ `color` | string | Tag color |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values |
+|     ↳ `id` | number | Custom field ID |
+|     ↳ `name` | string | Custom field name |
+|     ↳ `value` | string | Stored value \(the option ID for dropdowns\) |
+|     ↳ `text` | string | Display text |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `threads` | array | Conversation threads \(empty unless threads were included\) |
+|   ↳ `id` | number | Thread ID |
+|   ↳ `type` | string | customer, message, note, chat, phone, lineitem, and others |
+|   ↳ `status` | string | Conversation status set by the thread |
+|   ↳ `state` | string | published, draft, hidden, bounced, or review |
+|   ↳ `body` | string | Thread content |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `customer` | json | Customer associated with the thread |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdBy` | json | User or customer who created the thread |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `assignedTo` | json | User or team assigned by the thread |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `to` | array | To email addresses |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `createdAt` | string | When the thread was created |
+|   ↳ `openedAt` | string | When the customer viewed the reply |
+|   ↳ `savedReplyId` | number | ID of the saved reply used for the thread |
+|   ↳ `attachments` | array | Attachments on the thread |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `filename` | string | File name |
+|     ↳ `mimeType` | string | MIME type |
+|     ↳ `size` | number | Size in bytes |
+|     ↳ `state` | string | valid or virus |
+
+### Help Scout Create Conversation
+
+Create a Help Scout conversation in an inbox with a first customer message, reply, or note. A new customer is created when the email is not already known.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subject` | string | Yes | Conversation subject |
+| `mailboxId` | string | Yes | ID of the inbox to create the conversation in |
+| `type` | string | No | email, chat, or phone \(defaults to email\) |
+| `status` | string | No | active, pending, or closed \(defaults to active\) |
+| `customerId` | string | No | Existing customer ID; takes precedence over the customer email |
+| `customerEmail` | string | No | Customer email, used when no customer ID is given |
+| `customerFirstName` | string | No | First name, used only when a new customer is created |
+| `customerLastName` | string | No | Last name, used only when a new customer is created |
+| `threadType` | string | No | customer \(a message from the customer\), reply \(a reply to the customer\), or note \(defaults to customer\) |
+| `text` | string | Yes | Text of the first thread |
+| `assignTo` | string | No | User or team ID to assign; omit to follow the inbox settings |
+| `tags` | string | No | Comma-separated tags to add |
+| `autoReply` | boolean | No | Send the inbox auto reply; only valid when threadType is customer |
+| `userId` | string | No | ID of the user creating the conversation; defaults to the connected user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | ID of the new conversation |
+| `webUrl` | string | Link to the new conversation in Help Scout |
+
+### Help Scout Reply to Conversation
+
+Send a reply to the customer on a Help Scout conversation, or save it as a draft.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `customerId` | string | Yes | ID of the customer being replied to \(the primary customer ID\) |
+| `text` | string | Yes | Reply text |
+| `draft` | boolean | No | Save the reply as a draft instead of sending it |
+| `status` | string | No | Conversation status to set with the thread: active, pending, closed, open, spam, or inbox_predefined \(the inbox default\) |
+| `assignTo` | string | No | User or team ID to assign once the reply is sent |
+| `cc` | string | No | Comma-separated CC email addresses |
+| `bcc` | string | No | Comma-separated BCC email addresses |
+| `userId` | string | No | ID of the user adding the thread; defaults to the connected user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Add Note
+
+Add an internal note to a Help Scout conversation. Customers never see notes.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `text` | string | Yes | Note text |
+| `status` | string | No | Conversation status to set with the thread: active, pending, closed, open, spam, or inbox_predefined \(the inbox default\) |
+| `userId` | string | No | ID of the user adding the thread; defaults to the connected user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Update Conversation Status
+
+Change the status of a Help Scout conversation to active, open, pending, closed, or spam.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `status` | string | Yes | active, open, pending, closed, or spam |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Assign Conversation
+
+Assign a Help Scout conversation to a user or team.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `assignTo` | string | Yes | User or team ID to assign the conversation to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Unassign Conversation
+
+Remove the assignee from a Help Scout conversation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Update Conversation Subject
+
+Change the subject of a Help Scout conversation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `subject` | string | Yes | New subject |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Move Conversation
+
+Move a Help Scout conversation to another inbox.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `mailboxId` | string | Yes | ID of the inbox to move the conversation to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Set Conversation Tags
+
+Replace the full tag list on a Help Scout conversation. Tags left out are removed, an empty list removes every tag, and unknown tags are created.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `tags` | string | No | Comma-separated tags the conversation should have, including any existing tags to keep. Leave empty to remove every tag. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | json | Conversations \(list_conversations\) |
+| `conversation` | json | Conversation details \(get_conversation\) |
+| `threads` | json | Conversation threads \(get_conversation, list_threads\) |
+| `id` | number | ID of the created conversation or customer |
+| `webUrl` | string | Link to the created conversation in Help Scout |
+| `conversationId` | number | ID of the conversation that changed |
+| `threadId` | number | ID of the created reply or note |
+| `customers` | json | Customers \(list_customers\) |
+| `customer` | json | Customer details \(get_customer\) |
+| `customerId` | number | ID of the updated customer |
+| `mailboxes` | json | Inboxes \(list_mailboxes\) |
+| `folders` | json | Folders \(list_folders\) |
+| `users` | json | Users \(list_users\) |
+| `user` | json | Connected user \(get_current_user\) |
+| `companyId` | number | Help Scout company ID \(get_current_user\) |
+| `tags` | json | Tags \(list_tags\) |
+| `teams` | json | Teams \(list_teams\) |
+| `workflows` | json | Workflows \(list_workflows\) |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | json | Conversations the workflow ran on |
+| `page` | json | Pagination details for list operations |
+| `nextPage` | number | Next page number, or null on the last page |
+
+### Help Scout Delete Conversation
+
+Delete a Help Scout conversation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversationId` | number | ID of the deleted conversation |
+
+### Help Scout List Threads
+
+List the threads (customer messages, replies, notes, and activity) of a Help Scout conversation, newest first, including full chat threads.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `conversationId` | string | Yes | Conversation ID |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Threads on this page, newest first |
+|   ↳ `id` | number | Thread ID |
+|   ↳ `type` | string | customer, message, note, chat, phone, lineitem, and others |
+|   ↳ `status` | string | Conversation status set by the thread |
+|   ↳ `state` | string | published, draft, hidden, bounced, or review |
+|   ↳ `body` | string | Thread content |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `customer` | json | Customer associated with the thread |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `createdBy` | json | User or customer who created the thread |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `assignedTo` | json | User or team assigned by the thread |
+|     ↳ `id` | number | User, team, or customer ID |
+|     ↳ `type` | string | user, team, or customer |
+|     ↳ `first` | string | First name |
+|     ↳ `last` | string | Last name |
+|     ↳ `email` | string | Email address |
+|   ↳ `to` | array | To email addresses |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `createdAt` | string | When the thread was created |
+|   ↳ `openedAt` | string | When the customer viewed the reply |
+|   ↳ `savedReplyId` | number | ID of the saved reply used for the thread |
+|   ↳ `attachments` | array | Attachments on the thread |
+|     ↳ `id` | number | Attachment ID |
+|     ↳ `filename` | string | File name |
+|     ↳ `mimeType` | string | MIME type |
+|     ↳ `size` | number | Size in bytes |
+|     ↳ `state` | string | valid or virus |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout List Customers
+
+List and search Help Scout customers by inbox, name, modification date, or search query (for example by email). Returns 50 customers per page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mailboxId` | string | No | Inbox ID to filter by |
+| `firstName` | string | No | First name to filter by |
+| `lastName` | string | No | Last name to filter by |
+| `modifiedSince` | string | No | Only customers modified after this time \(e.g. 2024-05-04T12:00:03Z\) |
+| `sortField` | string | No | createdAt, firstName, lastName, or modifiedAt \(defaults to createdAt\) |
+| `sortOrder` | string | No | asc or desc \(defaults to desc\) |
+| `query` | string | No | Advanced search query, e.g. \(email:"jane@example.com"\) |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | array | Customers on this page |
+|   ↳ `id` | number | Customer ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `gender` | string | Gender |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `location` | string | Location |
+|   ↳ `organization` | string | Organization name |
+|   ↳ `organizationId` | number | Organization ID |
+|   ↳ `photoType` | string | Photo source |
+|   ↳ `photoUrl` | string | Photo URL |
+|   ↳ `age` | string | Age |
+|   ↳ `background` | string | Notes about the customer |
+|   ↳ `conversationCount` | number | Number of conversations with the customer |
+|   ↳ `draft` | boolean | Whether the customer is a draft record |
+|   ↳ `createdAt` | string | When the customer was created |
+|   ↳ `updatedAt` | string | When the customer was updated |
+|   ↳ `emails` | array | Email addresses |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `phones` | array | Phone numbers |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `websites` | array | Websites |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `socialProfiles` | array | Social profiles |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `chats` | array | Chat handles |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `properties` | array | Customer property values |
+|     ↳ `slug` | string | Property slug |
+|     ↳ `name` | string | Property name |
+|     ↳ `type` | string | Property type |
+|     ↳ `value` | string | Stored value |
+|     ↳ `text` | string | Display text |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout Get Customer
+
+Get a Help Scout customer by ID, including emails, phones, websites, social profiles, and properties.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | json | Customer details |
+|   ↳ `id` | number | Customer ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `gender` | string | Gender |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `location` | string | Location |
+|   ↳ `organization` | string | Organization name |
+|   ↳ `organizationId` | number | Organization ID |
+|   ↳ `photoType` | string | Photo source |
+|   ↳ `photoUrl` | string | Photo URL |
+|   ↳ `age` | string | Age |
+|   ↳ `background` | string | Notes about the customer |
+|   ↳ `conversationCount` | number | Number of conversations with the customer |
+|   ↳ `draft` | boolean | Whether the customer is a draft record |
+|   ↳ `createdAt` | string | When the customer was created |
+|   ↳ `updatedAt` | string | When the customer was updated |
+|   ↳ `emails` | array | Email addresses |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `phones` | array | Phone numbers |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `websites` | array | Websites |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `socialProfiles` | array | Social profiles |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `chats` | array | Chat handles |
+|     ↳ `id` | number | Entry ID |
+|     ↳ `value` | string | Entry value |
+|     ↳ `type` | string | Entry type |
+|   ↳ `properties` | array | Customer property values |
+|     ↳ `slug` | string | Property slug |
+|     ↳ `name` | string | Property name |
+|     ↳ `type` | string | Property type |
+|     ↳ `value` | string | Stored value |
+|     ↳ `text` | string | Display text |
+
+### Help Scout Create Customer
+
+Create a Help Scout customer with a profile, email address, and phone number.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `firstName` | string | No | First name \(up to 40 characters\) |
+| `lastName` | string | No | Last name \(up to 40 characters\) |
+| `jobTitle` | string | No | Job title \(up to 60 characters\) |
+| `location` | string | No | Location \(up to 60 characters\) |
+| `background` | string | No | Notes about the customer \(up to 200 characters\) |
+| `age` | string | No | Age, e.g. 30-35 |
+| `gender` | string | No | male, female, or unknown |
+| `photoUrl` | string | No | Photo URL \(up to 200 characters\) |
+| `email` | string | No | Email address |
+| `emailType` | string | No | work, home, or other \(defaults to work\) |
+| `phone` | string | No | Phone number |
+| `phoneType` | string | No | work, home, mobile, fax, pager, or other \(defaults to work\) |
+| `organizationId` | string | No | ID of the organization the customer belongs to |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | number | ID of the new customer |
+
+### Help Scout Update Customer
+
+Update profile fields on a Help Scout customer. Only the fields you provide are changed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Customer ID |
+| `firstName` | string | No | First name \(up to 40 characters\) |
+| `lastName` | string | No | Last name \(up to 40 characters\) |
+| `jobTitle` | string | No | Job title \(up to 60 characters\) |
+| `location` | string | No | Location \(up to 60 characters\) |
+| `background` | string | No | Notes about the customer \(up to 200 characters\) |
+| `age` | string | No | Age, e.g. 30-35 |
+| `gender` | string | No | male, female, or unknown |
+| `photoUrl` | string | No | Photo URL \(up to 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerId` | number | ID of the updated customer |
+
+### Help Scout List Inboxes
+
+List the Help Scout inboxes (mailboxes) the connected user can access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `mailboxes` | array | Inboxes on this page |
+|   ↳ `id` | number | Inbox ID |
+|   ↳ `name` | string | Inbox name |
+|   ↳ `slug` | string | Inbox slug |
+|   ↳ `email` | string | Inbox email address |
+|   ↳ `createdAt` | string | When the inbox was created |
+|   ↳ `updatedAt` | string | When the inbox was updated |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout List Folders
+
+List the folders in a Help Scout inbox with their conversation counts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mailboxId` | string | Yes | Inbox ID |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `folders` | array | Folders on this page |
+|   ↳ `id` | number | Folder ID |
+|   ↳ `name` | string | Folder name |
+|   ↳ `type` | string | Folder type |
+|   ↳ `userId` | number | ID of the folder owner |
+|   ↳ `totalCount` | number | Total conversations in the folder |
+|   ↳ `activeCount` | number | Active conversations in the folder |
+|   ↳ `updatedAt` | string | When the folder was updated |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout List Users
+
+List Help Scout users, optionally filtered by exact email or by inbox.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | No | Exact email address to look up |
+| `mailboxId` | string | No | Inbox ID to filter by |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | Users on this page |
+|   ↳ `id` | number | User ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `role` | string | Account role |
+|   ↳ `timezone` | string | Time zone |
+|   ↳ `photoUrl` | string | Photo URL |
+|   ↳ `type` | string | User type |
+|   ↳ `mention` | string | Mention handle |
+|   ↳ `initials` | string | Initials |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `alternateEmails` | array | Alternate email addresses |
+|   ↳ `createdAt` | string | When the user was created |
+|   ↳ `updatedAt` | string | When the user was updated |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout Get Current User
+
+Get the Help Scout user the connection acts as, and its company ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | json | Connected user |
+|   ↳ `id` | number | User ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `email` | string | Email address |
+|   ↳ `role` | string | Account role |
+|   ↳ `timezone` | string | Time zone |
+|   ↳ `photoUrl` | string | Photo URL |
+|   ↳ `type` | string | User type |
+|   ↳ `mention` | string | Mention handle |
+|   ↳ `initials` | string | Initials |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `phone` | string | Phone number |
+|   ↳ `alternateEmails` | array | Alternate email addresses |
+|   ↳ `createdAt` | string | When the user was created |
+|   ↳ `updatedAt` | string | When the user was updated |
+| `companyId` | number | Help Scout company ID |
+
+### Help Scout List Tags
+
+List the tags used across all Help Scout inboxes, in alphabetical order.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | Tags on this page |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `name` | string | Tag name |
+|   ↳ `slug` | string | Tag slug |
+|   ↳ `ticketCount` | number | Number of conversations with the tag |
+|   ↳ `createdAt` | string | When the tag was created |
+|   ↳ `updatedAt` | string | When the tag was updated |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout List Teams
+
+List the teams in the Help Scout account. Team IDs can be used to assign conversations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | Teams on this page |
+|   ↳ `id` | number | Team ID |
+|   ↳ `name` | string | Team name |
+|   ↳ `mention` | string | Mention handle |
+|   ↳ `initials` | string | Initials |
+|   ↳ `timezone` | string | Time zone |
+|   ↳ `photoUrl` | string | Photo URL |
+|   ↳ `createdAt` | string | When the team was created |
+|   ↳ `updatedAt` | string | When the team was updated |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout List Workflows
+
+List Help Scout workflows, optionally filtered by inbox or by type (manual or automatic).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `mailboxId` | string | No | Inbox ID to filter by |
+| `workflowType` | string | No | manual or automatic |
+| `page` | number | No | Page number to fetch, starting at 1 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflows` | array | Workflows on this page |
+|   ↳ `id` | number | Workflow ID |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `type` | string | manual or automatic |
+|   ↳ `status` | string | active, inactive, or invalid |
+|   ↳ `order` | number | Workflow order |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `createdAt` | string | When the workflow was created |
+|   ↳ `modifiedAt` | string | When the workflow was modified |
+| `page` | json | Pagination details |
+|   ↳ `number` | number | Current page number |
+|   ↳ `size` | number | Results per page |
+|   ↳ `totalElements` | number | Total matching results |
+|   ↳ `totalPages` | number | Total number of pages |
+| `nextPage` | number | Page number to request next, or null on the last page |
+
+### Help Scout Run Workflow
+
+Run a manual Help Scout workflow on up to 50 conversations. The conversations must be in the same inbox as the workflow.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `workflowId` | string | Yes | ID of the manual workflow to run |
+| `conversationIds` | string | Yes | Comma-separated conversation IDs \(up to 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `workflowId` | number | ID of the workflow that ran |
+| `conversationIds` | array | Conversations the workflow ran on |
+
+
+
+## Triggers
+
+A trigger starts a workflow when a supported event occurs in this service.
+
+### Help Scout Agent Replied
+
+Trigger workflow when a user replies to a Help Scout conversation (auto replies are not included)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Conversation Assigned
+
+Trigger workflow when a Help Scout conversation is assigned
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Conversation Created
+
+Trigger workflow when a conversation is created in Help Scout
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Conversation Deleted
+
+Trigger workflow when a Help Scout conversation is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | ID of the deleted conversation |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Conversation Merged
+
+Trigger workflow when Help Scout conversations are merged
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Conversation Moved
+
+Trigger workflow when a Help Scout conversation is moved to another inbox
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Conversation Status Changed
+
+Trigger workflow when the status of a Help Scout conversation changes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Conversation Tags Updated
+
+Trigger workflow when the tags on a Help Scout conversation change
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Customer Created
+
+Trigger workflow when a customer is created in Help Scout (fires for every inbox)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `customerId` | number | Customer ID |
+| `customer` | object |  |
+|   ↳ `id` | number | Customer ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `gender` | string | Gender |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `location` | string | Location |
+|   ↳ `organization` | string | Organization name |
+|   ↳ `organizationId` | number | Organization ID |
+|   ↳ `photoType` | string | Photo source |
+|   ↳ `photoUrl` | string | Photo URL |
+|   ↳ `age` | string | Age |
+|   ↳ `background` | string | Notes about the customer |
+|   ↳ `conversationCount` | number | Number of conversations |
+|   ↳ `draft` | boolean | Whether the customer is a draft record |
+|   ↳ `createdAt` | string | When the customer was created |
+|   ↳ `updatedAt` | string | When the customer was updated |
+|   ↳ `emails` | array | Email addresses \(id, value, type\) |
+|   ↳ `phones` | array | Phone numbers \(id, value, type\) |
+|   ↳ `websites` | array | Websites \(id, value, type\) |
+|   ↳ `socialProfiles` | array | Social profiles \(id, value, type\) |
+|   ↳ `chats` | array | Chat handles \(id, value, type\) |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Customer Replied
+
+Trigger workflow when a customer replies to a Help Scout conversation
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Customer Updated
+
+Trigger workflow when a Help Scout customer is updated
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `customerId` | number | Customer ID |
+| `customer` | object |  |
+|   ↳ `id` | number | Customer ID |
+|   ↳ `firstName` | string | First name |
+|   ↳ `lastName` | string | Last name |
+|   ↳ `gender` | string | Gender |
+|   ↳ `jobTitle` | string | Job title |
+|   ↳ `location` | string | Location |
+|   ↳ `organization` | string | Organization name |
+|   ↳ `organizationId` | number | Organization ID |
+|   ↳ `photoType` | string | Photo source |
+|   ↳ `photoUrl` | string | Photo URL |
+|   ↳ `age` | string | Age |
+|   ↳ `background` | string | Notes about the customer |
+|   ↳ `conversationCount` | number | Number of conversations |
+|   ↳ `draft` | boolean | Whether the customer is a draft record |
+|   ↳ `createdAt` | string | When the customer was created |
+|   ↳ `updatedAt` | string | When the customer was updated |
+|   ↳ `emails` | array | Email addresses \(id, value, type\) |
+|   ↳ `phones` | array | Phone numbers \(id, value, type\) |
+|   ↳ `websites` | array | Websites \(id, value, type\) |
+|   ↳ `socialProfiles` | array | Social profiles \(id, value, type\) |
+|   ↳ `chats` | array | Chat handles \(id, value, type\) |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Note Created
+
+Trigger workflow when a note is added to a Help Scout conversation
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `conversationId` | number | Conversation ID |
+| `conversation` | object |  |
+|   ↳ `id` | number | Conversation ID |
+|   ↳ `number` | number | Conversation number shown in Help Scout |
+|   ↳ `threadCount` | number | Number of published threads, excluding notes |
+|   ↳ `folderId` | number | Folder ID |
+|   ↳ `status` | string | active, pending, closed, or spam |
+|   ↳ `state` | string | published, draft, or deleted |
+|   ↳ `subject` | string | Subject |
+|   ↳ `preview` | string | Preview text from the most recent thread |
+|   ↳ `mailboxId` | number | Inbox ID |
+|   ↳ `assignee` | json | User or team the conversation is assigned to |
+|   ↳ `createdBy` | json | User or customer who created the conversation |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `createdAt` | string | When the conversation was created |
+|   ↳ `closedAt` | string | When the conversation was closed |
+|   ↳ `closedBy` | number | ID of the user who closed it |
+|   ↳ `userUpdatedAt` | string | When a user last updated the conversation |
+|   ↳ `customerWaitingSince` | string | When the customer started waiting for a reply |
+|   ↳ `sourceType` | string | Originating channel |
+|   ↳ `sourceVia` | string | user or customer |
+|   ↳ `tags` | array | Tags on the conversation \(id, tag, color\) |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `customFields` | array | Custom field values \(id, name, value, text\) |
+|   ↳ `webUrl` | string | Link to the conversation in Help Scout |
+| `payload` | json | Raw Help Scout webhook payload |
+
+
+---
+
+### Help Scout Webhook (All Selected Events)
+
+Trigger on every event selected for this URL in Help Scout. Sim does not filter deliveries for this trigger.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Help Scout event name, e.g. convo.created |
+| `payload` | json | Raw Help Scout webhook payload |
+

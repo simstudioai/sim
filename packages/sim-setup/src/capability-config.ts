@@ -1097,6 +1097,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     RAMP_CLIENT_ID: { input: 'text' },
     RAMP_CLIENT_SECRET: { input: 'secret' },
   },
+  helpscout: {
+    HELPSCOUT_CLIENT_ID: { input: 'text' },
+    HELPSCOUT_CLIENT_SECRET: { input: 'secret' },
+  },
   wealthbox: {
     WEALTHBOX_CLIENT_ID: { input: 'text' },
     WEALTHBOX_CLIENT_SECRET: { input: 'secret' },

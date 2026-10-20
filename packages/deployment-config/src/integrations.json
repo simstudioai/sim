@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-18",
+  "updatedAt": "2026-10-20",
   "integrations": [
     {
       "type": "onepassword",
@@ -12676,6 +12676,193 @@
       "integrationType": "sales",
       "tags": ["enrichment", "automation", "agentic"],
       "updatedAt": "2026-08-21"
+    },
+    {
+      "type": "helpscout",
+      "slug": "help-scout",
+      "name": "Help Scout",
+      "description": "Manage Help Scout conversations, replies, notes, and customers",
+      "longDescription": "Connect Help Scout to search and read conversations and their threads, open new conversations, reply to customers, add internal notes, change status, assignee, inbox, subject, and tags, and manage customers. List inboxes, folders, users, teams, tags, and workflows, and run manual workflows. Trigger workflows from Help Scout webhooks for conversation and customer events.",
+      "bgColor": "#FFFFFF",
+      "iconName": "HelpScoutIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/helpscout",
+      "operations": [
+        {
+          "name": "List Conversations",
+          "description": "List and search Help Scout conversations by inbox, folder, status, tag, assignee, or search query. Returns 25 conversations per page."
+        },
+        {
+          "name": "Get Conversation",
+          "description": "Get a Help Scout conversation by ID, optionally with its threads."
+        },
+        {
+          "name": "Create Conversation",
+          "description": "Create a Help Scout conversation in an inbox with a first customer message, reply, or note. A new customer is created when the email is not already known."
+        },
+        {
+          "name": "Reply to Conversation",
+          "description": "Send a reply to the customer on a Help Scout conversation, or save it as a draft."
+        },
+        {
+          "name": "Add Note",
+          "description": "Add an internal note to a Help Scout conversation. Customers never see notes."
+        },
+        {
+          "name": "Update Conversation Status",
+          "description": "Change the status of a Help Scout conversation to active, open, pending, closed, or spam."
+        },
+        {
+          "name": "Assign Conversation",
+          "description": "Assign a Help Scout conversation to a user or team."
+        },
+        {
+          "name": "Unassign Conversation",
+          "description": "Remove the assignee from a Help Scout conversation."
+        },
+        {
+          "name": "Update Conversation Subject",
+          "description": "Change the subject of a Help Scout conversation."
+        },
+        {
+          "name": "Move Conversation",
+          "description": "Move a Help Scout conversation to another inbox."
+        },
+        {
+          "name": "Set Conversation Tags",
+          "description": "Replace the full tag list on a Help Scout conversation. Tags left out are removed, an empty list removes every tag, and unknown tags are created."
+        },
+        {
+          "name": "Delete Conversation",
+          "description": "Delete a Help Scout conversation."
+        },
+        {
+          "name": "List Threads",
+          "description": "List the threads (customer messages, replies, notes, and activity) of a Help Scout conversation, newest first, including full chat threads."
+        },
+        {
+          "name": "List Customers",
+          "description": "List and search Help Scout customers by inbox, name, modification date, or search query (for example by email). Returns 50 customers per page."
+        },
+        {
+          "name": "Get Customer",
+          "description": "Get a Help Scout customer by ID, including emails, phones, websites, social profiles, and properties."
+        },
+        {
+          "name": "Create Customer",
+          "description": "Create a Help Scout customer with a profile, email address, and phone number."
+        },
+        {
+          "name": "Update Customer",
+          "description": "Update profile fields on a Help Scout customer. Only the fields you provide are changed."
+        },
+        {
+          "name": "List Inboxes",
+          "description": "List the Help Scout inboxes (mailboxes) the connected user can access."
+        },
+        {
+          "name": "List Folders",
+          "description": "List the folders in a Help Scout inbox with their conversation counts."
+        },
+        {
+          "name": "List Users",
+          "description": "List Help Scout users, optionally filtered by exact email or by inbox."
+        },
+        {
+          "name": "Get Current User",
+          "description": "Get the Help Scout user the connection acts as, and its company ID."
+        },
+        {
+          "name": "List Tags",
+          "description": "List the tags used across all Help Scout inboxes, in alphabetical order."
+        },
+        {
+          "name": "List Teams",
+          "description": "List the teams in the Help Scout account. Team IDs can be used to assign conversations."
+        },
+        {
+          "name": "List Workflows",
+          "description": "List Help Scout workflows, optionally filtered by inbox or by type (manual or automatic)."
+        },
+        {
+          "name": "Run Workflow",
+          "description": "Run a manual Help Scout workflow on up to 50 conversations. The conversations must be in the same inbox as the workflow."
+        }
+      ],
+      "operationCount": 25,
+      "triggers": [
+        {
+          "id": "helpscout_conversation_created",
+          "name": "Help Scout Conversation Created",
+          "description": "Trigger workflow when a conversation is created in Help Scout"
+        },
+        {
+          "id": "helpscout_customer_replied",
+          "name": "Help Scout Customer Replied",
+          "description": "Trigger workflow when a customer replies to a Help Scout conversation"
+        },
+        {
+          "id": "helpscout_agent_replied",
+          "name": "Help Scout Agent Replied",
+          "description": "Trigger workflow when a user replies to a Help Scout conversation (auto replies are not included)"
+        },
+        {
+          "id": "helpscout_note_created",
+          "name": "Help Scout Note Created",
+          "description": "Trigger workflow when a note is added to a Help Scout conversation"
+        },
+        {
+          "id": "helpscout_conversation_assigned",
+          "name": "Help Scout Conversation Assigned",
+          "description": "Trigger workflow when a Help Scout conversation is assigned"
+        },
+        {
+          "id": "helpscout_conversation_status_changed",
+          "name": "Help Scout Conversation Status Changed",
+          "description": "Trigger workflow when the status of a Help Scout conversation changes"
+        },
+        {
+          "id": "helpscout_conversation_tags_updated",
+          "name": "Help Scout Conversation Tags Updated",
+          "description": "Trigger workflow when the tags on a Help Scout conversation change"
+        },
+        {
+          "id": "helpscout_conversation_moved",
+          "name": "Help Scout Conversation Moved",
+          "description": "Trigger workflow when a Help Scout conversation is moved to another inbox"
+        },
+        {
+          "id": "helpscout_conversation_merged",
+          "name": "Help Scout Conversation Merged",
+          "description": "Trigger workflow when Help Scout conversations are merged"
+        },
+        {
+          "id": "helpscout_conversation_deleted",
+          "name": "Help Scout Conversation Deleted",
+          "description": "Trigger workflow when a Help Scout conversation is deleted"
+        },
+        {
+          "id": "helpscout_customer_created",
+          "name": "Help Scout Customer Created",
+          "description": "Trigger workflow when a customer is created in Help Scout (fires for every inbox)"
+        },
+        {
+          "id": "helpscout_customer_updated",
+          "name": "Help Scout Customer Updated",
+          "description": "Trigger workflow when a Help Scout customer is updated"
+        },
+        {
+          "id": "helpscout_webhook",
+          "name": "Help Scout Webhook (All Selected Events)",
+          "description": "Trigger on every event selected for this URL in Help Scout. Sim does not filter deliveries for this trigger."
+        }
+      ],
+      "triggerCount": 13,
+      "authType": "oauth",
+      "oauthServiceId": "helpscout",
+      "category": "tools",
+      "integrationType": "support",
+      "tags": ["customer-support", "ticketing", "webhooks"],
+      "updatedAt": "2026-10-20"
     },
     {
       "type": "hex",
