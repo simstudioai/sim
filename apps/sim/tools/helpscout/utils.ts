@@ -20,7 +20,7 @@ import type { OutputProperty } from '@/tools/types'
 
 export const HELPSCOUT_API_BASE = 'https://api.helpscout.net/v2'
 
-const HELPSCOUT_ID_PATTERN = /^\d{1,18}$/
+const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
 
 export function buildHelpScoutHeaders(accessToken: string): Record<string, string> {
   return {
@@ -33,7 +33,11 @@ export function buildHelpScoutHeaders(accessToken: string): Record<string, strin
 /** Help Scout IDs are positive integers; reject anything else before it reaches a URL or body. */
 export function parseHelpScoutId(value: unknown, paramName: string): number {
   const text = typeof value === 'number' ? String(value) : (toStringOrNull(value)?.trim() ?? '')
-  if (!HELPSCOUT_ID_PATTERN.test(text) || Number(text) <= 0) {
+  if (
+    !HELPSCOUT_ID_PATTERN.test(text) ||
+    !Number.isSafeInteger(Number(text)) ||
+    Number(text) <= 0
+  ) {
     throw new Error(`${paramName} must be a numeric Help Scout ID`)
   }
   return Number(text)
@@ -87,7 +91,7 @@ export function readResourceId(response: Response): number | null {
 /** Parses an ID carried as text (a header or query string), or null when it is not one. */
 function parseIdText(value: string | null): number | null {
   const text = value?.trim() ?? ''
-  return HELPSCOUT_ID_PATTERN.test(text) ? Number(text) : null
+  return HELPSCOUT_ID_PATTERN.test(text) && Number.isSafeInteger(Number(text)) ? Number(text) : null
 }
 
 export function projectPage(data: Record<string, unknown>): {
@@ -457,7 +461,7 @@ const CUSTOMER_PROFILE_LIMITS = {
   photoUrl: 200,
 } as const
 
-export const CUSTOMER_PROFILE_FIELDS = [
+const CUSTOMER_PROFILE_FIELDS = [
   'firstName',
   'lastName',
   'jobTitle',

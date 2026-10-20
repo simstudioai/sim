@@ -12789,8 +12789,74 @@
         }
       ],
       "operationCount": 25,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "helpscout_conversation_created",
+          "name": "Help Scout Conversation Created",
+          "description": "Trigger workflow when a conversation is created in Help Scout"
+        },
+        {
+          "id": "helpscout_customer_replied",
+          "name": "Help Scout Customer Replied",
+          "description": "Trigger workflow when a customer replies to a Help Scout conversation"
+        },
+        {
+          "id": "helpscout_agent_replied",
+          "name": "Help Scout Agent Replied",
+          "description": "Trigger workflow when a user replies to a Help Scout conversation (auto replies are not included)"
+        },
+        {
+          "id": "helpscout_note_created",
+          "name": "Help Scout Note Created",
+          "description": "Trigger workflow when a note is added to a Help Scout conversation"
+        },
+        {
+          "id": "helpscout_conversation_assigned",
+          "name": "Help Scout Conversation Assigned",
+          "description": "Trigger workflow when a Help Scout conversation is assigned"
+        },
+        {
+          "id": "helpscout_conversation_status_changed",
+          "name": "Help Scout Conversation Status Changed",
+          "description": "Trigger workflow when the status of a Help Scout conversation changes"
+        },
+        {
+          "id": "helpscout_conversation_tags_updated",
+          "name": "Help Scout Conversation Tags Updated",
+          "description": "Trigger workflow when the tags on a Help Scout conversation change"
+        },
+        {
+          "id": "helpscout_conversation_moved",
+          "name": "Help Scout Conversation Moved",
+          "description": "Trigger workflow when a Help Scout conversation is moved to another inbox"
+        },
+        {
+          "id": "helpscout_conversation_merged",
+          "name": "Help Scout Conversation Merged",
+          "description": "Trigger workflow when Help Scout conversations are merged"
+        },
+        {
+          "id": "helpscout_conversation_deleted",
+          "name": "Help Scout Conversation Deleted",
+          "description": "Trigger workflow when a Help Scout conversation is deleted"
+        },
+        {
+          "id": "helpscout_customer_created",
+          "name": "Help Scout Customer Created",
+          "description": "Trigger workflow when a customer is created in Help Scout (fires for every inbox)"
+        },
+        {
+          "id": "helpscout_customer_updated",
+          "name": "Help Scout Customer Updated",
+          "description": "Trigger workflow when a Help Scout customer is updated"
+        },
+        {
+          "id": "helpscout_webhook",
+          "name": "Help Scout Webhook (All Selected Events)",
+          "description": "Trigger on every event selected for this URL in Help Scout. Sim does not filter deliveries for this trigger."
+        }
+      ],
+      "triggerCount": 13,
       "authType": "oauth",
       "oauthServiceId": "helpscout",
       "category": "tools",

@@ -121,7 +121,7 @@ export const helpScoutCreateConversationTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Send the inbox auto reply (requires a customer thread)',
+      description: 'Send the inbox auto reply; only valid when threadType is customer',
     },
     userId: {
       type: 'string',
@@ -144,6 +144,9 @@ export const helpScoutCreateConversationTool: ToolConfig<
       }
       if (!THREAD_TYPES.has(threadType)) {
         throw new Error('threadType must be customer, reply, or note')
+      }
+      if (params.autoReply && threadType !== 'customer') {
+        throw new Error('autoReply requires the first thread to be a customer thread')
       }
       const customer = buildCustomer(params)
       const tags = toStringList(params.tags)

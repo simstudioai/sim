@@ -4,7 +4,7 @@ import type { TriggerOutput } from '@/triggers/types'
 export const HELPSCOUT_GENERIC_TRIGGER_ID = 'helpscout_webhook'
 
 /** Trigger IDs mapped to the Help Scout event names they fire on (the `X-HelpScout-Event` header). */
-export const HELPSCOUT_TRIGGER_EVENTS: Record<string, string> = {
+const HELPSCOUT_TRIGGER_EVENTS: Record<string, string> = {
   helpscout_conversation_created: 'convo.created',
   helpscout_customer_replied: 'convo.customer.reply.created',
   helpscout_agent_replied: 'convo.agent.reply.created',

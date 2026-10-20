@@ -8,13 +8,13 @@ export interface HelpScoutPerson {
   email: string | null
 }
 
-export interface HelpScoutConversationTag {
+interface HelpScoutConversationTag {
   id: number | null
   tag: string | null
   color: string | null
 }
 
-export interface HelpScoutConversationCustomField {
+interface HelpScoutConversationCustomField {
   id: number | null
   name: string | null
   value: string | null
@@ -83,7 +83,7 @@ export interface HelpScoutCustomerEntry {
   type: string | null
 }
 
-export interface HelpScoutCustomerProperty {
+interface HelpScoutCustomerProperty {
   slug: string | null
   name: string | null
   type: string | null

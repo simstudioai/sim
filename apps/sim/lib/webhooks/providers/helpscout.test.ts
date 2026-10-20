@@ -50,7 +50,7 @@ describe('helpScoutHandler.verifyAuth', () => {
     ['no signature header', DOC_BODY, undefined, DOC_SECRET],
     ['no configured secret', DOC_BODY, DOC_SIGNATURE, undefined],
   ])('rejects %s', async (_case, body, signature, secret) => {
-    const headers = signature ? { 'x-helpscout-signature': signature } : {}
+    const headers: Record<string, string> = signature ? { 'x-helpscout-signature': signature } : {}
     const res = await helpScoutHandler.verifyAuth?.(authContext(body, headers, secret))
     expect(res?.status).toBe(401)
   })

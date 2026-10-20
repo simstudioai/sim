@@ -46,22 +46,6 @@ const LIST_OPERATIONS = [
 
 const CUSTOMER_PROFILE_OPERATIONS = ['create_customer', 'update_customer']
 
-const HELPSCOUT_TRIGGER_IDS = [
-  'helpscout_conversation_created',
-  'helpscout_customer_replied',
-  'helpscout_agent_replied',
-  'helpscout_note_created',
-  'helpscout_conversation_assigned',
-  'helpscout_conversation_status_changed',
-  'helpscout_conversation_tags_updated',
-  'helpscout_conversation_moved',
-  'helpscout_conversation_merged',
-  'helpscout_conversation_deleted',
-  'helpscout_customer_created',
-  'helpscout_customer_updated',
-  'helpscout_webhook',
-]
-
 const TIMESTAMP_WAND = {
   enabled: true,
   prompt:
@@ -118,7 +102,7 @@ export const HelpScoutBlock: BlockConfig = {
         get_conversation: [{ text: 'Read conversation', field: 'conversationId', core: true }],
         create_conversation: [
           { text: 'Open conversation', field: 'subject', core: true },
-          { text: 'in', field: ['mailboxSelector', 'mailboxId'] },
+          { text: 'in', field: ['mailboxSelector', 'mailboxId'], core: true },
         ],
         create_reply: ['Reply', { text: 'to conversation', field: 'conversationId', core: true }],
         create_note: ['Add note', { text: 'to conversation', field: 'conversationId', core: true }],
@@ -128,7 +112,7 @@ export const HelpScoutBlock: BlockConfig = {
         ],
         assign_conversation: [
           { text: 'Assign conversation', field: 'conversationId', core: true },
-          { text: 'to', field: ['assigneeSelector', 'assignTo'] },
+          { text: 'to', field: ['assigneeSelector', 'assignTo'], core: true },
         ],
         unassign_conversation: [
           { text: 'Unassign conversation', field: 'conversationId', core: true },
@@ -139,7 +123,7 @@ export const HelpScoutBlock: BlockConfig = {
         ],
         move_conversation: [
           { text: 'Move conversation', field: 'conversationId', core: true },
-          { text: 'to', field: ['mailboxSelector', 'mailboxId'] },
+          { text: 'to', field: ['mailboxSelector', 'mailboxId'], core: true },
         ],
         set_conversation_tags: [
           { text: 'Set tags', field: 'tags' },
@@ -154,7 +138,10 @@ export const HelpScoutBlock: BlockConfig = {
         create_customer: ['Create customer', { text: 'with email', field: 'email' }],
         update_customer: [{ text: 'Update customer', field: 'customerId', core: true }],
         list_mailboxes: ['List inboxes'],
-        list_folders: ['List folders', { text: 'in', field: ['mailboxSelector', 'mailboxId'] }],
+        list_folders: [
+          'List folders',
+          { text: 'in', field: ['mailboxSelector', 'mailboxId'], core: true },
+        ],
         list_users: ['List users', { text: 'in', field: ['mailboxSelector', 'mailboxId'] }],
         get_current_user: ['Read connected user'],
         list_tags: ['List tags'],
@@ -162,7 +149,7 @@ export const HelpScoutBlock: BlockConfig = {
         list_workflows: ['List workflows', { text: 'in', field: ['mailboxSelector', 'mailboxId'] }],
         run_workflow: [
           { text: 'Run workflow', field: 'workflowId', core: true },
-          { text: 'on', field: 'conversationIds' },
+          { text: 'on', field: 'conversationIds', core: true },
         ],
       },
     },
@@ -724,7 +711,19 @@ export const HelpScoutBlock: BlockConfig = {
       mode: 'advanced',
       condition: { field: 'operation', value: LIST_OPERATIONS },
     },
-    ...HELPSCOUT_TRIGGER_IDS.flatMap((triggerId) => getTrigger(triggerId).subBlocks),
+    ...getTrigger('helpscout_conversation_created').subBlocks,
+    ...getTrigger('helpscout_customer_replied').subBlocks,
+    ...getTrigger('helpscout_agent_replied').subBlocks,
+    ...getTrigger('helpscout_note_created').subBlocks,
+    ...getTrigger('helpscout_conversation_assigned').subBlocks,
+    ...getTrigger('helpscout_conversation_status_changed').subBlocks,
+    ...getTrigger('helpscout_conversation_tags_updated').subBlocks,
+    ...getTrigger('helpscout_conversation_moved').subBlocks,
+    ...getTrigger('helpscout_conversation_merged').subBlocks,
+    ...getTrigger('helpscout_conversation_deleted').subBlocks,
+    ...getTrigger('helpscout_customer_created').subBlocks,
+    ...getTrigger('helpscout_customer_updated').subBlocks,
+    ...getTrigger('helpscout_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -850,7 +849,21 @@ export const HelpScoutBlock: BlockConfig = {
   },
   triggers: {
     enabled: true,
-    available: HELPSCOUT_TRIGGER_IDS,
+    available: [
+      'helpscout_conversation_created',
+      'helpscout_customer_replied',
+      'helpscout_agent_replied',
+      'helpscout_note_created',
+      'helpscout_conversation_assigned',
+      'helpscout_conversation_status_changed',
+      'helpscout_conversation_tags_updated',
+      'helpscout_conversation_moved',
+      'helpscout_conversation_merged',
+      'helpscout_conversation_deleted',
+      'helpscout_customer_created',
+      'helpscout_customer_updated',
+      'helpscout_webhook',
+    ],
   },
 }
 

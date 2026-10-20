@@ -22,17 +22,17 @@ import {
 type HelpScoutSelectorKey = Extract<ServerSelectorKey, 'helpscout.mailboxes' | 'helpscout.users'>
 
 const HELPSCOUT_API_BASE = 'https://api.helpscout.net/v2'
-const HELPSCOUT_ID_PATTERN = /^\d{1,18}$/
+const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
 const MAX_PAGE_ITEMS = 1_000
 
 const mailboxSchema = z.object({
-  id: z.number().int().positive(),
+  id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   name: z.string().max(1_000).nullable().optional(),
   email: z.string().max(1_000).nullable().optional(),
 })
 
 const userSchema = z.object({
-  id: z.number().int().positive(),
+  id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   firstName: z.string().max(1_000).nullable().optional(),
   lastName: z.string().max(1_000).nullable().optional(),
   email: z.string().max(1_000).nullable().optional(),
@@ -77,7 +77,9 @@ async function helpScoutHeaders(args: ExecuteServerSelectorArgs): Promise<Record
 
 function requireHelpScoutId(value: string): string {
   const id = value.trim()
-  if (!HELPSCOUT_ID_PATTERN.test(id)) throw new SelectorContextUnavailableError()
+  if (!HELPSCOUT_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) {
+    throw new SelectorContextUnavailableError()
+  }
   return id
 }
 
