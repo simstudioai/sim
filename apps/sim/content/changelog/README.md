@@ -10,7 +10,7 @@ The [editorial and media standard](./editorial-standard.md) defines story select
 
 ## What earns an entry
 
-A public update needs one clear benefit, verified availability, a useful next step, and at least one reviewed feature image or video in the article. The cover alone is not enough. A reader should understand what they can now do and see evidence of that capability. A smaller improvement can join a related edition; it does not need its own announcement because a technical version shipped.
+A public update needs one clear benefit, verified availability, a useful next step, and at least one reviewed image or video in the article. The cover alone is not enough. A reader should understand what they can now do. Product claims need independent evidence even when the lead image is a conceptual illustration. A smaller improvement can join a related edition; it does not need its own announcement because a technical version shipped.
 
 Review candidates twice a week and publish when a story meets that bar. Skip an edition if there is nothing meaningful to announce. Use a separate entry for a substantial launch. Aim for one lead story and a short selection of related improvements or fixes, rather than reproducing every commit. The GitHub release link carries the complete technical history.
 
@@ -29,7 +29,7 @@ Each new update has one folder containing its public `index.mdx` and a non-rende
 | Gather evidence | Feature owner | Merged PRs, release version, deployment and permission availability, and a working example |
 | Choose the story | Editor | One headline, the situation it helps with, and related improvements worth including |
 | Prepare drafts | Editor, assisted by Codex | `index.mdx` with `draft: true`, demo shot list, and social/email copy in `production.md` |
-| Produce media | Feature owner | Real product recording, poster, and captions for speech |
+| Produce media | Feature owner and editor | Real product capture, verified diagram, or original editorial illustration; poster and captions for video |
 | Review | Feature owner and editor | Confirm the actual feature, rollout, and media; verify links and approve consistent copy |
 | Deploy | Site maintainer | Merge the reviewed entry with `draft: false`; website, detail page, archive, sitemap, and RSS update together |
 | Distribute | Editor | Send the reviewed announcement after the public URL and demo work |
