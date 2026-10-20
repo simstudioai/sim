@@ -13,7 +13,7 @@ export type RecallChatsRequest = z.infer<typeof RecallChatsRequest>;
 export const RecallChat = z.object({
   id: z.uuid(),
   title: z.string().nullable(),
-  updatedAt: z.string(),
+  updatedAt: z.string().datetime(),
 });
 export type RecallChat = z.infer<typeof RecallChat>;
 
