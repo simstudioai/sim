@@ -1,5 +1,5 @@
 import type { NetSuiteGetRecordFormParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,6 +11,7 @@ export const netsuiteGetRecordFormTool: InternalToolConfig<
   name: 'NetSuite Get Record Form',
   description: 'Return a prepopulated create form, or an edit form when a record ID is supplied.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     recordType: {

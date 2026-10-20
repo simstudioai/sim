@@ -3,6 +3,7 @@ import type { SnowflakeDeleteRowsParams, SnowflakeStatementResponse } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -25,6 +26,7 @@ function parseFilters(value: unknown): Record<string, unknown> {
 export const deleteRowsTool: ToolConfig<SnowflakeDeleteRowsParams, SnowflakeStatementResponse> = {
   id: 'snowflake_delete_rows',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Delete Rows',
   description: 'Delete rows matching a required set of bound column filters.',
   params: {

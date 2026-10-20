@@ -6,6 +6,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -18,6 +19,7 @@ export const listQueryHistoryTool: ToolConfig<
 > = {
   id: 'snowflake_list_query_history',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Query History',
   description: 'List queries that completed in the last seven days, optionally filtered.',
   params: {

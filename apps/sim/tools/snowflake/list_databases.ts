@@ -6,6 +6,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -18,6 +19,7 @@ export const listDatabasesTool: ToolConfig<
 > = {
   id: 'snowflake_list_databases',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Databases',
   description: 'List the databases the credential can access.',
   params: {

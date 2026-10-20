@@ -1,5 +1,5 @@
 import type { NetSuiteListDatasetsParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -12,6 +12,7 @@ export const netsuiteListDatasetsTool: InternalToolConfig<
   description:
     'List one page of SuiteAnalytics Workbook datasets available to the authenticated role.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     limit: {
