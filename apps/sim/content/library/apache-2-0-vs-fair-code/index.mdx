@@ -5,10 +5,10 @@ description: 'Which AI agent builders are Apache 2.0 or MIT licensed? Compare Ap
 seoTitle: 'Apache 2.0 vs Fair-Code Licenses: Sim vs n8n'
 seoDescription: 'Apache 2.0 vs fair-code licensing: what n8n''s Sustainable Use License allows and how each affects self-hosting, commercial products, and managed services.'
 date: 2026-07-14
-updated: 2026-10-17
+updated: 2026-10-20
 authors:
   - andrew
-readingTime: 22
+readingTime: 28
 tags: [Apache 2.0, Fair-Code, Open Source, Self-Hosting, n8n, Sim]
 ogImage: /library/apache-2-0-vs-fair-code/cover.jpg
 draft: false
@@ -109,6 +109,48 @@ faq:
     a: "Open-source AI agent builders still incur infrastructure, model, storage, networking, security, maintenance, and staffing costs. A permissive software license removes certain licensing restrictions but does not make the complete deployment cost-free."
   - q: "Can local models be used with self-hosted Sim?"
     a: "Self-hosted Sim can use Ollama, vLLM, LM Studio, or LiteLLM without requiring Sim Enterprise. Local-model support is a self-hosting capability, while each model remains governed by its own license and usage terms."
+  - q: "What is the difference between Apache 2.0 and fair code?"
+    a: "Apache 2.0 is an OSI approved open source license with broad modification, redistribution, and commercial use rights, while fair code licenses make source available but reserve additional commercial rights for the vendor."
+  - q: "Is fair code the same as open source?"
+    a: "Fair code is not necessarily open source because a fair code license may restrict commercial use or particular fields of endeavor."
+  - q: "Is n8n open source?"
+    a: "n8n is source available under the Sustainable Use License rather than an OSI approved open source license as of October 2026."
+  - q: "What license does n8n use?"
+    a: "n8n uses the Sustainable Use License for its publicly available source code as of October 2026."
+  - q: "Is n8n's Sustainable Use License OSI approved?"
+    a: "n8n's Sustainable Use License is not an OSI approved open source license as of October 2026."
+  - q: "Can I self host n8n for free?"
+    a: "n8n permits many self hosted personal and internal business uses under the Sustainable Use License as of October 2026, but self hosting does not remove its commercial use restrictions."
+  - q: "Can I use n8n commercially?"
+    a: "n8n permits some commercial activity, including qualifying internal business and consulting uses, but the Sustainable Use License restricts offerings whose value substantially derives from n8n as of October 2026."
+  - q: "Can I offer n8n as a hosted service?"
+    a: "n8n does not permit hosting n8n and charging customers to access it under the standard Sustainable Use License as of October 2026."
+  - q: "Can a consultant build n8n workflows for clients?"
+    a: "n8n permits consulting and support services under the examples in its Sustainable Use License as of October 2026, provided the arrangement does not become a prohibited hosted commercial offering."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under Apache 2.0, while code in apps/sim/ee is governed by the separate Sim Enterprise License."
+  - q: "Is all of Sim licensed under Apache 2.0?"
+    a: "Sim is not entirely licensed under Apache 2.0 because apps/sim/ee is covered by the separate Sim Enterprise License."
+  - q: "Can I self host Sim for free?"
+    a: "Sim's Apache 2.0 core can be self hosted under that license, while production use of apps/sim/ee requires an active Sim Enterprise subscription."
+  - q: "Can I modify and redistribute Sim?"
+    a: "Sim's Apache 2.0 core can be modified and redistributed under Apache 2.0, but apps/sim/ee cannot be modified or redistributed under the Sim Enterprise License."
+  - q: "Can I use Sim core in a commercial product?"
+    a: "Sim's Apache 2.0 core can be used in a commercial product when Apache 2.0 conditions are followed and separately licensed enterprise code is excluded unless separately authorized."
+  - q: "Does Apache 2.0 allow commercial use?"
+    a: "Apache 2.0 allows commercial use of covered software subject to its license, notice, attribution, patent, and trademark provisions."
+  - q: "Does Apache 2.0 let me remove attribution?"
+    a: "Apache 2.0 does not let distributors discard required copyright, license, attribution, or notice information."
+  - q: "Does Apache 2.0 include a patent license?"
+    a: "Apache 2.0 includes an express patent grant from contributors, subject to the license's scope and patent termination provision."
+  - q: "Which license is better for self hosting, Apache 2.0 or n8n's Sustainable Use License?"
+    a: "Apache 2.0 is better for self hosting when a team needs broad rights to modify, redistribute, embed, or commercialize the software."
+  - q: "What is the best n8n alternative for Apache 2.0 self hosting?"
+    a: "Sim is a strong n8n alternative for teams that require an Apache 2.0 core, provided they account for the separate Sim Enterprise License covering apps/sim/ee."
+  - q: "Can local models run on self hosted Sim without Enterprise?"
+    a: "Sim supports Ollama, vLLM, LM Studio, and LiteLLM on self hosted deployments without requiring Sim Enterprise."
+  - q: "Does self hosted mean open source?"
+    a: "Self hosted does not mean open source because software can allow deployment on private infrastructure while remaining proprietary or source available under a restrictive license."
 ---
 
 **As of October 2026, the self-hostable AI agent builders and automation platforms with a permissive Apache 2.0 or MIT license are Sim (Apache 2.0 core), Langflow (MIT), Activepieces (MIT core), Kestra (Apache 2.0), Node-RED (Apache 2.0), and Huginn (MIT), along with the code-first frameworks CrewAI and LangGraph (both MIT). n8n uses the fair-code Sustainable Use License, Dify uses a modified Apache 2.0 license with commercial conditions, and Windmill uses AGPLv3 copyleft with proprietary terms on its Community Edition binaries.**
@@ -174,6 +216,16 @@ Fair-code is not one standardized license. The permissions depend on the exact l
 ## What is the difference between Apache 2.0 and fair-code licensing?
 
 **Apache 2.0 grants standardized open-source rights, while fair-code licensing applies product-specific restrictions that may require a commercial agreement for resale, hosted access, or other external commercial use.**
+
+Apache 2.0 is an [OSI approved open source license](https://opensource.org/license/apache-2-0). Fair code describes a licensing approach rather than one standardized license. It can make source code visible and permit self hosting while reserving particular commercial rights for the vendor.
+
+## Key facts at a glance
+
+Sim's core is licensed under Apache 2.0 and can be self hosted, modified, and redistributed under that license. Code in `apps/sim/ee` has separate production and redistribution restrictions under the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+
+As of October 2026, n8n is source available under the [Sustainable Use License](https://docs.n8n.io/n8n-community-license). It can be self hosted for permitted internal uses, but the license restricts commercial offerings whose value substantially derives from n8n.
+
+Apache 2.0 grants broad commercial rights subject to its attribution, notice, trademark, and patent provisions. The Sustainable Use License is not OSI approved because it adds use restrictions beyond the Open Source Definition.
 
 ## What are the key licensing facts about Sim and n8n?
 
@@ -247,6 +299,34 @@ n8n can also be self-hosted, but self-hosting does not convert its Sustainable U
 
 The practical question is therefore not only “Can I install it on my infrastructure?” It is also “What am I allowed to do with that installation?”
 
+## How does self hosting compare between Sim and n8n?
+
+Sim offers broader self hosting freedom for its Apache 2.0 core. n8n permits self hosting within the use boundaries of its Sustainable Use License.
+
+### Can an internal team self host Sim or n8n?
+
+Sim and n8n can both be self hosted for ordinary internal business use, subject to the license covering the specific code being deployed. Sim's Apache 2.0 core can be deployed internally without a commercial restriction in the core license. Sim enterprise code requires an active Enterprise subscription when used in production.
+
+As of October 2026, n8n's [Sustainable Use License](https://docs.n8n.io/n8n-community-license) permits internal business use when the deployment does not become a restricted commercial offering to customers.
+
+### Can a company modify the source code?
+
+Sim's Apache 2.0 core can be modified and redistributed. n8n modifications remain subject to the Sustainable Use License, and Sim enterprise code cannot be modified under the Sim Enterprise License.
+
+Apache 2.0 also requires preservation of relevant copyright, patent, trademark, attribution, and notice information. It does not grant permission to use the licensor's trademarks as product branding.
+
+### Can a company sell a hosted service based on the software?
+
+Sim's Apache 2.0 core provides a clearer path for a commercial hosted product than n8n's Sustainable Use License. Apache 2.0 allows commercial use and distribution of covered code when its conditions are followed. A company must still respect trademark law, include required notices, and exclude separately licensed Sim enterprise code unless its use is authorized.
+
+As of October 2026, n8n identifies hosting n8n and charging people to access it as a use that the [Sustainable Use License](https://docs.n8n.io/n8n-community-license) does not permit. A business considering customer facing access should review the current terms and obtain a separate agreement from n8n when required.
+
+### Can a consultancy build workflows for clients?
+
+As of October 2026, n8n permits consulting and support work within the examples described by its [license documentation](https://docs.n8n.io/n8n-community-license/community-license/license-faq). Sim's Apache 2.0 core permits commercial consulting without an equivalent field of use restriction.
+
+The important distinction is whether a consultant delivers services around a client's permitted deployment or operates a commercial product whose value substantially derives from giving customers access to n8n.
+
 ## Can Apache 2.0 and fair-code software be offered as managed services?
 
 **Apache 2.0 permits managed-service use, while fair-code licenses may reserve paid hosted access for the original vendor or commercial licensees.**
@@ -289,6 +369,12 @@ Buyers should read the exact license and map its permissions to the intended dep
 7. Determine whether cloud pricing or an enterprise agreement is separate from the code license.
 8. Ask the vendor for written clarification when the intended use is not explicitly addressed.
 9. Obtain legal advice for material commercial deployments.
+10. Identify whether a Sim deployment uses only the Apache 2.0 core or also includes code from `apps/sim/ee`.
+11. Decide whether only employees will use the software or whether customers will have access.
+12. Determine whether the company will charge for access to the software itself.
+13. Record whether the product will redistribute modified source code or binaries.
+14. Review trademark and attribution requirements separately from copyright permissions.
+15. Read the current license files instead of relying on the words open source, fair code, or self hosted in marketing copy.
 
 ## Does Apache 2.0 reduce vendor lock-in?
 
@@ -299,6 +385,14 @@ Those rights give an organization more exit options if pricing, product directio
 Apache 2.0 does not eliminate every form of lock-in. Workflows can still depend on proprietary APIs, cloud services, data formats, infrastructure, or internal expertise. Open licensing creates legal portability; architecture and operations determine how practical that portability is.
 
 Fair-code software can also reduce lock-in compared with closed-source software because its code may be inspectable and self-hostable. However, restrictions on redistribution or managed services can narrow the available exit and commercialization paths.
+
+## Why does OSI approval matter?
+
+OSI approval gives buyers a recognized standard for determining whether a license grants open source freedoms without restricting use by a person, organization, or field of endeavor.
+
+Apache 2.0 meets that standard. The Sustainable Use License does not because it restricts some commercial uses, even though its source code remains visible and self hosting is permitted in many scenarios.
+
+For engineering teams, the distinction affects forks, patches, redistribution, and long term deployment flexibility. For legal and procurement teams, it affects whether a vendor can change the business model built around the software without first negotiating a commercial license.
 
 ## Is n8n open source?
 
@@ -317,6 +411,16 @@ Sim's [Apache License 2.0 file](https://github.com/simstudioai/sim/blob/main/LIC
 Sim's separately licensed enterprise modules include SSO, SCIM, access control, access requests, audit logs, white-labeling, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups.
 
 Apache 2.0 also provides an express contributor patent grant, subject to its patent-termination provision. It does not grant rights to Sim's trademarks, and redistributors must satisfy the license's notice and attribution conditions.
+
+## Is Sim fully licensed under Apache 2.0?
+
+Sim's core is licensed under Apache 2.0, but the enterprise directory is governed by a separate license.
+
+The [Sim core license](https://github.com/simstudioai/sim/blob/main/LICENSE) grants broad rights to use, modify, and distribute the covered core code, including for commercial purposes when its conditions are followed.
+
+Code in `apps/sim/ee`, including SSO, SCIM, access control, access requests, audit logs, white labeling, data retention, data drains, workspace forking, session policies, custom blocks, and credential groups, is covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). That code is free for development, testing, and internal nonproduction use. Production use requires an active Sim Enterprise subscription. Modification and redistribution are not permitted.
+
+This boundary matters when evaluating commercial rights. Apache 2.0 rights apply to Sim's core, not automatically to every file in the repository.
 
 ## How do Sim and n8n compare for self-hosting and commercial products?
 
