@@ -204,11 +204,11 @@ function lastActivityAt(conversation: HelpScoutConversation): string | null {
 /**
  * Change marker built only from listing fields, so unchanged conversations are never re-fetched.
  * Thread count, preview, and the activity timestamps move with new messages; the remaining
- * fields keep the indexed text and tags current. Tags are sorted so list and single-conversation
- * responses produce the same marker.
+ * fields keep the indexed text and tags current. Fields are serialized as JSON so free text cannot
+ * shift across field boundaries, and tags are sorted so list and single-conversation responses match.
  */
 function conversationChangeMarker(conversation: HelpScoutConversation): string {
-  return [
+  return JSON.stringify([
     conversation.threads ?? '',
     conversation.status ?? '',
     conversation.userUpdatedAt ?? '',
@@ -221,11 +221,8 @@ function conversationChangeMarker(conversation: HelpScoutConversation): string {
     conversation.assignee ? personName(conversation.assignee) : '',
     conversation.primaryCustomer?.email ?? '',
     conversation.primaryCustomer ? personName(conversation.primaryCustomer) : '',
-    (conversation.tags ?? [])
-      .map((tag) => tag.tag ?? '')
-      .sort(compareStrings)
-      .join(','),
-  ].join('|')
+    (conversation.tags ?? []).map((tag) => tag.tag ?? '').sort(compareStrings),
+  ])
 }
 
 /** Spam and unpublished drafts are not support history worth indexing. */
