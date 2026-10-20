@@ -24,6 +24,8 @@ export const flowiseProfile: CompetitorProfile = {
     { text: 'announced the sunset of Flowise', href: 'https://flowiseai.com/sunset' },
     ' on July 29, 2026: feature development stopped that day, the GitHub repository was archived in August, and the project reached end of life on August 31, 2026, with the Apache 2.0 code left available to fork. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose a Flowise fork only if you already run Flowise and are prepared to maintain the code yourself. Choose Sim when you need an actively developed platform with production operations built in: schedule and app-event triggers, failure alerts, error-handling branches, native parallel execution, and published execution limits.',
   ],
+  chooseCompetitor:
+    'Choose a Flowise fork only if you already run Flowise and are prepared to maintain the Apache 2.0 code yourself: the project reached end of life on August 31, 2026, its repository is archived, and the core team no longer ships features, reviews pull requests, or provides community support.',
   faqs: [
     {
       question: 'Is Flowise still maintained?',
@@ -79,9 +81,9 @@ export const flowiseProfile: CompetitorProfile = {
     {
       title: 'Larger existing open-source community, on the same Apache 2.0 license as Sim',
       description:
-        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its GitHub repo has roughly 54,000 stars and an active Discord community built up since 2023.',
+        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its now-archived GitHub repo has roughly 54,000 stars and a Discord community built up since 2023, though the core team left Discord and GitHub when the project reached end of life on August 31, 2026.',
       shortDescription:
-        'Same Apache 2.0 license as Sim, but a larger existing community: ~54k GitHub stars, active Discord.',
+        'Same Apache 2.0 license as Sim, but a larger existing community: ~54k GitHub stars on an archived repo.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise',
         label: 'GitHub: FlowiseAI/Flowise',
@@ -970,14 +972,19 @@ export const flowiseProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Flowise offers community support (GitHub, Discord) on free/self-hosted tiers, priority support on the Pro Cloud plan, and personalized/dedicated support on Enterprise.',
-        shortValue: 'Community (free), priority (Pro), dedicated (Enterprise)',
+          'Flowise lists priority support on the Pro Cloud plan and personalized/dedicated support on Enterprise. Core-team community support on GitHub and Discord for free/self-hosted users ended at end of life on August 31, 2026.',
+        shortValue: 'Priority (Pro), dedicated (Enterprise); community support ended Aug 2026',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.lindy.ai/blog/flowise-pricing',
             label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Sunset announcement',
+            asOf: '2026-10-19',
           },
         ],
       },
@@ -997,14 +1004,19 @@ export const flowiseProfile: CompetitorProfile = {
       },
       community: {
         value:
-          "Flowise's GitHub repository has approximately 54,000 stars (Apache 2.0 licensed core), with an active Discord community whose exact member count is not published.",
-        shortValue: '~54,000 GitHub stars, active Discord community',
+          "Flowise's GitHub repository has approximately 54,000 stars (Apache 2.0 licensed core) and was archived in August 2026; the core team's presence in Discord and GitHub ended at end of life on August 31, 2026, with community moderation handed off where applicable.",
+        shortValue: '~54,000 GitHub stars; repo archived, core team gone since Aug 2026',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise',
             label: 'GitHub: FlowiseAI/Flowise',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: Sunset announcement',
+            asOf: '2026-10-19',
           },
         ],
       },

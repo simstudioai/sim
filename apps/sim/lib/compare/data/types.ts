@@ -233,6 +233,11 @@ export interface CompetitorProfile {
    */
   betterThanAnswer?: Prose
   /**
+   * Replaces the generated "Choose {name} if…" verdict, for a competitor whose lead standout
+   * feature is no longer a reason to adopt it (e.g. a product past end of life).
+   */
+  chooseCompetitor?: string
+  /**
    * Hand-written FAQs answering this competitor's tracked buyer prompts, shown
    * ahead of the generated FAQ set. Answer-first, and every answer names both
    * products so it can be quoted on its own.
