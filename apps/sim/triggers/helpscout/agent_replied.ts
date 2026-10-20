@@ -1,7 +1,7 @@
 import { HelpScoutIcon } from '@/components/icons'
 import {
   buildConversationEventOutputs,
-  buildHelpScoutExtraFields,
+  buildHelpScoutTriggerFields,
   helpScoutSetupInstructions,
   helpScoutTriggerOptions,
 } from '@/triggers/helpscout/utils'
@@ -23,7 +23,7 @@ export const helpScoutAgentRepliedTrigger: TriggerConfig = {
     setupInstructions: helpScoutSetupInstructions(
       'the <strong>Conversation &gt; Agent Reply</strong> event'
     ),
-    extraFields: buildHelpScoutExtraFields('helpscout_agent_replied'),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_agent_replied'),
   }),
 
   outputs: buildConversationEventOutputs(),

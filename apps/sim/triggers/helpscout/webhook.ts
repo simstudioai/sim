@@ -1,7 +1,7 @@
 import { HelpScoutIcon } from '@/components/icons'
 import {
   buildGenericWebhookOutputs,
-  buildHelpScoutExtraFields,
+  buildHelpScoutTriggerFields,
   helpScoutSetupInstructions,
   helpScoutTriggerOptions,
 } from '@/triggers/helpscout/utils'
@@ -12,16 +12,17 @@ export const helpScoutWebhookTrigger: TriggerConfig = {
   id: 'helpscout_webhook',
   name: 'Help Scout Webhook (All Selected Events)',
   provider: 'helpscout',
-  description:
-    'Trigger on every event selected for this URL in Help Scout. Sim does not filter deliveries for this trigger.',
+  description: 'Trigger on every supported Help Scout conversation and customer event',
   version: '1.0.0',
   icon: HelpScoutIcon,
 
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'helpscout_webhook',
     triggerOptions: helpScoutTriggerOptions,
-    setupInstructions: helpScoutSetupInstructions('the events this workflow should receive'),
-    extraFields: buildHelpScoutExtraFields('helpscout_webhook'),
+    setupInstructions: helpScoutSetupInstructions(
+      'every supported conversation and customer event'
+    ),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_webhook'),
   }),
 
   outputs: buildGenericWebhookOutputs(),

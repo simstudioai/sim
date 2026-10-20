@@ -1,7 +1,7 @@
 import { HelpScoutIcon } from '@/components/icons'
 import {
   buildConversationEventOutputs,
-  buildHelpScoutExtraFields,
+  buildHelpScoutTriggerFields,
   helpScoutSetupInstructions,
   helpScoutTriggerOptions,
 } from '@/triggers/helpscout/utils'
@@ -22,7 +22,7 @@ export const helpScoutConversationMovedTrigger: TriggerConfig = {
     setupInstructions: helpScoutSetupInstructions(
       'the <strong>Conversation &gt; Moved</strong> event'
     ),
-    extraFields: buildHelpScoutExtraFields('helpscout_conversation_moved'),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_conversation_moved'),
   }),
 
   outputs: buildConversationEventOutputs(),

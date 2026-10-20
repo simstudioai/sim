@@ -21,10 +21,13 @@ With the Help Scout block, you can:
 - **Manage customers**: Search, read, create, and update customer profiles.
 - **Look up your account**: List inboxes, folders, users, teams, tags, and workflows.
 - **React to events**: Start workflows when conversations are created, replied to, assigned, tagged, moved, merged, or deleted, or when customers are created or updated.
+- **Build a support knowledge base**: Sync conversations into a knowledge base so agents can search how past issues were resolved.
 
 Connect your Help Scout account through OAuth, or save your own Help Scout app as a credential: create an app under **Your Profile > My Apps** (a placeholder redirect URL is fine) and paste its App ID and App Secret. Either way, Sim acts with the permissions of the Help Scout user behind the connection, who needs the **Access API** permission.
 
-For triggers, add the Webhooks app in Help Scout (**Settings > Workspace > Apps > Webhooks**), paste the trigger's webhook URL as the callback URL, and enter the same secret key in Help Scout and in the trigger. Sim verifies every delivery's `X-HelpScout-Signature`.
+Triggers need a Help Scout account connected through OAuth. Pick the account (and optionally an inbox) in the trigger and deploy: Sim creates the Help Scout webhook with its own signing secret, verifies every delivery's `X-HelpScout-Signature`, and deletes the webhook when the workflow is undeployed.
+
+To search past support history from agents, add Help Scout as a knowledge base source: it syncs conversations and their threads (optionally including internal notes) from one inbox or all of them.
 
 In Sim, the Help Scout block lets your agents triage new conversations, draft replies from your knowledge base, keep customer records current, and report on what your support team is handling.
 {/* MANUAL-CONTENT-END */}
@@ -1075,7 +1078,9 @@ Trigger workflow when a user replies to a Help Scout conversation (auto replies 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1121,7 +1126,9 @@ Trigger workflow when a Help Scout conversation is assigned
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1167,7 +1174,9 @@ Trigger workflow when a conversation is created in Help Scout
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1213,7 +1222,9 @@ Trigger workflow when a Help Scout conversation is deleted
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1234,7 +1245,9 @@ Trigger workflow when Help Scout conversations are merged
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1280,7 +1293,9 @@ Trigger workflow when a Help Scout conversation is moved to another inbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1326,7 +1341,9 @@ Trigger workflow when the status of a Help Scout conversation changes
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1372,7 +1389,9 @@ Trigger workflow when the tags on a Help Scout conversation change
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1418,7 +1437,9 @@ Trigger workflow when a customer is created in Help Scout (fires for every inbox
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1461,7 +1482,9 @@ Trigger workflow when a customer replies to a Help Scout conversation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1507,7 +1530,9 @@ Trigger workflow when a Help Scout customer is updated
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1550,7 +1575,9 @@ Trigger workflow when a note is added to a Help Scout conversation
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 
@@ -1590,13 +1617,15 @@ Trigger workflow when a note is added to a Help Scout conversation
 
 ### Help Scout Webhook (All Selected Events)
 
-Trigger on every event selected for this URL in Help Scout. Sim does not filter deliveries for this trigger.
+Trigger on every supported Help Scout conversation and customer event
 
 #### Configuration
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookSecret` | string | Yes | The same secret key \(40 characters or fewer\) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it. |
+| `triggerCredentials` | string | Yes | Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed. |
+| `triggerMailboxSelector` | project-selector | No | Only receive events for this inbox. Customer events always cover every inbox. |
+| `triggerMailboxId` | string | No | Inbox ID |
 
 #### Output
 

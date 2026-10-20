@@ -12853,7 +12853,7 @@
         {
           "id": "helpscout_webhook",
           "name": "Help Scout Webhook (All Selected Events)",
-          "description": "Trigger on every event selected for this URL in Help Scout. Sim does not filter deliveries for this trigger."
+          "description": "Trigger on every supported Help Scout conversation and customer event"
         }
       ],
       "triggerCount": 13,

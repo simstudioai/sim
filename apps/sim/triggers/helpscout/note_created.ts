@@ -1,7 +1,7 @@
 import { HelpScoutIcon } from '@/components/icons'
 import {
   buildConversationEventOutputs,
-  buildHelpScoutExtraFields,
+  buildHelpScoutTriggerFields,
   helpScoutSetupInstructions,
   helpScoutTriggerOptions,
 } from '@/triggers/helpscout/utils'
@@ -22,7 +22,7 @@ export const helpScoutNoteCreatedTrigger: TriggerConfig = {
     setupInstructions: helpScoutSetupInstructions(
       'the <strong>Conversation &gt; Note Created</strong> event'
     ),
-    extraFields: buildHelpScoutExtraFields('helpscout_note_created'),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_note_created'),
   }),
 
   outputs: buildConversationEventOutputs(),
