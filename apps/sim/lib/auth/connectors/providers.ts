@@ -2899,6 +2899,66 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
 
+    {
+      providerId: 'helpscout',
+      clientId: env.HELPSCOUT_CLIENT_ID as string,
+      clientSecret: env.HELPSCOUT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://secure.helpscout.net/authentication/authorizeClientApplication',
+      tokenUrl: 'https://api.helpscout.net/v2/oauth2/token',
+      scopes: getCanonicalScopesForProvider('helpscout'),
+      responseType: 'code',
+      authentication: 'post',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/helpscout`,
+      getUserInfo: async (tokens) => {
+        if (!tokens.accessToken) return null
+
+        try {
+          const signal = AbortSignal.timeout(15_000)
+          const response = await fetch('https://api.helpscout.net/v2/users/me', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}`, Accept: 'application/json' },
+            redirect: 'error',
+            signal,
+          })
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Help Scout OAuth user error response',
+              signal,
+            }).catch(() => {})
+            logger.error('Failed to fetch Help Scout user info', { status: response.status })
+            return null
+          }
+
+          const user = await readResponseJsonWithLimit<unknown>(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Help Scout OAuth user response',
+            signal,
+          })
+          if (!isRecordLike(user) || typeof user.id !== 'number') return null
+
+          const userId = String(user.id)
+          const name = [user.firstName, user.lastName]
+            .filter((part): part is string => typeof part === 'string' && part.trim() !== '')
+            .join(' ')
+          const now = new Date()
+          return {
+            id: `${userId}-${generateId()}`,
+            name: name || 'Help Scout User',
+            email:
+              typeof user.email === 'string' && user.email
+                ? user.email
+                : syntheticConnectorEmail('helpscout', userId),
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch (error) {
+          logger.error('Failed to fetch Help Scout user info', { errorType: toError(error).name })
+          return null
+        }
+      },
+    },
+
     // Cal.com provider
     {
       providerId: 'calcom',

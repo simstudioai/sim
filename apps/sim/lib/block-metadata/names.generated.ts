@@ -122,6 +122,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   greptile: 'Greptile',
   guardrails: 'Guardrails',
   harmonic: 'Harmonic',
+  helpscout: 'Help Scout',
   hex: 'Hex',
   hubspot: 'HubSpot',
   huggingface: 'Hugging Face',

@@ -14,6 +14,7 @@ import { fivetranSelectorAttachments } from '@/lib/selectors/server/providers/fi
 import { githubSelectorAttachments } from '@/lib/selectors/server/providers/github'
 import { googleSelectorAttachments } from '@/lib/selectors/server/providers/google'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
+import { helpScoutSelectorAttachments } from '@/lib/selectors/server/providers/helpscout'
 import { hubspotSelectorAttachments } from '@/lib/selectors/server/providers/hubspot'
 import { imapSelectorAttachments } from '@/lib/selectors/server/providers/imap'
 import { jiraSelectorAttachments } from '@/lib/selectors/server/providers/jira'
@@ -55,6 +56,7 @@ export const serverSelectorRegistry = {
   ...googleSelectorAttachments,
   ...githubSelectorAttachments,
   ...harmonicSelectorAttachments,
+  ...helpScoutSelectorAttachments,
   ...hubspotSelectorAttachments,
   ...imapSelectorAttachments,
   ...jiraSelectorAttachments,

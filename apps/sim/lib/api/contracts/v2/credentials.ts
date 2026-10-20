@@ -287,6 +287,7 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'pipedrive',
   'quickbooks',
   'ramp',
+  'helpscout',
   'hubspot',
   'linkedin',
   'instagram',

@@ -390,6 +390,7 @@ GitHub workflow blocks and knowledge-base token connections continue to use pers
 | Monday | `MONDAY_CLIENT_ID` / `MONDAY_CLIENT_SECRET` | `monday` |
 | Airtable | `AIRTABLE_CLIENT_ID` / `AIRTABLE_CLIENT_SECRET` | `airtable` |
 | Bitbucket | `BITBUCKET_CLIENT_ID` / `BITBUCKET_CLIENT_SECRET` | `bitbucket` |
+| Help Scout | `HELPSCOUT_CLIENT_ID` / `HELPSCOUT_CLIENT_SECRET` | `helpscout` |
 | HubSpot | `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | `hubspot` |
 | Salesforce | `SALESFORCE_CLIENT_ID` / `SALESFORCE_CLIENT_SECRET` | `salesforce` |
 | Pipedrive | `PIPEDRIVE_CLIENT_ID` / `PIPEDRIVE_CLIENT_SECRET` | `pipedrive` |
@@ -409,6 +410,11 @@ GitHub workflow blocks and knowledge-base token connections continue to use pers
 | Reddit | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | `reddit` |
 | Spotify | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | `spotify` |
 | TikTok | `TIKTOK_CLIENT_ID` / `TIKTOK_CLIENT_SECRET` | `tiktok` |
+
+For Help Scout, create an app under **Your Profile > My Apps** and set its redirection URL to
+`https://<your-domain>/api/auth/oauth2/callback/helpscout`. The App ID and App Secret are the client
+ID and secret. Help Scout has no OAuth scopes: a connection acts with the permissions of the user who
+authorizes it.
 
 For Bitbucket, create an OAuth consumer and register
 `https://<your-domain>/api/auth/oauth2/callback/bitbucket` as its callback URL. Bitbucket fixes

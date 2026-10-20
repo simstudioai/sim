@@ -570,6 +570,8 @@ export const env = createEnv({
     REDDIT_CLIENT_SECRET:                  z.string().optional(),                  // Reddit OAuth client secret
     RAMP_CLIENT_ID:                        z.string().optional(),
     RAMP_CLIENT_SECRET:                    z.string().optional(),
+    HELPSCOUT_CLIENT_ID:                   z.string().optional(),                  // Help Scout OAuth app ID
+    HELPSCOUT_CLIENT_SECRET:               z.string().optional(),                  // Help Scout OAuth app secret
     WEBFLOW_CLIENT_ID:                     z.string().optional(),                  // Webflow OAuth client ID
     WEBFLOW_CLIENT_SECRET:                 z.string().optional(),                  // Webflow OAuth client secret
     TRELLO_API_KEY:                        z.string().optional(),                  // Trello API Key

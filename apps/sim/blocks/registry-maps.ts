@@ -152,6 +152,7 @@ import {
 import { GreptileBlock, GreptileBlockMeta } from '@/blocks/blocks/greptile'
 import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
+import { HelpScoutBlock, HelpScoutBlockMeta } from '@/blocks/blocks/helpscout'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
@@ -543,6 +544,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   greptile: GreptileBlock,
   guardrails: GuardrailsBlock,
   harmonic: HarmonicBlock,
+  helpscout: HelpScoutBlock,
   hex: HexBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
@@ -900,6 +902,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   greenhouse_v2: GreenhouseV2BlockMeta,
   greptile: GreptileBlockMeta,
   harmonic: HarmonicBlockMeta,
+  helpscout: HelpScoutBlockMeta,
   hex: HexBlockMeta,
   hubspot: HubSpotBlockMeta,
   huggingface: HuggingFaceBlockMeta,
