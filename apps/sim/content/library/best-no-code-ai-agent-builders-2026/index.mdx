@@ -54,7 +54,7 @@ faq:
   - q: "Are no-code AI agents safe for production?"
     a: "No-code AI agents can be safe for production when the platform and the agent enforce least-privilege access, testing, monitoring, human approval for consequential actions, audit logs, and reliable failure handling."
   - q: "How much do no-code AI agent builders cost?"
-    a: "Entry prices in October 2026 range from free tiers at Sim, Zapier Agents, Make, MindStudio, and StackAI to $9 a month for Make Core, $20 for MindStudio Individual, $25 for Sim Pro, and $37 for Gumloop Pro or Pickaxe Gold, while Relevance AI publishes only custom Enterprise pricing."
+    a: "Entry prices in October 2026 range from free tiers at Sim, Zapier Agents, Make, MindStudio, and StackAI to Make Core at $10.59 billed monthly or $9 a month billed annually, $20 for MindStudio Individual, $25 for Sim Pro, and $37 for Gumloop Pro or Pickaxe Gold, while Relevance AI publishes only custom Enterprise pricing."
   - q: "How should I compare AI agent builder pricing?"
     a: "Compare the full workload, including runs, tasks, activities or credits, model tokens, premium connectors, seats, hosting, and operating labor, because each vendor bills in a different unit."
   - q: "Should I choose a cloud or self-hosted AI agent builder?"
@@ -73,7 +73,7 @@ faq:
 
 The best no-code AI agent builders in 2026 are Zapier Agents and Make for nontechnical teams automating SaaS apps, Gumloop and MindStudio for fast hosted agents, Pickaxe for creators who sell agents, and Copilot Studio for Microsoft shops. Sim, the open-source AI workspace for building, deploying, and managing AI agents, is a strong fit for mixed teams that also need code and self-hosting.
 
-This article is published by Sim, and Sim is one of the ten products covered. Every competitor price and plan gate below was checked against the vendor's own pricing page in October 2026, and every tool gets the same Best for, Pricing, Strengths, and Limitations treatment, including Sim. This guide covers builders a nontechnical person can use on day one; for code-first frameworks and cloud-provider agent services, read [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+This article is published by Sim, and Sim is one of the ten products covered. Every competitor price and plan gate below was checked against the vendor's own pricing page in October 2026 (Make's from an archived capture of its pricing page dated October 6, 2026), and every tool gets the same Best for, Pricing, Strengths, and Limitations treatment, including Sim. This guide covers builders a nontechnical person can use on day one; for code-first frameworks and cloud-provider agent services, read [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
 
 > **Choose Zapier Agents or Make when** your agents mostly move data between SaaS apps you already use and nobody on the team wants to run infrastructure.
 >
@@ -102,9 +102,9 @@ The ten tools below are ordered by how well they serve teams building production
 
 **Pricing:** Free is $0 with 1,000 one-time credits, one workspace, and 30-day log retention. Pro is $25 per user per month with 6,000 credits a month, and Max is $100 per user per month with 25,000 credits a month; annual billing saves 15%. Enterprise pricing is custom. Every run carries a small base charge, and hosted model usage is billed through credits, as described in [Sim's cost documentation](https://docs.sim.ai/platform/costs).
 
-**Strengths:** Sim connects 273 integrations and every major LLM provider, and agents can be built in the visual workflow builder, by describing them to Sim in Chat, or with code. Knowledge Base, Tables, Files, and Logs live in the same workspace, so an agent's documents, structured data, and run traces are not spread across separate tools. The core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be [self-hosted](https://docs.sim.ai/platform/self-hosting) by anyone. Paid plans keep logs with unlimited retention, and Max adds KB Live Sync for keeping knowledge sources current.
+**Strengths:** Sim connects 270+ integrations and every major LLM provider, and agents can be built in the visual workflow builder, by describing them to Sim in Chat, or with code. Knowledge Base, Tables, Files, and Logs live in the same workspace, so an agent's documents, structured data, and run traces are not spread across separate tools. The core is licensed under [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) and can be [self-hosted](https://docs.sim.ai/platform/self-hosting) by anyone; the Self Hosting row on Sim's pricing page refers to Enterprise-supported deployments. Paid plans keep logs with unlimited retention, and Max adds KB Live Sync for keeping knowledge sources current.
 
-**Limitations:** Sim's 273 integrations are far fewer than Zapier's 9,000+ apps or Make's 3,000+, so teams with long-tail SaaS needs should check the catalog first and expect to use HTTP or API blocks for gaps. The Free plan's credits are one-time rather than monthly, and SSO and SOC 2 compliance are listed only on the Enterprise plan. Building multi-step agents in Sim also asks more of a nontechnical builder than a single-prompt assistant tool like Pickaxe.
+**Limitations:** Sim's 270+ integrations are far fewer than Zapier's 9,000+ apps or Make's 3,000+, so teams with long-tail SaaS needs should check the catalog first and expect to use HTTP or API blocks for gaps. The Free plan's credits are one-time rather than monthly, and SSO and SOC 2 compliance are listed only on the Enterprise plan. Building multi-step agents in Sim also asks more of a nontechnical builder than a single-prompt assistant tool like Pickaxe.
 
 Compared with the vendor-hosted tools on this list, Sim is the option where the same agent can start as a visual prototype and move to self-hosted production without a rebuild.
 
@@ -114,25 +114,25 @@ Compared with the vendor-hosted tools on this list, Sim is the option where the 
 
 **Best for:** Nontechnical teams that already run Zapier and want agents that act across a very large SaaS catalog with no infrastructure.
 
-**Pricing:** The Agents Free plan includes 400 activities per month. Agents Pro is $33.33 per month billed annually ($400 a year) for 1,500 activities per month, and Enterprise is custom. An activity covers actions an agent takes, web browsing, and knowledge lookups, and the Agents allowance is separate from Zap task plans.
+**Pricing:** The Agents Free plan includes 400 activities per month. Agents Pro is $33.33 per month billed annually ($400 a year) for 1,500 activities per month, and Enterprise is custom. An activity covers actions an agent takes, web browsing, and knowledge lookups, and the Agents allowance is currently separate from Zap task plans, although that changes as Agents moves into AI by Zapier (see Limitations).
 
 **Strengths:** Zapier says agents can work across 9,000+ apps, the largest catalog in this roundup. Agents can browse the web, use live data sources, and run from a Chrome extension, and the free tier is enough to prove out a real use case.
 
-**Limitations:** Zapier is vendor-hosted only. Its pricing page notes that Zapier Agents does not currently support the app and action restrictions an Enterprise account may have in place, which matters for governed rollouts. One agent run can consume several activities, so heavy usage needs forecasting.
+**Limitations:** Zapier is vendor-hosted only. Zapier is migrating Agents into AI by Zapier inside the Zap editor, which uses the same task-based pricing as the rest of Zapier; Zapier has not set a date to turn off Agents, but new builds should plan for the change. Zapier's pricing page is also inconsistent on governance: it lists restricted apps support on Agents Enterprise, while its Agents FAQ says Agents does not currently support the app and action restrictions an Enterprise account may have in place, so confirm with Zapier before a governed rollout. One agent run can consume several activities, so heavy usage needs forecasting.
 
 Sim gives up Zapier's catalog breadth in exchange for model choice, code steps, and self-hosting, so Zapier Agents is the better pick when connector coverage outweighs control.
 
-**Sources:** [Zapier pricing](https://zapier.com/pricing), [Zapier Agents](https://zapier.com/agents), [how Zapier Agents usage is measured](https://help.zapier.com/hc/en-us/articles/26559132765325-How-is-Zapier-Agents-usage-measured), [Sim vs Zapier](https://www.sim.ai/comparisons/zapier).
+**Sources:** [Zapier pricing](https://zapier.com/pricing), [Zapier Agents](https://zapier.com/agents), [Zapier's Agents to AI by Zapier migration guide](https://help.zapier.com/hc/en-us/articles/47402591569805), [how Zapier Agents usage is measured](https://help.zapier.com/hc/en-us/articles/26559132765325-How-is-Zapier-Agents-usage-measured), [Sim vs Zapier](https://www.sim.ai/comparisons/zapier).
 
 ### 3. Make
 
 **Best for:** Operations teams that want detailed visual control over branching and data mapping, with AI agents inside broader automations, at a low entry price.
 
-**Pricing:** On Make's pricing page as captured on October 6, 2026, Free is $0 for up to 1,000 credits a month with a 15-minute minimum interval between runs, and Core starts at $9 a month for 10,000 credits, Pro at $16, and Teams at $29. Enterprise is custom. Each module action counts as one credit, and AI usage through Make's own AI provider also consumes credits based on tokens.
+**Pricing:** On Make's pricing page as captured on October 6, 2026, Free is $0 for up to 1,000 credits a month with a 15-minute minimum interval between runs, and for 10,000 credits a month Core is $10.59 billed monthly or $9 a month billed annually, Pro is $18.82 or $16, and Teams is $34.12 or $29. Enterprise is custom. Each module action counts as one credit, and AI usage through Make's own AI provider also consumes credits based on tokens.
 
-**Strengths:** Make connects 3,000+ apps and shows every route, filter, and mapping visually. Make AI Agents (labeled beta) are available on all plans with Make's AI provider or your own LLM key, and Maia by Make builds automations and agents from a conversation.
+**Strengths:** Make connects 3,000+ apps and shows every route, filter, and mapping visually. Make AI Agents (labeled beta) are available on all plans with Make's AI provider, or with your own LLM key on paid plans, and Maia by Make builds automations and agents from a conversation.
 
-**Limitations:** Make is vendor-hosted. Large scenarios become hard to read as they grow, and AI credit usage is dynamic, so costs for agent-heavy scenarios are harder to predict than the per-module rate suggests. The live pricing page blocks automated access, so confirm current prices in a browser.
+**Limitations:** Make is vendor-hosted. Large scenarios become hard to read as they grow, and AI credit usage is dynamic, so costs for agent-heavy scenarios are harder to predict than the per-module rate suggests.
 
 Make is the better pick for routing data between SaaS apps on a tight budget; Sim is a better fit when the agent's reasoning, model choice, and knowledge are the center of the build.
 
@@ -144,7 +144,7 @@ Make is the better pick for routing data between SaaS apps on a tight budget; Si
 
 **Pricing:** Pro starts at $37 per month with 20,000 credits a month and a 14-day free trial; there is no permanent free plan. Enterprise is custom. Agent usage includes an 8% orchestration fee, which rises to 16% when you bring your own model key, and 1 credit is worth $0.005.
 
-**Strengths:** Pro includes unlimited agents, seats, and teams, plus 35+ models and bring-your-own API keys. Enterprise adds role-based access control, SCIM and SAML, audit logs, AI model access control, and an optional virtual private cloud. Gumloop also ships an MCP server and CLI for technical users.
+**Strengths:** Pro includes unlimited agents, seats, and teams, plus 35+ models and bring-your-own API keys. Enterprise adds role-based access control, SCIM and SAML, audit logs, AI model access control, and an optional virtual private cloud. Gumloop also ships an MCP server (Model Context Protocol, a standard that lets AI apps call outside tools) and a CLI for technical users.
 
 **Limitations:** Gumloop is vendor-hosted, with VPC only as an Enterprise option. Its pricing page now labels workflows as "Legacy," so teams that want deterministic, step-by-step automation should check where that product is heading. Credit costs depend on model, tool calls, and compute time, which makes forecasting harder.
 
@@ -170,9 +170,9 @@ MindStudio is the better pick for a single builder shipping many lightweight age
 
 **Best for:** Technical automation teams that want deep workflow control, AI agent nodes, and self-hosting, and are comfortable with a low-code tool.
 
-**Pricing:** Starter is €20 a month billed annually for 2,500 workflow executions, Pro is €50 a month for 10,000, and Business is €667 a month for 40,000 and is self-hosted only; Enterprise is custom. The page showed euros when fetched, so prices may display in another currency for your region. The self-hosted Community Edition has no license fee. All plans include unlimited users and workflows, and n8n bills per full workflow execution rather than per step.
+**Pricing:** Starter is €20 a month billed annually for 2,500 workflow executions, Pro is €50 a month for 10,000, and Business is €667 a month for 40,000 and is self-hosted only; Enterprise is custom. n8n lists prices in euros, billed annually. The self-hosted Community Edition has no license fee. All plans include unlimited users and workflows, and n8n bills per full workflow execution rather than per step.
 
-**Strengths:** n8n includes an AI Agent node, MCP client and server triggers, human approval for tool calls, and JavaScript or Python code steps on every plan. Its execution-based billing is predictable for long workflows.
+**Strengths:** n8n includes an AI Agent node, MCP client and server triggers (so agents can call, or be called as, outside tools over the Model Context Protocol), human approval for tool calls, and JavaScript or Python code steps on every plan. Its execution-based billing is predictable for long workflows.
 
 **Limitations:** n8n is low-code rather than no-code, and nontechnical users usually need help with expressions and data mapping. It uses the [Sustainable Use License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/), which n8n describes as source-available fair-code rather than OSI-approved open source. SSO, Git version control, and environments are reserved for higher tiers.
 
@@ -214,7 +214,7 @@ Copilot Studio is the better pick for Microsoft-centric IT teams; Sim is a bette
 
 **Pricing:** Free is $0 with 500 runs a month, two projects, and one seat. Enterprise is custom.
 
-**Strengths:** StackAI offers a no-code builder, 500+ enterprise integrations, and multi-tenant, VPC, or on-premise deployment. It lists SOC 2 Type II, ISO 27001, GDPR, and HIPAA compliance, with SSO and access control on Enterprise.
+**Strengths:** StackAI offers an agentic workflow builder, 500+ enterprise integrations, and multi-tenant, VPC, or on-premise deployment. It lists SOC 2 Type II, ISO 27001, GDPR, and HIPAA compliance, with SSO and access control on Enterprise.
 
 **Limitations:** There is no self-serve paid tier between Free and Enterprise, so growing past one seat means a sales conversation. StackAI's site also announces that Asana has acquired it, so buyers should confirm the standalone product roadmap before committing.
 
@@ -238,13 +238,13 @@ Pickaxe is the better pick for turning an assistant into a paid product; Sim is 
 
 ## How do these no-code AI agent builders compare?
 
-Entry prices were checked on each vendor's pricing page in October 2026 and change often.
+Entry prices were checked on each vendor's pricing page in October 2026 (Make's from an October 6, 2026 archived capture) and change often.
 
 | Builder | Best for | Entry paid price | Free tier | Billing unit | Deployment |
 | --- | --- | --- | --- | --- | --- |
 | **Sim** | Mixed teams that need code and self-hosting | $25/user/mo (Pro) | 1,000 one-time credits | Credits | Cloud or self-hosted (Apache 2.0 core) |
 | **Zapier Agents** | SaaS-heavy nontechnical teams | $33.33/mo billed annually | 400 activities/mo | Activities | Vendor-hosted |
-| **Make** | Visual SaaS routing on a budget | $9/mo (Core, 10k credits) | 1,000 credits/mo | Credits | Vendor-hosted |
+| **Make** | Visual SaaS routing on a budget | $10.59/mo monthly or $9/mo annually (Core, 10k credits) | 1,000 credits/mo | Credits | Vendor-hosted |
 | **Gumloop** | Managed agents with unlimited seats | $37/mo (Pro) | 14-day trial | Credits plus orchestration fee | Vendor-hosted; VPC on Enterprise |
 | **MindStudio** | Solo builders, many agents | $20/mo plus usage | 1 agent, 1,000 runs/mo | Plan plus model usage | Cloud; self-host on Business |
 | **n8n** | Technical automation teams | €20/mo billed annually | Self-hosted Community Edition | Workflow executions | Cloud or self-hosted |
@@ -260,7 +260,7 @@ Start from the constraint you cannot change, then test two or three finalists wi
 - **Choose Zapier Agents** if your team already lives in Zapier and needs agents across thousands of SaaS apps with no setup.
 - **Choose Make** if you want the lowest paid entry price and detailed visual control over data routing.
 - **Choose Gumloop** if you want a managed agent product with unlimited seats and Enterprise admin controls.
-- **Choose MindStudio** if one person is building many assistant-style agents and wants the widest model menu.
+- **Choose MindStudio** if one person is building many assistant-style agents and wants 200+ models without managing API keys.
 - **Choose n8n** if your builders are technical and want a mature low-code tool with self-hosting.
 - **Choose Relevance AI** if you want the vendor's team to help design and deploy your first agents.
 - **Choose Copilot Studio** if your organization is standardized on Microsoft 365 and Power Platform.
