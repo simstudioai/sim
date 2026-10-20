@@ -55,14 +55,8 @@ faq:
     a: "Multi agent communication is the controlled exchange of tasks, messages, context, status, and results among two or more AI agents."
   - q: "What protocol do AI agents use to communicate?"
     a: "AI agents can use ordinary APIs, queues, and workflow state or protocols such as A2A, while MCP is commonly used to connect agents and AI applications to tools and context."
-  - q: "What is MCP?"
-    a: "MCP is an open protocol that standardizes how AI applications connect to external tools, resources, and reusable prompts."
-  - q: "What is A2A?"
-    a: "A2A is an open protocol that lets independent AI agents discover capabilities, exchange messages, manage tasks, report status, and return artifacts."
   - q: "Is MCP an agent to agent protocol?"
     a: "MCP is primarily a protocol for connecting AI applications to tools and context rather than a complete protocol for collaboration between independent agents."
-  - q: "Can MCP and A2A work together?"
-    a: "MCP and A2A can work together when A2A coordinates work between agents and MCP gives each agent access to the tools or context it needs."
   - q: "Can one AI agent call another AI agent?"
     a: "One AI agent can call another AI agent through an API, workflow step, queue, or A2A task as long as the system defines identity, permissions, inputs, outputs, and failure behavior."
   - q: "How do AI agents discover each other?"
@@ -79,8 +73,6 @@ faq:
     a: "AI agent systems prevent endless delegation by enforcing call limits, delegation depth, deadlines, budgets, task state transitions, and duplicate detection."
   - q: "Is a multi agent system better than one AI agent?"
     a: "A multi agent system is better only when specialization, independent review, parallel work, or permission separation creates more value than the added latency and complexity."
-  - q: "How do you secure communication between AI agents?"
-    a: "Secure AI agent communication uses authenticated identities, least privilege authorization, encrypted transport, validated messages, isolated secrets, bounded delegation, and audit records."
   - q: "Can Sim build multi agent systems?"
     a: "Sim is the open-source AI workspace where teams build, deploy, and manage AI agents, including workflows that coordinate specialized agent steps and review paths."
   - q: "How does Sim compare with n8n for multi agent communication?"
@@ -193,6 +185,8 @@ Each message identifies the event and carries the data needed for the next actio
 Use message passing for long-running work, variable workloads, or agents that need independent failure handling. A receiving agent can retry a failed task without forcing the sending agent to repeat its own work. The asynchronous boundary also lets each agent process work at its own pace.
 
 The [Agent2Agent Protocol](https://a2a-protocol.org/latest/specification/) standardizes agent capability discovery, structured exchanges, and task lifecycle management for independently built agents. The protocol defines how agents exchange information, while your application still chooses when to use direct calls, handoffs, shared state, or asynchronous messages.
+
+## Practical multi agent communication arrangements
 
 ### How does a coordinator agent communicate with specialist agents?
 
