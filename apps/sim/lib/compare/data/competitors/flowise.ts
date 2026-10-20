@@ -4,7 +4,8 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 /**
  * Researched and cross-verified against live vendor sources on 2026-07-02. The
  * end-of-life status in `oneLiner`, `leadAnswer`, and `faqs` was verified against
- * flowiseai.com/sunset and the archived GitHub repository on 2026-10-19.
+ * flowiseai.com/sunset and the archived GitHub repository on 2026-10-19, as were
+ * the Cloud plans and self-hosting facts that cite them.
  */
 export const flowiseProfile: CompetitorProfile = {
   id: 'flowise',
@@ -28,7 +29,7 @@ export const flowiseProfile: CompetitorProfile = {
     {
       question: 'Is Flowise still maintained?',
       answer:
-        'No. The Flowise team announced on July 29, 2026 that it was winding the project down: feature development and pull request review stopped that day, the GitHub repository was archived in August 2026 with its npm packages and Docker images marked deprecated, and the project reached end of life on August 31, 2026, when the core team stopped supporting it on Discord and GitHub. The Apache 2.0 source code stays on GitHub for teams to fork. Sim is an actively developed open-source alternative with an Apache 2.0-licensed core that can be self-hosted or used on Sim Cloud.',
+        'No. The Flowise team announced on July 29, 2026 that it was winding the project down: feature development and pull request review stopped that day, the GitHub repository was archived in August 2026, and the project reached end of life on August 31, 2026, when the core team stopped supporting it on Discord and GitHub. The Apache 2.0 source code stays on GitHub for teams to fork. Sim is an actively developed open-source alternative with an Apache 2.0-licensed core that can be self-hosted or used on Sim Cloud.',
     },
     {
       question: 'How does Sim compare to Flowise for building AI agents?',
@@ -51,6 +52,8 @@ export const flowiseProfile: CompetitorProfile = {
         "Flowise gives more control over the ingestion pipeline, while Sim builds a synced, hybrid-search knowledge base into the workspace. Flowise's Document Store upserts into a choice of vector stores such as Pinecone, Weaviate, Milvus, and FAISS, offers the broadest native set of text splitters, and lets you preview and edit chunks. Sim combines vector and full-text search, supports 15 file types with configurable chunking, uses connectors to continuously sync sources such as Google Drive, Confluence, and Slack, and exposes chunk-level detail with a dedicated chunk editor.",
     },
   ],
+  chooseCompetitorAnswer:
+    'Choose Flowise only if you already run it and are prepared to maintain a fork of its archived Apache 2.0 code yourself: the open-source project reached end of life on August 31, 2026, and its core team no longer reviews or accepts changes.',
   standoutFeatures: [
     {
       title: 'Choice of vector-store backend, with the broadest native text-splitter menu',
@@ -77,19 +80,31 @@ export const flowiseProfile: CompetitorProfile = {
       },
     },
     {
-      title: 'Larger existing open-source community, on the same Apache 2.0 license as Sim',
+      title: 'Large open-source community, on the same Apache 2.0 license as Sim',
       description:
-        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is community scale: its GitHub repo has roughly 54,000 stars and an active Discord community built up since 2023.',
+        'Both Flowise and Sim are Apache License 2.0 and self-hostable, so the license itself is not a differentiator. Where Flowise stands out is the community it built: its GitHub repository has roughly 55,000 stars. The repository has been archived since August 2026, and official core-team presence on GitHub and Discord ended at end of life on August 31, 2026.',
       shortDescription:
-        'Same Apache 2.0 license as Sim, but a larger existing community: ~54k GitHub stars, active Discord.',
+        'Same Apache 2.0 license as Sim, with ~55k GitHub stars on a repository archived since August 2026.',
       source: {
         url: 'https://github.com/FlowiseAI/Flowise',
         label: 'GitHub: FlowiseAI/Flowise',
-        asOf: '2026-07-02',
+        asOf: '2026-10-19',
       },
     },
   ],
   limitations: [
+    {
+      title: 'End of life for the open-source project on August 31, 2026',
+      description:
+        'The Flowise team froze the code on July 29, 2026, stopped reviewing or accepting pull requests, archived the GitHub repository in August 2026, and ended official core-team presence on GitHub and Discord on August 31, 2026. The Apache 2.0 code stays available to fork, so any further fixes come from a fork you maintain. The sunset notice does not say what happens to Flowise Cloud.',
+      shortDescription:
+        'End of life since August 31, 2026: archived repository, no core-team maintenance.',
+      source: {
+        url: 'https://flowiseai.com/sunset',
+        label: 'Flowise: The Future of Flowise',
+        asOf: '2026-10-19',
+      },
+    },
     {
       title: 'Low enterprise-readiness score in third-party benchmarking',
       description:
@@ -145,27 +160,32 @@ export const flowiseProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          "Yes: Flowise's Community Edition is Apache 2.0 and can be self-hosted, including via Docker, on your own infrastructure.",
-        shortValue: 'Yes, self-hostable via Docker',
+          "Yes: Flowise's Community Edition is Apache 2.0 and can be self-hosted, including via Docker, on your own infrastructure. The repository has been archived since August 2026 and the project reached end of life on August 31, 2026, so a self-hosted deployment runs the final release or a fork you maintain.",
+        shortValue: 'Yes, but the archived code is no longer maintained',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise/blob/main/LICENSE.md',
             label: 'GitHub: Flowise LICENSE.md',
-            asOf: '2026-07-02',
+            asOf: '2026-10-19',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: The Future of Flowise',
+            asOf: '2026-10-19',
           },
         ],
       },
       deploymentOptions: {
         value:
-          'Flowise offers self-hosted open-source deployment (Docker/npm), a managed multi-tenant Cloud plan, and an Enterprise tier supporting on-premise or air-gapped deployment for regulated industries.',
-        shortValue: 'Self-hosted, cloud, and enterprise on-prem/air-gapped',
+          'Self-hosted open-source deployment (Docker or npm) of the archived code, and a managed Cloud service that flowiseai.com still lists with Free, Starter, and Pro plans, plus on-premises and cloud deployment for enterprises. The sunset notice covers the open-source project and does not say what happens to Flowise Cloud.',
+        shortValue: 'Self-hosted (archived code) or Flowise Cloud',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com',
+            label: 'Flowise: Pricing',
+            asOf: '2026-10-19',
           },
           {
             url: 'https://docs.flowiseai.com/using-flowise/workspaces',
@@ -652,42 +672,40 @@ export const flowiseProfile: CompetitorProfile = {
     pricing: {
       pricingModel: {
         value:
-          'Flowise Cloud prices by monthly prediction (execution) volume plus storage tier, with separate paid plans; self-hosting is free aside from your own infrastructure and LLM costs.',
-        shortValue: 'Prediction-volume based tiers (cloud), free self-hosting',
-        confidence: 'estimated',
+          'Flowise Cloud plans are priced by monthly predictions (executions) and storage: Free, Starter at $35/month, and Pro at $65/month. Self-hosting the archived open-source code is free aside from your own infrastructure and LLM costs.',
+        shortValue: 'Prediction-volume tiers (Cloud), free self-hosting',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com',
+            label: 'Flowise: Pricing',
+            asOf: '2026-10-19',
           },
         ],
       },
       entryPaidPlan: {
         value:
-          'The cheapest paid Cloud plan (Starter) is reported at $35/month, including unlimited flows, 10,000 predictions/month, and 1GB storage.',
-        detail:
-          "Sourced from third-party aggregator coverage; Flowise's own pricing page sits behind a login wall.",
+          'The cheapest paid Cloud plan (Starter) is $35/month, with unlimited flows and assistants, 10,000 predictions per month, and 1GB of storage.',
         shortValue: '$35/month Starter: unlimited flows, 10k predictions, 1GB storage',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com',
+            label: 'Flowise: Pricing',
+            asOf: '2026-10-19',
           },
         ],
       },
       freeTier: {
         value:
-          'Yes: a free Cloud plan exists with 2 flows/assistants, 100 predictions per month, and 5MB storage, with community support and Flowise embed branding.',
+          'Yes: the free Cloud plan includes 2 flows and assistants, 100 predictions per month, and 5MB of storage, with community support.',
         shortValue: 'Yes: 2 flows, 100 predictions/month, 5MB storage',
-        confidence: 'estimated',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com',
+            label: 'Flowise: Pricing',
+            asOf: '2026-10-19',
           },
         ],
       },
@@ -718,14 +736,14 @@ export const flowiseProfile: CompetitorProfile = {
       },
       dataResidency: {
         value:
-          'Yes, indirectly: self-hosting (including on-prem/air-gapped Enterprise deployment) lets an organization fully control data location. There is no dedicated regional-cloud-hosting option for the managed Cloud product.',
+          'Yes, indirectly: self-hosting the open-source code, or the on-premises deployment flowiseai.com describes for enterprises, lets an organization control data location. flowiseai.com documents no regional hosting option for the managed Cloud product.',
         shortValue: 'Yes via self-hosting/on-prem; no documented regional cloud option',
         confidence: 'estimated',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com',
+            label: 'Flowise: Pricing',
+            asOf: '2026-10-19',
           },
         ],
       },
@@ -970,54 +988,62 @@ export const flowiseProfile: CompetitorProfile = {
     support: {
       supportChannels: {
         value:
-          'Flowise offers community support (GitHub, Discord) on free/self-hosted tiers, priority support on the Pro Cloud plan, and personalized/dedicated support on Enterprise.',
-        shortValue: 'Community (free), priority (Pro), dedicated (Enterprise)',
-        confidence: 'estimated',
+          'flowiseai.com lists community support on the Free and Starter Cloud plans and priority support on the Pro plan. Official core-team presence on GitHub and Discord ended when the open-source project reached end of life on August 31, 2026.',
+        shortValue: 'Community (Free, Starter), priority (Pro); core team left GitHub/Discord',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-02',
+            url: 'https://flowiseai.com',
+            label: 'Flowise: Pricing',
+            asOf: '2026-10-19',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: The Future of Flowise',
+            asOf: '2026-10-19',
           },
         ],
       },
       sla: {
-        value:
-          'A formal SLA (99.99% uptime) is offered on the Enterprise plan per third-party coverage; no SLA is documented for lower tiers.',
-        detail: 'No official Flowise SLA page confirms this figure.',
-        shortValue: 'Yes, ~99.99% SLA claimed on Enterprise plan',
-        confidence: 'estimated',
+        value: 'Not documented: flowiseai.com publishes no uptime SLA for any plan.',
+        shortValue: 'No published SLA',
+        confidence: 'verified',
         sources: [
           {
-            url: 'https://www.lindy.ai/blog/flowise-pricing',
-            label: 'Lindy: Flowise Pricing, Features, and Alternatives for 2026',
-            asOf: '2026-07-08',
+            url: 'https://flowiseai.com',
+            label: 'Flowise: Pricing',
+            asOf: '2026-10-19',
           },
         ],
       },
       community: {
         value:
-          "Flowise's GitHub repository has approximately 54,000 stars (Apache 2.0 licensed core), with an active Discord community whose exact member count is not published.",
-        shortValue: '~54,000 GitHub stars, active Discord community',
+          "Flowise's GitHub repository has approximately 55,000 stars (Apache 2.0 licensed core). The repository has been archived since August 2026, and official core-team presence on GitHub and Discord ended on August 31, 2026.",
+        shortValue: '~55,000 GitHub stars on an archived repository',
         confidence: 'verified',
         sources: [
           {
             url: 'https://github.com/FlowiseAI/Flowise',
             label: 'GitHub: FlowiseAI/Flowise',
-            asOf: '2026-07-02',
+            asOf: '2026-10-19',
           },
         ],
       },
       companyMaturity: {
         value:
-          'Flowise was founded in April 2023 (Y Combinator-backed), raised approximately $500K in early funding, and was acquired by Workday in August 2025, bringing enterprise backing while keeping the open-source Community Edition intact.',
-        shortValue: 'Founded 2023 (YC), acquired by Workday Aug 2025',
+          'Flowise was founded in April 2023 (Y Combinator-backed), raised approximately $500K in early funding, and was acquired by Workday in August 2025. The open-source project reached end of life on August 31, 2026.',
+        shortValue: 'Founded 2023 (YC), acquired by Workday Aug 2025, EOL Aug 2026',
         confidence: 'verified',
         sources: [
           {
             url: 'https://www.prnewswire.com/news-releases/workday-acquires-flowise-bringing-powerful-ai-agent-builder-capabilities-to-the-workday-platform-302530557.html',
             label: 'PR Newswire: Workday Acquires Flowise',
             asOf: '2026-07-02',
+          },
+          {
+            url: 'https://flowiseai.com/sunset',
+            label: 'Flowise: The Future of Flowise',
+            asOf: '2026-10-19',
           },
         ],
       },
