@@ -623,8 +623,8 @@ export function projectOrganization(value: unknown): HelpScoutOrganization {
   }
 }
 
-export const EMAIL_TYPES = new Set(['work', 'home', 'other'])
-export const PHONE_TYPES = new Set(['work', 'home', 'mobile', 'fax', 'pager', 'other'])
+const EMAIL_TYPES = new Set(['work', 'home', 'other'])
+const PHONE_TYPES = new Set(['work', 'home', 'mobile', 'fax', 'pager', 'other'])
 
 /** Validated `{ type, value }` customer entries for an email and phone, when supplied. */
 export function buildContactEntries(params: {

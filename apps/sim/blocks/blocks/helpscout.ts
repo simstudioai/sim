@@ -807,7 +807,7 @@ export const HelpScoutBlock: BlockConfig = {
       id: 'unsnoozeOnCustomerReply',
       title: 'Wake on Customer Reply',
       type: 'switch',
-      value: () => true,
+      defaultValue: true,
       condition: { field: 'operation', value: 'snooze_conversation' },
     },
     {
