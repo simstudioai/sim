@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { ErrorObject } from 'ajv'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
@@ -94,8 +95,28 @@ export function coerceToolArguments(
 
 /** Validates the complete discovered JSON Schema, including nested constraints and additional properties. */
 export function validateToolArguments(tool: McpTool, args: Record<string, unknown>): void {
-  if (!compileMcpToolSchema(tool.inputSchema)(args))
-    throw new OrchestrationError('validation', 'Invalid MCP operation arguments')
+  const validate = compileMcpToolSchema(tool.inputSchema)
+  if (validate(args)) return
+  const details = (validate.errors ?? [])
+    .slice(0, MAX_REPORTED_ARGUMENT_ERRORS)
+    .map(describeArgumentError)
+  throw new OrchestrationError(
+    'validation',
+    details.length > 0
+      ? `Invalid MCP operation arguments: ${details.join('; ')}`
+      : 'Invalid MCP operation arguments'
+  )
+}
+
+const MAX_REPORTED_ARGUMENT_ERRORS = 3
+
+/** Names the failing argument so the caller can correct it; the schema and arguments are not secret. */
+function describeArgumentError(error: ErrorObject): string {
+  const extra =
+    error.keyword === 'additionalProperties' && typeof error.params.additionalProperty === 'string'
+      ? ` '${error.params.additionalProperty}'`
+      : ''
+  return [error.instancePath, `${error.message ?? 'is invalid'}${extra}`].filter(Boolean).join(' ')
 }
 
 export function transformToolResult(result: McpToolResult): ExecuteMcpToolResult {
