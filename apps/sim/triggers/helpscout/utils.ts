@@ -78,57 +78,75 @@ export function helpScoutSetupInstructions(eventLabel: string): string {
 
 const PERSON_OUTPUT = {
   type: 'json',
+  nullable: true,
   description: 'Person object (id, type, first, last, email)',
 } as const
 
 const CONVERSATION_OUTPUTS: Record<string, TriggerOutput> = {
-  id: { type: 'number', description: 'Conversation ID' },
-  number: { type: 'number', description: 'Conversation number shown in Help Scout' },
-  threadCount: { type: 'number', description: 'Number of published threads, excluding notes' },
-  type: { type: 'string', description: 'email, chat, or phone' },
-  folderId: { type: 'number', description: 'Folder ID' },
-  status: { type: 'string', description: 'active, pending, closed, or spam' },
-  state: { type: 'string', description: 'published, draft, or deleted' },
-  subject: { type: 'string', description: 'Subject' },
-  preview: { type: 'string', description: 'Preview text from the most recent thread' },
-  mailboxId: { type: 'number', description: 'Inbox ID' },
+  id: { type: 'number', description: 'Conversation ID', nullable: true },
+  number: {
+    type: 'number',
+    description: 'Conversation number shown in Help Scout',
+    nullable: true,
+  },
+  threadCount: {
+    type: 'number',
+    description: 'Number of published threads, excluding notes',
+    nullable: true,
+  },
+  type: { type: 'string', description: 'email, chat, or phone', nullable: true },
+  folderId: { type: 'number', description: 'Folder ID', nullable: true },
+  status: { type: 'string', description: 'active, pending, closed, or spam', nullable: true },
+  state: { type: 'string', description: 'published, draft, or deleted', nullable: true },
+  subject: { type: 'string', description: 'Subject', nullable: true },
+  preview: {
+    type: 'string',
+    description: 'Preview text from the most recent thread',
+    nullable: true,
+  },
+  mailboxId: { type: 'number', description: 'Inbox ID', nullable: true },
   assignee: { ...PERSON_OUTPUT, description: 'User or team the conversation is assigned to' },
   createdBy: { ...PERSON_OUTPUT, description: 'User or customer who created the conversation' },
   primaryCustomer: { ...PERSON_OUTPUT, description: 'Primary customer of the conversation' },
-  createdAt: { type: 'string', description: 'When the conversation was created' },
-  closedAt: { type: 'string', description: 'When the conversation was closed' },
-  closedBy: { type: 'number', description: 'ID of the user who closed it' },
-  userUpdatedAt: { type: 'string', description: 'When a user last updated the conversation' },
+  createdAt: { type: 'string', description: 'When the conversation was created', nullable: true },
+  closedAt: { type: 'string', description: 'When the conversation was closed', nullable: true },
+  closedBy: { type: 'number', description: 'ID of the user who closed it', nullable: true },
+  userUpdatedAt: {
+    type: 'string',
+    description: 'When a user last updated the conversation',
+    nullable: true,
+  },
   customerWaitingSince: {
     type: 'string',
     description: 'When the customer started waiting for a reply',
+    nullable: true,
   },
-  sourceType: { type: 'string', description: 'Originating channel' },
-  sourceVia: { type: 'string', description: 'user or customer' },
+  sourceType: { type: 'string', description: 'Originating channel', nullable: true },
+  sourceVia: { type: 'string', description: 'user or customer', nullable: true },
   tags: { type: 'array', description: 'Tags on the conversation (id, tag, color)' },
   cc: { type: 'array', description: 'CC email addresses' },
   bcc: { type: 'array', description: 'BCC email addresses' },
   customFields: { type: 'array', description: 'Custom field values (id, name, value, text)' },
-  webUrl: { type: 'string', description: 'Link to the conversation in Help Scout' },
+  webUrl: { type: 'string', description: 'Link to the conversation in Help Scout', nullable: true },
 }
 
 const CUSTOMER_OUTPUTS: Record<string, TriggerOutput> = {
-  id: { type: 'number', description: 'Customer ID' },
-  firstName: { type: 'string', description: 'First name' },
-  lastName: { type: 'string', description: 'Last name' },
-  gender: { type: 'string', description: 'Gender' },
-  jobTitle: { type: 'string', description: 'Job title' },
-  location: { type: 'string', description: 'Location' },
-  organization: { type: 'string', description: 'Organization name' },
-  organizationId: { type: 'number', description: 'Organization ID' },
-  photoType: { type: 'string', description: 'Photo source' },
-  photoUrl: { type: 'string', description: 'Photo URL' },
-  age: { type: 'string', description: 'Age' },
-  background: { type: 'string', description: 'Notes about the customer' },
-  conversationCount: { type: 'number', description: 'Number of conversations' },
-  draft: { type: 'boolean', description: 'Whether the customer is a draft record' },
-  createdAt: { type: 'string', description: 'When the customer was created' },
-  updatedAt: { type: 'string', description: 'When the customer was updated' },
+  id: { type: 'number', description: 'Customer ID', nullable: true },
+  firstName: { type: 'string', description: 'First name', nullable: true },
+  lastName: { type: 'string', description: 'Last name', nullable: true },
+  gender: { type: 'string', description: 'Gender', nullable: true },
+  jobTitle: { type: 'string', description: 'Job title', nullable: true },
+  location: { type: 'string', description: 'Location', nullable: true },
+  organization: { type: 'string', description: 'Organization name', nullable: true },
+  organizationId: { type: 'number', description: 'Organization ID', nullable: true },
+  photoType: { type: 'string', description: 'Photo source', nullable: true },
+  photoUrl: { type: 'string', description: 'Photo URL', nullable: true },
+  age: { type: 'string', description: 'Age', nullable: true },
+  background: { type: 'string', description: 'Notes about the customer', nullable: true },
+  conversationCount: { type: 'number', description: 'Number of conversations', nullable: true },
+  draft: { type: 'boolean', description: 'Whether the customer is a draft record', nullable: true },
+  createdAt: { type: 'string', description: 'When the customer was created', nullable: true },
+  updatedAt: { type: 'string', description: 'When the customer was updated', nullable: true },
   emails: { type: 'array', description: 'Email addresses (id, value, type)' },
   phones: { type: 'array', description: 'Phone numbers (id, value, type)' },
   websites: { type: 'array', description: 'Websites (id, value, type)' },
@@ -145,7 +163,7 @@ const EVENT_TYPE_OUTPUT: TriggerOutput = {
 export function buildConversationEventOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: EVENT_TYPE_OUTPUT,
-    conversationId: { type: 'number', description: 'Conversation ID' },
+    conversationId: { type: 'number', description: 'Conversation ID', nullable: true },
     conversation: CONVERSATION_OUTPUTS,
     payload: { type: 'json', description: 'Raw Help Scout webhook payload' },
   }
@@ -154,7 +172,11 @@ export function buildConversationEventOutputs(): Record<string, TriggerOutput> {
 export function buildConversationDeletedOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: EVENT_TYPE_OUTPUT,
-    conversationId: { type: 'number', description: 'ID of the deleted conversation' },
+    conversationId: {
+      type: 'number',
+      description: 'ID of the deleted conversation',
+      nullable: true,
+    },
     payload: { type: 'json', description: 'Raw Help Scout webhook payload' },
   }
 }
@@ -162,7 +184,7 @@ export function buildConversationDeletedOutputs(): Record<string, TriggerOutput>
 export function buildCustomerEventOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: EVENT_TYPE_OUTPUT,
-    customerId: { type: 'number', description: 'Customer ID' },
+    customerId: { type: 'number', description: 'Customer ID', nullable: true },
     customer: CUSTOMER_OUTPUTS,
     payload: { type: 'json', description: 'Raw Help Scout webhook payload' },
   }
