@@ -95,9 +95,11 @@ export interface ComparisonVerdict {
 
 export function buildBottomLine(competitor: CompetitorProfile): ComparisonVerdict {
   const strength = competitor.standoutFeatures[0]
-  const chooseCompetitor = strength
-    ? `Choose ${competitor.name} if you specifically need ${lowercaseFirst(strength.title)}: ${strength.description}`
-    : `Choose ${competitor.name} if its specific strengths, documented above, matter more to your team than an AI-native, self-hostable workspace.`
+  const chooseCompetitor =
+    competitor.chooseCompetitorAnswer ??
+    (strength
+      ? `Choose ${competitor.name} if you specifically need ${lowercaseFirst(strength.title)}: ${strength.description}`
+      : `Choose ${competitor.name} if its specific strengths, documented above, matter more to your team than an AI-native, self-hostable workspace.`)
 
   return {
     chooseSim: `Choose Sim if you want an open-source, self-hostable AI workspace that treats AI agents as first-class citizens: native multi-LLM support, real-time multiplayer editing, human-in-the-loop approvals, and, on the Enterprise plan, environment promotion (dev/qa/prod) and governance (SSO, credential-level permissions, audit logs) built in rather than bolted on.`,

@@ -46,6 +46,10 @@
       "types": "./src/ssrf.ts",
       "default": "./src/ssrf.ts"
     },
+    "./standard-webhooks": {
+      "types": "./src/standard-webhooks.ts",
+      "default": "./src/standard-webhooks.ts"
+    },
     "./tokens": {
       "types": "./src/tokens.ts",
       "default": "./src/tokens.ts"
@@ -65,8 +69,8 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "@types/node": "24.2.1",
+    "@types/node": "24.19.2",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.4"
   }
 }
