@@ -1,3 +1,4 @@
+import { mothershipErrorText } from '@/lib/mothership/chat/error-tag'
 import type { StreamHandler } from './types'
 import { flushSubagentThinkingBlock, flushThinkingBlock } from './types'
 
@@ -8,7 +9,7 @@ export const handleErrorEvent: StreamHandler = (event, context) => {
     context.streamComplete = true
     return
   }
-  const message = event.payload.message || event.payload.error
+  const message = mothershipErrorText(event.payload)
   if (message) {
     context.errors.push(message)
   }

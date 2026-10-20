@@ -2294,4 +2294,23 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.streamComplete).toBe(true)
     expect(context.errors).toEqual(['subagent build failed'])
   })
+
+  it('records the worker error copy the live view showed, not its diagnostic message', async () => {
+    await sseHandlers.error(
+      {
+        type: MothershipStreamV1EventType.error,
+        payload: {
+          code: 'incomplete_generation',
+          message: 'provider finish reason: content-filter',
+          displayMessage: 'Rephrase your last message or start a new chat.',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.errors).toEqual(['Rephrase your last message or start a new chat.'])
+    expect(context.streamComplete).toBe(true)
+  })
 })
