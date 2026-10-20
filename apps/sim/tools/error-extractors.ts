@@ -261,11 +261,15 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
     id: 'helpscout-errors',
     description:
-      'Help Scout vnd.error responses: the top-level message plus each embedded field error as `path: message`, without the rejected value',
+      'Help Scout vnd.error responses: the top-level message plus each embedded field error as `path: message`, without the rejected value. Help Scout answers a missing resource with an empty 404 body.',
     examples: ['Help Scout'],
     extract: (errorInfo) => {
       const data = errorInfo?.data
-      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return errorInfo?.status === 404
+          ? 'Not found: the Help Scout resource does not exist or the connected user cannot access it'
+          : undefined
+      }
       const message = typeof data.message === 'string' ? data.message.trim() : ''
       const embedded = data._embedded
       const errors: unknown[] =
