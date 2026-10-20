@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { copilotChats, organization, user, workspace } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, or } from 'drizzle-orm'
+import { inArray, or } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { listRecallChats } from '@/lib/mothership/chat/application/read-recall-chats'
 
