@@ -26,8 +26,8 @@ type HelpScoutSelectorKey = Extract<
 >
 
 const MAX_PAGE_ITEMS = 1_000
-/** Help Scout documents no single-team endpoint, so a team detail scans at most this many pages. */
-const MAX_TEAM_DETAIL_PAGES = 5
+/** Help Scout documents no single-team endpoint, so a team detail scans the teams list. */
+const MAX_TEAM_DETAIL_PAGES = 200
 
 const idSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 

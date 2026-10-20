@@ -80,7 +80,7 @@ export const helpScoutConnectorMeta: ConnectorMeta = {
       required: false,
       placeholder: `e.g. 200 (default: ${DEFAULT_MAX_CONVERSATIONS})`,
       description:
-        'Maximum number of conversations to sync, newest first. When more exist, conversations deleted in Help Scout stay in the knowledge base until the limit covers them.',
+        'Maximum number of conversations to sync, newest first. Conversations deleted in Help Scout are not removed from the knowledge base automatically.',
     },
   ],
 

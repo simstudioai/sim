@@ -60,10 +60,11 @@ function readEventType(headers: Record<string, string>): string {
 function resolveInboxFilter(config: Record<string, unknown>): number | undefined {
   const raw = toStringOrNull(config.triggerMailboxId)?.trim()
   if (!raw) return undefined
-  if (!HELPSCOUT_ID_PATTERN.test(raw)) {
+  const id = Number(raw)
+  if (!HELPSCOUT_ID_PATTERN.test(raw) || !Number.isSafeInteger(id) || id <= 0) {
     throw new WebhookDeploymentConfigurationError('The Help Scout inbox ID must be numeric.')
   }
-  return Number(raw)
+  return id
 }
 
 /**

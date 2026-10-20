@@ -16,14 +16,15 @@ import {
 import type { ToolConfig } from '@/tools/types'
 
 function parseCustomFields(value: unknown): Array<{ id: number; value: string }> {
-  const parsed = parseJsonParam(value, 'customFields') ?? []
+  // Sending an empty list clears every field, so only an explicit JSON array is accepted.
+  const parsed = parseJsonParam(value, 'customFields')
   if (!Array.isArray(parsed)) {
     throw new Error('customFields must be a JSON array of { "id": number, "value": string }')
   }
   return parsed.map((entry) => {
     const field = entry as { id?: unknown; value?: unknown }
-    if (field.value === undefined || field.value === null) {
-      throw new Error('Every custom field needs a value; use an empty string to clear one')
+    if (typeof field.value !== 'string' && typeof field.value !== 'number') {
+      throw new Error('Every custom field value must be a string or number; use "" to clear one')
     }
     return { id: parseHelpScoutId(field.id, 'customFields[].id'), value: String(field.value) }
   })

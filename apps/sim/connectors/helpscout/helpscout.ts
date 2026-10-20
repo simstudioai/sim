@@ -84,7 +84,6 @@ const ConversationPageSchema = z
       .passthrough()
       .optional(),
     _links: LinksSchema,
-    page: z.object({ totalElements: z.number().optional() }).passthrough().optional(),
   })
   .passthrough()
 
@@ -219,7 +218,9 @@ function conversationChangeMarker(conversation: HelpScoutConversation): string {
     conversation.preview ?? '',
     conversation.mailboxId ?? '',
     conversation.assignee?.id ?? '',
+    conversation.assignee ? personName(conversation.assignee) : '',
     conversation.primaryCustomer?.email ?? '',
+    conversation.primaryCustomer ? personName(conversation.primaryCustomer) : '',
     (conversation.tags ?? [])
       .map((tag) => tag.tag ?? '')
       .sort(compareStrings)
@@ -335,8 +336,6 @@ export const helpScoutConnector: ConnectorConfig = {
     const seen = new Set<number>()
     const documents: ExternalDocument[] = []
     let capped = false
-    let firstTotal: number | undefined
-    let lastTotal: number | undefined
     const maxPages = Math.ceil(maxConversations / CONVERSATIONS_PER_PAGE) + 5
 
     for (let page = 1; ; page++) {
@@ -351,8 +350,6 @@ export const helpScoutConnector: ConnectorConfig = {
       const data = ConversationPageSchema.parse(
         await helpScoutGet('/conversations', accessToken, query)
       )
-      lastTotal = data.page?.totalElements
-      if (page === 1) firstTotal = lastTotal
       for (const conversation of data._embedded?.conversations ?? []) {
         if (seen.has(conversation.id) || !isIndexedConversation(conversation)) continue
         if (documents.length >= maxConversations) {
@@ -369,25 +366,21 @@ export const helpScoutConnector: ConnectorConfig = {
       }
     }
 
+    if (capped && syncContext) syncContext.listingCapped = true
+    if (capped) {
+      logger.warn('Help Scout listing truncated by Max Conversations', {
+        count: documents.length,
+        maxConversations,
+      })
+    } else {
+      logger.info('Listed Help Scout conversations', { count: documents.length })
+    }
     /**
      * Pages are numbered, so a conversation that leaves the filtered set mid-scan shifts later
-     * ones up a page and one can be skipped. A changed total means that may have happened, so
-     * this listing must not drive deletion.
+     * ones up a page and one can be skipped even when the total stays the same. Absence from
+     * this listing is therefore never treated as a deletion.
      */
-    const totalChanged = firstTotal !== undefined && lastTotal !== firstTotal
-    if (syncContext) {
-      if (capped) syncContext.listingCapped = true
-      if (totalChanged) syncContext.reconciliationUnsafe = true
-    }
-    if (capped) {
-      logger.warn(
-        'Help Scout listing truncated by Max Conversations; skipping deletion reconciliation',
-        { count: documents.length, maxConversations }
-      )
-    } else {
-      logger.info('Listed Help Scout conversations', { count: documents.length, totalChanged })
-    }
-    return { documents, hasMore: false }
+    return { documents, hasMore: false, reconciliationSafe: false }
   },
 
   getDocument: async (
@@ -402,7 +395,9 @@ export const helpScoutConnector: ConnectorConfig = {
         await helpScoutGet(`/conversations/${externalId}`, accessToken)
       )
       // A merged conversation redirects to the conversation it was merged into.
-      if (conversation.state === 'deleted' || String(conversation.id) !== externalId) return null
+      if (!isIndexedConversation(conversation) || String(conversation.id) !== externalId) {
+        return null
+      }
       const threads = (await listThreads(externalId, accessToken)).filter((thread) =>
         isIndexedThread(thread, includeNotes)
       )

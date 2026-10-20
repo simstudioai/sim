@@ -13,18 +13,28 @@ import {
 } from '@/tools/helpscout/utils'
 import type { ToolConfig } from '@/tools/types'
 
-/** Help Scout requires a future ISO 8601 time no later than the year 2100. */
+const ISO_DATE_TIME_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
+
+/** Help Scout requires a future ISO 8601 time, in whole seconds, no later than the year 2100. */
 function parseSnoozeUntil(value: string): string {
   const text = value?.trim() ?? ''
+  const match = ISO_DATE_TIME_PATTERN.exec(text)
   const time = Date.parse(text)
-  if (!text || Number.isNaN(time)) {
+  if (!match || Number.isNaN(time)) {
     throw new Error('snoozedUntil must be an ISO 8601 date-time, e.g. 2025-02-15T12:00:00Z')
   }
-  if (time <= Date.now()) throw new Error('snoozedUntil must be in the future')
-  if (new Date(time).getUTCFullYear() > 2100) {
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  const calendarDate = new Date(Date.UTC(year, month - 1, day))
+  if (calendarDate.getUTCMonth() !== month - 1 || calendarDate.getUTCDate() !== day) {
+    throw new Error(`snoozedUntil has an invalid calendar date: ${match[0].slice(0, 10)}`)
+  }
+  const wholeSeconds = Math.ceil(time / 1000) * 1000
+  if (wholeSeconds <= Date.now()) throw new Error('snoozedUntil must be in the future')
+  if (new Date(wholeSeconds).getUTCFullYear() > 2100) {
     throw new Error('snoozedUntil must not be after the year 2100')
   }
-  return new Date(time).toISOString().replace(/\.\d{3}Z$/, 'Z')
+  return new Date(wholeSeconds).toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
 
 export const helpScoutSnoozeConversationTool: ToolConfig<
