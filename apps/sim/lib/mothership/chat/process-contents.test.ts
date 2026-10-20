@@ -635,7 +635,7 @@ describe('processContextsServer - MCP contexts', () => {
       },
     ])
     expect(discoverServerTools).not.toHaveBeenCalled()
-    const catalog = await buildTaggedMcpToolSchemas('user-1', 'ws-1', ['mcp-server-1'])
+    const { tools: catalog } = await buildTaggedMcpToolSchemas('user-1', 'ws-1', ['mcp-server-1'])
     expect(discoverServerTools).toHaveBeenCalledTimes(1)
     expect(discoverServerTools).toHaveBeenCalledWith({
       principal: expect.objectContaining({
