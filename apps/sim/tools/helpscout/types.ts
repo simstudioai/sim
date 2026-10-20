@@ -641,10 +641,12 @@ export interface HelpScoutOrganization {
   customerCount: number | null
   conversationCount: number | null
   properties: Array<{
+    definitionId: number | null
     slug: string | null
     name: string | null
     type: string | null
     value: string | null
+    options: string[]
   }>
 }
 
@@ -679,10 +681,16 @@ export const HELPSCOUT_ORGANIZATION_PROPERTIES = {
     items: {
       type: 'object',
       properties: {
+        definitionId: { type: 'number', description: 'Property definition ID', nullable: true },
         slug: { type: 'string', description: 'Property slug', nullable: true },
         name: { type: 'string', description: 'Property name', nullable: true },
         type: { type: 'string', description: 'Property type', nullable: true },
         value: { type: 'string', description: 'Property value', nullable: true },
+        options: {
+          type: 'array',
+          description: 'Option labels (dropdown properties)',
+          items: { type: 'string' },
+        },
       },
     },
   },

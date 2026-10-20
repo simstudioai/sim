@@ -19,6 +19,11 @@ const MAX_THREAD_PAGES = 4
 const CONVERSATIONS_PER_PAGE = 25
 /** Hard ceiling on Max Conversations so one sync cannot walk an entire account. */
 const MAX_CONVERSATIONS_LIMIT = 5000
+/**
+ * Spam and drafts are skipped after listing, so the scan may read up to this many times the pages
+ * Max Conversations needs before it stops and reports the listing as capped.
+ */
+const SCAN_PAGE_MULTIPLIER = 3
 
 const PersonSchema = z
   .object({
@@ -339,7 +344,8 @@ export const helpScoutConnector: ConnectorConfig = {
     const seen = new Set<number>()
     const documents: ExternalDocument[] = []
     let capped = false
-    const maxPages = Math.ceil(maxConversations / CONVERSATIONS_PER_PAGE) + 5
+    let scanBudgetReached = false
+    const maxPages = Math.ceil(maxConversations / CONVERSATIONS_PER_PAGE) * SCAN_PAGE_MULTIPLIER
 
     for (let page = 1; ; page++) {
       const query: Record<string, string> = {
@@ -363,18 +369,25 @@ export const helpScoutConnector: ConnectorConfig = {
         documents.push(await conversationToStub(conversation, includeNotes))
       }
       if (capped || !data._links?.next) break
-      if (documents.length >= maxConversations || page >= maxPages) {
+      if (documents.length >= maxConversations) {
         capped = true
+        break
+      }
+      if (page >= maxPages) {
+        capped = true
+        scanBudgetReached = true
         break
       }
     }
 
     if (capped && syncContext) syncContext.listingCapped = true
     if (capped) {
-      logger.warn('Help Scout listing truncated by Max Conversations', {
-        count: documents.length,
-        maxConversations,
-      })
+      logger.warn(
+        scanBudgetReached
+          ? 'Help Scout listing stopped at its page scan budget'
+          : 'Help Scout listing truncated by Max Conversations',
+        { count: documents.length, maxConversations, maxPages }
+      )
     } else {
       logger.info('Listed Help Scout conversations', { count: documents.length })
     }

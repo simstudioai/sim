@@ -612,6 +612,7 @@ export function projectOrganization(value: unknown): HelpScoutOrganization {
     properties: toArray(data.properties).map((entry) => {
       const property = toRecord(entry)
       return {
+        definitionId: toNumberOrNull(property.definitionId),
         slug: toStringOrNull(property.slug),
         name: toStringOrNull(property.name),
         type: toStringOrNull(property.type),
@@ -619,6 +620,9 @@ export function projectOrganization(value: unknown): HelpScoutOrganization {
           typeof property.value === 'number'
             ? String(property.value)
             : toStringOrNull(property.value),
+        options: toArray(property.options)
+          .map((option) => toStringOrNull(toRecord(option).label))
+          .filter((label): label is string => label !== null),
       }
     }),
   }
