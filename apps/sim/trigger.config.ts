@@ -2,6 +2,8 @@ import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http'
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
 import { resourceFromAttributes } from '@opentelemetry/resources'
+import { createLogger } from '@sim/logger'
+import { distrustCompromisedRoots } from '@sim/security/tls-trust'
 import {
   additionalFiles,
   additionalPackages,
@@ -106,7 +108,9 @@ export default defineConfig({
    */
   ignorePatterns: ['**/*.{test,spec,integration}.{ts,tsx,mts,cts,js,jsx,mjs,cjs}'],
   /**
-   * Runs before any task run, in the run process. Marks the process so that
+   * Runs before any task run, in the run process. First drops the compromised
+   * eMudhra roots from the default CA set, before the run opens any TLS
+   * connection (see `@sim/security/tls-trust`). Then marks the process so that
    * dispatch decisions further down the call graph stop inferring from
    * environment variables whether Trigger.dev is available: a process that
    * Trigger.dev is executing has Trigger.dev available by definition.
@@ -124,6 +128,10 @@ export default defineConfig({
    * @see https://trigger.dev/docs/config/config-file#lifecycle-functions
    */
   init: async () => {
+    const tlsTrust = distrustCompromisedRoots()
+    if (tlsTrust.unsupported || tlsTrust.error) {
+      createLogger('TriggerInit').warn('Could not distrust compromised CA roots', tlsTrust)
+    }
     markInsideTriggerRun()
     const { warmRedisConnection } = await import('./lib/core/config/redis')
     await warmRedisConnection()
