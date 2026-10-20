@@ -83,10 +83,11 @@ export const {serviceName}{Action}Tool: ToolConfig<
   description: 'Brief description',   // One sentence
   version: '1.0.0',
 
-  // OAuth config (if service uses OAuth)
+  // Required whenever the tool takes a saved credential — browser OAuth or service account
   oauth: {
     required: true,
-    provider: '{service}',            // Must match OAuth provider ID
+    provider: '{service}',            // Must match the service id in OAUTH_PROVIDERS
+    // credentialKind: 'service-account', // service-account-only integrations
   },
 
   params: {
@@ -185,6 +186,8 @@ fallback, or caller-controlled `_context` authority.
 - `'user-only'` - User must provide (credentials, api keys, account-specific IDs)
 - `'user-or-llm'` - User provides OR LLM can compute (search queries, content, filters, most fall into this category)
 - `'llm-only'` - Computed by the LLM only; never shown as a user field
+
+A tool with a `credential` or `oauthCredential` param must declare `oauth: { required: true, provider }`, service-account-only integrations included: without it, token resolution rejects every credential at run time, and `bun run check:tool-param-reachability` fails.
 
 A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
 

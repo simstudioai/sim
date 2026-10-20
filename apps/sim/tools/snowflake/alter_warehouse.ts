@@ -6,6 +6,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS, SNOWFLAKE_WAREHOUSE_SIZES } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -18,6 +19,7 @@ export const alterWarehouseTool: ToolConfig<
 > = {
   id: 'snowflake_alter_warehouse',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Alter Warehouse',
   description: 'Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings.',
   params: {

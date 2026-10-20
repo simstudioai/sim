@@ -1,5 +1,5 @@
 import type { NetSuiteResponse, NetSuiteSuiteQLParams } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,6 +11,7 @@ export const netsuiteExecuteSuiteQLTool: InternalToolConfig<
   name: 'NetSuite Execute SuiteQL',
   description: 'Execute one page of a SuiteQL query through SuiteTalk REST web services.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     query: {

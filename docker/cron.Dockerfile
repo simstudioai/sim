@@ -16,8 +16,15 @@ ARG TARGETARCH
 ARG SUPERCRONIC_SHA256_amd64=feefa310da569c81b99e1027b86b27b51e6ee9ab647747b49099645120cfc671
 ARG SUPERCRONIC_SHA256_arm64=f1f8585c66de020fef494dd636058f99949d108f569fef00016a1c8b9eb145b3
 
+# The trust store drops the roots that chain to the compromised eMudhra
+# intermediates (https://emudhra.we-have-a-problem.com), already out of
+# Mozilla's store. The grep matches a signature line of each root (AAA, then
+# emSign ECC G3), so the build fails if the edit ever stops removing them.
 RUN set -eux; \
     apk add --no-cache ca-certificates curl tzdata; \
+    sed -i -E 's#^mozilla/(emSign_ECC_Root_CA_-_G3|Comodo_AAA_Services_root)\.crt$#!&#' /etc/ca-certificates.conf; \
+    update-ca-certificates; \
+    if grep -qF -e 'l2D4kF501KKaU73yqWjgom7C12yxow+ev+to51byrvLjKzg6CYG1a4XXvi3tPxq3' -e 'CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD' /etc/ssl/certs/ca-certificates.crt; then exit 1; fi; \
     case "${TARGETARCH}" in \
       amd64) sha="${SUPERCRONIC_SHA256_amd64}" ;; \
       arm64) sha="${SUPERCRONIC_SHA256_arm64}" ;; \

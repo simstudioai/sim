@@ -13,12 +13,21 @@ FROM oven/bun:1.4.2-slim AS base
 # subprocess adapter; python3 is the node-gyp interpreter and is kept because
 # build-base inherits from this stage. The compiler toolchain lives in build-base
 # so the runner does not ship it.
+#
+# The OS trust store then drops the two roots that chain to the compromised
+# eMudhra intermediates (https://emudhra.we-have-a-problem.com), both already
+# out of Mozilla's store; Bun's fetch, curl, and python3 read it. The final
+# grep matches a signature line of each root (AAA, then emSign ECC G3), so the
+# build fails if the edit ever stops removing them.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     python3 curl ca-certificates bash ffmpeg \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
-    && apt-get install -y nodejs
+    && apt-get install -y nodejs \
+    && sed -i -E 's#^mozilla/(emSign_ECC_Root_CA_-_G3|Comodo_AAA_Services_root)\.crt$#!&#' /etc/ca-certificates.conf \
+    && update-ca-certificates \
+    && ! grep -qF -e 'l2D4kF501KKaU73yqWjgom7C12yxow+ev+to51byrvLjKzg6CYG1a4XXvi3tPxq3' -e 'CUfvO6wIBHxcmbHtRwfSAjEAnbpV/KlK6O3t5nYBQnvI+GDZjVGLVTv7jHvrZQnD' /etc/ssl/certs/ca-certificates.crt
 
 # ========================================
 # Build Base: adds the native toolchain the isolated-vm rebuild needs

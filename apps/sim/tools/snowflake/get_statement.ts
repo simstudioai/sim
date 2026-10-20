@@ -6,6 +6,7 @@ import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   getSnowflakeBaseUrl,
   getSnowflakeHeaders,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -39,6 +40,7 @@ export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, Snowflake
     description:
       'Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.',
     version: '1.0.0',
+    oauth: SNOWFLAKE_OAUTH,
     params: {
       ...snowflakeAuthParamFields,
       statementHandle: {

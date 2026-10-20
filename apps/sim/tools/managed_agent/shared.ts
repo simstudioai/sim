@@ -7,6 +7,15 @@
  * the guard that reads them live here rather than being restated per tool.
  */
 
+import type { OAuthConfig } from '@/tools/types'
+
+/** Managed Agent tools authenticate with a saved Claude Platform workspace API key credential. */
+export const CLAUDE_PLATFORM_OAUTH = {
+  required: true,
+  provider: 'claude-platform',
+  credentialKind: 'service-account',
+} as const satisfies OAuthConfig
+
 /** Credential picker value; the executor swaps it for `accessToken` at run time. */
 export const CREDENTIAL_PARAM = {
   type: 'string',
