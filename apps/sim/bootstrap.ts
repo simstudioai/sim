@@ -11,7 +11,7 @@ const tlsTrust = distrustCompromisedRoots()
 await loadRuntimeSecrets()
 const logger = createLogger('Bootstrap')
 if (tlsTrust.unsupported || tlsTrust.error) {
-  logger.warn('Could not distrust compromised CA roots', tlsTrust)
+  logger.error('Could not distrust compromised CA roots', tlsTrust)
 } else if (tlsTrust.removed.length > 0) {
   logger.info('Distrusted compromised CA roots', { removed: tlsTrust.removed })
 }

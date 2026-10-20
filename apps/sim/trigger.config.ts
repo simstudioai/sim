@@ -130,7 +130,7 @@ export default defineConfig({
   init: async () => {
     const tlsTrust = distrustCompromisedRoots()
     if (tlsTrust.unsupported || tlsTrust.error) {
-      createLogger('TriggerInit').warn('Could not distrust compromised CA roots', tlsTrust)
+      createLogger('TriggerInit').error('Could not distrust compromised CA roots', tlsTrust)
     }
     markInsideTriggerRun()
     const { warmRedisConnection } = await import('./lib/core/config/redis')

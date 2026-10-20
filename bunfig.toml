@@ -4,8 +4,7 @@ exact = true
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
 # Explicit framework pins must install before their release reaches the age threshold.
-# electron: 43.8.1 (2026-10-20) carries the eMudhra intermediate SPKI blocklist; drop after 2026-10-27.
-minimumReleaseAgeExcludes = ["next", "@next/env", "electron"]
+minimumReleaseAgeExcludes = ["next", "@next/env"]
 
 [run]
 env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }
