@@ -27,6 +27,7 @@ export const helpScoutConnectorMeta: ConnectorMeta = {
       mode: 'basic',
       placeholder: 'All inboxes',
       required: false,
+      preserveValueOnModeChange: true,
       description: 'Inbox to sync conversations from; leave empty to sync every inbox',
     },
     {
@@ -37,6 +38,7 @@ export const helpScoutConnectorMeta: ConnectorMeta = {
       mode: 'advanced',
       placeholder: 'e.g. 123456 (default: all inboxes)',
       required: false,
+      preserveValueOnModeChange: true,
       description: 'Help Scout inbox ID',
     },
     {
@@ -46,7 +48,7 @@ export const helpScoutConnectorMeta: ConnectorMeta = {
       required: false,
       description: 'Which conversations to sync',
       options: [
-        { label: 'All statuses', id: 'all' },
+        { label: 'All statuses (except spam)', id: 'all' },
         { label: 'Active', id: 'active' },
         { label: 'Pending', id: 'pending' },
         { label: 'Closed', id: 'closed' },
@@ -77,7 +79,8 @@ export const helpScoutConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       required: false,
       placeholder: `e.g. 200 (default: ${DEFAULT_MAX_CONVERSATIONS})`,
-      description: 'Maximum number of conversations to sync, newest first',
+      description:
+        'Maximum number of conversations to sync, newest first. When more exist, conversations deleted in Help Scout stay in the knowledge base until the limit covers them.',
     },
   ],
 
@@ -87,6 +90,7 @@ export const helpScoutConnectorMeta: ConnectorMeta = {
     { id: 'customerEmail', displayName: 'Customer Email', fieldType: 'text' },
     { id: 'assignee', displayName: 'Assignee', fieldType: 'text' },
     { id: 'createdAt', displayName: 'Created', fieldType: 'date' },
+    { id: 'updatedAt', displayName: 'Last Updated', fieldType: 'date' },
     { id: 'threadCount', displayName: 'Thread Count', fieldType: 'number' },
   ],
 }

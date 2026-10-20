@@ -46,6 +46,7 @@ export interface HelpScoutConversation {
   cc: string[]
   bcc: string[]
   customFields: HelpScoutConversationCustomField[]
+  snoozedUntil: string | null
   webUrl: string | null
 }
 
@@ -301,6 +302,11 @@ export const HELPSCOUT_CONVERSATION_PROPERTIES = {
       },
     },
   },
+  snoozedUntil: {
+    type: 'string',
+    description: 'When the snooze ends, if the conversation is snoozed',
+    nullable: true,
+  },
   webUrl: {
     type: 'string',
     description: 'Link to the conversation in Help Scout',
@@ -511,6 +517,175 @@ export const HELPSCOUT_WORKFLOW_PROPERTIES = {
   modifiedAt: { type: 'string', description: 'When the workflow was modified', nullable: true },
 } as const satisfies Record<string, OutputProperty>
 
+export const CONVERSATION_CHANGE_OUTPUTS = {
+  conversationId: {
+    type: 'number',
+    description: 'ID of the updated conversation',
+    nullable: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export const CREATED_THREAD_OUTPUTS = {
+  conversationId: { type: 'number', description: 'Conversation ID', nullable: true },
+  threadId: { type: 'number', description: 'ID of the new thread', nullable: true },
+} as const satisfies Record<string, OutputProperty>
+
+export interface HelpScoutCustomField {
+  id: number | null
+  name: string | null
+  type: string | null
+  required: boolean | null
+  order: number | null
+  systemType: string | null
+  options: Array<{ id: number | null; label: string | null; order: number | null }>
+}
+
+export const HELPSCOUT_CUSTOM_FIELD_PROPERTIES = {
+  id: { type: 'number', description: 'Custom field ID', nullable: true },
+  name: { type: 'string', description: 'Custom field name', nullable: true },
+  type: {
+    type: 'string',
+    description: 'Field type (singleline, multiline, dropdown, number, date)',
+    nullable: true,
+  },
+  required: { type: 'boolean', description: 'Whether the field must be set', nullable: true },
+  order: { type: 'number', description: 'Display order', nullable: true },
+  systemType: {
+    type: 'string',
+    description: 'Help Scout-managed field kind (topic or sentiment), if any',
+    nullable: true,
+  },
+  options: {
+    type: 'array',
+    description: 'Dropdown options; set a dropdown field to an option ID',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'number', description: 'Option ID', nullable: true },
+        label: { type: 'string', description: 'Option label', nullable: true },
+        order: { type: 'number', description: 'Option order', nullable: true },
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export interface HelpScoutSavedReplySummary {
+  id: number | null
+  name: string | null
+  preview: string | null
+  chatPreview: string | null
+}
+
+export interface HelpScoutSavedReply {
+  id: number | null
+  name: string | null
+  text: string | null
+  chatText: string | null
+}
+
+export const HELPSCOUT_SAVED_REPLY_SUMMARY_PROPERTIES = {
+  id: { type: 'number', description: 'Saved reply ID', nullable: true },
+  name: { type: 'string', description: 'Saved reply name', nullable: true },
+  preview: { type: 'string', description: 'Preview of the email text', nullable: true },
+  chatPreview: { type: 'string', description: 'Preview of the chat text', nullable: true },
+} as const satisfies Record<string, OutputProperty>
+
+export const HELPSCOUT_SAVED_REPLY_PROPERTIES = {
+  id: { type: 'number', description: 'Saved reply ID', nullable: true },
+  name: { type: 'string', description: 'Saved reply name', nullable: true },
+  text: { type: 'string', description: 'Email reply text (HTML)', nullable: true },
+  chatText: { type: 'string', description: 'Chat reply text', nullable: true },
+} as const satisfies Record<string, OutputProperty>
+
+export interface HelpScoutCustomerPropertyDefinition {
+  slug: string | null
+  name: string | null
+  type: string | null
+  options: Array<{ id: string | null; label: string | null }>
+}
+
+export const HELPSCOUT_CUSTOMER_PROPERTY_DEFINITION_PROPERTIES = {
+  slug: { type: 'string', description: 'Property slug used to set values', nullable: true },
+  name: { type: 'string', description: 'Property name', nullable: true },
+  type: {
+    type: 'string',
+    description: 'Value type (text, number, url, date, dropdown)',
+    nullable: true,
+  },
+  options: {
+    type: 'array',
+    description: 'Dropdown options',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Option ID', nullable: true },
+        label: { type: 'string', description: 'Option label', nullable: true },
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export interface HelpScoutOrganization {
+  id: number | null
+  name: string | null
+  website: string | null
+  description: string | null
+  location: string | null
+  logoUrl: string | null
+  note: string | null
+  domains: string[]
+  phones: string[]
+  brandColor: string | null
+  customerCount: number | null
+  conversationCount: number | null
+  properties: Array<{
+    slug: string | null
+    name: string | null
+    type: string | null
+    value: string | null
+  }>
+}
+
+export const HELPSCOUT_ORGANIZATION_PROPERTIES = {
+  id: { type: 'number', description: 'Organization ID', nullable: true },
+  name: { type: 'string', description: 'Organization name', nullable: true },
+  website: { type: 'string', description: 'Website', nullable: true },
+  description: { type: 'string', description: 'Description', nullable: true },
+  location: { type: 'string', description: 'Two-letter country code', nullable: true },
+  logoUrl: { type: 'string', description: 'Logo URL', nullable: true },
+  note: { type: 'string', description: 'Custom note', nullable: true },
+  domains: {
+    type: 'array',
+    description: 'Domains used to match customers to the organization',
+    items: { type: 'string' },
+  },
+  phones: { type: 'array', description: 'Phone numbers', items: { type: 'string' } },
+  brandColor: { type: 'string', description: 'Brand color (hex)', nullable: true },
+  customerCount: {
+    type: 'number',
+    description: 'Number of customers (when counts are included)',
+    nullable: true,
+  },
+  conversationCount: {
+    type: 'number',
+    description: 'Number of conversations (when counts are included)',
+    nullable: true,
+  },
+  properties: {
+    type: 'array',
+    description: 'Organization property values (when properties are included)',
+    items: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'Property slug', nullable: true },
+        name: { type: 'string', description: 'Property name', nullable: true },
+        type: { type: 'string', description: 'Property type', nullable: true },
+        value: { type: 'string', description: 'Property value', nullable: true },
+      },
+    },
+  },
+} as const satisfies Record<string, OutputProperty>
+
 interface HelpScoutAuthParams {
   accessToken: string
 }
@@ -683,6 +858,10 @@ export interface HelpScoutUpdateCustomerParams
   extends HelpScoutAuthParams,
     HelpScoutCustomerProfileParams {
   customerId: string
+  email?: string
+  emailType?: string
+  phone?: string
+  phoneType?: string
 }
 
 export interface HelpScoutUpdateCustomerResponse extends ToolResponse {
@@ -746,4 +925,82 @@ export interface HelpScoutRunWorkflowParams extends HelpScoutAuthParams {
 
 export interface HelpScoutRunWorkflowResponse extends ToolResponse {
   output: { workflowId: number | null; conversationIds: number[] }
+}
+
+export interface HelpScoutUpdateCustomFieldsParams extends HelpScoutConversationParams {
+  customFields: string | Array<{ id: number | string; value: string | number }>
+}
+
+export interface HelpScoutListCustomFieldsParams extends HelpScoutAuthParams, HelpScoutPageParams {
+  mailboxId: string
+}
+
+export interface HelpScoutListCustomFieldsResponse extends ToolResponse {
+  output: HelpScoutListOutput & { customFields: HelpScoutCustomField[] }
+}
+
+export interface HelpScoutSnoozeConversationParams extends HelpScoutConversationParams {
+  snoozedUntil: string
+  unsnoozeOnCustomerReply?: boolean
+}
+
+export type HelpScoutUnsnoozeConversationParams = HelpScoutConversationParams
+
+export interface HelpScoutListSavedRepliesParams extends HelpScoutAuthParams {
+  mailboxId: string
+  includeChatReplies?: boolean
+}
+
+export interface HelpScoutListSavedRepliesResponse extends ToolResponse {
+  output: { savedReplies: HelpScoutSavedReplySummary[] }
+}
+
+export interface HelpScoutGetSavedReplyParams extends HelpScoutAuthParams {
+  mailboxId: string
+  savedReplyId: string
+}
+
+export interface HelpScoutGetSavedReplyResponse extends ToolResponse {
+  output: { savedReply: HelpScoutSavedReply }
+}
+
+export type HelpScoutListCustomerPropertiesParams = HelpScoutAuthParams
+
+export interface HelpScoutListCustomerPropertiesResponse extends ToolResponse {
+  output: { customerProperties: HelpScoutCustomerPropertyDefinition[] }
+}
+
+export interface HelpScoutUpdateCustomerPropertiesParams extends HelpScoutAuthParams {
+  customerId: string
+  properties: string | Record<string, unknown>
+}
+
+export interface HelpScoutCreateCustomerThreadParams extends HelpScoutConversationParams {
+  customerId?: string
+  customerEmail?: string
+  text: string
+  cc?: string | string[]
+  bcc?: string | string[]
+}
+
+export interface HelpScoutUpdateConversationCustomerParams extends HelpScoutConversationParams {
+  customerId: string
+}
+
+export interface HelpScoutListOrganizationsParams extends HelpScoutAuthParams, HelpScoutPageParams {
+  organizationSort?: string
+}
+
+export interface HelpScoutListOrganizationsResponse extends ToolResponse {
+  output: HelpScoutListOutput & { organizations: HelpScoutOrganization[] }
+}
+
+export interface HelpScoutGetOrganizationParams extends HelpScoutAuthParams {
+  organizationId: string
+  includeCounts?: boolean
+  includeProperties?: boolean
+}
+
+export interface HelpScoutGetOrganizationResponse extends ToolResponse {
+  output: { organization: HelpScoutOrganization }
 }

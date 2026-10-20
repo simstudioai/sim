@@ -22,7 +22,9 @@ export const helpScoutCustomerUpdatedTrigger: TriggerConfig = {
     setupInstructions: helpScoutSetupInstructions(
       'the <strong>Customer &gt; Updated</strong> event'
     ),
-    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_customer_updated'),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_customer_updated', {
+      inboxFilter: false,
+    }),
   }),
 
   outputs: buildCustomerEventOutputs(),

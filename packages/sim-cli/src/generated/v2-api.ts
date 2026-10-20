@@ -6977,7 +6977,7 @@ export type GetSelectorBody = {
     | 'google.sheets'
     | 'harmonic.savedSearches'
     | 'helpscout.mailboxes'
-    | 'helpscout.users'
+    | 'helpscout.assignees'
     | 'hubspot.lists'
     | 'hubspot.owners'
     | 'hubspot.pipelines'
@@ -9997,7 +9997,7 @@ export type ListSelectorBody = {
     | 'google.sheets'
     | 'harmonic.savedSearches'
     | 'helpscout.mailboxes'
-    | 'helpscout.users'
+    | 'helpscout.assignees'
     | 'hubspot.lists'
     | 'hubspot.owners'
     | 'hubspot.pipelines'
@@ -18926,7 +18926,7 @@ export const V2_OPERATIONS = {
           'google.sheets',
           'harmonic.savedSearches',
           'helpscout.mailboxes',
-          'helpscout.users',
+          'helpscout.assignees',
           'hubspot.lists',
           'hubspot.owners',
           'hubspot.pipelines',
@@ -21252,7 +21252,7 @@ export const V2_OPERATIONS = {
           'google.sheets',
           'harmonic.savedSearches',
           'helpscout.mailboxes',
-          'helpscout.users',
+          'helpscout.assignees',
           'hubspot.lists',
           'hubspot.owners',
           'hubspot.pipelines',

@@ -4,6 +4,11 @@ import { safeCompare } from '@sim/security/compare'
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import { generateRandomHex } from '@sim/utils/random'
+import { truncate } from '@sim/utils/string'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 import {
   getCredentialAccessToken,
   getNotificationUrl,
@@ -20,6 +25,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
 import { HELPSCOUT_API_BASE, projectConversation, projectCustomer } from '@/tools/helpscout/utils'
 import {
   getHelpScoutSubscriptionEvents,
@@ -60,6 +66,41 @@ function resolveInboxFilter(config: Record<string, unknown>): number | undefined
   return Number(raw)
 }
 
+/**
+ * Help Scout names the actual cause of a rejected request (API access disabled, missing Access API
+ * permission, unpaid account, invalid field) in its vnd.error body; the shared extractor reads it
+ * without echoing the submitted values.
+ */
+async function readHelpScoutErrorDetail(response: Response): Promise<string> {
+  try {
+    const text = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'Help Scout webhook error response',
+    })
+    let data: unknown = text
+    try {
+      data = JSON.parse(text)
+    } catch {}
+    const message = extractErrorMessage(
+      { status: response.status, data },
+      ErrorExtractorId.HELPSCOUT_ERRORS
+    )
+    return message.startsWith('Request failed with status') ? '' : truncate(message, 200)
+  } catch {
+    return ''
+  }
+}
+
+/** The new webhook ID comes from `Resource-ID`, with the `Location` URL as a fallback. */
+function readCreatedWebhookId(response: Response): string | null {
+  const resourceId = toStringOrNull(response.headers.get('resource-id'))?.trim()
+  if (resourceId && HELPSCOUT_ID_PATTERN.test(resourceId)) return resourceId
+  const fromLocation = toStringOrNull(response.headers.get('location'))?.match(
+    /\/webhooks\/(\d{1,16})\/?$/
+  )?.[1]
+  return fromLocation ?? null
+}
+
 async function requireAccessToken(config: Record<string, unknown>, requestId: string) {
   const credentialId = toStringOrNull(config.credentialId)
   const accessToken = credentialId ? await getCredentialAccessToken(credentialId, requestId) : null
@@ -93,26 +134,26 @@ export const helpScoutHandler: WebhookProviderHandler = {
         url: getNotificationUrl(webhook),
         events,
         secret: webhookSecret,
-        label: 'Sim workflow trigger',
+        payloadVersion: 'V2',
+        label: `Sim trigger ${String(webhook.id ?? '')}`.trim(),
         ...(mailboxId !== undefined ? { mailboxIds: [mailboxId] } : {}),
       }),
       redirect: 'error',
       signal: AbortSignal.timeout(15_000),
     })
-    await response.body?.cancel().catch(() => {})
     if (!response.ok) {
+      const detail = await readHelpScoutErrorDetail(response)
       logger.warn(`[${requestId}] Help Scout webhook creation failed`, { status: response.status })
-      const message = `Help Scout webhook creation failed (HTTP ${response.status})`
+      const message = `Help Scout webhook creation failed (HTTP ${response.status})${detail ? `: ${detail}` : ''}`
       if (response.status === 429 || response.status >= 500) throw new Error(message)
       throw new WebhookDeploymentConfigurationError(
-        response.status === 401 || response.status === 403
-          ? `${message}. Reconnect Help Scout with a user that can manage webhooks.`
-          : message
+        response.status === 401 ? `${message}. Reconnect your Help Scout account.` : message
       )
     }
+    await response.body?.cancel().catch(() => {})
 
-    const externalId = toStringOrNull(response.headers.get('resource-id'))?.trim()
-    if (!externalId || !HELPSCOUT_ID_PATTERN.test(externalId)) {
+    const externalId = readCreatedWebhookId(response)
+    if (!externalId) {
       throw new WebhookDeploymentConfigurationError(
         'Help Scout created the webhook but returned no webhook ID'
       )

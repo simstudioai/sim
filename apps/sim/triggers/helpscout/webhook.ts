@@ -10,7 +10,7 @@ import type { TriggerConfig } from '@/triggers/types'
 
 export const helpScoutWebhookTrigger: TriggerConfig = {
   id: 'helpscout_webhook',
-  name: 'Help Scout Webhook (All Selected Events)',
+  name: 'Help Scout Webhook (All Events)',
   provider: 'helpscout',
   description: 'Trigger on every supported Help Scout conversation and customer event',
   version: '1.0.0',

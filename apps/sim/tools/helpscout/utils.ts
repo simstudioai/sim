@@ -5,10 +5,15 @@ import type {
   HelpScoutConversation,
   HelpScoutCustomer,
   HelpScoutCustomerEntry,
+  HelpScoutCustomerPropertyDefinition,
+  HelpScoutCustomField,
   HelpScoutFolder,
   HelpScoutMailbox,
+  HelpScoutOrganization,
   HelpScoutPage,
   HelpScoutPerson,
+  HelpScoutSavedReply,
+  HelpScoutSavedReplySummary,
   HelpScoutTag,
   HelpScoutTeam,
   HelpScoutThread,
@@ -20,7 +25,7 @@ import type { OutputProperty } from '@/tools/types'
 
 export const HELPSCOUT_API_BASE = 'https://api.helpscout.net/v2'
 
-const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
+export const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
 
 export function buildHelpScoutHeaders(accessToken: string): Record<string, string> {
   return {
@@ -182,6 +187,7 @@ export function projectConversation(value: unknown): HelpScoutConversation {
         text: toStringOrNull(field.text),
       }
     }),
+    snoozedUntil: toStringOrNull(toRecord(data.snooze).snoozedUntil),
     webUrl: toStringOrNull(toRecord(toRecord(data._links).web).href),
   }
 }
@@ -395,14 +401,6 @@ export const CONVERSATION_ID_PARAM = {
   description: 'Conversation ID',
 } as const
 
-export const CONVERSATION_CHANGE_OUTPUTS = {
-  conversationId: {
-    type: 'number',
-    description: 'ID of the updated conversation',
-    nullable: true,
-  },
-} as const satisfies Record<string, OutputProperty>
-
 export function conversationUrl(conversationId: string, suffix = ''): string {
   return `${HELPSCOUT_API_BASE}/conversations/${parseHelpScoutId(conversationId, 'conversationId')}${suffix}`
 }
@@ -443,11 +441,6 @@ export const ACTING_USER_PARAM = {
   visibility: 'user-or-llm',
   description: 'ID of the user adding the thread; defaults to the connected user',
 } as const
-
-export const CREATED_THREAD_OUTPUTS = {
-  conversationId: { type: 'number', description: 'Conversation ID', nullable: true },
-  threadId: { type: 'number', description: 'ID of the new thread', nullable: true },
-} as const satisfies Record<string, OutputProperty>
 
 const CUSTOMER_GENDERS = new Set(['male', 'female', 'unknown'])
 
@@ -544,3 +537,124 @@ export const CUSTOMER_PROFILE_PARAMS = {
     description: 'Photo URL (up to 200 characters)',
   },
 } as const
+
+export function projectCustomField(value: unknown): HelpScoutCustomField {
+  const data = toRecord(value)
+  return {
+    id: toNumberOrNull(data.id),
+    name: toStringOrNull(data.name),
+    type: toStringOrNull(data.type),
+    required: toBooleanOrNull(data.required),
+    order: toNumberOrNull(data.order),
+    systemType: toStringOrNull(data.systemType),
+    options: toArray(data.options).map((entry) => {
+      const option = toRecord(entry)
+      return {
+        id: toNumberOrNull(option.id),
+        label: toStringOrNull(option.label),
+        order: toNumberOrNull(option.order),
+      }
+    }),
+  }
+}
+
+export function projectSavedReplySummary(value: unknown): HelpScoutSavedReplySummary {
+  const data = toRecord(value)
+  return {
+    id: toNumberOrNull(data.id),
+    name: toStringOrNull(data.name),
+    preview: toStringOrNull(data.preview),
+    chatPreview: toStringOrNull(data.chatPreview),
+  }
+}
+
+export function projectSavedReply(value: unknown): HelpScoutSavedReply {
+  const data = toRecord(value)
+  return {
+    id: toNumberOrNull(data.id),
+    name: toStringOrNull(data.name),
+    text: toStringOrNull(data.text),
+    chatText: toStringOrNull(data.chatText),
+  }
+}
+
+export function projectCustomerPropertyDefinition(
+  value: unknown
+): HelpScoutCustomerPropertyDefinition {
+  const data = toRecord(value)
+  return {
+    slug: toStringOrNull(data.slug),
+    name: toStringOrNull(data.name),
+    type: toStringOrNull(data.type),
+    options: toArray(data.options).map((entry) => {
+      const option = toRecord(entry)
+      return { id: toStringOrNull(option.id), label: toStringOrNull(option.label) }
+    }),
+  }
+}
+
+export function projectOrganization(value: unknown): HelpScoutOrganization {
+  const data = toRecord(value)
+  return {
+    id: toNumberOrNull(data.id),
+    name: toStringOrNull(data.name),
+    website: toStringOrNull(data.website),
+    description: toStringOrNull(data.description),
+    location: toStringOrNull(data.location),
+    logoUrl: toStringOrNull(data.logoUrl),
+    note: toStringOrNull(data.note),
+    domains: stringList(data.domains),
+    phones: stringList(data.phones),
+    brandColor: toStringOrNull(data.brandColor),
+    customerCount: toNumberOrNull(data.customerCount),
+    conversationCount: toNumberOrNull(data.conversationCount),
+    properties: toArray(data.properties).map((entry) => {
+      const property = toRecord(entry)
+      return {
+        slug: toStringOrNull(property.slug),
+        name: toStringOrNull(property.name),
+        type: toStringOrNull(property.type),
+        value:
+          typeof property.value === 'number'
+            ? String(property.value)
+            : toStringOrNull(property.value),
+      }
+    }),
+  }
+}
+
+export const EMAIL_TYPES = new Set(['work', 'home', 'other'])
+export const PHONE_TYPES = new Set(['work', 'home', 'mobile', 'fax', 'pager', 'other'])
+
+/** Validated `{ type, value }` customer entries for an email and phone, when supplied. */
+export function buildContactEntries(params: {
+  email?: string
+  emailType?: string
+  phone?: string
+  phoneType?: string
+}): { email?: { type: string; value: string }; phone?: { type: string; value: string } } {
+  const emailType = params.emailType?.trim() || 'work'
+  const phoneType = params.phoneType?.trim() || 'work'
+  if (!EMAIL_TYPES.has(emailType)) throw new Error('emailType must be work, home, or other')
+  if (!PHONE_TYPES.has(phoneType)) {
+    throw new Error('phoneType must be work, home, mobile, fax, pager, or other')
+  }
+  const email = params.email?.trim()
+  const phone = params.phone?.trim()
+  return {
+    ...(email ? { email: { type: emailType, value: email } } : {}),
+    ...(phone ? { phone: { type: phoneType, value: phone } } : {}),
+  }
+}
+
+/** Parses a JSON-object or JSON-array tool parameter that may arrive as a string. */
+export function parseJsonParam(value: unknown, paramName: string): unknown {
+  if (typeof value !== 'string') return value
+  const text = value.trim()
+  if (!text) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error(`${paramName} must be valid JSON`)
+  }
+}

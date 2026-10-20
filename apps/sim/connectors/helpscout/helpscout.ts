@@ -3,7 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
-import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { DEFAULT_MAX_CONVERSATIONS, helpScoutConnectorMeta } from '@/connectors/helpscout/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -13,8 +13,10 @@ const logger = createLogger('HelpScoutConnector')
 const API_BASE = 'https://api.helpscout.net/v2'
 const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
 const STATUSES = new Set(['all', 'active', 'pending', 'closed'])
-/** Help Scout locks a conversation at 100 threads, so a thread listing never exceeds four pages. */
-const MAX_THREAD_PAGES = 10
+/** Help Scout caps a conversation at 100 threads, 50 per page, so two pages cover every thread. */
+const MAX_THREAD_PAGES = 4
+/** Help Scout returns 25 conversations per page. */
+const CONVERSATIONS_PER_PAGE = 25
 /** Hard ceiling on Max Conversations so one sync cannot walk an entire account. */
 const MAX_CONVERSATIONS_LIMIT = 5000
 
@@ -82,6 +84,7 @@ const ConversationPageSchema = z
       .passthrough()
       .optional(),
     _links: LinksSchema,
+    page: z.object({ totalElements: z.number().optional() }).passthrough().optional(),
   })
   .passthrough()
 
@@ -109,7 +112,7 @@ async function helpScoutGet(
   path: string,
   accessToken: string,
   query: Record<string, string> = {},
-  retryOptions?: typeof VALIDATE_RETRY_OPTIONS
+  retryOptions?: RetryOptions
 ): Promise<unknown> {
   const url = new URL(`${API_BASE}${path}`)
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
@@ -180,14 +183,30 @@ function conversationMetadata(conversation: HelpScoutConversation): Record<strin
     assignee: conversation.assignee ? personName(conversation.assignee) : null,
     createdAt: conversation.createdAt ?? null,
     closedAt: conversation.closedAt ?? null,
+    updatedAt: lastActivityAt(conversation),
     threadCount: conversation.threads ?? null,
   }
 }
 
 /**
- * Change marker built only from listing fields. `threads` counts published threads (notes
- * excluded), `preview` tracks the most recent thread, and the timestamps move on every customer
- * or user action, so any new reply, note, or status change produces a new hash.
+ * Help Scout exposes no modified-at field on a conversation, so the latest of its activity
+ * timestamps stands in for it.
+ */
+function lastActivityAt(conversation: HelpScoutConversation): string | null {
+  const times = [
+    conversation.userUpdatedAt,
+    conversation.customerWaitingSince?.time,
+    conversation.closedAt,
+    conversation.createdAt,
+  ].filter((time): time is string => typeof time === 'string' && time !== '')
+  return times.sort(compareStrings).at(-1) ?? null
+}
+
+/**
+ * Change marker built only from listing fields, so unchanged conversations are never re-fetched.
+ * Thread count, preview, and the activity timestamps move with new messages; the remaining
+ * fields keep the indexed text and tags current. Tags are sorted so list and single-conversation
+ * responses produce the same marker.
  */
 function conversationChangeMarker(conversation: HelpScoutConversation): string {
   return [
@@ -198,8 +217,20 @@ function conversationChangeMarker(conversation: HelpScoutConversation): string {
     conversation.closedAt ?? '',
     conversation.subject ?? '',
     conversation.preview ?? '',
-    (conversation.tags ?? []).map((tag) => tag.tag).join(','),
+    conversation.mailboxId ?? '',
+    conversation.assignee?.id ?? '',
+    conversation.primaryCustomer?.email ?? '',
+    (conversation.tags ?? [])
+      .map((tag) => tag.tag ?? '')
+      .sort(compareStrings)
+      .join(','),
   ].join('|')
+}
+
+/** Spam and unpublished drafts are not support history worth indexing. */
+function isIndexedConversation(conversation: HelpScoutConversation): boolean {
+  if (conversation.status === 'spam') return false
+  return !conversation.state || conversation.state === 'published'
 }
 
 async function conversationToStub(
@@ -278,13 +309,16 @@ async function listThreads(
       })
     )
     threads.push(...(data._embedded?.threads ?? []))
-    if (!data._links?.next) break
+    if (!data._links?.next) return threads
   }
+  logger.warn('Help Scout thread listing truncated', { conversationId, pages: MAX_THREAD_PAGES })
   return threads
 }
 
 export const helpScoutConnector: ConnectorConfig = {
   ...helpScoutConnectorMeta,
+  /** Each hydration costs two or three requests against an account-wide per-minute limit. */
+  contentConcurrency: 3,
 
   listDocuments: async (
     accessToken: string,
@@ -301,6 +335,9 @@ export const helpScoutConnector: ConnectorConfig = {
     const seen = new Set<number>()
     const documents: ExternalDocument[] = []
     let capped = false
+    let firstTotal: number | undefined
+    let lastTotal: number | undefined
+    const maxPages = Math.ceil(maxConversations / CONVERSATIONS_PER_PAGE) + 5
 
     for (let page = 1; ; page++) {
       const query: Record<string, string> = {
@@ -314,8 +351,10 @@ export const helpScoutConnector: ConnectorConfig = {
       const data = ConversationPageSchema.parse(
         await helpScoutGet('/conversations', accessToken, query)
       )
+      lastTotal = data.page?.totalElements
+      if (page === 1) firstTotal = lastTotal
       for (const conversation of data._embedded?.conversations ?? []) {
-        if (seen.has(conversation.id)) continue
+        if (seen.has(conversation.id) || !isIndexedConversation(conversation)) continue
         if (documents.length >= maxConversations) {
           capped = true
           break
@@ -324,14 +363,30 @@ export const helpScoutConnector: ConnectorConfig = {
         documents.push(await conversationToStub(conversation, includeNotes))
       }
       if (capped || !data._links?.next) break
-      if (documents.length >= maxConversations) {
+      if (documents.length >= maxConversations || page >= maxPages) {
         capped = true
         break
       }
     }
 
-    if (capped && syncContext) syncContext.listingCapped = true
-    logger.info('Listed Help Scout conversations', { count: documents.length, capped })
+    /**
+     * Pages are numbered, so a conversation that leaves the filtered set mid-scan shifts later
+     * ones up a page and one can be skipped. A changed total means that may have happened, so
+     * this listing must not drive deletion.
+     */
+    const totalChanged = firstTotal !== undefined && lastTotal !== firstTotal
+    if (syncContext) {
+      if (capped) syncContext.listingCapped = true
+      if (totalChanged) syncContext.reconciliationUnsafe = true
+    }
+    if (capped) {
+      logger.warn(
+        'Help Scout listing truncated by Max Conversations; skipping deletion reconciliation',
+        { count: documents.length, maxConversations }
+      )
+    } else {
+      logger.info('Listed Help Scout conversations', { count: documents.length, totalChanged })
+    }
     return { documents, hasMore: false }
   },
 
@@ -346,7 +401,8 @@ export const helpScoutConnector: ConnectorConfig = {
       const conversation = ConversationSchema.parse(
         await helpScoutGet(`/conversations/${externalId}`, accessToken)
       )
-      if (conversation.state === 'deleted') return null
+      // A merged conversation redirects to the conversation it was merged into.
+      if (conversation.state === 'deleted' || String(conversation.id) !== externalId) return null
       const threads = (await listThreads(externalId, accessToken)).filter((thread) =>
         isIndexedThread(thread, includeNotes)
       )
@@ -412,6 +468,8 @@ export const helpScoutConnector: ConnectorConfig = {
       result.assignee = metadata.assignee
     const createdAt = parseTagDate(metadata.createdAt)
     if (createdAt) result.createdAt = createdAt
+    const updatedAt = parseTagDate(metadata.updatedAt)
+    if (updatedAt) result.updatedAt = updatedAt
     if (typeof metadata.threadCount === 'number' && Number.isFinite(metadata.threadCount)) {
       result.threadCount = metadata.threadCount
     }

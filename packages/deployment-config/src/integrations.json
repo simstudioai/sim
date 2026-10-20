@@ -12682,7 +12682,7 @@
       "slug": "help-scout",
       "name": "Help Scout",
       "description": "Manage Help Scout conversations, replies, notes, and customers",
-      "longDescription": "Connect Help Scout to search and read conversations and their threads, open new conversations, reply to customers, add internal notes, change status, assignee, inbox, subject, and tags, and manage customers. List inboxes, folders, users, teams, tags, and workflows, and run manual workflows. Trigger workflows from Help Scout webhooks for conversation and customer events.",
+      "longDescription": "Connect Help Scout to search and read conversations and their threads, open new conversations, reply to customers, add internal notes and customer messages, change status, assignee, inbox, subject, customer, tags, and custom fields, and snooze conversations. Manage customers and their properties, look up organizations and saved replies, list inboxes, folders, users, teams, tags, and workflows, and run manual workflows. Trigger workflows from Help Scout webhooks for conversation and customer events.",
       "bgColor": "#FFFFFF",
       "iconName": "HelpScoutIcon",
       "docsUrl": "https://docs.sim.ai/integrations/helpscout",
@@ -12706,6 +12706,10 @@
         {
           "name": "Add Note",
           "description": "Add an internal note to a Help Scout conversation. Customers never see notes."
+        },
+        {
+          "name": "Add Customer Message",
+          "description": "Add a message from the customer to an existing Help Scout conversation, for example one received on another channel. This reopens the conversation."
         },
         {
           "name": "Update Conversation Status",
@@ -12732,6 +12736,22 @@
           "description": "Replace the full tag list on a Help Scout conversation. Tags left out are removed, an empty list removes every tag, and unknown tags are created."
         },
         {
+          "name": "Update Custom Fields",
+          "description": "Replace the custom field values on a Help Scout conversation. Fields left out are cleared, except Help Scout-managed fields such as Topic and Sentiment, which keep their value. Dropdowns take the option ID and dates use YYYY-MM-DD."
+        },
+        {
+          "name": "Snooze Conversation",
+          "description": "Snooze a Help Scout conversation until a future time, optionally waking it when the customer replies. A new snooze replaces the previous one."
+        },
+        {
+          "name": "Unsnooze Conversation",
+          "description": "End the snooze on a Help Scout conversation. It returns to its folder (Mine, Team, or Unassigned) and is reactivated if needed."
+        },
+        {
+          "name": "Change Conversation Customer",
+          "description": "Change the primary customer of a Help Scout conversation."
+        },
+        {
           "name": "Delete Conversation",
           "description": "Delete a Help Scout conversation."
         },
@@ -12753,7 +12773,23 @@
         },
         {
           "name": "Update Customer",
-          "description": "Update profile fields on a Help Scout customer. Only the fields you provide are changed."
+          "description": "Update profile fields on a Help Scout customer and add an email address or phone number. Only the fields you provide are changed."
+        },
+        {
+          "name": "List Customer Properties",
+          "description": "List the customer property definitions in Help Scout (slug, type, and dropdown options) used by Update Customer Properties."
+        },
+        {
+          "name": "Update Customer Properties",
+          "description": "Set or remove customer property values (for example plan or MRR) on a Help Scout customer, keyed by property slug."
+        },
+        {
+          "name": "List Organizations",
+          "description": "List Help Scout organizations (companies), 50 per page, most recently active first by default."
+        },
+        {
+          "name": "Get Organization",
+          "description": "Get a Help Scout organization by ID, optionally with its customer and conversation counts and property values."
         },
         {
           "name": "List Inboxes",
@@ -12762,6 +12798,18 @@
         {
           "name": "List Folders",
           "description": "List the folders in a Help Scout inbox with their conversation counts."
+        },
+        {
+          "name": "List Custom Fields",
+          "description": "List the custom fields defined for a Help Scout inbox, with their IDs, types, and dropdown options."
+        },
+        {
+          "name": "List Saved Replies",
+          "description": "List the saved replies (canned responses) in a Help Scout inbox with a preview of each."
+        },
+        {
+          "name": "Get Saved Reply",
+          "description": "Get the full text of a Help Scout saved reply for email and chat."
         },
         {
           "name": "List Users",
@@ -12788,7 +12836,7 @@
           "description": "Run a manual Help Scout workflow on up to 50 conversations. The conversations must be in the same inbox as the workflow."
         }
       ],
-      "operationCount": 25,
+      "operationCount": 37,
       "triggers": [
         {
           "id": "helpscout_conversation_created",
@@ -12852,7 +12900,7 @@
         },
         {
           "id": "helpscout_webhook",
-          "name": "Help Scout Webhook (All Selected Events)",
+          "name": "Help Scout Webhook (All Events)",
           "description": "Trigger on every supported Help Scout conversation and customer event"
         }
       ],
