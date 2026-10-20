@@ -3,6 +3,10 @@ import { copilotChats, member, workspace } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
 import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
 } from '@sim/testing/mocks/permission-groups-resolve.mock'
@@ -20,21 +24,19 @@ import {
 
 const mocks = vi.hoisted(() => ({
   capability: vi.fn(),
-  build: vi.fn(),
   plan: vi.fn(),
 }))
 vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/capability-assertions')>()),
   assertWorkspaceCapability: mocks.capability,
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/mothership/chat/organization-chats')>()),
-  requireOrganizationBuildPermission: mocks.build,
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/mothership/feature-flags', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mothership/feature-flags')>()),
   isPlanModeEnabled: mocks.plan,
 }))
+
+const build = mothershipOrganizationChatsMockFns.mockRequireOrganizationBuildPermission
 
 const input = { chatId: 'chat-1', limit: 50 }
 const listed = [
@@ -100,7 +102,7 @@ describe("a chat's other chats", () => {
     )
     workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.capability.mockResolvedValue(undefined)
-    mocks.build.mockReset().mockResolvedValue(undefined)
+    build.mockReset()
     mocks.plan.mockReset().mockResolvedValue(true)
   })
 
@@ -111,13 +113,13 @@ describe("a chat's other chats", () => {
       expect(await readRecallChats.execute({ principal: organizationPrincipal(), input })).toEqual(
         expected
       )
-      expect(mocks.build).toHaveBeenCalledWith({ organizationId: 'org-1', role: 'member' })
+      expect(build).toHaveBeenCalledWith({ organizationId: 'org-1', role: 'member' })
     }
   )
 
   it('lists nothing an organization member without build permission could open', async () => {
     queueOrganizationChat()
-    mocks.build.mockRejectedValue(new OrchestrationError('forbidden', 'Build requires permission'))
+    build.mockRejectedValue(new OrchestrationError('forbidden', 'Build requires permission'))
     await expect(
       readRecallChats.execute({ principal: organizationPrincipal(), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -179,7 +181,7 @@ describe("a chat's other chats", () => {
         .execute({ principal: caller, input })
         .catch((caught: unknown) => caught)
       expect(['forbidden', 'not_found']).toContain(code(error))
-      expect(mocks.build).not.toHaveBeenCalled()
+      expect(build).not.toHaveBeenCalled()
     }
   )
 
@@ -205,7 +207,7 @@ describe("a chat's other chats", () => {
     await expect(
       readRecallChats.execute({ principal: organizationPrincipal(), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.build).not.toHaveBeenCalled()
+    expect(build).not.toHaveBeenCalled()
   })
 })
 

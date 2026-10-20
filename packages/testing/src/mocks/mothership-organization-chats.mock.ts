@@ -84,8 +84,10 @@ const ORGANIZATION_CHAT_DELEGATION_OPERATIONS = {
 
 /**
  * Controllable mock functions for `@/lib/mothership/chat/organization-chats`: one `execute` per
- * exported use case, named `mock<Export>`. Every fn is a bare `vi.fn()` — organization membership
- * and chat ownership are what callers branch on, so resolve the context (or reject) per test.
+ * exported use case and function, named `mock<Export>`. The use cases are bare `vi.fn()` —
+ * organization membership and chat ownership are what callers branch on, so resolve the context (or
+ * reject) per test. `mockRequireOrganizationBuildPermission` resolves (the member may build) by
+ * default; reject it with a `forbidden` error to model a member without build permission.
  *
  * @example
  * ```ts
@@ -105,6 +107,8 @@ export const mothershipOrganizationChatsMockFns = {
   mockCreateOrganizationChat: vi.fn(),
   mockAuthorizeOrganizationChatCancellation: vi.fn(),
   mockAuthorizeOrganizationChatDelegation: vi.fn(),
+  mockRequireOrganizationBuildPermission: vi.fn(async (_context: unknown): Promise<void> => {}),
+  mockCreateOrganizationChatRecord: vi.fn(),
 }
 
 /**
@@ -143,4 +147,7 @@ export const mothershipOrganizationChatsMock = {
   authorizeOrganizationChatDelegation: {
     execute: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
   },
+  requireOrganizationBuildPermission:
+    mothershipOrganizationChatsMockFns.mockRequireOrganizationBuildPermission,
+  createOrganizationChatRecord: mothershipOrganizationChatsMockFns.mockCreateOrganizationChatRecord,
 }
