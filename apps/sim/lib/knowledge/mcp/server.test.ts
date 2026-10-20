@@ -144,6 +144,7 @@ describe('live organization Search MCP', () => {
     [{ query: 'release' }, 30],
     [{ query: 'release', topK: 12 }, 12],
     [{ query: 'release', source: 'slack' }, 20],
+    [{ query: 'release', sortBy: 'relevance' }, 30],
     [{ query: 'release', sortBy: 'newest' }, 20],
     [
       {

@@ -37,7 +37,10 @@ export const liveSearchMcpSchema = searchWorkspaceInputFieldsSchema
  * sorted listing.
  */
 export function liveSearchMcpDefaultTopK(input: z.output<typeof liveSearchMcpSchema>): number {
-  return input.query && !input.source && !input.nativeQueries && !input.sortBy
+  return input.query &&
+    !input.source &&
+    !input.nativeQueries &&
+    (!input.sortBy || input.sortBy === 'relevance')
     ? LIVE_SEARCH_MCP_DEFAULT_TOP_K.federated
     : LIVE_SEARCH_MCP_DEFAULT_TOP_K.scoped
 }
