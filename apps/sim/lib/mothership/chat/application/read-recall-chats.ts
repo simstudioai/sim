@@ -40,6 +40,38 @@ const readRecallChatsOrganizationOperation = defineOrganizationOperation({
 })
 
 /**
+ * A user's live home chats in one workspace or organization other than `excludeChatId`, most
+ * recently updated first (ties by id): benchmark chats are never listed, and plan chats only with
+ * `includePlanChats`. Callers authorize the user and scope first.
+ */
+export async function listRecallChats(query: {
+  userId: string
+  owner: { organizationId: string } | { workspaceId: string }
+  excludeChatId: string
+  includePlanChats: boolean
+  limit: number
+}) {
+  return db
+    .select({ id: copilotChats.id, title: copilotChats.title, updatedAt: copilotChats.updatedAt })
+    .from(copilotChats)
+    .where(
+      and(
+        eq(copilotChats.userId, query.userId),
+        'organizationId' in query.owner
+          ? eq(copilotChats.organizationId, query.owner.organizationId)
+          : eq(copilotChats.workspaceId, query.owner.workspaceId),
+        eq(copilotChats.type, 'mothership'),
+        sql`${copilotChats.config}->'benchmark' IS NULL`,
+        isNull(copilotChats.deletedAt),
+        ne(copilotChats.id, query.excludeChatId),
+        query.includePlanChats ? undefined : sql`${conversationModeSelection} <> 'plan'`
+      )
+    )
+    .orderBy(desc(copilotChats.updatedAt), desc(copilotChats.id))
+    .limit(query.limit)
+}
+
+/**
  * The chats an agent chat may read back besides itself: its owner's live home chats in the same
  * workspace or organization that the owner may open now, most recently updated first. Deleted chats
  * are gone here at once, though their events stay in the worker's log until cleanup.
@@ -86,27 +118,18 @@ export const readRecallChats = defineAuthorizedChatUseCase({
       await requireOwnedChatReadable(context)
     }
     const owner = context.organizationId
-      ? eq(copilotChats.organizationId, context.organizationId)
+      ? { organizationId: context.organizationId }
       : context.workspaceId
-        ? eq(copilotChats.workspaceId, context.workspaceId)
+        ? { workspaceId: context.workspaceId }
         : undefined
     if (!owner) throw new OrchestrationError('not_found', 'Chat not found')
-    const chats = await db
-      .select({ id: copilotChats.id, title: copilotChats.title, updatedAt: copilotChats.updatedAt })
-      .from(copilotChats)
-      .where(
-        and(
-          eq(copilotChats.userId, context.userId),
-          owner,
-          eq(copilotChats.type, 'mothership'),
-          sql`${copilotChats.config}->'benchmark' IS NULL`,
-          isNull(copilotChats.deletedAt),
-          ne(copilotChats.id, context.chatId),
-          planEnabled ? undefined : sql`${conversationModeSelection} <> 'plan'`
-        )
-      )
-      .orderBy(desc(copilotChats.updatedAt), desc(copilotChats.id))
-      .limit(input.limit)
+    const chats = await listRecallChats({
+      userId: context.userId,
+      owner,
+      excludeChatId: context.chatId,
+      includePlanChats: planEnabled,
+      limit: input.limit,
+    })
     return {
       userId: context.userId,
       chats: chats.map(({ id, title, updatedAt }) => ({
