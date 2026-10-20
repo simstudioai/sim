@@ -140,6 +140,28 @@ describe('live organization Search MCP', () => {
     }
   )
 
+  it.each([
+    [{ query: 'release' }, 30],
+    [{ query: 'release', topK: 12 }, 12],
+    [{ query: 'release', source: 'slack' }, 20],
+    [{ query: 'release', sortBy: 'newest' }, 20],
+    [
+      {
+        query: 'release',
+        nativeQueries: [{ provider: 'slack', accountId: 'account-1', query: 'release' }],
+      },
+      20,
+    ],
+    [{ query: '', startDate: '2026-09-01T00:00:00Z' }, 20],
+  ])('searches %o for up to %i previews', async (input, topK) => {
+    create()
+    mocks.liveSearch.mockClear()
+    await call('search', input)
+    expect(mocks.liveSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ topK }) })
+    )
+  })
+
   it.each(['search', 'read_document'])(
     'refuses live %s content with incomplete secret provenance',
     async (tool) => {

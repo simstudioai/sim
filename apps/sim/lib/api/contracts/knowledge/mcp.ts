@@ -3,7 +3,8 @@ import { workspaceSearchFiltersSchema } from '@/lib/api/contracts/knowledge/sear
 import { mcpJsonRpcMessageSchema } from '@/lib/api/contracts/mcp'
 import {
   readDocumentInputSchema,
-  searchWorkspaceInputSchema,
+  refineSearchWorkspaceInput,
+  searchWorkspaceInputFieldsSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -16,7 +17,31 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
   response: { mode: 'json', schema: mcpJsonRpcMessageSchema },
 })
 
-export const liveSearchMcpSchema = searchWorkspaceInputSchema.strict()
+const LIVE_SEARCH_MCP_DEFAULT_TOP_K = { federated: 30, scoped: 20 } as const
+
+export const liveSearchMcpSchema = searchWorkspaceInputFieldsSchema
+  .extend({
+    topK: searchWorkspaceInputFieldsSchema.shape.topK
+      .unwrap()
+      .optional()
+      .describe(
+        `Maximum matching passage previews: ${LIVE_SEARCH_MCP_DEFAULT_TOP_K.federated} by default for a query across every source, otherwise ${LIVE_SEARCH_MCP_DEFAULT_TOP_K.scoped}. Retrieval ranking is independent of preview length.`
+      ),
+  })
+  .strict()
+  .superRefine(refineSearchWorkspaceInput)
+
+/**
+ * Previews a search returns when the caller sets no topK. A query across every source shares one
+ * list among all of them, so it gets more room than a search of one source, a native query, or a
+ * sorted listing.
+ */
+export function liveSearchMcpDefaultTopK(input: z.output<typeof liveSearchMcpSchema>): number {
+  return input.query && !input.source && !input.nativeQueries && !input.sortBy
+    ? LIVE_SEARCH_MCP_DEFAULT_TOP_K.federated
+    : LIVE_SEARCH_MCP_DEFAULT_TOP_K.scoped
+}
+
 /** Documents one read_document call may read; each counts as one read against the rate limit. */
 const MAX_MCP_READ_DOCUMENTS = 10
 
