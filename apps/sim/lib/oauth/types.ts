@@ -190,6 +190,9 @@ export type OAuthService =
   | 'monday'
   | 'manageengine-sdp'
   | 'zoho-desk'
+  | 'snowflake'
+  | 'netsuite'
+  | 'claude-platform'
 
 export interface OAuthProviderConfig {
   name: string

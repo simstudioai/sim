@@ -217,6 +217,7 @@ For **each tool** in `tools.access`:
   - Long text/content → `long-input`
   - True/false → `switch` (a Yes/No `dropdown` only when the tool needs a third "unset" state)
   - Credentials → `oauth-input` with correct `serviceId`
+  - Every tool with a `credential`/`oauthCredential` param declares `oauth: { required: true, provider }` matching that `serviceId`, plus `credentialKind: 'service-account'` when only service accounts are supported
 - [ ] Dropdown `value: () => 'default'` is set for dropdowns with a sensible default
 - [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder` — including
       password fields (`Enter your API key`). Formatted values show the shape

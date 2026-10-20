@@ -1,5 +1,5 @@
 import type { NetSuiteRelationshipParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { NETSUITE_OAUTH, netsuiteAuthParamFields } from '@/tools/netsuite/utils'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -11,6 +11,7 @@ export const netsuiteDetachRecordTool: InternalToolConfig<
   name: 'NetSuite Detach Record or File',
   description: 'Detach a contact or file from another NetSuite record.',
   version: '1.0.0',
+  oauth: NETSUITE_OAUTH,
   params: {
     ...netsuiteAuthParamFields,
     recordType: {

@@ -3,6 +3,7 @@ import type { SnowflakeListTablesParams, SnowflakeStatementResponse } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -12,6 +13,7 @@ import type { ToolConfig } from '@/tools/types'
 export const listTablesTool: ToolConfig<SnowflakeListTablesParams, SnowflakeStatementResponse> = {
   id: 'snowflake_list_tables',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake List Tables',
   description: 'List the tables in a Snowflake schema.',
   params: {

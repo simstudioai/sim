@@ -17,6 +17,7 @@ import {
 import {
   getSnowflakeBaseUrl,
   getSnowflakeHeaders,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -34,6 +35,7 @@ export const cortexAnalystAskTool: ToolConfig<
 > = {
   id: 'snowflake_cortex_analyst_ask',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Cortex Analyst Ask',
   description:
     'Ask Snowflake Cortex Analyst a question in natural language against a semantic view or semantic model. Returns its interpretation and the generated SQL, or suggested questions when the question is ambiguous, and can run the SQL to return rows. Pass the returned conversation as history to ask a follow-up.',

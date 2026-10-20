@@ -13,7 +13,7 @@ import type {
   NetSuiteJsonObject,
   NetSuiteResponse,
 } from '@/tools/netsuite/types'
-import type { HttpMethod, ToolConfig } from '@/tools/types'
+import type { HttpMethod, OAuthConfig, ToolConfig } from '@/tools/types'
 
 const SUITETALK_REQUEST_TIMEOUT_MS = 30_000
 const DEFAULT_PAGE_LIMIT = 100
@@ -57,6 +57,13 @@ interface NetSuiteRequest {
    */
   responseLocation?: 'resource' | 'resource-optional' | 'async-job'
 }
+
+/** NetSuite tools authenticate with a saved NetSuite client-credentials service account. */
+export const NETSUITE_OAUTH = {
+  required: true,
+  provider: 'netsuite',
+  credentialKind: 'service-account',
+} as const satisfies OAuthConfig
 
 /**
  * Authentication fields shared by every NetSuite tool. Long-lived OAuth

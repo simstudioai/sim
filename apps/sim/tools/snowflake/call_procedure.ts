@@ -7,6 +7,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  SNOWFLAKE_OAUTH,
   snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
@@ -34,6 +35,7 @@ export const callProcedureTool: ToolConfig<
 > = {
   id: 'snowflake_call_procedure',
   version: '1.0.0',
+  oauth: SNOWFLAKE_OAUTH,
   name: 'Snowflake Call Procedure',
   description: 'Call a stored procedure with explicitly typed Snowflake bindings.',
   params: {
