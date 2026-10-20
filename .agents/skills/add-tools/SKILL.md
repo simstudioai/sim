@@ -187,7 +187,7 @@ fallback, or caller-controlled `_context` authority.
 - `'user-or-llm'` - User provides OR LLM can compute (search queries, content, filters, most fall into this category)
 - `'llm-only'` - Computed by the LLM only; never shown as a user field
 
-A tool with a `credential` or `oauthCredential` param must declare `oauth: { required: true, provider }`, service-account-only integrations included: without it, token resolution rejects every credential at run time, and `bun run check:tool-metadata` refuses to generate.
+A tool with a `credential` or `oauthCredential` param must declare `oauth: { required: true, provider }`, service-account-only integrations included: without it, token resolution rejects every credential at run time, and `bun run check:tool-param-reachability` fails.
 
 A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
 

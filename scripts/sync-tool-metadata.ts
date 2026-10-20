@@ -36,10 +36,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  getServiceConfigByProviderId,
-  getServiceConfigByServiceId,
-} from '../apps/sim/lib/oauth/utils'
 import { deriveHostedApiKeySupport } from '../apps/sim/tools/hosted-api-key'
 import { tools } from '../apps/sim/tools/registry'
 import { hasToolId } from '../apps/sim/tools/tool-ids'
@@ -132,43 +128,7 @@ function normalizeParams(toolId: string, params: ToolConfig['params'] | undefine
   return normalized
 }
 
-/** Params the executor resolves into a token before the tool runs. */
-const CREDENTIAL_PARAM_IDS = ['credential', 'oauthCredential'] as const
-
-/**
- * Asserts every tool that takes a credential declares which provider it binds.
- *
- * The executor resolves a `credential`/`oauthCredential` param into a token for
- * any tool, but `resolveCredentialToken` in `apps/sim/lib/oauth/token-resolution.ts`
- * fails closed unless the tool's `oauth` policy is `required` and its `provider`
- * resolves to a service — so a tool without one passes type-check and review,
- * then rejects every credential at run time ("The selected credential does not
- * belong to this tool provider"). Service-account-only integrations declare it
- * too, with `credentialKind: 'service-account'`.
- */
-function assertCredentialPolicies(registry: ToolRecord) {
-  const offenders: string[] = []
-  for (const [toolId, tool] of Object.entries(registry)) {
-    if (!CREDENTIAL_PARAM_IDS.some((paramId) => tool.params?.[paramId] != null)) continue
-    const provider = tool.oauth?.required ? tool.oauth.provider : undefined
-    if (!provider) {
-      offenders.push(`${toolId}: no required \`oauth\` policy`)
-    } else if (!getServiceConfigByServiceId(provider) && !getServiceConfigByProviderId(provider)) {
-      offenders.push(`${toolId}: \`oauth.provider\` "${provider}" matches no OAuth service`)
-    }
-  }
-  if (offenders.length > 0) {
-    throw new Error(
-      `Refusing to emit tool metadata: ${offenders.length} credential tool(s) cannot bind a credential:\n  ` +
-        `${offenders.slice(0, 20).join('\n  ')}\n` +
-        "Declare `oauth: { required: true, provider: '<service id>' }` on each tool " +
-        "(add `credentialKind: 'service-account'` for service-account-only integrations)."
-    )
-  }
-}
-
 function build(registry: ToolRecord) {
-  assertCredentialPolicies(registry)
   const metadata: Record<string, unknown> = {}
   const outputs: Record<string, unknown> = {}
 
