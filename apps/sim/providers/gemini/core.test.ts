@@ -143,6 +143,7 @@ describe('Vertex Gemini request compatibility', () => {
   it.each([
     ['vertex/gemini-3.6-flash', 'MINIMAL'],
     ['vertex/gemini-3.8-flash', 'LOW'],
+    ['vertex/projects/p/locations/global/publishers/google/models/gemini-3.8-flash', 'LOW'],
   ])("sends the lowest thinking level for 'none' on %s", async (model, thinkingLevel) => {
     const generateContent = vi.fn().mockResolvedValue(textTurn())
     await run(model, generateContent, { thinkingLevel: 'none' })

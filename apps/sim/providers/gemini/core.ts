@@ -57,6 +57,7 @@ import {
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
+  toBareGeminiModelId,
 } from '@/providers/utils'
 import type { ExecutionState, GeminiProviderType, GeminiUsage } from './types'
 
@@ -1013,9 +1014,11 @@ export async function executeGeminiRequest(
     const isGemini3 = isGemini3OrLaterModel(model)
     // Gemini 3 has no off switch and omitting thinkingConfig means the model's default level, so
     // 'none' sends the lowest declared level (levels are listed lowest-first; MINIMAL is closest to off).
+    // The catalog keys Vertex entries as vertex/<bare id>, so resource-name IDs are reduced first.
+    const catalogModelId = `${providerType === 'vertex' ? 'vertex/' : ''}${toBareGeminiModelId(model)}`
     const thinkingLevel =
       isGemini3 && request.thinkingLevel === 'none'
-        ? getThinkingLevelsForModel(request.model)?.[0]
+        ? getThinkingLevelsForModel(catalogModelId)?.[0]
         : request.thinkingLevel
     if (thinkingLevel && thinkingLevel !== 'none') {
       const thinkingConfig: ThinkingConfig = { includeThoughts: request.agentEvents === true }
