@@ -4700,23 +4700,19 @@ async function generateMarkdownForBlock(
   const connectionSection = connectionGuides.length
     ? `Connection guides: ${connectionGuides.join(' · ')}.\n\n`
     : ''
-  const oauthReference = oauthScopesSection
-    ? `<ReferenceDetails label="OAuth scopes and self-hosting">\n\n${oauthScopesSection}</ReferenceDetails>\n\n`
-    : ''
-
   return `---
 title: ${name}
 description: ${description}
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
-${hasReferenceDetails || oauthReference ? 'import { ReferenceDetails } from "@/components/ui/reference-details"\n' : ''}
+${hasReferenceDetails ? 'import { ReferenceDetails } from "@/components/ui/reference-details"\n' : ''}
 <BlockInfoCard 
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
 />
 
-${connectionSection}${oauthReference}${usageInstructions}${toolsSection}
+${connectionSection}${oauthScopesSection}${usageInstructions}${toolsSection}
 `
 }
 
