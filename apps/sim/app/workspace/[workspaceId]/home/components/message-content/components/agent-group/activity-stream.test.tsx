@@ -4,53 +4,50 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
+import type { ActivityStatusProps } from '@/components/ui/activity-status'
+import { usePacedActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 
-describe('ActivityStream header pacing', () => {
-  let container: HTMLDivElement
+describe('usePacedActivity', () => {
   let root: Root
+  let shown: ActivityStatusProps | undefined
+
+  function Harness({
+    label,
+    isActive,
+    callId,
+  }: {
+    label: string
+    isActive: boolean
+    callId: string
+  }) {
+    shown = usePacedActivity({ label, isActive, icon: null }, callId, 'reset', false)
+    return null
+  }
+
+  function show(label: string, isActive: boolean, callId: string) {
+    act(() => root.render(<Harness label={label} isActive={isActive} callId={callId} />))
+    return shown?.label
+  }
 
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     vi.useFakeTimers()
-    container = document.createElement('div')
-    document.body.append(container)
-    root = createRoot(container)
+    root = createRoot(document.createElement('div'))
   })
 
   afterEach(() => {
     act(() => root.unmount())
-    container.remove()
     vi.useRealTimers()
   })
 
-  function show(label: string, isActive: boolean, activityKey: string) {
-    act(() =>
-      root.render(
-        <ActivityStream
-          activity={{ label, isActive, icon: null }}
-          activityKey={activityKey}
-          attentionKey=''
-          collapsible={false}
-          expanded={false}
-          onToggle={() => {}}
-          isStreaming
-        >
-          {null}
-        </ActivityStream>
-      )
-    )
-    return container.textContent
-  }
-
-  it("never flashes a finished call's title between a run's calls", () => {
+  it("never shows a finished call's title between a run's calls", () => {
     expect(show('Listing workflows', true, 'call-1')).toBe('Listing workflows')
     act(() => vi.advanceTimersByTime(300))
     expect(show('Listed workflows', false, 'call-1')).toBe('Listing workflows')
     act(() => vi.advanceTimersByTime(300))
     expect(show('Reading run logs', true, 'call-2')).toBe('Listing workflows')
     act(() => vi.advanceTimersByTime(400))
-    expect(container.textContent).toBe('Reading run logs')
+    expect(shown?.label).toBe('Reading run logs')
   })
 
   it('settles on the finished title once the run stays idle', () => {
@@ -58,6 +55,6 @@ describe('ActivityStream header pacing', () => {
     act(() => vi.advanceTimersByTime(300))
     show('Listed workflows', false, 'call-1')
     act(() => vi.advanceTimersByTime(700))
-    expect(container.textContent).toBe('Listed workflows')
+    expect(shown?.label).toBe('Listed workflows')
   })
 })

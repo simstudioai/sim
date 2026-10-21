@@ -5,7 +5,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityStatus } from '@/components/ui/activity-status'
-import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import {
+  getActivityHeaderTool,
+  getInProgressActivityLabel,
+  ToolActivityGroup,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -127,29 +131,7 @@ describe('ToolActivityGroup search disclosure', () => {
   })
 })
 
-describe('ToolActivityGroup live header', () => {
-  let container: HTMLDivElement
-  let root: Root
-
-  beforeEach(() => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    container = document.createElement('div')
-    document.body.append(container)
-    root = createRoot(container)
-  })
-
-  afterEach(() => {
-    act(() => root.unmount())
-    container.remove()
-  })
-
-  function header(tools: ToolCallData[]) {
-    act(() =>
-      root.render(<ToolActivityGroup tools={tools} isLive ToolCallComponent={TestToolCall} />)
-    )
-    return container.textContent
-  }
-
+describe('in-progress activity header', () => {
   const streamingCli: ToolCallData = {
     id: 'cli-1',
     toolName: 'sim_cli',
@@ -157,29 +139,35 @@ describe('ToolActivityGroup live header', () => {
     status: 'executing',
   }
 
+  function headerLabel(tools: ToolCallData[]) {
+    const statusTool = tools[tools.length - 1]
+    const headerTool = getActivityHeaderTool(tools, statusTool)
+    return getInProgressActivityLabel(headerTool.displayTitle ?? '', headerTool, tools, undefined)
+  }
+
   it('keeps the wait wording while a first CLI call has no title yet', () => {
-    expect(header([streamingCli])).toBe('Thinking')
+    expect(headerLabel([streamingCli])).toBe('Thinking')
   })
 
-  it('shows the streamed description as soon as it arrives', () => {
+  it('uses the streamed description as soon as it arrives', () => {
     const described = {
       ...streamingCli,
       activityDescription: 'Looking up the failed run',
       displayTitle: 'Looking up the failed run',
     }
-    expect(header([described])).toBe('Looking up the failed run')
+    expect(headerLabel([described])).toBe('Looking up the failed run')
   })
 
-  it('holds the earlier title while a refined CLI call waits for its description', () => {
+  it('holds the earlier call while a refined CLI call waits for its description', () => {
     const earlier: ToolCallData = {
       id: 'cli-0',
       toolName: 'cli_workflows_list',
-      displayTitle: 'Listed workflows',
+      displayTitle: 'Listing workflows',
       status: 'success',
       activityDescription: 'Listing workflows',
       params: { args: ['workflows', 'list'] },
     }
     const refined = { ...streamingCli, toolName: 'cli_logs_get', displayTitle: 'Reading run logs' }
-    expect(header([earlier, refined])).toBe('Listed workflows')
+    expect(getActivityHeaderTool([earlier, refined], refined)).toBe(earlier)
   })
 })
