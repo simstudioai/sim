@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { Chip, ComposerActionButton, cn, Tooltip, toast } from '@sim/emcn'
 import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
 import { useQueries } from '@tanstack/react-query'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import {
   ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE,
   isAssistantImageType,
@@ -153,7 +154,11 @@ export function Composer({
   useEffect(() => {
     if (!restoredContexts) return
     history.reset()
-    editorRef.current.restorePrompt(editorRef.current.getPlainValue(), restoredContexts)
+    const { hasUnavailableContexts } = editorRef.current.restorePrompt(
+      editorRef.current.getPlainValue(),
+      restoredContexts
+    )
+    if (hasUnavailableContexts) toast.info(UNAVAILABLE_CONTEXT_NOTICE)
   }, [restoredContexts, history.reset])
   useChatInputFocus({ textareaRef })
   const voice = useVoiceInput({

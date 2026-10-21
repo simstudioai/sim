@@ -375,64 +375,81 @@ async function paste(files: File[]) {
   return event
 }
 
-it('keeps restored queued skills scoped when replacing a draft', async () => {
-  let restore: () => void = () => {}
-  function Harness() {
-    const [value, setValue] = useState('Original draft')
-    const [contexts, setContexts] = useState<ComponentProps<typeof Composer>['restoredContexts']>()
-    restore = () => {
-      setValue('/review fix this')
-      setContexts([
-        { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
-      ])
+it.each([false, true])(
+  'keeps restored queued skills scoped and warns about lost context (%s)',
+  async (invalidContext) => {
+    let restore: () => void = () => {}
+    function Harness() {
+      const [value, setValue] = useState('Original draft')
+      const [contexts, setContexts] =
+        useState<ComponentProps<typeof Composer>['restoredContexts']>()
+      restore = () => {
+        setValue('/review fix this @Browser')
+        setContexts([
+          { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+          ...(invalidContext
+            ? [
+                {
+                  kind: 'browser_tab' as const,
+                  tabId: 'tab-a',
+                  label: 'Browser',
+                  selection: { text: 'Selected passage', title: 'x'.repeat(513) },
+                },
+              ]
+            : []),
+        ])
+      }
+      const files = useFileAttachments({
+        userId: 'user-a',
+        organizationId: 'organization-a',
+        requestMode: 'agent',
+      })
+      return (
+        <Composer
+          requestMode='agent'
+          value={value}
+          onChange={setValue}
+          restoredContexts={contexts}
+          files={files}
+          isInitialView={false}
+          isSending={false}
+          onStop={() => {}}
+          onSubmit={mocks.submit}
+        />
+      )
     }
-    const files = useFileAttachments({
-      userId: 'user-a',
-      organizationId: 'organization-a',
-      requestMode: 'agent',
-    })
-    return (
-      <Composer
-        requestMode='agent'
-        value={value}
-        onChange={setValue}
-        restoredContexts={contexts}
-        files={files}
-        isInitialView={false}
-        isSending={false}
-        onStop={() => {}}
-        onSubmit={mocks.submit}
-      />
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <FeatureFlagsProvider
+            flags={{
+              dashboards: false,
+              'workflow-tests': false,
+              changelog: false,
+              'mothership-model-selector': mocks.advanced,
+              'mothership-plan-mode': mocks.plan,
+            }}
+          >
+            <Harness />
+            <ToastProvider />
+          </FeatureFlagsProvider>
+        </QueryClientProvider>
+      )
     )
+    await act(async () => restore())
+    expect(
+      container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+        .value
+    ).toBe('\u2003review fix this @Browser')
+    if (invalidContext) expect(document.body.textContent).toContain('Reattach it before sending.')
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
+    )
+    expect(mocks.submit).toHaveBeenLastCalledWith('/review fix this @Browser', [
+      { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
+    ])
   }
-  await act(async () =>
-    root.render(
-      <QueryClientProvider client={queryClient}>
-        <FeatureFlagsProvider
-          flags={{
-            dashboards: false,
-            'workflow-tests': false,
-            changelog: false,
-            'mothership-model-selector': mocks.advanced,
-            'mothership-plan-mode': mocks.plan,
-          }}
-        >
-          <Harness />
-        </FeatureFlagsProvider>
-      </QueryClientProvider>
-    )
-  )
-  await act(async () => restore())
-  expect(
-    container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!.value
-  ).toBe('\u2003review fix this')
-  await act(async () =>
-    container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click()
-  )
-  expect(mocks.submit).toHaveBeenLastCalledWith('/review fix this', [
-    { kind: 'skill', skillId: 'skill-a', label: 'review', workspaceId: 'workspace-a' },
-  ])
-})
+)
 
 it('shows global built-ins once with no workspace label and submits no invented workspace', async () => {
   mocks.workspaces = []

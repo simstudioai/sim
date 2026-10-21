@@ -11,6 +11,8 @@ vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import {
   type UsePromptEditorProps,
@@ -531,6 +533,51 @@ it('re-chipifies a seeded draft once skills load', () => {
 })
 
 describe('sent prompt history', () => {
+  it.each([
+    ['workspace ownership', { kind: 'file', fileId: 'file-a', workspaceId: 42 }],
+    [
+      'conflicting file owner',
+      {
+        kind: 'file',
+        fileId: 'file-a',
+        workspaceId: 'ws-1',
+        owner: { entityType: 'workspace', entityId: 'ws-2' },
+      },
+    ],
+    ['saved table view', { kind: 'table', tableId: 'table-a', viewId: ['view-a'] }],
+    ['empty browser selection', { kind: 'browser_tab', tabId: 'tab-a', selection: { text: '' } }],
+    [
+      'terminal selection bounds',
+      {
+        kind: 'terminal_tab',
+        terminalId: 'terminal-a',
+        selection: { text: 'output', startLine: 10_000_001, endLine: 10_000_002 },
+      },
+    ],
+  ])('recalls text and valid chips when saved %s is malformed', (_name, context) => {
+    const valid = { kind: 'file', fileId: 'file-b', label: 'Valid' }
+    const message = toDisplayMessage(
+      normalizeMessage({
+        id: 'stored',
+        role: 'user',
+        content: 'Compare @Invalid and @Valid',
+        contexts: [{ ...context, label: 'Invalid' }, valid],
+      })
+    )
+    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+    try {
+      act(() => {
+        expect(
+          result().restorePrompt(message.content, message.contexts).hasUnavailableContexts
+        ).toBe(true)
+      })
+      expect(result().getPlainValue()).toBe('Compare @Invalid and @Valid')
+      expect(result().getActiveContexts()).toEqual([valid])
+    } finally {
+      unmount()
+    }
+  })
+
   it('recalls only user messages, walks both ways, and returns to the empty composer', () => {
     const history = renderHistoryEditor([
       { id: 'first', role: 'user', content: 'first\nsecond line' },
