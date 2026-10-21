@@ -2995,6 +2995,11 @@ export class PauseResumeManager {
     })
 
     await releaseCancelledResumeReservations(transition.claimedResumeEntryIds)
+    // The terminal writer may never report it (the stale-execution sweep, a resume worker killed
+    // after its log write), which would leave the Copilot tool waiting.
+    if (transition.finalized) {
+      await reportCopilotToolForSettledPause(executionId, workflowId)
+    }
     return transition.finalized
   }
 
