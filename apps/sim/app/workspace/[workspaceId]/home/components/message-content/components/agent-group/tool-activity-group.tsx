@@ -161,9 +161,7 @@ export function getInProgressActivityLabel(
   tools: ToolCallData[],
   activityTitle: string | undefined
 ): string {
-  const label = isAwaitingTitle(headerTool)
-    ? activityTitle || AWAITING_TITLE_LABEL
-    : activeLabel
+  const label = isAwaitingTitle(headerTool) ? activityTitle || AWAITING_TITLE_LABEL : activeLabel
   return getActiveToolActivityTitle(label, headerTool, tools)
 }
 

@@ -17,7 +17,11 @@ interface ActivityStreamProps extends Omit<ActivityDisclosureProps, 'header'> {
   collapsible: boolean
 }
 
-/** Pace only the header; history and interactive tool state continue updating immediately. */
+/**
+ * Pace only the header; history and interactive tool state continue updating immediately. The
+ * label is paced across liveness too: between a run's calls the lane briefly loses its live
+ * indicator, and an unpaced label would flash the finished call's title before the next call's.
+ */
 export function ActivityStream({
   activity,
   activityKey,
@@ -32,7 +36,7 @@ export function ActivityStream({
 }: ActivityStreamProps) {
   const isExpanded = collapsible && expanded
   const key = `${activityKey}:${activity.label}`
-  const resetKey = `${activity.isActive}:${isExpanded}:${Boolean(activityKey)}:${attentionKey}`
+  const resetKey = `${isExpanded}:${Boolean(activityKey)}:${attentionKey}`
   const [visible, setVisible] = useState(() => ({
     activity,
     key,
@@ -40,13 +44,13 @@ export function ActivityStream({
     shownAt: Date.now(),
   }))
 
-  /** Completion, attention, and disclosure changes bypass the cosmetic delay. */
+  /** Attention and disclosure changes bypass the cosmetic delay. */
   if (visible.resetKey !== resetKey) {
     setVisible({ activity, key, resetKey, shownAt: Date.now() })
   }
 
   useEffect(() => {
-    if (!activity.isActive || isExpanded || key === visible.key) return
+    if (isExpanded || key === visible.key) return
     const remaining = Math.max(0, ACTIVITY_UPDATE_INTERVAL_MS - (Date.now() - visible.shownAt))
     const flush = () => setVisible({ activity, key, resetKey, shownAt: Date.now() })
     if (remaining === 0) {
@@ -57,8 +61,7 @@ export function ActivityStream({
     return () => clearTimeout(timer)
   }, [activity, key, resetKey, isExpanded, visible.key, visible.shownAt])
 
-  const displayed =
-    !activity.isActive || isExpanded || key === visible.key ? activity : visible.activity
+  const displayed = isExpanded || key === visible.key ? activity : visible.activity
   const header = (
     <ActivityStatus
       {...displayed}
