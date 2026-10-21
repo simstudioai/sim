@@ -4,7 +4,7 @@ title: 'Best Retool Alternatives in 2026 for Building AI Agents'
 seoTitle: 'Best Retool Alternatives for AI Agents (2026)'
 description: 'Compare Retool alternatives for building AI agents instead of internal apps: Sim, n8n, Dify, Gumloop, and Relevance AI on agents, hosting, and pricing.'
 date: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-20
 authors:
   - andrew
 readingTime: 8
@@ -49,7 +49,7 @@ As of October 2026, Retool appears last as the baseline. The other tools are ran
 | 3 | Dify | Workflows, knowledge retrieval, and agents | Marketplace tools, MCP servers, and APIs | [Free Community edition](https://dify.ai/pricing/dify-enterprise), single workspace, modified Apache 2.0 | [Free Sandbox; Professional $590/workspace/year; Team $1,590/workspace/year](https://dify.ai/pricing) |
 | 4 | Gumloop | Agents with triggers and skills | [100+ MCP integrations](https://www.gumloop.com/llms.txt) | No self-hosted plan listed; optional VPC on Enterprise | [Pro from $37/month after a 14-day free trial](https://www.gumloop.com/pricing) |
 | 5 | Relevance AI | Agents and multi-agent workforces with evaluations | [2,000+ integrations](https://relevanceai.com/pricing) | No self-hosted plan listed; data residency on Enterprise | [Enterprise, custom](https://relevanceai.com/pricing); [pricing docs](https://relevanceai.com/docs/get-started/pricing) list Pro from $19/month and Team from $234/month billed annually |
-| 6 | Retool | Agents, Workflows, and internal apps | [Native connectors, REST APIs, and GraphQL](https://retool.com/integrations) | [Self-hosted or air-gapped on Enterprise](https://retool.com/pricing); [Retool license key required](https://docs.retool.com/self-hosted/self-managed/tutorials/kubernetes/kubernetes-helm) | [Team $10/builder/month billed annually](https://retool.com/pricing); Agents $50 free usage/month, then hourly |
+| 6 | Retool | Agents, Workflows, and internal apps | [Native connectors, REST APIs, and GraphQL](https://retool.com/integrations) | [Self-hosted on any plan; air-gapped on Enterprise](https://retool.com/md/pricing); [Retool license key required](https://docs.retool.com/self-hosted/self-managed/tutorials/kubernetes/kubernetes-helm) | [Team $10/builder/month billed annually](https://retool.com/pricing); Agents $50 free usage/month, then hourly |
 
 ### Sim
 
@@ -61,7 +61,7 @@ As of October 2026, Retool appears last as the baseline. The other tools are ran
 
 You can deploy a workflow as an API, a chat interface, or a tool on an MCP server. [MCP deployment](https://docs.sim.ai/workflows/deployment/mcp) makes a workflow available to external clients with API-key-protected or public access. [Sim's self-hosting documentation](https://docs.sim.ai/platform/self-hosting) covers Docker Compose and Kubernetes. The core is available under Apache 2.0 without a license fee, whatever plan you use, and Sim's pricing table lists supported self-hosting as an Enterprise feature. Code in `apps/sim/ee`, including single sign-on (SSO) and audit logs, is covered by the [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE), which requires an active Enterprise subscription for production use.
 
-Retool can also be self-hosted, but its [pricing page](https://retool.com/pricing) lists self-hosted and air-gapped deployment on the Enterprise plan, and every self-hosted instance needs a Retool license key. Retool's [Docker setup](https://docs.retool.com/self-hosted/tutorials/docker) is for non-production use only, and its [production deployments](https://docs.retool.com/self-hosted/self-managed/) run on Kubernetes with Helm. See the [full Sim and Retool comparison](https://www.sim.ai/comparisons/retool).
+Retool can also be self-hosted: its [pricing](https://retool.com/md/pricing) lists self-host plans on every tier, from Free (up to 5 users) through Team and Business (up to 100 users), with Enterprise required for unlimited users, SSO, and air-gapped deployment. Every self-hosted instance needs a Retool license key. Retool's [Docker setup](https://docs.retool.com/self-hosted/self-managed/tutorials/docker) is for non-production use only, and its [production deployments](https://docs.retool.com/self-hosted/self-managed/) run on Kubernetes with Helm. See the [full Sim and Retool comparison](https://www.sim.ai/comparisons/retool).
 
 **Cons:** Self-hosting leaves you responsible for operating the deployment. Sim's free cloud plan grants its credits once rather than refreshing them. Production use of enterprise features such as SSO and audit logs requires an Enterprise subscription.
 
