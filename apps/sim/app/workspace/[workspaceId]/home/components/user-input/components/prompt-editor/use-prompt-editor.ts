@@ -373,7 +373,7 @@ export function usePromptEditor({
       let hasUnavailableContexts = false
       for (const saved of contexts) {
         const integration =
-          saved.kind === 'integration'
+          saved.kind === 'integration' && typeof saved.label === 'string'
             ? getIntegrationMatcher().byName.get(saved.label.toLowerCase())
             : undefined
         const context = integration ? { ...saved, blockType: integration.blockType } : saved
