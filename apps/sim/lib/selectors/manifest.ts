@@ -219,7 +219,7 @@ export const selectorManifest = {
   }),
   'harmonic.savedSearches': providerSelector([], { detail: true, unknownDetail: true }),
   'helpscout.mailboxes': providerSelector([], { listMode: 'paginated', detail: true }),
-  'helpscout.users': providerSelector([], { listMode: 'paginated', detail: true }),
+  'helpscout.assignees': providerSelector([], { listMode: 'paginated', detail: true }),
   'hubspot.lists': providerSelector([], { listMode: 'paginated', search: true, detail: true }),
   'hubspot.owners': providerSelector([], { listMode: 'paginated', detail: true }),
   'hubspot.pipelines': providerSelector(['objectType', 'customObjectTypeId']),

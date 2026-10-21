@@ -48,6 +48,11 @@ interface ErrorExtractorConfig {
    * leaves the original reachable at `output.data`.
    */
   redactData?: (errorInfo?: ErrorInfo) => unknown
+  /**
+   * Run only when a tool selects this extractor by ID. Use for provider-specific
+   * messages that would mislabel other services' errors in the fallback chain.
+   */
+  explicitOnly?: boolean
 }
 
 const CODA_MAX_VALIDATION_MESSAGES = 5
@@ -261,11 +266,16 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
     id: 'helpscout-errors',
     description:
-      'Help Scout vnd.error responses: the top-level message plus each embedded field error as `path: message`, without the rejected value',
+      'Help Scout vnd.error responses: the top-level message plus each embedded field error as `path: message`, without the rejected value. Help Scout answers a missing resource with an empty 404 body.',
     examples: ['Help Scout'],
+    explicitOnly: true,
     extract: (errorInfo) => {
       const data = errorInfo?.data
-      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return errorInfo?.status === 404
+          ? 'Not found: the Help Scout resource does not exist or the connected user cannot access it'
+          : undefined
+      }
       const message = typeof data.message === 'string' ? data.message.trim() : ''
       const embedded = data._embedded
       const errors: unknown[] =
@@ -683,6 +693,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
   // Backwards compatibility
   for (const extractor of ERROR_EXTRACTORS) {
+    if (extractor.explicitOnly) continue
     try {
       const message = extractor.extract(errorInfo)
       if (message?.trim()) {

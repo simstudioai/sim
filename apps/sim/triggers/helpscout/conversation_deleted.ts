@@ -1,7 +1,7 @@
 import { HelpScoutIcon } from '@/components/icons'
 import {
   buildConversationDeletedOutputs,
-  buildHelpScoutExtraFields,
+  buildHelpScoutTriggerFields,
   helpScoutSetupInstructions,
   helpScoutTriggerOptions,
 } from '@/triggers/helpscout/utils'
@@ -22,7 +22,7 @@ export const helpScoutConversationDeletedTrigger: TriggerConfig = {
     setupInstructions: helpScoutSetupInstructions(
       'the <strong>Conversation &gt; Deleted</strong> event'
     ),
-    extraFields: buildHelpScoutExtraFields('helpscout_conversation_deleted'),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_conversation_deleted'),
   }),
 
   outputs: buildConversationDeletedOutputs(),

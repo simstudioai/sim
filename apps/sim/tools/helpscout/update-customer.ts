@@ -5,6 +5,7 @@ import type {
 } from '@/tools/helpscout/types'
 import {
   ACCESS_TOKEN_PARAM,
+  buildContactEntries,
   buildHelpScoutHeaders,
   CUSTOMER_PROFILE_PARAMS,
   collectCustomerProfile,
@@ -20,7 +21,7 @@ export const helpScoutUpdateCustomerTool: ToolConfig<
   id: 'helpscout_update_customer',
   name: 'Help Scout Update Customer',
   description:
-    'Update profile fields on a Help Scout customer. Only the fields you provide are changed.',
+    'Update profile fields on a Help Scout customer and add an email address or phone number. Only the fields you provide are changed.',
   version: '1.0.0',
   oauth: { required: true, provider: 'helpscout' },
   errorExtractor: ErrorExtractorId.HELPSCOUT_ERRORS,
@@ -33,6 +34,30 @@ export const helpScoutUpdateCustomerTool: ToolConfig<
       description: 'Customer ID',
     },
     ...CUSTOMER_PROFILE_PARAMS,
+    email: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Email address to add to the customer',
+    },
+    emailType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'work, home, or other (defaults to work)',
+    },
+    phone: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Phone number to add to the customer',
+    },
+    phoneType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'work, home, mobile, fax, pager, or other (defaults to work)',
+    },
   },
   request: {
     url: (params) =>
@@ -40,11 +65,12 @@ export const helpScoutUpdateCustomerTool: ToolConfig<
     method: 'PATCH',
     headers: (params) => buildHelpScoutHeaders(params.accessToken),
     body: (params) => {
-      const operations = Object.entries(collectCustomerProfile(params)).map(([field, value]) => ({
-        op: 'replace',
-        path: `/${field}`,
-        value,
-      }))
+      const contact = buildContactEntries(params)
+      const operations: Array<{ op: string; path: string; value: unknown }> = Object.entries(
+        collectCustomerProfile(params)
+      ).map(([field, value]) => ({ op: 'replace', path: `/${field}`, value }))
+      if (contact.email) operations.push({ op: 'add', path: '/emails', value: contact.email })
+      if (contact.phone) operations.push({ op: 'add', path: '/phones', value: contact.phone })
       if (operations.length === 0) throw new Error('Provide at least one field to update')
       return operations
     },

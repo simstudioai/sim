@@ -5,6 +5,7 @@ import type {
 } from '@/tools/helpscout/types'
 import {
   ACCESS_TOKEN_PARAM,
+  buildContactEntries,
   buildHelpScoutHeaders,
   CUSTOMER_PROFILE_PARAMS,
   collectCustomerProfile,
@@ -13,9 +14,6 @@ import {
   readResourceId,
 } from '@/tools/helpscout/utils'
 import type { ToolConfig } from '@/tools/types'
-
-const EMAIL_TYPES = new Set(['work', 'home', 'other'])
-const PHONE_TYPES = new Set(['work', 'home', 'mobile', 'fax', 'pager', 'other'])
 
 export const helpScoutCreateCustomerTool: ToolConfig<
   HelpScoutCreateCustomerParams,
@@ -67,23 +65,16 @@ export const helpScoutCreateCustomerTool: ToolConfig<
     headers: (params) => buildHelpScoutHeaders(params.accessToken),
     body: (params) => {
       const profile = collectCustomerProfile(params)
-      const email = params.email?.trim()
-      const phone = params.phone?.trim()
-      const emailType = params.emailType?.trim() || 'work'
-      const phoneType = params.phoneType?.trim() || 'work'
-      if (!EMAIL_TYPES.has(emailType)) throw new Error('emailType must be work, home, or other')
-      if (!PHONE_TYPES.has(phoneType)) {
-        throw new Error('phoneType must be work, home, mobile, fax, pager, or other')
-      }
-      if (!email && !phone && Object.keys(profile).length === 0) {
+      const contact = buildContactEntries(params)
+      if (!contact.email && !contact.phone && Object.keys(profile).length === 0) {
         throw new Error('Provide at least a name, email, or phone for the customer')
       }
       const organizationId = parseOptionalHelpScoutId(params.organizationId, 'organizationId')
       return {
         ...profile,
         ...(organizationId !== undefined ? { organizationId } : {}),
-        ...(email ? { emails: [{ type: emailType, value: email }] } : {}),
-        ...(phone ? { phones: [{ type: phoneType, value: phone }] } : {}),
+        ...(contact.email ? { emails: [contact.email] } : {}),
+        ...(contact.phone ? { phones: [contact.phone] } : {}),
       }
     },
   },

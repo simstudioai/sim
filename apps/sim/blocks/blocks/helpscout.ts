@@ -16,6 +16,11 @@ const CONVERSATION_OPERATIONS = [
   'set_conversation_tags',
   'delete_conversation',
   'list_threads',
+  'update_custom_fields',
+  'snooze_conversation',
+  'unsnooze_conversation',
+  'create_customer_thread',
+  'update_conversation_customer',
 ]
 
 const MAILBOX_OPERATIONS = [
@@ -26,9 +31,19 @@ const MAILBOX_OPERATIONS = [
   'list_folders',
   'list_users',
   'list_workflows',
+  'list_custom_fields',
+  'list_saved_replies',
+  'get_saved_reply',
 ]
 
-const REQUIRED_MAILBOX_OPERATIONS = ['create_conversation', 'move_conversation', 'list_folders']
+const REQUIRED_MAILBOX_OPERATIONS = [
+  'create_conversation',
+  'move_conversation',
+  'list_folders',
+  'list_custom_fields',
+  'list_saved_replies',
+  'get_saved_reply',
+]
 
 const ASSIGNEE_OPERATIONS = ['assign_conversation', 'create_conversation', 'create_reply']
 
@@ -42,6 +57,8 @@ const LIST_OPERATIONS = [
   'list_tags',
   'list_teams',
   'list_workflows',
+  'list_custom_fields',
+  'list_organizations',
 ]
 
 const CUSTOMER_PROFILE_OPERATIONS = ['create_customer', 'update_customer']
@@ -84,7 +101,7 @@ export const HelpScoutBlock: BlockConfig = {
   name: 'Help Scout',
   description: 'Manage Help Scout conversations, replies, notes, and customers',
   longDescription:
-    'Connect Help Scout to search and read conversations and their threads, open new conversations, reply to customers, add internal notes, change status, assignee, inbox, subject, and tags, and manage customers. List inboxes, folders, users, teams, tags, and workflows, and run manual workflows. Trigger workflows from Help Scout webhooks for conversation and customer events.',
+    'Connect Help Scout to search and read conversations and their threads, open new conversations, reply to customers, add internal notes and customer messages, change status, assignee, inbox, subject, customer, tags, and custom fields, and snooze conversations. Manage customers and their properties, look up organizations and saved replies, list inboxes, folders, users, teams, tags, and workflows, and run manual workflows. Trigger workflows from Help Scout webhooks for conversation and customer events.',
   docsLink: 'https://docs.sim.ai/integrations/helpscout',
   category: 'tools',
   integrationType: IntegrationType.Support,
@@ -151,6 +168,39 @@ export const HelpScoutBlock: BlockConfig = {
           { text: 'Run workflow', field: 'workflowId', core: true },
           { text: 'on', field: 'conversationIds', core: true },
         ],
+        update_custom_fields: [
+          { text: 'Set custom fields on conversation', field: 'conversationId', core: true },
+        ],
+        list_custom_fields: [
+          'List custom fields',
+          { text: 'in', field: ['mailboxSelector', 'mailboxId'], core: true },
+        ],
+        snooze_conversation: [
+          { text: 'Snooze conversation', field: 'conversationId', core: true },
+          { text: 'until', field: 'snoozedUntil', core: true },
+        ],
+        unsnooze_conversation: [
+          { text: 'Unsnooze conversation', field: 'conversationId', core: true },
+        ],
+        list_saved_replies: [
+          'List saved replies',
+          { text: 'in', field: ['mailboxSelector', 'mailboxId'], core: true },
+        ],
+        get_saved_reply: [{ text: 'Read saved reply', field: 'savedReplyId', core: true }],
+        list_customer_properties: ['List customer properties'],
+        update_customer_properties: [
+          { text: 'Set properties on customer', field: 'customerId', core: true },
+        ],
+        create_customer_thread: [
+          'Add customer message',
+          { text: 'to conversation', field: 'conversationId', core: true },
+        ],
+        update_conversation_customer: [
+          { text: 'Change customer of conversation', field: 'conversationId', core: true },
+          { text: 'to', field: 'customerId', core: true },
+        ],
+        list_organizations: ['List organizations'],
+        get_organization: [{ text: 'Read organization', field: 'organizationId', core: true }],
       },
     },
   },
@@ -166,20 +216,32 @@ export const HelpScoutBlock: BlockConfig = {
         { label: 'Create Conversation', id: 'create_conversation' },
         { label: 'Reply to Conversation', id: 'create_reply' },
         { label: 'Add Note', id: 'create_note' },
+        { label: 'Add Customer Message', id: 'create_customer_thread' },
         { label: 'Update Conversation Status', id: 'update_conversation_status' },
         { label: 'Assign Conversation', id: 'assign_conversation' },
         { label: 'Unassign Conversation', id: 'unassign_conversation' },
         { label: 'Update Conversation Subject', id: 'update_conversation_subject' },
         { label: 'Move Conversation', id: 'move_conversation' },
         { label: 'Set Conversation Tags', id: 'set_conversation_tags' },
+        { label: 'Update Custom Fields', id: 'update_custom_fields' },
+        { label: 'Snooze Conversation', id: 'snooze_conversation' },
+        { label: 'Unsnooze Conversation', id: 'unsnooze_conversation' },
+        { label: 'Change Conversation Customer', id: 'update_conversation_customer' },
         { label: 'Delete Conversation', id: 'delete_conversation' },
         { label: 'List Threads', id: 'list_threads' },
         { label: 'List Customers', id: 'list_customers' },
         { label: 'Get Customer', id: 'get_customer' },
         { label: 'Create Customer', id: 'create_customer' },
         { label: 'Update Customer', id: 'update_customer' },
+        { label: 'List Customer Properties', id: 'list_customer_properties' },
+        { label: 'Update Customer Properties', id: 'update_customer_properties' },
+        { label: 'List Organizations', id: 'list_organizations' },
+        { label: 'Get Organization', id: 'get_organization' },
         { label: 'List Inboxes', id: 'list_mailboxes' },
         { label: 'List Folders', id: 'list_folders' },
+        { label: 'List Custom Fields', id: 'list_custom_fields' },
+        { label: 'List Saved Replies', id: 'list_saved_replies' },
+        { label: 'Get Saved Reply', id: 'get_saved_reply' },
         { label: 'List Users', id: 'list_users' },
         { label: 'Get Current User', id: 'get_current_user' },
         { label: 'List Tags', id: 'list_tags' },
@@ -279,7 +341,7 @@ export const HelpScoutBlock: BlockConfig = {
       title: 'Customer Email',
       type: 'short-input',
       placeholder: 'customer@example.com',
-      condition: { field: 'operation', value: 'create_conversation' },
+      condition: { field: 'operation', value: ['create_conversation', 'create_customer_thread'] },
     },
     {
       id: 'customerId',
@@ -288,11 +350,25 @@ export const HelpScoutBlock: BlockConfig = {
       placeholder: 'Enter customer ID',
       condition: {
         field: 'operation',
-        value: ['create_conversation', 'create_reply', 'get_customer', 'update_customer'],
+        value: [
+          'create_conversation',
+          'create_reply',
+          'get_customer',
+          'update_customer',
+          'create_customer_thread',
+          'update_conversation_customer',
+          'update_customer_properties',
+        ],
       },
       required: {
         field: 'operation',
-        value: ['create_reply', 'get_customer', 'update_customer'],
+        value: [
+          'create_reply',
+          'get_customer',
+          'update_customer',
+          'update_conversation_customer',
+          'update_customer_properties',
+        ],
       },
     },
     {
@@ -330,11 +406,11 @@ export const HelpScoutBlock: BlockConfig = {
       placeholder: 'Enter the message text',
       condition: {
         field: 'operation',
-        value: ['create_conversation', 'create_reply', 'create_note'],
+        value: ['create_conversation', 'create_reply', 'create_note', 'create_customer_thread'],
       },
       required: {
         field: 'operation',
-        value: ['create_conversation', 'create_reply', 'create_note'],
+        value: ['create_conversation', 'create_reply', 'create_note', 'create_customer_thread'],
       },
     },
     {
@@ -349,8 +425,8 @@ export const HelpScoutBlock: BlockConfig = {
       type: 'project-selector',
       canonicalParamId: 'assignTo',
       serviceId: 'helpscout',
-      selectorKey: 'helpscout.users',
-      placeholder: 'Select user',
+      selectorKey: 'helpscout.assignees',
+      placeholder: 'Select user or team',
       dependsOn: ['credential'],
       mode: 'basic',
       condition: { field: 'operation', value: ASSIGNEE_OPERATIONS },
@@ -429,7 +505,7 @@ export const HelpScoutBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'cc@example.com, other@example.com',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'create_reply' },
+      condition: { field: 'operation', value: ['create_reply', 'create_customer_thread'] },
     },
     {
       id: 'bcc',
@@ -437,7 +513,7 @@ export const HelpScoutBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'bcc@example.com',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'create_reply' },
+      condition: { field: 'operation', value: ['create_reply', 'create_customer_thread'] },
     },
     {
       id: 'userId',
@@ -574,7 +650,10 @@ export const HelpScoutBlock: BlockConfig = {
       title: 'Email',
       type: 'short-input',
       placeholder: 'name@example.com',
-      condition: { field: 'operation', value: ['create_customer', 'list_users'] },
+      condition: {
+        field: 'operation',
+        value: ['create_customer', 'update_customer', 'list_users'],
+      },
     },
     {
       id: 'emailType',
@@ -587,14 +666,14 @@ export const HelpScoutBlock: BlockConfig = {
       ],
       value: () => 'work',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'create_customer' },
+      condition: { field: 'operation', value: CUSTOMER_PROFILE_OPERATIONS },
     },
     {
       id: 'phone',
       title: 'Phone',
       type: 'short-input',
       placeholder: '555-123-4567',
-      condition: { field: 'operation', value: 'create_customer' },
+      condition: { field: 'operation', value: CUSTOMER_PROFILE_OPERATIONS },
     },
     {
       id: 'phoneType',
@@ -610,7 +689,7 @@ export const HelpScoutBlock: BlockConfig = {
       ],
       value: () => 'work',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'create_customer' },
+      condition: { field: 'operation', value: CUSTOMER_PROFILE_OPERATIONS },
     },
     {
       id: 'jobTitle',
@@ -671,8 +750,95 @@ export const HelpScoutBlock: BlockConfig = {
       title: 'Organization ID',
       type: 'short-input',
       placeholder: 'Enter organization ID',
+      condition: { field: 'operation', value: ['create_customer', 'get_organization'] },
+      required: { field: 'operation', value: 'get_organization' },
+    },
+    {
+      id: 'includeCounts',
+      title: 'Include Counts',
+      type: 'switch',
+      condition: { field: 'operation', value: 'get_organization' },
+    },
+    {
+      id: 'includeProperties',
+      title: 'Include Properties',
+      type: 'switch',
+      condition: { field: 'operation', value: 'get_organization' },
+    },
+    {
+      id: 'organizationSort',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Most recent activity', id: '' },
+        { label: 'Name (A-Z)', id: 'name,asc' },
+        { label: 'Most customers', id: 'customerCount,desc' },
+        { label: 'Most conversations', id: 'conversationCount,desc' },
+      ],
+      value: () => '',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'create_customer' },
+      condition: { field: 'operation', value: 'list_organizations' },
+    },
+    {
+      id: 'customFields',
+      title: 'Custom Fields',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{ "id": 104, "value": "168" }]',
+      condition: { field: 'operation', value: 'update_custom_fields' },
+      required: { field: 'operation', value: 'update_custom_fields' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of Help Scout custom field values as [{"id": <field id number>, "value": "<value>"}]. Dropdown fields take the option ID, dates use YYYY-MM-DD. Include every field the conversation should keep. Return ONLY the JSON array.',
+        generationType: 'json-array',
+      },
+    },
+    {
+      id: 'snoozedUntil',
+      title: 'Snooze Until',
+      type: 'short-input',
+      placeholder: '2025-02-15T12:00:00Z',
+      condition: { field: 'operation', value: 'snooze_conversation' },
+      required: { field: 'operation', value: 'snooze_conversation' },
+      wandConfig: TIMESTAMP_WAND,
+    },
+    {
+      id: 'unsnoozeOnCustomerReply',
+      title: 'Wake on Customer Reply',
+      type: 'switch',
+      defaultValue: true,
+      condition: { field: 'operation', value: 'snooze_conversation' },
+    },
+    {
+      id: 'savedReplyId',
+      title: 'Saved Reply ID',
+      type: 'short-input',
+      placeholder: 'Enter saved reply ID',
+      condition: { field: 'operation', value: 'get_saved_reply' },
+      required: { field: 'operation', value: 'get_saved_reply' },
+    },
+    {
+      id: 'includeChatReplies',
+      title: 'Include Chat Replies',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_saved_replies' },
+    },
+    {
+      id: 'properties',
+      title: 'Properties',
+      type: 'code',
+      language: 'json',
+      placeholder: '{ "plan": "Plus", "employees": 25 }',
+      condition: { field: 'operation', value: 'update_customer_properties' },
+      required: { field: 'operation', value: 'update_customer_properties' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON object of Help Scout customer property values keyed by property slug, e.g. {"plan": "Plus"}. Use null to remove a value, YYYY-MM-DD for dates, and the option ID or label for dropdowns. Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
     },
     {
       id: 'workflowType',
@@ -752,6 +918,18 @@ export const HelpScoutBlock: BlockConfig = {
       'helpscout_list_teams',
       'helpscout_list_workflows',
       'helpscout_run_workflow',
+      'helpscout_update_custom_fields',
+      'helpscout_list_custom_fields',
+      'helpscout_snooze_conversation',
+      'helpscout_unsnooze_conversation',
+      'helpscout_list_saved_replies',
+      'helpscout_get_saved_reply',
+      'helpscout_list_customer_properties',
+      'helpscout_update_customer_properties',
+      'helpscout_create_customer_thread',
+      'helpscout_update_conversation_customer',
+      'helpscout_list_organizations',
+      'helpscout_get_organization',
     ],
     config: {
       tool: (params) => `helpscout_${params.operation || 'list_conversations'}`,
@@ -766,6 +944,7 @@ export const HelpScoutBlock: BlockConfig = {
         sortOrder: optionalString(params.sortOrder),
         gender: optionalString(params.gender),
         workflowType: optionalString(params.workflowType),
+        organizationSort: optionalString(params.organizationSort),
         page: optionalNumber(params.page),
         number: optionalNumber(params.number),
       }),
@@ -822,6 +1001,15 @@ export const HelpScoutBlock: BlockConfig = {
     workflowId: { type: 'string', description: 'Workflow ID' },
     conversationIds: { type: 'string', description: 'Comma-separated conversation IDs' },
     page: { type: 'number', description: 'Page number' },
+    customFields: { type: 'json', description: 'Custom field values [{id, value}]' },
+    snoozedUntil: { type: 'string', description: 'When the snooze ends (ISO 8601)' },
+    unsnoozeOnCustomerReply: { type: 'boolean', description: 'Wake on customer reply' },
+    savedReplyId: { type: 'string', description: 'Saved reply ID' },
+    includeChatReplies: { type: 'boolean', description: 'Include chat-only saved replies' },
+    properties: { type: 'json', description: 'Customer property values keyed by slug' },
+    organizationSort: { type: 'string', description: 'Organization sort order' },
+    includeCounts: { type: 'boolean', description: 'Include organization counts' },
+    includeProperties: { type: 'boolean', description: 'Include organization properties' },
   },
   outputs: {
     conversations: { type: 'json', description: 'Conversations (list_conversations)' },
@@ -846,6 +1034,25 @@ export const HelpScoutBlock: BlockConfig = {
     conversationIds: { type: 'json', description: 'Conversations the workflow ran on' },
     page: { type: 'json', description: 'Pagination details for list operations' },
     nextPage: { type: 'number', description: 'Next page number, or null on the last page' },
+    customFields: {
+      type: 'json',
+      description: 'Inbox custom fields (id, name, type, required, order, systemType, options)',
+    },
+    savedReplies: { type: 'json', description: 'Saved replies (id, name, preview, chatPreview)' },
+    savedReply: { type: 'json', description: 'Saved reply (id, name, text, chatText)' },
+    customerProperties: {
+      type: 'json',
+      description: 'Customer property definitions (slug, name, type, options)',
+    },
+    organizations: {
+      type: 'json',
+      description: 'Organizations (id, name, website, domains, phones, location, note)',
+    },
+    organization: {
+      type: 'json',
+      description:
+        'Organization (id, name, website, domains, phones, customerCount, conversationCount, properties)',
+    },
   },
   triggers: {
     enabled: true,
@@ -893,10 +1100,11 @@ export const HelpScoutBlockMeta = {
       icon: HelpScoutIcon,
       title: 'Daily Support Queue Digest',
       prompt:
-        'Every weekday morning, list active and pending Help Scout conversations, group them by inbox and assignee, flag the ones customers have waited on longest, and post the digest to the support team.',
+        'Every weekday morning, list active and pending Help Scout conversations, group them by inbox and assignee, flag the ones customers have waited on longest, and post the digest to the support team in Slack.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'support',
       tags: ['support', 'reporting'],
+      alsoIntegrations: ['slack'],
     },
     {
       icon: HelpScoutIcon,
@@ -929,10 +1137,11 @@ export const HelpScoutBlockMeta = {
       icon: HelpScoutIcon,
       title: 'Escalate Bug Reports',
       prompt:
-        'When a Help Scout conversation is tagged bug, read its threads, write a reproducible bug summary, add an internal note with the summary, and move the conversation to the engineering escalations inbox.',
+        'When a Help Scout conversation is tagged bug, read its threads, write a reproducible bug summary, file it as a Linear issue, and add an internal note on the conversation linking the issue.',
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'engineering'],
+      alsoIntegrations: ['linear'],
     },
     {
       icon: HelpScoutIcon,
@@ -980,6 +1189,13 @@ export const HelpScoutBlockMeta = {
       description: 'Apply a manual Help Scout workflow to a batch of matching conversations.',
       content:
         '# Run a Manual Workflow in Bulk\n\nApply an existing Help Scout workflow to many conversations at once.\n\n## Steps\n1. Call list_workflows with workflowType manual and the inbox ID to find the workflow ID.\n2. Call list_conversations in the same inbox with the filters the user asked for.\n3. Call run_workflow with up to 50 conversation IDs per call; batch larger sets.\n\n## Output\nReturn the workflow name and ID and the conversation IDs it ran on.',
+    },
+    {
+      name: 'answer-with-help-scout-saved-reply',
+      description:
+        'Draft a reply from the inbox saved replies instead of writing one from scratch.',
+      content:
+        '# Answer with a Saved Reply\n\nReuse approved answers for common questions.\n\n## Steps\n1. Read the newest customer thread with list_threads.\n2. Call list_saved_replies for the conversation inbox and pick the reply whose name and preview match the question.\n3. Call get_saved_reply for the full text and adapt only names and specifics.\n4. Call create_reply with draft set to true so an agent reviews it before it is sent.\n\n## Output\nReturn the saved reply used, the draft thread ID, and anything the agent should verify.',
     },
     {
       name: 'enrich-help-scout-customer',

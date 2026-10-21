@@ -3,10 +3,10 @@ import type {
   HelpScoutConversationChangeResponse,
   HelpScoutUpdateConversationSubjectParams,
 } from '@/tools/helpscout/types'
+import { CONVERSATION_CHANGE_OUTPUTS } from '@/tools/helpscout/types'
 import {
   ACCESS_TOKEN_PARAM,
   buildHelpScoutHeaders,
-  CONVERSATION_CHANGE_OUTPUTS,
   CONVERSATION_ID_PARAM,
   conversationChangeResult,
   conversationUrl,

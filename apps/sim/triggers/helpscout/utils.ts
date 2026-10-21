@@ -1,3 +1,4 @@
+import { getScopesForService } from '@/lib/oauth/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
@@ -32,7 +33,7 @@ export const helpScoutTriggerOptions = [
   { label: 'Conversation Deleted', id: 'helpscout_conversation_deleted' },
   { label: 'Customer Created', id: 'helpscout_customer_created' },
   { label: 'Customer Updated', id: 'helpscout_customer_updated' },
-  { label: 'All Selected Events', id: HELPSCOUT_GENERIC_TRIGGER_ID },
+  { label: 'All Events', id: HELPSCOUT_GENERIC_TRIGGER_ID },
 ]
 
 /** Whether a delivery's event name is the one the configured trigger listens for. */
@@ -41,31 +42,69 @@ export function isHelpScoutEventMatch(triggerId: string, eventType: string): boo
   return expected !== undefined && expected === eventType
 }
 
-export function buildHelpScoutExtraFields(triggerId: string): SubBlockConfig[] {
+/**
+ * Help Scout events Sim subscribes to for a trigger. The catch-all trigger subscribes to every
+ * event the specific triggers cover, so its deliveries share their documented payloads.
+ */
+export function getHelpScoutSubscriptionEvents(triggerId: string): string[] {
+  if (triggerId === HELPSCOUT_GENERIC_TRIGGER_ID) return Object.values(HELPSCOUT_TRIGGER_EVENTS)
+  const event = HELPSCOUT_TRIGGER_EVENTS[triggerId]
+  return event ? [event] : []
+}
+
+/** Account and optional inbox fields shown above the webhook URL for every Help Scout trigger. */
+export function buildHelpScoutTriggerFields(
+  triggerId: string,
+  options: { inboxFilter?: boolean } = {}
+): SubBlockConfig[] {
+  const condition = { field: 'selectedTriggerId', value: triggerId }
+  const credentialField: SubBlockConfig = {
+    id: 'triggerCredentials',
+    title: 'Help Scout Account',
+    type: 'oauth-input',
+    description:
+      'Sim creates the Help Scout webhook with this account and deletes it when the workflow is undeployed.',
+    serviceId: 'helpscout',
+    requiredScopes: getScopesForService('helpscout'),
+    canonicalParamId: 'oauthCredential',
+    placeholder: 'Select Help Scout account',
+    required: true,
+    mode: 'trigger',
+    condition,
+  }
+  if (options.inboxFilter === false) return [credentialField]
   return [
+    credentialField,
     {
-      id: 'webhookSecret',
-      title: 'Secret Key',
-      type: 'short-input',
-      placeholder: 'Enter the secret key you set on the Help Scout webhook',
+      id: 'triggerMailboxSelector',
+      title: 'Inbox',
+      type: 'project-selector',
+      canonicalParamId: 'triggerMailboxId',
+      serviceId: 'helpscout',
+      selectorKey: 'helpscout.mailboxes',
+      placeholder: 'All inboxes',
       description:
-        'The same secret key (40 characters or fewer) entered in Help Scout. Sim rejects deliveries whose X-HelpScout-Signature does not match it.',
-      password: true,
-      required: true,
+        'Only receive events for conversations in this inbox. Leave empty for every inbox.',
+      dependsOn: ['triggerCredentials'],
       mode: 'trigger',
-      condition: { field: 'selectedTriggerId', value: triggerId },
+      condition,
+    },
+    {
+      id: 'triggerMailboxId',
+      title: 'Inbox ID',
+      type: 'short-input',
+      canonicalParamId: 'triggerMailboxId',
+      placeholder: 'Defaults to all inboxes',
+      mode: 'trigger-advanced',
+      condition,
     },
   ]
 }
 
 export function helpScoutSetupInstructions(eventLabel: string): string {
   const instructions = [
-    'Copy the <strong>Webhook URL</strong> above.',
-    'In Help Scout, click the gear icon (Settings), go to <strong>Workspace &gt; Apps</strong>, and open the <strong>Webhooks</strong> app.',
-    'Paste the Webhook URL into the <strong>Callback URL</strong> field.',
-    'Enter a <strong>Secret Key</strong> of up to 40 characters and paste the same value into the Secret Key field above.',
-    `Select ${eventLabel}, leave notification-only delivery off so Sim receives the full payload, and save the webhook.`,
-    'Click "Save" above to activate your trigger.',
+    'Connect your Help Scout account above. The trigger needs a Help Scout account connected through sign-in (OAuth), and that user needs the Access API permission; saved app credentials cannot create webhooks for triggers.',
+    `Deploy the workflow. Sim creates a Help Scout webhook for ${eventLabel} with its own signing secret, and removes it when the workflow is undeployed.`,
   ]
 
   return instructions
@@ -127,6 +166,11 @@ const CONVERSATION_OUTPUTS: Record<string, TriggerOutput> = {
   cc: { type: 'array', description: 'CC email addresses' },
   bcc: { type: 'array', description: 'BCC email addresses' },
   customFields: { type: 'array', description: 'Custom field values (id, name, value, text)' },
+  snoozedUntil: {
+    type: 'string',
+    description: 'When the snooze ends, if the conversation is snoozed',
+    nullable: true,
+  },
   webUrl: { type: 'string', description: 'Link to the conversation in Help Scout', nullable: true },
 }
 

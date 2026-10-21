@@ -1,7 +1,7 @@
 import { HelpScoutIcon } from '@/components/icons'
 import {
   buildCustomerEventOutputs,
-  buildHelpScoutExtraFields,
+  buildHelpScoutTriggerFields,
   helpScoutSetupInstructions,
   helpScoutTriggerOptions,
 } from '@/triggers/helpscout/utils'
@@ -22,7 +22,9 @@ export const helpScoutCustomerCreatedTrigger: TriggerConfig = {
     setupInstructions: helpScoutSetupInstructions(
       'the <strong>Customer &gt; Created</strong> event'
     ),
-    extraFields: buildHelpScoutExtraFields('helpscout_customer_created'),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_customer_created', {
+      inboxFilter: false,
+    }),
   }),
 
   outputs: buildCustomerEventOutputs(),

@@ -3,12 +3,12 @@ import type {
   HelpScoutCreateReplyParams,
   HelpScoutCreateThreadResponse,
 } from '@/tools/helpscout/types'
+import { CREATED_THREAD_OUTPUTS } from '@/tools/helpscout/types'
 import {
   ACCESS_TOKEN_PARAM,
   ACTING_USER_PARAM,
   buildHelpScoutHeaders,
   CONVERSATION_ID_PARAM,
-  CREATED_THREAD_OUTPUTS,
   conversationUrl,
   parseHelpScoutId,
   parseOptionalHelpScoutId,

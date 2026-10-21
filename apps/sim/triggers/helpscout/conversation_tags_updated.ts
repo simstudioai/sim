@@ -1,7 +1,7 @@
 import { HelpScoutIcon } from '@/components/icons'
 import {
   buildConversationEventOutputs,
-  buildHelpScoutExtraFields,
+  buildHelpScoutTriggerFields,
   helpScoutSetupInstructions,
   helpScoutTriggerOptions,
 } from '@/triggers/helpscout/utils'
@@ -22,7 +22,7 @@ export const helpScoutConversationTagsUpdatedTrigger: TriggerConfig = {
     setupInstructions: helpScoutSetupInstructions(
       'the <strong>Conversation &gt; Tags Updated</strong> event'
     ),
-    extraFields: buildHelpScoutExtraFields('helpscout_conversation_tags_updated'),
+    fieldsBeforeWebhookUrl: buildHelpScoutTriggerFields('helpscout_conversation_tags_updated'),
   }),
 
   outputs: buildConversationEventOutputs(),
