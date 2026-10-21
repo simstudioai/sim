@@ -18,7 +18,9 @@ export function LLMCopyButton({ markdownUrl }: LLMCopyButtonProps) {
     setPending(true)
     setFailed(false)
     const prepare = async () => {
-      const response = await fetch(markdownUrl, { signal: AbortSignal.timeout(10000) })
+      const response = await fetch(markdownUrl, {
+        signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10000) : undefined,
+      })
       if (!response.ok) throw new Error('Could not load page Markdown')
       return response.text()
     }
