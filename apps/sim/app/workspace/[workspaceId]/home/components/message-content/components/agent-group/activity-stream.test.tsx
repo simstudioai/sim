@@ -50,6 +50,7 @@ describe('usePacedActivity', () => {
     expect(show('Listing workflows', true, 'call-1')).toBe('Listing workflows')
     act(() => vi.advanceTimersByTime(300))
     expect(show('Listed workflows', false, 'call-1')).toBe('Listing workflows')
+    expect(shown?.isActive).toBe(false)
     act(() => vi.advanceTimersByTime(300))
     expect(show('Reading run logs', true, 'call-2')).toBe('Listing workflows')
     act(() => vi.advanceTimersByTime(400))

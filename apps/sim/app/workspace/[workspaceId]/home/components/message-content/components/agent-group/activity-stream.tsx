@@ -23,9 +23,10 @@ interface ActivityStreamProps extends Omit<ActivityDisclosureProps, 'header'> {
  * The header activity to show: a new label waits until the current one has shown for the pacing
  * interval, and a burst of changes inside it settles on the latest. The label is paced across
  * liveness too: between a run's calls the lane briefly loses its live indicator, and an unpaced
- * label would flash the finished call's title before the next call's. A change of `resetKey`
- * (attention, disclosure) and an expanded group show at once, and a placeholder (a call still
- * awaiting its own title) never holds the header, so the title replaces it as soon as it streams.
+ * label would flash the finished call's title before the next call's. Liveness itself is never
+ * held. A change of `resetKey` (attention, disclosure) and an expanded group show at once, and a
+ * placeholder (a call still awaiting its own title) never holds the header, so the title replaces
+ * it as soon as it streams.
  */
 export function usePacedActivity(
   activity: ActivityStatusProps,
@@ -61,7 +62,9 @@ export function usePacedActivity(
     return () => clearTimeout(timer)
   }, [activity, key, resetKey, immediate, placeholder, visible])
 
-  return immediate || key === visible.key || visible.placeholder ? activity : visible.activity
+  return immediate || key === visible.key || visible.placeholder
+    ? activity
+    : { ...visible.activity, isActive: activity.isActive }
 }
 
 /** Pace only the header; history and interactive tool state continue updating immediately. */
@@ -90,7 +93,6 @@ export function ActivityStream({
     <ActivityStatus
       {...displayed}
       label={isExpanded ? (expandedLabel ?? displayed.label) : displayed.label}
-      isActive={activity.isActive}
     />
   )
   return (
