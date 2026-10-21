@@ -1491,16 +1491,23 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
-/** Accepts bare Gemini IDs, google/ or vertex/ prefixes, and Google publisher resource names. */
-export function isGemini3OrLaterModel(model: string): boolean {
-  const normalized = model
+/**
+ * Reduces a Gemini model reference to its bare lowercase ID (`gemini-3.8-flash`). Accepts bare
+ * Gemini IDs, google/ or vertex/ prefixes, and Google publisher resource names.
+ */
+export function toBareGeminiModelId(model: string): string {
+  return model
     .toLowerCase()
     .replace(/^vertex\//, '')
     .replace(
       /^(?:google\/|(?:projects\/[^/]+\/locations\/[^/]+\/)?publishers\/google\/models\/)/,
       ''
     )
-  return Number(normalized.match(/^gemini-(\d+)(?:[.-]|$)/)?.[1]) >= 3
+}
+
+/** Accepts bare Gemini IDs, google/ or vertex/ prefixes, and Google publisher resource names. */
+export function isGemini3OrLaterModel(model: string): boolean {
+  return Number(toBareGeminiModelId(model).match(/^gemini-(\d+)(?:[.-]|$)/)?.[1]) >= 3
 }
 
 /**

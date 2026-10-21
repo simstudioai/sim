@@ -139,6 +139,21 @@ describe('Vertex Gemini request compatibility', () => {
     })
   })
 
+  /** Omitting thinkingConfig leaves Gemini 3 thinking at its default, so 'none' must send a level. */
+  it.each([
+    ['vertex/gemini-3.6-flash', 'MINIMAL'],
+    ['vertex/gemini-3.8-flash', 'LOW'],
+    ['vertex/projects/p/locations/global/publishers/google/models/gemini-3.8-flash', 'LOW'],
+  ])("sends the lowest thinking level for 'none' on %s", async (model, thinkingLevel) => {
+    const generateContent = vi.fn().mockResolvedValue(textTurn())
+    await run(model, generateContent, { thinkingLevel: 'none' })
+
+    expect(generateContent.mock.calls[0][0].config.thinkingConfig).toEqual({
+      thinkingLevel,
+      includeThoughts: false,
+    })
+  })
+
   it.each(['vertex/gemini-2.5-flash', 'vertex/Custom-Gemini-Model'])(
     'preserves temperature for supported or uncataloged %s',
     async (model) => {
