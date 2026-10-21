@@ -101,6 +101,34 @@ describe('persisted-message', () => {
     }
   )
 
+  it.each([
+    ['with its arguments', { category_id: null }],
+    ['without arguments', undefined],
+  ])("persists a resolved operation's inherited grouping %s", (_case, params) => {
+    const persisted = buildPersistedAssistantMessage({
+      success: true,
+      content: '',
+      toolCalls: [],
+      contentBlocks: [
+        {
+          type: 'tool_call',
+          timestamp: 1,
+          toolCall: {
+            id: 'gateway-call',
+            name: 'mcp-server-get_overview',
+            status: 'success',
+            params,
+            activity: { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' },
+          },
+        },
+      ],
+    })
+    expect(persisted.contentBlocks?.[0].toolCall?.params).toEqual({
+      ...params,
+      activity: { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' },
+    })
+  })
+
   it('preserves activity metadata on legacy tool blocks without inferring it from old titles', () => {
     const message = normalizeMessage({
       id: 'message-1',

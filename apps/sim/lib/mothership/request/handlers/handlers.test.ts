@@ -1,3 +1,4 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import {
   mothershipAsyncRunsMock,
@@ -2248,6 +2249,112 @@ describe('sse-handlers tool lifecycle', () => {
     expect(executeTool).toHaveBeenCalledWith(
       'serper_search',
       { query: 'invoice', apiKey: '{{SERPER_API_KEY}}' },
+      expect.any(Object)
+    )
+  })
+
+  it("executes a resolved MCP operation with its own arguments under the gateway's grouping", async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: {} })
+    const grouping = { id: 'gauge-read', title: 'Reading Gauge', completedTitle: 'Read Gauge' }
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-mcp',
+          toolName: 'call_integration_tool',
+          arguments: {
+            toolId: 'mcp-server-get_overview',
+            description: 'Pulling the overview',
+            activity: grouping,
+            arguments: { category_id: null },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-mcp',
+          toolName: 'mcp-server-get_overview',
+          arguments: { category_id: null },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await flushMacrotask()
+
+    expect(executeTool).toHaveBeenCalledWith(
+      'mcp-server-get_overview',
+      { category_id: null },
+      expect.any(Object)
+    )
+    expect(context.toolCalls.get('gateway-mcp')?.activity).toEqual(grouping)
+  })
+
+  it("keeps an integration operation's own activity argument under the gateway's grouping", async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: {} })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-work-item',
+          toolName: 'call_integration_tool',
+          arguments: {
+            toolId: 'azure_devops_create_work_item',
+            description: 'Filing the task',
+            activity: { id: 'filing', title: 'Filing tasks', completedTitle: 'Filed tasks' },
+            arguments: { title: 'Ship it', activity: 'Development' },
+          },
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-work-item',
+          toolName: 'azure_devops_create_work_item',
+          arguments: { title: 'Ship it', activity: 'Development' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await flushMacrotask()
+
+    expect(executeTool).toHaveBeenCalledWith(
+      'azure_devops_create_work_item',
+      { title: 'Ship it', activity: 'Development' },
       expect.any(Object)
     )
   })

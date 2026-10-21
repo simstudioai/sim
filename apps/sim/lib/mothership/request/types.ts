@@ -3,7 +3,7 @@ import {
   type MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import type { StreamActivityReceipt } from '@/lib/mothership/generated/protocol'
+import type { StreamActivityReceipt, ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { RequestTraceV1Span } from '@/lib/mothership/generated/request-trace-v1'
 import type { ProviderToolCallIdentity } from '@/lib/mothership/request/go/tool-call-identity'
 import type { StreamEvent } from '@/lib/mothership/request/session'
@@ -42,6 +42,12 @@ export interface ToolCallState {
   activityDescription?: string
   /** Model-authored activity text for a gateway-resolved integration call. */
   integrationDescription?: string
+  /**
+   * Display grouping the call inherited rather than carried in its own arguments (a gateway's
+   * grouping on its resolved operation). Kept out of `params`, which execute as given; it is
+   * merged back only into the persisted arguments, where history reads it.
+   */
+  activity?: ToolActivity
   /** Accumulated partial JSON of the arguments while the model streams them. */
   streamingArgs?: string
   params?: Record<string, unknown>
