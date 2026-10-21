@@ -28,6 +28,7 @@ const scopeSchema = z
     organizationId: z.string().optional(),
     apiKeyHash: z.string(),
     fileOwnerProtocolVersion: z.literal(1).optional(),
+    workspaceFileCopy: z.literal(true).optional(),
   })
   .refine(
     (scope) => Boolean(scope.workspaceId) !== Boolean(scope.organizationId),
@@ -46,6 +47,7 @@ interface ActiveSandboxResourceScope {
   signal: AbortSignal
   token?: string
   fileOwnerProtocolVersion?: 1
+  workspaceFileCopy?: true
 }
 
 const resourceScope = new AsyncLocalStorage<ActiveSandboxResourceScope>()
@@ -58,6 +60,11 @@ export function activeSandboxChatOwner() {
 /** Negotiated routing hint; callback authorization remains bound to the active lease. */
 export function activeSandboxFileOwnerProtocol() {
   return resourceScope.getStore()?.fileOwnerProtocolVersion
+}
+
+/** An admitted tool's lease copies between workspaces whether or not Projects are on. */
+export function activeSandboxWorkspaceFileCopy() {
+  return resourceScope.getStore()?.workspaceFileCopy
 }
 
 const contextKey = (token: string) => `mothership:sandbox-resources:${token}:context`
@@ -96,6 +103,7 @@ export async function sandboxResourceEndpoint(
     (await supportsFileOwnerProtocol(identity.mothershipBaseURL))
       ? 1
       : undefined
+  const workspaceFileCopy = identity.resourceAdmitted ? (true as const) : undefined
   const scope: SandboxResourceScope = {
     toolCallId: identity.toolCallId,
     runId: identity.runId,
@@ -106,8 +114,10 @@ export async function sandboxResourceEndpoint(
     organizationId: identity.organizationId,
     apiKeyHash: sha256Hex(apiKey),
     fileOwnerProtocolVersion,
+    workspaceFileCopy,
   }
   active.fileOwnerProtocolVersion = fileOwnerProtocolVersion
+  active.workspaceFileCopy = workspaceFileCopy
   await redisClient().set(contextKey(token), JSON.stringify(scope), 'EX', CONTEXT_TTL_SECONDS)
   active.token = token
   if (active.signal.aborted) {

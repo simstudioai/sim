@@ -30,6 +30,7 @@ import {
   type CopilotExecutionContext,
   createCopilotResourceAdmission,
 } from '@/lib/mothership/auth/application-delegation'
+import { WORKSPACE_FILE_COPY_CAPABILITY } from '@/lib/mothership/generated/protocol'
 import { listProjects } from '@/lib/projects/application'
 import { getProjectFileMetadata } from '@/lib/projects/files/application'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
@@ -391,8 +392,10 @@ describe('Mothership origin navigation and independent Project authority', () =>
           },
         ],
       }
+      const copies = { clientCapabilities: [WORKSPACE_FILE_COPY_CAPABILITY] }
       const noProject = {
         message: 'hello',
+        ...copies,
         fileOwnerProtocolVersion: 1,
         project: null,
         fileOwnerCapabilities: [],
@@ -407,7 +410,19 @@ describe('Mothership origin navigation and independent Project authority', () =>
           const send = () => withFileOwnerContext(forged, context(f), workerURL, '/api/mothership')
 
           featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(async () => false)
-          expect(await send()).toEqual({ message: 'hello' })
+          // Projects off: the admitted turn still copies between workspaces, and only it does.
+          expect(await send()).toEqual({ message: 'hello', ...copies })
+          expect(
+            await withFileOwnerContext(
+              forged,
+              { ...context(f), requestMode: 'assistant' },
+              workerURL,
+              '/api/mothership'
+            )
+          ).toEqual({ message: 'hello', clientCapabilities: [] })
+          expect(
+            await withFileOwnerContext(forged, context(f), workerURL, '/api/tools/resume')
+          ).toEqual({ message: 'hello' })
 
           featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
             async (flag) => flag === 'projects'

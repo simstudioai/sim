@@ -308,7 +308,7 @@ it.each([
   [true, false, true, undefined],
   [true, true, false, undefined],
 ] as const)(
-  'negotiates the callback protocol only with admission=%s projects=%s peer=%s',
+  'negotiates the callback protocol only with admission=%s projects=%s peer=%s; copies follow admission alone',
   async (admitted, enabled, supported, expected) => {
     featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(enabled)
     vi.stubGlobal(
@@ -334,6 +334,7 @@ it.each([
         if (!token) throw new Error('Callback token missing')
         const scope = await readSandboxResourceScope(token, 'secret')
         expect(scope?.fileOwnerProtocolVersion).toBe(expected)
+        expect(scope?.workspaceFileCopy).toBe(admitted ? true : undefined)
       }
     )
   }

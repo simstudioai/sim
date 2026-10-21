@@ -16,6 +16,7 @@ import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
 import { projectFileOperations } from '@/lib/projects/files/application/operations'
+import { fileCopyOperation } from '@/lib/workspace-files/application/copy-operation'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 const { readScope, recordEffects, fetcher, routeMatcher, recordInput } = vi.hoisted(() => ({
@@ -436,25 +437,71 @@ it.each([
   }
 )
 
-it('refuses a Project copy destination on a lease without the file-owner protocol', async () => {
-  readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: undefined })
-  routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
+it('binds a workspace pair under the paired copy grant on an admitted lease without the protocol', async () => {
+  readScope.mockResolvedValue({
+    ...scope,
+    fileOwnerProtocolVersion: undefined,
+    workspaceFileCopy: true,
+  })
+  routeMatcher.mockReturnValue({
+    pattern: '/api/v2/files/copy',
+    params: {},
+    load: async () => ({ POST: fetcher }),
+  })
+  fetcher.mockImplementation(async (forwarded: Request) => {
+    expect(
+      copilotRequestPrincipal(forwarded, fileCopyOperation, {
+        operation: fileCopyOperation,
+        delegationAudience: fileCopyOperation.delegationAudience,
+      })
+    ).toMatchObject({
+      kind: 'resource_delegated',
+      subjectUserId: scope.userId,
+      invocation: { kind: 'chat', chatId: scope.chatId },
+      scope: { kind: 'file_copy', destination: { owner: workspaceOwner } },
+    })
+    return Response.json({ data: { copied: [] } })
+  })
   const response = await proxySandboxResourceRequest(
     request('/api/v2/files/copy', {
       method: 'POST',
       body: JSON.stringify({
         source: { owner: workspaceOwner, fileIds: ['file'] },
-        destination: { owner: { entityType: 'project', entityId: 'project' } },
+        destination: { owner: workspaceOwner },
       }),
     }),
     token
   )
-  expect(response.status).toBe(403)
-  expect(await response.json()).toEqual({
-    error: 'Paired file owner routing is unavailable or contradictory',
-  })
-  expect(fetcher).not.toHaveBeenCalled()
+  expect(response.status).toBe(200)
+  expect(fetcher).toHaveBeenCalledTimes(1)
 })
+
+it.each([undefined, true as const])(
+  'refuses a Project copy destination on a lease without the file-owner protocol (workspace copies %s)',
+  async (workspaceFileCopy) => {
+    readScope.mockResolvedValue({
+      ...scope,
+      fileOwnerProtocolVersion: undefined,
+      workspaceFileCopy,
+    })
+    routeMatcher.mockReturnValue({ params: {}, load: async () => ({ POST: fetcher }) })
+    const response = await proxySandboxResourceRequest(
+      request('/api/v2/files/copy', {
+        method: 'POST',
+        body: JSON.stringify({
+          source: { owner: workspaceOwner, fileIds: ['file'] },
+          destination: { owner: { entityType: 'project', entityId: 'project' } },
+        }),
+      }),
+      token
+    )
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: 'Paired file owner routing is unavailable or contradictory',
+    })
+    expect(fetcher).not.toHaveBeenCalled()
+  }
+)
 
 it('validates a copy body itself once the lease negotiated the file-owner protocol', async () => {
   readScope.mockResolvedValue({ ...scope, fileOwnerProtocolVersion: 1 })

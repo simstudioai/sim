@@ -10,6 +10,7 @@ import {
 } from '@/lib/mothership/auth/application-delegation'
 import { getCopilotFileOwnerAdapter } from '@/lib/mothership/file-owners'
 import type { FileOwnerContext } from '@/lib/mothership/generated/file-owner'
+import { WORKSPACE_FILE_COPY_CAPABILITY } from '@/lib/mothership/generated/protocol'
 import { supportsFileOwnerProtocol } from '@/lib/mothership/request/lifecycle/file-owner-protocol'
 import { getCurrentWorkspaceProject } from '@/lib/projects/application'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
@@ -17,11 +18,13 @@ import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 const logger = createLogger('CopilotFileOwnerContext')
 
 /**
- * Adds current owner hints to admitted authoring turns using the worker's generated contract.
- * Hints are best-effort: a failed Project lookup sends the turn with no Project rather than failing
- * it. Support is probed on the selected worker URL, which may front several worker releases, and a
- * worker that predates the hint keys rejects them; rolling the worker back therefore requires
- * turning the `projects` flag off first.
+ * Adds what admitted authoring turns may do with files, using the worker's generated contract.
+ * Every such turn declares `workspace-file-copy`: copies between workspaces need the turn's
+ * admission but not Projects, and a worker that predates the token ignores it. With Projects on,
+ * it also gets current owner hints. Hints are best-effort: a failed Project lookup sends the turn
+ * with no Project rather than failing it. Support is probed on the selected worker URL, which may
+ * front several worker releases, and a worker that predates the hint keys rejects them; rolling
+ * the worker back therefore requires turning the `projects` flag off first.
  */
 export async function withFileOwnerContext(
   payload: Record<string, unknown>,
@@ -30,14 +33,17 @@ export async function withFileOwnerContext(
   route: string
 ): Promise<Record<string, unknown>> {
   const clean = omit(payload, ['project', 'fileOwnerCapabilities', 'fileOwnerProtocolVersion'])
-  if (
-    !['/api/copilot', '/api/mothership'].includes(route) ||
-    context.requestMode === 'assistant' ||
-    !hasCopilotResourceAdmission(context) ||
-    !(await isProjectsEnabled()) ||
-    !(await supportsFileOwnerProtocol(baseURL))
+  if (!['/api/copilot', '/api/mothership'].includes(route)) return clean
+  const admitted = context.requestMode !== 'assistant' && hasCopilotResourceAdmission(context)
+  const declared = (Array.isArray(clean.clientCapabilities) ? clean.clientCapabilities : []).filter(
+    (capability) => capability !== WORKSPACE_FILE_COPY_CAPABILITY
   )
-    return clean
+  const turn = {
+    ...clean,
+    clientCapabilities: admitted ? [...declared, WORKSPACE_FILE_COPY_CAPABILITY] : declared,
+  }
+  if (!admitted || !(await isProjectsEnabled()) || !(await supportsFileOwnerProtocol(baseURL)))
+    return turn
 
   const hints: FileOwnerContext = {
     fileOwnerProtocolVersion: 1,
@@ -70,5 +76,5 @@ export async function withFileOwnerContext(
         })
     }
   }
-  return { ...clean, ...hints }
+  return { ...turn, ...hints }
 }
