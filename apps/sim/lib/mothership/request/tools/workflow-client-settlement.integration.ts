@@ -51,6 +51,14 @@ import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-m
 const WAIT_MS = 10_000
 const APPROVAL_CONTEXT_ID = 'approval'
 
+/** Carries no snapshot metadata, so a resume of it fails the run. */
+const UNRESUMABLE_SNAPSHOT = '{}'
+
+/** The resume engine, private to the manager; the one piece a test of its settling stands in for. */
+interface ResumeEngine {
+  runResumeExecution: (...args: unknown[]) => Promise<unknown>
+}
+
 /**
  * The confirmation a report published for the worker's durable waiter. Reads on the publisher's
  * own connection, so it is ordered after any confirmation the report already sent.
@@ -196,15 +204,14 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
    * A claimed call whose bound execution paused at a human approval: the execute route settled the
    * claim and its own report left the call running, as it does for every paused execution.
    */
-  async function claimedAndPaused() {
+  async function claimedAndPaused(snapshot: string = UNRESUMABLE_SNAPSHOT) {
     const { toolCallId, executionId } = await claimed()
     await executionLog(toolCallId, executionId, 'pending')
     await db.insert(pausedExecutions).values({
       id: generateId(),
       workflowId,
       executionId,
-      /** Carries no snapshot metadata, so a resume of it fails the run. */
-      executionSnapshot: { snapshot: '{}', triggerIds: [] },
+      executionSnapshot: { snapshot, triggerIds: [] },
       pausePoints: {
         [APPROVAL_CONTEXT_ID]: {
           contextId: APPROVAL_CONTEXT_ID,
@@ -348,6 +355,67 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
       status: 'success',
       executionId,
     })
+  })
+
+  it('delivers a paused execution a resume completes', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused(
+      JSON.stringify({
+        metadata: {
+          workspaceId,
+          userId,
+          billingAttribution: {
+            actorUserId: userId,
+            workspaceId,
+            organizationId: null,
+            billedAccountUserId: userId,
+            billingEntity: { type: 'user', id: userId },
+            billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+            payerSubscription: null,
+          },
+        },
+      })
+    )
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+    const started = await PauseResumeManager.enqueueOrStartResume({
+      executionId,
+      workflowId,
+      contextId: APPROVAL_CONTEXT_ID,
+      resumeInput: {},
+      userId,
+    })
+    if (started.status !== 'starting') throw new Error('The resume was queued instead of started')
+    // Only the engine stands in: it completes the parent's log as a finished resume does.
+    const engine = vi
+      .spyOn(PauseResumeManager as unknown as ResumeEngine, 'runResumeExecution')
+      .mockImplementationOnce(async () => {
+        await setLogStatus(executionId, 'completed')
+        return {
+          success: true,
+          status: 'completed',
+          output: {},
+          logs: [],
+          metadata: { executionId, duration: 1, startTime: 'start' },
+        }
+      })
+
+    try {
+      await PauseResumeManager.startResumeExecution({
+        resumeEntryId: started.resumeEntryId,
+        resumeExecutionId: started.resumeExecutionId,
+        pausedExecution: started.pausedExecution,
+        contextId: started.contextId,
+        resumeInput: started.resumeInput,
+        userId: started.userId,
+      })
+    } finally {
+      engine.mockRestore()
+    }
+
+    expect(await waiting).toMatchObject({
+      status: 'success',
+      data: { success: true, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'completed', claimedBy: null })
   })
 
   it('delivers a paused execution whose resume failed the run', async () => {
