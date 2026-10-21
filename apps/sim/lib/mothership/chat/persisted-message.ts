@@ -45,6 +45,13 @@ export interface PersistedMessageContext {
   owner?: FileOperationOwner
   kind: string
   label: string
+  workspaceId?: string
+  projectId?: string
+  executionId?: string
+  fileFolderId?: string
+  command?: string
+  blockId?: string
+  blockIds?: string[]
   workflowId?: string
   knowledgeId?: string
   tableId?: string
@@ -97,6 +104,13 @@ export function copyPersistedMessageContext(c: PersistedMessageContext): Persist
     kind: c.kind,
     label: c.label,
     ...(c.owner ? { owner: { ...c.owner } } : {}),
+    ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
+    ...(c.projectId ? { projectId: c.projectId } : {}),
+    ...(c.executionId ? { executionId: c.executionId } : {}),
+    ...(c.fileFolderId ? { fileFolderId: c.fileFolderId } : {}),
+    ...(c.command ? { command: c.command } : {}),
+    ...(c.blockId ? { blockId: c.blockId } : {}),
+    ...(Array.isArray(c.blockIds) ? { blockIds: [...c.blockIds] } : {}),
     ...(c.workflowId ? { workflowId: c.workflowId } : {}),
     ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
     ...(c.tableId ? { tableId: c.tableId } : {}),

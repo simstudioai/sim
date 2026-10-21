@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toast } from '@sim/emcn'
 import { assessTextPaste, PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { escapeRegExp } from '@sim/utils/string'
+import { isChatContext } from '@/lib/mothership/chat/context'
 import { isWorkspaceOwnedContext } from '@/lib/mothership/chat/context-ownership'
 import {
   attachSelectionContextToClipboard,
@@ -22,7 +23,11 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
 import { useSkillAutoMention } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-skill-auto-mention'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { computeMentionRanges } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
+import type {
+  ChatMessageContext,
+  MothershipResource,
+} from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
   useIntegrationAutoMention,
@@ -112,6 +117,8 @@ export interface PromptEditorKeyPolicy {
    * `false` to fall through to native caret movement.
    */
   onArrowUpOnEmpty?: () => boolean
+  /** Plain arrows at a collapsed start/end caret; menus keep priority. */
+  onNavigateHistory?: (direction: -1 | 1) => boolean
 }
 
 export interface UsePromptEditorProps {
@@ -340,6 +347,7 @@ export function usePromptEditor({
    */
   const setValue = useCallback((text: string, options?: { chipify?: boolean; seed?: boolean }) => {
     const next = options?.chipify === false ? text : applyAutoMentionsRef.current(text)
+    seedRef.current = null
     if (options?.seed) seedRef.current = next
     atInsertPosRef.current = null
     pendingCursorRef.current = null
@@ -354,6 +362,40 @@ export function usePromptEditor({
     valueRef.current = next
     setValueState(next)
   }, [])
+
+  /** Restores recorded chip identities even before the resource and skill pickers load. */
+  const restorePrompt = useCallback(
+    (text: string, contexts: ChatMessageContext[] = []) => {
+      const ranges = computeMentionRanges(text, contexts)
+      const restoredContexts = new Map<string, ChatContext>()
+      const parts: string[] = []
+      let offset = 0
+      let hasUnavailableContexts = false
+      for (const range of ranges) {
+        const context =
+          range.context.kind === 'integration'
+            ? { ...range.context, label: text.slice(range.start + 1, range.end) }
+            : range.context
+        if (!isChatContext(context)) {
+          hasUnavailableContexts = true
+          continue
+        }
+        if (!restoredContexts.has(context.label)) {
+          restoredContexts.set(context.label, context)
+        }
+        if (range.context.kind !== 'skill' && range.context.kind !== 'mcp') continue
+        parts.push(text.slice(offset, range.start), SKILL_CHIP_TRIGGER)
+        offset = range.start + 1
+      }
+      parts.push(text.slice(offset))
+      const value = parts.join('')
+      const activeContexts = filterContextsPresentInMessage([...restoredContexts.values()], value)
+      setValue(value, { chipify: false })
+      contextManagementRef.current.setSelectedContexts(activeContexts)
+      return { value, contexts: activeContexts, hasUnavailableContexts }
+    },
+    [setValue]
+  )
 
   /** The user-visible text as of the last edit, fresher than `value` mid-event. */
   const getValue = useCallback(() => valueRef.current, [])
@@ -953,8 +995,24 @@ export function usePromptEditor({
         }
       }
 
-      if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (valueRef.current.length === 0 && policy?.onArrowUpOnEmpty?.()) {
+      if (
+        (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.nativeEvent.isComposing &&
+        !e.defaultPrevented &&
+        e.currentTarget.selectionStart === e.currentTarget.selectionEnd
+      ) {
+        if (e.key === 'ArrowUp' && valueRef.current.length === 0 && policy?.onArrowUpOnEmpty?.()) {
+          e.preventDefault()
+          return
+        }
+
+        const direction = e.key === 'ArrowUp' ? -1 : 1
+        const boundary = direction === -1 ? 0 : valueRef.current.length
+        if (e.currentTarget.selectionStart === boundary && policy?.onNavigateHistory?.(direction)) {
           e.preventDefault()
           return
         }
@@ -1099,6 +1157,8 @@ export function usePromptEditor({
    * Shift+arrows, drag, and double-click all select chips whole.
    */
   const handleSelectAdjust = useCallback(() => {
+    // A programmatic edit can precede React's commit; selection still sees the old DOM.
+    if (valueRef.current !== value) return
     const textarea = textareaRef.current
     if (!textarea) return
     const start = textarea.selectionStart ?? 0
@@ -1135,9 +1195,11 @@ export function usePromptEditor({
     }
 
     const focusPos = textarea.selectionDirection === 'backward' ? start : end
+    // Restoring the caret must not open a picker for an unfinished mention in saved text.
+    if (start === end && pendingCursorRef.current === focusPos) return
     syncMentionState(textarea, textarea.value, focusPos)
     syncSlashState(textarea, textarea.value, focusPos)
-  }, [textareaRef, mentionTokens, adoptDomValue, syncMentionState, syncSlashState])
+  }, [textareaRef, mentionTokens, adoptDomValue, syncMentionState, syncSlashState, value])
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const textarea = e.currentTarget
@@ -1351,6 +1413,7 @@ export function usePromptEditor({
     /** Replaces the registered contexts (draft / queued-message restore). */
     setContexts: contextManagement.setSelectedContexts,
     setValue,
+    restorePrompt,
     getValue,
     getPlainValue,
     getActiveContexts,
