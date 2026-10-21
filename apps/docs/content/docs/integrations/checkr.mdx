@@ -1,15 +1,13 @@
 ---
 title: Checkr
 description: Run and manage background checks with Checkr
+integration:
+  type: "checkr"
+  color: "#009BB5"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="checkr"
-  color="#009BB5"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Checkr](https://checkr.com/) to create candidates, send hosted background-check invitations, order and read reports, and inspect screening results. The actions also cover report reviews and tags, adverse actions, recurring checks, continuous monitoring, and account reference data. Order a report directly only when you already collect the required candidate information and consent.
@@ -18,7 +16,6 @@ Create a secret API key under **Account Settings > Developer Settings** in the C
 
 Triggers register a webhook when you deploy the workflow and verify delivery signatures with your API key. Checkr permits at most two webhooks per account, and each deployed Checkr trigger uses one. Choose **All Events** when one workflow needs several event types.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

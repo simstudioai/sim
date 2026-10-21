@@ -1,15 +1,13 @@
 ---
 title: Circleback
 description: Read Circleback meetings, notes, transcripts, and action items
+integration:
+  type: "circleback"
+  color: "linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="circleback"
-  color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Circleback](https://circleback.ai/) to read and search meetings, notes, transcripts, and insights; manage action items and tags; and look up people and companies.
@@ -18,7 +16,6 @@ The **Meeting Completed**, **Meeting Notes Ready**, and **General Webhook** trig
 
 Webhook output includes meeting identity, title, creation time, duration in seconds, meeting URL, tags, calendar event ID, attendees, Markdown notes, action items, transcript segments, insights, and the complete payload in `meeting`. [Circleback's webhook reference](https://circleback.ai/docs/support/automations/export-meeting-data-with-webhooks) documents `id` as a string; Sim forwards the received value. `recordingUrl` is present only when recording storage is enabled and is valid for 24 hours.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

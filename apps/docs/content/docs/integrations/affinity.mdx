@@ -1,15 +1,13 @@
 ---
 title: Affinity
 description: Read and write companies, people, lists, notes, and relationships in Affinity
+integration:
+  type: "affinity"
+  color: "#1B1C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="affinity"
-  color="#1B1C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Affinity](https://www.affinity.co/) is a CRM for companies, people, opportunities, and relationship data. Its v2 integration reads companies, people, opportunities, lists, interactions, and transcripts; creates lists and reminders; manages notes; and updates field values and dropdown options.
@@ -25,7 +23,6 @@ Generate an API key from the **Manage Apps** page in your Affinity settings; it 
 
 Some Affinity endpoints are still marked BETA — company, person, and list-entry search, the per-entity field-value reads, the inferred-connection operations, and the user operations. Affinity may change those without notice or versioning.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,15 +1,13 @@
 ---
 title: Mintlify
 description: Deploy, edit, search, and measure Mintlify documentation
+integration:
+  type: "mintlify"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="mintlify"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Mintlify](https://mintlify.com/) to trigger production or branch-preview deployments, poll deployment status, run scheduled automations, and manage background documentation-agent jobs. Search and retrieve pages, ask the docs assistant, detect AI-sounding passages, or export feedback, conversations, caller statistics, searches, page views, and visitor analytics.
@@ -23,7 +21,6 @@ The **API Key** field takes the key required by the selected operation:
 
 Generate keys on Mintlify's [API keys page](https://app.mintlify.com/settings/organization/api-keys). Admin operations use **Project ID** from that page. Assistant operations use **Domain**, the identifier in `app.mintlify.com/organization/domain`. API availability depends on your Mintlify plan; check your account's API access before scheduling a workflow.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

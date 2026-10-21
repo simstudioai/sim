@@ -1,15 +1,13 @@
 ---
 title: LaunchDarkly
 description: Manage feature flags with LaunchDarkly
+integration:
+  type: "launchdarkly"
+  color: "#191919"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="launchdarkly"
-  color="#191919"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [LaunchDarkly](https://launchdarkly.com/) to list, create, update, toggle, and delete feature flags, and inspect their environment-specific status. Toggling uses LaunchDarkly's semantic patch API.
@@ -20,7 +18,6 @@ Read projects, environments, segments, members, and audit logs to find targeting
 
 Create a personal access token or service token under **Organization settings > Authorization > Tokens** in LaunchDarkly. Sim sends it directly in the `Authorization` header, without a `Bearer` prefix. Grant only the access the workflow needs. [Service tokens are available on selected plans](https://launchdarkly.com/docs/home/account/api); SDK keys cannot authenticate REST API requests.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

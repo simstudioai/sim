@@ -1,15 +1,13 @@
 ---
 title: Windchill
 description: Manage documents, revisions, and content in PTC Windchill
+integration:
+  type: "windchill"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="windchill"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [PTC Windchill](https://www.ptc.com/en/products/windchill) REST Services (WRS) 2.7 to manage engineering documents. Documents have a number, revision and iteration, lifecycle state, folder, security labels, and checkout status.
@@ -28,7 +26,6 @@ Check out and check in documents with notes, undo checkout, revise, inspect vali
 
 Download primary content or an attachment by OID as a Sim file. Upload primary content to a document that has none, or add attachments. Sim handles the CSRF token and multi-step upload handshake.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

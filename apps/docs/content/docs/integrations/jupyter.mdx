@@ -1,15 +1,13 @@
 ---
 title: Jupyter
 description: Manage files, notebooks, kernels, and sessions on a Jupyter server
+integration:
+  type: "jupyter_v2"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="jupyter_v2"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Jupyter](https://jupyter.org/) to manage files, notebooks, kernels, and sessions on a self-hosted Jupyter server.
@@ -20,7 +18,6 @@ Use [Jupyter](https://jupyter.org/) to manage files, notebooks, kernels, and ses
 
 These operations manage notebook content and runtime lifecycle. Starting a kernel or creating a session does not itself execute notebook cells. Deleting a session also shuts down its associated kernel; save work first. See [Jupyter’s REST API](https://jupyter-server.readthedocs.io/en/latest/developers/rest-api.html#delete--api-sessions-session).
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

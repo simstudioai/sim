@@ -1,15 +1,13 @@
 ---
 title: Logfire
 description: Query traces, logs, and metrics in Pydantic Logfire
+integration:
+  type: "logfire"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="logfire"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Pydantic Logfire](https://pydantic.dev/logfire) to query telemetry collected with OpenTelemetry. Search spans and logs by message, service, span name, severity, environment, or exception status, or run PostgreSQL-compatible read-only SQL over the `records` and `metrics` tables.
@@ -18,7 +16,6 @@ Trace lookup returns spans ordered by time with parent-child relationships for r
 
 Create a project **read token** under **Settings → Read tokens**. Sim detects the cloud region from its prefix. For a self-hosted instance, set **Host** to a publicly resolvable HTTPS base URL that Sim can reach.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

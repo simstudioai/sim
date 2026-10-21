@@ -1,15 +1,13 @@
 ---
 title: Table
 description: User-defined data tables
+integration:
+  type: "table_v2"
+  color: "#10B981"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="table_v2"
-  color="#10B981"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the Table block to read and write structured data in Sim. Data persists across runs and is scoped to the workspace. Operations insert, update, upsert, query, or delete rows, with filters, sorting, and batch writes.
@@ -30,7 +28,6 @@ See [Table column types](/tables#column-types) for the supported types and their
 - **Required**: Column must have a value (cannot be null)
 - **Unique**: Values must be unique across all rows (enables upsert matching)
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

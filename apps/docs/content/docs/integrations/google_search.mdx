@@ -1,22 +1,19 @@
 ---
 title: Google Search
 description: Search the web
+integration:
+  type: "google_search"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_search"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google Search](https://www.google.com)'s Custom Search API to retrieve search results with titles, snippets, and URLs for a query.
 
 Supply an API key and Programmable Search Engine ID from an existing Custom Search JSON API account. Google has [closed the API to new customers and plans to discontinue it on January 1, 2027](https://developers.google.com/custom-search/v1/overview). Plan a replacement before that date.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

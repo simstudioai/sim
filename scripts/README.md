@@ -16,7 +16,7 @@ For a service like Gmail, three TS sources define it:
 
 | Source | What it is | What it feeds in the page |
 | --- | --- | --- |
-| `apps/sim/blocks/blocks/<service>.ts` | The **block**: `type`, `name`, `category` (`tools` for integrations), `bgColor`, config sub-blocks, `tools.access` (which actions it exposes), an optional `triggers` capability, `outputs` | Header / `BlockInfoCard`, use guidance, and the available actions |
+| `apps/sim/blocks/blocks/<service>.ts` | The **block**: `type`, `name`, `category` (`tools` for integrations), `bgColor`, config sub-blocks, `tools.access` (which actions it exposes), an optional `triggers` capability, `outputs` | Title and integration icon metadata, use guidance, and the available actions |
 | `apps/sim/tools/<service>/*.ts` | Each **action's** params + outputs | Every `### <action>` → `#### Input` / `#### Output` under `## Actions` |
 | `apps/sim/triggers/<provider>/` | The **trigger's** config fields + outputs | The `## Triggers` section |
 | `apps/sim/lib/oauth/**` and auth capability metadata | Requested scopes, callback routes, client configuration and deployment gates | `## OAuth scopes` |
@@ -34,7 +34,7 @@ from the repo root). One pass (`generateAllBlockDocs`):
    builds `apps/docs/components/ui/icon-mapping.ts`.
 2. **Block pass** — for each integration block (`category: 'tools'`, plus the `memory` /
    `knowledge` / `table` / `enrichment` / `logs` / `deployments` exceptions), writes `integrations/<service>.mdx`:
-   `BlockInfoCard` + preserved introduction + `## OAuth scopes` when applicable +
+   integration frontmatter + preserved introduction + `## OAuth scopes` when applicable +
    `## Use the block` + `## Actions`. Credential requirements precede the action reference.
 3. **Trigger pass** (`generateAllTriggerDocs`) — reads `apps/sim/triggers/<provider>/` and
    adds `## Triggers` after the action reference and before shared input schemas or
@@ -65,7 +65,7 @@ every regeneration:
 ```
 
 The merge uses the marker name (`extractManualContent` + `mergeWithManualContent`).
-`intro` follows the `BlockInfoCard`; `usage` follows **Use the block**; `outputs` and
+`intro` follows the frontmatter and MDX imports; `usage` follows **Use the block**; `outputs` and
 `notes` follow matching generated headings when those headings exist. A section without
 an insertion anchor is appended intact, including custom marker names. Do not move useful
 setup or limits into a fallback section when readers need them before acting.

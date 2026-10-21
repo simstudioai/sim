@@ -1,22 +1,19 @@
 ---
 title: Fathom
 description: Access meeting recordings, transcripts, and summaries
+integration:
+  type: "fathom"
+  color: "#181C1E"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="fathom"
-  color="#181C1E"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Fathom](https://fathom.video/) to retrieve meeting summaries and transcripts and inspect teams and team members. Provide a Fathom API key and the selected operation's required fields, such as a recording ID. Triggers can start a workflow when new meeting content is ready.
 
 Pass returned meeting data to later steps, such as sending a summary to Slack or extracting action items.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,15 +1,13 @@
 ---
 title: Ashby
 description: Manage candidates, jobs, and applications in Ashby
+integration:
+  type: "ashby"
+  color: "#5D4ED6"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="ashby"
-  color="#5D4ED6"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Ashby](https://www.ashbyhq.com/) to manage recruiting records and react to hiring events. List Jobs supports incremental sync tokens; custom-field actions annotate jobs, openings, applications, and candidates.
@@ -48,7 +46,6 @@ These are constraints of the Ashby API itself, not of the Sim block:
 - **Note deletion is not exposed by this integration.** The note operations create and list candidate notes.
 - **No candidate deletion endpoint.** Anonymize Candidate strips personal information but leaves the record and its applications in place. Use Ashby’s administrative UI and its current retention and permission policy for deletion; anonymization and deletion have different effects.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

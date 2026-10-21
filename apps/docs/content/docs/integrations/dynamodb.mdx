@@ -1,20 +1,17 @@
 ---
 title: Amazon DynamoDB
 description: Get, put, query, scan, update, and delete items in Amazon DynamoDB tables
+integration:
+  type: "dynamodb"
+  color: "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="dynamodb"
-  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Amazon DynamoDB](https://aws.amazon.com/dynamodb/) stores items in tables identified by primary keys. Use Get to read an item, Put to insert or replace one, Update to change attributes, and Delete to remove it. Query a table or index by key conditions; use Scan when you need to inspect items across the table. The integration also reads table metadata and uses AWS access-key credentials.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

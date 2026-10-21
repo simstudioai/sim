@@ -1,15 +1,13 @@
 ---
 title: AWS IAM
 description: Manage AWS IAM users, roles, policies, and groups
+integration:
+  type: "iam"
+  color: "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="iam"
-  color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) controls access to AWS resources. Use this integration to manage users, roles, policies, groups, and access keys, or simulate a principal’s permissions before changing them.
@@ -18,7 +16,6 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 The secret half of a new access key is returned once and is hidden from block output display and execution logs. It stays resolvable downstream, so rotation workflows can pass it straight to the system that needs it — but a block you pass it into will log it under that block's own inputs.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

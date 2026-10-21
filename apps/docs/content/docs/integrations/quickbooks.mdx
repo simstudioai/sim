@@ -1,15 +1,13 @@
 ---
 title: QuickBooks
 description: Manage QuickBooks Online company, transactions, reports, emails, PDFs, and attachments
+integration:
+  type: "quickbooks"
+  color: "#2CA01C"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="quickbooks"
-  color="#2CA01C"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Connect one QuickBooks Online company per credential.
@@ -38,7 +36,6 @@ Run Financial Report exposes verified financial statements, aging, balance, sale
 
 Document actions can read attachment metadata, add one File or Note attachment, download an attachment file, and download supported transactions as PDFs. Downloaded files are stored as Sim files for downstream blocks. Attachment deletion, bulk upload/download, and bulk email remain outside this version of the block.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

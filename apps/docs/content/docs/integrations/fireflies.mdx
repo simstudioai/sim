@@ -1,22 +1,19 @@
 ---
 title: Fireflies
 description: Interact with Fireflies.ai meeting transcripts and recordings
+integration:
+  type: "fireflies_v2"
+  color: "#100730"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="fireflies_v2"
-  color="#100730"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Fireflies.ai](https://fireflies.ai/) to list, search, retrieve, or delete meeting transcripts with an API key. Filter by keyword, host, participants, or time range; detailed reads include summaries, action items, topics, and participant analytics when available.
 
 Upload audio or video files, or provide a media URL, for transcription with optional language, title, and attendee details. You can also add a bot to a live meeting and create soundbites from a transcript. The transcription-completed webhook starts a workflow when a new transcript is ready.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

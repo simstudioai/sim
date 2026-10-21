@@ -1,14 +1,11 @@
 ---
 title: MillionVerifier
 description: Verify email deliverability and check account credits
+integration:
+  type: "millionverifier"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="millionverifier"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use MillionVerifier to verify an email and check remaining verification credits. Results classify the address as ok, catch-all, unknown, invalid, disposable, or unverified, with role-account and free-provider flags.

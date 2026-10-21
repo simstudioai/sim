@@ -3,6 +3,7 @@ import path from 'node:path'
 import { remarkGfm } from 'fumadocs-core/mdx-plugins'
 import { defineConfig, defineDocs, frontmatterSchema } from 'fumadocs-mdx/config'
 import lastModified from 'fumadocs-mdx/plugins/last-modified'
+import { z } from 'zod'
 import { curlJsonBodyGrammar } from './lib/shiki-curl-json'
 import { simShikiOptions } from './lib/shiki-theme'
 
@@ -11,7 +12,9 @@ const DOCS_DIR = 'content/docs'
 export const docs = defineDocs({
   dir: DOCS_DIR,
   docs: {
-    schema: frontmatterSchema,
+    schema: frontmatterSchema.extend({
+      integration: z.object({ type: z.string(), color: z.string() }).optional(),
+    }),
     postprocess: {
       includeProcessedMarkdown: true,
     },

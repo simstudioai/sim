@@ -1,22 +1,19 @@
 ---
 title: Clerk
 description: Manage users, organizations, and sessions in Clerk
+integration:
+  type: "clerk"
+  color: "#131316"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="clerk"
-  color="#131316"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Clerk](https://clerk.com/) to manage application users, organizations, memberships, invitations, and sessions with a Clerk secret key. Read or update profiles, ban or lock users, and revoke sessions from a workflow.
 
 The integration also manages allowlist and blocklist identifiers, JWT templates, and actor tokens. These are backend administration operations; use the action reference to select the operation and required identifiers.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

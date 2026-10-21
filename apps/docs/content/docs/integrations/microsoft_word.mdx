@@ -1,15 +1,13 @@
 ---
 title: Microsoft Word
 description: Create, fill, read, edit, and export Word documents
+integration:
+  type: "microsoft_word"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_word"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Word](https://www.microsoft.com/microsoft-365/word) in Sim to create, read, and edit `.docx` files stored in OneDrive or SharePoint, fill templates, and export documents as PDF. Choose **Replace Content** to overwrite a document, **Append Content** to add paragraphs, or **Find and Replace Text** to update matching text. The sections below explain document IDs, supported formatting, and template behavior.
@@ -55,7 +53,6 @@ Word splits a sentence across several internal runs whenever formatting changes 
 
 The Microsoft connection requests `Files.Read`, `Files.ReadWrite`, `Files.Read.All`, and `Files.ReadWrite.All`, alongside identity and offline-access scopes. The delegated `.All` scopes cover files in SharePoint libraries the signed-in account can reach; an older connection may need **Reconnect** to grant them. These scopes do not grant access beyond that account's existing file permissions. See the [Microsoft Graph permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference).
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

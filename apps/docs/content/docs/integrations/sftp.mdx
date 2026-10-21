@@ -1,14 +1,11 @@
 ---
 title: SFTP
 description: Transfer files via SFTP (SSH File Transfer Protocol)
+integration:
+  type: "sftp_v2"
+  color: "#2D3748"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="sftp_v2"
-  color="#2D3748"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use SFTP (SSH File Transfer Protocol) to upload or download files, list directories with optional metadata, delete files or directories, and create directories on a remote server. Authenticate with a password or OpenSSH private key; provide a passphrase for an encrypted key.

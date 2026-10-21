@@ -1,15 +1,13 @@
 ---
 title: CrowdStrike
 description: Investigate and respond to CrowdStrike Falcon alerts, hosts, IOCs, and vulnerabilities
+integration:
+  type: "crowdstrike"
+  color: "#E01F3D"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="crowdstrike"
-  color="#E01F3D"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [CrowdStrike](https://www.crowdstrike.com/) is a cybersecurity platform providing endpoint protection, threat intelligence, and identity security through its Falcon suite. This integration authenticates with a Falcon API client ID and secret against a chosen cloud region and covers the Alerts, Hosts, Host Groups, IOC Management, Spotlight, Real Time Response, Case Management, and Identity Protection APIs.
@@ -29,7 +27,6 @@ Each operation maps to a specific Falcon API scope — for example `Alerts: Read
 
 Note that CrowdStrike decommissioned the legacy Detects API (September 30, 2025) and the CrowdScore Incidents API (March 9, 2026). This integration uses the current Alerts API and Case Management API in their place.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

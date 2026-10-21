@@ -637,7 +637,7 @@ async function addTriggerProviderIcons(
 
 /**
  * Generate icon mapping from block definitions.
- * Docs need hidden historical version keys so old BlockInfoCard references and
+ * Docs need hidden historical version keys so older integration pages and
  * versioned docs links still render icons, while landing only needs visible blocks.
  */
 export async function generateIconMappings(): Promise<{
@@ -756,10 +756,6 @@ export async function generateIconMappings(): Promise<{
   }
 }
 
-/**
- * Write the icon mapping to the docs app
- * This file is imported by BlockInfoCard to resolve icons automatically
- */
 /**
  * Sort strings to match Biome's organizeImports order:
  * case-insensitive character-by-character, uppercase before lowercase as tiebreaker.
@@ -4431,7 +4427,7 @@ function mergeWithManualContent(
   Object.entries(manualSections).forEach(([sectionName, content]) => {
     const insertionPoints: Record<string, { regex: RegExp }> = {
       intro: {
-        regex: /<BlockInfoCard[\s\S]*?(\/>|<\/svg>`}\s*\/>)/,
+        regex: /^---\n[\s\S]*?\n---\n(?:\nimport [^\n]+\n)*/,
       },
       usage: {
         regex: /## Use the block \[#usage-instructions\]/,
@@ -4703,15 +4699,12 @@ async function generateMarkdownForBlock(
   return `---
 title: ${name}
 description: ${description}
+integration:
+  type: ${JSON.stringify(type)}
+  color: ${JSON.stringify(bgColor || '#F5F5F5')}
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 ${hasReferenceDetails ? 'import { ReferenceDetails } from "@/components/ui/reference-details"\n' : ''}
-<BlockInfoCard 
-  type="${type}"
-  color="${bgColor || '#F5F5F5'}"
-/>
-
 ${connectionSection}${oauthScopesSection}${usageInstructions}${toolsSection}
 `
 }
@@ -5404,21 +5397,17 @@ function generateTriggerProviderDoc(
   return `---
 title: ${providerName}
 description: Start workflows from ${providerName} events
+integration:
+  type: ${JSON.stringify(blockType)}
+  color: ${JSON.stringify(providerColor)}
 ---
-
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard
-  type="${blockType}"
-  color="${providerColor}"
-/>
 
 ${buildTriggersSection(triggers)}`
 }
 
 /**
  * Build a map of block-type → bgColor from all block definitions.
- * Used to pick provider colours for the BlockInfoCard on trigger pages.
+ * Used to pick provider colors for integration headers on trigger pages.
  */
 async function buildProviderColorMap(): Promise<Map<string, string>> {
   const colorMap = new Map<string, string>()

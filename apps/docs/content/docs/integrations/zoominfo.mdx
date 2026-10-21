@@ -1,15 +1,13 @@
 ---
 title: ZoomInfo
 description: Search and enrich B2B company and contact data with ZoomInfo.
+integration:
+  type: "zoominfo"
+  color: "#EA1B15"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="zoominfo"
-  color="#EA1B15"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [ZoomInfo](https://www.zoominfo.com/) to search company and contact data, enrich records, retrieve buyer intent signals, and search company news.
@@ -20,7 +18,6 @@ Use [ZoomInfo](https://www.zoominfo.com/) to search company and contact data, en
 
 Supply a client ID and secret. Sim exchanges them for a short-lived OAuth bearer token on each call; you do not supply the access token yourself.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

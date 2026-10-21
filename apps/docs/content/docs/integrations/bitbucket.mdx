@@ -1,22 +1,19 @@
 ---
 title: Bitbucket
 description: Work with Bitbucket Cloud repositories, pull requests, and pipelines
+integration:
+  type: "bitbucket"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="bitbucket"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Bitbucket](https://bitbucket.org/) Cloud to read repositories, branches, commits, files, and diffs; create or delete branches; and manage pull requests and comments. Pipeline actions list runs and steps, start or stop runs, and retrieve step logs.
 
 Connect a Bitbucket account through OAuth. Triggers can start workflows on pushes, repository changes, build status updates, and pull request events; Sim manages their webhooks. For example, a workflow can read a failed pipeline's logs or review a newly opened pull request.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

@@ -1,15 +1,13 @@
 ---
 title: Harmonic
 description: Search and enrich private-market contacts
+integration:
+  type: "harmonic"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="harmonic"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Harmonic](https://harmonic.ai/) is a private-market intelligence platform for researching companies, people, and investors. Its Scout agent accepts a natural-language sourcing request—such as “find forward-deployed engineers in enterprise software”—and the Harmonic block converts the result into a predictable `contacts` table for downstream scoring, review, storage in Sim tables, or delivery to CRM and other integration blocks.
@@ -34,7 +32,6 @@ Harmonic recommends no more than 100 saved-search results per page. Its general 
 
 Harmonic does not publish a webhook-registration contract for this workflow surface, so the integration has no native triggers. Use a **Schedule** block to poll a shared saved search when recurring synchronization is needed.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

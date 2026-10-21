@@ -1,22 +1,19 @@
 ---
 title: Exa
 description: Search with Exa AI
+integration:
+  type: "exa"
+  color: "#1F40ED"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="exa"
-  color="#1F40ED"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Exa](https://exa.ai/) searches the web, retrieves page content, and answers questions with citations. Use Agent for multi-step research and supply a JSON schema when you need structured results with field-level citations.
 
 **Migration notes.** Use **Agent** for multi-step research. Sim routes workflows configured with the old Research operation to Agent and maps their former research-model setting to an effort level. **Find Similar Links** remains a legacy operation; prefer the current [Search API](https://exa.ai/docs/reference/search) for new workflows. Use `maxAgeHours` for content freshness instead of the legacy `livecrawl` setting.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

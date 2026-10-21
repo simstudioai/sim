@@ -1,15 +1,13 @@
 ---
 title: Quartr
 description: Access earnings calls, transcripts, filings, and slides
+integration:
+  type: "quartr"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="quartr"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Quartr](https://quartr.com/) to look up companies, corporate events, and event types, retrieve AI-generated event summaries, and access reports, slide decks, transcripts, and audio.
@@ -18,7 +16,6 @@ Downloaded reports, slide decks, and transcripts are stored as execution files, 
 
 To use the integration, generate an API key from the Quartr API portal and paste it into the block. Your key inherits the datasets enabled on your Quartr subscription.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,20 +1,17 @@
 ---
 title: Redis
 description: Key-value operations with Redis
+integration:
+  type: "redis"
+  color: "#FF4438"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="redis"
-  color="#FF4438"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Redis](https://redis.io/) in Sim through a direct connection to a Redis instance. Workflows can read and write keys, work with hashes and lists, increment values, set expiration times, and run commands.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

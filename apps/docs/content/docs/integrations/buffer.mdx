@@ -1,15 +1,13 @@
 ---
 title: Buffer
 description: Schedule and publish social media posts across connected channels
+integration:
+  type: "buffer"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="buffer"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Buffer](https://buffer.com/) to draft, queue, schedule, publish, edit, and delete posts on connected social channels. Attach images, videos, or documents; inspect channel settings, daily limits, and published-post metrics; and manage ideas and idea groups.
@@ -32,7 +30,6 @@ Select **Keep current schedule** in **Share Mode** and **Keep current publishing
 
 Use **Clear Caption** to remove a caption, or an empty assets or tag-ID array to clear those values. Omitted fields preserve existing values. Use the supported date and tag comparators for post filters; the older `startDate`, `endDate`, and `tagIds` filter fields are unavailable.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

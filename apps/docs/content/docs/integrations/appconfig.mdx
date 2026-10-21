@@ -1,22 +1,19 @@
 ---
 title: AWS AppConfig
 description: Manage and retrieve configuration with AWS AppConfig
+integration:
+  type: "appconfig"
+  color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="appconfig"
-  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [AWS AppConfig](https://docs.aws.amazon.com/appconfig/) to manage applications, environments, configuration profiles, and deployments. Read deployed configuration at runtime or create hosted configuration versions for a rollout.
 
 Authentication uses an AWS access key ID and secret access key. The associated IAM principal needs the relevant `appconfig:*` permissions (for example `appconfig:GetLatestConfiguration` and `appconfig:StartConfigurationSession` for retrieval, and `appconfig:StartDeployment` for rollouts).
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

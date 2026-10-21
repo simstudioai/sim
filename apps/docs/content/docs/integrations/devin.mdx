@@ -1,22 +1,19 @@
 ---
 title: Devin
 description: Autonomous AI software engineer
+integration:
+  type: "devin"
+  color: "#12141A"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="devin"
-  color="#12141A"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Devin](https://devin.ai/) to assign coding tasks and manage their sessions from a workflow. **Create Session** accepts a prompt, optional playbook, ACU (Autonomous Compute Unit) limit, and tags.
 
 Use **Get Session** to poll status before consuming pull requests or structured output; session details also report resource use. **List Sessions** supports pagination. **Send Message** supplies context or redirects an active session and resumes suspended sessions automatically. Set an ACU limit when you need a spending boundary.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

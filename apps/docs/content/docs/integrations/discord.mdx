@@ -1,15 +1,13 @@
 ---
 title: Discord
 description: Interact with Discord
+integration:
+  type: "discord"
+  color: "#5865F2"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="discord"
-  color="#5865F2"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Discord](https://discord.com) to manage messages, threads, channels, roles, members, invites, and webhooks. Authenticate with a bot token and grant the bot access to the servers and channels the workflow needs.
@@ -23,7 +21,6 @@ Use [Discord](https://discord.com) to manage messages, threads, channels, roles,
 
 Discord restricts `content`, embeds, attachments, and components when the Message Content intent is unavailable, with exceptions such as messages sent by the bot, direct messages, and messages that mention it. Verified apps may need approval for this intent. See [Discord's Message Content requirements](https://docs.discord.com/developers/events/gateway#message-content-intent).
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

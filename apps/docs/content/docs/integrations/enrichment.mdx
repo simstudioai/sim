@@ -1,14 +1,11 @@
 ---
 title: Data Enrichment
 description: Enrich data with a Sim enrichment
+integration:
+  type: "enrichment"
+  color: "#9333EA"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="enrichment"
-  color="#9333EA"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the built-in Data Enrichment block to fill missing fields such as work email, phone number, company domain, and company information. Select a registered enrichment and map the record's input fields; Sim uses the same ordered provider cascade as table enrichments until a provider returns a match.

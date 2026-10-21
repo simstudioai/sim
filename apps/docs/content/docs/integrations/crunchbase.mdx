@@ -1,15 +1,13 @@
 ---
 title: Crunchbase
 description: Search and look up companies, people, funding rounds, and acquisitions
+integration:
+  type: "crunchbase"
+  color: "#0287D1"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="crunchbase"
-  color="#0287D1"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Crunchbase](https://www.crunchbase.com/) to search and retrieve organizations, people, funding rounds, acquisitions, and related records. Stable UUIDs and permalinks identify records across lookups.
@@ -24,7 +22,6 @@ Organizations, people, funding rounds, and acquisitions have dedicated operation
 
 **Autocomplete** resolves a name to an identifier. Search predicates filter the selected collection; pass the returned cursor to continue through results. **Get Entity Card** pages related records, such as a company's founders or an investor's portfolio, beyond the 100 items returned by an inline card request. The deleted-entity feed lets a synchronization workflow remove records deleted by Crunchbase.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

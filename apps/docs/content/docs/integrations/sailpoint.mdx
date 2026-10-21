@@ -1,15 +1,13 @@
 ---
 title: SailPoint
 description: Govern identities and access in SailPoint Identity Security Cloud
+integration:
+  type: "sailpoint"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="sailpoint"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 The SailPoint integration connects Sim workflows to SailPoint Identity Security Cloud (ISC) with a Personal Access Token (PAT). Enter the tenant name from your ISC URL—or the full `*.api.identitynow.com` / `*.api.identitynowgov.com` host—plus the PAT client ID and client secret. Sim exchanges those credentials at the tenant's `/oauth/token` endpoint and calls SailPoint's current service-versioned endpoints, such as `/identities/v1`, `/access-requests/v1`, and `/certifications/v1`. There is no global API-version setting.
@@ -36,7 +34,6 @@ Account and entitlement imports upload a CSV to a source and return a task that 
 
 The 40 actions cover six connected workflows: search and entity lookup; account, entitlement, role, access-profile, and source inventory; access-request configuration and account-selection discovery; access request submission, cancellation, approval, rejection, and status; campaign and certification review, decision, and sign-off; and CSV import plus task monitoring. Provider-defined objects such as account attributes and Search documents remain JSON because their fields depend on the tenant, source, index, and field projection.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

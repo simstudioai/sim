@@ -1,22 +1,19 @@
 ---
 title: Workday
 description: Manage workers, hiring, onboarding, and HR operations in Workday
+integration:
+  type: "workday"
+  color: "#F5F0EB"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="workday"
-  color="#F5F0EB"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Workday](https://www.workday.com/) to read workers and organizations, create pre-hires, hire employees, update worker fields, assign onboarding plans, process job changes or terminations, and retrieve compensation details.
 
 Provide the Workday instance URL, tenant, and Integration System User credentials with permission for the required business processes. Hiring, job-change, and termination requests can be subject to your tenant's approvals; a returned event ID does not by itself prove that the business process completed.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

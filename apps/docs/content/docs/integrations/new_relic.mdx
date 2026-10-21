@@ -1,22 +1,19 @@
 ---
 title: New Relic
 description: Query observability data and record deployments in New Relic
+integration:
+  type: "new_relic"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="new_relic"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [New Relic](https://newrelic.com/) through NerdGraph to query telemetry with NRQL, search monitored entities by name, type, tags, alert state, or reporting status, and retrieve basic metadata by entity GUID.
 
 Record deployment changes with a version, changelog, commit, build links, group IDs, and user context to relate releases to telemetry. Configure the account and credentials required by the action.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

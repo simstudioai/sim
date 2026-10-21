@@ -1,21 +1,17 @@
 ---
 title: IMAP
 description: Start workflows from IMAP events
+integration:
+  type: "imap"
+  color: "#6366F1"
 ---
 
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard
-  type="imap"
-  color="#6366F1"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use the IMAP Email trigger to start workflows from messages in an IMAP-enabled mailbox. Configure the mailbox connection and folder, then filter messages by sender, subject, or custom search criteria. Message content and attachments are available to subsequent workflow steps.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Triggers
 

@@ -1,22 +1,19 @@
 ---
 title: Azure AD
 description: Manage identities, licenses, roles, and access in Azure AD (Microsoft Entra ID)
+integration:
+  type: "microsoft_ad"
+  color: "#0078D4"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="microsoft_ad"
-  color="#0078D4"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Microsoft Entra ID](https://entra.microsoft.com), formerly Azure Active Directory, to manage directory users, groups, memberships, licenses, passwords, sign-in sessions, app roles, and directory roles. Read sign-in and audit logs, registered devices, and conditional access policies; device writes are excluded.
 
 Use OData filters to query directory records. Grant the connection the permissions and administrative roles required by each operation before using it for onboarding, offboarding, or access review. Microsoft 365 groups have a 30-day recovery window. Cloud security-group recovery is a [public-cloud preview with tenant restrictions](https://learn.microsoft.com/en-us/entra/identity/users/groups-restore-deleted); confirm eligibility before deleting a group.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

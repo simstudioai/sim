@@ -1,15 +1,13 @@
 ---
 title: Temporal
 description: Start, signal, query, and manage Temporal workflow executions
+integration:
+  type: "temporal"
+  color: "#141414"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="temporal"
-  color="#141414"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Temporal](https://temporal.io/) to start and manage durable workflow executions from Sim. Connect to the server's HTTP API, supply the namespace, and add an API key if the server uses bearer authentication. Your server must expose the HTTP API at a URL Sim can reach; `http://localhost:7243` is an example for a local server, not a guarantee that the API is enabled on every deployment.
@@ -23,7 +21,6 @@ Inputs use Temporal's standard `json/plain` payload encoding, and result payload
 
 Starting an execution acknowledges its creation, rather than its completion. Poll its state or history before consuming a final outcome. See Temporal's [workflow messaging reference](https://docs.temporal.io/sending-messages) for signal and update semantics.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,15 +1,13 @@
 ---
 title: CloudTrail
 description: Audit who did what in AWS with CloudTrail event history and Lake queries
+integration:
+  type: "cloudtrail"
+  color: "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cloudtrail"
-  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [AWS CloudTrail](https://aws.amazon.com/cloudtrail/) records API activity in AWS accounts. Use it to look up events, inspect trail configuration and logging status, or run CloudTrail Lake queries.
@@ -59,7 +57,6 @@ The block reads event history and trail configuration. `Start Query` runs a bill
 
 CloudTrail Lake closed to new customers on May 31, 2026. Existing customers can continue using it; see [AWS’s availability notice](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-lake.html). This restriction applies to Lake queries, not ordinary event lookup or trail inspection.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

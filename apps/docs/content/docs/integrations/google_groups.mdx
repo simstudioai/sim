@@ -1,22 +1,19 @@
 ---
 title: Google Groups
 description: Manage Google Workspace Groups and their members
+integration:
+  type: "google_groups"
+  color: "#E8F0FE"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="google_groups"
-  color="#E8F0FE"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Google Groups](https://groups.google.com) to manage Google Workspace groups and membership through the Admin SDK Directory API. Create, read, update, or delete groups; manage aliases; add, remove, or update members with `OWNER`, `MANAGER`, or `MEMBER` roles; and check membership.
 
 Connect an account with the required Workspace administrative permissions. **Get Settings** and **Update Settings** also use the Groups Settings API, which requires [`https://www.googleapis.com/auth/apps.groups.settings`](https://developers.google.com/workspace/admin/groups-settings/auth). Sim's current Google Groups OAuth connection requests Directory API scopes only, so it does not provide the scope needed for those settings actions.
 {/* MANUAL-CONTENT-END */}
-
 
 ## OAuth scopes [#oauth-scopes]
 

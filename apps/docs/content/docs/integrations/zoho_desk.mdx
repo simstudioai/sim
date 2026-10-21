@@ -1,15 +1,13 @@
 ---
 title: Zoho Desk
 description: Manage Zoho Desk tickets, replies, contacts, and accounts
+integration:
+  type: "zoho_desk"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="zoho_desk"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Zoho Desk](https://www.zoho.com/desk/) to create, search, read, and update tickets, contacts, and accounts; send email replies; manage comments; inspect departments and agents; and download attachments. Comment and thread results include plain-text `contentText` alongside the original HTML `content`.
@@ -22,7 +20,6 @@ Trigger mode starts workflows from Zoho Desk events. Sim creates the webhook sub
 
 Interactive OAuth, which triggers require, supports the US data center only. Blocks can instead use a [Self Client](/integrations/zoho-desk-service-account) for US, EU, India, or Australia. Japan, Canada, Saudi Arabia, China, and UK data centers are not supported by these connections.
 {/* MANUAL-CONTENT-END */}
-
 
 Connection guides: [Self clients](/integrations/zoho-desk-service-account).
 

@@ -1,22 +1,19 @@
 ---
 title: Calendly
 description: Manage Calendly scheduling and events
+integration:
+  type: "calendly"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="calendly"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Calendly](https://calendly.com/) to read account information, event types, scheduled events, and invitees. The actions also book or cancel meetings, create single-use scheduling links, mark invitees as no-shows, and inspect availability and organization membership. Configure a personal access token for the selected operation. **Book Meeting** requires a paid Calendly plan; see [Calendly’s booking requirements](https://developer.calendly.com/api-docs/calendly-api/scheduled-events/create-event-invitee).
 
 Webhook subscriptions require a paid plan and the permissions for their user or organization scope. Switch to trigger mode to start workflows when an invitee schedules or cancels an event or submits a routing form. Pass the event data to follow-up steps, such as preparing a meeting brief, updating a CRM, or notifying participants.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

@@ -1,15 +1,13 @@
 ---
 title: Plane
 description: Manage projects and work items in Plane
+integration:
+  type: "plane"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="plane"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [Plane](https://plane.so/) manages projects, work items, and team planning.
@@ -29,7 +27,6 @@ For webhooks, automatic registration requires API v2, an API token, and the work
 
 The knowledge connector reads API v1 to include full descriptions. It preserves existing documents when a listing is capped and disables automatic deletion reconciliation because offset listings can shift during concurrent changes. Project pages require an edition that exposes the pages API.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

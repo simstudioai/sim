@@ -1,15 +1,13 @@
 ---
 title: CB Insights
 description: Research private markets — firmographics, funding, and predictive scores
+integration:
+  type: "cbinsights"
+  color: "#FFFFFF"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="cbinsights"
-  color="#FFFFFF"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 [CB Insights](https://www.cbinsights.com/) provides company, investor, funding, cap-table, exit, relationship, and leadership data. Use its Mosaic Score, Commercial Maturity, and Exit Probability operations to retrieve scores, supporting signals, and history. Exit Probability includes a comparable-company mean and ratio. Cap-table history includes issuance and conversion prices, liquidation preferences, participation rights, and anti-dilution terms.
@@ -28,7 +26,6 @@ When `incompleteRoundType` identifies a pending round, all exit probabilities ar
 
 The streaming endpoints `chatcbichunked` and `scoutingreportstream` are not exposed. Use the non-streaming operations for a complete response. A Scouting Report can take several minutes to generate.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 

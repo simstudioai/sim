@@ -1,14 +1,11 @@
 ---
 title: Extend
 description: Parse and extract content from documents
+integration:
+  type: "extend_v2"
+  color: "#000000"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
-
-<BlockInfoCard 
-  type="extend_v2"
-  color="#000000"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [Extend](https://www.extend.ai/) to parse a document supplied as a file or file reference. The result includes structured chunks and block-level elements, the page count, and credits consumed. Pass those outputs to later steps for extraction or document review.

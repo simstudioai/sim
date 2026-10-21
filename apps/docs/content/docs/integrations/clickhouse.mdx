@@ -1,15 +1,13 @@
 ---
 title: ClickHouse
 description: Connect to a ClickHouse database
+integration:
+  type: "clickhouse"
+  color: "#f9ff69"
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
 import { ReferenceDetails } from "@/components/ui/reference-details"
 
-<BlockInfoCard 
-  type="clickhouse"
-  color="#f9ff69"
-/>
 
 {/* MANUAL-CONTENT-START:intro */}
 Use [ClickHouse](https://clickhouse.com) to query and insert analytical data, manage databases and tables, inspect schemas and system state, and execute SQL.
@@ -30,7 +28,6 @@ The block uses ClickHouse’s [HTTP interface](https://clickhouse.com/docs/inter
 - ClickHouse is optimized for bulk inserts. Prefer batching many rows per insert over many single-row inserts.
 - Private and internal hosts are blocked by default. Self-hosted operators can configure an explicit database egress allowlist; a host must also be reachable from the runtime.
 {/* MANUAL-CONTENT-END */}
-
 
 ## Use the block [#usage-instructions]
 
