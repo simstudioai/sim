@@ -608,6 +608,28 @@ describe('McpService best-effort discovery', () => {
     expectNoSharedStateWrites()
   })
 
+  it('connects an authorized OAuth server with a grant-preserving provider and writes nothing when it is rejected', async () => {
+    mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A', { authType: 'oauth' })])
+    mcpOauthMockFns.mockHasDecryptableOauthTokens.mockResolvedValue(true)
+    mcpOauthMockFns.mockGetOrCreateOauthRow.mockResolvedValue({
+      id: 'oauth-row-1',
+      tokens: { access_token: 'expired', token_type: 'bearer' },
+    })
+    mockListTools.mockRejectedValueOnce(new UnauthorizedError('refresh rejected'))
+    MockMcpClient.mockClear()
+
+    await expect(
+      mcpService.discoverServerTools(MEMBER_B, 'mcp-a', WORKSPACE_ID, 'cache-aside', undefined, {
+        bestEffort: true,
+      })
+    ).rejects.toThrow('refresh rejected')
+
+    expect(MockMcpClient.mock.calls[0]?.[0]).toMatchObject({
+      oauthCredentials: { initialProvider: { preserveGrant: true } },
+    })
+    expectNoSharedStateWrites()
+  })
+
   it('warms the shared tool cache on success without stamping status', async () => {
     mockGetWorkspaceServersRows.mockResolvedValue([dbRow('mcp-a', 'A')])
     mockListTools.mockResolvedValueOnce([tool('a1', 'mcp-a')])

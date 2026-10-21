@@ -71,17 +71,37 @@ interface SimMcpOauthProviderInit {
    * Dynamic Client Registration and uses these for the auth/token exchange.
    */
   preregistered?: PreregisteredClient
+  /**
+   * The grant belongs to every member and this caller did not ask to reauthorize it: a
+   * refreshed token still persists, but clearing the grant, registering a client or starting
+   * an authorization flow fails with {@link McpOauthGrantPreservedError} before any write.
+   */
+  preserveGrant?: boolean
+}
+
+/** A refresh failed where reauthorizing the shared grant is left to an explicit reconnect. */
+class McpOauthGrantPreservedError extends Error {
+  constructor(step: string) {
+    super(`MCP OAuth grant left unchanged: ${step} requires an explicit reconnect`)
+    this.name = 'McpOauthGrantPreservedError'
+  }
 }
 
 export class SimMcpOauthProvider implements OAuthClientProvider {
   private row: McpOauthRow
   private readonly scope?: string
   private readonly preregistered?: PreregisteredClient
+  private readonly preserveGrant: boolean
 
-  constructor({ row, scope, preregistered }: SimMcpOauthProviderInit) {
+  constructor({ row, scope, preregistered, preserveGrant = false }: SimMcpOauthProviderInit) {
     this.row = row
     this.scope = preregistered?.scope ?? scope
     this.preregistered = preregistered
+    this.preserveGrant = preserveGrant
+  }
+
+  private assertMayChangeGrant(step: string): void {
+    if (this.preserveGrant) throw new McpOauthGrantPreservedError(step)
   }
 
   /** Deployment registrations may restrict consent even when discovery advertises more tools. */
@@ -108,6 +128,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   }
 
   async state(): Promise<string> {
+    this.assertMayChangeGrant('authorization')
     const state = generateId()
     await saveState(this.row.id, state, 'provider.state')
     return state
@@ -132,6 +153,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
 
   async saveClientInformation(info: OAuthClientInformationMixed): Promise<void> {
     if (this.preregistered) return
+    this.assertMayChangeGrant('client registration')
     await saveClientInformationDb(this.row.id, info)
     this.row.clientInformation = info
   }
@@ -150,6 +172,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   }
 
   async saveCodeVerifier(codeVerifier: string): Promise<void> {
+    this.assertMayChangeGrant('authorization')
     await saveCodeVerifierDb(this.row.id, codeVerifier)
     this.row.codeVerifier = codeVerifier
   }
@@ -164,6 +187,7 @@ export class SimMcpOauthProvider implements OAuthClientProvider {
   async invalidateCredentials(
     scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'
   ): Promise<void> {
+    if (scope !== 'discovery') this.assertMayChangeGrant(`invalidating ${scope} credentials`)
     if (scope === 'all' || scope === 'client') {
       await clearClient(this.row.id)
       this.row.clientInformation = null

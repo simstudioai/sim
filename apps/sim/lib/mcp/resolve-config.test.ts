@@ -211,4 +211,23 @@ describe('findMissingMcpConfigEnvVars', () => {
       'MCP_TOKEN',
     ])
   })
+
+  it('counts an intentionally empty value as present', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
+      personalEncrypted: { MCP_PATH_PREFIX: 'prefix-encrypted' },
+      workspaceEncrypted: {},
+      personalDecrypted: { MCP_PATH_PREFIX: '' },
+      workspaceDecrypted: {},
+      conflicts: [],
+      decryptionFailures: [],
+    })
+
+    expect(
+      await findMissingMcpConfigEnvVars(
+        { ...BASE_CONFIG, url: 'https://example.com{{MCP_PATH_PREFIX}}/mcp', headers: {} },
+        'user-b',
+        'workspace-1'
+      )
+    ).toEqual([])
+  })
 })

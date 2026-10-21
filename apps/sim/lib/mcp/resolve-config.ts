@@ -167,10 +167,17 @@ export async function findMissingMcpConfigEnvVars(
   if (!values.some((value) => createEnvVarPattern().test(value))) return []
   const env = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
   const merged = { ...env.personalDecrypted, ...env.workspaceDecrypted }
-  // A value that failed to decrypt arrives as '', which would connect with no credential.
+  /**
+   * A value that failed to decrypt arrives as '' and is named in `decryptionFailures`; an
+   * intentionally empty one is only ''. The list does not say which slice failed, so a key
+   * counts as failed only when its effective value is also empty. The one ambiguity left, an
+   * intentionally empty workspace value over a personal one that failed, counts as missing,
+   * so best-effort discovery skips rather than connects.
+   */
+  const failed = new Set(env.decryptionFailures)
   const envVars = omit(
     merged,
-    Object.keys(merged).filter((key) => merged[key] === '')
+    Object.keys(merged).filter((key) => failed.has(key) && merged[key] === '')
   )
   const missingKeys: string[] = []
   for (const value of values) resolveEnvVarReferences(value, envVars, { missingKeys })
