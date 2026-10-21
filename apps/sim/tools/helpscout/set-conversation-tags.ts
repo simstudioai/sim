@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   HelpScoutConversationChangeResponse,
@@ -10,22 +11,15 @@ import {
   CONVERSATION_ID_PARAM,
   conversationChangeResult,
   conversationUrl,
-  parseJsonParam,
   toStringList,
 } from '@/tools/helpscout/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** An empty list removes every tag, so clearing takes an explicit `[]` and never an omitted value. */
 function parseTags(value: unknown): string[] {
-  const parsed =
-    typeof value === 'string' && value.trim().startsWith('[')
-      ? parseJsonParam(value, 'tags')
-      : value
-  const tags = toStringList(parsed)
-  const clearsEveryTag = Array.isArray(parsed) && parsed.length === 0
-  if (tags.length === 0 && !clearsEveryTag) {
-    throw new Error('tags is empty; pass [] to remove every tag')
-  }
+  if (Array.isArray(value) ? value.length === 0 : toStringOrNull(value)?.trim() === '[]') return []
+  const tags = toStringList(value)
+  if (tags.length === 0) throw new Error('tags is empty; pass [] to remove every tag')
   return tags
 }
 
