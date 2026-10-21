@@ -13,7 +13,13 @@ const { pages } = vi.hoisted(() => {
         workflows: [{ id: 'wf-1', name: 'Lead Scorer', folderPath: '/Sales', isDeployed: true }],
         nextCursorKeys: null,
       }),
-      skills: page({ skills: [{ name: 'research' }], hasMore: false }),
+      skills: page({
+        skills: [
+          { id: 'builtin-research', name: 'research', description: 'Research a topic.' },
+          { id: 'skill-1', name: 'invoice-formatting', description: '' },
+        ],
+        hasMore: false,
+      }),
       customTools: page({ tools: [{ id: 'ct-1', title: 'Lookup' }] }),
       credentials: page({
         credentials: [
@@ -67,7 +73,7 @@ mocks.secrets.execute.mockImplementation(async () => ({
 }))
 
 describe('buildWorkspaceInventory', () => {
-  it('reads every world under the caller principal, by name and id, and names the capped worlds', async () => {
+  it('reads every world under the caller principal, by name and id, skills with their descriptions, and names the capped worlds', async () => {
     const principal = { kind: 'session', userId: 'user-1', sessionId: 's-1' } as const
     const inventory = await buildWorkspaceInventory(principal, 'ws-1')
     expect(inventory.workflows).toEqual([
@@ -75,6 +81,10 @@ describe('buildWorkspaceInventory', () => {
     ])
     expect(inventory.tables).toEqual([{ id: 'tbl_1', name: 'leads' }])
     expect(inventory.files).toEqual([{ path: 'files/Reports/q3.md', size: 12 }])
+    expect(inventory.skills).toEqual([
+      { id: 'builtin-research', name: 'research', description: 'Research a topic.' },
+      { id: 'skill-1', name: 'invoice-formatting' },
+    ])
     expect(inventory.credentials).toEqual([
       { id: 'cred-1', name: 'Slack bot', provider: 'slack', type: 'service_account' },
     ])
