@@ -216,9 +216,9 @@ function firstSentence(value: string): string {
   return value
 }
 
-/** Appends a period if `value` doesn't already end in sentence-closing punctuation. */
+/** Appends a period unless `value` already ends in sentence-closing punctuation, optionally followed by a closing quote or paren. */
 export function ensurePeriod(value: string): string {
-  return /[.!?]$/.test(value) ? value : `${value}.`
+  return /[.!?]["')]?$/.test(value) ? value : `${value}.`
 }
 
 /**
