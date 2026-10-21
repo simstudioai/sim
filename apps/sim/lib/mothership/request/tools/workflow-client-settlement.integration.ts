@@ -436,6 +436,24 @@ describe.runIf(Boolean(redisUrl))('settled client-claimed workflow tools', () =>
     })
   })
 
+  it('delivers a paused execution whose cancel lost the race to a run that ended unreported', async () => {
+    const { toolCallId, executionId } = await claimedAndPaused()
+    const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
+    expect(await PauseResumeManager.beginPausedCancellation(executionId, workflowId)).toBe(true)
+    // The stale-execution sweep fails the run's log and reports nothing to Copilot.
+    await setLogStatus(executionId, 'failed')
+
+    expect(
+      await PauseResumeManager.finalizePausedCancellationForTerminalRun(executionId, workflowId, [])
+    ).toBe(true)
+
+    expect(await waiting).toMatchObject({
+      status: 'error',
+      data: { success: false, workflowId, executionId },
+    })
+    expect(await toolRow(toolCallId)).toMatchObject({ status: 'failed', claimedBy: null })
+  })
+
   it('moves a queued async run to the background when the browser never reports', async () => {
     const { toolCallId, executionId } = await claimed({ workflowId, async: true })
     const waiting = waitForWorkflowToolCompletion({ toolCallId, workflowId, timeoutMs: WAIT_MS })
