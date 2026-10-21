@@ -1,5 +1,7 @@
 import { toError } from '@sim/utils/errors'
-import { withinDeadline } from '@/lib/core/utils/deadline'
+import { LRUCache } from 'lru-cache'
+import { mapSettledWithConcurrency } from '@/lib/core/utils/concurrency'
+import { DeadlineExceededError, withinDeadline } from '@/lib/core/utils/deadline'
 import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
@@ -10,11 +12,43 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 import type { ToolSchema } from '@/lib/mothership/chat/payload'
 
 /**
- * How long one best-effort server may hold up a catalog query. A warm server is
- * a cache read; a cold or slow one is skipped for this query while its
- * discovery keeps running and fills the cache for the next one.
+ * How long a catalog query waits on one best-effort server, counted from that
+ * server's own start. A warm server is a cache read; a cold or slow one is
+ * skipped for this query while its discovery keeps running and fills the cache
+ * for the next one.
  */
 const BEST_EFFORT_DISCOVERY_WAIT_MS = 3_000
+/**
+ * Best-effort discoveries a query runs at once. The wait does not cancel a
+ * discovery, so this also caps the connections one query can leave running.
+ */
+const BEST_EFFORT_DISCOVERY_CONCURRENCY = 8
+/**
+ * How long after a query begins it may still start a best-effort discovery.
+ * Servers still queued then are skipped for this query, so with the wait it
+ * bounds the query's latency at about six seconds however many servers the
+ * workspace has.
+ */
+const BEST_EFFORT_DISCOVERY_START_WINDOW_MS = 3_000
+/** How long a requester skips a best-effort server whose discovery failed or outlived the wait. */
+const BEST_EFFORT_RETRY_AFTER_MS = 60_000
+const MAX_RECENT_BEST_EFFORT_FAILURES = 1_000
+
+/** One attempt's failure; the entry's identity is that attempt's, so a later attempt's entry is never its to settle. */
+interface BestEffortFailure {
+  error: Error
+}
+
+/**
+ * Best-effort servers that recently failed for a requester, keyed by
+ * `workspaceId:serverId:userId`. It lives in this process because best-effort
+ * discovery must leave the server's shared status and cooldown to the
+ * discoveries someone asked for.
+ */
+const recentBestEffortFailures = new LRUCache<string, BestEffortFailure>({
+  max: MAX_RECENT_BEST_EFFORT_FAILURES,
+  ttl: BEST_EFFORT_RETRY_AFTER_MS,
+})
 
 interface McpServerDiscoveryFailure {
   serverId: string
@@ -31,8 +65,13 @@ interface McpDiscoveryServers {
   /** Servers the request names: listed live and completely, however long that takes. */
   complete: string[]
   /**
-   * Chat-only: servers available without being named. Served from the discovery
-   * cache when fresh, otherwise skipped after {@link BEST_EFFORT_DISCOVERY_WAIT_MS}.
+   * Chat-only: servers available without being named. At most
+   * {@link BEST_EFFORT_DISCOVERY_CONCURRENCY} are discovered at once, each served
+   * from the discovery cache when fresh and otherwise skipped after
+   * {@link BEST_EFFORT_DISCOVERY_WAIT_MS}; one still queued after
+   * {@link BEST_EFFORT_DISCOVERY_START_WINDOW_MS} is skipped unstarted. One that
+   * failed or outlived its wait is skipped for the same requester for
+   * {@link BEST_EFFORT_RETRY_AFTER_MS}, or until that late discovery succeeds.
    * One with no permitted operations contributes nothing and is not a failure.
    * Their discovery never touches a server's shared status or cooldown, and skips a
    * server the requester cannot authenticate to.
@@ -92,23 +131,47 @@ export async function buildMcpToolSchemas(
     if (!tools.length) throw new Error(`No permitted MCP operations are available for ${serverId}`)
     return tools
   }
+  const startWindowEndsAt = Date.now() + BEST_EFFORT_DISCOVERY_START_WINDOW_MS
   /** Ignores the deadline's signal so a slow server's discovery still finishes and warms the cache. */
   const discoverBestEffort = async (serverId: string) => {
+    const failureKey = `${workspaceId}:${serverId}:${userId}`
+    const recentFailure = recentBestEffortFailures.get(failureKey)
+    if (recentFailure) throw recentFailure.error
+    if (Date.now() >= startWindowEndsAt) throw new DeadlineExceededError()
     const discovery = discoverMcpServerToolsUseCase.execute({
       principal: principal(),
       input: { workspaceId, serverId, bestEffort: true },
     })
-    const { tools } = await withinDeadline(
-      () => discovery,
-      Date.now() + BEST_EFFORT_DISCOVERY_WAIT_MS
-    )
-    return tools
+    try {
+      const { tools } = await withinDeadline(
+        () => discovery,
+        Date.now() + BEST_EFFORT_DISCOVERY_WAIT_MS
+      )
+      return tools
+    } catch (error) {
+      const failure: BestEffortFailure = { error: toError(error) }
+      recentBestEffortFailures.set(failureKey, failure)
+      if (error instanceof DeadlineExceededError) {
+        const isLatest = () =>
+          recentBestEffortFailures.peek(failureKey, { allowStale: true }) === failure
+        discovery.then(
+          () => {
+            if (isLatest()) recentBestEffortFailures.delete(failureKey)
+          },
+          (lateError: unknown) => {
+            if (isLatest()) recentBestEffortFailures.set(failureKey, { error: toError(lateError) })
+          }
+        )
+      }
+      throw error
+    }
   }
 
-  const outcomes = await Promise.allSettled([
-    ...complete.map(discoverComplete),
-    ...bestEffort.map(discoverBestEffort),
+  const [completeOutcomes, bestEffortOutcomes] = await Promise.all([
+    Promise.allSettled(complete.map(discoverComplete)),
+    mapSettledWithConcurrency(bestEffort, BEST_EFFORT_DISCOVERY_CONCURRENCY, discoverBestEffort),
   ])
+  const outcomes = [...completeOutcomes, ...bestEffortOutcomes]
 
   const seen = new Set<string>()
   const discovery: McpDiscovery = { tools: [], failures: [] }
