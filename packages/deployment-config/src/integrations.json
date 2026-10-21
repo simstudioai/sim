@@ -12733,7 +12733,7 @@
         },
         {
           "name": "Set Conversation Tags",
-          "description": "Replace the full tag list on a Help Scout conversation. Tags left out are removed, an empty list removes every tag, and unknown tags are created."
+          "description": "Replace the full tag list on a Help Scout conversation. Tags left out are removed, [] removes every tag, and unknown tags are created."
         },
         {
           "name": "Update Custom Fields",
@@ -12851,7 +12851,7 @@
         {
           "id": "helpscout_agent_replied",
           "name": "Help Scout Agent Replied",
-          "description": "Trigger workflow when a user replies to a Help Scout conversation (auto replies are not included)"
+          "description": "Trigger workflow when an agent replies to a Help Scout conversation (auto replies are not included)"
         },
         {
           "id": "helpscout_note_created",
@@ -12910,7 +12910,7 @@
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "webhooks"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-10-21"
     },
     {
       "type": "hex",

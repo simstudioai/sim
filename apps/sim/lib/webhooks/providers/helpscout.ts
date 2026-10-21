@@ -26,7 +26,13 @@ import type {
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
-import { HELPSCOUT_API_BASE, projectConversation, projectCustomer } from '@/tools/helpscout/utils'
+import {
+  HELPSCOUT_API_BASE,
+  parseIdText,
+  projectConversation,
+  projectCustomer,
+  readResourceId,
+} from '@/tools/helpscout/utils'
 import {
   getHelpScoutSubscriptionEvents,
   HELPSCOUT_GENERIC_TRIGGER_ID,
@@ -45,7 +51,6 @@ function validateHelpScoutSignature(secret: string, signature: string, rawBody: 
   return safeCompare(computed, signature.trim())
 }
 
-const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
 /** Help Scout accepts a signing secret of at most 40 characters. */
 const WEBHOOK_SECRET_LENGTH = 40
 
@@ -60,8 +65,8 @@ function readEventType(headers: Record<string, string>): string {
 function resolveInboxFilter(config: Record<string, unknown>): number | undefined {
   const raw = toStringOrNull(config.triggerMailboxId)?.trim()
   if (!raw) return undefined
-  const id = Number(raw)
-  if (!HELPSCOUT_ID_PATTERN.test(raw) || !Number.isSafeInteger(id) || id <= 0) {
+  const id = parseIdText(raw)
+  if (id === null) {
     throw new WebhookDeploymentConfigurationError('The Help Scout inbox ID must be numeric.')
   }
   return id
@@ -94,12 +99,10 @@ async function readHelpScoutErrorDetail(response: Response): Promise<string> {
 
 /** The new webhook ID comes from `Resource-ID`, with the `Location` URL as a fallback. */
 function readCreatedWebhookId(response: Response): string | null {
-  const resourceId = toStringOrNull(response.headers.get('resource-id'))?.trim()
-  if (resourceId && HELPSCOUT_ID_PATTERN.test(resourceId)) return resourceId
-  const fromLocation = toStringOrNull(response.headers.get('location'))?.match(
-    /\/webhooks\/(\d{1,16})\/?$/
-  )?.[1]
-  return fromLocation ?? null
+  const id =
+    readResourceId(response) ??
+    parseIdText(response.headers.get('location')?.match(/\/webhooks\/(\d+)\/?$/)?.[1] ?? null)
+  return id === null ? null : String(id)
 }
 
 async function requireAccessToken(config: Record<string, unknown>, requestId: string) {
@@ -176,7 +179,7 @@ export const helpScoutHandler: WebhookProviderHandler = {
       logger.info(`[${requestId}] No managed Help Scout webhook to delete`)
       return
     }
-    if (!HELPSCOUT_ID_PATTERN.test(externalId)) {
+    if (parseIdText(externalId) === null) {
       if (strict) throw new Error('Invalid Help Scout webhook ID for deletion')
       return
     }

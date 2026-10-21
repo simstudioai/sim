@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   HelpScoutConversationChangeResponse,
@@ -18,11 +19,10 @@ import type { ToolConfig } from '@/tools/types'
 function parseCustomFields(value: unknown): Array<{ id: number; value: string }> {
   // Sending an empty list clears every field, so only an explicit JSON array is accepted.
   const parsed = parseJsonParam(value, 'customFields')
-  if (!Array.isArray(parsed)) {
+  if (!Array.isArray(parsed) || !parsed.every(isRecordLike)) {
     throw new Error('customFields must be a JSON array of { "id": number, "value": string }')
   }
-  return parsed.map((entry) => {
-    const field = entry as { id?: unknown; value?: unknown }
+  return parsed.map((field) => {
     if (typeof field.value !== 'string' && typeof field.value !== 'number') {
       throw new Error('Every custom field value must be a string or number; use "" to clear one')
     }

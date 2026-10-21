@@ -115,11 +115,13 @@ export function helpScoutSetupInstructions(eventLabel: string): string {
     .join('')
 }
 
-const PERSON_OUTPUT = {
-  type: 'json',
-  nullable: true,
-  description: 'Person object (id, type, first, last, email)',
-} as const
+function personOutput(role: string): TriggerOutput {
+  return {
+    type: 'json',
+    nullable: true,
+    description: `${role} (id, type, first, last, name, email)`,
+  }
+}
 
 const CONVERSATION_OUTPUTS: Record<string, TriggerOutput> = {
   id: { type: 'number', description: 'Conversation ID', nullable: true },
@@ -144,9 +146,9 @@ const CONVERSATION_OUTPUTS: Record<string, TriggerOutput> = {
     nullable: true,
   },
   mailboxId: { type: 'number', description: 'Inbox ID', nullable: true },
-  assignee: { ...PERSON_OUTPUT, description: 'User or team the conversation is assigned to' },
-  createdBy: { ...PERSON_OUTPUT, description: 'User or customer who created the conversation' },
-  primaryCustomer: { ...PERSON_OUTPUT, description: 'Primary customer of the conversation' },
+  assignee: personOutput('User or team the conversation is assigned to'),
+  createdBy: personOutput('User or customer who created the conversation'),
+  primaryCustomer: personOutput('Primary customer of the conversation'),
   createdAt: { type: 'string', description: 'When the conversation was created', nullable: true },
   closedAt: { type: 'string', description: 'When the conversation was closed', nullable: true },
   closedBy: { type: 'number', description: 'ID of the user who closed it', nullable: true },

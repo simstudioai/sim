@@ -13,7 +13,7 @@ export const helpScoutAgentRepliedTrigger: TriggerConfig = {
   name: 'Help Scout Agent Replied',
   provider: 'helpscout',
   description:
-    'Trigger workflow when a user replies to a Help Scout conversation (auto replies are not included)',
+    'Trigger workflow when an agent replies to a Help Scout conversation (auto replies are not included)',
   version: '1.0.0',
   icon: HelpScoutIcon,
 

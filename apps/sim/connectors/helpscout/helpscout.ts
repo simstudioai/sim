@@ -7,11 +7,10 @@ import { type RetryOptions, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/docum
 import { DEFAULT_MAX_CONVERSATIONS, helpScoutConnectorMeta } from '@/connectors/helpscout/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { HELPSCOUT_API_BASE, parseIdText } from '@/tools/helpscout/utils'
 
 const logger = createLogger('HelpScoutConnector')
 
-const API_BASE = 'https://api.helpscout.net/v2'
-const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
 const STATUSES = new Set(['all', 'active', 'pending', 'closed'])
 /** Help Scout caps a conversation at 100 threads, 50 per page, so two pages cover every thread. */
 const MAX_THREAD_PAGES = 4
@@ -119,7 +118,7 @@ async function helpScoutGet(
   query: Record<string, string> = {},
   retryOptions?: RetryOptions
 ): Promise<unknown> {
-  const url = new URL(`${API_BASE}${path}`)
+  const url = new URL(`${HELPSCOUT_API_BASE}${path}`)
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
   const response = await fetchWithRetry(
     url.toString(),
@@ -140,7 +139,7 @@ function optionalId(value: unknown, label: string): string | undefined {
   const text =
     typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : ''
   if (!text) return undefined
-  if (!HELPSCOUT_ID_PATTERN.test(text)) throw new Error(`${label} must be a numeric Help Scout ID`)
+  if (parseIdText(text) === null) throw new Error(`${label} must be a numeric Help Scout ID`)
   return text
 }
 
@@ -404,7 +403,7 @@ export const helpScoutConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    if (!HELPSCOUT_ID_PATTERN.test(externalId)) return null
+    if (parseIdText(externalId) === null) return null
     const includeNotes = sourceConfig.includeNotes !== 'exclude'
     try {
       const conversation = ConversationSchema.parse(

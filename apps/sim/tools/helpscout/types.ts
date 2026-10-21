@@ -781,7 +781,7 @@ export interface HelpScoutMoveConversationParams extends HelpScoutConversationPa
 export type HelpScoutDeleteConversationParams = HelpScoutConversationParams
 
 export interface HelpScoutSetConversationTagsParams extends HelpScoutConversationParams {
-  tags?: string | string[]
+  tags: string | string[]
 }
 
 export interface HelpScoutConversationChangeResponse extends ToolResponse {
