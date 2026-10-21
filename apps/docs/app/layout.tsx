@@ -9,6 +9,7 @@ import { ThemeProvider } from 'next-themes'
 import { DocsSidebar } from '@/components/docs-layout/docs-sidebar'
 import { Footer } from '@/components/footer/footer'
 import { Navbar } from '@/components/navbar/navbar'
+import { PerformanceInsights } from '@/components/performance-insights'
 import { SimWordmark } from '@/components/ui/sim-logo'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { source } from '@/lib/source'
@@ -138,6 +139,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               {children}
             </DocsLayout>
             <Footer />
+            {process.env.VERCEL_ENV === 'production' && <PerformanceInsights />}
           </RootProvider>
         </ThemeProvider>
       </body>

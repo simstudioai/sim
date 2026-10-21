@@ -17,6 +17,11 @@ on:
       - 'bun.lock'
       - '.github/workflows/docs-negotiation.yml'
   workflow_dispatch:
+    inputs:
+      benchmark_live:
+        description: Also measure the public docs as a comparison
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,6 +40,8 @@ jobs:
       DOCS_E2E_BASE_URL: http://127.0.0.1:3001
       DOCS_NEGOTIATION_REPORT_PATH: ${{ github.workspace }}/test-results/docs-negotiation.json
       DOCS_HEADER_REPORT_PATH: ${{ github.workspace }}/test-results/docs-headers.json
+      DOCS_LLMS_REPORT_PATH: ${{ github.workspace }}/test-results/docs-llms.json
+      DOCS_PERFORMANCE_REPORT_PATH: ${{ github.workspace }}/test-results/performance/docs.json
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -46,6 +53,14 @@ jobs:
         run: bun run --cwd apps/docs build
       - name: Verify native header edge cases
         run: bun run --cwd apps/docs test:headers:e2e
+      - name: Install browser for performance measurements
+        run: bunx --no-install playwright install --with-deps chromium
+      - name: Measure public docs baseline
+        if: inputs.benchmark_live == true
+        env:
+          DOCS_PERFORMANCE_BASE_URL: https://docs.sim.ai
+          DOCS_PERFORMANCE_REPORT_PATH: ${{ github.workspace }}/test-results/baseline/docs.json
+        run: bun run --cwd apps/docs measure:performance
       - name: Verify HTTP content negotiation
         run: |
           mkdir -p test-results
@@ -53,6 +68,8 @@ jobs:
           DOCS_SERVER_PID=$!
           trap 'kill "$DOCS_SERVER_PID" 2>/dev/null || true' EXIT
           bun run --cwd apps/docs test:negotiation:e2e
+          bun run --cwd apps/docs test:llms:e2e
+          bun run --cwd apps/docs measure:performance
       - name: Upload HTTP regression report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

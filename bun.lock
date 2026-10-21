@@ -94,6 +94,7 @@
         "@sim/logger": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-renderer": "workspace:*",
+        "@vercel/speed-insights": "2.0.0",
         "@xyflow/react": "12.12.0",
         "class-variance-authority": "^0.7.1",
         "drizzle-orm": "^0.45.4",
@@ -113,6 +114,8 @@
         "zod": "4.3.6",
       },
       "devDependencies": {
+        "@mdx-js/mdx": "3.1.1",
+        "@playwright/test": "1.61.1",
         "@sim/tsconfig": "workspace:*",
         "@tailwindcss/postcss": "^4.3.3",
         "@types/node": "24.19.2",
@@ -122,6 +125,7 @@
         "postcss": "^8.5.30",
         "tailwindcss": "^4.3.3",
         "typescript": "^7.0.2",
+        "vfile": "6.0.3",
         "vitest": "^5.0.4",
       },
     },
@@ -2464,6 +2468,8 @@
     "@vercel/og": ["@vercel/og@0.6.8", "", { "dependencies": { "@resvg/resvg-wasm": "2.4.0", "satori": "0.12.2", "yoga-wasm-web": "0.3.3" } }, "sha512-e4kQK9mP8ntpo3dACWirGod/hHv4qO5JMj9a/0a2AZto7b4persj5YP7t1Er372gTtYFTYxNhMx34jRvHooglw=="],
 
     "@vercel/oidc": ["@vercel/oidc@3.1.0", "", {}, "sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w=="],
+
+    "@vercel/speed-insights": ["@vercel/speed-insights@2.0.0", "", { "peerDependencies": { "@sveltejs/kit": "^1 || ^2", "next": ">= 13", "nuxt": ">= 3", "react": "^18 || ^19 || ^19.0.0-rc", "svelte": ">= 4", "vue": "^3", "vue-router": "^4" }, "optionalPeers": ["@sveltejs/kit", "next", "nuxt", "react", "svelte", "vue", "vue-router"] }, "sha512-jwkNcrTeafWxjmWq4AHBaptSqZiJkYU5adLC9QBSqeim0GcqDMgN5Ievh8OG1rJ6W3A4l1oiP7qr9CWxGuzu3w=="],
 
     "@vitejs/plugin-react": ["@vitejs/plugin-react@6.1.2", "", { "dependencies": { "@rolldown/pluginutils": "^1.0.1" }, "peerDependencies": { "@rolldown/plugin-babel": "^0.1.7 || ^0.2.0", "babel-plugin-react-compiler": "^1.0.0", "oxc-transform-react": "^0.152.0", "vite": "^8.0.0" }, "optionalPeers": ["@rolldown/plugin-babel", "babel-plugin-react-compiler", "oxc-transform-react"] }, "sha512-fhJNGUdscQa4HkI0xFxwonWyhnVReCPDbXI7FH7jmzpnVCrFQI7PRrhWecO263610vOrs9tr2Y4xcf8uAdFxbw=="],
 
