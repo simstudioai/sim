@@ -1,9 +1,10 @@
 import { isRecordLike } from '@sim/utils/object'
+import { chatContextSchema } from '@/lib/api/contracts/mothership-chat-context'
 import type { ChatContext } from '@/stores/panel'
 
-/** Validates the required payload for a context restored from chat storage. */
+/** Requires both send-valid metadata and a resource identity before restoring a stored context. */
 export function isChatContext(value: unknown): value is ChatContext {
-  if (!isRecordLike(value) || typeof value.kind !== 'string' || typeof value.label !== 'string') {
+  if (!isRecordLike(value) || !chatContextSchema.safeParse(value).success) {
     return false
   }
 
@@ -50,8 +51,6 @@ export function isChatContext(value: unknown): value is ChatContext {
       return typeof value.workspaceId === 'string'
     case 'docs':
       return true
-    case 'slash_command':
-      return typeof value.command === 'string'
     case 'integration':
       return typeof value.blockType === 'string'
     case 'skill':
@@ -59,27 +58,9 @@ export function isChatContext(value: unknown): value is ChatContext {
     case 'mcp':
       return typeof value.serverId === 'string'
     case 'browser_tab':
-      return (
-        typeof value.tabId === 'string' &&
-        (value.selection === undefined ||
-          (isRecordLike(value.selection) &&
-            typeof value.selection.text === 'string' &&
-            (value.selection.url === undefined || typeof value.selection.url === 'string') &&
-            (value.selection.title === undefined || typeof value.selection.title === 'string')))
-      )
+      return typeof value.tabId === 'string'
     case 'terminal_tab':
-      return (
-        typeof value.terminalId === 'string' &&
-        (value.selection === undefined ||
-          (isRecordLike(value.selection) &&
-            typeof value.selection.text === 'string' &&
-            typeof value.selection.startLine === 'number' &&
-            typeof value.selection.endLine === 'number' &&
-            Number.isInteger(value.selection.startLine) &&
-            Number.isInteger(value.selection.endLine) &&
-            value.selection.startLine > 0 &&
-            value.selection.endLine >= value.selection.startLine))
-      )
+      return typeof value.terminalId === 'string'
     default:
       return false
   }
