@@ -129,5 +129,5 @@ export type PageData = DocData &
     description?: string
     full?: boolean
     integration?: { type: string; color: string }
-    load: () => Promise<DocData>
+    load: () => Promise<DocData & { lastModified?: Date }>
   }

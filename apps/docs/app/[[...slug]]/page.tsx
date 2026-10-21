@@ -316,7 +316,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
     )
   }
 
-  const { body: MDX, toc } = await data.load()
+  const { body: MDX, toc, lastModified } = await data.load()
 
   return (
     <>
@@ -324,7 +324,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         title={data.title}
         description={data.description || ''}
         url={`${BASE_URL}${page.url}`}
-        dateModified={data.lastModified?.toISOString()}
+        dateModified={lastModified?.toISOString()}
         breadcrumb={breadcrumbs}
       />
       <DocsPage
