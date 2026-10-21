@@ -19,7 +19,7 @@ export const flowiseProfile: CompetitorProfile = {
     asOf: '2026-07-02',
   },
   oneLiner:
-    'Flowise is an open-source, low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, owned by Workday since August 2025, which reached end of life on August 31, 2026 after its team announced it was winding the project down.',
+    'The Flowise open-source project reached end of life on August 31, 2026: Flowise is a low-code visual builder for LLM chains, RAG pipelines, and multi-agent AI workflows, owned by Workday since August 2025, and flowiseai.com still lists its Cloud plans.',
   leadAnswer: [
     'Flowise was an open-source, Apache 2.0-licensed, low-code visual builder for LLM chains, RAG pipelines, and multi-agent workflows, owned by Workday since August 2025. Its team ',
     { text: 'announced the sunset of Flowise', href: 'https://flowiseai.com/sunset' },
@@ -160,7 +160,7 @@ export const flowiseProfile: CompetitorProfile = {
       },
       selfHostOption: {
         value:
-          "Yes: Flowise's Community Edition is Apache 2.0 and can be self-hosted, including via Docker, on your own infrastructure. The repository has been archived since August 2026 and the project reached end of life on August 31, 2026, so a self-hosted deployment runs the final release or a fork you maintain.",
+          "Only the archived code: Flowise's Community Edition reached end of life on August 31, 2026, and its Apache 2.0 code can still be self-hosted, including via Docker, on your own infrastructure. The repository has been archived since August 2026, so a self-hosted deployment runs the final release or a fork you maintain.",
         shortValue: 'Yes, but the archived code is no longer maintained',
         confidence: 'verified',
         sources: [

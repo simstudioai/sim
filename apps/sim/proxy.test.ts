@@ -175,6 +175,7 @@ describe('proxy indexing policy', () => {
 
   it('keeps the marketing documents of a self-hosted deployment out of search results', () => {
     setEnvFlags({ isHosted: false })
+    expect(robotsTag('/index.md')).toBe('noindex, nofollow')
     expect(robotsTag('/llms.txt')).toBe('noindex, nofollow')
     expect(robotsTag('/llms-full.txt')).toBe('noindex, nofollow')
     expect(robotsTag('/changelog.xml')).toBe('noindex, nofollow')
@@ -184,6 +185,7 @@ describe('proxy indexing policy', () => {
     setEnvFlags({ isHosted: true })
     expect(robotsTag('/comparisons/n8n')).toBeNull()
     expect(robotsTag('/pricing')).toBeNull()
+    expect(robotsTag('/index.md')).toBeNull()
     expect(robotsTag('/llms.txt')).toBeNull()
     expect(robotsTag('/llms-full.txt')).toBeNull()
     expect(robotsTag('/changelog.xml')).toBeNull()
@@ -210,6 +212,7 @@ describe('proxy matcher', () => {
   })
 
   it('runs for the marketing documents, so the indexing policy reaches them', () => {
+    expect(matches('/index.md')).toBe(true)
     expect(matches('/llms.txt')).toBe(true)
     expect(matches('/llms-full.txt')).toBe(true)
     expect(matches('/changelog.xml')).toBe(true)

@@ -24,7 +24,7 @@ export const retoolProfile: CompetitorProfile = {
   oneLiner:
     'Retool is a low-code platform for building, deploying, and managing internal software (apps, workflows, and AI agents) that connect to databases, APIs, and LLMs.',
   leadAnswer: [
-    'Retool is a proprietary low-code platform for building internal software: React-based apps, workflows, and a separate Agents product connected to databases, APIs, and LLMs, on Retool Cloud or self-hosted with a Retool-issued license key. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Retool when the deliverable is an internal app with a user interface on top of production data, such as an admin panel or dashboard. Choose Sim when the deliverable is the agent or automation itself, built in one workflow builder and deployed as a REST API, chat interface, or MCP tool, with built-in evaluation and guardrail blocks.',
+    'Retool is a proprietary low-code platform for building internal software: React-based apps, workflows, and a separate Agents product connected to databases, APIs, and LLMs, on Retool Cloud or, on the Enterprise plan, self-hosted with a Retool-issued license key. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Retool when the deliverable is an internal app with a user interface on top of production data, such as an admin panel or dashboard. Choose Sim when the deliverable is the agent or automation itself, built in one workflow builder and deployed as a REST API, chat interface, or MCP tool, with built-in evaluation and guardrail blocks.',
   ],
   faqs: [
     {
@@ -188,8 +188,8 @@ export const retoolProfile: CompetitorProfile = {
       },
       deploymentOptions: {
         value:
-          'Retool Cloud (multi-tenant SaaS), or self-hosted via Docker Compose (non-prod/testing) or Kubernetes with Helm chart (production).',
-        shortValue: 'Cloud, or self-hosted via Docker/Kubernetes',
+          'Retool Cloud (multi-tenant SaaS), or, on the Enterprise plan only, self-hosted via Docker Compose (non-prod/testing) or Kubernetes with Helm chart (production).',
+        shortValue: 'Cloud, or self-hosted on Enterprise',
         confidence: 'verified',
         sources: [
           {

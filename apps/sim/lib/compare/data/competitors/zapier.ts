@@ -30,13 +30,13 @@ export const zapierProfile: CompetitorProfile = {
   oneLiner:
     'Zapier is a cloud-based, proprietary no-code/low-code automation platform built around "Zaps": trigger-action workflows connecting thousands of web apps. It recently added AI features, including Copilot for building, Agents for autonomous multi-step tasks, and an MCP server.',
   leadAnswer: [
-    "Zapier is a proprietary, cloud-only automation platform built around trigger-action Zaps across 9,000+ apps, with Copilot for natural-language building, a separate Agents product, and a hosted MCP server. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Zapier when you need the largest catalog of prebuilt app connectors for trigger-action automations that run entirely on Zapier's cloud. Choose Sim when AI agents are the core of the workflow, or when you need self-hosting, live multiplayer editing, native parallel branches, or a knowledge base with hybrid search that continuously syncs external sources.",
+    "Zapier is a proprietary, cloud-only automation platform built around trigger-action Zaps across 9,000+ apps, with Copilot for natural-language building, a separate Agents product that Zapier is migrating into AI by Zapier, and a hosted MCP server. Sim is an open-source AI workspace with an Apache 2.0-licensed core, where teams build, deploy, and manage AI agents visually, conversationally, or with code, on Sim Cloud or self-hosted. Choose Zapier when you need the largest catalog of prebuilt app connectors for trigger-action automations that run entirely on Zapier's cloud. Choose Sim when AI agents are the core of the workflow, or when you need self-hosting, live multiplayer editing, native parallel branches, or a knowledge base with hybrid search that continuously syncs external sources.",
   ],
   faqs: [
     {
       question: 'How does Sim compare to Zapier for building AI agents?',
       answer:
-        'Sim builds agents inside the same workflow builder as the rest of the automation, while Zapier runs AI agents in a separate Agents product alongside its trigger-action Zaps. Zapier Agents can reference FAQs, docs, and public links as knowledge, but Zapier does not publicly detail the retrieval implementation or document dedicated evaluation or guardrail tooling. Sim provides agent blocks across 28 LLM provider integrations, a knowledge base with hybrid vector and full-text search plus connectors that continuously sync sources such as Google Drive and Confluence, and Evaluator and Guardrails blocks that score outputs and detect or mask PII. Both products offer a dedicated human approval step that pauses a run mid-workflow.',
+        'Sim builds agents inside the same workflow builder as the rest of the automation, while Zapier runs AI agents in a separate Agents product alongside its trigger-action Zaps. Zapier is migrating Agents into AI by Zapier, which bills in tasks, and has not set a date to turn off Agents. Zapier Agents can reference FAQs, docs, and public links as knowledge, but Zapier does not publicly detail the retrieval implementation or document dedicated evaluation or guardrail tooling. Sim provides agent blocks across 28 LLM provider integrations, a knowledge base with hybrid vector and full-text search plus connectors that continuously sync sources such as Google Drive and Confluence, and Evaluator and Guardrails blocks that score outputs and detect or mask PII. Both products offer a dedicated human approval step that pauses a run mid-workflow.',
     },
     {
       question: 'Is there a Zapier alternative that can be self-hosted?',
@@ -407,11 +407,16 @@ export const zapierProfile: CompetitorProfile = {
       agentReasoningBlocks: {
         value: 'Yes',
         detail:
-          'Zapier Agents is a distinct product for building autonomous, multi-step AI agents, separate from plain trigger-action Zaps, that reason across tasks and act across 9,000+ apps.',
+          'Zapier Agents is a distinct product for building autonomous, multi-step AI agents, separate from plain trigger-action Zaps, that reason across tasks and act across 9,000+ apps. Zapier is migrating Agents into AI by Zapier, which bills in tasks, and has not set a date to turn off Agents.',
         shortValue: 'Dedicated Agents product for multi-step AI tasks',
         confidence: 'estimated',
         sources: [
           { url: 'https://zapier.com/agents', label: 'Zapier Agents overview', asOf: '2026-07-02' },
+          {
+            url: 'https://help.zapier.com/hc/en-us/articles/47402591569805-Migrating-from-Agents-to-AI-by-Zapier',
+            label: 'Migrating from Agents to AI by Zapier',
+            asOf: '2026-10-20',
+          },
         ],
       },
       naturalLanguageBuilding: {
