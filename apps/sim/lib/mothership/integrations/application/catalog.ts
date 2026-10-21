@@ -166,7 +166,8 @@ interface CatalogProjectionOptions {
  * Return schemas only for targeted discovery (query, service or exact ID), while keeping
  * explicit full listings compact. Free-text queries rank by BM25, with operations of the
  * requester's connected services boosted; an exact operation ID always ranks first, and
- * preferred services break ties in score.
+ * preferred services break ties in score. A query with no content terms ("what can I
+ * use", or a script the tokenizer does not split) asks for the listing, as an empty one does.
  */
 export function projectIntegrationCatalog(
   tools: ToolSchema[],
@@ -183,11 +184,12 @@ export function projectIntegrationCatalog(
       (!input.toolId || tool.name === input.toolId) &&
       (!services || (tool.service && services.has(tool.service.toLowerCase())))
   )
-  const connected = normalized ? resolveConnectedServices(candidates, connectedProviderIds) : null
-  const scores = normalized ? rankByBm25(candidates, queryTerms) : []
+  const ranked = queryTerms.length > 0
+  const connected = ranked ? resolveConnectedServices(candidates, connectedProviderIds) : null
+  const scores = ranked ? rankByBm25(candidates, queryTerms) : []
   const matches = candidates.flatMap((tool, index) => {
-    if (!normalized) return [{ tool, exact: false, score: 0 }]
-    const exact = tool.name.toLowerCase() === normalized
+    const exact = Boolean(normalized) && tool.name.toLowerCase() === normalized
+    if (!ranked) return [{ tool, exact, score: 0 }]
     const score =
       (scores[index] ?? 0) *
       (tool.service && connected?.has(tool.service.toLowerCase()) ? CONNECTED_SERVICE_BOOST : 1)
@@ -201,7 +203,7 @@ export function projectIntegrationCatalog(
       a.tool.name.localeCompare(b.tool.name)
   )
   const selected = input.limit === 0 ? matches : matches.slice(0, input.limit)
-  const targeted = Boolean(input.toolId || normalized || services)
+  const targeted = Boolean(input.toolId || ranked || services)
   return {
     total: matches.length,
     truncated: selected.length < matches.length,
@@ -361,14 +363,32 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     let complete = named
     let bestEffort: string[] = []
     if (!selectionScoped) {
-      const usable = await listUsableMcpServerIds(context.userId, workspaceId)
-      const untagged = [...usable].filter(
+      /** Broad discovery is optional: without the server list it keeps the tagged servers and built-ins. */
+      const usable = await listUsableMcpServerIds(context.userId, workspaceId).catch(
+        (error: unknown) => {
+          if (targeted) throw error
+          logger.warn('Workspace MCP servers unavailable; discovering only tagged servers', {
+            workspaceId,
+            error: getErrorMessage(error),
+          })
+          return null
+        }
+      )
+      const untagged = [...(usable ?? [])].filter(
         (serverId) => isTarget(serverId) && !taggedIds.has(serverId)
       )
       /** A targeted server is listed completely; a tagged one keeps its own error even once unusable. */
       if (targeted) complete = [...named, ...untagged]
-      else {
+      else if (usable) {
         complete = named.filter((serverId) => usable.has(serverId))
+        for (const serverId of named)
+          if (!usable.has(serverId))
+            logger.warn(
+              'Omitting a tagged MCP server that is no longer usable from the integration catalog',
+              {
+                serverId,
+              }
+            )
         bestEffort = untagged
       }
     }

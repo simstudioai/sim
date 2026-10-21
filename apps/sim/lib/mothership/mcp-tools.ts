@@ -34,6 +34,8 @@ interface McpDiscoveryServers {
    * Chat-only: servers available without being named. Served from the discovery
    * cache when fresh, otherwise skipped after {@link BEST_EFFORT_DISCOVERY_WAIT_MS}.
    * One with no permitted operations contributes nothing and is not a failure.
+   * Their discovery never touches a server's shared status or cooldown, and skips a
+   * server the requester cannot authenticate to.
    */
   bestEffort?: string[]
 }
@@ -94,7 +96,7 @@ export async function buildMcpToolSchemas(
   const discoverBestEffort = async (serverId: string) => {
     const discovery = discoverMcpServerToolsUseCase.execute({
       principal: principal(),
-      input: { workspaceId, serverId },
+      input: { workspaceId, serverId, bestEffort: true },
     })
     const { tools } = await withinDeadline(
       () => discovery,

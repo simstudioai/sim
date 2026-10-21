@@ -6,13 +6,14 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import {
   type EnvironmentResolutionSnapshot,
   getEffectiveEnvironmentSnapshot,
 } from '@/lib/environment/utils'
 import type { McpServerConfig } from '@/lib/mcp/types'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
-import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
+import { createEnvVarPattern, resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import {
   createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
@@ -148,4 +149,37 @@ export async function resolveMcpConfigEnvVars(
     missingVars: allMissingVars,
     resolvedSecretTraceProvenance,
   }
+}
+
+/**
+ * The variables `config` references (url, headers) that `userId` has no value for in this
+ * workspace. Read-only: it records no secret usage, so it can check whether a requester can
+ * authenticate to a server before anything connects.
+ */
+export async function findMissingMcpConfigEnvVars(
+  config: McpServerConfig,
+  userId: string,
+  workspaceId?: string
+): Promise<string[]> {
+  const values = [config.url, ...Object.values(config.headers ?? {})].filter(
+    (value): value is string => typeof value === 'string'
+  )
+  if (!values.some((value) => createEnvVarPattern().test(value))) return []
+  const env = await getEffectiveEnvironmentSnapshot(userId, workspaceId)
+  const merged = { ...env.personalDecrypted, ...env.workspaceDecrypted }
+  /**
+   * A value that failed to decrypt arrives as '' and is named in `decryptionFailures`; an
+   * intentionally empty one is only ''. The list does not say which slice failed, so a key
+   * counts as failed only when its effective value is also empty. The one ambiguity left, an
+   * intentionally empty workspace value over a personal one that failed, counts as missing,
+   * so best-effort discovery skips rather than connects.
+   */
+  const failed = new Set(env.decryptionFailures)
+  const envVars = omit(
+    merged,
+    Object.keys(merged).filter((key) => failed.has(key) && merged[key] === '')
+  )
+  const missingKeys: string[] = []
+  for (const value of values) resolveEnvVarReferences(value, envVars, { missingKeys })
+  return [...new Set(missingKeys)]
 }
