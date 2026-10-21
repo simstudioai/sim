@@ -448,6 +448,7 @@ export const HelpScoutBlock: BlockConfig = {
       type: 'short-input',
       placeholder: 'vip, billing',
       condition: { field: 'operation', value: ['create_conversation', 'set_conversation_tags'] },
+      required: { field: 'operation', value: 'set_conversation_tags' },
     },
     {
       id: 'createStatus',

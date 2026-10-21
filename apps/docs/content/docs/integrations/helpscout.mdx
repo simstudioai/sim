@@ -432,7 +432,7 @@ Move a Help Scout conversation to another inbox.
 
 ### Help Scout Set Conversation Tags
 
-Replace the full tag list on a Help Scout conversation. Tags left out are removed, an empty list removes every tag, and unknown tags are created.
+Replace the full tag list on a Help Scout conversation. Tags left out are removed, [] removes every tag, and unknown tags are created.
 
 <ReferenceDetails>
 
@@ -441,7 +441,7 @@ Replace the full tag list on a Help Scout conversation. Tags left out are remove
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `conversationId` | string | Yes | Conversation ID |
-| `tags` | string | No | Comma-separated tags the conversation should have, including any existing tags to keep. Leave empty to remove every tag. |
+| `tags` | string | Yes | Comma-separated tags the conversation should have, including any existing tags to keep. Pass \[\] to remove every tag. |
 
 #### Output
 
@@ -1345,7 +1345,7 @@ A trigger starts a workflow when a supported event occurs in this service.
 
 ### Help Scout Agent Replied
 
-Trigger workflow when a user replies to a Help Scout conversation (auto replies are not included)
+Trigger workflow when an agent replies to a Help Scout conversation (auto replies are not included)
 
 <ReferenceDetails label="Configuration and outputs">
 
@@ -1373,9 +1373,9 @@ Trigger workflow when a user replies to a Help Scout conversation (auto replies 
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1423,9 +1423,9 @@ Trigger workflow when a Help Scout conversation is assigned
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1473,9 +1473,9 @@ Trigger workflow when a conversation is created in Help Scout
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1547,9 +1547,9 @@ Trigger workflow when Help Scout conversations are merged
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1597,9 +1597,9 @@ Trigger workflow when a Help Scout conversation is moved to another inbox
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1647,9 +1647,9 @@ Trigger workflow when the status of a Help Scout conversation changes
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1697,9 +1697,9 @@ Trigger workflow when the tags on a Help Scout conversation change
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1791,9 +1791,9 @@ Trigger workflow when a customer replies to a Help Scout conversation
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |
@@ -1885,9 +1885,9 @@ Trigger workflow when a note is added to a Help Scout conversation
 |   ↳ `subject` | string | Subject |
 |   ↳ `preview` | string | Preview text from the most recent thread |
 |   ↳ `mailboxId` | number | Inbox ID |
-|   ↳ `assignee` | json | User or team the conversation is assigned to |
-|   ↳ `createdBy` | json | User or customer who created the conversation |
-|   ↳ `primaryCustomer` | json | Primary customer of the conversation |
+|   ↳ `assignee` | json | User or team the conversation is assigned to \(id, type, first, last, name, email\) |
+|   ↳ `createdBy` | json | User or customer who created the conversation \(id, type, first, last, name, email\) |
+|   ↳ `primaryCustomer` | json | Primary customer of the conversation \(id, type, first, last, name, email\) |
 |   ↳ `createdAt` | string | When the conversation was created |
 |   ↳ `closedAt` | string | When the conversation was closed |
 |   ↳ `closedBy` | number | ID of the user who closed it |

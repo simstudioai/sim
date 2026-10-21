@@ -25,7 +25,8 @@ import type { OutputProperty } from '@/tools/types'
 
 export const HELPSCOUT_API_BASE = 'https://api.helpscout.net/v2'
 
-export const HELPSCOUT_ID_PATTERN = /^\d{1,16}$/
+/** A positive Help Scout ID in canonical form: no sign, no leading zeros. */
+const HELPSCOUT_ID_PATTERN = /^[1-9]\d{0,15}$/
 
 export function buildHelpScoutHeaders(accessToken: string): Record<string, string> {
   return {
@@ -37,15 +38,9 @@ export function buildHelpScoutHeaders(accessToken: string): Record<string, strin
 
 /** Help Scout IDs are positive integers; reject anything else before it reaches a URL or body. */
 export function parseHelpScoutId(value: unknown, paramName: string): number {
-  const text = typeof value === 'number' ? String(value) : (toStringOrNull(value)?.trim() ?? '')
-  if (
-    !HELPSCOUT_ID_PATTERN.test(text) ||
-    !Number.isSafeInteger(Number(text)) ||
-    Number(text) <= 0
-  ) {
-    throw new Error(`${paramName} must be a numeric Help Scout ID`)
-  }
-  return Number(text)
+  const id = parseIdText(typeof value === 'number' ? String(value) : toStringOrNull(value))
+  if (id === null) throw new Error(`${paramName} must be a numeric Help Scout ID`)
+  return id
 }
 
 export function parseOptionalHelpScoutId(value: unknown, paramName: string): number | undefined {
@@ -94,7 +89,7 @@ export function readResourceId(response: Response): number | null {
 }
 
 /** Parses an ID carried as text (a header or query string), or null when it is not one. */
-function parseIdText(value: string | null): number | null {
+export function parseIdText(value: string | null): number | null {
   const text = value?.trim() ?? ''
   return HELPSCOUT_ID_PATTERN.test(text) && Number.isSafeInteger(Number(text)) ? Number(text) : null
 }

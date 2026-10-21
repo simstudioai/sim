@@ -18,7 +18,7 @@ import {
   requireListRequest,
   type ServerSelectorAttachmentMap,
 } from '@/lib/selectors/server/types'
-import { HELPSCOUT_API_BASE, HELPSCOUT_ID_PATTERN } from '@/tools/helpscout/utils'
+import { HELPSCOUT_API_BASE, parseIdText } from '@/tools/helpscout/utils'
 
 type HelpScoutSelectorKey = Extract<
   ServerSelectorKey,
@@ -91,9 +91,7 @@ async function helpScoutHeaders(args: ExecuteServerSelectorArgs): Promise<Record
 
 function requireHelpScoutId(value: string): string {
   const id = value.trim()
-  if (!HELPSCOUT_ID_PATTERN.test(id) || !Number.isSafeInteger(Number(id))) {
-    throw new SelectorContextUnavailableError()
-  }
+  if (parseIdText(id) === null) throw new SelectorContextUnavailableError()
   return id
 }
 

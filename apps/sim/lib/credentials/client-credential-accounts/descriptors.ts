@@ -105,7 +105,10 @@ export interface ClientCredentialAccountDescriptor {
   defaultAuthMethod?: string
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
-  /** Optional one-line caveat rendered in the connect modal. */
+  /**
+   * Optional one-line caveat, rendered under the `orgId` field of the connect modal. A descriptor
+   * without an `orgId` field puts its guidance in a field `hint` instead.
+   */
   helpText?: string
 }
 
@@ -434,6 +437,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'App ID',
         placeholder: 'Paste the App ID',
         secret: false,
+        hint: 'Create the app in Help Scout under Your Profile > My Apps.',
       },
       {
         id: 'clientSecret',
@@ -443,7 +447,6 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/helpscout',
-    helpText: 'Create the app in Help Scout under Your Profile > My Apps.',
   },
   [VANTA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: VANTA_SERVICE_ACCOUNT_PROVIDER_ID,
